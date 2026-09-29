@@ -126,27 +126,71 @@ export function updateExpense(state,expenseId,fields,referenceDate=new Date()) {
 }
 export function deleteExpense(state,expenseId) { const entries=state.expenses??[]; if(!entries.some(row=>row.id===expenseId)) throw new Error('Expense entry not found.'); return {...state,expenses:entries.filter(row=>row.id!==expenseId)}; }
 
-export function isActiveSubscription(customer,onDate) {
-  const date=typeof onDate==='string'?onDate:pktDate(onDate);
-  if(customer.archived===true||!nonblank(customer.monthlySellingAmount)||!Number.isFinite(Number(customer.monthlySellingAmount))||Number(customer.monthlySellingAmount)<=0) return false;
-  if(customer.connectionDate&&customer.connectionDate>date) return false;
-  if(customer.expiryDate&&customer.expiryDate<date) return false;
-  if(customer.cancellationDate&&customer.cancellationDate<=date) return false;
-  return true;
+function normalizedText(value) { return String(value??'').normalize('NFKC').replace(/\s+/gu,' ').trim(); }
+function comparisonKey(value) { return normalizedText(value).toLowerCase().normalize('NFKC'); }
+function readableLabel(value) {
+  const readableWord=word=>{
+    const letters=word.match(/\p{L}/gu)??[];
+    if(letters.length>=2&&letters.length<=3&&letters.every(letter=>letter===letter.toLocaleUpperCase('en-US')))return word;
+    const chars=Array.from(word); if(!chars.length)return word;
+    return chars[0].toLocaleUpperCase('en-US')+chars.slice(1).join('').toLocaleLowerCase('en-US');
+  };
+  return normalizedText(value).split(' ').map(word=>word.split(/([-–—/])/u).map(part=>/^[-–—/]$/u.test(part)?part:readableWord(part)).join('')).join(' ');
 }
+function canonicalLocation(value) {
+  const text=normalizedText(value); return text?{key:comparisonKey(text),label:readableLabel(text)}:null;
+}
+export function canonicalPackage(value) {
+  const text=normalizedText(value); if(!text)return null;
+  const speed=text.match(/^(5|10|15|30)\s*mbps$/iu);
+  return speed?{key:`${speed[1]}mbps`,label:`${speed[1]} Mbps`}:{key:comparisonKey(text),label:readableLabel(text)};
+}
+function subscriptionExclusionReason(customer,onDate) {
+  const date=typeof onDate==='string'?onDate:pktDate(onDate),month=monthOf(date);
+  if(customer.archived===true)return 'archived';
+  if(customer.cancellationDate&&customer.cancellationDate<=date)return 'cancelled';
+  if(customer.expiryDate&&customer.expiryDate<date)return 'expired';
+  if(customer.connectionDate&&customer.connectionDate>date)return 'notYetEffective';
+  if(MONTH_RE.test(String(customer.billingStartMonth??''))&&customer.billingStartMonth>month)return 'notYetEffective';
+  if(!canonicalPackage(customer.packageSpeed))return 'packageNotSet';
+  if(priceForMonth(customer,month)===null) {
+    const futureRate=(customer.monthlyPriceSchedule??[]).some(entry=>MONTH_RE.test(String(entry.effectiveMonth??''))&&entry.effectiveMonth>month&&Number.isFinite(Number(entry.amount))&&Number(entry.amount)>0);
+    return futureRate?'notYetEffective':'priceNotSet';
+  }
+  return null;
+}
+export function isActiveSubscription(customer,onDate) { return subscriptionExclusionReason(customer,onDate)===null; }
 export function areaLabel(customer) {
-  const zone=String(customer.zone??'').trim(); if(zone) return `Zone: ${zone}`;
-  const mohalla=String(customer.mohalla??'').trim(); if(mohalla) return `Area: ${mohalla}`;
-  const address=String(customer.address??'').trim(); if(address) return `Address: ${address}`;
-  return 'Not set';
+  const area=canonicalLocation(customer.area)||canonicalLocation(customer.mohalla);
+  return area?`Area: ${area.label}`:'Area not set';
 }
-function paymentEntries(state) { return (state.customers??[]).flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).map(payment=>({customer,bill,payment})))); }
-function allBills(state) { return (state.customers??[]).flatMap(customer=>(customer.bills??[]).map(bill=>({customer,bill}))); }
+function uniqueCustomerRows(customers) {
+  const seen=new Set();
+  return customers.filter((customer,index)=>{
+    const key=customer?.id!==undefined&&customer?.id!==null&&String(customer.id)!==''?`id:${customer.id}`:customer?.customerNumber!==undefined?`number:${customer.customerNumber}`:`row:${index}`;
+    if(seen.has(key))return false; seen.add(key); return true;
+  });
+}
+function billRevision(bill) {
+  const correction=[...(bill.amountHistory??[])].map(entry=>String(entry.changedAt??'')).sort().at(-1)??'';
+  return [String(bill.updatedAt??''),correction,String(bill.createdAt??'')].sort().at(-1)??'';
+}
+function uniqueBillsForCustomer(customer) {
+  const byMonth=new Map();
+  for(const [index,bill] of (customer.bills??[]).entries()) {
+    const key=MONTH_RE.test(String(bill.month??''))?`month:${bill.month}`:`row:${bill.id??index}`;
+    const current=byMonth.get(key),revision=billRevision(bill);
+    if(!current||revision>current.revision||(revision===current.revision&&String(bill.id??'').localeCompare(String(current.bill.id??''))>0))byMonth.set(key,{bill,revision});
+  }
+  return [...byMonth.values()].map(entry=>entry.bill);
+}
+function paymentEntries(state) { return allBills(state).flatMap(({customer,bill})=>(bill.payments??[]).map(payment=>({customer,bill,payment}))); }
+function allBills(state) { return uniqueCustomerRows(state.customers??[]).flatMap(customer=>uniqueBillsForCustomer(customer).map(bill=>({customer,bill}))); }
 function dateThrough(referenceDate,month) { const end=monthEnd(month); const today=pktDate(referenceDate); return end>today?today:end; }
 export function outstandingAtMonthEnd(state,month,referenceDate=new Date()) {
   const cutoff=dateThrough(referenceDate,month); let totalCents=0,billCount=0; const byCustomer=new Map();
-  for(const customer of state.customers??[]) {
-    const bills=[...(customer.bills??[])].filter(bill=>MONTH_RE.test(bill.month)&&bill.month<=month).sort((a,b)=>a.month.localeCompare(b.month));
+  for(const customer of uniqueCustomerRows(state.customers??[])) {
+    const bills=uniqueBillsForCustomer(customer).filter(bill=>MONTH_RE.test(bill.month)&&bill.month<=month).sort((a,b)=>a.month.localeCompare(b.month));
     let pendingCredit=0,customerCents=0;
     for(const bill of bills) {
       const due=Number(bill.dueAmount); if(!Number.isFinite(due)||due<=0) continue; billCount++;
@@ -161,7 +205,8 @@ export function outstandingAtMonthEnd(state,month,referenceDate=new Date()) {
 }
 function priceForMonth(customer,month) {
   const schedule=(customer.monthlyPriceSchedule??[]).filter(entry=>typeof entry.effectiveMonth==='string'&&entry.effectiveMonth<=month).sort((a,b)=>a.effectiveMonth.localeCompare(b.effectiveMonth));
-  const amount=schedule.at(-1)?.amount??customer.monthlySellingAmount;
+  const allSchedule=customer.monthlyPriceSchedule??[];
+  const amount=schedule.at(-1)?.amount??(allSchedule.length?null:customer.monthlySellingAmount);
   return nonblank(amount)&&Number.isFinite(Number(amount))&&Number(amount)>0?Number(amount):null;
 }
 function hasSubscriptionInMonth(customer,month) {
@@ -173,43 +218,100 @@ function hasSubscriptionInMonth(customer,month) {
   return priceForMonth(customer,month)!==null;
 }
 function serviceRevenueByCustomerMonth(state,month) {
-  const map=new Map(); for(const {customer,bill} of allBills(state)) if(bill.month===month&&nonblank(bill.dueAmount)&&Number.isFinite(Number(bill.dueAmount))&&Number(bill.dueAmount)>0) map.set(customer.id,(map.get(customer.id)??0)+Number(bill.dueAmount)); return map;
+  const map=new Map(); for(const {customer,bill} of allBills(state)) if(bill.month===month&&nonblank(bill.dueAmount)&&Number.isFinite(Number(bill.dueAmount))&&Number(bill.dueAmount)>0) map.set(customer.id,money(cents(bill.dueAmount))); return map;
 }
 function churnDate(customer) { return customer.cancellationDate || (customer.archived===true ? String(customer.archivedAt??'').slice(0,10) : ''); }
 function countDate(rows,field,month) { return rows.filter(row=>monthOf(row[field])===month).length; }
 function actualCashByMonth(state,month) { return paymentEntries(state).filter(({payment})=>monthOf(payment.date)===month).reduce((sum,row)=>sum+Number(row.payment.amount||0),0); }
 function validIncidentMonth(incident) { return typeof incident.reportedAt==='string'?incident.reportedAt.slice(0,7):''; }
 
+function locationPath(customer) {
+  const explicitArea=canonicalLocation(customer.area),mohalla=canonicalLocation(customer.mohalla),area=explicitArea??mohalla;
+  const separateMohalla=explicitArea&&mohalla&&explicitArea.key!==mohalla.key?mohalla:null;
+  return {area,separateMohalla,zone:canonicalLocation(customer.zone)};
+}
+function newSummaryGroup(label,key,level,parentArea='',depth=0) {
+  return {area:label,key,level,parentArea,depth,customerCount:0,activeCustomers:0,online:0,offline:0,notSet:0,billedRevenueCents:0,outstandingCents:0,complaints:0,newConnections:0,hasBilledRevenue:false,hasBillHistory:false};
+}
+function addSummaryCustomer(group,customer,active,revenueMap,outstanding,billHistoryCustomerIds,currentMonth) {
+  group.customerCount++; if(active)group.activeCustomers++;
+  if(!customer.archived&&customer.serviceStatus==='active')group.online++; else if(!customer.archived&&customer.serviceStatus==='offline')group.offline++; else if(!customer.archived)group.notSet++;
+  if(revenueMap.has(customer.id)){group.billedRevenueCents+=cents(revenueMap.get(customer.id));group.hasBilledRevenue=true;}
+  const due=outstanding.byCustomer.get(customer.id)??0; group.outstandingCents+=cents(due);
+  if(billHistoryCustomerIds.has(customer.id))group.hasBillHistory=true;
+  group.complaints+=(customer.incidents??[]).length;
+  if(monthOf(customer.connectionDate)===currentMonth)group.newConnections++;
+}
+function finalizeSummaryGroup(group,includedInAreaRollup=false) {
+  const billedRevenue=money(group.billedRevenueCents),outstandingAmount=money(group.outstandingCents);
+  return {...group,billedRevenue,outstanding:outstandingAmount,excludedSubscriptions:group.customerCount-group.activeCustomers,
+    onlineDenominator:group.online+group.offline,onlinePercent:group.online+group.offline?Number((group.online/(group.online+group.offline)*100).toFixed(1)):null,
+    hasBilledRevenue:group.hasBilledRevenue===true,hasBillHistory:group.hasBillHistory===true,
+    arpu:group.activeCustomers&&group.hasBilledRevenue?money(Math.round(group.billedRevenueCents/group.activeCustomers)):null,includedInAreaRollup};
+}
+function sortedGroups(map) { return [...map.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([,value])=>value); }
+
 export function buildPhase3Analytics(state,referenceDate=new Date()) {
   const currentMonth=pktMonth(referenceDate),months=sixMonths(referenceDate),today=pktDate(referenceDate);
-  const customerRows=state.customers??[],bills=allBills(state),payments=paymentEntries(state),expenses=state.expenses??[],incidents=customerRows.flatMap(customer=>(customer.incidents??[]).map(incident=>({customer,incident}))),areas=new Map();
+  const customerRows=uniqueCustomerRows(state.customers??[]),bills=allBills(state),payments=paymentEntries(state),expenses=state.expenses??[],incidents=customerRows.flatMap(customer=>(customer.incidents??[]).map(incident=>({customer,incident}))),areas=new Map();
   const billHistoryCustomerIds=new Set(bills.filter(({bill})=>bill.month<=currentMonth&&nonblank(bill.dueAmount)&&Number.isFinite(Number(bill.dueAmount))&&Number(bill.dueAmount)>0).map(({customer})=>customer.id));
-  const getArea=customer=>{const label=areaLabel(customer);if(!areas.has(label))areas.set(label,{area:label,customerCount:0,activeCustomers:0,online:0,offline:0,notSet:0,billedRevenue:0,outstanding:0,complaints:0,newConnections:0,arpu:null});return areas.get(label);};
-  const revenueMap=serviceRevenueByCustomerMonth(state,currentMonth); const outstanding=outstandingAtMonthEnd(state,currentMonth,referenceDate);
-  for(const customer of customerRows) {
-    const area=getArea(customer); area.customerCount++; const active=isActiveSubscription(customer,today); if(active) area.activeCustomers++;
-    if(!customer.archived&&customer.serviceStatus==='active') area.online++; else if(!customer.archived&&customer.serviceStatus==='offline') area.offline++; else if(!customer.archived) area.notSet++;
-    area.billedRevenue+=revenueMap.get(customer.id)??0; area.outstanding+=outstanding.byCustomer.get(customer.id)??0;
-    if(revenueMap.has(customer.id)) area.hasBilledRevenue=true;
-    if(billHistoryCustomerIds.has(customer.id)) area.hasBillHistory=true;
-    area.complaints+=(customer.incidents??[]).length;
-    if(monthOf(customer.connectionDate)===currentMonth) area.newConnections++;
-  }
-  for(const area of areas.values()) area.arpu=area.activeCustomers&&area.hasBilledRevenue?Number((area.billedRevenue/area.activeCustomers).toFixed(2)):null;
-  const areaRows=[...areas.values()].sort((a,b)=>a.area.localeCompare(b.area)).map(area=>({...area,onlineDenominator:area.online+area.offline,onlinePercent:area.online+area.offline?Number((area.online/(area.online+area.offline)*100).toFixed(1)):null,hasBilledRevenue:area.hasBilledRevenue===true,hasBillHistory:area.hasBillHistory===true}));
-
+  const revenueMap=serviceRevenueByCustomerMonth({customers:customerRows},currentMonth),outstanding=outstandingAtMonthEnd({customers:customerRows},currentMonth,referenceDate);
+  const exclusionCounts={archived:0,cancelled:0,expired:0,notYetEffective:0,packageNotSet:0,priceNotSet:0};
+  let activeConfiguredSubscriptions=0;
   const packageMap=new Map();
+  const getPackage=customer=>{
+    const canonical=canonicalPackage(customer.packageSpeed),key=canonical?.key??'__package_not_set__';
+    if(!packageMap.has(key))packageMap.set(key,{package:canonical?.label??'Package not set',packageKey:key,customers:0,activeCustomers:0,excludedSubscriptions:0,billedRevenueCents:0,outstandingCents:0,newSubscriptions:0,expired:0,churn:0,hasBilledRevenue:false,hasBillHistory:false,exclusionCounts:{}});
+    return packageMap.get(key);
+  };
   for(const customer of customerRows) {
-    const name=String(customer.packageSpeed??'').trim()||'Not set'; if(!packageMap.has(name))packageMap.set(name,{package:name,customers:0,activeCustomers:0,billedRevenue:0,outstanding:0,newSubscriptions:0,expired:0,churn:0,arpu:null});
-    const row=packageMap.get(name); row.customers++; if(isActiveSubscription(customer,today))row.activeCustomers++;
-    row.billedRevenue+=revenueMap.get(customer.id)??0; row.outstanding+=outstanding.byCustomer.get(customer.id)??0;
-    if(revenueMap.has(customer.id)) row.hasBilledRevenue=true;
-    if(billHistoryCustomerIds.has(customer.id)) row.hasBillHistory=true;
-    if(monthOf(customer.connectionDate)===currentMonth) row.newSubscriptions++;
-    if(monthOf(customer.expiryDate)===currentMonth) row.expired++;
-    if(monthOf(churnDate(customer))===currentMonth) row.churn++;
+    const reason=subscriptionExclusionReason(customer,today),active=reason===null;
+    if(active)activeConfiguredSubscriptions++; else exclusionCounts[reason]=(exclusionCounts[reason]??0)+1;
+    const packageGroup=getPackage(customer); packageGroup.customers++; if(active)packageGroup.activeCustomers++;
+    else {packageGroup.excludedSubscriptions++;packageGroup.exclusionCounts[reason]=(packageGroup.exclusionCounts[reason]??0)+1;}
+    if(revenueMap.has(customer.id)){packageGroup.billedRevenueCents+=cents(revenueMap.get(customer.id));packageGroup.hasBilledRevenue=true;}
+    packageGroup.outstandingCents+=cents(outstanding.byCustomer.get(customer.id)??0);
+    if(billHistoryCustomerIds.has(customer.id))packageGroup.hasBillHistory=true;
+    if(monthOf(customer.connectionDate)===currentMonth)packageGroup.newSubscriptions++;
+    if(monthOf(customer.expiryDate)===currentMonth)packageGroup.expired++;
+    if(monthOf(churnDate(customer))===currentMonth)packageGroup.churn++;
+
+    const path=locationPath(customer);
+    if(!path.area)continue;
+    if(!areas.has(path.area.key))areas.set(path.area.key,{summary:newSummaryGroup(`Area: ${path.area.label}`,path.area.key,'area'),zones:new Map(),mohallas:new Map()});
+    const area=areas.get(path.area.key); addSummaryCustomer(area.summary,customer,active,revenueMap,outstanding,billHistoryCustomerIds,currentMonth);
+    let zoneMap=area.zones,zoneParent=area.summary.area,depth=1;
+    if(path.separateMohalla) {
+      if(!area.mohallas.has(path.separateMohalla.key))area.mohallas.set(path.separateMohalla.key,{summary:newSummaryGroup(`Mohalla: ${path.separateMohalla.label}`,path.separateMohalla.key,'mohalla',area.summary.area,1),zones:new Map()});
+      const mohallaGroup=area.mohallas.get(path.separateMohalla.key); addSummaryCustomer(mohallaGroup.summary,customer,active,revenueMap,outstanding,billHistoryCustomerIds,currentMonth);
+      zoneMap=mohallaGroup.zones; zoneParent=mohallaGroup.summary.area; depth=2;
+    }
+    const zoneKey=path.zone?.key??'__zone_not_set__';
+    if(!zoneMap.has(zoneKey))zoneMap.set(zoneKey,newSummaryGroup(path.zone?`Zone: ${path.zone.label}`:'Zone not set',zoneKey,'zone',zoneParent,depth));
+    addSummaryCustomer(zoneMap.get(zoneKey),customer,active,revenueMap,outstanding,billHistoryCustomerIds,currentMonth);
   }
-  const packageRows=[...packageMap.values()].sort((a,b)=>a.package.localeCompare(b.package)).map(row=>({...row,hasBilledRevenue:row.hasBilledRevenue===true,hasBillHistory:row.hasBillHistory===true,arpu:row.activeCustomers&&row.hasBilledRevenue?Number((row.billedRevenue/row.activeCustomers).toFixed(2)):null}));
+  const areaRows=[];
+  for(const area of sortedGroups(areas)) {
+    areaRows.push(finalizeSummaryGroup(area.summary));
+    for(const zone of sortedGroups(area.zones))areaRows.push(finalizeSummaryGroup(zone,true));
+    for(const mohalla of sortedGroups(area.mohallas)) {
+      areaRows.push(finalizeSummaryGroup(mohalla.summary,true));
+      for(const zone of sortedGroups(mohalla.zones))areaRows.push(finalizeSummaryGroup(zone,true));
+    }
+  }
+  const packageRows=[...packageMap.values()].sort((a,b)=>a.packageKey==='__package_not_set__'?1:b.packageKey==='__package_not_set__'?-1:a.packageKey.localeCompare(b.packageKey)).map(row=>{
+    const billedRevenue=money(row.billedRevenueCents),outstandingAmount=money(row.outstandingCents);
+    return {...row,billedRevenue,outstanding:outstandingAmount,hasBilledRevenue:row.hasBilledRevenue===true,hasBillHistory:row.hasBillHistory===true,
+      arpu:row.activeCustomers&&row.hasBilledRevenue?money(Math.round(row.billedRevenueCents/row.activeCustomers)):null};
+  });
+  const unassignedProfiles=customerRows.filter(customer=>!locationPath(customer).area),unassignedArea={profiles:unassignedProfiles.length,
+    activeConfiguredSubscriptions:unassignedProfiles.filter(customer=>subscriptionExclusionReason(customer,today)===null).length,
+    withZone:unassignedProfiles.filter(customer=>!!canonicalLocation(customer.zone)).length,withoutZone:unassignedProfiles.filter(customer=>!canonicalLocation(customer.zone)).length,
+    namedAreaProfilesWithoutZone:customerRows.filter(customer=>locationPath(customer).area&&!canonicalLocation(customer.zone)).length};
+  const currentBilledRevenueCents=[...revenueMap.values()].reduce((sum,amount)=>sum+cents(amount),0);
+  const currentServiceMonthArpu={billedRevenue:revenueMap.size?money(currentBilledRevenueCents):null,billSnapshotCount:revenueMap.size,
+    activeSubscriptions:activeConfiguredSubscriptions,excludedSubscriptions:customerRows.length-activeConfiguredSubscriptions,excludedByReason:exclusionCounts,
+    arpu:activeConfiguredSubscriptions&&revenueMap.size?money(Math.round(currentBilledRevenueCents/activeConfiguredSubscriptions)):null};
 
   const revenueCollection=months.map(month=>{const matchingBills=bills.filter(({bill})=>bill.month===month&&nonblank(bill.dueAmount)&&Number(bill.dueAmount)>0);const matchingPayments=payments.filter(({payment})=>monthOf(payment.date)===month);return {month,billedRevenue:matchingBills.length?matchingBills.reduce((sum,row)=>sum+Number(row.bill.dueAmount),0):null,cashCollection:matchingPayments.length?matchingPayments.reduce((sum,row)=>sum+Number(row.payment.amount||0),0):null,billCount:matchingBills.length,receiptCount:matchingPayments.length};});
   const incomeExpense=months.map(month=>{const matchingPayments=payments.filter(({payment})=>monthOf(payment.date)===month);const matchingExpenses=expenses.filter(row=>monthOf(row.date)===month);return {month,income:matchingPayments.length?matchingPayments.reduce((sum,row)=>sum+Number(row.payment.amount||0),0):null,expenses:matchingExpenses.length?matchingExpenses.reduce((sum,row)=>sum+Number(row.amount||0),0):null,incomeCount:matchingPayments.length,expenseCount:matchingExpenses.length};});
@@ -225,12 +327,12 @@ export function buildPhase3Analytics(state,referenceDate=new Date()) {
   }
   const lastSixIncidents=incidents.filter(({incident})=>months.includes(validIncidentMonth(incident)));
   const networkIssues=months.map(month=>({month,count:lastSixIncidents.filter(({incident})=>validIncidentMonth(incident)===month).length}));
-  return {currentMonth,currentMonthPartial:true,months,asOf:today,areaRows,packageRows,
+  return {currentMonth,currentMonthPartial:true,months,asOf:today,areaRows,packageRows,unassignedArea,currentServiceMonthArpu,
     revenueCollection,hasRevenueRecords:revenueCollection.some(row=>row.billCount>0||row.receiptCount>0),incomeExpense,hasIncomeRecords:incomeExpense.some(row=>row.incomeCount>0),hasExpenseRecords:incomeExpense.some(row=>row.expenseCount>0),monthEndOutstanding,
     growth,hasConnectionDates:customerRows.some(customer=>validDate(customer.connectionDate)),knownUndatedConnections:knownUndated,growthCumulativeIsPartial:knownUndated>0,onlineOffline:{online:onlineCount,offline:offlineCount,notSet:notSetCount,denominator:onlineCount+offlineCount,onlinePercent:onlineCount+offlineCount?Number((onlineCount/(onlineCount+offlineCount)*100).toFixed(1)):null},
     forecast:{month:targetMonth,amount:money(forecastCents),customersIncluded:forecastCustomers,missingPrice:forecastMissingPrice},networkIssues,incidentCount:incidents.length,
     totalBills:bills.filter(({bill})=>nonblank(bill.dueAmount)&&Number(bill.dueAmount)>0).length,totalPayments:payments.length,totalExpenses:expenses.length,
-    currentBilledRevenue:revenueMap.size?Number([...revenueMap.values()].reduce((sum,value)=>sum+value,0).toFixed(2)):0,currentOutstanding:outstanding.total};
+    currentBilledRevenue:revenueMap.size?money(currentBilledRevenueCents):0,currentOutstanding:outstanding.total};
 }
 
 export function validatePhase3State(source) {

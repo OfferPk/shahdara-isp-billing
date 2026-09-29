@@ -116,3 +116,24 @@
 .service-filter-toolbar .customer-filter-button{white-space:nowrap;padding-inline:8px}
 .service-count-badge{display:inline-block;min-width:1.2em;margin-left:3px;padding:0 3px;border-radius:999px;background:#edf4ef;color:#345a48;font-size:.95em;font-variant-numeric:tabular-nums;text-align:center}
 .service-filter-toolbar .customer-filter-button[aria-pressed=true] .service-count-badge{background:#ffffff2b;color:#fff}
+
+
+/* Refined summary hierarchy and readable financial tables */
+.phase3-metric-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+.analytics-summary-table{min-width:980px;font-variant-numeric:tabular-nums}
+.analytics-summary-table th:not(:first-child),.analytics-summary-table td:not(:first-child){text-align:right;white-space:nowrap}
+.analytics-summary-table thead th:first-child{position:sticky;left:0;z-index:3;min-width:176px;background:#f6faf8}
+.analytics-summary-table tbody th{position:sticky;left:0;z-index:2;min-width:176px;background:#fff}
+.analytics-summary-table tbody tr.summary-row-area th,.analytics-summary-table tbody tr.summary-row-area td{background:#f3f8f5;border-top:1px solid #dce8e1}
+.analytics-summary-table tbody tr.summary-row-mohalla th,.analytics-summary-table tbody tr.summary-row-mohalla td{background:#fafcfb}
+.analytics-summary-table tbody tr.summary-row-zone th{font-weight:600;color:#4d665c}
+.location-summary-label{display:flex;align-items:center;gap:8px;min-height:26px;padding-left:calc(var(--summary-depth,0)*17px)}
+.location-summary-type{flex:0 0 auto;color:#6d8178;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.location-summary-value{color:#25483c;overflow-wrap:anywhere}
+.summary-row-zone .location-summary-value{font-weight:600}
+.summary-arpu{color:#155b45;font-weight:750}
+.summary-explainer,.summary-unassigned-note{margin:0;padding:10px 12px;border:1px solid #e4ece7;border-radius:9px;background:#f7faf8;color:#526a60;font-size:11px;line-height:1.55}
+.summary-unassigned-note{border-left:3px solid #789586;background:#fbfcfb;color:#3f5d50}
+@media(max-width:1050px){.phase3-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.phase3-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-summary-table{min-width:900px}.summary-explainer,.summary-unassigned-note{font-size:10px;padding:9px 10px}}
+@media(max-width:360px){.phase3-metric-grid{grid-template-columns:1fr}}

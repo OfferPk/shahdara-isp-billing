@@ -4,11 +4,11 @@ import {
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
-} from './core.js?v=1.2.2';
+} from './core.js?v=1.2.3';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement,
   inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.2.2';
+} from './phase3.js?v=1.2.3';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -703,6 +703,9 @@ function renderAnalytics() {
   $('#analyticsBilledDetail').textContent=currentRevenueCount?`${currentRevenueCount} current-month bill price snapshots · service month, not cash`:'No current service-month bill price snapshots recorded.';
   $('#analyticsOutstanding').textContent=data.totalBills?formatAmount(data.currentOutstanding):'No bill entries';
   $('#analyticsOutstandingDetail').textContent=data.totalBills?`Current outstanding using saved bills, receipts, and sequential credit · as of ${data.asOf} PKT`:'No bill entries; no outstanding amount is inferred.';
+  const currentArpu=data.currentServiceMonthArpu;
+  $('#analyticsArpu').textContent=currentArpu.arpu===null?'Not set':formatAmount(currentArpu.arpu);
+  $('#analyticsArpuDetail').textContent=`${currentArpu.billedRevenue===null?'No bill snapshots':formatAmount(currentArpu.billedRevenue)} ÷ ${currentArpu.activeSubscriptions} active configured subscriptions · Offline included · ${currentArpu.excludedSubscriptions} excluded`;
   const online=data.onlineOffline;
   $('#analyticsOnlinePercent').textContent=online.onlinePercent===null?'Not set':`${online.onlinePercent}%`;
   $('#analyticsOnlineDetail').textContent=`${online.online} Active ÷ ${online.denominator} Active + Offline · ${online.notSet} Not set excluded`;
@@ -721,10 +724,20 @@ function renderAnalytics() {
   const expenseLegend=$('#expenseLegend'); if(expenseLegend)expenseLegend.textContent=data.hasExpenseRecords?'Recorded expense':'Expense · no entries';
   const denominator=online.denominator,onlineWidth=denominator?online.online/denominator*100:0,offlineWidth=denominator?online.offline/denominator*100:0;
   $('#onlineSnapshot').innerHTML=`<div class="online-snapshot-rail" role="img" aria-label="Manual status snapshot: ${online.online} active, ${online.offline} offline, ${online.notSet} not set"><span class="online-segment" style="width:${onlineWidth}%"></span><span class="offline-segment" style="width:${offlineWidth}%"></span></div><div class="online-snapshot-values"><span><i class="legend-online"></i>Active ${online.online}</span><span><i class="legend-offline"></i>Offline ${online.offline}</span><span>Not set ${online.notSet}</span><strong>${online.onlinePercent===null?'Online % not set':`${online.onlinePercent}% (${online.online}/${denominator})`}</strong></div>`;
-  $('#areaSummaryTable').innerHTML=data.areaRows.map(row=>`<tr><th scope="row">${phase3Cell(row.area)}</th><td>${row.customerCount}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill entries'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.onlinePercent===null?`Not set (${row.online}/${row.onlineDenominator})`:`${row.onlinePercent}% (${row.online}/${row.onlineDenominator})`}</td><td>${row.complaints}</td><td>${data.hasConnectionDates?row.newConnections:'Not set'}</td><td>${row.arpu===null?'Not set':phase3Cell(formatAmount(row.arpu))}</td></tr>`).join('');
-  $('#areaSummaryEmpty').hidden=data.areaRows.length>0;
-  $('#packageSummaryTable').innerHTML=data.packageRows.map(row=>`<tr><th scope="row">${phase3Cell(row.package)}</th><td>${row.customers}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill entries'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.newSubscriptions}</td><td>${row.expired}</td><td>${row.churn}</td><td>${row.arpu===null?'Not set':phase3Cell(formatAmount(row.arpu))}</td></tr>`).join('');
-  $('#packageSummaryEmpty').hidden=data.packageRows.length>0;
+  $('#areaSummaryTable').innerHTML=data.areaRows.map(row=>{
+    const level=row.level==='mohalla'?'Mohalla':row.level==='zone'?'Zone':'Area';
+    const value=row.area==='Zone not set'?'Not set':row.area.replace(/^(?:Area|Mohalla|Zone):\s*/,'');
+    const location=`<span class="location-summary-label location-summary-${row.level}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${level}</span><span class="location-summary-value">${phase3Cell(value)}</span></span>`;
+    const context=row.parentArea?` within ${row.parentArea}`:' roll-up';
+    return `<tr class="summary-row summary-row-${row.level}"><th scope="row" aria-label="${phase3Cell(`${row.area}${context}`)}">${location}<span class="sr-only">${phase3Cell(context)}</span></th><td>${row.customerCount}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill snapshots'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.excludedSubscriptions}</td><td>${row.onlinePercent===null?`Not set (${row.online}/${row.onlineDenominator})`:`${row.onlinePercent}% (${row.online}/${row.onlineDenominator})`}</td><td>${row.complaints}</td><td>${data.hasConnectionDates?row.newConnections:'Not set'}</td><td>${row.arpu===null?'Not set':`<strong class="summary-arpu">${phase3Cell(formatAmount(row.arpu))}</strong>`}</td></tr>`;
+  }).join('');
+  const namedAreas=data.areaRows.some(row=>row.level==='area');
+  $('#areaSummaryEmpty').hidden=namedAreas;
+  const unassigned=data.unassignedArea;
+  $('#areaSummaryUnassigned').textContent=`Area not set: ${unassigned.profiles} profile${unassigned.profiles===1?'':'s'} (${unassigned.activeConfiguredSubscriptions} active configured; ${unassigned.withZone} with a zone, ${unassigned.withoutZone} without). ${unassigned.namedAreaProfilesWithoutZone} assigned profile${unassigned.namedAreaProfilesWithoutZone===1?'':'s'} have no zone. Profiles without an area are excluded from named-area rows.`;
+  $('#packageSummaryTable').innerHTML=data.packageRows.map(row=>`<tr class="summary-row summary-row-package"><th scope="row">${phase3Cell(row.package)}</th><td>${row.customers}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill snapshots'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.excludedSubscriptions}</td><td>${row.newSubscriptions}</td><td>${row.expired}</td><td>${row.churn}</td><td>${row.arpu===null?'Not set':`<strong class="summary-arpu">${phase3Cell(formatAmount(row.arpu))}</strong>`}</td></tr>`).join('');
+  const configuredPackages=data.packageRows.some(row=>row.packageKey!=='__package_not_set__');
+  $('#packageSummaryEmpty').hidden=configuredPackages;
   $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
 }

@@ -7,7 +7,7 @@ import {
 import {
   EXPENSE_CATEGORIES, INVENTORY_CATEGORIES, addInventoryItem, updateInventoryItem, addStockMovement,
   deleteStockMovement, inventoryBalances, inventorySummary, addExpense, updateExpense, deleteExpense,
-  buildPhase3Analytics, outstandingAtMonthEnd, sixMonths, pktDate, areaLabel, isActiveSubscription
+  buildPhase3Analytics, outstandingAtMonthEnd, sixMonths, pktDate, areaLabel, isActiveSubscription, canonicalPackage
 } from '../phase3.js';
 
 const ref = new Date('2026-09-15T10:00:00Z');
@@ -86,17 +86,119 @@ test('PKT six-month boundaries and partial current month use Pakistan local cale
   assert.equal(report.asOf,'2026-10-01');assert.equal(report.hasRevenueRecords,false);assert.equal(report.hasExpenseRecords,false);
 });
 
-test('area grouping prefers explicit zone then mohalla then address and incomplete service status is excluded from online denominator',()=>{
+test('area summary rolls up the parent area with nested zones and keeps manual online status separate',()=>{
   let state=createInitialState();
   state=editProfile(state,'seed-001',{zone:'Central',mohalla:'North',address:'Road 1',serviceStatus:'active',monthlySellingAmount:'100',packageSpeed:'10 Mbps',connectionDate:'2026-09-03'});
   state=editProfile(state,'seed-002',{zone:'Central',mohalla:'North',serviceStatus:'offline',monthlySellingAmount:'200',packageSpeed:'15 Mbps'});
   state=editProfile(state,'seed-003',{mohalla:'South',address:'Road 2',serviceStatus:'not-set'});
-  assert.equal(areaLabel(state.customers[0]),'Zone: Central');assert.equal(areaLabel(state.customers[2]),'Area: South');assert.equal(areaLabel(state.customers[3]),'Not set');
+  assert.equal(areaLabel(state.customers[0]),'Area: North');assert.equal(areaLabel(state.customers[2]),'Area: South');assert.equal(areaLabel(state.customers[3]),'Area not set');
   state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[directBill('2026-09',100,[{id:'p1',date:'2026-09-10',amount:40,method:'Cash'}])]}:customer.id==='seed-002'?{...customer,bills:[directBill('2026-09',200)]}:customer)};
-  const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.area==='Zone: Central');
+  const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North'),zone=report.areaRows.find(row=>row.level==='zone'&&row.area==='Zone: Central');
   assert.equal(area.customerCount,2);assert.equal(area.billedRevenue,300);assert.equal(area.outstanding,260);assert.equal(area.activeCustomers,2);assert.equal(area.onlinePercent,50);assert.equal(area.onlineDenominator,2);assert.equal(area.arpu,150);assert.equal(area.newConnections,1);
-  const noBillArea=report.areaRows.find(row=>row.area==='Area: South');assert.equal(noBillArea.hasBilledRevenue,false);assert.equal(noBillArea.hasBillHistory,false);assert.equal(noBillArea.arpu,null);
+  assert.equal(zone.customerCount,2);assert.equal(zone.parentArea,'Area: North');assert.equal(zone.includedInAreaRollup,true);assert.equal(report.unassignedArea.profiles,71);
+  const noBillArea=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: South');assert.equal(noBillArea.hasBilledRevenue,false);assert.equal(noBillArea.hasBillHistory,false);assert.equal(noBillArea.arpu,null);
   assert.equal(report.onlineOffline.online,1);assert.equal(report.onlineOffline.offline,1);assert.equal(report.onlineOffline.notSet,72);assert.equal(report.onlineOffline.denominator,2);assert.equal(report.onlineOffline.onlinePercent,50);
+});
+
+test('area, mohalla, zone and package keys normalize Unicode, whitespace and case without fuzzy merging',()=>{
+  let state=createInitialState();
+  const profiles=[
+    ['seed-001',' North\u00a0  Park ',' central ','15Mbps',100,100],
+    ['seed-002','north park','CENTRAL','15 Mbps',120,120],
+    ['seed-003','ＮＯＲＴＨ　ＰＡＲＫ','Central','15 MBPS',150,150],
+    ['seed-004','North Park','Central West','15 mbps',200,200],
+    ['seed-005','North-Park','Central','15Mbps',250,250],
+    ['seed-006','North Park','Central-West','15Mbps',300,300]
+  ];
+  for(const [id,mohalla,zone,packageSpeed,price,billAmount] of profiles)state=editProfile(state,id,{mohalla,zone,packageSpeed,monthlySellingAmount:String(price)});
+  state={...state,customers:state.customers.map(customer=>{const fixture=profiles.find(row=>row[0]===customer.id);return fixture?{...customer,bills:[directBill('2026-09',fixture[5])]}:customer;})};
+  const report=buildPhase3Analytics(state,ref),north=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North Park'),hyphen=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North-Park');
+  assert.equal(north.customerCount,5);assert.equal(north.activeCustomers,5);assert.equal(north.billedRevenue,870);assert.equal(north.arpu,174);
+  assert.equal(hyphen.customerCount,1);
+  const northZones=report.areaRows.filter(row=>row.level==='zone'&&row.parentArea==='Area: North Park');
+  assert.deepEqual(northZones.map(row=>row.area),['Zone: Central','Zone: Central West','Zone: Central-West']);
+  assert.deepEqual(northZones.map(row=>row.customerCount),[3,1,1]);
+  assert.equal(areaLabel({mohalla:'ＮＯＲＴＨ　ＰＡＲＫ'}),'Area: North Park');
+  const speed=report.packageRows.find(row=>row.package==='15 Mbps');
+  assert.equal(speed.customers,6);assert.equal(speed.activeCustomers,6);assert.equal(speed.billedRevenue,1120);assert.equal(speed.arpu,Number((1120/6).toFixed(2)));
+  assert.deepEqual(['5Mbps','10 Mbps','15 MBPS','30mbps'].map(value=>canonicalPackage(value).label),['5 Mbps','10 Mbps','15 Mbps','30 Mbps']);
+  assert.notEqual(canonicalPackage('Silver Plan').key,canonicalPackage('Silver-Plan').key);
+});
+
+test('same zone names stay distinct under different parent areas; explicit mohalla remains a separate level',()=>{
+  let state=createInitialState();
+  state=editProfile(state,'seed-001',{area:'North District',mohalla:'River Park',zone:'Shared',packageSpeed:'5 Mbps',monthlySellingAmount:'100'});
+  state=editProfile(state,'seed-002',{area:'North District',mohalla:'Hill Park',zone:'shared',packageSpeed:'5Mbps',monthlySellingAmount:'100'});
+  state=editProfile(state,'seed-003',{area:'South District',mohalla:'',zone:'Shared',packageSpeed:'5 Mbps',monthlySellingAmount:'100'});
+  state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'||customer.id==='seed-002'?{...customer,area:'North District'}:customer.id==='seed-003'?{...customer,area:'South District'}:customer)};
+  const rows=buildPhase3Analytics(state,ref).areaRows;
+  assert.equal(rows.filter(row=>row.level==='area').length,2);
+  assert.equal(rows.filter(row=>row.level==='mohalla').length,2);
+  assert.equal(rows.filter(row=>row.level==='zone'&&row.area==='Zone: Shared').length,3);
+  assert.ok(rows.some(row=>row.level==='zone'&&row.area==='Zone: Shared'&&row.parentArea==='Mohalla: River Park'));
+  assert.ok(rows.some(row=>row.level==='zone'&&row.area==='Zone: Shared'&&row.parentArea==='Mohalla: Hill Park'));
+  assert.ok(rows.some(row=>row.level==='zone'&&row.area==='Zone: Shared'&&row.parentArea==='Area: South District'));
+});
+
+test('custom package labels trim and case-normalize without merging punctuation-distinct names',()=>{
+  let state=createInitialState();
+  state=editProfile(state,'seed-001',{packageSpeed:'  Gold   Plan ',monthlySellingAmount:'100'});
+  state=editProfile(state,'seed-002',{packageSpeed:'gold plan',monthlySellingAmount:'100'});
+  state=editProfile(state,'seed-003',{packageSpeed:'Gold-Plan',monthlySellingAmount:'100'});
+  const rows=buildPhase3Analytics(state,ref).packageRows;
+  assert.equal(rows.find(row=>row.package==='Gold Plan').customers,2);
+  assert.equal(rows.find(row=>row.package==='Gold-Plan').customers,1);
+});
+
+test('ARPU uses one current PKT bill snapshot per customer divided by active configured subscriptions, including Offline',()=>{
+  let state=createInitialState();
+  state=editProfile(state,'seed-001',{packageSpeed:'5Mbps',monthlySellingAmount:'100',serviceStatus:'offline',mohalla:'North'});
+  state=editProfile(state,'seed-002',{packageSpeed:'5 Mbps',monthlySellingAmount:'200',serviceStatus:'active',mohalla:'North'});
+  state=editProfile(state,'seed-003',{packageSpeed:'10 Mbps',monthlySellingAmount:'300',expiryDate:'2026-09-14',mohalla:'North'});
+  state=editProfile(state,'seed-004',{packageSpeed:'10 Mbps',monthlySellingAmount:'500',mohalla:'North'});
+  state=editProfile(state,'seed-005',{packageSpeed:'30 Mbps',monthlySellingAmount:null,mohalla:'North'});
+  state=editProfile(state,'seed-006',{packageSpeed:'30Mbps',monthlySellingAmount:'450',cancellationDate:'2026-09-10',mohalla:'North'});
+  state={...state,customers:state.customers.map(customer=>{
+    if(customer.id==='seed-001')return {...customer,bills:[directBill('2026-09',80)]};
+    if(customer.id==='seed-002')return {...customer,bills:[directBill('2026-09',240)]};
+    if(customer.id==='seed-003')return {...customer,bills:[directBill('2026-09',30)]};
+    if(customer.id==='seed-004')return {...customer,monthlyPriceSchedule:[{amount:500,effectiveMonth:'2026-10'}]};
+    if(customer.id==='seed-006')return {...customer,bills:[directBill('2026-09',50)]};
+    return customer;
+  })};
+  const report=buildPhase3Analytics(state,ref),overall=report.currentServiceMonthArpu,five=report.packageRows.find(row=>row.package==='5 Mbps'),ten=report.packageRows.find(row=>row.package==='10 Mbps');
+  assert.equal(overall.billedRevenue,400);assert.equal(overall.billSnapshotCount,4);assert.equal(overall.activeSubscriptions,2);assert.equal(overall.excludedSubscriptions,72);assert.equal(overall.arpu,200);
+  assert.equal(overall.excludedByReason.expired,1);assert.equal(overall.excludedByReason.notYetEffective,1);assert.equal(overall.excludedByReason.priceNotSet,1);assert.equal(overall.excludedByReason.cancelled,1);
+  assert.equal(five.customers,2);assert.equal(five.activeCustomers,2);assert.equal(five.billedRevenue,320);assert.equal(five.arpu,160);
+  assert.equal(ten.activeCustomers,0);assert.equal(ten.billedRevenue,30);assert.equal(ten.arpu,null);
+  assert.equal(report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North').activeCustomers,2);
+  assert.equal(report.packageRows.find(row=>row.package==='Package not set').arpu,null);
+});
+
+test('duplicate customer references and duplicate same-month bills cannot double count profiles, revenue, ARPU or outstanding',()=>{
+  let state=editProfile(createInitialState(),'seed-001',{mohalla:'North',zone:'Central',packageSpeed:'5 Mbps',monthlySellingAmount:'100',serviceStatus:'offline'});
+  const original=state.customers[0],first={...directBill('2026-09',70),id:'bill-first',createdAt:'2026-09-01T10:00:00'},latest={...directBill('2026-09',90),id:'bill-latest',createdAt:'2026-09-10T10:00:00'};
+  state={...state,customers:[{...original,bills:[first,latest]},...state.customers.slice(1),{...original,bills:[first,latest]}]};
+  const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North');
+  assert.equal(area.customerCount,1);assert.equal(area.activeCustomers,1);assert.equal(area.billedRevenue,90);assert.equal(area.outstanding,90);assert.equal(area.arpu,90);
+  assert.equal(report.currentServiceMonthArpu.billSnapshotCount,1);assert.equal(report.currentServiceMonthArpu.activeSubscriptions,1);assert.equal(report.currentServiceMonthArpu.arpu,90);
+  assert.equal(outstandingAtMonthEnd(state,'2026-09',ref).billCount,1);
+});
+
+test('missing package, price, area and bill snapshots stay Not set; address is not inferred as an area',()=>{
+  let state=editProfile(createInitialState(),'seed-001',{address:'17 Example Road',packageSpeed:'',monthlySellingAmount:null});
+  const report=buildPhase3Analytics(state,ref),missingPackage=report.packageRows.find(row=>row.package==='Package not set');
+  assert.equal(areaLabel(state.customers[0]),'Area not set');assert.equal(report.areaRows.length,0);assert.equal(report.unassignedArea.profiles,74);
+  assert.equal(report.currentServiceMonthArpu.billedRevenue,null);assert.equal(report.currentServiceMonthArpu.arpu,null);assert.equal(report.currentServiceMonthArpu.activeSubscriptions,0);
+  assert.equal(missingPackage.hasBilledRevenue,false);assert.equal(missingPackage.arpu,null);assert.equal(missingPackage.activeCustomers,0);
+});
+
+test('current ARPU selects the PKT service month across a Pakistan-local month boundary',()=>{
+  let state=editProfile(createInitialState(),'seed-001',{packageSpeed:'10 Mbps',monthlySellingAmount:'100'});
+  state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[directBill('2026-09',90),directBill('2026-10',110)]}:customer)};
+  const report=buildPhase3Analytics(state,new Date('2026-09-30T20:00:00Z'));
+  assert.equal(report.currentMonth,'2026-10');assert.equal(report.asOf,'2026-10-01');
+  assert.equal(report.currentServiceMonthArpu.billSnapshotCount,1);assert.equal(report.currentServiceMonthArpu.billedRevenue,110);assert.equal(report.currentServiceMonthArpu.activeSubscriptions,1);assert.equal(report.currentServiceMonthArpu.arpu,110);
 });
 
 test('bill revenue is by immutable service-month snapshot while collections follow actual receipt date',()=>{
@@ -208,9 +310,9 @@ test('backup validation rejects fabricated or malformed expense and stock data',
   assert.throws(()=>previewJsonBackupMerge(createInitialState(),JSON.stringify(badItem)),/invalid inventory category/);
 });
 
-test('actual complaints/outages are grouped by customer area and monthly issue counts use recorded report dates only',()=>{
-  let state=createInitialState();state=editProfile(state,'seed-001',{zone:'East'});
+test('actual complaints/outages roll into the assigned area and monthly issue counts use recorded report dates only',()=>{
+  let state=createInitialState();state=editProfile(state,'seed-001',{mohalla:'Eastside',zone:'East'});
   state=addIncident(state,'seed-001',{reportedAt:'2026-09-12T10:00',offlineAt:'2026-09-12T10:00',restoredAt:'2026-09-12T12:00',note:'Manual record'},ref);
-  const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.area==='Zone: East');
+  const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: Eastside');
   assert.equal(area.complaints,1);assert.equal(report.incidentCount,1);assert.equal(report.networkIssues.find(row=>row.month==='2026-09').count,1);
 });

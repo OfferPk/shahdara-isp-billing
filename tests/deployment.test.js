@@ -20,7 +20,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v9'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v10'/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
   for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
 });
@@ -114,4 +114,18 @@ test('Phase 3 sections are local-only, unseeded, mobile-rendered and use explici
   assert.match(phase3, /export function validatePhase3State/);
   assert.match(phase3, /export function buildPhase3Analytics/);
   assert.match(app, /function renderPhase3\(\)/);
+});
+
+test('location and package summaries expose the nested hierarchy, canonical grouping and snapshot-based ARPU definition', () => {
+  assert.match(index, /Area \/ mohalla is the parent location and an optional zone is summarized beneath it/);
+  assert.match(index, /Area \/ mohalla rows are parent roll-ups/);
+  assert.match(index, /Profiles with no area \/ mohalla are excluded from named-area rows and counted below/);
+  assert.match(index, /ARPU = current PKT service-month bill snapshots ÷ active configured subscriptions/);
+  for (const id of ['analyticsArpu','analyticsArpuDetail','areaSummaryUnassigned','areaSummaryTable','packageSummaryTable']) assert.ok(index.includes(`id="${id}"`), `${id} exists`);
+  assert.match(phase3, /normalize\('NFKC'\)/);
+  assert.match(phase3, /export function canonicalPackage/);
+  assert.match(app, /data\.currentServiceMonthArpu/);
+  assert.match(app, /row\.excludedSubscriptions/);
+  assert.match(styles, /\.location-summary-label/);
+  assert.match(styles, /\.summary-row-area/);
 });

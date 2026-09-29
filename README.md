@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Phase 3 mobile-browser testing preview · web build 1.2.2**
+**Phase 3 mobile-browser testing preview · web build 1.2.3**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -29,8 +29,9 @@ The first visit needs a network connection. The service worker caches the static
 
 - A local inventory register with manually entered ONU, router, fiber-cable, connector, adapter/power-supply or custom items. Item definitions add no stock. Dated receive, install/issue, return, damage and corrected stock movements determine available, installed, returned and damaged quantities. Unit of measure, minimum stock, optional unit/acquisition cost, notes and optional customer assignment are recorded. Available-stock value is unit cost multiplied by available quantity; it excludes installed, damaged and returned equipment. Categories with no movement history display as not recorded.
 - A local expense ledger for the requested provider, utility, salary, cable, equipment, repair, OLT, tool, RADIUS and other-expense categories. Only actual positive amounts with manually entered payment dates count. Corrections are editable and deletion is confirmed; inventory cost and expected provider costs are excluded from cash expenses.
-- Optional, blank-by-default zone and connection/expiry/cancellation dates, plus package-change history with old/new package, old/new monthly rates, calculated recurring delta and optional staff name. Existing bill snapshots are unchanged and no centralized Activity/Audit Log was added.
-- PKT-based six-month charts for bill-snapshot revenue vs receipt-date cash, recorded customer growth, dated month-end outstanding snapshots, current manual Active/Offline status and actual cash income vs actual dated expenses. Forecasts include eligible offline subscriptions with configured next-month rates. Live Active/Offline/Not set counts are calculated from saved nonarchived profiles and embedded in their service-filter buttons; billing-state filters remain independent. Area/package metrics separate unrecorded data from actual zero; online percentage excludes Not set profiles and shows its denominator. Empty history is labeled no entries/not set rather than a fabricated zero. Offline alone is not churn.
+- Optional, blank-by-default area / mohalla and zone fields use an explicit parent-area → optional-zone hierarchy; addresses are not treated as areas, and profiles without an area are counted separately from named-area rows. Comparison keys normalize Unicode, trim and collapse whitespace, and match case-insensitively without fuzzy-merging distinct names. Parent roll-ups and their nested child rows are labeled as separate levels and are not meant to be added together.
+- Package labels normalize the preset 5/10/15/30 Mbps speed variants and trim/case-normalize custom names without merging distinct labels. The area, package and overall ARPU consistently equals the current PKT service-month bill snapshot amounts divided by active configured subscriptions; manually Offline customers remain included, while unset/unpriced, not-yet-effective, expired, explicitly cancelled and archived subscriptions are excluded and counted. It is not collected cash or a nominal-price estimate; missing snapshots and ARPU remain Not set.
+- PKT-based six-month charts show bill-snapshot revenue vs receipt-date cash, recorded customer growth, dated month-end outstanding snapshots, current manual Active/Offline status and actual cash income vs actual dated expenses. Forecasts include eligible offline subscriptions with configured next-month rates. Live Active/Offline/Not set counts are calculated from saved nonarchived profiles and embedded in their service-filter buttons; billing-state filters remain independent. Online percentage excludes Not set profiles and shows its denominator. Empty history is labeled no entries/not set rather than a fabricated zero. Offline alone is not churn.
 - Inventory, expenses, optional profile fields and package history are included in the validated, preview-before-merge local JSON backup. Charts use bundled SVG; no external visualization assets or billing-data network calls are used.
 
 ## Local checks
@@ -44,7 +45,7 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, due dates and Pakistan-local day boundaries, complaints, Phase 3 inventory/expense movements, area/package analytics, forecasting, PKT month-end snapshots, backup/migration safety and offline asset versions. The web bundle contains no Android package.
+Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, due dates and Pakistan-local day boundaries, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, backup/migration safety and offline asset versions. The web bundle contains no Android package.
 
 ## Android
 

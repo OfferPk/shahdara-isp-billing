@@ -137,3 +137,391 @@
 @media(max-width:1050px){.phase3-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:700px){.phase3-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.analytics-summary-table{min-width:900px}.summary-explainer,.summary-unassigned-note{font-size:10px;padding:9px 10px}}
 @media(max-width:360px){.phase3-metric-grid{grid-template-columns:1fr}}
+
+
+/* v1.2.4 compact visual system: local, font-safe, readable and phone-first. */
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ink: #172e29;
+  --muted: #586e65;
+  --green: #145b4b;
+  --green-dark: #0c463a;
+  --line: #dce6e1;
+  --surface: #ffffff;
+  --surface-soft: #f6f9f7;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --shadow: 0 8px 24px rgba(22, 52, 43, .065);
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+
+* { box-sizing: border-box; }
+body, body * { font-family: var(--font-sans) !important; }
+body {
+  width: 100%;
+  min-width: 320px;
+  max-width: 100%;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+main, .app-shell, .dashboard, .global-search-region, .view-nav,
+.transactions-view, .billing-reports-view, .phase3-view, .app-footer,
+.customer-pane, .detail-pane, .phase3-pane, .phase3-chart-grid,
+.chart-card, .table-card, .table-scroll, .global-search-control,
+.transaction-filters, .report-row, .summary-grid, .phase3-metric-grid {
+  min-width: 0;
+}
+button, [role="button"], summary, .customer-select, .view-nav-button {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+button {
+  font-size: 14px;
+  line-height: 1.35;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease, transform .12s ease;
+}
+button:disabled, button[aria-disabled="true"],
+[role="button"][aria-disabled="true"] {
+  opacity: .58;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+button:not(:disabled):active { transform: translateY(1px); }
+input, select, textarea {
+  min-width: 0;
+  min-height: 44px;
+  color: var(--ink);
+  font-size: 16px;
+  border-radius: var(--radius-sm);
+}
+textarea { line-height: 1.5; }
+:where(p, li, dd, dt, figcaption, .notice, .chart-caption, .transactions-subtitle,
+  .transaction-meta, .transaction-context, .payment-meta, .profile-help,
+  .incident-note, .incident-reported, .package-history-list, .empty-state) {
+  line-height: 1.5;
+}
+:where(.eyebrow, .summary-label, .summary-period, .dashboard-units,
+  .global-search-label, .global-search-help, .field-label, .profile-help,
+  .customer-filter-label, .customer-filter-note, .customer-filter-month,
+  .service-state-counts, .transaction-filters label, .transaction-filter-help,
+  .report-month-label, .report-cell-label, .phase3-form label, .incident-field,
+  .incident-manual-note, .chart-caption, .chart-card figcaption p,
+  .chart-legend, .table-scroll th, .table-scroll td, .transactions-count,
+  .transactions-subtitle, .transaction-meta, .transaction-context,
+  .payment-meta, .customer-number-line, .customer-profit-line,
+  .month-summary, .history-count, .empty-month, .notice, .profile-profit,
+  .report-not-set-note, .summary-explainer, .summary-unassigned-note) {
+  font-size: 13px;
+}
+:where(.summary-period, .dashboard-method, .optional-label, .detail-number,
+  .global-result-contact, .report-status, .month-status, .service-count-badge) {
+  font-size: 12px;
+}
+:where(.summary-label, .global-search-label, .field-label, .customer-filter-label,
+  .customer-filter-month, .transaction-filters label, .report-month-label,
+  .phase3-form label, .incident-field, .service-state-counts) {
+  color: #40594f;
+  font-weight: 650;
+}
+:where(.summary-card, .phase3-metric, .chart-card, .table-card,
+  .transactions-pane, .report-pane, .global-search-main, .customer-meta,
+  .incident-section, .month-card, .provider-cost-breakdown,
+  .package-history-section, .customer-filter-panel) {
+  border-color: var(--line);
+}
+.summary-card, .phase3-metric, .chart-card, .table-card,
+.transactions-pane, .report-pane, .global-search-main, .provider-cost-breakdown {
+  border-radius: var(--radius-md);
+}
+.summary-card, .phase3-metric {
+  min-height: 124px;
+  padding: 16px 14px;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(22, 52, 43, .04);
+}
+.summary-label, .phase3-metric span {
+  min-height: 0;
+  color: #465e54;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.summary-value, .phase3-metric strong {
+  max-width: 100%;
+  margin: 4px 0;
+  color: var(--green);
+  font-size: clamp(19px, 1.7vw, 25px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+}
+.summary-period, .phase3-metric small {
+  color: #586e65;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.customer-pane, .detail-pane { border-radius: var(--radius-lg); }
+.customer-pane, .detail-pane, .transactions-pane, .report-pane,
+.chart-card, .table-card { box-shadow: var(--shadow); }
+.customer-select {
+  min-height: 48px;
+  padding: 8px 10px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+.customer-name, .transaction-customer, .report-customer-name,
+.transaction-title, .payment-main, .customer-copy { min-width: 0; }
+.customer-number-line, .customer-profit-line { color: #5b7067; font-size: 12px; }
+.avatar { width: 32px; height: 32px; font-size: 12px; }
+.customer-billing-badge, .month-status, .archive-state-badge,
+.report-status, .incident-card-state {
+  min-height: 28px;
+  padding: 5px 9px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+.customer-filter-panel { gap: var(--space-2); padding: 12px; }
+.customer-filter-group { gap: 6px; }
+.customer-filter-button, .report-filter-button {
+  min-height: 44px;
+  padding: 7px 11px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.service-filter-toolbar {
+  flex-wrap: nowrap;
+  gap: 6px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.service-filter-toolbar .customer-filter-label { font-size: 13px; }
+.service-filter-toolbar .customer-filter-button { flex: 0 0 auto; }
+.service-count-badge { font-size: 12px; }
+.report-filters {
+  flex-wrap: nowrap;
+  gap: 6px;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 1px 6px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.report-filters .report-filter-button { flex: 0 0 auto; }
+.view-nav { gap: 8px; scrollbar-width: thin; }
+.view-nav-button { padding: 0 14px; font-size: 13px; }
+.global-search-main { padding: 14px; }
+.global-search-label, .global-result-count { font-size: 14px; }
+.global-search-control { gap: var(--space-2); }
+.global-search-control input { font-size: 16px; }
+.transactions-pane, .report-pane { padding: 22px; }
+.transactions-heading h2, .report-heading h2, .dashboard-heading h2,
+.phase3-heading h2 { line-height: 1.25; }
+.transaction-filters { gap: var(--space-3); padding: 14px; }
+.transaction-filters input, .report-month-label select { font-size: 16px; }
+.transaction-card { padding: 14px 16px; gap: 14px; border-radius: 12px; }
+.transaction-customer, .report-customer-name { font-size: 15px; line-height: 1.4; }
+.transaction-amount { font-size: 18px; }
+.transaction-meta, .transaction-context { color: #586e65; font-size: 13px; }
+.transaction-actions .edit-payment, .transaction-actions .delete-payment,
+.payment-actions .edit-payment, .payment-actions .delete-payment,
+.incident-actions .secondary-button, .incident-actions .delete-incident,
+.payment-row .edit-payment, .payment-row .delete-payment {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 7px 11px;
+  font-size: 12px;
+}
+.report-row { gap: 12px; padding: 14px; border-radius: 12px; }
+.report-cell-label { color: #596f66; font-size: 12px; }
+.report-cell-value { color: #294d40; font-size: 14px; line-height: 1.4; }
+.phase3-view { padding-top: 12px; }
+.phase3-pane { gap: 16px; }
+.phase3-chart-grid { gap: 14px; }
+.chart-card, .table-card { padding: 18px; }
+.chart-host { min-height: 132px; }
+.phase3-chart-svg { display: block; width: 100%; max-width: 100%; min-width: 0; height: auto; }
+.chart-axis-label, .chart-month-label { font-size: 12px; }
+.chart-legend { gap: 8px 14px; color: #40594f; font-size: 13px; line-height: 1.4; }
+.chart-legend span { min-height: 24px; }
+.chart-legend span::before { width: 10px; height: 10px; flex: 0 0 auto; }
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll table { font-size: 13px; }
+.table-scroll th, .table-scroll td { padding: 11px 12px; line-height: 1.4; }
+.table-scroll thead th { color: #465f55; font-size: 12px; }
+.phase3-form { gap: 12px; padding: 16px; }
+.phase3-form label, .incident-field { gap: 6px; font-size: 13px; }
+.phase3-form input, .phase3-form select, .phase3-form textarea,
+.incident-field input, .incident-field textarea,
+.profile-field input, .profile-field textarea {
+  min-height: 44px;
+  padding: 9px 12px;
+  font-size: 16px;
+}
+.phase3-form textarea, .incident-field textarea, .profile-field textarea { min-height: 88px; }
+.form-actions { gap: var(--space-2); }
+.profile-grid { gap: 12px 16px; }
+.profile-field .field-label { margin-bottom: 6px; }
+.field-help, .incident-manual-note, .profile-help,
+.summary-method, .summary-explainer, .summary-unassigned-note { line-height: 1.5; }
+.month-card summary { min-height: 56px; padding: 14px 16px; }
+.month-label { font-size: 14px; }
+.month-body { padding: 16px; }
+.month-forms { gap: 16px; }
+.form-grid { gap: 10px; }
+.form-grid .field-label { font-size: 13px; }
+.form-grid input, .form-grid select { min-height: 44px; font-size: 16px; }
+.payment-row { gap: 10px; padding: 11px 12px; font-size: 13px; }
+.payment-meta, .payment-allocation, .carry-credit-source { font-size: 12px; }
+.incident-section { padding: 16px; border-radius: var(--radius-md); }
+.incident-form { gap: 12px; padding: 14px; }
+.incident-card { padding: 14px; border-radius: 12px; }
+.incident-times dt, .incident-times dd, .incident-note,
+.incident-reported, .incident-audit summary { font-size: 13px; }
+.package-history-section { padding: 16px; }
+.package-history-list { font-size: 13px; }
+.modal { padding: 24px; border-radius: var(--radius-lg); }
+.modal input { min-height: 44px; font-size: 16px; }
+.modal-actions { gap: var(--space-2); }
+.close-button { width: 44px; min-width: 44px; height: 44px; font-size: 22px; }
+.icon-button { width: 44px; min-width: 44px; height: 44px; }
+:where(.skip-link, .text-button, .footer-export) { font-size: 14px; }
+.preview-notice, .data-loss-warning, .pane-footer, .app-footer,
+.dashboard-exclusions, .dashboard-method, .provider-cost-explainer,
+.provider-cost-empty, .network-issues-list li, .transactions-count,
+.report-not-set-note, .incident-empty { font-size: 13px; }
+.preview-notice { line-height: 1.5; }
+:where(.status-received, .status-pending, .status-partial, .status-empty,
+  .report-status-paid, .report-status-pending, .report-status-partial,
+  .report-status-not-set, .incident-open, .incident-resolved) {
+  font-weight: 700;
+}
+*:focus-visible {
+  outline: 3px solid #16745a !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 3px rgba(22, 116, 90, .16);
+}
+
+@media (max-width: 700px) {
+  .summary-grid, .phase3-metric-grid, .inventory-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .summary-card, .phase3-metric { min-height: 118px; padding: 13px 12px; }
+  .summary-label, .phase3-metric span { font-size: 13px; }
+  .summary-value, .phase3-metric strong { font-size: clamp(18px, 5vw, 22px); }
+  .summary-period, .phase3-metric small { font-size: 12px; }
+  .transactions-view, .billing-reports-view { min-width: 0; }
+  .transactions-pane, .report-pane { padding: 16px; }
+  .transaction-filters { grid-template-columns: minmax(0, 1fr); }
+  .transaction-filter-help { grid-column: auto; }
+  .month-forms, .phase3-chart-grid { grid-template-columns: minmax(0, 1fr); }
+  .form-grid, .phase3-form, .incident-form { grid-template-columns: minmax(0, 1fr); }
+  .form-grid .field-label, .form-grid .full, .form-grid .primary-button,
+  .phase3-form .form-wide, .incident-note-field, .incident-form-error,
+  .incident-form-actions { grid-column: 1 / -1; }
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+  .chart-card, .table-card { padding: 14px; }
+  .chart-host { min-height: 112px; }
+  .phase3-chart-svg { min-height: 104px; }
+  .chart-legend { gap: 6px 10px; font-size: 13px; }
+  .table-heading .chart-caption { text-align: left; }
+  .report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-customer { grid-column: 1 / -1; }
+  .report-cell-label { font-size: 12px; }
+  .report-cell-value { font-size: 13px; }
+  .payment-row { align-items: flex-start; flex-wrap: wrap; }
+  .payment-row .payment-main { flex-basis: calc(100% - 20px); }
+  .payment-row .payment-actions { width: 100%; justify-content: flex-end; }
+}
+@media (max-width: 620px) {
+  .app-shell { margin-top: 8px; }
+  .customer-pane, .detail-pane { border-radius: 0; }
+  .detail-pane { padding: 18px 14px 28px; }
+  .dashboard, .global-search-region, .view-nav,
+  .transactions-view, .billing-reports-view, .phase3-view { padding-left: 12px; padding-right: 12px; }
+  .summary-grid { gap: 8px; }
+  .summary-card, .phase3-metric { min-height: 116px; padding: 12px 10px; }
+  .summary-period { font-size: 12px; }
+  .dashboard-actions { gap: 8px; }
+  .quick-payment-button { min-width: 122px; padding-inline: 12px; }
+  .global-search-main { padding: 12px; }
+  .global-search-help { font-size: 12px; }
+  .global-search-control input { min-width: 0; }
+  .view-nav { gap: 6px; }
+  .view-nav-button { min-height: 44px; padding-inline: 12px; font-size: 13px; }
+  .transactions-pane, .report-pane { padding: 14px 12px; }
+  .transactions-heading, .report-heading { gap: 10px; }
+  .transaction-card { grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; }
+  .transaction-title { align-items: flex-start; }
+  .transaction-actions { justify-content: flex-end; flex-wrap: wrap; }
+  .report-filters { margin-inline: -2px; }
+  .report-filter-button { min-height: 44px; font-size: 12px; }
+  .report-row { gap: 9px; padding: 12px 10px; }
+  .phase3-view { padding-top: 10px; }
+  .phase3-heading h2 { font-size: 22px; }
+  .phase3-metric-grid, .inventory-metric-grid { gap: 8px; }
+  .phase3-metric { min-height: 108px; }
+  .chart-axis-label, .chart-month-label { font-size: 11px; }
+  .table-scroll table { min-width: 740px; }
+  .data-loss-warning { margin-inline: 12px; padding: 12px; }
+  .backup-actions .secondary-button { min-height: 44px; font-size: 12px; }
+  .customer-filter-panel { margin-inline: 10px; padding: 10px; }
+  .service-filter-toolbar { width: 100%; }
+  .service-filter-toolbar .customer-filter-button { min-height: 44px; padding-inline: 9px; font-size: 12px; }
+  .customer-filter-month select { min-height: 44px; max-width: 70%; font-size: 14px; }
+  .customer-item { margin-bottom: 5px; }
+  .customer-select { min-height: 50px; font-size: 15px; }
+  .app-footer { padding-inline: 14px; }
+  .modal { padding: 20px; }
+}
+@media (max-width: 360px) {
+  .topbar { gap: 8px; padding-inline: 10px; }
+  .brand-mark { flex: 0 0 36px; }
+  .brand-copy { min-width: 0; }
+  .brand-copy h1 { font-size: 13px; letter-spacing: -.2px; }
+  .brand-copy p { font-size: 12px; }
+  .privacy-pill { min-width: 0; max-width: 112px; padding: 6px 7px; font-size: 12px; }
+  .privacy-pill span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dashboard, .global-search-region, .view-nav,
+  .transactions-view, .billing-reports-view, .phase3-view { padding-left: 10px; padding-right: 10px; }
+  .summary-grid, .phase3-metric-grid, .inventory-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+  .summary-card, .phase3-metric { padding: 11px 9px; }
+  .summary-label, .phase3-metric span { font-size: 13px; }
+  .summary-value, .phase3-metric strong { font-size: 18px; }
+  .summary-period, .phase3-metric small { font-size: 12px; }
+  .report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .customer-filter-panel { margin-inline: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+
+/* Manual status choices remain full-size controls on desktop as well as mobile. */
+.service-choice { min-height: 44px; padding: 7px 9px; font-size: 13px; }
+
+
+/* Enforce accessible target size across legacy and newer action button classes. */
+button:not([hidden]) { min-height: 44px !important; }

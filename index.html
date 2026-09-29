@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0e5b4d">
-  <meta name="description" content="Offline-first Shahdara ISP customer billing ledger. Billing records stay in this browser on this device.">
+  <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
@@ -17,41 +17,131 @@
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
   </header>
-  <main id="main" class="app-shell">
-    <section id="customerPane" class="customer-pane" aria-label="Customers">
-      <div class="pane-heading">
-        <div><p class="eyebrow">LOCAL LEDGER</p><h2>Customers <span id="customerCount" class="count-badge">0</span></h2></div>
-        <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
+  <aside class="preview-notice" role="note"><strong>Testing preview · Mobile browser / PWA</strong><span>Phase 1 web build for owner testing. Android packaging is deferred until browser testing is complete; billing data stays in this browser on this device.</span></aside>
+  <main id="main">
+    <section class="global-search-region" aria-label="Global customer search">
+      <div class="global-search-main">
+        <label class="global-search-label" for="globalCustomerSearch">Find a customer</label>
+        <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, phone, address or customer number"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
+        <p class="global-search-help">Search is available throughout the app and filters both customers and transactions. Phone and address are optional and never prefilled.</p>
       </div>
-      <label class="search-box"><span class="sr-only">Search customers</span><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Find a customer" autocomplete="off"></label>
-      <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
-      <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
-      <div class="pane-footer"><span class="local-lock" aria-hidden="true">▣</span> Billing entries never leave this browser.</div>
+      <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers"></div><p id="globalSearchResultCount" class="global-result-count"></p></div>
+      <p id="globalSearchStatus" class="sr-only" role="status" aria-live="polite"></p>
+    </section>
+    <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">
+      <div class="dashboard-heading">
+        <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
+        <p id="dashboardAmountUnits" class="dashboard-units">Amounts use the entered units; no currency is assumed.</p>
+      </div>
+      <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
+        <article class="summary-card"><p class="summary-label">Total customers</p><strong id="dashboardCustomerCount" class="summary-value">0</strong><p class="summary-period">Current customer list</p></article>
+        <article class="summary-card"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">0.00</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
+        <article class="summary-card"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">0.00</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
+        <article class="summary-card"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">0.00</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
+        <article class="summary-card"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">0.00</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
+        <article class="summary-card"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">0.00</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
+        <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">0.00</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
+      </div>
+      <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
+      <p class="dashboard-method">A saved selling price creates one month-specific bill from its effective local month onward; each bill keeps its own price snapshot. Missing eligible months are generated on this device when the app opens, resumes, or remains active across a month boundary—never while it is fully closed. Actual receipts apply first to the selected month; excess automatically credits the next unpaid generated month(s), and any remaining credit stays attached to its original receipt for future bills. Credit is not a second payment. Correcting or deleting the original receipt recalculates every dependent balance. A bill marked Received closes its due but adds no cash collection. Expected package margin is selling amount minus provider cost, not collected cash profit.</p>
     </section>
 
-    <section id="detailPane" class="detail-pane" aria-label="Customer billing details">
-      <div id="welcomeState" class="welcome-card">
-        <div class="welcome-icon" aria-hidden="true">▤</div>
-        <p class="eyebrow">READY WHEN YOU ARE</p>
-        <h2>Your ledger starts empty</h2>
-        <p>The supplied customer names are loaded. No mohallas, bills, payments, or payment history have been recorded.</p>
-        <p class="welcome-count"><strong id="welcomeCount">0</strong> customers · up to 24 months per customer</p>
-      </div>
-      <div id="customerDetail" hidden>
-        <div class="detail-head">
-          <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
-          <div class="detail-title-row">
-            <div><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
-            <button id="deleteCustomerButton" class="text-button danger" type="button">Delete customer</button>
-          </div>
-          <div class="customer-meta">
-            <label class="field-label" for="mohallaInput">Mohalla <span class="optional-label">Optional</span></label>
-            <div class="inline-field"><input id="mohallaInput" type="text" maxlength="100" placeholder="Enter mohalla"><button id="saveMohallaButton" class="secondary-button" type="button">Save</button></div>
-          </div>
-          <div class="ledger-heading"><div><p class="eyebrow">BILLING HISTORY</p><h3>Last 24 months</h3></div><button id="customerExportButton" class="secondary-button export-button" type="button"><span aria-hidden="true">↓</span> Export history</button></div>
-          <p id="customerEmptyNote" class="notice" hidden>No billing details recorded yet. Choose a month below to add only information you have confirmed.</p>
+    <nav class="view-nav" aria-label="Billing sections">
+      <button id="showCustomersButton" class="view-nav-button" type="button" aria-current="page">Customers</button>
+      <button id="showTransactionsButton" class="view-nav-button" type="button">Transactions</button>
+      <button id="showReportsButton" class="view-nav-button" type="button">Monthly report</button>
+    </nav>
+    <section id="customersView" class="page-view" aria-label="Customer profiles">
+    <div class="app-shell">
+      <section id="customerPane" class="customer-pane" aria-label="Customers">
+        <div class="pane-heading">
+          <div><p class="eyebrow">LOCAL LEDGER</p><h2>Customers <span id="customerCount" class="count-badge">0</span></h2></div>
+          <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
         </div>
-        <div id="historyContainer" class="history-list" aria-label="Monthly billing history"></div>
+        <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
+        <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
+        <div class="pane-footer"><span class="local-lock" aria-hidden="true">▣</span> Billing entries never leave this browser.</div>
+      </section>
+
+      <section id="detailPane" class="detail-pane" aria-label="Customer billing details">
+        <div id="welcomeState" class="welcome-card">
+          <div class="welcome-icon" aria-hidden="true">▤</div>
+          <p class="eyebrow">READY WHEN YOU ARE</p>
+          <h2>Your ledger starts empty</h2>
+          <p>The supplied customer names are loaded. No addresses, phone numbers, package details, bills, payments, or payment history have been recorded.</p>
+          <p class="welcome-count"><strong id="welcomeCount">0</strong> customers · up to 24 months per customer</p>
+        </div>
+        <div id="customerDetail" hidden>
+          <div class="detail-head">
+            <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
+            <div class="detail-title-row">
+              <div><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
+              <button id="deleteCustomerButton" class="text-button danger" type="button">Delete customer</button>
+            </div>
+            <div class="customer-meta">
+              <div class="profile-grid">
+                <label class="profile-field" for="mohallaInput"><span class="field-label">Mohalla <span class="optional-label">Optional</span></span><input id="mohallaInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="addressInput"><span class="field-label">Address <span class="optional-label">Optional</span></span><textarea id="addressInput" rows="2" maxlength="200" autocomplete="street-address" placeholder="Not set"></textarea></label>
+                <label class="profile-field" for="phoneInput"><span class="field-label">Phone number <span class="optional-label">Optional · never required</span></span><input id="phoneInput" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="Not set"></label>
+                <label class="profile-field" for="packageSpeedInput"><span class="field-label">Package / speed <span class="optional-label">Optional</span></span><input id="packageSpeedInput" type="text" maxlength="80" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="monthlyPurchaseCostInput"><span class="field-label">Monthly provider purchase cost <span class="optional-label">Optional</span></span><input id="monthlyPurchaseCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="monthlySellingAmountInput"><span class="field-label">Monthly selling amount <span class="optional-label">Optional · also this month’s bill</span></span><input id="monthlySellingAmountInput" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Not set — excluded from dues"></label>
+              </div>
+              <p class="profile-help">Saving a selling amount generates one bill in each eligible local month starting when the price becomes effective; it never backfills months from before a price was set. If this month’s bill already exists, a price edit starts next month. Every generated month keeps its own price snapshot. Auto-credit from excess receipts carries to later unpaid generated bills without creating another cash entry. Monthly generation and credit recalculation happen locally when this page opens/resumes or while it is active; a fully closed browser cannot run in the background. Contact and package fields are optional and stay on this device.</p>
+              <p id="customerProfitPreview" class="profile-profit" role="status" aria-live="polite">Expected monthly package profit: Not set until both monthly amounts are entered.</p>
+              <button id="saveMohallaButton" class="secondary-button profile-save" type="button">Save profile</button>
+            </div>
+            <section class="incident-section" aria-labelledby="incidentHeading">
+              <div class="incident-section-heading"><div><p class="eyebrow">MANUAL SERVICE LOG</p><h3 id="incidentHeading">Complaints &amp; outages</h3><p class="incident-manual-note">Enter incidents yourself. This offline app does not monitor internet or connectivity.</p></div><p class="incident-count"><strong id="incidentCount30Days">0</strong><span>reported in the last 30 days</span></p></div>
+              <button id="addIncidentButton" class="secondary-button incident-add-button" type="button">Add complaint/outage</button>
+              <form id="incidentForm" class="incident-form" hidden>
+                <input id="incidentIdInput" type="hidden" name="incidentId">
+                <label class="incident-field" for="incidentReportedAtInput"><span>Complaint / report date and time</span><input id="incidentReportedAtInput" name="reportedAt" type="datetime-local" required></label>
+                <label class="incident-field" for="incidentOfflineAtInput"><span>Offline-start date and time</span><input id="incidentOfflineAtInput" name="offlineAt" type="datetime-local" required></label>
+                <label class="incident-field" for="incidentRestoredAtInput"><span>Restored-online date and time <span class="optional-label">Optional · blank means open</span></span><input id="incidentRestoredAtInput" name="restoredAt" type="datetime-local"></label>
+                <label class="incident-field incident-note-field" for="incidentNoteInput"><span>Complaint / resolution note <span class="optional-label">Optional</span></span><textarea id="incidentNoteInput" name="note" rows="3" maxlength="2000" placeholder="Not set"></textarea></label>
+                <p id="incidentFormError" class="form-error incident-form-error" role="alert" hidden></p>
+                <div class="incident-form-actions"><button id="incidentSubmitButton" class="primary-button" type="submit">Save incident</button><button id="cancelIncidentEditButton" class="secondary-button" type="button">Cancel</button></div>
+              </form>
+              <ul id="incidentList" class="incident-list" aria-label="Complaint and outage history"></ul>
+              <p id="incidentEmptyNote" class="incident-empty">No complaint or outage records have been entered.</p>
+            </section>
+            <div class="ledger-heading"><div><p class="eyebrow">BILLING HISTORY</p><h3>Last 24 months</h3></div><button id="customerExportButton" class="secondary-button export-button" type="button"><span aria-hidden="true">↓</span> Export history</button></div>
+            <p id="customerEmptyNote" class="notice" hidden>No billing details recorded yet. Choose a month below to add only information you have confirmed.</p>
+          </div>
+          <div id="historyContainer" class="history-list" aria-label="Monthly billing history"></div>
+        </div>
+      </section>
+    </div>
+    </section>
+    <section id="transactionsView" class="transactions-view" aria-labelledby="transactionsHeading" hidden>
+      <div class="transactions-pane">
+        <div class="transactions-heading">
+          <div><p class="eyebrow">LOCAL PAYMENT HISTORY</p><h2 id="transactionsHeading">Transactions</h2><p class="transactions-subtitle">Every recorded payment · newest first</p></div>
+          <p id="transactionsCount" class="transactions-count" role="status">0 transactions</p>
+        </div>
+        <div class="transaction-filters">
+          <p class="transaction-filter-help">Customer search above filters transactions by name, phone, address, or customer number. Each actual receipt stays one transaction; derived auto-credit allocations never add cash entries.</p>
+          <label for="transactionDateFilter">Filter by payment date<input id="transactionDateFilter" type="date"></label>
+          <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
+        </div>
+        <ul id="transactionsList" class="transactions-list" aria-label="All recorded payments"></ul>
+        <p id="transactionsEmpty" class="transactions-empty" hidden>No recorded payments match these filters.</p>
+      </div>
+    </section>
+    <section id="billingReportsView" class="billing-reports-view" aria-labelledby="billingReportsHeading" hidden>
+      <div class="report-pane">
+        <div class="report-heading"><div><p class="eyebrow">LOCAL CUSTOMER REPORT</p><h2 id="billingReportsHeading">Monthly payment status</h2><p class="transactions-subtitle">Amounts and receipts are based on saved records only.</p></div><label class="report-month-label" for="reportMonth">Billing month<select id="reportMonth"></select></label></div>
+        <div class="report-filters" role="group" aria-label="Filter customers by payment status">
+          <button class="report-filter-button" type="button" data-report-filter="all" aria-pressed="true">All</button>
+          <button class="report-filter-button" type="button" data-report-filter="paid" aria-pressed="false">Paid</button>
+          <button class="report-filter-button" type="button" data-report-filter="unpaid" aria-pressed="false">Unpaid / Pending</button>
+          <button class="report-filter-button" type="button" data-report-filter="partial" aria-pressed="false">Partial</button>
+        </div>
+        <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
+        <ul id="monthlyReportList" class="monthly-report-list" aria-label="Customer payment status report"></ul>
+        <p id="monthlyReportEmpty" class="transactions-empty" hidden>No customers match this status and search.</p>
+        <p class="report-not-set-note">Rows with no generated or manually recorded bill appear as Not set in All and are not classified as unpaid. Monthly credit applied/forwarded is shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills even after the source month leaves the 24-month display.</p>
       </div>
     </section>
   </main>

@@ -20,13 +20,20 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v12'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v13'/);
   assert.match(index, /Search customers by name, phone, address or ID/);
   assert.match(index, /placeholder="Name, phone, address or ID"/);
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
   assert.match(styles, /text-align:\s*right/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
   for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+});
+
+test('narrow mobile header and global search can flex and wrap instead of clipping', () => {
+  assert.match(styles, /@media\s*\(max-width:\s*380px\)[^{]*\{[\s\S]*?\.privacy-pill\s*\{[^}]*min-width:\s*0;[^}]*white-space:\s*normal;/);
+  assert.match(styles, /\.global-search-control input\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;/);
+  assert.match(styles, /\.global-search-control input::placeholder\s*\{[^}]*font-size:\s*11px/);
+  assert.doesNotMatch(styles, /@media\s*\(max-width:\s*340px\)[^{]*\{[^}]*font-size:\s*13px/);
 });
 
 test('customer-list empty-state renderer tolerates mismatched cached markup without aborting the app', () => {

@@ -694,8 +694,30 @@ button:disabled, button[aria-disabled="true"],
 .summary-arpu { text-align: right; }
 .report-credit-value { display: block; }
 
-@media (max-width: 340px) {
-  .global-search-control input::placeholder { font-size: 13px; }
+@media (max-width: 380px) {
+  .topbar { padding: 0 10px; gap: 8px; }
+  .brand-mark { width: 32px; height: 32px; flex: 0 0 32px; }
+  .brand-copy { min-width: 0; overflow: hidden; }
+  .brand-copy h1 { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .privacy-pill {
+    min-width: 0;
+    max-width: 45%;
+    padding: 6px 7px;
+    gap: 5px;
+    font-size: 9px;
+    line-height: 1.15;
+    white-space: normal;
+  }
+  .privacy-dot { flex: 0 0 7px; }
+  .privacy-pill > span:last-child { min-width: 0; }
+  .global-search-control { min-width: 0; }
+  .global-search-control input {
+    flex: 1 1 0;
+    width: 0;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+  .global-search-control input::placeholder { font-size: 11px; letter-spacing: -0.1px; }
 }
 
 

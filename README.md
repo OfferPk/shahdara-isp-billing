@@ -1,30 +1,32 @@
 # Shahdara ISP Billing
 
-**Phase 1 mobile-browser testing preview (web build 1.1.2).** Open [offerpk.github.io/shahdara-isp-billing](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; no APK is published in this phase.
+**Phase 2 mobile-browser testing preview · web build 1.2.0**
 
-## Privacy and starter data
+Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
-The public preview and repository include exactly the supplied 74 starter customer names. Those names are visible to anyone because the repository and site are public. Starter addresses, phone numbers, package details, monthly costs/selling prices, bills, payments, and complaint/outage histories are blank. No demo ledger is preloaded.
+## Privacy, starter data and backups
 
-Customer/profile edits and billing/outage records are saved in local browser storage on the device/browser where they are entered. There is no account, backend, billing-data upload, or automatic sync between devices. The app's first visit needs a connection to load the site; its service worker caches the app for later offline visits. Local browser storage is not an independent backup—TXT exports are generated only when the operator requests them. A cache-version update does not erase saved customer data.
+The public repository and site contain exactly the 74 supplied starter customer names, in the supplied order. Those names are publicly visible. Starter address, phone, package/provider, monthly price/cost, service status, bills, receipts and complaint/outage data are blank or unset; no demo ledger is preloaded.
 
-## Phase 1 features
+Customer profiles and every billing record are stored only in this browser's local storage on this device. There is no account, backend, billing-data upload or cloud/device sync. Clearing site data, changing browsers/devices, browser storage eviction or losing the device can remove records. **Download a JSON backup regularly and keep it somewhere separate.** JSON restore is validated and previewed before a merge; it is merge-only, preserves existing nonblank conflicts, and never silently replaces or deletes existing records. Backup files can contain personal/customer financial data, so store them securely. TXT exports and JSON backups are produced only when the operator requests them.
 
-- Exact 74-name seed order; stable sequential customer numbers; customer add/delete; global partial search by name, optional phone/address, or number.
-- Per-customer editable address/optional phone, package/speed, monthly provider purchase cost, and one monthly selling amount; profit is expected package margin, not collected cash profit.
-- One monthly bill per configured customer beginning in the saved price's effective local month, without backfilling months before a price is entered. When a bill for the current month exists, a price edit begins next month. Each generated month keeps its price snapshot; explicit per-month bill corrections remain possible and are recorded in history.
-- Actual payments remain individually editable/deletable. Overpayments first cover the selected month's saved bill, then apply as non-cash credit to later unpaid generated bills. Any unused balance stays attached to the original receipt and remains valid indefinitely, including beyond the visible 24-month billing history. Corrections/deletions recalculate downstream allocations; source receipt/date/method remain available for audit. Cash collection counts the actual receipt once; the separate unused-prepaid-credit dashboard amount is neither cash nor outstanding due.
-- An all-customer Transactions page lists every saved actual receipt and can filter by actual payment date. The selected-month report offers Paid, Unpaid/Pending, Partial, and Not set; Not set bills are not invented or classified as unpaid. It shows customer-wide unused prepaid credit and the originating receipts separately from monthly cash.
-- Dashboard totals for customers; actual collection within the retained 24 billing months; outstanding due; today's and previous-month actual receipts by payment date across saved receipts; this month's due; expected monthly package profit; and unapplied prepaid credit, explicitly separate from cash and due.
-- Every money value and entry label is explicitly PKR, with readable digit grouping and cents only where present; the app performs no currency conversion and seeds no amounts.
-- On narrow screens, this month's due, total due, and today's collection appear first. Global search stays above the dashboard, and its Add payment shortcut focuses the selected customer's current-month payment field. Search and primary actions use phone-friendly touch sizes.
-- Local TXT exports of recorded payments and full customer history, including allocation destinations, manual complaint/outage history, and correction details.
-- Manual complaint/outage history with per-customer rolling 30-day counts. The app does not monitor routers, internet or connectivity.
-- Installable, offline-ready browser/PWA experience. Versioned asset URLs, early worker-update registration and query-insensitive cache matching protect existing installs from mixed-version HTML/CSS/JavaScript.
+The first visit needs a network connection. The service worker caches the static app for later offline use. Cache updates do not clear local customer records; data migrations add default fields while retaining existing billing history, and malformed/unsupported saved data fails closed rather than being overwritten.
+
+## Phase 2 web features
+
+- Exactly 74 starter names; stable unique customer numbers; global partial search by name, optional phone/address or customer number. Customer IDs/numbers remain stable after deletion; numbers are never reused.
+- Editable optional address/phone, free-text ISP/provider (including a Nayatel suggestion), manual service state (Active / Offline / Not set), package/speed (5, 10, 15 and 30 Mbps suggestions plus custom text), monthly provider cost and one monthly selling amount. All starter values remain blank.
+- Live expected package margin and expected recurring provider-cost totals/breakdowns. Incomplete profiles are excluded and counted; estimates are not collected cash profit or cash paid.
+- Automatic monthly bill snapshots begin in the configured effective local month; price edits do not rewrite past obligations. Optional due dates are set per bill; there is no invented default due date or automatic late penalty. Archived customers retain IDs, bills, receipts, credit and complaints; archiving stops new bills, and unarchiving resumes without backfilling archived months. Permanent delete is separately confirmed and warns that all local history will be removed.
+- Actual receipts are editable/deletable and drive Paid / Partial / Pending status. A receipt applies to its selected month first, then excess is allocated as non-cash credit to later generated bills. Unused credit remains valid indefinitely, even after its receipt falls outside the visible 24-month window; credit is not another payment. Corrections/deletions recalculate allocations.
+- Transactions, customer histories and one-click monthly Paid, Unpaid/Pending, Partial and Not set reports. Reports/history show the retained 24 billing months; aged credit sources remain visible where used and remain available for correction/deletion locally. Cash collection totals count actual receipts only.
+- Dashboard includes active customers, actual collections, total/current due, today/previous-month collections, expected package profit, expected provider costs by ISP, service-state counts and unapplied prepaid credit. PKR is explicit throughout; the app performs no currency conversion.
+- Manual per-customer complaint/outage records with report/offline/restored times, notes, open/resolved state, edits/deletes and rolling 30-day counts. No network/router monitoring is performed.
+- Phone-first controls, accessible form labels, local TXT exports, versioned offline assets and non-destructive migration safeguards.
 
 ## Local checks
 
-Requires Node.js 22 (or a compatible modern Node release):
+Requires Node.js 22 or a compatible modern Node release:
 
 ```sh
 npm ci
@@ -33,8 +35,8 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open `http://localhost:8080`. Service workers require localhost or HTTPS. Tests cover the blank 74-name seed, search/stable numbers, profile persistence, dashboard/report math, bill schedules/snapshots, partial/exact/overpayments, credit carry chains and indefinite balances past 24 months, payment edits/deletion, TXT exports, manual incident history, and versioned offline assets.
+Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite verifies the blank 74-name seed, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, due dates and Pakistan-local day boundaries, complaints, JSON backup validation/merge, migration safety and offline asset versions.
 
 ## Android
 
-The owner asked to test the mobile browser site before starting an APK build. Android packaging is intentionally not built or published in this phase; revisit it after browser testing and final feature changes.
+The owner asked to test the web app in a mobile browser before building an APK. No Android APK is built or published in this phase.

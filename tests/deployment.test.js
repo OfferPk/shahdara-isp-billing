@@ -18,7 +18,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v5'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v6'/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
   for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
 });
@@ -51,4 +51,22 @@ test('phone-first dashboard prioritizes current due, total due and today collect
   assert.match(styles, /\.global-search-control input\{height:44px\}/);
   assert.match(styles, /\.global-search-control>button\{min-height:44px\}/);
   assert.match(index, /billing data stays in this browser on this device with no server sync/);
+});
+
+test('Phase 2 profile and backup controls are present and wired without fake defaults', () => {
+  assert.match(index, /id="serviceStatusInput"/);
+  assert.match(index, /value="active">Active/);
+  assert.match(index, /value="offline">Offline/);
+  assert.match(index, /id="ispProviderOptions"><option value="Nayatel"/);
+  for (const speed of ['5 Mbps','10 Mbps','15 Mbps','30 Mbps']) assert.ok(index.includes(`value="${speed}"`));
+  assert.match(index, /id="monthlyPurchaseCostInput"/);
+  assert.match(index, /id="downloadJsonBackupButton"/);
+  assert.match(index, /id="restoreJsonBackupButton"/);
+  assert.match(index, /id="jsonBackupPreviewSummary"/);
+  assert.match(app, /\$\('#saveMohallaButton'\)\.addEventListener/);
+  assert.match(app, /\$\('#archiveCustomerButton'\)\.addEventListener/);
+  assert.match(app, /\$\('#unarchiveCustomerButton'\)\.addEventListener/);
+  assert.match(app, /\$\('#applyJsonBackupButton'\)\.addEventListener/);
+  assert.match(app, /previewJsonBackupMerge\(state/);
+  assert.match(app, /pendingBackupPreview\?\.canApply/);
 });

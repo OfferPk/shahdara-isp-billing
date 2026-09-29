@@ -24,3 +24,8 @@
 @media(max-width:1150px){.summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:800px){.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:620px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+@media(min-width:1151px){.summary-grid{grid-template-columns:repeat(8,minmax(0,1fr))}}
+.dashboard-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;min-width:0}.quick-payment-button{min-height:46px;white-space:nowrap;padding:0 18px;font-size:13px}.global-search-control>button{min-height:44px;min-width:64px}
+@media(max-width:620px){.dashboard-actions{width:100%;justify-content:space-between;gap:8px}.dashboard-units{flex:1;line-height:1.4}.quick-payment-button{min-height:48px;min-width:128px;padding:0 14px}.summary-current-due{order:1}.summary-total-due{order:2}.summary-today-collection{order:3}.summary-customer-count{order:4}.summary-total-collection{order:5}.summary-credit{order:6}.summary-previous-collection{order:7}.summary-profit{order:8}.global-search-control input{height:44px}.global-search-control>button{min-height:44px}.view-nav-button{min-height:44px}.form-grid .primary-button,.report-filter-button,.incident-add-button{min-height:44px}.payment-actions .edit-payment,.payment-actions .delete-payment,.transaction-actions .edit-payment,.transaction-actions .delete-payment,.incident-actions .secondary-button,.incident-actions .delete-incident{min-height:44px;min-width:58px}.add-button{width:44px;height:44px}.summary-value{font-size:clamp(17px,5vw,20px)}}
+@media(max-width:360px){.quick-payment-button{min-width:116px;padding:0 10px}.summary-value{font-size:16px}.summary-grid{gap:6px}}

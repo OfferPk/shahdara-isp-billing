@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.1.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.1.2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.1.1">
+  <link rel="stylesheet" href="./styles.css?v=1.1.2">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -18,7 +18,7 @@
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
   </header>
-  <aside class="preview-notice" role="note"><strong>Testing preview · Mobile browser / PWA</strong><span>Phase 1 web build for owner testing. Android packaging is deferred until browser testing is complete; billing data stays in this browser on this device.</span></aside>
+  <aside class="preview-notice" role="note"><strong>Testing preview · Mobile browser / PWA</strong><span>Phase 1 web build for owner testing. Amounts display in PKR; billing data stays in this browser on this device with no server sync.</span></aside>
   <main id="main">
     <section class="global-search-region" aria-label="Global customer search">
       <div class="global-search-main">
@@ -32,17 +32,17 @@
     <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">
       <div class="dashboard-heading">
         <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
-        <p id="dashboardAmountUnits" class="dashboard-units">Amounts use the entered units; no currency is assumed.</p>
+        <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button></div>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
-        <article class="summary-card"><p class="summary-label">Total customers</p><strong id="dashboardCustomerCount" class="summary-value">0</strong><p class="summary-period">Current customer list</p></article>
-        <article class="summary-card"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">0.00</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
-        <article class="summary-card"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">0.00</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
-        <article class="summary-card summary-credit"><p class="summary-label">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">0.00</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
-        <article class="summary-card"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">0.00</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
-        <article class="summary-card"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">0.00</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
-        <article class="summary-card"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">0.00</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
-        <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">0.00</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
+        <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">PKR 0</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
+        <article class="summary-card summary-total-due"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">PKR 0</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
+        <article class="summary-card summary-today-collection"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">PKR 0</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
+        <article class="summary-card summary-customer-count"><p class="summary-label">Total customers</p><strong id="dashboardCustomerCount" class="summary-value">0</strong><p class="summary-period">Current customer list</p></article>
+        <article class="summary-card summary-total-collection"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">PKR 0</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
+        <article class="summary-card summary-credit"><p class="summary-label">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">PKR 0</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
+        <article class="summary-card summary-previous-collection"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">PKR 0</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
+        <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">PKR 0</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
       </div>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
       <p class="dashboard-method">A saved selling price creates one month-specific bill from its effective local month onward; each bill keeps its own price snapshot. Missing eligible months are generated on this device when the app opens, resumes, or remains active across a month boundary—never while it is fully closed. Actual receipts apply first to the selected month; excess automatically credits the next unpaid generated month(s), and any remaining prepaid balance stays attached to its original receipt indefinitely until applied or corrected/deleted. Credit is not a second payment and is shown separately from cash and outstanding due. Correcting or deleting the original receipt recalculates every dependent balance. A bill marked Received closes its due but adds no cash collection. Expected package margin is selling amount minus provider cost, not collected cash profit.</p>
@@ -86,8 +86,8 @@
                 <label class="profile-field" for="addressInput"><span class="field-label">Address <span class="optional-label">Optional</span></span><textarea id="addressInput" rows="2" maxlength="200" autocomplete="street-address" placeholder="Not set"></textarea></label>
                 <label class="profile-field" for="phoneInput"><span class="field-label">Phone number <span class="optional-label">Optional · never required</span></span><input id="phoneInput" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="Not set"></label>
                 <label class="profile-field" for="packageSpeedInput"><span class="field-label">Package / speed <span class="optional-label">Optional</span></span><input id="packageSpeedInput" type="text" maxlength="80" autocomplete="off" placeholder="Not set"></label>
-                <label class="profile-field" for="monthlyPurchaseCostInput"><span class="field-label">Monthly provider purchase cost <span class="optional-label">Optional</span></span><input id="monthlyPurchaseCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
-                <label class="profile-field" for="monthlySellingAmountInput"><span class="field-label">Monthly selling amount <span class="optional-label">Optional · also this month’s bill</span></span><input id="monthlySellingAmountInput" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Not set — excluded from dues"></label>
+                <label class="profile-field" for="monthlyPurchaseCostInput"><span class="field-label">Monthly provider purchase cost (PKR) <span class="optional-label">Optional</span></span><input id="monthlyPurchaseCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="monthlySellingAmountInput"><span class="field-label">Monthly selling amount (PKR) <span class="optional-label">Optional · also this month’s bill</span></span><input id="monthlySellingAmountInput" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Not set — excluded from dues"></label>
               </div>
               <p class="profile-help">Saving a selling amount generates one bill in each eligible local month starting when the price becomes effective; it never backfills months from before a price was set. If this month’s bill already exists, a price edit starts next month. Every generated month keeps its own price snapshot. Auto-credit from excess receipts carries to later unpaid generated bills without creating another cash entry. Monthly generation and credit recalculation happen locally when this page opens/resumes or while it is active; a fully closed browser cannot run in the background. Contact and package fields are optional and stay on this device.</p>
               <p id="customerProfitPreview" class="profile-profit" role="status" aria-live="polite">Expected monthly package profit: Not set until both monthly amounts are entered.</p>
@@ -160,6 +160,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.1.1"></script>
+  <script type="module" src="./app.js?v=1.1.2"></script>
 </body>
 </html>

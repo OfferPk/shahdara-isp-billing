@@ -436,7 +436,10 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
     let excessAmount = null;
     const creditApplied = moneyValue(allocation?.creditAppliedCents ?? 0);
     const creditForwarded = moneyValue(allocation?.creditForwardedCents ?? 0);
-    const creditPending = moneyValue(allocation?.pendingCreditCents ?? 0);
+    const pendingCreditSources = [...allocations.byPaymentId.values()]
+      .filter(source => source.customerId === customer.id && source.unappliedCreditCents > 0)
+      .map(source => ({ paymentId:source.paymentId, originMonth:source.originMonth, paymentDate:source.date, method:source.method, receiptAmount:source.amount, amountCents:source.unappliedCreditCents }));
+    const creditPending = moneyValue(pendingCreditSources.reduce((sum, source) => sum + source.amountCents, 0));
     if (configuredAmount !== null && configuredAmount !== undefined && configuredAmount !== '') {
       billAmount = Number(configuredAmount);
       excessAmount = moneyValue(allocation?.excessGeneratedCents ?? 0);
@@ -464,6 +467,7 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
       creditSources:allocation?.creditSources ?? [],
       creditForwarded,
       creditPending,
+      pendingCreditSources,
       status
     };
   }).filter(row => statusFilter === 'all' || row.status === statusFilter);
@@ -495,6 +499,7 @@ export function calculateDashboard(state, referenceDate = new Date()) {
   let totalDueCents = 0;
   let currentMonthDueCents = 0;
   let expectedMonthlyPackageProfitCents = 0;
+  const pendingCreditCents = [...allocations.byPaymentId.values()].reduce((sum, receipt) => sum + (receipt.unappliedCreditCents ?? 0), 0);
   let unpricedBillCount = 0;
   let completeProfitProfiles = 0;
 
@@ -537,6 +542,7 @@ export function calculateDashboard(state, referenceDate = new Date()) {
     todayCollection: moneyValue(todayCollectionCents),
     previousMonthCollection: moneyValue(previousMonthCollectionCents),
     currentMonthDue: moneyValue(currentMonthDueCents),
+    pendingCredit: moneyValue(pendingCreditCents),
     expectedMonthlyPackageProfit: moneyValue(expectedMonthlyPackageProfitCents),
     currentMonth,
     previousMonth,

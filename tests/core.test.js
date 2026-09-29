@@ -689,33 +689,50 @@ test('editing or deleting a source receipt recomputes every later credit and out
   assert.equal(listTransactions(state, {}, october1).length, 0);
 });
 
-test('unapplied customer credit survives after the source bill leaves the 24-month display and never doubles the old receipt', () => {
+test('unapplied customer credit remains visible and valid indefinitely after its source bill leaves the 24-month display', () => {
   const state = createInitialState();
   const customer = state.customers[0];
   const oldBill = { id:'old-source-bill', month:'2024-09', dueAmount:100, status:'pending', generated:false, payments:[{ id:'old-source-receipt', date:'2024-09-30', amount:150, method:'Cash' }] };
-  const currentBill = { id:'current-target-bill', month:currentMonth, dueAmount:100, status:'pending', generated:false, payments:[] };
-  const withBills = { ...state, customers:state.customers.map(item => item.id === customer.id ? { ...item, bills:[currentBill, oldBill] } : item) };
+  const withBills = { ...state, customers:state.customers.map(item => item.id === customer.id ? { ...item, bills:[oldBill] } : item) };
   const ledger = calculatePaymentAllocations(withBills);
-  assert.equal(ledger.forMonth(customer.id, '2024-09').creditForwardedCents, 5000);
-  assert.equal(ledger.forMonth(customer.id, '2026-09').creditAppliedCents, 5000);
-  assert.equal(ledger.forMonth(customer.id, '2026-09').balanceDueCents, 5000);
-  assert.equal(ledger.forMonth(customer.id, '2026-09').creditSources[0].paymentId, 'old-source-receipt');
+  assert.equal(ledger.forMonth(customer.id, '2024-09').pendingCreditCents, 5000);
+  assert.equal(ledger.forMonth(customer.id, currentMonth), undefined);
   const dashboard = calculateDashboard(withBills, referenceDate);
   assert.equal(dashboard.totalCollection, 0);
-  assert.equal(dashboard.totalDue, 50);
+  assert.equal(dashboard.totalDue, 0);
+  assert.equal(dashboard.pendingCredit, 50);
   assert.equal(listTransactions(withBills, {}, referenceDate).length, 1);
+  const pendingReport = buildMonthlyReport(withBills, { month:currentMonth }, referenceDate).find(row => row.customerId === customer.id);
+  assert.equal(pendingReport.status, 'not-set');
+  assert.equal(pendingReport.creditPending, 50);
+  assert.equal(pendingReport.pendingCreditSources[0].paymentId, 'old-source-receipt');
+  assert.equal(pendingReport.pendingCreditSources[0].originMonth, '2024-09');
   const exportText = exportCustomerHistory(withBills, customer.id);
-  assert.match(exportText, /Credit source: original 150\.00 receipt dated 2024-09-30 \(Cash\) from 2024-09; applied here=50\.00/);
   assert.equal((exportAllPayments(withBills).match(/Amount: 150\.00 \(actual receipt, counted once\)/g) ?? []).length, 1);
-  let corrected = correctPayment(withBills, customer.id, '2024-09', 'old-source-receipt', payment({ date:'2024-09-30', amount:'80' }), referenceDate);
+  let corrected = correctPayment(withBills, customer.id, '2024-09', 'old-source-receipt', payment({ date:'2024-09-30', amount:'130' }), referenceDate);
   let correctedLedger = calculatePaymentAllocations(corrected);
-  assert.equal(correctedLedger.forMonth(customer.id, currentMonth).creditAppliedCents, 0);
-  assert.equal(correctedLedger.forMonth(customer.id, currentMonth).balanceDueCents, 10000);
+  assert.equal(correctedLedger.forMonth(customer.id, '2024-09').pendingCreditCents, 3000);
+  assert.equal(calculateDashboard(corrected, referenceDate).pendingCredit, 30);
+  assert.equal(buildMonthlyReport(corrected, { month:currentMonth }, referenceDate).find(row => row.customerId === customer.id).creditPending, 30);
   corrected = deletePayment(corrected, customer.id, '2024-09', 'old-source-receipt', referenceDate);
   const deletedLedger = calculatePaymentAllocations(corrected);
-  assert.equal(deletedLedger.forMonth(customer.id, currentMonth).creditAppliedCents, 0);
-  assert.equal(deletedLedger.forMonth(customer.id, currentMonth).balanceDueCents, 10000);
+  assert.equal(deletedLedger.forMonth(customer.id, '2024-09').pendingCreditCents, 0);
   assert.equal(calculateDashboard(corrected, referenceDate).totalCollection, 0);
+  assert.equal(calculateDashboard(corrected, referenceDate).pendingCredit, 0);
+
+  let withTargetBill = saveBillMonth(withBills, customer.id, { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+  const targetLedger = calculatePaymentAllocations(withTargetBill);
+  assert.equal(targetLedger.forMonth(customer.id, currentMonth).creditAppliedCents, 5000);
+  assert.equal(targetLedger.forMonth(customer.id, currentMonth).balanceDueCents, 5000);
+  const targetDashboard = calculateDashboard(withTargetBill, referenceDate);
+  assert.equal(targetDashboard.totalCollection, 0);
+  assert.equal(targetDashboard.totalDue, 50);
+  assert.equal(targetDashboard.pendingCredit, 0);
+  const targetReport = buildMonthlyReport(withTargetBill, { month:currentMonth }, referenceDate).find(row => row.customerId === customer.id);
+  assert.equal(targetReport.creditApplied, 50);
+  assert.equal(targetReport.amountReceived, 0);
+  assert.equal(targetReport.creditSources[0].originMonth, '2024-09');
+  assert.match(exportCustomerHistory(withTargetBill, customer.id), /Credit source: original 150\.00 receipt dated 2024-09-30 \(Cash\) from 2024-09; applied here=50\.00/);
 });
 
 test('today and previous-month collections use payment dates even when a saved bill month is older than 24 months', () => {

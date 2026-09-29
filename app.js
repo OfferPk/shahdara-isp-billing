@@ -4,7 +4,7 @@ import {
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory
-} from './core.js';
+} from './core.js?v=1.1.1';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -66,6 +66,7 @@ function renderDashboard() {
   $('#dashboardTodayCollection').textContent = formatAmount(totals.todayCollection);
   $('#dashboardPreviousCollection').textContent = formatAmount(totals.previousMonthCollection);
   $('#dashboardCurrentMonthDue').textContent = formatAmount(totals.currentMonthDue);
+  $('#dashboardPendingCredit').textContent = formatAmount(totals.pendingCredit);
   $('#dashboardExpectedProfit').textContent = formatAmount(totals.expectedMonthlyPackageProfit);
   $('#dashboardTotalCollectionPeriod').textContent = `Actual recorded payments · last ${MONTH_LIMIT} retained billing months`;
   $('#dashboardTotalDuePeriod').textContent = `Known outstanding bills · retained ${MONTH_LIMIT}-month history`;
@@ -90,7 +91,8 @@ function renderCustomers() {
   }).join('');
   $('#customerCount').textContent = matches.length === state.customers.length ? state.customers.length : `${matches.length}/${state.customers.length}`;
   $('#welcomeCount').textContent = state.customers.length;
-  $('#noSearchResults').hidden = matches.length > 0 || state.customers.length === 0;
+  const emptySearch = $('#noSearchResults');
+  if (emptySearch) emptySearch.hidden = matches.length > 0 || state.customers.length === 0;
   customerList.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
 }
 function renderGlobalSearch() {
@@ -212,7 +214,8 @@ function renderMonthlyReport() {
     const due = row.balanceDue === null ? 'Not set' : formatAmount(row.balanceDue);
     const speed = row.packageSpeed || 'Not set';
     const creditSources = row.creditSources.map(source => `${monthName(source.originMonth)} receipt ${humanDate(source.paymentDate)} (${source.method}, ${formatAmount(source.receiptAmount)}): ${formatAmount(source.amountCents / 100)} applied`).join('; ');
-    const creditSummary = `Credit in ${formatAmount(row.creditApplied)} · forwarded ${formatAmount(row.creditForwarded)} · waiting ${formatAmount(row.creditPending)}${creditSources ? ` · Sources: ${creditSources}` : ''}`;
+    const pendingSources = row.pendingCreditSources.map(source => `${monthName(source.originMonth)} receipt ${humanDate(source.paymentDate)} (${source.method}, original ${formatAmount(source.receiptAmount)}): ${formatAmount(source.amountCents / 100)} still available`).join('; ');
+    const creditSummary = `Applied to bill ${formatAmount(row.creditApplied)} · forwarded from selected bill ${formatAmount(row.creditForwarded)} · customer-wide unused prepaid balance ${formatAmount(row.creditPending)} (not cash; valid indefinitely)${creditSources ? ` · Applied sources: ${creditSources}` : ''}${pendingSources ? ` · Waiting sources: ${pendingSources}` : ''}`;
     return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">Package / speed: ${escapeHtml(speed)}</span></div><div class="report-cell"><span class="report-cell-label">Monthly sale</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(monthName(row.month))} bill</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">Actual amount received</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">Balance due</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell"><span class="report-cell-label">Auto-credit (not cash)</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell"><span class="report-cell-label">Status</span><span class="report-status report-status-${row.status}">${reportStatusLabel(row.status)}</span></div></li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
@@ -431,4 +434,3 @@ renderTransactions();
 renderMonthlyReport();
 renderDetail();
 if (!storageAvailable) toast('Browser storage is unavailable. Entries may not persist.');
-if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));

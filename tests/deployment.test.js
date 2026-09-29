@@ -20,7 +20,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v13'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v14'/);
   assert.match(index, /Search customers by name, phone, address or ID/);
   assert.match(index, /placeholder="Name, phone, address or ID"/);
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
@@ -139,4 +139,28 @@ test('location and package summaries expose the nested hierarchy, canonical grou
   assert.match(app, /row\.excludedSubscriptions/);
   assert.match(styles, /\.location-summary-label/);
   assert.match(styles, /\.summary-row-area/);
+});
+
+test('v1.2.7 payroll follow-up is local-only, owner-entered, selected-month, and has no prefilled dates', () => {
+  assert.match(index, /Follow-up release 1\.2\.7/);
+  assert.match(index, /new monthly bill defaults to the 5th/i);
+  assert.match(index, /id="payrollMonth"/);
+  assert.match(index, /id="saadMonthlySalary"/);
+  assert.match(index, /id="saadAttendanceCount"/);
+  assert.match(index, /id="umairWorkdayExpense"/);
+  assert.match(index, /id="saadAttendanceDate" name="date" type="date" required/);
+  assert.match(index, /id="umairWorkdayDate" name="date" type="date" required/);
+  assert.doesNotMatch(index, /id="saadAttendanceDate"[^>]*value=/);
+  assert.doesNotMatch(index, /id="umairWorkdayDate"[^>]*value=/);
+  assert.match(app, /buildPayrollSummary\(state,selectedPayrollMonth\)/);
+  assert.match(app, /addSaadAttendanceDay\(state,date\)/);
+  assert.match(app, /addUmairWorkday\(state,date\)/);
+  assert.match(app, /addedSaadAttendanceDays \?\? 0/);
+  assert.match(app, /addedUmairWorkdays \?\? 0/);
+  assert.match(core, /derivedBillStatus\(customer, bill, allocations\) === 'paid'/);
+  assert.match(phase3, /export function addSaadAttendanceDay/);
+  assert.match(phase3, /export function addUmairWorkday/);
+  assert.match(styles, /\.payroll-metric-grid/);
+  assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v14'/);
 });

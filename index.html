@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.4',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.5',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.2.4">
+  <link rel="stylesheet" href="./styles.css?v=1.2.5">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -23,8 +23,8 @@
   <main id="main">
     <section class="global-search-region" aria-label="Global customer search">
       <div class="global-search-main">
-        <label class="global-search-label" for="globalCustomerSearch">Find a customer</label>
-        <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, phone, address or customer number"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
+        <label class="global-search-label" for="globalCustomerSearch">Search customers by name, phone, address or ID</label>
+        <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, phone, address or ID"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
         <p class="global-search-help">Search is available throughout the app and filters both customers and transactions. Phone and address are optional and never prefilled.</p>
       </div>
       <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers"></div><p id="globalSearchResultCount" class="global-result-count"></p></div>
@@ -243,6 +243,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.2.4"></script>
+  <script type="module" src="./app.js?v=1.2.5"></script>
 </body>
 </html>

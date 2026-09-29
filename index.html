@@ -6,9 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.1.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=1.1.1">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -37,13 +38,14 @@
         <article class="summary-card"><p class="summary-label">Total customers</p><strong id="dashboardCustomerCount" class="summary-value">0</strong><p class="summary-period">Current customer list</p></article>
         <article class="summary-card"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">0.00</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
         <article class="summary-card"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">0.00</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
+        <article class="summary-card summary-credit"><p class="summary-label">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">0.00</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
         <article class="summary-card"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">0.00</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
         <article class="summary-card"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">0.00</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
         <article class="summary-card"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">0.00</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
         <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">0.00</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
       </div>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
-      <p class="dashboard-method">A saved selling price creates one month-specific bill from its effective local month onward; each bill keeps its own price snapshot. Missing eligible months are generated on this device when the app opens, resumes, or remains active across a month boundary—never while it is fully closed. Actual receipts apply first to the selected month; excess automatically credits the next unpaid generated month(s), and any remaining credit stays attached to its original receipt for future bills. Credit is not a second payment. Correcting or deleting the original receipt recalculates every dependent balance. A bill marked Received closes its due but adds no cash collection. Expected package margin is selling amount minus provider cost, not collected cash profit.</p>
+      <p class="dashboard-method">A saved selling price creates one month-specific bill from its effective local month onward; each bill keeps its own price snapshot. Missing eligible months are generated on this device when the app opens, resumes, or remains active across a month boundary—never while it is fully closed. Actual receipts apply first to the selected month; excess automatically credits the next unpaid generated month(s), and any remaining prepaid balance stays attached to its original receipt indefinitely until applied or corrected/deleted. Credit is not a second payment and is shown separately from cash and outstanding due. Correcting or deleting the original receipt recalculates every dependent balance. A bill marked Received closes its due but adds no cash collection. Expected package margin is selling amount minus provider cost, not collected cash profit.</p>
     </section>
 
     <nav class="view-nav" aria-label="Billing sections">
@@ -141,7 +143,7 @@
         <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
         <ul id="monthlyReportList" class="monthly-report-list" aria-label="Customer payment status report"></ul>
         <p id="monthlyReportEmpty" class="transactions-empty" hidden>No customers match this status and search.</p>
-        <p class="report-not-set-note">Rows with no generated or manually recorded bill appear as Not set in All and are not classified as unpaid. Monthly credit applied/forwarded is shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills even after the source month leaves the 24-month display.</p>
+        <p class="report-not-set-note">Rows with no generated or manually recorded bill appear as Not set in All and are not classified as unpaid. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
       </div>
     </section>
   </main>
@@ -158,6 +160,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./app.js?v=1.1.1"></script>
 </body>
 </html>

@@ -4,7 +4,11 @@ import {
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
-} from './core.js?v=1.2.1';
+} from './core.js?v=1.2.2';
+import {
+  EXPENSE_CATEGORIES, INVENTORY_STATES, addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement,
+  inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
+} from './phase3.js?v=1.2.2';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -25,7 +29,7 @@ try {
   state = {
     version:1,
     nextCustomerNumber:INITIAL_NAMES.length + 1,
-    customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, archived:false, archivedAt:null, bills:[], incidents:[] }))
+    customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', zone:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills:[], incidents:[] })), inventoryItems:[], inventoryMovements:[], expenses:[]
   };
 }
 state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
@@ -57,7 +61,7 @@ function save() {
   state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
   if (persistenceBlocked) {
     toast('Saved data could not be read. No changes were written; use a valid JSON backup to recover it.');
-    renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport();
+    renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderPhase3();
     return false;
   }
   try { persistState(state, localStorage); storageAvailable = true; }
@@ -67,6 +71,7 @@ function save() {
   renderCustomers();
   renderTransactions();
   renderMonthlyReport();
+  renderPhase3();
   renderStorageWarning();
   return storageAvailable;
 }
@@ -75,26 +80,45 @@ function checkMonthlyBilling() {
   if (updated !== state) { state = updated; save(); }
 }
 function renderDashboard() {
-  const totals = calculateDashboard(state, new Date());
+  const referenceDate = new Date();
+  const totals = calculateDashboard(state, referenceDate);
+  const retainedMonths = new Set(monthsForHistory(referenceDate));
+  const allBillRows = state.customers.flatMap(customer => (customer.bills ?? []).map(bill => ({ bill })));
+  const retainedBills = allBillRows.filter(({bill}) => retainedMonths.has(bill.month));
+  const pricedRetainedBills = retainedBills.filter(({bill}) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number(bill.dueAmount) > 0);
+  const currentBills = allBillRows.filter(({bill}) => bill.month === totals.currentMonth);
+  const pricedCurrentBills = currentBills.filter(({bill}) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number(bill.dueAmount) > 0);
+  const retainedPayments = retainedBills.flatMap(({bill}) => bill.payments ?? []);
+  const allPayments = allBillRows.flatMap(({bill}) => bill.payments ?? []);
+  const todayPayments = allPayments.filter(payment => payment.date === totals.today).length;
+  const previousMonthPayments = allPayments.filter(payment => typeof payment.date === 'string' && payment.date.slice(0,7) === totals.previousMonth).length;
+  const profilesWithCost = totals.providerCostBreakdown.reduce((sum,group) => sum + group.profilesWithCost, 0);
+  const profilesWithProfit = state.customers.filter(customer => !customer.archived && customerPackageProfit(customer) !== null).length;
   $('#dashboardCustomerCount').textContent = totals.totalCustomers;
-  $('#dashboardServiceStatusSummary').textContent = `Manual service state · Active ${totals.activeServiceCount} · Offline ${totals.offlineServiceCount} · Not set ${totals.unsetServiceCount} · does not change bill status`;
-  $('#dashboardTotalCollection').textContent = formatAmount(totals.totalCollection);
-  $('#dashboardTotalDue').textContent = formatAmount(totals.totalDue);
-  $('#dashboardTodayCollection').textContent = formatAmount(totals.todayCollection);
-  $('#dashboardPreviousCollection').textContent = formatAmount(totals.previousMonthCollection);
-  $('#dashboardCurrentMonthDue').textContent = formatAmount(totals.currentMonthDue);
-  $('#dashboardPendingCredit').textContent = formatAmount(totals.pendingCredit);
-  $('#dashboardExpectedProfit').textContent = formatAmount(totals.expectedMonthlyPackageProfit);
-  $('#dashboardProviderCost').textContent = formatAmount(totals.expectedMonthlyProviderCost);
-  $('#dashboardCustomerPeriod').textContent = `${totals.archivedCustomers} archived · excluded from active package costs`;
-  $('#dashboardProviderCostPeriod').textContent = 'Expected recurring monthly cost · not cash paid';
+  $('#serviceCountActive').textContent = totals.activeServiceCount;
+  $('#serviceCountOffline').textContent = totals.offlineServiceCount;
+  $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
+  document.querySelector('[data-customer-service-filter="active"]').setAttribute('aria-label',`Filter by manual service status Active (${totals.activeServiceCount} unarchived)`);
+  document.querySelector('[data-customer-service-filter="offline"]').setAttribute('aria-label',`Filter by manual service status Offline (${totals.offlineServiceCount} unarchived)`);
+  document.querySelector('[data-customer-service-filter="not-set"]').setAttribute('aria-label',`Filter by manual service status Not set (${totals.unsetServiceCount} unarchived)`);
+  $('#serviceStateCountsAnnouncement').textContent = `Manual service counts, excluding archived profiles: Active ${totals.activeServiceCount} · Offline ${totals.offlineServiceCount} · Not set ${totals.unsetServiceCount}`;
+  $('#dashboardTotalCollection').textContent = retainedPayments.length ? formatAmount(totals.totalCollection) : 'No payment entries';
+  $('#dashboardTotalDue').textContent = retainedBills.length === 0 ? 'No bill entries' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : 'Not set';
+  $('#dashboardTodayCollection').textContent = todayPayments ? formatAmount(totals.todayCollection) : 'No payment entries';
+  $('#dashboardPreviousCollection').textContent = previousMonthPayments ? formatAmount(totals.previousMonthCollection) : 'No payment entries';
+  $('#dashboardCurrentMonthDue').textContent = currentBills.length === 0 ? 'No bill entries' : pricedCurrentBills.length ? formatAmount(totals.currentMonthDue) : 'Not set';
+  $('#dashboardPendingCredit').textContent = allPayments.length ? formatAmount(totals.pendingCredit) : 'No credit entries';
+  $('#dashboardExpectedProfit').textContent = profilesWithProfit ? formatAmount(totals.expectedMonthlyPackageProfit) : 'Not set';
+  $('#dashboardProviderCost').textContent = profilesWithCost ? formatAmount(totals.expectedMonthlyProviderCost) : 'Not set';
+  $('#dashboardCustomerPeriod').textContent = `${totals.archivedCustomers} archived · ${totals.totalCustomers} unarchived profiles; service state is manual`;
+  $('#dashboardProviderCostPeriod').textContent = profilesWithCost ? 'Expected recurring monthly cost · not cash paid' : 'No provider-cost entries · not cash paid';
   $('#providerCostBreakdownList').innerHTML = totals.providerCostBreakdown.map(group => `<li><span class="provider-breakdown-name">${escapeHtml(group.provider)}</span><strong>${escapeHtml(formatAmount(group.expectedMonthlyCost))}</strong><span class="provider-breakdown-meta">${group.profilesWithCost} cost${group.profilesWithCost === 1 ? '' : 's'} entered · ${group.profilesMissingCost} missing</span></li>`).join('');
   $('#providerCostBreakdownEmpty').hidden = totals.providerCostBreakdown.length > 0;
-  $('#dashboardTotalCollectionPeriod').textContent = `Actual recorded payments · last ${MONTH_LIMIT} retained billing months`;
-  $('#dashboardTotalDuePeriod').textContent = `Known outstanding bills · retained ${MONTH_LIMIT}-month history`;
+  $('#dashboardTotalCollectionPeriod').textContent = retainedPayments.length ? `Actual recorded payments · last ${MONTH_LIMIT} retained billing months` : 'No actual payment entries in the retained history';
+  $('#dashboardTotalDuePeriod').textContent = retainedBills.length ? `Known outstanding bills · retained ${MONTH_LIMIT}-month history` : 'No bills have been recorded in the retained history';
   $('#dashboardTodayPeriod').textContent = `Actual payments dated today · ${totals.today}`;
   $('#dashboardPreviousPeriod').textContent = `Actual payment dates in ${monthName(totals.previousMonth)}`;
-  $('#dashboardCurrentDuePeriod').textContent = `Current billing month · ${monthName(totals.currentMonth)}`;
+  $('#dashboardCurrentDuePeriod').textContent = `Current billing month · ${monthName(totals.currentMonth)}${currentBills.length ? '' : ' · no bill entries'}`;
   $('#dashboardExpectedProfitPeriod').textContent = 'Selling amount − provider cost · expected margin, not collected cash profit';
   const notes = [];
   if (totals.customersMissingSellingAmount) notes.push(`Selling amount unset for ${plural(totals.customersMissingSellingAmount, 'customer')}; no monthly bills are generated until a price is entered.`);
@@ -179,7 +203,7 @@ function renderGlobalSearch() {
   }));
 }
 function switchView(view) {
-  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'] };
+  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'] };
   for (const [name, [sectionId, buttonId]] of Object.entries(views)) {
     const active = name === view;
     $(`#${sectionId}`).hidden = !active;
@@ -332,12 +356,20 @@ function renderDetail() {
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
   $('#mohallaInput').value = customer.mohalla ?? '';
+  $('#zoneInput').value = customer.zone ?? '';
   $('#addressInput').value = customer.address ?? '';
   $('#phoneInput').value = customer.phone ?? '';
   $('#ispProviderInput').value = customer.ispProvider ?? '';
   $('#packageSpeedInput').value = customer.packageSpeed ?? '';
   $('#monthlyPurchaseCostInput').value = customer.monthlyPurchaseCost ?? '';
   $('#monthlySellingAmountInput').value = customer.monthlySellingAmount ?? '';
+  $('#connectionDateInput').value = customer.connectionDate ?? '';
+  $('#expiryDateInput').value = customer.expiryDate ?? '';
+  $('#cancellationDateInput').value = customer.cancellationDate ?? '';
+  $('#packageChangeStaffNameInput').value = '';
+  const packageHistory = [...(customer.packageHistory ?? [])].reverse();
+  $('#packageHistoryList').innerHTML = packageHistory.map(change => `<li><strong>${escapeHtml(change.date || 'Date not recorded')}</strong> · ${escapeHtml(change.oldPackage || 'Not set')} → ${escapeHtml(change.newPackage || 'Not set')} · Rate ${escapeHtml(formatAmount(change.oldMonthlyRate))} → ${escapeHtml(formatAmount(change.newMonthlyRate))} · monthly delta ${escapeHtml(change.monthlyRecurringPriceDelta === null ? 'Not calculable' : formatAmount(change.monthlyRecurringPriceDelta))}${change.staffName ? ` · ${escapeHtml(change.staffName)}` : ''}</li>`).join('');
+  $('#packageHistoryEmpty').hidden = packageHistory.length > 0;
   renderProfileMarginPreview();
   renderIncidents(customer);
   renderHistory(customer);
@@ -372,12 +404,12 @@ function renderBackupPreview(preview) {
   pendingBackupPreview = preview;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
-  $('#jsonBackupPreviewSummary').textContent = summary;
+  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses.`;
   const list = $('#jsonBackupConflictList');
   list.replaceChildren();
   for (const conflict of conflicts.slice(0, 25)) {
     const item = document.createElement('li');
-    item.textContent = `Customer #${conflict.customerNumber} ${conflict.name}: ${conflict.field}. Existing value kept.`;
+    item.textContent = conflict.customerNumber ? `Customer #${conflict.customerNumber} ${conflict.name}: ${conflict.field}. Existing value kept.` : `${conflict.field}: existing value kept.`;
     list.append(item);
   }
   if (conflicts.length > 25) {
@@ -569,11 +601,13 @@ $('#saveMohallaButton').addEventListener('click', () => {
   if (!selectedCustomer()) return;
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
-      mohalla:$('#mohallaInput').value, address:$('#addressInput').value, phone:$('#phoneInput').value,
+      mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, phone:$('#phoneInput').value,
       ispProvider:$('#ispProviderInput').value,
       serviceStatus:$('#serviceStatusInput').value,
       packageSpeed:$('#packageSpeedInput').value, monthlyPurchaseCost:$('#monthlyPurchaseCostInput').value,
-      monthlySellingAmount:$('#monthlySellingAmountInput').value
+      monthlySellingAmount:$('#monthlySellingAmountInput').value, connectionDate:$('#connectionDateInput').value,
+      expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
+      packageChangeStaffName:$('#packageChangeStaffNameInput').value
     });
     save(); renderDetail(); toast('Customer profile saved on this device.');
   } catch (error) { toast(error.message); }
@@ -621,3 +655,120 @@ renderTransactions();
 renderMonthlyReport();
 renderDetail();
 if (!storageAvailable) toast('Browser storage is unavailable. Entries may not persist.');
+
+
+function phase3Cell(value) { return escapeHtml(value ?? ''); }
+function phase3Money(value) { return value === null || value === undefined ? 'Not set' : formatAmount(value); }
+function readableStock(items, category) {
+  const filtered=items.filter(item=>item.category===category&&item.hasMovements);
+  if(!filtered.length) return 'Not recorded';
+  const totals=new Map(); for(const item of filtered) totals.set(item.unit,(totals.get(item.unit)??0)+item.available);
+  return [...totals].map(([unit,amount])=>`${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(amount)} ${unit}`).join(' · ');
+}
+function shortMonth(month) { return new Intl.DateTimeFormat('en',{month:'short',timeZone:'UTC'}).format(new Date(`${month}-01T00:00:00Z`)); }
+function chartAxis(value,isMoney) {
+  const rounded=Math.round(value); const text=new Intl.NumberFormat('en-PK',{maximumFractionDigits:0}).format(rounded);
+  return isMoney ? `PKR ${text}` : text;
+}
+function twoSeriesSvg(rows,{first,second,firstLabel,secondLabel,title,isMoney=false}={}) {
+  const values=rows.flatMap(row=>[row[first],row[second]]).filter(value=>Number.isFinite(value));
+  if(!values.length) return '';
+  const width=720,height=220,left=76,right=12,top=14,bottom=38,plotWidth=width-left-right,plotHeight=height-top-bottom;
+  const maximum=Math.max(...values,1),groupWidth=plotWidth/Math.max(rows.length,1),barWidth=Math.min(20,groupWidth*.25);
+  const ticks=[0,maximum/2,maximum];
+  const grid=ticks.map(tick=>{const y=top+plotHeight-(tick/maximum)*plotHeight;return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" class="chart-grid-line"/><text x="${left-7}" y="${y+4}" text-anchor="end" class="chart-axis-label">${phase3Cell(chartAxis(tick,isMoney))}</text>`;}).join('');
+  const bars=rows.map((row,index)=>{
+    const center=left+groupWidth*(index+.5),monthLabel=phase3Cell(shortMonth(row.month));
+    const makeBar=(key,offset,klass,label)=>{const value=row[key];if(!Number.isFinite(value))return '';const h=Math.max(value>0?1:0,(value/maximum)*plotHeight),y=top+plotHeight-h,x=center+offset-barWidth/2;return `<rect x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="3" class="${klass}"><title>${phase3Cell(label)} · ${monthLabel}: ${phase3Cell(isMoney?formatAmount(value):value)}</title></rect>`;};
+    return `${makeBar(first,-barWidth*.55,'chart-bar-first',firstLabel)}${makeBar(second,barWidth*.55,'chart-bar-second',secondLabel)}<text x="${center}" y="${height-12}" text-anchor="middle" class="chart-month-label">${monthLabel}</text>`;
+  }).join('');
+  const description=rows.map(row=>`${row.month}: ${firstLabel} ${Number.isFinite(row[first])?row[first]:'not recorded'}, ${secondLabel} ${Number.isFinite(row[second])?row[second]:'not recorded'}`).join('; ');
+  return `<svg class="phase3-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${phase3Cell(title)}"><title>${phase3Cell(title)}</title><desc>${phase3Cell(description)}</desc>${grid}${bars}</svg>`;
+}
+function oneSeriesSvg(rows,{key,label,title,isMoney=false}={}) {
+  const values=rows.map(row=>row[key]).filter(value=>Number.isFinite(value)); if(!values.length)return '';
+  const width=720,height=220,left=76,right=12,top=14,bottom=38,plotWidth=width-left-right,plotHeight=height-top-bottom,maximum=Math.max(...values,1),groupWidth=plotWidth/Math.max(rows.length,1),barWidth=Math.min(30,groupWidth*.42);
+  const grid=[0,maximum/2,maximum].map(tick=>{const y=top+plotHeight-(tick/maximum)*plotHeight;return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" class="chart-grid-line"/><text x="${left-7}" y="${y+4}" text-anchor="end" class="chart-axis-label">${phase3Cell(chartAxis(tick,isMoney))}</text>`;}).join('');
+  const bars=rows.map((row,index)=>{const value=row[key],center=left+groupWidth*(index+.5),h=Math.max(value>0?1:0,(value/maximum)*plotHeight),y=top+plotHeight-h;return `${Number.isFinite(value)?`<rect x="${center-barWidth/2}" y="${y}" width="${barWidth}" height="${h}" rx="3" class="chart-bar-first"><title>${phase3Cell(label)} · ${phase3Cell(row.month)}: ${phase3Cell(isMoney?formatAmount(value):value)}</title></rect>`:''}<text x="${center}" y="${height-12}" text-anchor="middle" class="chart-month-label">${phase3Cell(shortMonth(row.month))}</text>`;}).join('');
+  const description=rows.map(row=>`${row.month}: ${Number.isFinite(row[key])?row[key]:'not recorded'}`).join('; ');
+  return `<svg class="phase3-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${phase3Cell(title)}"><title>${phase3Cell(title)}</title><desc>${phase3Cell(description)}</desc>${grid}${bars}</svg>`;
+}
+function renderAnalytics() {
+  const data=buildPhase3Analytics(state,new Date());
+  $('#analyticsPeriodNote').textContent=`Last six Pakistan local months through ${data.asOf} · ${monthName(data.currentMonth)} is partial.`;
+  $('#forecastAmount').textContent=data.forecast.customersIncluded?formatAmount(data.forecast.amount):'Not set';
+  $('#forecastDetail').textContent=data.forecast.customersIncluded?`${data.forecast.customersIncluded} configured subscriptions · ${data.forecast.missingPrice} eligible profiles missing a next-month price · offline status does not exclude a subscriber`:'No confirmed active subscription rates for next month.';
+  const currentRevenueCount=data.revenueCollection.find(row=>row.month===data.currentMonth)?.billCount??0;
+  $('#analyticsBilledRevenue').textContent=currentRevenueCount?formatAmount(data.currentBilledRevenue):'No bill entries';
+  $('#analyticsBilledDetail').textContent=currentRevenueCount?`${currentRevenueCount} current-month bill price snapshots · service month, not cash`:'No current service-month bill price snapshots recorded.';
+  $('#analyticsOutstanding').textContent=data.totalBills?formatAmount(data.currentOutstanding):'No bill entries';
+  $('#analyticsOutstandingDetail').textContent=data.totalBills?`Current outstanding using saved bills, receipts, and sequential credit · as of ${data.asOf} PKT`:'No bill entries; no outstanding amount is inferred.';
+  const online=data.onlineOffline;
+  $('#analyticsOnlinePercent').textContent=online.onlinePercent===null?'Not set':`${online.onlinePercent}%`;
+  $('#analyticsOnlineDetail').textContent=`${online.online} Active ÷ ${online.denominator} Active + Offline · ${online.notSet} Not set excluded`;
+  const monthGrowth=data.growth.find(row=>row.month===data.currentMonth);
+  $('#analyticsNewConnections').textContent=data.hasConnectionDates?(monthGrowth?.newConnections??0):'Not set';
+  $('#analyticsNewConnectionDetail').textContent=data.hasConnectionDates?'Recorded connection dates only; Offline is not churn.':'No real connection dates have been entered.';
+  const revenueSvg=twoSeriesSvg(data.revenueCollection,{first:'billedRevenue',second:'cashCollection',firstLabel:'Billed revenue',secondLabel:'Cash collection',title:'Billed revenue by service month compared with actual cash received by date',isMoney:true});
+  $('#revenueCollectionChart').innerHTML=data.hasRevenueRecords?revenueSvg:'<p class="empty-state">No bill or payment entries in this six-month window.</p>';
+  const outstandingRows=data.monthEndOutstanding.map(row=>({month:row.month,outstanding:row.billCount?row.total:null}));
+  $('#outstandingChart').innerHTML=data.totalBills?oneSeriesSvg(outstandingRows,{key:'outstanding',label:'Outstanding snapshot through month-end',title:'Historical outstanding balance snapshots at PKT month-end',isMoney:true}):'<p class="empty-state">No bill entries; historical outstanding snapshots are unavailable.</p>';
+  const growthRows=data.growth.map(row=>({month:row.month,newConnections:row.newConnections,cumulative:row.cumulativeKnownActive}));
+  $('#growthChart').innerHTML=data.hasConnectionDates?twoSeriesSvg(growthRows,{first:'newConnections',second:'cumulative',firstLabel:'New connections',secondLabel:'Dated active count',title:'Recorded new connections and cumulative active customers with known connection dates'}):'<p class="empty-state">No recorded connection dates in the six-month period.</p>';
+  const incomeSvg=twoSeriesSvg(data.incomeExpense,{first:'income',second:'expenses',firstLabel:'Cash income',secondLabel:'Recorded expense',title:'Actual cash receipts compared with dated actual expenses',isMoney:true});
+  $('#incomeExpenseChart').innerHTML=data.hasIncomeRecords||data.hasExpenseRecords?incomeSvg:'<p class="empty-state">No payment receipts or expense entries in this six-month window.</p>';
+  const incomeLegend=$('#incomeLegend'); if(incomeLegend)incomeLegend.textContent=data.hasIncomeRecords?'Cash income':'Cash income · no entries';
+  const expenseLegend=$('#expenseLegend'); if(expenseLegend)expenseLegend.textContent=data.hasExpenseRecords?'Recorded expense':'Expense · no entries';
+  const denominator=online.denominator,onlineWidth=denominator?online.online/denominator*100:0,offlineWidth=denominator?online.offline/denominator*100:0;
+  $('#onlineSnapshot').innerHTML=`<div class="online-snapshot-rail" role="img" aria-label="Manual status snapshot: ${online.online} active, ${online.offline} offline, ${online.notSet} not set"><span class="online-segment" style="width:${onlineWidth}%"></span><span class="offline-segment" style="width:${offlineWidth}%"></span></div><div class="online-snapshot-values"><span><i class="legend-online"></i>Active ${online.online}</span><span><i class="legend-offline"></i>Offline ${online.offline}</span><span>Not set ${online.notSet}</span><strong>${online.onlinePercent===null?'Online % not set':`${online.onlinePercent}% (${online.online}/${denominator})`}</strong></div>`;
+  $('#areaSummaryTable').innerHTML=data.areaRows.map(row=>`<tr><th scope="row">${phase3Cell(row.area)}</th><td>${row.customerCount}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill entries'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.onlinePercent===null?`Not set (${row.online}/${row.onlineDenominator})`:`${row.onlinePercent}% (${row.online}/${row.onlineDenominator})`}</td><td>${row.complaints}</td><td>${data.hasConnectionDates?row.newConnections:'Not set'}</td><td>${row.arpu===null?'Not set':phase3Cell(formatAmount(row.arpu))}</td></tr>`).join('');
+  $('#areaSummaryEmpty').hidden=data.areaRows.length>0;
+  $('#packageSummaryTable').innerHTML=data.packageRows.map(row=>`<tr><th scope="row">${phase3Cell(row.package)}</th><td>${row.customers}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill entries'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.newSubscriptions}</td><td>${row.expired}</td><td>${row.churn}</td><td>${row.arpu===null?'Not set':phase3Cell(formatAmount(row.arpu))}</td></tr>`).join('');
+  $('#packageSummaryEmpty').hidden=data.packageRows.length>0;
+  $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
+  $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
+}
+function renderInventory() {
+  const summary=inventorySummary(state),items=summary.items;
+  const metric=(id,value)=>{const node=$(`#${id}`);if(node)node.textContent=value;};
+  metric('inventoryTotalStock',summary.hasMovements?`${items.filter(item=>item.hasMovements).length} item types`:'Not set');
+  metric('inventoryOnuStock',readableStock(items,'ONU'));metric('inventoryRouterStock',readableStock(items,'Router'));metric('inventoryFiberStock',readableStock(items,'Fiber cable'));metric('inventoryConnectorStock',readableStock(items,'Connector'));metric('inventoryAdapterStock',readableStock(items,'Adapter / power supply'));
+  metric('inventoryLowStock',summary.hasMovements?String(summary.lowStockItems):'Not set');metric('inventoryInstalled',summary.hasMovements?String(summary.installed):'Not set');metric('inventoryDamaged',summary.hasMovements?String(summary.damaged):'Not set');metric('inventoryReturned',summary.hasMovements?String(summary.returned):'Not set');
+  metric('inventoryValue',summary.hasMovements?formatAmount(summary.availableValue):'Not set');
+  const itemsTable=$('#inventoryItemsTable');
+  itemsTable.innerHTML=items.map(item=>`<tr><th scope="row">${phase3Cell(item.name)}</th><td>${phase3Cell(item.category)}</td><td>${item.hasMovements?new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available):'Not recorded'}</td><td>${phase3Cell(item.unit)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)}</td><td>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</td><td>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</td><td>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</td><td><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></td></tr>`).join('');
+  $('#inventoryItemsEmpty').hidden=items.length>0;
+  const itemSelect=$('#movementItemId'),selected=itemSelect.value;
+  itemSelect.innerHTML='<option value="">Choose item</option>'+items.map(item=>`<option value="${phase3Cell(item.id)}">${phase3Cell(item.name)} · ${phase3Cell(item.category)} (${phase3Cell(item.unit)})</option>`).join('');
+  if(items.some(item=>item.id===selected))itemSelect.value=selected;
+  const customerSelect=$('#movementCustomerId'),selectedCustomer=customerSelect.value;
+  customerSelect.innerHTML='<option value="">Not assigned</option>'+state.customers.map(customer=>`<option value="${phase3Cell(customer.id)}">#${customer.customerNumber} ${phase3Cell(customer.name)}</option>`).join('');
+  if(state.customers.some(customer=>customer.id===selectedCustomer))customerSelect.value=selectedCustomer;
+  $('#inventoryMovementTable').innerHTML=summary.movements.map(row=>{const customer=state.customers.find(item=>item.id===row.customerId);const assignment=customer?`#${customer.customerNumber} ${phase3Cell(customer.name)}`:row.customerNameSnapshot?`#${phase3Cell(row.customerNumberSnapshot)} ${phase3Cell(row.customerNameSnapshot)} (profile removed)`: 'Not assigned';const action=({receive:'Receive / purchase',install:'Install / issue',issue:'Install / issue',return:'Return',damage:'Damage',correction:'Correction'})[row.type]??row.type;return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.itemName)}</th><td>${phase3Cell(action)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(row.quantity)} ${phase3Cell(row.unit)}</td><td>${phase3Cell(row.fromState||'External')} → ${phase3Cell(row.toState||'Removed')}</td><td>${assignment}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td><button type="button" class="delete-incident" data-delete-movement="${phase3Cell(row.id)}">Delete</button></td></tr>`;}).join('');
+  $('#inventoryMovementsEmpty').hidden=summary.movements.length>0;
+  itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
+  $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement||!window.confirm(`Delete the ${movement.type} movement of ${movement.quantity} ${movement.unit} dated ${movement.date}? This may change all current inventory balances.`))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.');}catch(error){toast(error.message);}}));
+}
+function renderExpenses() {
+  const rows=[...(state.expenses??[])].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  $('#expenseEntryCount').textContent=rows.length?String(rows.length):'No entries';
+  $('#expenseEntryHelp').textContent=rows.length?'Actual dated expenses recorded on this device.':'No expense entries recorded; not an assertion that spending was zero.';
+  const current=buildPhase3Analytics(state,new Date()).currentMonth,monthRows=rows.filter(row=>row.date.slice(0,7)===current);
+  $('#expenseCurrentMonthTotal').textContent=monthRows.length?formatAmount(monthRows.reduce((sum,row)=>sum+Number(row.amount),0)):'No entries';
+  $('#expenseTable').innerHTML=rows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
+  $('#expensesEmpty').hidden=rows.length>0;
+  $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{const row=rows.find(item=>item.id===button.dataset.editExpense);if(!row)return;$('#expenseId').value=row.id;$('#expenseDate').value=row.date;$('#expenseAmount').value=row.amount;$('#expenseCategory').value=row.category;$('#expenseNotes').value=row.notes??'';$('#expenseSubmit').textContent='Save expense correction';$('#expenseCancel').hidden=false;$('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});}));
+  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{const row=rows.find(item=>item.id===button.dataset.deleteExpense);if(!row||!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category} expense dated ${row.date}?`))return;try{state=deleteExpense(state,row.id);save();toast('Expense entry deleted from this device.');}catch(error){toast(error.message);}}));
+}
+function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
+function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
+function resetExpenseForm() { $('#expenseForm').reset();$('#expenseId').value='';$('#expenseSubmit').textContent='Record actual expense';$('#expenseCancel').hidden=true; }
+$('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
+$('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
+$('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
+$('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={date:data.get('date'),amount:data.get('amount'),category:data.get('category'),notes:data.get('notes')};try{const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;state=id?updateExpense(state,id,fields):addExpense(state,fields);save();resetExpenseForm();toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');}catch(error){toast(error.message);}});
+$('#expenseCancel').addEventListener('click',resetExpenseForm);
+$('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
+$('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
+$('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
+renderPhase3();

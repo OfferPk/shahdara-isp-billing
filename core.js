@@ -1,3 +1,5 @@
+import { validatePhase3State } from './phase3.js';
+
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
@@ -33,7 +35,7 @@ function parseLocalDateTime(value) {
 }
 
 export function createInitialState(names = INITIAL_NAMES) {
-  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, archived:false, archivedAt:null, bills: [], incidents: [] })) };
+  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[], inventoryMovements:[], expenses:[] };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
@@ -81,6 +83,7 @@ export function readState(storage, key = STORAGE_KEY) {
       id:customer.id ?? `saved-${index + 1}`,
       customerNumber,
       mohalla:customer.mohalla ?? '',
+      zone:customer.zone ?? '',
       address:customer.address ?? '',
       phone:customer.phone ?? '',
       ispProvider:customer.ispProvider ?? '',
@@ -90,14 +93,24 @@ export function readState(storage, key = STORAGE_KEY) {
       monthlySellingAmount,
       monthlyPriceSchedule,
       billingStartMonth:validMonthString(customer.billingStartMonth) ? customer.billingStartMonth : null,
+      connectionDate:validDateOrNull(customer.connectionDate),
+      expiryDate:validDateOrNull(customer.expiryDate),
+      cancellationDate:validDateOrNull(customer.cancellationDate),
+      packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
       archived:customer.archived === true,
       archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       bills,
       incidents:Array.isArray(customer.incidents) ? customer.incidents.map(incident => ({ ...incident, restoredAt:incident.restoredAt || null, note:incident.note ?? '', corrections:Array.isArray(incident.corrections) ? incident.corrections : [] })) : []
     };
   });
+  const phase3 = validatePhase3State(parsed);
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
-  return { ...parsed, nextCustomerNumber:Math.max(storedNext, nextAvailable, highestNumber + 1), customers };
+  return { ...parsed, ...phase3, nextCustomerNumber:Math.max(storedNext, nextAvailable, highestNumber + 1), customers };
+}
+
+function validDateOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  try { return checkOptionalDate(value, 'Profile date'); } catch { return null; }
 }
 
 export function persistState(state, storage, key = STORAGE_KEY) {
@@ -147,7 +160,7 @@ export function addCustomer(state, name) {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, mohalla: '', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query) {
@@ -256,17 +269,33 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
   };
   const fields = {
     mohalla: cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla'),
+    zone: cleanText(valueOrCurrent('zone') ?? '', 100, 'Zone'),
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
     phone: cleanText(valueOrCurrent('phone') ?? '', 40, 'Phone number'),
     ispProvider: cleanText(valueOrCurrent('ispProvider') ?? '', 100, 'ISP/provider name'),
     serviceStatus: checkServiceStatus(valueOrCurrent('serviceStatus') ?? 'not-set'),
     packageSpeed: cleanText(valueOrCurrent('packageSpeed') ?? '', 80, 'Package/speed'),
     monthlyPurchaseCost: checkCost(valueOrCurrent('monthlyPurchaseCost')),
-    monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true)
+    monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true),
+    connectionDate: checkOptionalDate(valueOrCurrent('connectionDate'), 'Connection date'),
+    expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
+    cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date')
   };
   const previousPrice = current.monthlySellingAmount ?? null;
   const nextPrice = fields.monthlySellingAmount ?? null;
   const priceChanged = (previousPrice === null) !== (nextPrice === null) || (previousPrice !== null && nextPrice !== null && moneyCents(previousPrice) !== moneyCents(nextPrice));
+  const packageChanged = String(current.packageSpeed ?? '') !== fields.packageSpeed;
+  let packageHistory = Array.isArray(current.packageHistory) ? [...current.packageHistory] : [];
+  if (packageChanged || priceChanged) {
+    const staffName = cleanText(values.packageChangeStaffName ?? '', 100, 'Staff name');
+    packageHistory.push({
+      date:dateKey(referenceDate), recordedAt:localDateTimeValue(referenceDate),
+      oldPackage:String(current.packageSpeed ?? ''), newPackage:fields.packageSpeed,
+      oldMonthlyRate:previousPrice, newMonthlyRate:nextPrice,
+      monthlyRecurringPriceDelta:previousPrice === null || nextPrice === null ? null : Number((nextPrice - previousPrice).toFixed(2)),
+      staffName
+    });
+  }
   let monthlyPriceSchedule = Array.isArray(current.monthlyPriceSchedule) ? [...current.monthlyPriceSchedule] : [];
   if (priceChanged) {
     const currentMonth = monthKey(referenceDate);
@@ -274,7 +303,7 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     const effectiveMonth = currentBillExists ? nextMonthKey(currentMonth) : currentMonth;
     monthlyPriceSchedule = [...monthlyPriceSchedule.filter(entry => entry.effectiveMonth !== effectiveMonth), { amount:nextPrice, effectiveMonth, recordedAt:localDateTimeValue(referenceDate) }];
   }
-  return { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, ...fields, monthlyPriceSchedule } : c) };
+  return { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, ...fields, monthlyPriceSchedule, packageHistory } : c) };
 }
 
 function validateIncident(fields) {
@@ -760,7 +789,7 @@ function validateBackupState(source) {
     const normalizedName = customer.name.trim().toLocaleLowerCase();
     if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
     customerNames.add(normalizedName);
-    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['address',200,'address'],['phone',40,'phone number'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['phone',40,'phone number'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
       if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
     }
     if (customer.serviceStatus !== undefined && !['active','offline','not-set'].includes(customer.serviceStatus)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid manual service status.`);
@@ -769,10 +798,21 @@ function validateBackupState(source) {
     if (customer.archived !== undefined && typeof customer.archived !== 'boolean') throw new Error(`Backup customer #${customer.customerNumber} has an invalid archive status.`);
     if (customer.billingStartMonth !== null && customer.billingStartMonth !== undefined && !validMonthString(customer.billingStartMonth)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid billing resume month.`);
     validStoredDateTime(customer.archivedAt, 'archive date');
+    for (const field of ['connectionDate','expiryDate','cancellationDate']) if (customer[field] !== null && customer[field] !== undefined && customer[field] !== '') checkOptionalDate(customer[field], `${field} date`);
     const schedule = customer.monthlyPriceSchedule ?? [];
+    const packageHistory = customer.packageHistory ?? [];
     const sourceBills = customer.bills ?? [];
     const sourceIncidents = customer.incidents ?? [];
-    if (!Array.isArray(schedule) || !Array.isArray(sourceBills) || !Array.isArray(sourceIncidents)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid billing/history list.`);
+    if (!Array.isArray(schedule) || !Array.isArray(packageHistory) || !Array.isArray(sourceBills) || !Array.isArray(sourceIncidents)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid billing/history list.`);
+    for (const change of packageHistory) {
+      if (!change || typeof change !== 'object') throw new Error(`Backup customer #${customer.customerNumber} has an invalid package change.`);
+      checkOptionalDate(change.date ?? null, 'Package change date');
+      validStoredDateTime(change.recordedAt, 'package change record date');
+      for (const field of ['oldPackage','newPackage','staffName']) if (change[field] !== undefined && (typeof change[field] !== 'string' || change[field].length > 100)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid package history field.`);
+      validBackupAmount(change.oldMonthlyRate, 'previous monthly rate');
+      validBackupAmount(change.newMonthlyRate, 'new monthly rate');
+      if (change.monthlyRecurringPriceDelta !== null && change.monthlyRecurringPriceDelta !== undefined && !Number.isFinite(Number(change.monthlyRecurringPriceDelta))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid package price delta.`);
+    }
     const scheduleMonths = new Set();
     for (const entry of schedule) {
       if (!entry || !validMonthString(entry.effectiveMonth) || scheduleMonths.has(entry.effectiveMonth)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate price-effective month.`);
@@ -821,15 +861,17 @@ function validateBackupState(source) {
       ...customer,
       id:customer.id,
       name:customer.name.trim(),
-      mohalla:customer.mohalla ?? '', address:customer.address ?? '', phone:customer.phone ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
+      mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
       monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
-      bills, incidents
+      connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
+      packageHistory, bills, incidents
     };
   });
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
   const nextCustomerNumber = Number.isSafeInteger(source.nextCustomerNumber) && source.nextCustomerNumber > 0 ? Math.max(source.nextCustomerNumber, highestNumber + 1) : highestNumber + 1;
-  return { ...source, version:1, nextCustomerNumber, customers };
+  const phase3 = validatePhase3State(source);
+  return { ...source, ...phase3, version:1, nextCustomerNumber, customers };
 }
 
 export function createJsonBackup(state, exportedAt = new Date()) {
@@ -851,7 +893,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, filledProfileFields:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, filledProfileFields:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
@@ -881,7 +923,9 @@ export function previewJsonBackupMerge(existingState, backupText) {
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','address','phone','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    customer.packageHistory = customer.packageHistory ?? [];
+    for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {
       const existingEntry = customer.monthlyPriceSchedule.find(entry => entry.effectiveMonth === incomingEntry.effectiveMonth);
       if (!existingEntry) { customer.monthlyPriceSchedule.push(deepCopy(incomingEntry)); counts.changes++; }
@@ -917,6 +961,14 @@ export function previewJsonBackupMerge(existingState, backupText) {
       else if (!sameJson(existingIncident,incomingIncident)) addConflict(backupCustomer, `incident ${incomingIncident.id}`);
     }
     customer.incidents.sort((a,b)=>b.reportedAt.localeCompare(a.reportedAt)||a.id.localeCompare(b.id));
+  }
+  for (const [key,countKey,label] of [['inventoryItems','addedInventoryItems','inventory item'],['inventoryMovements','addedInventoryMovements','inventory movement'],['expenses','addedExpenses','expense']]) {
+    current[key] = current[key] ?? [];
+    for (const incoming of incomingState[key] ?? []) {
+      const existing = current[key].find(entry=>entry.id===incoming.id);
+      if (!existing) { current[key].push(deepCopy(incoming)); counts[countKey]++; counts.changes++; }
+      else if (!sameJson(existing,incoming)) conflicts.push({customerNumber:null,name:'',field:`${label} ${incoming.id}`});
+    }
   }
   current.customers.sort((a,b)=>a.customerNumber-b.customerNumber);
   current.nextCustomerNumber = Math.max(existingState.nextCustomerNumber ?? 1, incomingState.nextCustomerNumber, ...current.customers.map(customer=>customer.customerNumber+1));

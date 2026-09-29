@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Phase 2 mobile-browser testing preview · web build 1.2.1**
+**Phase 3 mobile-browser testing preview · web build 1.2.2**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -8,11 +8,11 @@ Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing
 
 The public repository and site contain exactly the 74 supplied starter customer names, in the supplied order. Those names are publicly visible. Starter address, phone, package/provider, monthly price/cost, service status, bills, receipts and complaint/outage data are blank or unset; no demo ledger is preloaded.
 
-Customer profiles and every billing record are stored only in this browser's local storage on this device. There is no account, backend, billing-data upload or cloud/device sync. Clearing site data, changing browsers/devices, browser storage eviction or losing the device can remove records. **Download a JSON backup regularly and keep it somewhere separate.** JSON restore is validated and previewed before a merge; it is merge-only, preserves existing nonblank conflicts, and never silently replaces or deletes existing records. Backup files can contain personal/customer financial data, so store them securely. TXT exports and JSON backups are produced only when the operator requests them.
+Customer profiles, billing, inventory movements and expenses are stored only in this browser's local storage on this device. There is no account, backend, billing-data upload or cloud/device sync. Clearing site data, changing browsers/devices, browser storage eviction or losing the device can remove records. **Download a JSON backup regularly and keep it somewhere separate.** JSON restore is validated and previewed before a merge; it is merge-only, preserves existing nonblank conflicts, and never silently replaces or deletes existing records. Backup files can contain personal/customer financial data, so store them securely. TXT exports and JSON backups are produced only when the operator requests them.
 
 The first visit needs a network connection. The service worker caches the static app for later offline use. Cache updates do not clear local customer records; data migrations add default fields while retaining existing billing history, and malformed/unsupported saved data fails closed rather than being overwritten.
 
-## Phase 2 web features
+## Phase 1/2 web features preserved
 
 - Exactly 74 starter names; stable unique customer numbers; global partial search by name, optional phone/address or customer number. Customer IDs/numbers remain stable after deletion; numbers are never reused.
 - Editable optional address/phone, free-text ISP/provider (including a Nayatel suggestion), manual service state (Active / Offline / Not set) with direct color-coded customer-card choices, package/speed (5, 10, 15 and 30 Mbps suggestions plus custom text), monthly provider cost and one monthly selling amount. All starter values remain blank.
@@ -25,6 +25,14 @@ The first visit needs a network connection. The service worker caches the static
 - Manual per-customer complaint/outage records with report/offline/restored times, notes, open/resolved state, edits/deletes and rolling 30-day counts. No network/router monitoring is performed.
 - Phone-first controls, accessible form labels, local TXT exports, versioned offline assets and non-destructive migration safeguards.
 
+## Phase 3 web features
+
+- A local inventory register with manually entered ONU, router, fiber-cable, connector, adapter/power-supply or custom items. Item definitions add no stock. Dated receive, install/issue, return, damage and corrected stock movements determine available, installed, returned and damaged quantities. Unit of measure, minimum stock, optional unit/acquisition cost, notes and optional customer assignment are recorded. Available-stock value is unit cost multiplied by available quantity; it excludes installed, damaged and returned equipment. Categories with no movement history display as not recorded.
+- A local expense ledger for the requested provider, utility, salary, cable, equipment, repair, OLT, tool, RADIUS and other-expense categories. Only actual positive amounts with manually entered payment dates count. Corrections are editable and deletion is confirmed; inventory cost and expected provider costs are excluded from cash expenses.
+- Optional, blank-by-default zone and connection/expiry/cancellation dates, plus package-change history with old/new package, old/new monthly rates, calculated recurring delta and optional staff name. Existing bill snapshots are unchanged and no centralized Activity/Audit Log was added.
+- PKT-based six-month charts for bill-snapshot revenue vs receipt-date cash, recorded customer growth, dated month-end outstanding snapshots, current manual Active/Offline status and actual cash income vs actual dated expenses. Forecasts include eligible offline subscriptions with configured next-month rates. Live Active/Offline/Not set counts are calculated from saved nonarchived profiles and embedded in their service-filter buttons; billing-state filters remain independent. Area/package metrics separate unrecorded data from actual zero; online percentage excludes Not set profiles and shows its denominator. Empty history is labeled no entries/not set rather than a fabricated zero. Offline alone is not churn.
+- Inventory, expenses, optional profile fields and package history are included in the validated, preview-before-merge local JSON backup. Charts use bundled SVG; no external visualization assets or billing-data network calls are used.
+
 ## Local checks
 
 Requires Node.js 22 or a compatible modern Node release:
@@ -36,7 +44,7 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite verifies the blank 74-name seed, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, due dates and Pakistan-local day boundaries, complaints, JSON backup validation/merge, migration safety and offline asset versions.
+Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, due dates and Pakistan-local day boundaries, complaints, Phase 3 inventory/expense movements, area/package analytics, forecasting, PKT month-end snapshots, backup/migration safety and offline asset versions. The web bundle contains no Android package.
 
 ## Android
 

@@ -7,6 +7,7 @@ const version = JSON.parse(read('package.json')).version;
 const index = read('index.html');
 const app = read('app.js');
 const core = read('core.js');
+const phase3 = read('phase3.js');
 const styles = read('styles.css');
 const worker = read('sw.js');
 
@@ -14,13 +15,14 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(index, new RegExp(`href="\\./styles\\.css\\?v=${version.replaceAll('.', '\\.') }"`));
   assert.match(index, new RegExp(`src="\\./app\\.js\\?v=${version.replaceAll('.', '\\.') }"`));
   assert.match(app, new RegExp(`from '\\./core\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
+  assert.match(app, new RegExp(`from '\\./phase3\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   const register = index.indexOf(`navigator.serviceWorker.register('./sw.js?v=${version}'`);
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v7'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v9'/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
-  for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+  for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
 });
 
 test('customer-list empty-state renderer tolerates mismatched cached markup without aborting the app', () => {
@@ -87,4 +89,29 @@ test('v1.2.1 status controls use explicit manual service and derived billing sta
   assert.match(styles, /\.service-choice\{min-height:44px/);
   assert.match(core, /export function derivedBillStatus/);
   assert.match(core, /export function filterCustomersByStatus/);
+});
+
+test('service-state counts are calculated from saved profiles and stay inside the corresponding buttons on one scrollable toolbar row', () => {
+  assert.match(index, /class="customer-filter-group service-filter-toolbar"[\s\S]*?data-customer-service-filter="active"[\s\S]*?id="serviceCountActive"[\s\S]*?data-customer-service-filter="offline"[\s\S]*?id="serviceCountOffline"[\s\S]*?data-customer-service-filter="not-set"[\s\S]*?id="serviceCountNotSet"/);
+  assert.match(index, /id="serviceStateCountsAnnouncement" class="sr-only" role="status" aria-live="polite"/);
+  assert.doesNotMatch(index, /dashboardServiceStatusSummary/);
+  assert.match(app, /\$\('#serviceCountActive'\)\.textContent\s*=\s*totals\.activeServiceCount/);
+  assert.match(app, /\$\('#serviceCountOffline'\)\.textContent\s*=\s*totals\.offlineServiceCount/);
+  assert.match(app, /\$\('#serviceCountNotSet'\)\.textContent\s*=\s*totals\.unsetServiceCount/);
+  assert.match(app, /\$\('#serviceStateCountsAnnouncement'\)\.textContent\s*=/);
+  assert.match(styles, /\.service-filter-toolbar\{[^}]*flex-wrap:nowrap[^}]*overflow-x:auto/);
+  assert.doesNotMatch(index, /Active 73 · Offline 5 · Not set 0/);
+});
+
+test('Phase 3 sections are local-only, unseeded, mobile-rendered and use explicit no-entry labels', () => {
+  for (const id of ['analyticsView','inventoryView','expensesView','inventoryItemForm','inventoryMovementForm','expenseForm','serviceCountActive','serviceCountOffline','serviceCountNotSet']) assert.ok(index.includes(`id="${id}"`), `${id} exists`);
+  assert.match(index, /No bill entries/);
+  assert.match(index, /No payment entries/);
+  assert.match(index, /Not set/);
+  assert.match(index, /No stock movements have been entered/);
+  assert.match(index, /No expense entries recorded/);
+  assert.match(phase3, /export const EXPENSE_CATEGORIES/);
+  assert.match(phase3, /export function validatePhase3State/);
+  assert.match(phase3, /export function buildPhase3Analytics/);
+  assert.match(app, /function renderPhase3\(\)/);
 });

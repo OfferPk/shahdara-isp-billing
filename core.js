@@ -14,84 +14,90 @@ export function formatPKR(value) {
   const formatter = new Intl.NumberFormat('en-PK', { minimumFractionDigits:Number.isInteger(amount) ? 0 : 2, maximumFractionDigits:2 });
   return `PKR ${formatter.format(amount)}`;
 }
-const monthKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-const nextMonthKey = month => { const [year, number] = month.split('-').map(Number); return monthKey(new Date(year, number, 1)); };
-const dateKey = date => `${monthKey(date)}-${String(date.getDate()).padStart(2, '0')}`;
-const localDateTimeValue = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
+function zonedParts(date, options) {
+  return Object.fromEntries(new Intl.DateTimeFormat('en-US', { ...options, timeZone:PAKISTAN_TIME_ZONE }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+}
+const monthKey = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit' }); return `${p.year}-${p.month}`; };
+function shiftMonth(month, delta) { const [year, number] = month.split('-').map(Number); const index = year * 12 + number - 1 + delta; return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`; }
+const nextMonthKey = month => shiftMonth(month, 1);
+const dateKey = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
+const localDateTimeValue = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
 function parseLocalDateTime(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(value ?? ''));
   if (!match) return null;
   const [, year, month, day, hour, minute] = match.map(Number);
-  const parsed = new Date(year, month - 1, day, hour, minute, 0, 0);
-  if (parsed.getFullYear() !== year || parsed.getMonth() !== month - 1 || parsed.getDate() !== day || parsed.getHours() !== hour || parsed.getMinutes() !== minute) return null;
-  return parsed.getTime();
+  const wallClock = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  if (wallClock.getUTCFullYear() !== year || wallClock.getUTCMonth() !== month - 1 || wallClock.getUTCDate() !== day || wallClock.getUTCHours() !== hour || wallClock.getUTCMinutes() !== minute) return null;
+  return wallClock.getTime() - 5 * 60 * 60 * 1000;
 }
 
 export function createInitialState(names = INITIAL_NAMES) {
-  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', address: '', phone: '', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], bills: [], incidents: [] })) };
+  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, archived:false, archivedAt:null, bills: [], incidents: [] })) };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
-  try {
-    const raw = storage.getItem(key);
-    if (!raw) return createInitialState();
-    const parsed = JSON.parse(raw);
-    if (parsed?.version !== 1 || !Array.isArray(parsed.customers)) return createInitialState();
-    const numberCounts = new Map();
-    for (const customer of parsed.customers) if (Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0) numberCounts.set(customer.customerNumber, (numberCounts.get(customer.customerNumber) ?? 0) + 1);
-    const reserved = new Set([...numberCounts].filter(([, count]) => count === 1).map(([number]) => number));
-    const storedNext = Number.isSafeInteger(parsed.nextCustomerNumber) && parsed.nextCustomerNumber > 0 ? parsed.nextCustomerNumber : INITIAL_NAMES.length + 1;
-    let nextAvailable = Math.max(storedNext, ...reserved, 0);
-    const migrationDate = new Date();
-    const currentMonth = monthKey(migrationDate);
-    const used = new Set();
-    const customers = parsed.customers.map((customer, index) => {
-      let customerNumber = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 && numberCounts.get(customer.customerNumber) === 1 ? customer.customerNumber : null;
-      if (customerNumber === null) {
-        const legacyNumber = index + 1;
-        if (!reserved.has(legacyNumber) && !used.has(legacyNumber)) customerNumber = legacyNumber;
-        else {
-          while (reserved.has(nextAvailable) || used.has(nextAvailable)) nextAvailable++;
-          customerNumber = nextAvailable++;
-        }
+  const raw = storage.getItem(key);
+  if (raw === null) return createInitialState();
+  let parsed;
+  try { parsed = JSON.parse(raw); }
+  catch { throw new Error('Saved billing data is malformed. It was not changed. Use a JSON backup to recover it.'); }
+  if (parsed?.version !== 1 || !Array.isArray(parsed.customers)) throw new Error('Saved billing data has an unsupported version or structure. It was not changed. Use a JSON backup to recover it.');
+  if (!parsed.customers.every(customer => customer && typeof customer === 'object' && typeof customer.name === 'string' && customer.name.trim())) throw new Error('Saved billing data contains an invalid customer record. It was not changed. Use a JSON backup to recover it.');
+  const numberCounts = new Map();
+  for (const customer of parsed.customers) if (Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0) numberCounts.set(customer.customerNumber, (numberCounts.get(customer.customerNumber) ?? 0) + 1);
+  const reserved = new Set([...numberCounts].filter(([, count]) => count === 1).map(([number]) => number));
+  const storedNext = Number.isSafeInteger(parsed.nextCustomerNumber) && parsed.nextCustomerNumber > 0 ? parsed.nextCustomerNumber : INITIAL_NAMES.length + 1;
+  let nextAvailable = Math.max(storedNext, ...reserved, 0);
+  const migrationDate = new Date();
+  const currentMonth = monthKey(migrationDate);
+  const used = new Set();
+  const customers = parsed.customers.map((customer, index) => {
+    let customerNumber = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 && numberCounts.get(customer.customerNumber) === 1 ? customer.customerNumber : null;
+    if (customerNumber === null) {
+      const legacyNumber = index + 1;
+      if (!reserved.has(legacyNumber) && !used.has(legacyNumber)) customerNumber = legacyNumber;
+      else {
+        while (reserved.has(nextAvailable) || used.has(nextAvailable)) nextAvailable++;
+        customerNumber = nextAvailable++;
       }
-      used.add(customerNumber);
-      let bills = Array.isArray(customer.bills) ? customer.bills : [];
-      const monthlySellingAmount = customer.monthlySellingAmount ?? null;
-      let monthlyPriceSchedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
-      if (monthlySellingAmount !== null && monthlySellingAmount !== undefined && monthlySellingAmount !== '' && monthlyPriceSchedule.length === 0) {
-        const currentBillIndex = bills.findIndex(bill => bill.month === currentMonth);
-        let effectiveMonth = currentMonth;
-        if (currentBillIndex >= 0) {
-          effectiveMonth = nextMonthKey(currentMonth);
-          const currentBill = bills[currentBillIndex];
-          if (currentBill.dueAmount === null || currentBill.dueAmount === undefined || currentBill.dueAmount === '') {
-            bills = [...bills];
-            bills[currentBillIndex] = { ...currentBill, dueAmount:Number(monthlySellingAmount), generated:true, priceSnapshot:Number(monthlySellingAmount), createdAt:currentBill.createdAt ?? localDateTimeValue(migrationDate), amountHistory:Array.isArray(currentBill.amountHistory) ? currentBill.amountHistory : [] };
-          }
-        }
-        monthlyPriceSchedule = [{ amount:Number(monthlySellingAmount), effectiveMonth, recordedAt:localDateTimeValue(migrationDate) }];
+    }
+    used.add(customerNumber);
+    let bills = (Array.isArray(customer.bills) ? customer.bills : []).map(bill => ({ ...bill, dueDate:checkOptionalDate(bill.dueDate ?? null), amountHistory:Array.isArray(bill.amountHistory) ? bill.amountHistory : [] }));
+    const monthlySellingAmount = customer.monthlySellingAmount ?? null;
+    let monthlyPriceSchedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
+    if (monthlySellingAmount !== null && monthlySellingAmount !== undefined && monthlySellingAmount !== '' && monthlyPriceSchedule.length === 0) {
+      const currentBillIndex = bills.findIndex(bill => bill.month === currentMonth);
+      let effectiveMonth = currentMonth;
+      if (currentBillIndex >= 0) {
+        effectiveMonth = nextMonthKey(currentMonth);
+        const currentBill = bills[currentBillIndex];
+        if (currentBill.dueAmount === null || currentBill.dueAmount === undefined || currentBill.dueAmount === '') bills[currentBillIndex] = { ...currentBill, dueAmount:Number(monthlySellingAmount), generated:true, priceSnapshot:Number(monthlySellingAmount), createdAt:currentBill.createdAt ?? localDateTimeValue(migrationDate), amountHistory:currentBill.amountHistory };
       }
-      return {
+      monthlyPriceSchedule = [{ amount:Number(monthlySellingAmount), effectiveMonth, recordedAt:localDateTimeValue(migrationDate) }];
+    }
+    return {
       ...customer,
-      id: customer.id ?? `saved-${index + 1}`,
+      id:customer.id ?? `saved-${index + 1}`,
       customerNumber,
-      mohalla: customer.mohalla ?? '',
-      address: customer.address ?? '',
-      phone: customer.phone ?? '',
-      packageSpeed: customer.packageSpeed ?? '',
-      monthlyPurchaseCost: customer.monthlyPurchaseCost ?? null,
+      mohalla:customer.mohalla ?? '',
+      address:customer.address ?? '',
+      phone:customer.phone ?? '',
+      ispProvider:customer.ispProvider ?? '',
+      serviceStatus:['active','offline','not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set',
+      packageSpeed:customer.packageSpeed ?? '',
+      monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlySellingAmount,
       monthlyPriceSchedule,
+      billingStartMonth:validMonthString(customer.billingStartMonth) ? customer.billingStartMonth : null,
+      archived:customer.archived === true,
+      archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       bills,
-      incidents: Array.isArray(customer.incidents) ? customer.incidents.map(incident => ({ ...incident, restoredAt:incident.restoredAt || null, note:incident.note ?? '', corrections:Array.isArray(incident.corrections) ? incident.corrections : [] })) : []
-      };
-    });
-    const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
-    return { ...parsed, nextCustomerNumber: Math.max(storedNext, nextAvailable, highestNumber + 1), customers };
-  } catch {
-    return createInitialState();
-  }
+      incidents:Array.isArray(customer.incidents) ? customer.incidents.map(incident => ({ ...incident, restoredAt:incident.restoredAt || null, note:incident.note ?? '', corrections:Array.isArray(incident.corrections) ? incident.corrections : [] })) : []
+    };
+  });
+  const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
+  return { ...parsed, nextCustomerNumber:Math.max(storedNext, nextAvailable, highestNumber + 1), customers };
 }
 
 export function persistState(state, storage, key = STORAGE_KEY) {
@@ -99,9 +105,8 @@ export function persistState(state, storage, key = STORAGE_KEY) {
 }
 
 export function monthsForHistory(referenceDate = new Date()) {
-  const y = referenceDate.getFullYear();
-  const m = referenceDate.getMonth();
-  return Array.from({ length: MONTH_LIMIT }, (_, i) => monthKey(new Date(y, m - i, 1)));
+  const current = monthKey(referenceDate);
+  return Array.from({ length:MONTH_LIMIT }, (_, i) => shiftMonth(current, -i));
 }
 
 /**
@@ -113,17 +118,19 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
   const months = monthsForHistory(referenceDate).reverse();
   let changed = false;
   const customers = state.customers.map(customer => {
+    if (customer.archived) return customer;
     const bills = Array.isArray(customer.bills) ? customer.bills : [];
     const existingMonths = new Set(bills.map(bill => bill.month));
     const schedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
     const generated = [];
     for (const month of months) {
+      if (validMonthString(customer.billingStartMonth) && month < customer.billingStartMonth) continue;
       if (existingMonths.has(month)) continue;
       const applicable = schedule.filter(entry => typeof entry.effectiveMonth === 'string' && entry.effectiveMonth <= month).sort((a,b) => a.effectiveMonth.localeCompare(b.effectiveMonth)).at(-1);
       const amount = applicable?.amount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) continue;
       const snapshot = Number(amount);
-      generated.push({ id:makeId(), month, dueAmount:snapshot, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
+      generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:null, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
       existingMonths.add(month);
     }
     if (!generated.length) return customer;
@@ -140,7 +147,7 @@ export function addCustomer(state, name) {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, mohalla: '', address: '', phone: '', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, mohalla: '', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query) {
@@ -158,6 +165,23 @@ export function searchCustomers(state, query = '') {
 
 export function deleteCustomer(state, customerId) {
   return { ...state, customers: state.customers.filter(c => c.id !== customerId) };
+}
+
+export function archiveCustomer(state, customerId, referenceDate = new Date()) {
+  customerOrThrow(state, customerId);
+  return { ...state, customers:state.customers.map(customer => customer.id === customerId ? { ...customer, archived:true, archivedAt:localDateTimeValue(referenceDate) } : customer) };
+}
+
+export function unarchiveCustomer(state, customerId, referenceDate = new Date()) {
+  const customer = customerOrThrow(state, customerId);
+  if (!customer.archived) return state;
+  const currentMonth = monthKey(referenceDate);
+  let monthlyPriceSchedule = [...(customer.monthlyPriceSchedule ?? [])];
+  if (customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && customer.monthlySellingAmount !== '') {
+    const effectiveMonth = (customer.bills ?? []).some(bill => bill.month === currentMonth) ? nextMonthKey(currentMonth) : currentMonth;
+    monthlyPriceSchedule = [...monthlyPriceSchedule.filter(entry => entry.effectiveMonth !== effectiveMonth), { amount:Number(customer.monthlySellingAmount), effectiveMonth, recordedAt:localDateTimeValue(referenceDate) }];
+  }
+  return { ...state, customers:state.customers.map(item => item.id === customerId ? { ...item, archived:false, archivedAt:null, billingStartMonth:currentMonth, monthlyPriceSchedule } : item) };
 }
 
 export function updateMohalla(state, customerId, mohalla) {
@@ -179,6 +203,18 @@ function checkCost(value) {
   if (!Number.isFinite(number) || number < 0) throw new Error('Monthly purchase cost cannot be negative.');
   return Math.round(number * 100) / 100;
 }
+function checkServiceStatus(value) {
+  if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
+  return value;
+}
+function checkOptionalDate(value, label = 'Due date') {
+  if (value === '' || value === null || value === undefined) return null;
+  const date = String(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Enter a valid ${label.toLowerCase()}.`);
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw new Error(`Enter a valid ${label.toLowerCase()}.`);
+  return date;
+}
 function customerOrThrow(state, customerId) {
   const customer = state.customers.find(c => c.id === customerId);
   if (!customer) throw new Error('Customer not found.');
@@ -197,6 +233,8 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     mohalla: cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla'),
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
     phone: cleanText(valueOrCurrent('phone') ?? '', 40, 'Phone number'),
+    ispProvider: cleanText(valueOrCurrent('ispProvider') ?? '', 100, 'ISP/provider name'),
+    serviceStatus: checkServiceStatus(valueOrCurrent('serviceStatus') ?? 'not-set'),
     packageSpeed: cleanText(valueOrCurrent('packageSpeed') ?? '', 80, 'Package/speed'),
     monthlyPurchaseCost: checkCost(valueOrCurrent('monthlyPurchaseCost')),
     monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true)
@@ -263,20 +301,22 @@ export function countCustomerIncidentsLast30Days(state, customerId, referenceDat
   }).length;
 }
 
-export function saveBillMonth(state, customerId, { month, dueAmount = null, status }, referenceDate = new Date()) {
+export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined }, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
-  if (!['pending', 'received'].includes(status)) throw new Error('Choose Pending or Received.');
+  if (status !== 'pending') throw new Error('Paid status is derived from actual receipts or valid carry-forward credit. Record an actual payment instead of manually marking a bill paid.');
   const due = checkPositiveAmount(dueAmount, true);
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
+  if (customer.archived && !existing) throw new Error('Archived customers do not receive new bills. Unarchive the customer first.');
   if (!existing && due === null) throw new Error('Enter a bill amount before creating a bill. Unconfigured customers do not receive bills.');
+  const savedDueDate = dueDate === undefined ? (existing?.dueDate ?? null) : checkOptionalDate(dueDate);
   const amountHistory = [...(existing?.amountHistory ?? [])];
   const oldAmount = existing?.dueAmount ?? null;
   const amountChanged = existing && ((oldAmount === null) !== (due === null) || (oldAmount !== null && due !== null && moneyCents(oldAmount) !== moneyCents(due)));
   if (amountChanged) amountHistory.push({ changedAt:localDateTimeValue(referenceDate), previousAmount:oldAmount, newAmount:due, source:'manual correction' });
   const bill = existing
-    ? { ...existing, dueAmount:due, status, amountHistory }
-    : { id:makeId(), month, dueAmount:due, status, payments:[], generated:false, priceSnapshot:null, createdAt:localDateTimeValue(referenceDate), amountHistory:[] };
+    ? { ...existing, dueAmount:due, dueDate:savedDueDate, status, amountHistory }
+    : { id:makeId(), month, dueAmount:due, dueDate:savedDueDate, status, payments:[], generated:false, priceSnapshot:null, createdAt:localDateTimeValue(referenceDate), amountHistory:[] };
   const bills = [...customer.bills.filter(b => b.month !== month), bill].sort((a,b) => b.month.localeCompare(a.month));
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
@@ -295,6 +335,7 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   const payment = { id: makeId(), ...validatePayment(fields) };
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
+  if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
   const bill = existing ? { ...existing, payments: [...existing.payments, payment] } : { id: makeId(), month, dueAmount: null, status: 'pending', payments: [payment] };
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: existing ? c.bills.map(b => b.month === month ? bill : b) : [...c.bills, bill].sort((a,b) => b.month.localeCompare(a.month)) }) };
 }
@@ -348,7 +389,7 @@ export function calculatePaymentAllocations(state) {
 
       const billAmountCents = moneyCents(amount);
       summary.billAmountCents = billAmountCents;
-      let dueRemainingCents = bill.status === 'received' ? 0 : billAmountCents;
+      let dueRemainingCents = billAmountCents;
       for (const credit of pendingCredits) {
         if (dueRemainingCents <= 0) break;
         const appliedCents = Math.min(credit.remainingCents, dueRemainingCents);
@@ -362,9 +403,7 @@ export function calculatePaymentAllocations(state) {
       }
       for (let index = pendingCredits.length - 1; index >= 0; index--) if (pendingCredits[index].remainingCents <= 0) pendingCredits.splice(index, 1);
 
-      // A manually marked Received bill has zero due, but an actual receipt can still
-      // be entered later for audit; apply that real cash to this bill before carrying excess.
-      let sameMonthReceiptCapacityCents = bill.status === 'received' ? billAmountCents : dueRemainingCents;
+      let sameMonthReceiptCapacityCents = dueRemainingCents;
       for (const payment of payments) {
         const amountCents = moneyCents(payment.amount);
         const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false };
@@ -374,7 +413,7 @@ export function calculatePaymentAllocations(state) {
           paymentLedger.allocations.push({ month:bill.month, amountCents:appliedCents, kind:'same-month' });
           summary.sameMonthAppliedCents += appliedCents;
           sameMonthReceiptCapacityCents -= appliedCents;
-          if (bill.status !== 'received') dueRemainingCents -= appliedCents;
+          dueRemainingCents -= appliedCents;
         }
         const excessCents = amountCents - appliedCents;
         if (excessCents > 0) {
@@ -396,14 +435,12 @@ export function calculatePaymentAllocations(state) {
 
 function billStatusWithAllocations(customer, bill, allocations) {
   if (!bill) return 'not-recorded';
-  if (bill.status === 'received') return 'received';
   const summary = allocations.byCustomerMonth.get(monthAllocationKey(customer.id, bill.month));
   return summary?.balanceDueCents === 0 ? 'received' : 'pending';
 }
 
 export function effectiveBillStatus(customer, bill, referenceDate = new Date()) {
   if (!bill) return 'not-recorded';
-  if (bill.status === 'received') return 'received';
   return billStatusWithAllocations(customer, bill, calculatePaymentAllocations({ customers:[customer] }));
 }
 
@@ -416,6 +453,7 @@ export function listTransactions(state, { customerQuery = '', date = '' } = {}, 
     customerId: customer.id,
     customerNumber: customer.customerNumber,
     customerName: customer.name,
+    customerServiceStatus: customer.serviceStatus ?? 'not-set',
     customerPhone: customer.phone,
     customerAddress: customer.address,
     month: bill.month,
@@ -463,9 +501,13 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
       customerId:customer.id,
       customerNumber:customer.customerNumber,
       customerName:customer.name,
+      archived:customer.archived === true,
+      serviceStatus:customer.serviceStatus ?? 'not-set',
       packageSpeed:customer.packageSpeed || '',
+      ispProvider:customer.ispProvider || '',
       monthlySellingAmount:customer.monthlySellingAmount,
       month,
+      dueDate:bill?.dueDate ?? null,
       billAmount,
       amountReceived,
       balanceDue,
@@ -498,7 +540,7 @@ export function calculateDashboard(state, referenceDate = new Date()) {
   const retainedMonths = new Set(monthsForHistory(referenceDate));
   const allocations = calculatePaymentAllocations(state);
   const currentMonth = monthKey(referenceDate);
-  const previousMonth = monthKey(new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1, 1));
+  const previousMonth = shiftMonth(currentMonth, -1);
   const today = dateKey(referenceDate);
   let totalCollectionCents = 0;
   let todayCollectionCents = 0;
@@ -506,17 +548,39 @@ export function calculateDashboard(state, referenceDate = new Date()) {
   let totalDueCents = 0;
   let currentMonthDueCents = 0;
   let expectedMonthlyPackageProfitCents = 0;
+  let expectedMonthlyProviderCostCents = 0;
   const pendingCreditCents = [...allocations.byPaymentId.values()].reduce((sum, receipt) => sum + (receipt.unappliedCreditCents ?? 0), 0);
   let unpricedBillCount = 0;
   let completeProfitProfiles = 0;
+  let customersMissingProviderCost = 0;
+  const providerGroups = new Map();
 
   for (const customer of state.customers) {
-    const profit = customerPackageProfit(customer);
-    if (profit === null) {
-      // Missing monthly selling amount or purchase cost: exclude, never assume a value.
-    } else {
-      completeProfitProfiles++;
-      expectedMonthlyPackageProfitCents += moneyCents(profit);
+    if (!customer.archived) {
+      const profit = customerPackageProfit(customer);
+      if (profit !== null) {
+        completeProfitProfiles++;
+        expectedMonthlyPackageProfitCents += moneyCents(profit);
+      }
+      const providerName = String(customer.ispProvider ?? '').trim();
+      const cost = customer.monthlyPurchaseCost;
+      const hasCost = !(cost === null || cost === undefined || cost === '' || !Number.isFinite(Number(cost)) || Number(cost) < 0);
+      if (!hasCost) customersMissingProviderCost++;
+      if (providerName || hasCost) {
+        const provider = providerName || 'Provider name not set';
+        const providerKey = provider.toLocaleLowerCase();
+        const group = providerGroups.get(providerKey) ?? { provider, expectedMonthlyCostCents:0, profilesWithCost:0, profilesMissingCost:0 };
+        if (!providerName && group.provider !== 'Provider name not set') group.provider = provider;
+        if (hasCost) {
+          const cents = moneyCents(cost);
+          group.expectedMonthlyCostCents += cents;
+          group.profilesWithCost++;
+          expectedMonthlyProviderCostCents += cents;
+        } else {
+          group.profilesMissingCost++;
+        }
+        providerGroups.set(providerKey, group);
+      }
     }
 
     const bills = Array.isArray(customer.bills) ? customer.bills : [];
@@ -530,20 +594,25 @@ export function calculateDashboard(state, referenceDate = new Date()) {
     for (const bill of retainedBills) {
       const amount = bill.dueAmount;
       if (amount === null || amount === undefined || amount === '') {
-        if (bill.status !== 'received') unpricedBillCount++;
+        unpricedBillCount++;
         continue;
       }
       const allocation = allocations.byCustomerMonth.get(monthAllocationKey(customer.id, bill.month));
-      const outstandingCents = bill.status === 'received' ? 0 : (allocation?.balanceDueCents ?? moneyCents(amount));
+      const outstandingCents = allocation?.balanceDueCents ?? moneyCents(amount);
       totalDueCents += outstandingCents;
       if (bill.month === currentMonth) currentMonthDueCents += outstandingCents;
     }
 
   }
 
-  const incompleteProfitProfiles = state.customers.length - completeProfitProfiles;
+  const activeCustomers = state.customers.filter(customer => !customer.archived);
+  const incompleteProfitProfiles = activeCustomers.length - completeProfitProfiles;
   return {
-    totalCustomers: state.customers.length,
+    totalCustomers: activeCustomers.length,
+    archivedCustomers:state.customers.length - activeCustomers.length,
+    activeServiceCount:activeCustomers.filter(customer => customer.serviceStatus === 'active').length,
+    offlineServiceCount:activeCustomers.filter(customer => customer.serviceStatus === 'offline').length,
+    unsetServiceCount:activeCustomers.filter(customer => !['active','offline'].includes(customer.serviceStatus)).length,
     totalCollection: moneyValue(totalCollectionCents),
     totalDue: moneyValue(totalDueCents),
     todayCollection: moneyValue(todayCollectionCents),
@@ -551,10 +620,13 @@ export function calculateDashboard(state, referenceDate = new Date()) {
     currentMonthDue: moneyValue(currentMonthDueCents),
     pendingCredit: moneyValue(pendingCreditCents),
     expectedMonthlyPackageProfit: moneyValue(expectedMonthlyPackageProfitCents),
+    expectedMonthlyProviderCost:moneyValue(expectedMonthlyProviderCostCents),
+    customersMissingProviderCost,
+    providerCostBreakdown:[...providerGroups.values()].sort((a,b) => a.provider.localeCompare(b.provider)).map(group => ({ provider:group.provider, expectedMonthlyCost:moneyValue(group.expectedMonthlyCostCents), profilesWithCost:group.profilesWithCost, profilesMissingCost:group.profilesMissingCost })),
     currentMonth,
     previousMonth,
     today,
-    customersMissingSellingAmount: state.customers.filter(customer => customer.monthlySellingAmount === null || customer.monthlySellingAmount === undefined || customer.monthlySellingAmount === '').length,
+    customersMissingSellingAmount: activeCustomers.filter(customer => customer.monthlySellingAmount === null || customer.monthlySellingAmount === undefined || customer.monthlySellingAmount === '').length,
     incompleteProfitProfiles,
     unpricedBillCount
   };
@@ -565,7 +637,8 @@ function paymentLines(customer, bill, allocations) {
     const allocation = allocations.byPaymentId.get(payment.id);
     const sameMonthCents = (allocation?.allocations ?? []).filter(item => item.kind === 'same-month').reduce((sum,item) => sum + item.amountCents, 0);
     const carried = (allocation?.allocations ?? []).filter(item => item.kind === 'carry-forward');
-    const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
+    const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[customer.serviceStatus] ?? 'Not set';
+    const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Service status (manual, not billing status): ${serviceLabel}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
     if (allocation?.billUnpriced) lines.push('Allocation: selected bill has no saved amount; no excess credit was inferred.');
     else {
       lines.push(`Applied to selected bill: ${formatPKR(moneyValue(sameMonthCents))}`);
@@ -595,17 +668,21 @@ export function exportCustomerHistory(state, customerId) {
     `Mohalla: ${customer.mohalla || 'Not recorded'}`,
     `Address: ${customer.address || 'Not recorded'}`,
     `Phone: ${customer.phone || 'Not recorded'}`,
+    `ISP/provider: ${customer.ispProvider || 'Not set'}`,
+    `Manual service status (not billing status): ${({ active:'Active', offline:'Offline', 'not-set':'Not set' })[customer.serviceStatus] ?? 'Not set'}`,
     `Package / speed: ${customer.packageSpeed || 'Not set'}`,
     `Monthly provider purchase cost: ${formatPKR(customer.monthlyPurchaseCost)}`,
     `Monthly selling amount: ${formatPKR(customer.monthlySellingAmount)}`,
     `Expected monthly package profit: ${formatPKR(customerPackageProfit(customer))}`,
+    `Archive status: ${customer.archived ? `Archived since ${customer.archivedAt ?? 'date not recorded'}` : 'Active'}`,
+    `Automatic billing resumes from month: ${customer.billingStartMonth ?? 'Not limited by an archive resume date'}`,
     ''
   ];
   if (!customer.bills.length) lines.push('No billing details have been recorded.');
   for (const bill of [...customer.bills].sort((a,b) => a.month.localeCompare(b.month))) {
-    const status = billStatusWithAllocations(customer, bill, allocations) === 'received' ? 'Received' : 'Pending / partial';
+    const status = billStatusWithAllocations(customer, bill, allocations) === 'received' ? 'Paid (actual receipts/credit cover bill)' : 'Pending / partial';
     const allocation = allocations.forMonth(customer.id, bill.month);
-    lines.push(`Month: ${bill.month}`, `Status: ${status}`, `Bill amount: ${formatPKR(bill.dueAmount)}`, `Actual payments received: ${formatPKR(recordedAmount(bill))}`, `Carry-forward credit applied to this bill (not new cash): ${formatPKR(moneyValue(allocation?.creditAppliedCents ?? 0))}`, `Balance due after payments and credits: ${allocation?.balanceDueCents === null || allocation?.balanceDueCents === undefined ? 'Not recorded' : formatPKR(moneyValue(allocation.balanceDueCents))}`);
+    lines.push(`Month: ${bill.month}`, `Status: ${status}`, `Bill amount: ${formatPKR(bill.dueAmount)}`, `Optional due date: ${bill.dueDate ?? 'Not set — no due-date rule or penalty applied'}`, `Actual payments received: ${formatPKR(recordedAmount(bill))}`, `Carry-forward credit applied to this bill (not new cash): ${formatPKR(moneyValue(allocation?.creditAppliedCents ?? 0))}`, `Balance due after payments and credits: ${allocation?.balanceDueCents === null || allocation?.balanceDueCents === undefined ? 'Not recorded' : formatPKR(moneyValue(allocation.balanceDueCents))}`);
     for (const source of allocation?.creditSources ?? []) lines.push(`  Credit source: original ${formatPKR(source.receiptAmount)} receipt dated ${source.paymentDate} (${source.method}) from ${source.originMonth}; applied here=${formatPKR(moneyValue(source.amountCents))}`);
     if (bill.generated && bill.priceSnapshot !== null && bill.priceSnapshot !== undefined) lines.push(`Automatic monthly bill price snapshot: ${formatPKR(bill.priceSnapshot)}`);
     if (allocation?.excessGeneratedCents) lines.push(`Excess from this month's receipts: ${formatPKR(moneyValue(allocation.excessGeneratedCents))}`);
@@ -631,4 +708,199 @@ export function exportCustomerHistory(state, customerId) {
     }
   }
   return `${lines.join('\n').trimEnd()}\n`;
+}
+
+
+export const BACKUP_FORMAT = 'shahdara-isp-billing-backup';
+const MAX_BACKUP_CHARACTERS = 25 * 1024 * 1024;
+const deepCopy = value => JSON.parse(JSON.stringify(value));
+const isBlank = value => value === null || value === undefined || value === '';
+const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function validMonthString(value) { return typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value); }
+function validStoredDateTime(value, label) {
+  if (value === null || value === undefined || value === '') return;
+  if (parseLocalDateTime(value) === null) throw new Error(`Backup contains an invalid ${label}.`);
+}
+function validBackupAmount(value, label, allowZero = false) {
+  if (isBlank(value)) return;
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < 0 || (!allowZero && amount === 0)) throw new Error(`Backup contains an invalid ${label}.`);
+}
+function validateBackupState(source) {
+  if (!source || typeof source !== 'object' || source.version !== 1 || !Array.isArray(source.customers)) throw new Error('Backup has an unsupported or incomplete state version. No local data has changed.');
+  if (source.customers.length > 10000) throw new Error('Backup contains too many customer profiles.');
+  const customerIds = new Set(); const customerNumbers = new Set(); const customerNames = new Set();
+  const billIds = new Set(); const paymentIds = new Set(); const incidentIds = new Set();
+  const customers = source.customers.map((customer, customerIndex) => {
+    if (!customer || typeof customer !== 'object' || typeof customer.id !== 'string' || !customer.id || customer.id.length > 200) throw new Error(`Backup customer ${customerIndex + 1} has an invalid unique ID.`);
+    if (customerIds.has(customer.id)) throw new Error(`Backup has a duplicate customer ID: ${customer.id}.`);
+    customerIds.add(customer.id);
+    if (!Number.isSafeInteger(customer.customerNumber) || customer.customerNumber < 1 || customerNumbers.has(customer.customerNumber)) throw new Error(`Backup has a missing or duplicate customer number near ${customer.name || customerIndex + 1}.`);
+    customerNumbers.add(customer.customerNumber);
+    if (typeof customer.name !== 'string' || !customer.name.trim() || customer.name.length > 100) throw new Error(`Backup customer #${customer.customerNumber} has an invalid name.`);
+    const normalizedName = customer.name.trim().toLocaleLowerCase();
+    if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
+    customerNames.add(normalizedName);
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['address',200,'address'],['phone',40,'phone number'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
+      if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
+    }
+    if (customer.serviceStatus !== undefined && !['active','offline','not-set'].includes(customer.serviceStatus)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid manual service status.`);
+    validBackupAmount(customer.monthlySellingAmount, `selling amount for customer #${customer.customerNumber}`);
+    validBackupAmount(customer.monthlyPurchaseCost, `provider cost for customer #${customer.customerNumber}`, true);
+    if (customer.archived !== undefined && typeof customer.archived !== 'boolean') throw new Error(`Backup customer #${customer.customerNumber} has an invalid archive status.`);
+    if (customer.billingStartMonth !== null && customer.billingStartMonth !== undefined && !validMonthString(customer.billingStartMonth)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid billing resume month.`);
+    validStoredDateTime(customer.archivedAt, 'archive date');
+    const schedule = customer.monthlyPriceSchedule ?? [];
+    const sourceBills = customer.bills ?? [];
+    const sourceIncidents = customer.incidents ?? [];
+    if (!Array.isArray(schedule) || !Array.isArray(sourceBills) || !Array.isArray(sourceIncidents)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid billing/history list.`);
+    const scheduleMonths = new Set();
+    for (const entry of schedule) {
+      if (!entry || !validMonthString(entry.effectiveMonth) || scheduleMonths.has(entry.effectiveMonth)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate price-effective month.`);
+      scheduleMonths.add(entry.effectiveMonth);
+      validBackupAmount(entry.amount, 'scheduled selling amount');
+      validStoredDateTime(entry.recordedAt, 'price schedule date');
+    }
+    const billMonths = new Set();
+    const bills = sourceBills.map(bill => {
+      if (!bill || typeof bill.id !== 'string' || !bill.id || billIds.has(bill.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate bill ID.`);
+      billIds.add(bill.id);
+      if (!validMonthString(bill.month) || billMonths.has(bill.month)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid or duplicate billing month.`);
+      billMonths.add(bill.month);
+      if (!['pending','received'].includes(bill.status)) throw new Error(`Backup bill ${bill.month} has an invalid status.`);
+      validBackupAmount(bill.dueAmount, `bill amount for ${bill.month}`);
+      validBackupAmount(bill.priceSnapshot, `price snapshot for ${bill.month}`);
+      const dueDate = checkOptionalDate(bill.dueDate ?? null);
+      if (!Array.isArray(bill.payments ?? []) || !Array.isArray(bill.amountHistory ?? [])) throw new Error(`Backup bill ${bill.month} has an invalid payment or correction list.`);
+      const payments = bill.payments.map(payment => {
+        if (!payment || typeof payment.id !== 'string' || !payment.id || paymentIds.has(payment.id)) throw new Error(`Backup has a missing or duplicate payment ID for ${bill.month}.`);
+        paymentIds.add(payment.id);
+        return { ...payment, ...validatePayment(payment) };
+      });
+      for (const correction of bill.amountHistory ?? []) {
+        if (!correction || typeof correction !== 'object') throw new Error(`Backup bill ${bill.month} has an invalid amount correction.`);
+        validStoredDateTime(correction.changedAt, 'bill correction date');
+        validBackupAmount(correction.previousAmount, 'previous bill amount');
+        validBackupAmount(correction.newAmount, 'corrected bill amount');
+      }
+      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [] };
+    });
+    const incidents = sourceIncidents.map(incident => {
+      if (!incident || typeof incident.id !== 'string' || !incident.id || incidentIds.has(incident.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate incident ID.`);
+      incidentIds.add(incident.id);
+      validateIncident(incident);
+      if (!Array.isArray(incident.corrections ?? [])) throw new Error(`Backup incident on customer #${customer.customerNumber} has an invalid correction list.`);
+      for (const correction of incident.corrections ?? []) {
+        if (!correction || !correction.previous) throw new Error(`Backup incident on customer #${customer.customerNumber} has an invalid correction entry.`);
+        validStoredDateTime(correction.recordedAt, 'incident correction date');
+        const previous = validateIncident(correction.previous);
+        if (previous.reportedAt === '' || previous.offlineAt === '') throw new Error(`Backup incident on customer #${customer.customerNumber} has incomplete prior dates.`);
+      }
+      return { ...incident, ...validateIncident(incident), corrections:incident.corrections ?? [] };
+    });
+    return {
+      ...customer,
+      id:customer.id,
+      name:customer.name.trim(),
+      mohalla:customer.mohalla ?? '', address:customer.address ?? '', phone:customer.phone ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
+      monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
+      monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
+      bills, incidents
+    };
+  });
+  const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
+  const nextCustomerNumber = Number.isSafeInteger(source.nextCustomerNumber) && source.nextCustomerNumber > 0 ? Math.max(source.nextCustomerNumber, highestNumber + 1) : highestNumber + 1;
+  return { ...source, version:1, nextCustomerNumber, customers };
+}
+
+export function createJsonBackup(state, exportedAt = new Date()) {
+  const safeState = deepCopy(state);
+  return JSON.stringify({ format:BACKUP_FORMAT, formatVersion:1, exportedAt:localDateTimeValue(exportedAt), state:safeState }, null, 2);
+}
+
+/**
+ * Validate a JSON backup and produce a preview-only, non-destructive merge. Existing
+ * nonblank profile fields and conflicting bill values always win; unique receipts,
+ * bills, incidents and profiles are added only after the user explicitly applies it.
+ */
+export function previewJsonBackupMerge(existingState, backupText) {
+  if (typeof backupText !== 'string' || backupText.length > MAX_BACKUP_CHARACTERS) throw new Error('Backup is too large or is not readable JSON. No local data has changed.');
+  let document;
+  try { document = JSON.parse(backupText); }
+  catch { throw new Error('Backup is not valid JSON. No local data has changed.'); }
+  if (!document || document.format !== BACKUP_FORMAT || document.formatVersion !== 1) throw new Error('This is not a supported Shahdara ISP Billing JSON backup. No local data has changed.');
+  const incomingState = validateBackupState(document.state);
+  const current = deepCopy(existingState);
+  const conflicts = [];
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, filledProfileFields:0, changes:0 };
+  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
+  const nonempty = value => !(value === null || value === undefined || value === '');
+  const mergeField = (target, source, key, customer) => {
+    const oldValue = target[key]; const newValue = source[key];
+    if (sameJson(oldValue, newValue)) return;
+    if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
+    if (!nonempty(oldValue) && nonempty(newValue)) { target[key] = deepCopy(newValue); counts.filledProfileFields++; counts.changes++; return; }
+    if (nonempty(oldValue) && !nonempty(newValue)) return;
+    addConflict(customer, key);
+  };
+  for (const backupCustomer of incomingState.customers) {
+    const byId = current.customers.find(customer => customer.id === backupCustomer.id);
+    const byNumber = current.customers.find(customer => customer.customerNumber === backupCustomer.customerNumber);
+    const byName = current.customers.find(customer => customer.name.trim().toLocaleLowerCase() === backupCustomer.name.trim().toLocaleLowerCase());
+    if (!byId) {
+      if (byNumber || byName) {
+        addConflict(backupCustomer, byNumber ? 'customer number belongs to a different profile' : 'customer name belongs to a different profile');
+        continue;
+      }
+      current.customers.push(deepCopy(backupCustomer));
+      counts.addedCustomers++; counts.addedBills += backupCustomer.bills.length; counts.addedPayments += backupCustomer.bills.reduce((sum,bill)=>sum+bill.payments.length,0); counts.addedIncidents += backupCustomer.incidents.length; counts.changes++;
+      continue;
+    }
+    if (byId.customerNumber !== backupCustomer.customerNumber || byId.name.trim().toLocaleLowerCase() !== backupCustomer.name.trim().toLocaleLowerCase()) {
+      addConflict(backupCustomer, 'customer ID, number, or name identity differs');
+      continue;
+    }
+    counts.mergedCustomers++;
+    const customer = byId;
+    for (const key of ['mohalla','address','phone','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {
+      const existingEntry = customer.monthlyPriceSchedule.find(entry => entry.effectiveMonth === incomingEntry.effectiveMonth);
+      if (!existingEntry) { customer.monthlyPriceSchedule.push(deepCopy(incomingEntry)); counts.changes++; }
+      else if (Number(existingEntry.amount) !== Number(incomingEntry.amount)) addConflict(backupCustomer, `price schedule ${incomingEntry.effectiveMonth}`);
+    }
+    customer.monthlyPriceSchedule.sort((a,b)=>a.effectiveMonth.localeCompare(b.effectiveMonth));
+    for (const incomingBill of backupCustomer.bills) {
+      let existingBill = customer.bills.find(bill => bill.month === incomingBill.month);
+      if (!existingBill) {
+        customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
+        continue;
+      }
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot']) {
+        const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
+        if (sameJson(oldValue,newValue)) continue;
+        if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }
+        else if (nonempty(oldValue) && !nonempty(newValue)) continue;
+        else addConflict(backupCustomer, `bill ${incomingBill.month} ${key}`);
+      }
+      existingBill.amountHistory = existingBill.amountHistory ?? [];
+      for (const correction of incomingBill.amountHistory) if (!existingBill.amountHistory.some(item=>sameJson(item,correction))) { existingBill.amountHistory.push(deepCopy(correction)); counts.changes++; }
+      existingBill.payments = existingBill.payments ?? [];
+      for (const incomingPayment of incomingBill.payments) {
+        const existingPayment = existingBill.payments.find(payment=>payment.id===incomingPayment.id);
+        if (!existingPayment) { existingBill.payments.push(deepCopy(incomingPayment)); counts.addedPayments++; counts.changes++; }
+        else if (!sameJson(existingPayment,incomingPayment)) addConflict(backupCustomer, `payment ${incomingPayment.id}`);
+      }
+    }
+    customer.bills.sort((a,b)=>b.month.localeCompare(a.month));
+    for (const incomingIncident of backupCustomer.incidents) {
+      const existingIncident = customer.incidents.find(incident=>incident.id===incomingIncident.id);
+      if (!existingIncident) { customer.incidents.push(deepCopy(incomingIncident)); counts.addedIncidents++; counts.changes++; }
+      else if (!sameJson(existingIncident,incomingIncident)) addConflict(backupCustomer, `incident ${incomingIncident.id}`);
+    }
+    customer.incidents.sort((a,b)=>b.reportedAt.localeCompare(a.reportedAt)||a.id.localeCompare(b.id));
+  }
+  current.customers.sort((a,b)=>a.customerNumber-b.customerNumber);
+  current.nextCustomerNumber = Math.max(existingState.nextCustomerNumber ?? 1, incomingState.nextCustomerNumber, ...current.customers.map(customer=>customer.customerNumber+1));
+  const state = counts.changes ? current : existingState;
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '' };
 }

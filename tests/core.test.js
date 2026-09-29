@@ -5,7 +5,7 @@ import {
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateMohalla, updateCustomerProfile, searchCustomers, generateMonthlyBillsThroughCurrentMonth,
   saveBillMonth, addPayment, correctPayment, deletePayment, recordedAmount, monthsForHistory,
   customerPackageProfit, calculateDashboard, calculatePaymentAllocations, listTransactions, buildMonthlyReport,
-  effectiveBillStatus, addIncident, updateIncident, deleteIncident, countCustomerIncidentsLast30Days,
+  effectiveBillStatus, derivedBillStatus, filterCustomersByStatus, addIncident, updateIncident, deleteIncident, countCustomerIncidentsLast30Days,
   exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
 } from '../core.js';
 
@@ -334,7 +334,7 @@ test('TXT exports include actual recorded payments and the saved contact/package
   assert.match(individual, /Expected monthly package profit: PKR 40/);
   assert.doesNotMatch(all, /fixture-phone/);
   assert.doesNotMatch(all, /AWAIS/);
-  assert.match(individual, /Status: Paid \(actual receipts\/credit cover bill\)/);
+  assert.match(individual, /Status: Paid/);
 });
 
 test('rejects invalid payments and invalid calendar dates', () => {
@@ -429,7 +429,9 @@ test('monthly report classifies priced customers, shows unconfigured rows as Not
   assert.equal(partial.monthlySellingAmount, 100);
   assert.equal(partial.amountReceived, 40);
   assert.equal(partial.balanceDue, 60);
-  assert.throws(() => buildMonthlyReport(state, { ...options, statusFilter:'unknown' }, referenceDate), /Choose All, Paid, Unpaid, or Partial/);
+  assert.equal(buildMonthlyReport(state, { ...options, statusFilter:'pending' }, referenceDate)[0].customerId, 'seed-002');
+  assert.equal(buildMonthlyReport(state, { ...options, statusFilter:'not-set' }, referenceDate).length, 70);
+  assert.throws(() => buildMonthlyReport(state, { ...options, statusFilter:'unknown' }, referenceDate), /Choose All, Paid, Pending, Partial, or Not set/);
 });
 
 test('monthly report month selection uses explicit past bills only and shared search filters report rows', () => {
@@ -439,7 +441,7 @@ test('monthly report month selection uses explicit past bills only and shared se
   state = addPayment(state, 'seed-002', '2026-08', payment({ date:'2026-08-18', amount:'30' }), referenceDate);
   const current = buildMonthlyReport(state, { month:currentMonth, customerQuery:'ReportPhone-22' }, referenceDate);
   assert.equal(current.length, 1);
-  assert.equal(current[0].status, 'unpaid');
+  assert.equal(current[0].status, 'pending');
   assert.equal(current[0].billAmount, 90);
   const past = buildMonthlyReport(state, { month:'2026-08', statusFilter:'partial' }, referenceDate);
   assert.equal(past.length, 1);
@@ -450,6 +452,29 @@ test('monthly report month selection uses explicit past bills only and shared se
   const unpricedPast = buildMonthlyReport(state, { month:'2026-08' }, referenceDate).find(row => row.customerId === 'seed-001');
   assert.equal(unpricedPast.status, 'not-set');
   assert.equal(unpricedPast.billAmount, null);
+});
+
+test('customer-card filters combine manual service state, derived bill state, selected month and global search', () => {
+  let state = createInitialState();
+  state = profile(state, 'seed-001', { serviceStatus:'active', phone:'FilterPhone-1' });
+  state = profile(state, 'seed-002', { serviceStatus:'active' });
+  state = profile(state, 'seed-003', { serviceStatus:'offline' });
+  state = profile(state, 'seed-004', { serviceStatus:'not-set' });
+  state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'100' }), referenceDate);
+  state = saveBillMonth(state, 'seed-002', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+  state = saveBillMonth(state, 'seed-003', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-003', currentMonth, payment({ amount:'40' }), referenceDate);
+  state = saveBillMonth(state, 'seed-001', { month:'2026-08', dueAmount:'80', status:'pending' }, referenceDate);
+  assert.deepEqual(filterCustomersByStatus(state, { billingStatus:'paid', month:currentMonth }, referenceDate).map(row => row.id), ['seed-001']);
+  assert.deepEqual(filterCustomersByStatus(state, { billingStatus:'pending', serviceStatus:'active', month:currentMonth }, referenceDate).map(row => row.id), ['seed-002']);
+  assert.deepEqual(filterCustomersByStatus(state, { billingStatus:'partial', serviceStatus:'offline', month:currentMonth }, referenceDate).map(row => row.id), ['seed-003']);
+  assert.ok(filterCustomersByStatus(state, { billingStatus:'not-set', month:currentMonth }, referenceDate).some(row => row.id === 'seed-004'));
+  assert.deepEqual(filterCustomersByStatus(state, { serviceStatus:'active', customerQuery:'FilterPhone-1', month:'2026-08' }, referenceDate).map(row => row.id), ['seed-001']);
+  assert.deepEqual(filterCustomersByStatus(state, { serviceStatus:'offline', billingStatus:'pending', month:'2026-08' }, referenceDate).map(row => row.id), []);
+  const customer = state.customers[0];
+  assert.equal(derivedBillStatus(customer, undefined), 'not-set');
+  assert.equal(derivedBillStatus(customer, customer.bills.find(bill => bill.month === currentMonth)), 'paid');
 });
 
 test('correcting and deleting one of multiple installments updates history, totals, status, exports, and reload', () => {

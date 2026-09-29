@@ -47,3 +47,48 @@
 @media(max-width:1150px){.summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:800px){.provider-cost-breakdown{margin:8px 14px 0;grid-template-columns:1fr;gap:9px}.data-loss-warning{margin:8px 12px 0;align-items:flex-start;flex-direction:column}.backup-actions{width:100%;flex-wrap:wrap}.backup-actions .secondary-button{flex:1 1 180px}.profile-action-group{justify-content:flex-start}}
 @media(max-width:620px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.provider-cost-breakdown{margin:8px 12px 0;padding:12px}.provider-cost-list{grid-template-columns:1fr}.data-loss-warning{padding:10px 11px;font-size:10px}.backup-actions{display:grid;grid-template-columns:1fr 1fr}.backup-actions .secondary-button{min-height:46px;padding:0 8px;font-size:10px}.archived-customers-panel{max-height:180px}.profile-action-group{justify-content:flex-start}.profile-action-group .text-button{min-height:44px;padding:0 8px}.backup-modal{padding:18px}.backup-modal .modal-heading{margin-bottom:14px}}
+
+
+/* Color-coded statuses retain explicit text, selected state and keyboard focus. */
+.status-received,.report-status-paid,.customer-billing-badge.status-received{background:#e1f3e8;color:#155b3b;border:1px solid #a8d6ba}
+.status-pending,.report-status-pending,.customer-billing-badge.status-pending{background:#fff1cf;color:#704600;border:1px solid #e7c77e}
+.status-partial,.report-status-partial,.customer-billing-badge.status-partial{background:#e5efff;color:#174b87;border:1px solid #adc9f1}
+.status-empty,.report-status-not-set,.customer-billing-badge.status-empty{background:#eef1f0;color:#465650;border:1px solid #cbd4d0}
+.report-status-paid,.report-status-pending,.report-status-partial,.report-status-not-set{font-size:10px;padding:4px 8px}
+.customer-filter-panel{margin:0 10px 9px;padding:10px;background:#f7faf8;border:1px solid #e7efeb;border-radius:11px;display:grid;gap:8px}
+.customer-filter-month{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#425d52;font-size:10px;font-weight:700}
+.customer-filter-month select{height:38px;min-width:0;max-width:68%;border:1px solid #ccd9d2;border-radius:8px;background:#fff;padding:0 9px;color:#203b31;font:600 11px 'DM Sans',sans-serif}
+.customer-filter-month select:focus-visible{outline:3px solid #6caa91;outline-offset:2px}
+.customer-filter-group{display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+.customer-filter-label{flex:0 0 100%;color:#546b61;font-size:9px;font-weight:700;letter-spacing:.25px}
+.customer-filter-button,.report-filter-button{min-height:38px;border:1px solid #b9cbc2;border-radius:8px;background:#fff;color:#294d3f;padding:5px 9px;font:700 10px/1.15 'DM Sans',sans-serif;cursor:pointer}
+.customer-filter-button:hover,.report-filter-button:hover{background:#edf7f2;border-color:#6d9e86}
+.customer-filter-button[aria-pressed=true],.report-filter-button[aria-pressed=true]{background:#174f40;border-color:#123e33;color:#fff;box-shadow:inset 0 0 0 1px #fff3}
+.customer-filter-button:focus-visible,.report-filter-button:focus-visible,.service-choice:focus-visible,.customer-select:focus-visible,.primary-button:focus-visible,.secondary-button:focus-visible,.icon-button:focus-visible{outline:3px solid #80b9a0;outline-offset:2px}
+.customer-filter-note{margin:0;color:#53685f;font-size:9px;line-height:1.4}
+.customer-item{padding:0 0 7px;margin:0 0 5px;border-bottom:1px solid #edf2ef}
+.customer-select{min-height:46px}
+.customer-card-controls{display:grid;gap:5px;padding:0 10px 2px 50px}
+.customer-billing-badge{justify-self:start;display:inline-flex;align-items:center;min-height:24px;border-radius:7px;padding:3px 7px;font-size:9px;line-height:1.25;font-weight:700}
+.service-choice-group{display:flex;flex-wrap:wrap;gap:4px}
+.service-choice{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:34px;border:1px solid #c8d4ce;border-radius:8px;background:#fff;color:#344b42;padding:4px 8px;font:700 9px/1.15 'DM Sans',sans-serif;cursor:pointer;touch-action:manipulation}
+.service-choice-active{border-color:#9acbad;background:#eff9f2;color:#155b3b}
+.service-choice-offline{border-color:#dfb4b1;background:#fff1f0;color:#783631}
+.service-choice-not-set{border-color:#c9d2ce;background:#f1f3f2;color:#465650}
+.service-choice.is-selected{box-shadow:inset 0 0 0 1px currentColor;font-weight:800}
+.service-choice.is-selected::before{content:'✓';font-size:10px;line-height:1}
+.customer-filter-button[data-customer-service-filter=active]{color:#155b3b}
+.customer-filter-button[data-customer-service-filter=offline]{color:#783631}
+.customer-filter-button[data-customer-service-filter=not-set]{color:#465650}
+.customer-filter-button[aria-pressed=true][data-customer-service-filter]{color:#fff}
+.payment-guidance{padding:7px 8px;border-left:3px solid #2b6d9e;background:#edf5ff;color:#254d75;border-radius:0 7px 7px 0}
+.current-payment-shortcut{min-height:44px;white-space:nowrap}
+@media(max-width:620px){
+  .customer-filter-panel{margin:0 10px 8px;padding:9px;gap:7px}
+  .customer-filter-month select{height:42px;max-width:70%;font-size:12px}
+  .customer-filter-button,.report-filter-button{min-height:44px;padding:6px 10px;font-size:10px}
+  .service-choice{min-height:44px;padding:6px 9px;font-size:10px}
+  .customer-card-controls{padding-left:49px}
+  .customer-billing-badge{min-height:26px;font-size:10px}
+  .current-payment-shortcut{white-space:normal}
+}

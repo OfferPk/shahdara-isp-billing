@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Phase 2 mobile-browser testing preview · web build 1.2.0**
+**Phase 2 mobile-browser testing preview · web build 1.2.1**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -15,11 +15,12 @@ The first visit needs a network connection. The service worker caches the static
 ## Phase 2 web features
 
 - Exactly 74 starter names; stable unique customer numbers; global partial search by name, optional phone/address or customer number. Customer IDs/numbers remain stable after deletion; numbers are never reused.
-- Editable optional address/phone, free-text ISP/provider (including a Nayatel suggestion), manual service state (Active / Offline / Not set), package/speed (5, 10, 15 and 30 Mbps suggestions plus custom text), monthly provider cost and one monthly selling amount. All starter values remain blank.
+- Editable optional address/phone, free-text ISP/provider (including a Nayatel suggestion), manual service state (Active / Offline / Not set) with direct color-coded customer-card choices, package/speed (5, 10, 15 and 30 Mbps suggestions plus custom text), monthly provider cost and one monthly selling amount. All starter values remain blank.
 - Live expected package margin and expected recurring provider-cost totals/breakdowns. Incomplete profiles are excluded and counted; estimates are not collected cash profit or cash paid.
 - Automatic monthly bill snapshots begin in the configured effective local month; price edits do not rewrite past obligations. Optional due dates are set per bill; there is no invented default due date or automatic late penalty. Archived customers retain IDs, bills, receipts, credit and complaints; archiving stops new bills, and unarchiving resumes without backfilling archived months. Permanent delete is separately confirmed and warns that all local history will be removed.
-- Actual receipts are editable/deletable and drive Paid / Partial / Pending status. A receipt applies to its selected month first, then excess is allocated as non-cash credit to later generated bills. Unused credit remains valid indefinitely, even after its receipt falls outside the visible 24-month window; credit is not another payment. Corrections/deletions recalculate allocations.
-- Transactions, customer histories and one-click monthly Paid, Unpaid/Pending, Partial and Not set reports. Reports/history show the retained 24 billing months; aged credit sources remain visible where used and remain available for correction/deletion locally. Cash collection totals count actual receipts only.
+- Actual receipts are editable/deletable and drive Paid / Partial / Pending status; a missing bill amount remains Not set. Customer and report filters cover manual service state and the selected billing month, with global search retained. “Record payment / Mark paid” opens the actual payment form and suggests only the remaining bill balance; the operator must enter the real date and method and submit before any receipt is created.
+- A receipt applies to its selected month first, then excess is allocated as non-cash credit to later generated bills. Unused credit remains valid indefinitely, even after its receipt falls outside the visible 24-month window; credit is not another payment. Corrections/deletions recalculate allocations and refresh lists, reports, dashboard, transactions and exports.
+- Transactions, customer histories and one-click monthly Paid, Pending, Partial and Not set reports. Reports/history show the retained 24 billing months; aged credit sources remain visible where used and remain available for correction/deletion locally. Cash collection totals count actual receipts only.
 - Dashboard includes active customers, actual collections, total/current due, today/previous-month collections, expected package profit, expected provider costs by ISP, service-state counts and unapplied prepaid credit. PKR is explicit throughout; the app performs no currency conversion.
 - Manual per-customer complaint/outage records with report/offline/restored times, notes, open/resolved state, edits/deletes and rolling 30-day counts. No network/router monitoring is performed.
 - Phone-first controls, accessible form labels, local TXT exports, versioned offline assets and non-destructive migration safeguards.

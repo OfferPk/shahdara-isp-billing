@@ -18,13 +18,13 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v6'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v7'/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
   for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
 });
 
 test('customer-list empty-state renderer tolerates mismatched cached markup without aborting the app', () => {
-  assert.match(app, /const emptySearch\s*=\s*\$\('#noSearchResults'\);\s*if \(emptySearch\) emptySearch\.hidden\s*=/);
+  assert.match(app, /const emptySearch\s*=\s*\$\('#noSearchResults'\);\s*if \(emptySearch\) \{[\s\S]*?emptySearch\.hidden\s*=/);
 });
 
 test('money is formatted and labeled in PKR throughout the live billing UI and exports', () => {
@@ -69,4 +69,22 @@ test('Phase 2 profile and backup controls are present and wired without fake def
   assert.match(app, /\$\('#applyJsonBackupButton'\)\.addEventListener/);
   assert.match(app, /previewJsonBackupMerge\(state/);
   assert.match(app, /pendingBackupPreview\?\.canApply/);
+});
+
+test('v1.2.1 status controls use explicit manual service and derived billing states with shared month filters', () => {
+  assert.match(index, /id="customerFilterMonth"/);
+  for (const status of ['active','offline','not-set']) assert.ok(index.includes(`data-customer-service-filter="${status}"`));
+  for (const status of ['paid','pending','partial','not-set']) assert.ok(index.includes(`data-customer-billing-filter="${status}"`));
+  for (const status of ['paid','pending','partial','not-set']) assert.ok(index.includes(`data-report-filter="${status}"`));
+  assert.match(index, /All \(incl\. Not set\)/);
+  assert.match(app, /filterCustomersByStatus\(state/);
+  assert.match(app, /data-set-service/);
+  assert.match(app, /Nothing is saved by opening this form/);
+  assert.match(app, /name="date" type="date" required/);
+  assert.doesNotMatch(app, /name="date" type="date" value="\$\{localDate\(\)\}"/);
+  assert.match(styles, /\.service-choice\.is-selected::before\{content:'✓'/);
+  assert.match(styles, /\.service-choice\{[^}]*min-height:34px/);
+  assert.match(styles, /\.service-choice\{min-height:44px/);
+  assert.match(core, /export function derivedBillStatus/);
+  assert.match(core, /export function filterCustomersByStatus/);
 });

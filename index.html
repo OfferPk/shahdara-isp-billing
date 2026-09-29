@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.2.0">
+  <link rel="stylesheet" href="./styles.css?v=1.2.1">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -64,6 +64,12 @@
           <div><p class="eyebrow">LOCAL LEDGER</p><h2>Customers <span id="customerCount" class="count-badge">0</span></h2></div>
           <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
         </div>
+        <section class="customer-filter-panel" aria-label="Customer filters">
+          <label class="customer-filter-month" for="customerFilterMonth">Billing month <select id="customerFilterMonth"></select></label>
+          <div class="customer-filter-group" role="group" aria-label="Filter by manual service status"><span class="customer-filter-label">Service</span><button class="customer-filter-button" type="button" data-customer-service-filter="all" aria-pressed="true">All</button><button class="customer-filter-button" type="button" data-customer-service-filter="active" aria-pressed="false">Active</button><button class="customer-filter-button" type="button" data-customer-service-filter="offline" aria-pressed="false">Offline</button><button class="customer-filter-button" type="button" data-customer-service-filter="not-set" aria-pressed="false">Not set</button></div>
+          <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month"><span class="customer-filter-label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false">Not set</button></div>
+          <p class="customer-filter-note">Service is operator-set, not monitored. Billing status comes from a saved bill amount, actual receipts and carried credit.</p>
+        </section>
         <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
         <details id="archivedCustomersPanel" class="archived-customers-panel"><summary>Archived customers <span id="archivedCustomerCount" class="count-badge">0</span></summary><ul id="archivedCustomerList" class="archived-customer-list" aria-label="Archived customer profiles"></ul></details>
         <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
@@ -83,7 +89,7 @@
             <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
             <div class="detail-title-row">
               <div><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
-              <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">+ Add payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
             </div>
             <div class="customer-meta">
               <div class="profile-grid">
@@ -143,15 +149,16 @@
       <div class="report-pane">
         <div class="report-heading"><div><p class="eyebrow">LOCAL CUSTOMER REPORT</p><h2 id="billingReportsHeading">Monthly payment status</h2><p class="transactions-subtitle">Amounts and receipts are based on saved records only.</p></div><label class="report-month-label" for="reportMonth">Billing month<select id="reportMonth"></select></label></div>
         <div class="report-filters" role="group" aria-label="Filter customers by payment status">
-          <button class="report-filter-button" type="button" data-report-filter="all" aria-pressed="true">All</button>
+          <button class="report-filter-button" type="button" data-report-filter="all" aria-pressed="true">All (incl. Not set)</button>
           <button class="report-filter-button" type="button" data-report-filter="paid" aria-pressed="false">Paid</button>
-          <button class="report-filter-button" type="button" data-report-filter="unpaid" aria-pressed="false">Unpaid / Pending</button>
+          <button class="report-filter-button" type="button" data-report-filter="pending" aria-pressed="false">Pending</button>
           <button class="report-filter-button" type="button" data-report-filter="partial" aria-pressed="false">Partial</button>
+          <button class="report-filter-button" type="button" data-report-filter="not-set" aria-pressed="false">Not set</button>
         </div>
         <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
         <ul id="monthlyReportList" class="monthly-report-list" aria-label="Customer payment status report"></ul>
         <p id="monthlyReportEmpty" class="transactions-empty" hidden>No customers match this status and search.</p>
-        <p class="report-not-set-note">Rows with no generated or manually recorded bill appear as Not set in All and are not classified as unpaid. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
+        <p class="report-not-set-note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
       </div>
     </section>
   </main>
@@ -178,6 +185,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.2.0"></script>
+  <script type="module" src="./app.js?v=1.2.1"></script>
 </body>
 </html>

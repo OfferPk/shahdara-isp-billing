@@ -1,0 +1,9 @@
+{
+  "appId": "com.offerpk.shahdaraispbilling",
+  "appName": "Shahdara ISP Billing",
+  "webDir": "dist",
+  "androidScheme": "https",
+  "server": {
+    "cleartext": false
+  }
+}

@@ -2,3 +2,8 @@ dist/
 node_modules/
 .wrangler/
 .DS_Store
+android/.gradle/
+android/local.properties
+android/build/
+android/app/build/
+android/capacitor-cordova-android-plugins/build/

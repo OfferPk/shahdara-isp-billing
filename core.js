@@ -163,6 +163,31 @@ export function searchCustomers(state, query = '') {
   return state.customers.filter(customer => customerMatchesQuery(customer, query));
 }
 
+export function derivedBillStatus(customer, bill, allocations = null) {
+  if (!bill) return 'not-set';
+  const amount = bill.dueAmount;
+  if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) return 'not-set';
+  const result = allocations ?? calculatePaymentAllocations({ customers:[customer] });
+  const summary = result.forMonth?.(customer.id, bill.month) ?? result.byCustomerMonth?.get(monthAllocationKey(customer.id, bill.month));
+  if (!summary || summary.balanceDueCents === null || summary.balanceDueCents === undefined) return 'not-set';
+  if (summary.balanceDueCents <= 0) return 'paid';
+  return summary.sameMonthAppliedCents > 0 || summary.creditAppliedCents > 0 ? 'partial' : 'pending';
+}
+
+export function filterCustomersByStatus(state, { serviceStatus = 'all', billingStatus = 'all', month = monthsForHistory()[0], customerQuery = '' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  if (!['all','active','offline','not-set'].includes(serviceStatus)) throw new Error('Choose All, Active, Offline, or Not set for service status.');
+  if (!['all','paid','pending','partial','not-set'].includes(billingStatus)) throw new Error('Choose All, Paid, Pending, Partial, or Not set for billing status.');
+  const allocations = calculatePaymentAllocations(state);
+  return state.customers.filter(customer => {
+    if (!customerMatchesQuery(customer, customerQuery)) return false;
+    if (serviceStatus !== 'all' && (customer.serviceStatus ?? 'not-set') !== serviceStatus) return false;
+    if (billingStatus === 'all') return true;
+    const bill = (customer.bills ?? []).find(item => item.month === month);
+    return derivedBillStatus(customer, bill, allocations) === billingStatus;
+  });
+}
+
 export function deleteCustomer(state, customerId) {
   return { ...state, customers: state.customers.filter(c => c.id !== customerId) };
 }
@@ -434,14 +459,12 @@ export function calculatePaymentAllocations(state) {
 }
 
 function billStatusWithAllocations(customer, bill, allocations) {
-  if (!bill) return 'not-recorded';
-  const summary = allocations.byCustomerMonth.get(monthAllocationKey(customer.id, bill.month));
-  return summary?.balanceDueCents === 0 ? 'received' : 'pending';
+  return derivedBillStatus(customer, bill, allocations);
 }
 
 export function effectiveBillStatus(customer, bill, referenceDate = new Date()) {
-  if (!bill) return 'not-recorded';
-  return billStatusWithAllocations(customer, bill, calculatePaymentAllocations({ customers:[customer] }));
+  const status = billStatusWithAllocations(customer, bill, calculatePaymentAllocations({ customers:[customer] }));
+  return status === 'paid' ? 'received' : status === 'not-set' ? 'not-recorded' : 'pending';
 }
 
 export function listTransactions(state, { customerQuery = '', date = '' } = {}, referenceDate = new Date()) {
@@ -468,7 +491,8 @@ export function listTransactions(state, { customerQuery = '', date = '' } = {}, 
 
 export function buildMonthlyReport(state, { month = monthsForHistory()[0], statusFilter = 'all', customerQuery = '' } = {}, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
-  if (!['all', 'paid', 'unpaid', 'partial'].includes(statusFilter)) throw new Error('Choose All, Paid, Unpaid, or Partial.');
+  if (statusFilter === 'unpaid') statusFilter = 'pending';
+  if (!['all', 'paid', 'pending', 'partial', 'not-set'].includes(statusFilter)) throw new Error('Choose All, Paid, Pending, Partial, or Not set.');
   const allocations = calculatePaymentAllocations(state);
   return state.customers.filter(customer => customerMatchesQuery(customer, customerQuery)).map(customer => {
     const bill = customer.bills.find(item => item.month === month);
@@ -489,13 +513,7 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
       billAmount = Number(configuredAmount);
       excessAmount = moneyValue(allocation?.excessGeneratedCents ?? 0);
       balanceDue = moneyValue(allocation?.balanceDueCents ?? moneyCents(billAmount));
-      if (billStatusWithAllocations(customer, bill, allocations) === 'received') {
-        status = 'paid';
-      } else if (amountReceived > 0 || creditApplied > 0) {
-        status = 'partial';
-      } else {
-        status = 'unpaid';
-      }
+      status = billStatusWithAllocations(customer, bill, allocations);
     }
     return {
       customerId:customer.id,
@@ -638,7 +656,8 @@ function paymentLines(customer, bill, allocations) {
     const sameMonthCents = (allocation?.allocations ?? []).filter(item => item.kind === 'same-month').reduce((sum,item) => sum + item.amountCents, 0);
     const carried = (allocation?.allocations ?? []).filter(item => item.kind === 'carry-forward');
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[customer.serviceStatus] ?? 'Not set';
-    const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Service status (manual, not billing status): ${serviceLabel}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
+    const billingLabel = ({ paid:'Paid', pending:'Pending', partial:'Partial', 'not-set':'Not set' })[billStatusWithAllocations(customer, bill, allocations)];
+    const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Service status (manual, not billing status): ${serviceLabel}`, `Billing status: ${billingLabel}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
     if (allocation?.billUnpriced) lines.push('Allocation: selected bill has no saved amount; no excess credit was inferred.');
     else {
       lines.push(`Applied to selected bill: ${formatPKR(moneyValue(sameMonthCents))}`);
@@ -680,7 +699,7 @@ export function exportCustomerHistory(state, customerId) {
   ];
   if (!customer.bills.length) lines.push('No billing details have been recorded.');
   for (const bill of [...customer.bills].sort((a,b) => a.month.localeCompare(b.month))) {
-    const status = billStatusWithAllocations(customer, bill, allocations) === 'received' ? 'Paid (actual receipts/credit cover bill)' : 'Pending / partial';
+    const status = ({ paid:'Paid', pending:'Pending', partial:'Partial', 'not-set':'Not set' })[billStatusWithAllocations(customer, bill, allocations)];
     const allocation = allocations.forMonth(customer.id, bill.month);
     lines.push(`Month: ${bill.month}`, `Status: ${status}`, `Bill amount: ${formatPKR(bill.dueAmount)}`, `Optional due date: ${bill.dueDate ?? 'Not set — no due-date rule or penalty applied'}`, `Actual payments received: ${formatPKR(recordedAmount(bill))}`, `Carry-forward credit applied to this bill (not new cash): ${formatPKR(moneyValue(allocation?.creditAppliedCents ?? 0))}`, `Balance due after payments and credits: ${allocation?.balanceDueCents === null || allocation?.balanceDueCents === undefined ? 'Not recorded' : formatPKR(moneyValue(allocation.balanceDueCents))}`);
     for (const source of allocation?.creditSources ?? []) lines.push(`  Credit source: original ${formatPKR(source.receiptAmount)} receipt dated ${source.paymentDate} (${source.method}) from ${source.originMonth}; applied here=${formatPKR(moneyValue(source.amountCents))}`);

@@ -1,10 +1,10 @@
 import {
   INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
-  deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers,
+  deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
-} from './core.js?v=1.2.0';
+} from './core.js?v=1.2.1';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -32,6 +32,9 @@ state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
 if (storageAvailable) { try { persistState(state, localStorage); } catch { storageAvailable = false; } }
 let selectedCustomerId = null;
 let selectedReportFilter = 'all';
+let selectedServiceFilter = 'all';
+let selectedBillingFilter = 'all';
+let selectedBillingMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
 let toastTimer;
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
@@ -104,25 +107,49 @@ function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part =
 function customerCardMarkup(customer, archived = false) {
   const margin = customerPackageProfit(customer);
   const speed = customer.packageSpeed ? `${escapeHtml(customer.packageSpeed)} · ` : '';
-  const profitLabel = margin === null ? 'Expected profit not set' : `Expected monthly profit ${formatAmount(margin)} (not collected cash)`;
-  const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[customer.serviceStatus] ?? 'Not set';
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span><span class="customer-profit-line"><span class="service-state service-state-${customer.serviceStatus ?? 'not-set'}">Service: ${serviceLabel}</span> · ${speed}${escapeHtml(profitLabel)}</span></span><span class="no-record-dot" aria-label="${customer.bills.length ? 'Has billing entries' : 'No billing entries'}"></span></button>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
+  const profitLabel = margin === null ? 'Expected profit not set' : `Expected monthly profit ${formatAmount(margin)} (not collected cash profit)`;
+  const monthBill = (customer.bills ?? []).find(bill => bill.month === selectedBillingMonth);
+  const billing = statusPresentation(customer, monthBill);
+  const billingLabel = `${monthName(selectedBillingMonth)} bill: ${billing.label}`;
+  const serviceButtons = ['active','offline','not-set'].map(status => {
+    const label = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[status];
+    const selected = status === customer.serviceStatus;
+    return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="Set customer ${customer.customerNumber} manual service status to ${label}">${label}</button>`;
+  }).join('');
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span><span class="customer-profit-line">${speed}${escapeHtml(profitLabel)}</span></span><span class="no-record-dot" aria-label="${customer.bills.length ? 'Has billing entries' : 'No billing entries'}"></span></button><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
 function renderCustomers() {
+  const filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery:searchQuery() });
+  const active = filtered.filter(customer => !customer.archived);
+  const archived = filtered.filter(customer => customer.archived);
   const searched = searchCustomers(state, searchQuery());
-  const active = searched.filter(customer => !customer.archived);
-  const archived = searched.filter(customer => customer.archived);
-  const activeTotal = state.customers.filter(customer => !customer.archived).length;
-  const archivedTotal = state.customers.length - activeTotal;
+  const activeTotal = searched.filter(customer => !customer.archived).length;
+  const archivedTotal = searched.filter(customer => customer.archived).length;
   customerList.innerHTML = active.map(customer => customerCardMarkup(customer)).join('');
   $('#archivedCustomerList').innerHTML = archived.map(customer => customerCardMarkup(customer, true)).join('');
-  $('#customerCount').textContent = active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
+  $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
   $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
-  $('#welcomeCount').textContent = activeTotal;
+  $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
   const emptySearch = $('#noSearchResults');
-  if (emptySearch) emptySearch.hidden = active.length > 0 || archived.length > 0 || activeTotal === 0;
+  if (emptySearch) {
+    emptySearch.textContent = searchQuery().trim() ? 'No matching customers.' : 'No customers match these service and billing filters.';
+    emptySearch.hidden = active.length > 0 || archived.length > 0;
+  }
+  document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerServiceFilter === selectedServiceFilter ? 'true' : 'false'));
+  document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerBillingFilter === selectedBillingFilter ? 'true' : 'false'));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-set-service]').forEach(button => button.addEventListener('click', () => setManualServiceStatus(button.dataset.setService, button.dataset.serviceStatus)));
   $('#archivedCustomerList').querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
+}
+function setManualServiceStatus(customerId, serviceStatus) {
+  const label = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[serviceStatus];
+  if (!label) return;
+  try {
+    state = updateCustomerProfile(state, customerId, { serviceStatus });
+    save();
+    if (selectedCustomerId === customerId) $('#serviceStatusInput').value = serviceStatus;
+    toast(`Manual service status set to ${label}. No connectivity monitoring is performed.`);
+  } catch (error) { toast(error.message); }
 }
 function renderGlobalSearch() {
   const input = $('#globalCustomerSearch');
@@ -159,10 +186,14 @@ function switchView(view) {
     $(`#${buttonId}`).setAttribute('aria-current', active ? 'page' : 'false');
   }
 }
-function statusPresentation(customer, bill) {
-  if (!bill) return { label:'Not recorded', className:'status-empty', value:'pending' };
-  const received = effectiveBillStatus(customer, bill) === 'received';
-  return received ? { label:'Paid', className:'status-received', value:'received' } : { label:'Pending', className:'status-pending', value:'pending' };
+function statusPresentation(customer, bill, allocations = null) {
+  const value = derivedBillStatus(customer, bill, allocations);
+  return {
+    paid:{ label:'Paid', className:'status-received', value },
+    pending:{ label:'Pending', className:'status-pending', value },
+    partial:{ label:'Partial', className:'status-partial', value },
+    'not-set':{ label:'Not set', className:'status-empty', value }
+  }[value];
 }
 function paymentAllocationMarkup(allocation) {
   if (!allocation) return '';
@@ -186,7 +217,7 @@ function renderHistory(customer) {
   $('#customerEmptyNote').hidden = customer.bills.length > 0;
   historyContainer.innerHTML = monthList.map(month => {
     const bill = byMonth.get(month);
-    const status = statusPresentation(customer, bill);
+    const status = statusPresentation(customer, bill, allocations);
     const received = bill ? recordedAmount(bill) : 0;
     const effectiveAmount = bill?.dueAmount ?? null;
     const displayAmount = effectiveAmount === null || effectiveAmount === undefined ? 'Not recorded' : formatAmount(effectiveAmount);
@@ -206,13 +237,13 @@ function renderHistory(customer) {
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
-    const hasPartial = statusValue === 'pending' && effectiveAmount !== null && effectiveAmount !== undefined && (received > 0 || (monthAllocation?.creditAppliedCents ?? 0) > 0);
+    const hasPartial = statusValue === 'partial';
     const summaryMarkup = !bill ? '<p class="empty-month">No billing details recorded for this month.</p>' : `<div class="month-summary"><span>Status: <strong>${status.label}</strong></span><span>Optional due date (PKT): <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : 'Not set · no due-date rule or penalty applied'}</strong></span><span>Actual receipts (PKR cash): <strong>${formatAmount(received)}</strong></span><span>Carry-in credit (PKR, not new cash): <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span>Bill amount (PKR): <strong>${escapeHtml(displayAmount)}</strong></span><span>Balance due (PKR): <strong>${escapeHtml(balanceDue)}</strong></span>${monthAllocation?.excessGeneratedCents ? `<span>Credit from this month’s receipts (PKR): <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span>Credit applied to later bills (PKR): <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span>Credit waiting for the next generated bill (PKR): <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? '<span class="month-status status-pending">Partial payment / credit</span>' : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? 'Optional' : 'Required to create a bill';
     const amountPlaceholder = bill ? 'Leave blank only if not known' : 'Enter confirmed amount in PKR';
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid"><label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help">To mark a bill Paid, record its real receipt here. Paid/Partial/Pending is calculated from receipts and carried credit.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" value="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select><button class="primary-button" type="submit">Add payment / mark paid with receipt</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid"><label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select><button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}"><summary><span class="month-label">${escapeHtml(monthName(month))}</span><span class="history-count">${bill ? `${bill.payments?.length ?? 0} payment${bill.payments?.length === 1 ? '' : 's'}` : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="Payments for ${escapeHtml(monthName(month))}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
@@ -227,16 +258,16 @@ function renderTransactions() {
   $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'}`;
   $('#transactionsEmpty').hidden = transactions.length > 0;
   transactionList.innerHTML = transactions.map(transaction => {
-    const statusText = transaction.status === 'received' ? 'Paid' : 'Pending';
+    const statusText = reportStatusLabel(transaction.status);
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[transaction.customerServiceStatus] ?? 'Not set';
-    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: ${statusText} · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
+    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
 }
-function reportStatusLabel(status) { return ({ paid:'Paid', unpaid:'Unpaid / Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
+function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
 function renderMonthlyReport() {
-  const month = $('#reportMonth').value || monthsForHistory()[0];
+  const month = selectedBillingMonth;
   const rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:searchQuery() });
   $('#monthlyReportCount').textContent = `${rows.length} ${rows.length === 1 ? 'customer' : 'customers'} · ${monthName(month)}`;
   $('#monthlyReportEmpty').hidden = rows.length > 0;
@@ -257,8 +288,11 @@ function renderMonthlyReport() {
 }
 function populateReportMonths() {
   const months = monthsForHistory();
-  $('#reportMonth').innerHTML = months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
-  $('#reportMonth').value = months[0];
+  const options = months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
+  $('#reportMonth').innerHTML = options;
+  $('#customerFilterMonth').innerHTML = options;
+  $('#reportMonth').value = selectedBillingMonth;
+  $('#customerFilterMonth').value = selectedBillingMonth;
 }
 function renderProfileMarginPreview() {
   const sellingText = $('#monthlySellingAmountInput').value.trim();
@@ -475,42 +509,51 @@ $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
 $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
 $('#showCustomersButton').addEventListener('click', () => switchView('customers'));
-$('#quickAddPaymentButton').addEventListener('click', () => {
-  switchView('customers');
+function openPaymentEntry(month = selectedBillingMonth) {
   const customer = selectedCustomer();
-  if (!customer) {
-    $('#globalCustomerSearch').focus();
-    toast('Search for a customer, then choose Add payment in their billing history.');
-    return;
-  }
-  appShell.classList.add('show-detail');
-  const month = localDate().slice(0, 7);
-  const card = historyContainer.querySelector(`[data-month-card="${month}"]`);
-  if (card) card.open = true;
-  const amountInput = card?.querySelector('form[data-kind="payment"] input[name="amount"]');
-  if (amountInput) {
-    amountInput.scrollIntoView({ behavior:'smooth', block:'center' });
-    amountInput.focus({ preventScroll:true });
-  } else toast('Select a customer before recording a payment.');
-});
-$('#currentBillPaymentShortcut').addEventListener('click', () => {
-  const customer = selectedCustomer();
-  if (!customer) return;
-  const month = localDate().slice(0, 7);
-  const card = historyContainer.querySelector(`[data-month-card="${month}"]`);
-  if (!card) { toast('Current-month bill details are outside the available history.'); return; }
+  if (!customer) { $('#globalCustomerSearch').focus(); toast('Search for a customer, then open their payment form.'); return; }
+  const card = historyContainer.querySelector(`[data-month-card="${CSS.escape(month)}"]`);
+  if (!card) { toast('That billing month is outside the available history.'); return; }
   card.open = true;
-  const amountInput = card.querySelector('form[data-kind="payment"] input[name="amount"]');
-  if (!amountInput) { toast('This customer has no current-month payment form. Unarchive the profile if needed.'); return; }
+  const form = card.querySelector('form[data-kind="payment"]');
+  const amountInput = form?.querySelector('input[name="amount"]');
+  if (!form || !amountInput) { toast('This archived customer has no payment form for that month.'); return; }
+  const bill = customer.bills.find(item => item.month === month);
+  const allocation = calculatePaymentAllocations(state).forMonth(customer.id, month);
+  const hint = form.querySelector('.payment-guidance');
+  amountInput.value = '';
+  if (bill?.dueAmount !== null && bill?.dueAmount !== undefined && allocation?.balanceDueCents > 0) {
+    const suggested = (allocation.balanceDueCents / 100).toFixed(2);
+    amountInput.value = suggested;
+    hint.textContent = `Suggested remaining balance: ${formatAmount(Number(suggested))}. Confirm the actual amount collected, enter the real payment date and method, then submit. Nothing is saved by opening this form.`;
+  } else if (bill && derivedBillStatus(customer, bill, calculatePaymentAllocations(state)) === 'paid') {
+    hint.textContent = 'This bill is already settled. No amount is due; enter an amount only if an actual additional prepayment is being collected. Nothing is saved until you submit.';
+  } else if (!bill?.dueAmount) {
+    hint.textContent = 'No bill amount is set for this month, so no remainder can be suggested. Enter only an actual collected amount, plus its real date and method. Nothing is saved until you submit.';
+  } else {
+    hint.textContent = 'No remaining bill balance is shown. Enter an amount only if it is an actual collected payment, plus its real date and method.';
+  }
   amountInput.scrollIntoView({ behavior:'smooth', block:'center' });
   amountInput.focus({ preventScroll:true });
-  toast('Enter the real amount, payment date and method, then save the receipt to mark the bill Paid.');
-});
+}
+$('#quickAddPaymentButton').addEventListener('click', () => { switchView('customers'); openPaymentEntry(); });
+$('#currentBillPaymentShortcut').addEventListener('click', () => openPaymentEntry());
 $('#showTransactionsButton').addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
 $('#showReportsButton').addEventListener('click', () => { switchView('reports'); renderMonthlyReport(); });
 $('#transactionDateFilter').addEventListener('input', renderTransactions);
 $('#clearTransactionFilters').addEventListener('click', () => { $('#transactionDateFilter').value = ''; $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
-$('#reportMonth').addEventListener('change', renderMonthlyReport);
+function setBillingMonth(month) {
+  if (!monthsForHistory().includes(month)) return;
+  selectedBillingMonth = month;
+  $('#reportMonth').value = month;
+  $('#customerFilterMonth').value = month;
+  renderCustomers();
+  renderMonthlyReport();
+}
+$('#reportMonth').addEventListener('change', event => setBillingMonth(event.currentTarget.value));
+$('#customerFilterMonth').addEventListener('change', event => setBillingMonth(event.currentTarget.value));
+document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; renderCustomers(); }));
+document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; renderCustomers(); }));
 document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; renderMonthlyReport(); }));
 $('#addCustomerButton').addEventListener('click', () => { $('#addCustomerError').hidden = true; $('#newCustomerName').value = ''; $('#addCustomerDialog').showModal(); $('#newCustomerName').focus(); });
 $('#addCustomerForm').addEventListener('submit', event => {

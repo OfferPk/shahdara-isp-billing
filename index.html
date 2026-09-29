@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0e5b4d">
+  <meta name="description" content="Offline-first Shahdara ISP customer billing ledger. Billing records stay in this browser on this device.">
+  <title>Shahdara ISP Billing</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to billing workspace</a>
+  <header class="topbar">
+    <div class="brand-mark" aria-hidden="true">S</div>
+    <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
+    <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
+  </header>
+  <main id="main" class="app-shell">
+    <section id="customerPane" class="customer-pane" aria-label="Customers">
+      <div class="pane-heading">
+        <div><p class="eyebrow">LOCAL LEDGER</p><h2>Customers <span id="customerCount" class="count-badge">0</span></h2></div>
+        <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
+      </div>
+      <label class="search-box"><span class="sr-only">Search customers</span><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Find a customer" autocomplete="off"></label>
+      <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
+      <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
+      <div class="pane-footer"><span class="local-lock" aria-hidden="true">▣</span> Billing entries never leave this browser.</div>
+    </section>
+
+    <section id="detailPane" class="detail-pane" aria-label="Customer billing details">
+      <div id="welcomeState" class="welcome-card">
+        <div class="welcome-icon" aria-hidden="true">▤</div>
+        <p class="eyebrow">READY WHEN YOU ARE</p>
+        <h2>Your ledger starts empty</h2>
+        <p>The supplied customer names are loaded. No mohallas, bills, payments, or payment history have been recorded.</p>
+        <p class="welcome-count"><strong id="welcomeCount">0</strong> customers · up to 24 months per customer</p>
+      </div>
+      <div id="customerDetail" hidden>
+        <div class="detail-head">
+          <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
+          <div class="detail-title-row">
+            <div><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
+            <button id="deleteCustomerButton" class="text-button danger" type="button">Delete customer</button>
+          </div>
+          <div class="customer-meta">
+            <label class="field-label" for="mohallaInput">Mohalla <span class="optional-label">Optional</span></label>
+            <div class="inline-field"><input id="mohallaInput" type="text" maxlength="100" placeholder="Enter mohalla"><button id="saveMohallaButton" class="secondary-button" type="button">Save</button></div>
+          </div>
+          <div class="ledger-heading"><div><p class="eyebrow">BILLING HISTORY</p><h3>Last 24 months</h3></div><button id="customerExportButton" class="secondary-button export-button" type="button"><span aria-hidden="true">↓</span> Export history</button></div>
+          <p id="customerEmptyNote" class="notice" hidden>No billing details recorded yet. Choose a month below to add only information you have confirmed.</p>
+        </div>
+        <div id="historyContainer" class="history-list" aria-label="Monthly billing history"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button></footer>
+
+  <dialog id="addCustomerDialog" class="modal">
+    <form id="addCustomerForm" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow">NEW CUSTOMER</p><h2>Add a customer</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">×</button></div>
+      <label class="field-label" for="newCustomerName">Customer name</label>
+      <input id="newCustomerName" name="name" type="text" maxlength="100" required autocomplete="off" placeholder="Enter the real customer name">
+      <div id="addCustomerError" class="form-error" role="alert" hidden></div>
+      <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button class="primary-button" type="submit">Add customer</button></div>
+    </form>
+  </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

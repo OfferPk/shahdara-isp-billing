@@ -1,0 +1,1 @@
+{"name":"Shahdara ISP Billing","short_name":"ISP Billing","description":"Offline-first customer billing ledger stored on this device.","start_url":"./","scope":"./","display":"standalone","background_color":"#f4f7f5","theme_color":"#0e5b4d","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}

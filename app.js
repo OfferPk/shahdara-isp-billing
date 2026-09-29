@@ -4,11 +4,11 @@ import {
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
-} from './core.js?v=1.2.4';
+} from './core.js?v=1.2.5';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement,
   inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.2.4';
+} from './phase3.js?v=1.2.5';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');

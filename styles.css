@@ -519,9 +519,194 @@ textarea { line-height: 1.5; }
 }
 
 
+/* v1.2.5 visual polish: aligned PKR, consistent states, and narrow-screen wrapping. */
+:root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+}
+body, body * { font-family: var(--font-sans) !important; }
+html, body { max-width: 100%; overflow-x: clip; }
+main, .app-shell, .customer-pane, .detail-pane, .customer-meta, .profile-grid,
+.profile-field, .report-row, .report-customer, .report-cell, .transactions-pane,
+.transaction-data, .phase3-pane, .phase3-chart-grid, .chart-card, .table-card,
+.table-scroll, .global-search-region, .global-search-main, .global-search-control {
+  min-width: 0;
+  max-width: 100%;
+}
+.customer-name, .customer-number-line, .detail-title-row h2,
+.profile-field .field-label, .report-customer-name, .report-cell-label,
+.report-cell-value, .report-credit-value, .transaction-customer,
+.transaction-context, .incident-note, .package-history-list li,
+.location-summary-label, .location-summary-value, .table-scroll td,
+.table-scroll th {
+  overflow-wrap: anywhere;
+}
+.profile-field textarea { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Render numeric columns with stable digit widths and align currency to the end. */
+.summary-value, .phase3-metric strong, .provider-cost-list li > strong,
+.transaction-amount, .payment-amount, .report-credit-value, .month-summary strong,
+.summary-arpu, .location-summary-value, .analytics-summary-table td,
+.table-scroll td {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+.summary-value, .phase3-metric strong {
+  align-self: stretch;
+  max-width: 100%;
+  text-align: right;
+}
+.provider-cost-list li > strong { justify-self: end; text-align: right; }
+.transaction-amount { flex: 0 0 auto; text-align: right; }
+.payment-amount { display: block; text-align: right; }
+.report-row > .report-cell:nth-of-type(2) .report-cell-value,
+.report-row > .report-cell:nth-of-type(3) .report-cell-value,
+.report-row > .report-cell:nth-of-type(5) .report-cell-value,
+.report-row > .report-cell:nth-of-type(6) .report-cell-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  text-align: right;
+}
+.analytics-summary-table th:not(:first-child),
+.analytics-summary-table td:not(:first-child) { text-align: right; }
+#inventoryItemsTable td:nth-child(5), #inventoryItemsTable td:nth-child(6),
+#inventoryItemsTable td:nth-child(7), #inventoryMovementTable td:nth-child(4),
+#expenseTable td:nth-child(3) {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* One badge shape and readable semantic colors; the text remains explicit. */
+.customer-billing-badge, .month-status, .archive-state-badge,
+.report-status, .incident-card-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #cbd4d0;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.customer-billing-badge.status-received, .month-status.status-received,
+.report-status-paid, .incident-resolved {
+  background: #e1f3e8;
+  color: #155b3b;
+  border-color: #a8d6ba;
+}
+.customer-billing-badge.status-pending, .month-status.status-pending,
+.report-status-pending, .report-status-unpaid, .incident-open {
+  background: #fff1cf;
+  color: #704600;
+  border-color: #e7c77e;
+}
+.customer-billing-badge.status-partial, .month-status.status-partial,
+.report-status-partial {
+  background: #e5efff;
+  color: #174b87;
+  border-color: #adc9f1;
+}
+.customer-billing-badge.status-empty, .month-status.status-empty,
+.report-status-not-set, .archive-state-badge {
+  background: #eef1f0;
+  color: #465650;
+  border-color: #cbd4d0;
+}
+.service-choice { min-height: 44px !important; border-radius: 9px; font-size: 12px; }
+.service-choice-active { background: #e1f3e8; color: #155b3b; border-color: #a8d6ba; }
+.service-choice-offline { background: #fff1f0; color: #783631; border-color: #dfb4b1; }
+.service-choice-not-set { background: #eef1f0; color: #465650; border-color: #cbd4d0; }
+.service-choice[aria-pressed="true"] { box-shadow: inset 0 0 0 1px currentColor; font-weight: 800; }
+.customer-filter-button[aria-pressed="true"],
+.report-filter-button[aria-pressed="true"] { font-weight: 750; }
+
+/* Keep instructions legible at phone sizes without changing their content. */
+.global-search-help, .profile-help, .field-help, .payment-guidance,
+.customer-filter-note, .dashboard-exclusions, .dashboard-method,
+.provider-cost-explainer, .provider-cost-empty, .transactions-subtitle,
+.transaction-filter-help, .report-not-set-note, .phase3-note, .chart-caption,
+.incident-manual-note, .incident-empty, .backup-merge-rule,
+.summary-explainer, .summary-unassigned-note, .profile-profit {
+  color: #4f6259;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.optional-label, .detail-number { color: #586e65; font-size: 12px; line-height: 1.4; }
+
+/* Visible keyboard, invalid, disabled, selected, and saved-feedback states. */
+*:focus-visible {
+  outline: 3px solid #0b624b !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 3px rgba(11, 98, 75, .16);
+}
+.global-result-option:focus-visible { outline: 3px solid #0b624b !important; outline-offset: 2px !important; }
+:where(input, select, textarea):user-invalid,
+:where(input, select, textarea)[aria-invalid="true"] {
+  border-color: #a3231b !important;
+  box-shadow: 0 0 0 2px rgba(163, 35, 27, .16);
+}
+.form-error:not([hidden]) {
+  padding: 8px 10px;
+  border: 1px solid #e4b9b4;
+  border-left: 3px solid #a3231b;
+  border-radius: 8px;
+  background: #fff5f3;
+  color: #8f211a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+button:disabled, button[aria-disabled="true"],
+[role="button"][aria-disabled="true"] {
+  opacity: .58;
+  cursor: not-allowed;
+  filter: saturate(.65);
+  box-shadow: none;
+}
+.toast:not([hidden]) { border: 1px solid #477965; border-left: 4px solid #88c5a3; }
+
+@media (max-width: 700px) {
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+  .report-cell { display: grid; grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .report-cell-label { display: block; }
+}
+@media (max-width: 620px) {
+  .month-summary { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .month-summary > span:not(.month-status) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    width: 100%;
+  }
+  .month-summary > span:not(.month-status) > strong { text-align: right; overflow-wrap: anywhere; }
+  .report-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-customer { grid-column: 1 / -1; }
+  .customer-meta, .profile-grid, .report-row, .month-summary { min-width: 0; max-width: 100%; }
+  .global-search-control input { min-width: 0; }
+}
+
+.summary-value, .phase3-metric strong, .provider-cost-list li > strong,
+.transaction-amount, .payment-amount, .report-credit-value, .month-summary strong,
+.summary-arpu { text-align: right; }
+.report-credit-value { display: block; }
+
+@media (max-width: 340px) {
+  .global-search-control input::placeholder { font-size: 13px; }
+}
+
+
 /* Manual status choices remain full-size controls on desktop as well as mobile. */
 .service-choice { min-height: 44px; padding: 7px 9px; font-size: 13px; }
 
 
 /* Enforce accessible target size across legacy and newer action button classes. */
 button:not([hidden]) { min-height: 44px !important; }
+
+
+/* Preserve a comfortable touch target for interactive controls at every width. */
+button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
+.icon-button, .close-button { width: 44px; min-width: 44px; height: 44px; }

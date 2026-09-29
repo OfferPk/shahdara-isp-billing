@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Phase 3 mobile-browser testing preview · web build 1.2.4**
+**Phase 3 mobile-browser testing preview · web build 1.2.5**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 

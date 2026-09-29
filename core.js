@@ -7,6 +7,13 @@ export const STORAGE_KEY = 'shahdara-isp-billing-v1';
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const moneyCents = value => Math.round(Number(value || 0) * 100);
 const moneyValue = cents => Number((cents / 100).toFixed(2));
+export function formatPKR(value) {
+  if (value === null || value === undefined || value === '') return 'Not set';
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 'Not set';
+  const formatter = new Intl.NumberFormat('en-PK', { minimumFractionDigits:Number.isInteger(amount) ? 0 : 2, maximumFractionDigits:2 });
+  return `PKR ${formatter.format(amount)}`;
+}
 const monthKey = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 const nextMonthKey = month => { const [year, number] = month.split('-').map(Number); return monthKey(new Date(year, number, 1)); };
 const dateKey = date => `${monthKey(date)}-${String(date.getDate()).padStart(2, '0')}`;
@@ -558,12 +565,12 @@ function paymentLines(customer, bill, allocations) {
     const allocation = allocations.byPaymentId.get(payment.id);
     const sameMonthCents = (allocation?.allocations ?? []).filter(item => item.kind === 'same-month').reduce((sum,item) => sum + item.amountCents, 0);
     const carried = (allocation?.allocations ?? []).filter(item => item.kind === 'carry-forward');
-    const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${Number(payment.amount).toFixed(2)} (actual receipt, counted once)`, `Method: ${payment.method}`];
+    const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
     if (allocation?.billUnpriced) lines.push('Allocation: selected bill has no saved amount; no excess credit was inferred.');
     else {
-      lines.push(`Applied to selected bill: ${moneyValue(sameMonthCents).toFixed(2)}`);
-      for (const item of carried) lines.push(`Auto-credit applied to ${item.month}: ${moneyValue(item.amountCents).toFixed(2)} (allocation, not a new payment)`);
-      if (allocation?.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${moneyValue(allocation.unappliedCreditCents).toFixed(2)}`);
+      lines.push(`Applied to selected bill: ${formatPKR(moneyValue(sameMonthCents))}`);
+      for (const item of carried) lines.push(`Auto-credit applied to ${item.month}: ${formatPKR(moneyValue(item.amountCents))} (allocation, not a new payment)`);
+      if (allocation?.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatPKR(moneyValue(allocation.unappliedCreditCents))}`);
     }
     return `${lines.join('\n')}\n`;
   });
@@ -589,22 +596,22 @@ export function exportCustomerHistory(state, customerId) {
     `Address: ${customer.address || 'Not recorded'}`,
     `Phone: ${customer.phone || 'Not recorded'}`,
     `Package / speed: ${customer.packageSpeed || 'Not set'}`,
-    `Monthly provider purchase cost: ${customer.monthlyPurchaseCost ?? 'Not set'}`,
-    `Monthly selling amount: ${customer.monthlySellingAmount ?? 'Not set'}`,
-    `Expected monthly package profit: ${customerPackageProfit(customer) ?? 'Not set'}`,
+    `Monthly provider purchase cost: ${formatPKR(customer.monthlyPurchaseCost)}`,
+    `Monthly selling amount: ${formatPKR(customer.monthlySellingAmount)}`,
+    `Expected monthly package profit: ${formatPKR(customerPackageProfit(customer))}`,
     ''
   ];
   if (!customer.bills.length) lines.push('No billing details have been recorded.');
   for (const bill of [...customer.bills].sort((a,b) => a.month.localeCompare(b.month))) {
     const status = billStatusWithAllocations(customer, bill, allocations) === 'received' ? 'Received' : 'Pending / partial';
     const allocation = allocations.forMonth(customer.id, bill.month);
-    lines.push(`Month: ${bill.month}`, `Status: ${status}`, `Bill amount: ${bill.dueAmount ?? 'Not recorded'}`, `Actual payments received: ${recordedAmount(bill).toFixed(2)}`, `Carry-forward credit applied to this bill (not new cash): ${moneyValue(allocation?.creditAppliedCents ?? 0).toFixed(2)}`, `Balance due after payments and credits: ${allocation?.balanceDueCents === null || allocation?.balanceDueCents === undefined ? 'Not recorded' : moneyValue(allocation.balanceDueCents).toFixed(2)}`);
-    for (const source of allocation?.creditSources ?? []) lines.push(`  Credit source: original ${source.receiptAmount.toFixed(2)} receipt dated ${source.paymentDate} (${source.method}) from ${source.originMonth}; applied here=${moneyValue(source.amountCents).toFixed(2)}`);
-    if (bill.generated && bill.priceSnapshot !== null && bill.priceSnapshot !== undefined) lines.push(`Automatic monthly bill price snapshot: ${bill.priceSnapshot}`);
-    if (allocation?.excessGeneratedCents) lines.push(`Excess from this month's receipts: ${moneyValue(allocation.excessGeneratedCents).toFixed(2)}`);
-    if (allocation?.creditForwardedCents) lines.push(`Credit automatically applied to later generated bills: ${moneyValue(allocation.creditForwardedCents).toFixed(2)}`);
-    if (allocation?.pendingCreditCents) lines.push(`Credit waiting for a future generated bill: ${moneyValue(allocation.pendingCreditCents).toFixed(2)}`);
-    for (const correction of bill.amountHistory ?? []) lines.push(`  Bill amount correction at ${correction.changedAt}: previous=${correction.previousAmount ?? 'Not recorded'}, new=${correction.newAmount ?? 'Not recorded'}`);
+    lines.push(`Month: ${bill.month}`, `Status: ${status}`, `Bill amount: ${formatPKR(bill.dueAmount)}`, `Actual payments received: ${formatPKR(recordedAmount(bill))}`, `Carry-forward credit applied to this bill (not new cash): ${formatPKR(moneyValue(allocation?.creditAppliedCents ?? 0))}`, `Balance due after payments and credits: ${allocation?.balanceDueCents === null || allocation?.balanceDueCents === undefined ? 'Not recorded' : formatPKR(moneyValue(allocation.balanceDueCents))}`);
+    for (const source of allocation?.creditSources ?? []) lines.push(`  Credit source: original ${formatPKR(source.receiptAmount)} receipt dated ${source.paymentDate} (${source.method}) from ${source.originMonth}; applied here=${formatPKR(moneyValue(source.amountCents))}`);
+    if (bill.generated && bill.priceSnapshot !== null && bill.priceSnapshot !== undefined) lines.push(`Automatic monthly bill price snapshot: ${formatPKR(bill.priceSnapshot)}`);
+    if (allocation?.excessGeneratedCents) lines.push(`Excess from this month's receipts: ${formatPKR(moneyValue(allocation.excessGeneratedCents))}`);
+    if (allocation?.creditForwardedCents) lines.push(`Credit automatically applied to later generated bills: ${formatPKR(moneyValue(allocation.creditForwardedCents))}`);
+    if (allocation?.pendingCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatPKR(moneyValue(allocation.pendingCreditCents))}`);
+    for (const correction of bill.amountHistory ?? []) lines.push(`  Bill amount correction at ${correction.changedAt}: previous=${formatPKR(correction.previousAmount)}, new=${formatPKR(correction.newAmount)}`);
     for (const line of paymentLines(customer, bill, allocations)) lines.push(`  ${line.trim().replaceAll('\n',' | ')}`);
     lines.push('');
   }

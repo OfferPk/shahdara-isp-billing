@@ -6,7 +6,7 @@ import {
   saveBillMonth, addPayment, correctPayment, deletePayment, recordedAmount, monthsForHistory,
   customerPackageProfit, calculateDashboard, calculatePaymentAllocations, listTransactions, buildMonthlyReport,
   effectiveBillStatus, addIncident, updateIncident, deleteIncident, countCustomerIncidentsLast30Days,
-  exportAllPayments, exportCustomerHistory
+  exportAllPayments, exportCustomerHistory, formatPKR
 } from '../core.js';
 
 const referenceDate = new Date(2026, 8, 29, 12);
@@ -322,9 +322,9 @@ test('TXT exports include actual recorded payments and the saved contact/package
   assert.match(individual, /Address: Fixture address/);
   assert.match(individual, /Phone: fixture-phone/);
   assert.match(individual, /Package \/ speed: Fixture package/);
-  assert.match(individual, /Monthly provider purchase cost: 20/);
-  assert.match(individual, /Monthly selling amount: 60/);
-  assert.match(individual, /Expected monthly package profit: 40/);
+  assert.match(individual, /Monthly provider purchase cost: PKR 20/);
+  assert.match(individual, /Monthly selling amount: PKR 60/);
+  assert.match(individual, /Expected monthly package profit: PKR 40/);
   assert.doesNotMatch(all, /fixture-phone/);
   assert.doesNotMatch(all, /AWAIS/);
   assert.match(individual, /Status: Received/);
@@ -467,9 +467,9 @@ test('correcting and deleting one of multiple installments updates history, tota
   assert.equal(calculateDashboard(state, referenceDate).currentMonthDue, 80);
   assert.equal(buildMonthlyReport(state, { month:currentMonth, statusFilter:'partial', customerQuery:'#1' }, referenceDate)[0].balanceDue, 80);
   assert.equal(listTransactions(state, { customerQuery:'#1' }, referenceDate).length, 1);
-  assert.doesNotMatch(exportAllPayments(state), /Amount: 10\n/);
-  assert.match(exportAllPayments(state), /Amount: 20/);
-  assert.doesNotMatch(exportCustomerHistory(state, 'seed-001'), /Amount: 10/);
+  assert.doesNotMatch(exportAllPayments(state), /Amount: PKR 10\n/);
+  assert.match(exportAllPayments(state), /Amount: PKR 20/);
+  assert.doesNotMatch(exportCustomerHistory(state, 'seed-001'), /Amount: PKR 10/);
 });
 
 const incident = (overrides = {}) => ({ reportedAt:'2026-09-28T10:00', offlineAt:'2026-09-28T09:30', restoredAt:'', note:'', ...overrides });
@@ -634,9 +634,9 @@ test('overpayment credit rolls through later generated bills while cash collecti
   assert.equal(dashboard.totalDue, 50);
   assert.equal(listTransactions(state, {}, december1).length, 1);
   const allPayments = exportAllPayments(state);
-  assert.equal((allPayments.match(/Amount: 350\.00 \(actual receipt, counted once\)/g) ?? []).length, 1);
-  assert.match(allPayments, /Auto-credit applied to 2026-10: 100\.00/);
-  assert.match(exportCustomerHistory(state, 'seed-001'), /Credit source: original 350\.00 receipt dated 2026-09-20 \(Cash\) from 2026-09; applied here=50\.00/);
+  assert.equal((allPayments.match(/Amount: PKR 350 \(actual receipt, counted once\)/g) ?? []).length, 1);
+  assert.match(allPayments, /Auto-credit applied to 2026-10: PKR 100/);
+  assert.match(exportCustomerHistory(state, 'seed-001'), /Credit source: original PKR 350 receipt dated 2026-09-20 \(Cash\) from 2026-09; applied here=PKR 50/);
 });
 
 test('unapplied excess persists on its original receipt until the next month bill is generated', () => {
@@ -708,7 +708,7 @@ test('unapplied customer credit remains visible and valid indefinitely after its
   assert.equal(pendingReport.pendingCreditSources[0].paymentId, 'old-source-receipt');
   assert.equal(pendingReport.pendingCreditSources[0].originMonth, '2024-09');
   const exportText = exportCustomerHistory(withBills, customer.id);
-  assert.equal((exportAllPayments(withBills).match(/Amount: 150\.00 \(actual receipt, counted once\)/g) ?? []).length, 1);
+  assert.equal((exportAllPayments(withBills).match(/Amount: PKR 150 \(actual receipt, counted once\)/g) ?? []).length, 1);
   let corrected = correctPayment(withBills, customer.id, '2024-09', 'old-source-receipt', payment({ date:'2024-09-30', amount:'130' }), referenceDate);
   let correctedLedger = calculatePaymentAllocations(corrected);
   assert.equal(correctedLedger.forMonth(customer.id, '2024-09').pendingCreditCents, 3000);
@@ -732,7 +732,7 @@ test('unapplied customer credit remains visible and valid indefinitely after its
   assert.equal(targetReport.creditApplied, 50);
   assert.equal(targetReport.amountReceived, 0);
   assert.equal(targetReport.creditSources[0].originMonth, '2024-09');
-  assert.match(exportCustomerHistory(withTargetBill, customer.id), /Credit source: original 150\.00 receipt dated 2024-09-30 \(Cash\) from 2024-09; applied here=50\.00/);
+  assert.match(exportCustomerHistory(withTargetBill, customer.id), /Credit source: original PKR 150 receipt dated 2024-09-30 \(Cash\) from 2024-09; applied here=PKR 50/);
 });
 
 test('today and previous-month collections use payment dates even when a saved bill month is older than 24 months', () => {
@@ -764,4 +764,13 @@ test('an actual receipt entered after a bill is manually marked Received is logg
   assert.equal(summary.pendingCreditCents, 0);
   assert.equal(calculateDashboard(state, referenceDate).totalCollection, 100);
   assert.equal(listTransactions(state, {}, referenceDate).length, 1);
+});
+
+test('PKR formatter groups thousands, preserves cents, supports negative margin, and marks unset values', () => {
+  assert.equal(formatPKR(3000), 'PKR 3,000');
+  assert.equal(formatPKR(3000.5), 'PKR 3,000.50');
+  assert.equal(formatPKR(-25.25), 'PKR -25.25');
+  assert.equal(formatPKR(0), 'PKR 0');
+  assert.equal(formatPKR(null), 'Not set');
+  assert.equal(formatPKR(''), 'Not set');
 });

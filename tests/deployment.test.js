@@ -6,6 +6,8 @@ const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8'
 const version = JSON.parse(read('package.json')).version;
 const index = read('index.html');
 const app = read('app.js');
+const core = read('core.js');
+const styles = read('styles.css');
 const worker = read('sw.js');
 
 test('web shell assets share the package version and worker updates before app startup', () => {
@@ -16,11 +18,37 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v4'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v5'/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
   for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
 });
 
 test('customer-list empty-state renderer tolerates mismatched cached markup without aborting the app', () => {
   assert.match(app, /const emptySearch\s*=\s*\$\('#noSearchResults'\);\s*if \(emptySearch\) emptySearch\.hidden\s*=/);
+});
+
+test('money is formatted and labeled in PKR throughout the live billing UI and exports', () => {
+  assert.match(core, /Intl\.NumberFormat\('en-PK'/);
+  assert.match(app, /const formatAmount = formatPKR/);
+  assert.match(core, /Monthly provider purchase cost: \$\{formatPKR/);
+  assert.match(core, /Amount: \$\{formatPKR\(payment\.amount\)\}/);
+  assert.match(index, /All money shown in PKR · no conversion/);
+  assert.match(index, /Monthly provider purchase cost \(PKR\)/);
+  assert.match(index, /Monthly selling amount \(PKR\)/);
+  assert.match(app, /Bill amount \(PKR\)/);
+  assert.match(app, /Amount received \(PKR\)/);
+  assert.match(app, /Monthly sale \(PKR\)/);
+  assert.match(index, /Not set — excluded from dues/);
+});
+
+test('phone-first dashboard prioritizes current due, total due and today collection with easy search/payment access', () => {
+  assert.match(styles, /\.summary-current-due\{order:1\}/);
+  assert.match(styles, /\.summary-total-due\{order:2\}/);
+  assert.match(styles, /\.summary-today-collection\{order:3\}/);
+  assert.match(index, /id="quickAddPaymentButton"/);
+  assert.match(app, /\$\('#quickAddPaymentButton'\)\.addEventListener/);
+  assert.match(styles, /\.quick-payment-button\{min-height:48px/);
+  assert.match(styles, /\.global-search-control input\{height:44px\}/);
+  assert.match(styles, /\.global-search-control>button\{min-height:44px\}/);
+  assert.match(index, /billing data stays in this browser on this device with no server sync/);
 });

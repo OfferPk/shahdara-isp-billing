@@ -4,6 +4,10 @@ export const EXPENSE_CATEGORIES = Object.freeze([
 export const INVENTORY_CATEGORIES = Object.freeze(['ONU','Router','Fiber cable','Connector','Adapter / power supply','Other']);
 export const INVENTORY_STATES = Object.freeze(['available','installed','damaged','returned']);
 export const PHASE3_SCHEMA_VERSION = 1;
+export const PAYROLL_RULES_EFFECTIVE_DATE = '2026-09-30';
+export const SAAD_BASE_MONTHLY_SALARY = 15000;
+export const SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY = 200;
+export const UMAIR_PER_LOGGED_WORKDAY = 1000;
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const cents = value => Math.round(Number(value || 0) * 100);
 const money = value => Number((value / 100).toFixed(2));
@@ -23,6 +27,7 @@ export function addMonths(month, delta) { const [year,number]=month.split('-').m
 export function sixMonths(referenceDate = new Date()) { const current=pktMonth(referenceDate); return Array.from({length:6},(_,i)=>addMonths(current,i-5)); }
 export function monthEnd(month) { if (!MONTH_RE.test(month)) throw new Error('Choose a valid PKT calendar month.'); const [year,number]=month.split('-').map(Number); return `${month}-${String(new Date(Date.UTC(year,number,0)).getUTCDate()).padStart(2,'0')}`; }
 function requireDate(value,label='Date') { const date=String(value??''); if(!validDate(date)) throw new Error(`${label} must be a valid Pakistan local date.`); return date; }
+function requireMonth(value) { const month=String(value??''); if(!MONTH_RE.test(month)) throw new Error('Choose a valid PKT calendar month.'); return month; }
 function requireText(value,max,label,required=true) { const text=String(value??'').trim(); if(required&&!text) throw new Error(`${label} is required.`); if(text.length>max) throw new Error(`${label} must be ${max} characters or fewer.`); return text; }
 function requireAmount(value,{allowZero=false,label='Amount'}={}) { if(!nonblank(value)&&allowZero) return null; const number=Number(value); if(!Number.isFinite(number)||number<(allowZero?0:0.01)) throw new Error(`${label} must be ${allowZero?'zero or greater':'greater than zero'}.`); return Number(number.toFixed(2)); }
 function monthLastDayToday(referenceDate) { return pktDate(referenceDate); }
@@ -125,6 +130,28 @@ export function updateExpense(state,expenseId,fields,referenceDate=new Date()) {
   return {...state,expenses:next};
 }
 export function deleteExpense(state,expenseId) { const entries=state.expenses??[]; if(!entries.some(row=>row.id===expenseId)) throw new Error('Expense entry not found.'); return {...state,expenses:entries.filter(row=>row.id!==expenseId)}; }
+
+function addUniquePayrollDate(state,key,value,label) {
+  const date=requireDate(value,label),entries=state[key]??[];
+  if(entries.includes(date)) return state;
+  return {...state,[key]:[...entries,date].sort()};
+}
+function removePayrollDate(state,key,value,label) {
+  const date=requireDate(value,label),entries=state[key]??[];
+  if(!entries.includes(date)) throw new Error(`${label} entry not found.`);
+  return {...state,[key]:entries.filter(entry=>entry!==date)};
+}
+export function addSaadAttendanceDay(state,date) { return addUniquePayrollDate(state,'saadAttendanceDays',date,'Attendance date'); }
+export function removeSaadAttendanceDay(state,date) { return removePayrollDate(state,'saadAttendanceDays',date,'Attendance'); }
+export function addUmairWorkday(state,date) { return addUniquePayrollDate(state,'umairWorkdays',date,'Work date'); }
+export function removeUmairWorkday(state,date) { return removePayrollDate(state,'umairWorkdays',date,'Workday'); }
+export function buildManualPayrollSummary(state,month) {
+  requireMonth(month);
+  const attendanceDays=[...new Set((state.saadAttendanceDays??[]).filter(date=>monthOf(date)===month))].sort();
+  const umairWorkdays=[...new Set((state.umairWorkdays??[]).filter(date=>monthOf(date)===month))].sort();
+  return {month,attendanceDays,attendanceDayCount:attendanceDays.length,umairWorkdays,umairWorkdayCount:umairWorkdays.length,
+    umairMonthlyExpense:umairWorkdays.length*UMAIR_PER_LOGGED_WORKDAY};
+}
 
 function normalizedText(value) { return String(value??'').normalize('NFKC').replace(/\s+/gu,' ').trim(); }
 function comparisonKey(value) { return normalizedText(value).toLowerCase().normalize('NFKC'); }
@@ -337,6 +364,10 @@ export function buildPhase3Analytics(state,referenceDate=new Date()) {
 
 export function validatePhase3State(source) {
   const itemIds=new Set(),movementIds=new Set(),expenseIds=new Set();
+  const validateDateEntries=(entries,label)=>{
+    if(!Array.isArray(entries??[]))throw new Error(`Backup ${label} entries must be a list.`);
+    return [...new Set((entries??[]).map(date=>requireDate(date,label)))].sort();
+  };
   const inventoryItems=(source.inventoryItems??[]).map((item,index)=>{
     if(!item||typeof item.id!=='string'||!item.id||itemIds.has(item.id))throw new Error(`Inventory item ${index+1} has an invalid or duplicate ID.`);itemIds.add(item.id);
     requireText(item.name,100,'Item name'); if(!INVENTORY_CATEGORIES.includes(item.category))throw new Error('Backup contains an invalid inventory category.');requireText(item.unit,24,'Unit of measure');
@@ -350,6 +381,8 @@ export function validatePhase3State(source) {
   const expenses=(source.expenses??[]).map((expense,index)=>{
     if(!expense||typeof expense.id!=='string'||!expense.id||expenseIds.has(expense.id))throw new Error(`Expense ${index+1} has an invalid or duplicate ID.`);expenseIds.add(expense.id);requireDate(expense.date,'Payment date');requireAmount(expense.amount,{label:'Expense amount'});if(!EXPENSE_CATEGORIES.includes(expense.category))throw new Error('Backup contains an invalid expense category.');requireText(expense.notes??'',1000,'Notes',false);return {...expense};
   });
-  return {inventoryItems,inventoryMovements,expenses};
+  const saadAttendanceDays=validateDateEntries(source.saadAttendanceDays,'Attendance date');
+  const umairWorkdays=validateDateEntries(source.umairWorkdays,'Work date');
+  return {inventoryItems,inventoryMovements,expenses,saadAttendanceDays,umairWorkdays};
 }
 export const phase3Validation = Object.freeze({validDate,validMonthString:value=>typeof value==='string'&&MONTH_RE.test(value)});

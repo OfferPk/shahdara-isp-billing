@@ -16,17 +16,18 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(index, new RegExp(`src="\\./app\\.js\\?v=${version.replaceAll('.', '\\.') }"`));
   assert.match(app, new RegExp(`from '\\./core\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   assert.match(app, new RegExp(`from '\\./phase3\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
+  assert.match(app, new RegExp(`from '\\./profile-labels\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   const register = index.indexOf(`navigator.serviceWorker.register('./sw.js?v=${version}'`);
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v15'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v16'/);
   assert.match(index, /Search customers by name, phone, address or ID/);
   assert.match(index, /placeholder="Name, phone, address or ID"/);
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
   assert.match(styles, /text-align:\s*right/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
-  for (const asset of ['./','./index.html','./styles.css','./app.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+  for (const asset of ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
 });
 
 test('narrow mobile header and global search can flex and wrap instead of clipping', () => {
@@ -142,7 +143,7 @@ test('location and package summaries expose the nested hierarchy, canonical grou
 });
 
 test('payroll follow-up remains local-only, owner-entered, selected-month, and has no prefilled dates', () => {
-  assert.match(index, /Follow-up release 1\.2\.8/);
+  assert.match(index, /Clarity follow-up 1\.2\.9/);
   assert.match(index, /new monthly bill defaults to the 5th/i);
   assert.match(index, /id="payrollMonth"/);
   assert.match(index, /id="saadMonthlySalary"/);
@@ -162,7 +163,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v15'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v16'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

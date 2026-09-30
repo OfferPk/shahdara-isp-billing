@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Follow-up mobile-browser/PWA release · web build 1.2.8**
+**Clarity follow-up · web build 1.2.9**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 

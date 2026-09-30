@@ -5,12 +5,13 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.2.8';
+} from './core.js?v=1.2.9';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.2.8';
+} from './phase3.js?v=1.2.9';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.2.9';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -153,7 +154,7 @@ function customerCardMarkup(customer, archived = false) {
   const monthBill = (customer.bills ?? []).find(bill => bill.month === selectedBillingMonth);
   const billing = statusPresentation(customer, monthBill);
   const billingLabel = `${monthName(selectedBillingMonth)} bill: ${billing.label}`;
-  const manualStatus = ({ active:'Active · manual', offline:'Offline · manual', 'not-set':'Service status not set' })[customer.serviceStatus] ?? 'Service status not set';
+  const manualStatus = manualServiceStatusLabel(customer.serviceStatus);
   const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : 'No receipts';
   const receiptCount = receipts.receiptCount ? plural(receipts.receiptCount, 'recorded receipt') : 'No payment entries';
   const openLabel = `Open customer profile for #${customer.customerNumber}, ${customer.name}. Total actual receipts: ${receiptValue}. Time with ISP: ${tenure.primary}. ${tenure.detail}.`;
@@ -375,7 +376,7 @@ function renderDetail() {
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
   $('#detailName').textContent = customer.name;
   $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
-  $('#archiveStateBadge').textContent = customer.archived ? `Archived since ${customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : 'date not recorded'}` : 'Active';
+  $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : 'date not recorded') : '');
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
   $('#mohallaInput').value = customer.mohalla ?? '';

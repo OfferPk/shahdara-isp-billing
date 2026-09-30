@@ -1,4 +1,4 @@
-import { validatePhase3State } from './phase3.js';
+import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY } from './phase3.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -35,7 +35,7 @@ function parseLocalDateTime(value) {
 }
 
 export function createInitialState(names = INITIAL_NAMES) {
-  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[], inventoryMovements:[], expenses:[] };
+  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[] };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
@@ -82,6 +82,7 @@ export function readState(storage, key = STORAGE_KEY) {
       ...customer,
       id:customer.id ?? `saved-${index + 1}`,
       customerNumber,
+      addedOn:validDateOrNull(customer.addedOn),
       mohalla:customer.mohalla ?? '',
       zone:customer.zone ?? '',
       address:customer.address ?? '',
@@ -143,7 +144,7 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
       const amount = applicable?.amount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) continue;
       const snapshot = Number(amount);
-      generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:null, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
+      generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:`${month}-05`, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
       existingMonths.add(month);
     }
     if (!generated.length) return customer;
@@ -153,14 +154,14 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
   return changed ? { ...state, customers } : state;
 }
 
-export function addCustomer(state, name) {
+export function addCustomer(state, name, referenceDate = new Date()) {
   const cleaned = String(name ?? '').trim();
   if (!cleaned) throw new Error('Enter a customer name.');
   if (state.customers.some(c => c.name.localeCompare(cleaned, undefined, { sensitivity: 'accent' }) === 0)) throw new Error('That customer is already in the list.');
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query) {
@@ -185,6 +186,21 @@ export function derivedBillStatus(customer, bill, allocations = null) {
   if (!summary || summary.balanceDueCents === null || summary.balanceDueCents === undefined) return 'not-set';
   if (summary.balanceDueCents <= 0) return 'paid';
   return summary.sameMonthAppliedCents > 0 || summary.creditAppliedCents > 0 ? 'partial' : 'pending';
+}
+
+export function buildPayrollSummary(state, month, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const allocations = calculatePaymentAllocations(state);
+  const eligibleCustomers = state.customers.filter(customer => {
+    if (!customer.addedOn || customer.addedOn <= PAYROLL_RULES_EFFECTIVE_DATE || customer.addedOn > monthEnd(month)) return false;
+    if (customer.archived || customer.serviceStatus !== 'active') return false;
+    const bill = (customer.bills ?? []).find(item => item.month === month);
+    return derivedBillStatus(customer, bill, allocations) === 'paid';
+  });
+  const manual = buildManualPayrollSummary(state, month);
+  const saadMonthlyIncrement = eligibleCustomers.length * SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY;
+  return {...manual,eligibleActivePaidCustomerCount:eligibleCustomers.length,eligibleCustomers:eligibleCustomers.map(customer=>({id:customer.id,customerNumber:customer.customerNumber,name:customer.name})),
+    saadBaseMonthlySalary:SAAD_BASE_MONTHLY_SALARY,saadMonthlyIncrement,saadMonthlySalary:SAAD_BASE_MONTHLY_SALARY+saadMonthlyIncrement};
 }
 
 export function filterCustomersByStatus(state, { serviceStatus = 'all', billingStatus = 'all', month = monthsForHistory()[0], customerQuery = '' } = {}, referenceDate = new Date()) {
@@ -363,7 +379,8 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers do not receive new bills. Unarchive the customer first.');
   if (!existing && due === null) throw new Error('Enter a bill amount before creating a bill. Unconfigured customers do not receive bills.');
-  const savedDueDate = dueDate === undefined ? (existing?.dueDate ?? null) : checkOptionalDate(dueDate);
+  const requestedDueDate = dueDate === undefined ? undefined : checkOptionalDate(dueDate);
+  const savedDueDate = existing ? (requestedDueDate === undefined ? existing.dueDate ?? null : requestedDueDate) : requestedDueDate ?? `${month}-05`;
   const amountHistory = [...(existing?.amountHistory ?? [])];
   const oldAmount = existing?.dueAmount ?? null;
   const amountChanged = existing && ((oldAmount === null) !== (due === null) || (oldAmount !== null && due !== null && moneyCents(oldAmount) !== moneyCents(due)));
@@ -798,6 +815,7 @@ function validateBackupState(source) {
     if (customer.archived !== undefined && typeof customer.archived !== 'boolean') throw new Error(`Backup customer #${customer.customerNumber} has an invalid archive status.`);
     if (customer.billingStartMonth !== null && customer.billingStartMonth !== undefined && !validMonthString(customer.billingStartMonth)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid billing resume month.`);
     validStoredDateTime(customer.archivedAt, 'archive date');
+    if (customer.addedOn !== null && customer.addedOn !== undefined && customer.addedOn !== '') checkOptionalDate(customer.addedOn, 'Customer added date');
     for (const field of ['connectionDate','expiryDate','cancellationDate']) if (customer[field] !== null && customer[field] !== undefined && customer[field] !== '') checkOptionalDate(customer[field], `${field} date`);
     const schedule = customer.monthlyPriceSchedule ?? [];
     const packageHistory = customer.packageHistory ?? [];
@@ -861,6 +879,7 @@ function validateBackupState(source) {
       ...customer,
       id:customer.id,
       name:customer.name.trim(),
+      addedOn:checkOptionalDate(customer.addedOn ?? null, 'Customer added date'),
       mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
       monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
@@ -893,12 +912,12 @@ export function previewJsonBackupMerge(existingState, backupText) {
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, filledProfileFields:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, filledProfileFields:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
-    if (sameJson(oldValue, newValue)) return;
+    if (sameJson(oldValue, newValue) || (key === 'addedOn' && !nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
     if (!nonempty(oldValue) && nonempty(newValue)) { target[key] = deepCopy(newValue); counts.filledProfileFields++; counts.changes++; return; }
     if (nonempty(oldValue) && !nonempty(newValue)) return;
@@ -923,7 +942,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','addedOn','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {
@@ -969,6 +988,12 @@ export function previewJsonBackupMerge(existingState, backupText) {
       if (!existing) { current[key].push(deepCopy(incoming)); counts[countKey]++; counts.changes++; }
       else if (!sameJson(existing,incoming)) conflicts.push({customerNumber:null,name:'',field:`${label} ${incoming.id}`});
     }
+  }
+  for (const [key,countKey] of [['saadAttendanceDays','addedSaadAttendanceDays'],['umairWorkdays','addedUmairWorkdays']]) {
+    current[key]=current[key]??[];
+    const known=new Set(current[key]);
+    for(const date of incomingState[key]??[])if(!known.has(date)){known.add(date);counts[countKey]++;counts.changes++;}
+    current[key]=[...known].sort();
   }
   current.customers.sort((a,b)=>a.customerNumber-b.customerNumber);
   current.nextCustomerNumber = Math.max(existingState.nextCustomerNumber ?? 1, incomingState.nextCustomerNumber, ...current.customers.map(customer=>customer.customerNumber+1));

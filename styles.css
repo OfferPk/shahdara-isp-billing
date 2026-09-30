@@ -732,3 +732,13 @@ button:not([hidden]) { min-height: 44px !important; }
 /* Preserve a comfortable touch target for interactive controls at every width. */
 button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .icon-button, .close-button { width: 44px; min-width: 44px; height: 44px; }
+
+.payroll-month-label { display:flex; flex-direction:column; gap:6px; min-width:min(100%,220px); color:#4b6259; font-size:12px; font-weight:700; }
+.payroll-month-label select { min-height:44px; border:1px solid #dce6e1; border-radius:9px; background:#fff; color:var(--ink); padding:8px 10px; font:500 15px 'DM Sans',sans-serif; }
+.payroll-metric-grid { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.payroll-date-list { display:grid; gap:8px; list-style:none; margin:12px 0 0; padding:0; }
+.payroll-date-list li { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:50px; padding:7px 10px; border:1px solid var(--line); border-radius:9px; background:#f8faf9; }
+.payroll-date-list time { color:#294d40; font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+.payroll-date-list .delete-incident { min-width:44px; min-height:40px; }
+@media(max-width:800px) { .payroll-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:620px) { .payroll-summary .table-heading { align-items:stretch; flex-direction:column; } .payroll-month-label { min-width:0; } .payroll-date-list li { min-height:52px; } }

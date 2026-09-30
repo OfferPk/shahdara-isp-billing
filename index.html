@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.8',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.9',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.2.8">
+  <link rel="stylesheet" href="./styles.css?v=1.2.9">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -18,7 +18,7 @@
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
   </header>
-  <aside class="preview-notice" role="note"><strong>Follow-up release 1.2.8 · Customer receipt profiles</strong><span>Amounts display in PKR; billing data stays in this browser on this device with no server sync.</span></aside>
+  <aside class="preview-notice" role="note"><strong>Clarity follow-up 1.2.9 · Separate profile and service status labels</strong><span>Amounts display in PKR; billing data stays in this browser on this device with no server sync.</span></aside>
   <aside class="data-loss-warning" role="note"><div><strong>Your records stay only in this browser on this device.</strong> Clearing site data, changing browser/device, or losing the device can remove the ledger. There is no account or cloud sync; download a local JSON backup regularly.</div><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
   <main id="main">
     <section class="global-search-region" aria-label="Global customer search">
@@ -91,7 +91,7 @@
             <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
             <div class="detail-title-row">
               <div><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
-              <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
             </div>
             <div id="customerReceiptSummary" aria-live="polite"></div>
             <div class="customer-meta">
@@ -101,7 +101,7 @@
                 <label class="profile-field" for="addressInput"><span class="field-label">Address <span class="optional-label">Optional</span></span><textarea id="addressInput" rows="2" maxlength="200" autocomplete="street-address" placeholder="Not set"></textarea></label>
                 <label class="profile-field" for="phoneInput"><span class="field-label">Phone number <span class="optional-label">Optional · never required</span></span><input id="phoneInput" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="Not set"></label>
                 <label class="profile-field" for="ispProviderInput"><span class="field-label">ISP / provider name <span class="optional-label">Optional · free text</span></span><input id="ispProviderInput" type="text" list="ispProviderOptions" maxlength="100" autocomplete="off" placeholder="Not set"><datalist id="ispProviderOptions"><option value="Nayatel"></option></datalist></label>
-                <label class="profile-field" for="serviceStatusInput"><span class="field-label">Manual service status <span class="optional-label">Not a billing status · no monitoring</span></span><select id="serviceStatusInput"><option value="not-set">Not set</option><option value="active">Active</option><option value="offline">Offline</option></select></label>
+                <label class="profile-field" for="serviceStatusInput"><span class="field-label">Service status <span class="optional-label">Manual · not a billing status · no monitoring</span></span><select id="serviceStatusInput"><option value="not-set">Not set</option><option value="active">Active</option><option value="offline">Offline</option></select></label>
                 <label class="profile-field" for="packageSpeedInput"><span class="field-label">Package / speed <span class="optional-label">Optional · choose a suggestion or enter custom text</span></span><input id="packageSpeedInput" type="text" list="packageSpeedOptions" maxlength="80" autocomplete="off" placeholder="Not set"><datalist id="packageSpeedOptions"><option value="5 Mbps"></option><option value="10 Mbps"></option><option value="15 Mbps"></option><option value="30 Mbps"></option></datalist></label>
                 <label class="profile-field" for="monthlyPurchaseCostInput"><span class="field-label">Monthly provider purchase cost (PKR) <span class="optional-label">Optional</span></span><input id="monthlyPurchaseCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="monthlySellingAmountInput"><span class="field-label">Monthly selling amount (PKR) <span class="optional-label">Optional · also this month’s bill</span></span><input id="monthlySellingAmountInput" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Not set — excluded from dues"></label>
@@ -247,6 +247,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.2.8"></script>
+  <script type="module" src="./app.js?v=1.2.9"></script>
 </body>
 </html>

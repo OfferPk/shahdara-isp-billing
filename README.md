@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Follow-up mobile-browser/PWA release · web build 1.2.7**
+**Follow-up mobile-browser/PWA release · web build 1.2.8**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -19,6 +19,7 @@ The first visit needs a network connection. The service worker caches the static
 - Live expected package margin and expected recurring provider-cost totals/breakdowns. Incomplete profiles are excluded and counted; estimates are not collected cash profit or cash paid.
 - Automatic monthly bill snapshots begin in the configured effective local month; price edits do not rewrite past obligations. New monthly bills default to the 5th; an explicitly customized due date is respected, and historical snapshots are not backfilled or rewritten. No automatic late penalty is applied. Archived customers retain IDs, bills, receipts, credit and complaints; archiving stops new bills, and unarchiving resumes without backfilling archived months. Permanent delete is separately confirmed and warns that all local history will be removed.
 - Actual receipts are editable/deletable and drive Paid / Partial / Pending status; a missing bill amount remains Not set. Customer and report filters cover manual service state and the selected billing month, with global search retained. “Record payment / Mark paid” opens the actual payment form and suggests only the remaining bill balance; the operator must enter the real date and method and submit before any receipt is created.
+- Customer cards and profile summaries total recorded receipt rows across saved months, group the month breakdown by actual payment date, and never add bill charges or derived credit to cash received. ISP time is calculated only from the saved connection date; if it is missing or inconsistent, the profile says so instead of using the profile-added or billing-start date. Existing month-by-month billing history remains available.
 - A receipt applies to its selected month first, then excess is allocated as non-cash credit to later generated bills. Unused credit remains valid indefinitely, even after its receipt falls outside the visible 24-month window; credit is not another payment. Corrections/deletions recalculate allocations and refresh lists, reports, dashboard, transactions and exports.
 - Transactions, customer histories and one-click monthly Paid, Pending, Partial and Not set reports. Reports/history show the retained 24 billing months; aged credit sources remain visible where used and remain available for correction/deletion locally. Cash collection totals count actual receipts only.
 - Dashboard includes active customers, actual collections, total/current due, today/previous-month collections, expected package profit, expected provider costs by ISP, service-state counts and unapplied prepaid credit. PKR is explicit throughout; the app performs no currency conversion.

@@ -6,7 +6,8 @@ import {
   saveBillMonth, addPayment, correctPayment, deletePayment, recordedAmount, monthsForHistory,
   customerPackageProfit, calculateDashboard, calculatePaymentAllocations, listTransactions, buildMonthlyReport,
   effectiveBillStatus, derivedBillStatus, filterCustomersByStatus, addIncident, updateIncident, deleteIncident, countCustomerIncidentsLast30Days,
-  exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
+  exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
+  summarizeCustomerReceipts, summarizeCustomerTenure
 } from '../core.js';
 
 const referenceDate = new Date(2026, 8, 29, 12);
@@ -216,6 +217,71 @@ test('correcting a payment immediately updates collection, due, today, and previ
   assert.equal(dashboard.currentMonthDue, 55);
   assert.equal(dashboard.todayCollection, 0);
   assert.equal(dashboard.previousMonthCollection, 45);
+});
+
+test('customer receipt summaries add actual payments across months and group them by payment date', () => {
+  let state = createInitialState();
+  state = saveBillMonth(state, 'seed-001', { month:'2026-08', dueAmount:'5000', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-08-15', amount:'3000' }), referenceDate);
+  state = saveBillMonth(state, 'seed-001', { month:'2026-09', dueAmount:'9000', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', '2026-09', payment({ date:'2026-09-15', amount:'3000' }), referenceDate);
+  assert.deepEqual(summarizeCustomerReceipts(state.customers[0]), {
+    total:6000,
+    receiptCount:2,
+    monthly:[{ month:'2026-09', amount:3000, receiptCount:1 }, { month:'2026-08', amount:3000, receiptCount:1 }]
+  });
+});
+
+test('receipt summaries never treat a bill charge or selling price as cash received', () => {
+  let state = profile(createInitialState(), 'seed-001', { monthlySellingAmount:'6000' });
+  state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
+  assert.equal(state.customers[0].bills[0].dueAmount, 6000);
+  assert.deepEqual(summarizeCustomerReceipts(state.customers[0]), { total:0, receiptCount:0, monthly:[] });
+  state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'1500' }), referenceDate);
+  assert.equal(summarizeCustomerReceipts(state.customers[0]).total, 1500);
+});
+
+test('receipt summaries stay idempotent across duplicate rows, persistence/reload, and payment edits', () => {
+  const storage = store(); let state = createInitialState();
+  state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-08-15', amount:'3000' }), referenceDate);
+  state = addPayment(state, 'seed-001', '2026-09', payment({ date:'2026-09-15', amount:'3000' }), referenceDate);
+  const normalState = state;
+  const originalAugustReceipt = state.customers[0].bills.find(bill => bill.month === '2026-08').payments[0];
+  const customer = state.customers[0];
+  const repeatedRowState = { ...state, customers:state.customers.map(row => row.id !== customer.id ? row : { ...row, bills:row.bills.map(bill => bill.month !== '2026-09' ? bill : { ...bill, payments:[...bill.payments, { ...originalAugustReceipt }] }) }) };
+  assert.deepEqual(summarizeCustomerReceipts(repeatedRowState.customers[0]), {
+    total:6000,
+    receiptCount:2,
+    monthly:[{ month:'2026-09', amount:3000, receiptCount:1 }, { month:'2026-08', amount:3000, receiptCount:1 }]
+  });
+  persistState(repeatedRowState, storage);
+  state = readState(storage);
+  assert.equal(summarizeCustomerReceipts(state.customers[0]).total, 6000);
+
+  state = correctPayment(normalState, 'seed-001', '2026-08', originalAugustReceipt.id, payment({ date:'2026-09-20', amount:'2500' }), referenceDate);
+  const corrected = summarizeCustomerReceipts(state.customers[0]);
+  assert.equal(corrected.total, 5500);
+  assert.equal(corrected.receiptCount, 2);
+  assert.deepEqual(corrected.monthly, [{ month:'2026-09', amount:5500, receiptCount:2 }]);
+  persistState(state, storage);
+  state = readState(storage);
+  assert.deepEqual(summarizeCustomerReceipts(state.customers[0]), corrected);
+});
+
+test('ISP tenure uses explicit connection dates, handles end dates and never substitutes profile-added dates', () => {
+  const connected = { connectionDate:'2025-08-11', serviceStatus:'offline' };
+  assert.deepEqual(summarizeCustomerTenure(connected, referenceDate), {
+    status:'current', connectionDate:'2025-08-11', profileAddedOn:null, endDate:null, serviceMonths:14
+  });
+  assert.deepEqual(summarizeCustomerTenure({ ...connected, cancellationDate:'2026-08-12' }, referenceDate), {
+    status:'ended', connectionDate:'2025-08-11', profileAddedOn:null, endDate:'2026-08-12', serviceMonths:13
+  });
+  assert.equal(summarizeCustomerTenure({ ...connected, archived:true, archivedAt:'2026-05-05T10:00' }, referenceDate).serviceMonths, 10);
+  assert.equal(summarizeCustomerTenure({ addedOn:'2026-08-01' }, referenceDate).status, 'not-recorded');
+  assert.equal(summarizeCustomerTenure({ addedOn:'2026-08-01' }, referenceDate).profileAddedOn, '2026-08-01');
+  assert.equal(summarizeCustomerTenure({ connectionDate:'2026-10-01' }, referenceDate).status, 'future');
+  assert.equal(summarizeCustomerTenure({ ...connected, archived:true }, referenceDate).status, 'end-date-unknown');
+  assert.equal(summarizeCustomerTenure({ connectionDate:'2026-08-01', cancellationDate:'2026-07-31' }, referenceDate).status, 'date-review');
 });
 
 test('dashboard never applies a profile selling amount retroactively and excludes unpriced historic bills', () => {

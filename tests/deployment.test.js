@@ -20,7 +20,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v14'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v15'/);
   assert.match(index, /Search customers by name, phone, address or ID/);
   assert.match(index, /placeholder="Name, phone, address or ID"/);
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
@@ -141,8 +141,8 @@ test('location and package summaries expose the nested hierarchy, canonical grou
   assert.match(styles, /\.summary-row-area/);
 });
 
-test('v1.2.7 payroll follow-up is local-only, owner-entered, selected-month, and has no prefilled dates', () => {
-  assert.match(index, /Follow-up release 1\.2\.7/);
+test('payroll follow-up remains local-only, owner-entered, selected-month, and has no prefilled dates', () => {
+  assert.match(index, /Follow-up release 1\.2\.8/);
   assert.match(index, /new monthly bill defaults to the 5th/i);
   assert.match(index, /id="payrollMonth"/);
   assert.match(index, /id="saadMonthlySalary"/);
@@ -162,5 +162,21 @@ test('v1.2.7 payroll follow-up is local-only, owner-entered, selected-month, and
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v14'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v15'/);
+});
+
+test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {
+  assert.match(core, /export function summarizeCustomerReceipts/);
+  assert.match(core, /export function summarizeCustomerTenure/);
+  assert.match(app, /summarizeCustomerReceipts/);
+  assert.match(app, /summarizeCustomerTenure/);
+  assert.match(app, /Total actually received/);
+  assert.match(app, /const shellTop = appShell\.getBoundingClientRect\(\)\.top \+ window\.scrollY/);
+  assert.match(app, /window\.scrollTo\(\{ top:Math\.max\(0, shellTop - topbarHeight - 8\), behavior:'smooth' \}\)/);
+  assert.match(styles, /\.customer-list,\s*\.archived-customer-list\s*\{[^}]*grid-auto-rows:\s*max-content[^}]*align-content:\s*start/);
+  assert.match(app, /Receipts by payment month/);
+  assert.match(index, /id="customerReceiptSummary"/);
+  assert.match(styles, /@media\s*\(max-width:\s*620px\)\s*\{\s*\.detail-title-row\s*\{\s*display:\s*grid/);
+  assert.match(styles, /\.customer-card-stats/);
+  assert.match(styles, /\.receipt-month-list/);
 });

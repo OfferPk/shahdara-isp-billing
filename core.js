@@ -433,6 +433,71 @@ export function recordedAmount(bill) {
   return (bill?.payments ?? []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
 
+/**
+ * Summarize recorded receipt rows only. Bill amounts and derived credit are not
+ * cash; stable payment IDs keep an accidentally repeated ledger row from counting twice.
+ * Monthly buckets follow the actual payment date, not the bill month.
+ */
+export function summarizeCustomerReceipts(customer) {
+  const seenPaymentIds = new Set();
+  const monthlyCents = new Map();
+  let totalCents = 0;
+  let receiptCount = 0;
+  for (const bill of Array.isArray(customer?.bills) ? customer.bills : []) {
+    for (const payment of Array.isArray(bill?.payments) ? bill.payments : []) {
+      if (!payment || typeof payment !== 'object') continue;
+      const paymentId = typeof payment.id === 'string' ? payment.id.trim() : '';
+      if (paymentId && seenPaymentIds.has(paymentId)) continue;
+      let date;
+      try { date = checkOptionalDate(payment.date, 'Payment date'); } catch { continue; }
+      const amount = Number(payment.amount);
+      if (!date || !Number.isFinite(amount) || amount <= 0) continue;
+      const amountCents = moneyCents(amount);
+      if (!Number.isSafeInteger(amountCents) || amountCents <= 0) continue;
+      if (paymentId) seenPaymentIds.add(paymentId);
+      totalCents += amountCents;
+      const month = date.slice(0, 7);
+      const bucket = monthlyCents.get(month) ?? { amountCents:0, receiptCount:0 };
+      bucket.amountCents += amountCents;
+      bucket.receiptCount++;
+      monthlyCents.set(month, bucket);
+      receiptCount++;
+    }
+  }
+  return {
+    total:moneyValue(totalCents),
+    receiptCount,
+    monthly:[...monthlyCents.entries()].sort(([a],[b]) => b.localeCompare(a)).map(([month,bucket]) => ({ month, amount:moneyValue(bucket.amountCents), receiptCount:bucket.receiptCount }))
+  };
+}
+
+/**
+ * Calculate ISP time from an explicit connection date. Profile creation, billing
+ * start, manual online status, and missing archive dates are never used as substitutes.
+ */
+export function summarizeCustomerTenure(customer, referenceDate = new Date()) {
+  const safeDate = (value, label) => { try { return checkOptionalDate(value, label); } catch { return null; } };
+  const connectionDate = safeDate(customer?.connectionDate, 'Connection date');
+  const profileAddedOn = safeDate(customer?.addedOn, 'Customer added date');
+  if (!connectionDate) return { status:'not-recorded', connectionDate:null, profileAddedOn, endDate:null, serviceMonths:null };
+  const today = dateKey(referenceDate);
+  if (connectionDate > today) return { status:'future', connectionDate, profileAddedOn, endDate:null, serviceMonths:null };
+
+  const cancellationDate = safeDate(customer?.cancellationDate, 'Cancellation date');
+  const expiryDate = safeDate(customer?.expiryDate, 'Expiry date');
+  const archiveDate = customer?.archived === true
+    ? safeDate(typeof customer.archivedAt === 'string' ? customer.archivedAt.slice(0, 10) : customer.archivedAt, 'Archive date')
+    : null;
+  const ended = customer?.archived === true || Boolean(cancellationDate && cancellationDate <= today) || Boolean(expiryDate && expiryDate < today);
+  const endDate = [cancellationDate && cancellationDate <= today ? cancellationDate : null, expiryDate && expiryDate < today ? expiryDate : null, archiveDate && archiveDate <= today ? archiveDate : null].filter(Boolean).sort()[0] ?? null;
+  if (ended && !endDate) return { status:'end-date-unknown', connectionDate, profileAddedOn, endDate:null, serviceMonths:null };
+  const effectiveEndDate = endDate ?? today;
+  if (effectiveEndDate < connectionDate) return { status:'date-review', connectionDate, profileAddedOn, endDate:effectiveEndDate, serviceMonths:null };
+  const monthIndex = date => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
+  const serviceMonths = monthIndex(effectiveEndDate) - monthIndex(connectionDate) + 1;
+  return { status:endDate ? 'ended' : 'current', connectionDate, profileAddedOn, endDate, serviceMonths };
+}
+
 const monthAllocationKey = (customerId, month) => JSON.stringify([customerId, month]);
 
 /**

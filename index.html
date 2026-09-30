@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.7',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.8',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.2.7">
+  <link rel="stylesheet" href="./styles.css?v=1.2.8">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -18,7 +18,7 @@
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
   </header>
-  <aside class="preview-notice" role="note"><strong>Follow-up release 1.2.7 · Mobile browser / PWA</strong><span>Amounts display in PKR; billing data stays in this browser on this device with no server sync.</span></aside>
+  <aside class="preview-notice" role="note"><strong>Follow-up release 1.2.8 · Customer receipt profiles</strong><span>Amounts display in PKR; billing data stays in this browser on this device with no server sync.</span></aside>
   <aside class="data-loss-warning" role="note"><div><strong>Your records stay only in this browser on this device.</strong> Clearing site data, changing browser/device, or losing the device can remove the ledger. There is no account or cloud sync; download a local JSON backup regularly.</div><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
   <main id="main">
     <section class="global-search-region" aria-label="Global customer search">
@@ -93,6 +93,7 @@
               <div><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
               <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
             </div>
+            <div id="customerReceiptSummary" aria-live="polite"></div>
             <div class="customer-meta">
               <div class="profile-grid">
                 <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
@@ -246,6 +247,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.2.7"></script>
+  <script type="module" src="./app.js?v=1.2.8"></script>
 </body>
 </html>

@@ -742,3 +742,246 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .payroll-date-list .delete-incident { min-width:44px; min-height:40px; }
 @media(max-width:800px) { .payroll-metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:620px) { .payroll-summary .table-heading { align-items:stretch; flex-direction:column; } .payroll-month-label { min-width:0; } .payroll-date-list li { min-height:52px; } }
+
+
+/* Customer profile cards: cash received and recorded ISP time stay distinct from the bill status. */
+.customer-list, .archived-customer-list {
+  display: grid;
+  gap: 10px;
+  grid-auto-rows: max-content;
+  align-content: start;
+  padding: 10px 12px 14px;
+}
+.customer-item {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #dce8e2;
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(22, 52, 43, .055);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.customer-item:hover {
+  border-color: #b8d7c8;
+  box-shadow: 0 8px 22px rgba(22, 52, 43, .09);
+  transform: translateY(-1px);
+}
+.customer-select.customer-profile-card-open {
+  display: block;
+  min-height: 0;
+  padding: 14px;
+  border-radius: 0;
+  background: linear-gradient(145deg, #fff 0%, #fbfdfc 100%);
+  font: inherit;
+}
+.customer-select.customer-profile-card-open[aria-current="true"] {
+  background: linear-gradient(145deg, #eff8f3 0%, #fbfdfc 100%);
+}
+.customer-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.customer-card-heading .avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  font-size: 13px;
+  background: #e7f2ec;
+  color: #245e4c;
+}
+.customer-card-heading .customer-copy { gap: 3px; }
+.customer-card-heading .customer-number-line { font-size: 10px; }
+.customer-card-heading .customer-name {
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.customer-manual-state {
+  flex: 0 0 auto;
+  max-width: 92px;
+  padding: 5px 7px;
+  border: 1px solid #d8e7df;
+  border-radius: 999px;
+  background: #f5faf7;
+  color: #456b5a;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+}
+.customer-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 13px;
+}
+.customer-card-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 75px;
+  padding: 9px;
+  border: 1px solid #edf2ef;
+  border-radius: 11px;
+  background: #f8fbf9;
+}
+.customer-card-stat > span {
+  color: #667b71;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.customer-card-stat strong {
+  margin-top: 5px;
+  color: #174f40;
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.customer-card-stat small {
+  margin-top: 4px;
+  color: #74857d;
+  font-size: 9px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.customer-card-package {
+  display: block;
+  margin-top: 10px;
+  color: #526a61;
+  font-size: 10px;
+  font-weight: 600;
+}
+.customer-card-open-hint {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #edf2ef;
+  color: #0e5b4d;
+  font-size: 10px;
+  font-weight: 700;
+}
+.customer-card-controls {
+  display: grid;
+  gap: 8px;
+  padding: 0 14px 13px;
+}
+.customer-card-controls .customer-billing-badge { font-size: 10px; }
+.customer-card-controls .service-choice-group { gap: 5px; }
+.customer-card-controls .service-choice { min-height: 38px; padding-inline: 9px; font-size: 10px; }
+.archived-unarchive-button { margin: 0 14px 13px; }
+
+/* Profile summary keeps cumulative actual receipts separate from bill snapshots and credits. */
+.customer-receipt-summary {
+  margin: 18px 0 6px;
+  padding: 17px;
+  border: 1px solid #d8e9df;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f2faf6 0%, #fff 82%);
+}
+.profile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.profile-summary-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 104px;
+  padding: 13px;
+  border: 1px solid #e0ece5;
+  border-radius: 12px;
+  background: #fff;
+}
+.profile-summary-stat > span {
+  color: #5d7469;
+  font-size: 11px;
+  font-weight: 700;
+}
+.profile-summary-stat strong {
+  margin: 7px 0 4px;
+  color: #0e5b4d;
+  font-size: clamp(18px, 2vw, 23px);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.profile-summary-stat small {
+  color: #71817c;
+  font-size: 10px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.receipt-month-history { margin-top: 15px; }
+.receipt-month-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px 12px;
+  margin-bottom: 9px;
+  color: #36574b;
+  font-size: 11px;
+}
+.receipt-month-heading span { color: #778880; font-size: 10px; }
+.receipt-month-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.receipt-month-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3px 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #e6efea;
+  border-radius: 10px;
+  background: rgba(255,255,255,.82);
+}
+.receipt-month-row > span { color: #61766c; font-size: 10px; }
+.receipt-month-row strong { color: #285c49; font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+.receipt-month-row small { grid-column: 1 / -1; color: #84928c; font-size: 9px; }
+.receipt-month-empty { margin: 0; color: #7a8c84; font-size: 11px; }
+
+@media (max-width: 800px) {
+  .receipt-month-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .customer-list, .archived-customer-list { gap: 9px; padding: 10px 12px 14px; }
+  .customer-select.customer-profile-card-open { padding: 13px; }
+  .customer-card-stat { min-height: 72px; padding: 8px; }
+  .customer-card-controls { padding: 0 13px 12px; }
+  .customer-receipt-summary { margin-top: 14px; padding: 13px; }
+  .profile-summary-grid { grid-template-columns: minmax(0, 1fr); }
+  .profile-summary-stat { min-height: 88px; }
+  .receipt-month-list { grid-template-columns: minmax(0, 1fr); }
+  .receipt-month-heading { display: grid; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-item { transition: none; }
+}
+
+
+/* Give the selected customer title a full mobile row above its profile actions. */
+@media (max-width: 620px) {
+  .detail-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    gap: 9px;
+  }
+  .detail-title-row > div:first-child { min-width: 0; }
+}

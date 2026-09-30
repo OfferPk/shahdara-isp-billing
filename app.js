@@ -3,13 +3,14 @@ import {
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
-  deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE
-} from './core.js?v=1.2.7';
+  deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
+  summarizeCustomerReceipts, summarizeCustomerTenure
+} from './core.js?v=1.2.8';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.2.7';
+} from './phase3.js?v=1.2.8';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -130,19 +131,38 @@ function renderDashboard() {
   $('#dashboardExcludedAmounts').textContent = notes.length ? notes.join(' ') : 'Dues use each saved month’s bill snapshot after receipts and carry-forward credit; credits are not new cash.';
 }
 function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
+function tenurePresentation(customer) {
+  const tenure = summarizeCustomerTenure(customer, new Date());
+  const monthLabel = tenure.serviceMonths === 1 ? '1 calendar month' : `${tenure.serviceMonths} calendar months`;
+  if (tenure.status === 'current') return { primary:monthLabel, detail:`Connected since ${humanDate(tenure.connectionDate)}` };
+  if (tenure.status === 'ended') return { primary:monthLabel, detail:`Service ended ${humanDate(tenure.endDate)}` };
+  if (tenure.status === 'future') return { primary:'Not started', detail:`Recorded connection date ${humanDate(tenure.connectionDate)}` };
+  if (tenure.status === 'end-date-unknown') return { primary:'End date not recorded', detail:`Connected since ${humanDate(tenure.connectionDate)} · duration unavailable` };
+  if (tenure.status === 'date-review') return { primary:'Check connection dates', detail:`Saved end date ${humanDate(tenure.endDate)} is before connection` };
+  return { primary:'Not recorded', detail:tenure.profileAddedOn ? `Profile added ${humanDate(tenure.profileAddedOn)} · ISP start not recorded` : 'Connection date not recorded' };
+}
+function profileReceiptSummaryMarkup(customer) {
+  const receipts = summarizeCustomerReceipts(customer);
+  const tenure = tenurePresentation(customer);
+  const receiptRows = receipts.monthly.map(row => `<li class="receipt-month-row"><span>${escapeHtml(monthName(row.month))}</span><strong>${escapeHtml(formatAmount(row.amount))}</strong><small>${plural(row.receiptCount, 'receipt')}</small></li>`).join('');
+  return `<section class="customer-receipt-summary" aria-label="Recorded receipts and connection time"><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>Total actually received</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : 'No receipts recorded'}</strong><small>${receipts.receiptCount ? `${plural(receipts.receiptCount, 'recorded receipt')} · across all saved months` : 'Bills and charges are not counted as receipts.'}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article></div><div class="receipt-month-history"><div class="receipt-month-heading"><strong>Receipts by payment month</strong><span>Grouped by actual payment date · bill amounts excluded</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="Actual receipts by payment month">${receiptRows}</ul>` : '<p class="receipt-month-empty">No actual receipt entries have been recorded.</p>'}</div></section>`;
+}
 function customerCardMarkup(customer, archived = false) {
-  const margin = customerPackageProfit(customer);
-  const speed = customer.packageSpeed ? `${escapeHtml(customer.packageSpeed)} · ` : '';
-  const profitLabel = margin === null ? 'Expected profit not set' : `Expected monthly profit ${formatAmount(margin)} (not collected cash profit)`;
+  const receipts = summarizeCustomerReceipts(customer);
+  const tenure = tenurePresentation(customer);
   const monthBill = (customer.bills ?? []).find(bill => bill.month === selectedBillingMonth);
   const billing = statusPresentation(customer, monthBill);
   const billingLabel = `${monthName(selectedBillingMonth)} bill: ${billing.label}`;
+  const manualStatus = ({ active:'Active · manual', offline:'Offline · manual', 'not-set':'Service status not set' })[customer.serviceStatus] ?? 'Service status not set';
+  const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : 'No receipts';
+  const receiptCount = receipts.receiptCount ? plural(receipts.receiptCount, 'recorded receipt') : 'No payment entries';
+  const openLabel = `Open customer profile for #${customer.customerNumber}, ${customer.name}. Total actual receipts: ${receiptValue}. Time with ISP: ${tenure.primary}. ${tenure.detail}.`;
   const serviceButtons = ['active','offline','not-set'].map(status => {
     const label = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[status];
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="Set customer ${customer.customerNumber} manual service status to ${label}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span><span class="customer-profit-line">${speed}${escapeHtml(profitLabel)}</span></span><span class="no-record-dot" aria-label="${customer.bills.length ? 'Has billing entries' : 'No billing entries'}"></span></button><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" aria-label="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
 function renderCustomers() {
   const filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery:searchQuery() });
@@ -351,6 +371,7 @@ function renderDetail() {
   $('#welcomeState').hidden = !!customer;
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
+  $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
   $('#detailName').textContent = customer.name;
   $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
@@ -384,7 +405,9 @@ function selectCustomer(id) {
   renderCustomers();
   renderDetail();
   $('#detailPane').scrollTop = 0;
-  window.scrollTo(0, 0);
+  const shellTop = appShell.getBoundingClientRect().top + window.scrollY;
+  const topbarHeight = $('.topbar').getBoundingClientRect().height;
+  window.scrollTo({ top:Math.max(0, shellTop - topbarHeight - 8), behavior:'smooth' });
 }
 function downloadTxt(filename, text) {
   const blob = new Blob([text], { type:'text/plain;charset=utf-8' });

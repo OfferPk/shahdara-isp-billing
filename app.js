@@ -5,13 +5,14 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.2.9';
+} from './core.js?v=1.3.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.2.9';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.2.9';
+} from './phase3.js?v=1.3.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.3.0';
+import { currentBillPresentation, contactActionTargets } from './profile-ui.js?v=1.3.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -38,6 +39,8 @@ try {
 state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
 if (storageAvailable) { try { persistState(state, localStorage); } catch { storageAvailable = false; } }
 let selectedCustomerId = null;
+let profileEditMode = false;
+let selectedProfileTab = 'billing';
 let selectedReportFilter = 'all';
 let selectedServiceFilter = 'all';
 let selectedBillingFilter = 'all';
@@ -55,6 +58,42 @@ const humanLocalDateTime = value => value ? new Intl.DateTimeFormat(undefined, {
 const selectedCustomer = () => state.customers.find(customer => customer.id === selectedCustomerId);
 const formatAmount = formatPKR;
 const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+
+const profileTabMap = {
+  billing:['profileTabBilling','profilePanelBilling'],
+  info:['profileTabInfo','profilePanelInfo'],
+  complaints:['profileTabComplaints','profilePanelComplaints']
+};
+function mountCustomerProfileContent() {
+  const mounts = $('#profileContentMounts');
+  if (!mounts) return;
+  const groups = {
+    billing:['#customerReceiptSummary','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
+    info:['.customer-meta','.package-history-section'],
+    complaints:['.incident-section']
+  };
+  for (const [name, selectors] of Object.entries(groups)) {
+    const panel = $(`#${profileTabMap[name][1]}`);
+    for (const selector of selectors) {
+      const element = mounts.querySelector(selector);
+      if (element) panel.append(element);
+    }
+  }
+  mounts.remove();
+}
+function activateProfileTab(name, focus = false) {
+  if (!profileTabMap[name]) return;
+  selectedProfileTab = name;
+  for (const [tabName, [tabId,panelId]] of Object.entries(profileTabMap)) {
+    const active = tabName === name;
+    const tab = $(`#${tabId}`);
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    tab.tabIndex = active ? 0 : -1;
+    $(`#${panelId}`).hidden = !active;
+  }
+  if (focus) $(`#${profileTabMap[name][0]}`).focus();
+}
+mountCustomerProfileContent();
 
 function toast(message) {
   const element = $('#toast'); element.textContent = message; element.hidden = false;
@@ -194,7 +233,10 @@ function setManualServiceStatus(customerId, serviceStatus) {
   try {
     state = updateCustomerProfile(state, customerId, { serviceStatus });
     save();
-    if (selectedCustomerId === customerId) $('#serviceStatusInput').value = serviceStatus;
+    if (selectedCustomerId === customerId) {
+      $('#serviceStatusInput').value = serviceStatus;
+      if (!profileEditMode) renderDetail();
+    }
     toast(`Manual service status set to ${label}. No connectivity monitoring is performed.`);
   } catch (error) { toast(error.message); }
 }
@@ -233,6 +275,19 @@ function switchView(view) {
     $(`#${buttonId}`).setAttribute('aria-current', active ? 'page' : 'false');
   }
 }
+for (const [name, [tabId]] of Object.entries(profileTabMap)) $(`#${tabId}`).addEventListener('click', () => activateProfileTab(name));
+$('.profile-tabs').addEventListener('keydown', event => {
+  const names = Object.keys(profileTabMap);
+  const current = names.indexOf(selectedProfileTab);
+  let next = current;
+  if (event.key === 'ArrowRight') next = (current + 1) % names.length;
+  else if (event.key === 'ArrowLeft') next = (current + names.length - 1) % names.length;
+  else if (event.key === 'Home') next = 0;
+  else if (event.key === 'End') next = names.length - 1;
+  else return;
+  event.preventDefault();
+  activateProfileTab(names[next], true);
+});
 function statusPresentation(customer, bill, allocations = null) {
   const value = derivedBillStatus(customer, bill, allocations);
   return {
@@ -367,6 +422,41 @@ function renderIncidents(customer) {
   $('#incidentList').querySelectorAll('[data-edit-incident]').forEach(button => button.addEventListener('click', () => showIncidentEditor(incidents.find(item => item.id === button.dataset.editIncident))));
   $('#incidentList').querySelectorAll('[data-delete-incident]').forEach(button => button.addEventListener('click', () => requestDeleteIncident(customer.id, button.dataset.deleteIncident)));
 }
+function profileReadonlyField(label, value) {
+  return `<div class="profile-readonly-field"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+function renderCustomerProfileView(customer) {
+  const phone = String(customer.phone ?? '').trim();
+  const phoneTargets = contactActionTargets(phone);
+  const phoneValue = phone ? escapeHtml(phone) : 'Not set';
+  const phoneActions = phoneTargets ? `<span class="profile-contact-actions" aria-label="Contact shortcuts"><a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">Call</a><a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>` : '';
+  const fields = [
+    ['Area / mohalla', customer.mohalla || 'Not set'],
+    ['Zone', customer.zone || 'Not set'],
+    ['Address', customer.address || 'Not set'],
+    ['ISP / provider', customer.ispProvider || 'Not set'],
+    ['Service status', manualServiceStatusLabel(customer.serviceStatus)],
+    ['Package / speed', customer.packageSpeed || 'Not set'],
+    ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)],
+    ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)],
+    ['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'],
+    ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'],
+    ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']
+  ];
+  const profit = customerPackageProfit(customer);
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone number', phone ? phone : 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>`;
+  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
+    profileEditMode = true;
+    $('#customerProfileView').hidden = true;
+    $('#customerProfileForm').hidden = false;
+    $('#mohallaInput').focus();
+  });
+}
+function renderCurrentBillSummary(customer) {
+  const month = monthsForHistory(new Date())[0];
+  const summary = currentBillPresentation(customer, month, calculatePaymentAllocations(state));
+  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>Current billing · ${escapeHtml(monthName(month))}</h3><details class="help-tip"><summary class="help-icon" aria-label="Current bill and balance guidance" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">Bill amount is the saved bill for this month. Paid, Partial, Pending, or Not set is derived from saved receipts and carried credit. Net due is the existing calculated balance; no bill or amount is invented.</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>Monthly bill</span><strong>${escapeHtml(summary.billAmountLabel)}</strong></article><article class="current-bill-stat"><span>Billing status</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>Net due balance</span><strong>${escapeHtml(summary.balanceDueLabel)}</strong></article></div>`;
+}
 function renderDetail() {
   const customer = selectedCustomer();
   $('#welcomeState').hidden = !!customer;
@@ -375,6 +465,10 @@ function renderDetail() {
   $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
   $('#detailName').textContent = customer.name;
+  renderCurrentBillSummary(customer);
+  renderCustomerProfileView(customer);
+  $('#customerProfileView').hidden = profileEditMode;
+  $('#customerProfileForm').hidden = !profileEditMode;
   $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
   $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : 'date not recorded') : '');
   $('#archiveCustomerButton').hidden = customer.archived;
@@ -402,6 +496,8 @@ function selectCustomer(id) {
   if (!state.customers.some(customer => customer.id === id)) return;
   switchView('customers');
   selectedCustomerId = id;
+  profileEditMode = false;
+  activateProfileTab('billing');
   appShell.classList.add('show-detail');
   renderCustomers();
   renderDetail();
@@ -635,9 +731,11 @@ $('#saveMohallaButton').addEventListener('click', () => {
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
       packageChangeStaffName:$('#packageChangeStaffNameInput').value
     });
+    profileEditMode = false;
     save(); renderDetail(); toast('Customer profile saved on this device.');
   } catch (error) { toast(error.message); }
 });
+$('#cancelProfileEditButton').addEventListener('click', () => { profileEditMode = false; renderDetail(); });
 $('#monthlyPurchaseCostInput').addEventListener('input', renderProfileMarginPreview);
 $('#monthlySellingAmountInput').addEventListener('input', renderProfileMarginPreview);
 function restoreCustomer(customerId) {

@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.2.9',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.3.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.2.9">
+  <link rel="stylesheet" href="./styles.css?v=1.3.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -18,14 +18,13 @@
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
   </header>
-  <aside class="preview-notice" role="note"><strong>Clarity follow-up 1.2.9 · Separate profile and service status labels</strong><span>Amounts display in PKR; billing data stays in this browser on this device with no server sync.</span></aside>
-  <aside class="data-loss-warning" role="note"><div><strong>Your records stay only in this browser on this device.</strong> Clearing site data, changing browser/device, or losing the device can remove the ledger. There is no account or cloud sync; download a local JSON backup regularly.</div><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
+  <aside class="data-loss-warning" role="note"><div><strong>Stored on this device only.</strong> Download a JSON backup regularly.</div><details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
   <main id="main">
     <section class="global-search-region" aria-label="Global customer search">
       <div class="global-search-main">
         <label class="global-search-label" for="globalCustomerSearch">Search customers by name, phone, address or ID</label>
         <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, phone, address or ID"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
-        <p class="global-search-help">Search is available throughout the app and filters both customers and transactions. Phone and address are optional and never prefilled.</p>
+        <p class="global-search-help">Search also filters customer and payment lists.</p>
       </div>
       <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers"></div><p id="globalSearchResultCount" class="global-result-count"></p></div>
       <p id="globalSearchStatus" class="sr-only" role="status" aria-live="polite"></p>
@@ -33,7 +32,7 @@
     <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">
       <div class="dashboard-heading">
         <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
-        <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button></div>
+        <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -48,7 +47,6 @@
       </div>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
-      <p class="dashboard-method">A saved selling price creates one month-specific bill from its effective Pakistan local calendar month; each bill keeps its own price snapshot. Missing eligible months are generated locally when the app opens, resumes, or stays active across a month boundary. A new monthly bill defaults to the 5th; a saved custom due date is preserved, and historical bill snapshots are not rewritten. Archived customers receive no new bills; unarchiving resumes from the current or next month without backfilling the archived period. No late penalty is invented. Actual receipts apply first to the selected month; excess automatically credits later unpaid generated bills, and remaining prepaid credit stays valid indefinitely. Credit is not a second payment. Package margin is selling amount minus provider cost; provider costs and margin are expected recurring estimates, not collected cash profit.</p>
     </section>
 
     <nav class="view-nav" aria-label="Billing sections">
@@ -70,7 +68,7 @@
           <label class="customer-filter-month" for="customerFilterMonth">Billing month <select id="customerFilterMonth"></select></label>
           <div class="customer-filter-group service-filter-toolbar" role="group" aria-label="Filter by manual service status; counts exclude archived profiles"><span class="customer-filter-label">Service</span><button class="customer-filter-button" type="button" data-customer-service-filter="all" aria-pressed="true">All</button><button class="customer-filter-button" type="button" data-customer-service-filter="active" aria-pressed="false" aria-label="Filter by manual service status Active"><span>Active</span> <span id="serviceCountActive" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="offline" aria-pressed="false" aria-label="Filter by manual service status Offline"><span>Offline</span> <span id="serviceCountOffline" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="not-set" aria-pressed="false" aria-label="Filter by manual service status Not set"><span>Not set</span> <span id="serviceCountNotSet" class="service-count-badge" aria-hidden="true">—</span></button><span id="serviceStateCountsAnnouncement" class="sr-only" role="status" aria-live="polite">Manual service counts loading</span></div>
           <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month"><span class="customer-filter-label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false">Not set</button></div>
-          <p class="customer-filter-note">Service is operator-set, not monitored. Billing status comes from a saved bill amount, actual receipts and carried credit.</p>
+          <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
         </section>
         <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
         <details id="archivedCustomersPanel" class="archived-customers-panel"><summary>Archived customers <span id="archivedCustomerCount" class="count-badge">0</span></summary><ul id="archivedCustomerList" class="archived-customer-list" aria-label="Archived customer profiles"></ul></details>
@@ -93,8 +91,22 @@
               <div><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
               <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
             </div>
+            <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
+            <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
+              <button id="profileTabBilling" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBilling" aria-selected="true" tabindex="0">Billing &amp; Ledger</button>
+              <button id="profileTabInfo" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelInfo" aria-selected="false" tabindex="-1">Customer Info</button>
+              <button id="profileTabComplaints" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelComplaints" aria-selected="false" tabindex="-1">Complaints</button>
+            </nav>
+            <div class="profile-tab-panels">
+              <section id="profilePanelBilling" class="profile-tab-panel" role="tabpanel" aria-labelledby="profileTabBilling" tabindex="0"></section>
+              <section id="profilePanelInfo" class="profile-tab-panel" role="tabpanel" aria-labelledby="profileTabInfo" tabindex="0" hidden></section>
+              <section id="profilePanelComplaints" class="profile-tab-panel" role="tabpanel" aria-labelledby="profileTabComplaints" tabindex="0" hidden></section>
+            </div>
+            <div id="profileContentMounts" hidden>
             <div id="customerReceiptSummary" aria-live="polite"></div>
             <div class="customer-meta">
+              <div id="customerProfileView" class="customer-profile-view" aria-label="Saved customer information"></div>
+              <div id="customerProfileForm" class="customer-profile-form" hidden>
               <div class="profile-grid">
                 <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="zoneInput"><span class="field-label">Zone <span class="optional-label">Optional · nested under area</span></span><input id="zoneInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
@@ -110,9 +122,9 @@
                 <label class="profile-field" for="cancellationDateInput"><span class="field-label">Explicit cancellation date <span class="optional-label">Optional · Offline is not churn</span></span><input id="cancellationDateInput" type="date"></label>
                 <label class="profile-field" for="packageChangeStaffNameInput"><span class="field-label">Package-change staff name <span class="optional-label">Optional · used only for next change</span></span><input id="packageChangeStaffNameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
               </div>
-              <p class="profile-help">Service status is manually set to Active, Offline or Not set; it is not a billing status and the app does not monitor connectivity. Area / mohalla is the parent location and an optional zone is summarized beneath it; neither field is required. “Add payment / Mark paid” opens the real amount/date/method form—Paid is derived only from actual receipts and valid carried credit. ISP/provider, speed, address and optional phone fields start blank. “Nayatel” and the 5/10/15/30 Mbps options are suggestions only; custom package text is allowed. Provider cost contributes to the recurring provider total only when entered. Saving a selling amount generates bills from its effective Pakistan calendar month; price snapshots do not rewrite older bills. Archived customers accrue no new bills. Auto-credit carries to later unpaid generated bills without another cash entry; monthly generation runs locally when this page opens/resumes or stays active. A fully closed browser cannot run in the background.</p>
               <p id="customerProfitPreview" class="profile-profit" role="status" aria-live="polite">Expected monthly package profit: Not set until both monthly amounts are entered.</p>
-              <button id="saveMohallaButton" class="secondary-button profile-save" type="button">Save profile</button>
+                <div class="profile-form-actions"><button id="saveMohallaButton" class="secondary-button profile-save" type="button">Save profile</button><button id="cancelProfileEditButton" class="secondary-button" type="button">Cancel</button></div>
+              </div>
             </div>
             <section class="package-history-section" aria-labelledby="packageHistoryHeading"><div><p class="eyebrow">PRICE SNAPSHOT HISTORY</p><h3 id="packageHistoryHeading">Package changes</h3><p class="incident-manual-note">Recorded only when package or monthly selling amount changes. Existing bill snapshots remain unchanged.</p></div><ol id="packageHistoryList" class="package-history-list"></ol><p id="packageHistoryEmpty" class="incident-empty">No package or monthly selling-rate changes have been recorded.</p></section>
             <section class="incident-section" aria-labelledby="incidentHeading">
@@ -135,6 +147,7 @@
             <p id="customerEmptyNote" class="notice" hidden>No billing details recorded yet. Choose a month below to add only information you have confirmed.</p>
           </div>
           <div id="historyContainer" class="history-list" aria-label="Monthly billing history"></div>
+            </div>
         </div>
       </section>
     </div>
@@ -247,6 +260,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.2.9"></script>
+  <script type="module" src="./app.js?v=1.3.0"></script>
 </body>
 </html>

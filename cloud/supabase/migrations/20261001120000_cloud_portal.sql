@@ -468,13 +468,18 @@ begin
       recorded_by = excluded.recorded_by,
       recorded_at = now();
   end if;
-  new.updated_at := now();
+  if tg_op = 'UPDATE' then
+    new.updated_at := now();
+  end if;
   return new;
 end;
 $$;
 revoke all on function public.record_customer_price_history() from public, anon, authenticated;
-create trigger customers_record_price_history
-  before insert or update of monthly_fee_cents, plan_name on public.customers
+create trigger customers_record_price_history_after_insert
+  after insert on public.customers
+  for each row execute function public.record_customer_price_history();
+create trigger customers_record_price_history_before_update
+  before update of monthly_fee_cents, plan_name on public.customers
   for each row execute function public.record_customer_price_history();
 
 -- A view is explicitly security-invoker: unlike default PostgreSQL views, it does

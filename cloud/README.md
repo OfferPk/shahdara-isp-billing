@@ -1,16 +1,20 @@
 # Shahdara Fiber Net cloud portal (review edition)
 
-This folder is a separate, isolated cloud portal layered beside the existing offline application. The root app, its `shahdara-isp-billing-v1` local data, validated JSON backup/merge behavior, and the offline-only GitHub Pages deployment are unchanged. The cloud portal does not include the public starter-name list and starts with no customer data.
+This folder is a separate cloud portal beside the existing offline application. The root app, its localStorage data and backup/merge behavior, and the offline-only GitHub Pages deployment remain unchanged. The cloud portal has no imported customer data and uses only synthetic fixtures in tests.
 
-**This branch is not connected to any Supabase project.** No migration has been applied, no project created or changed, no deployment made, and no real customer records used. The production project visible in owner-provided screenshots was not opened or queried. The pgTAP fixtures in this folder use synthetic names and identifiers only.
+## Current project state
 
-## Current features
+The owner-approved non-production Supabase project is isolated from production. The cloud schema migration has already been applied there with authorization, and pgTAP was enabled separately with approval. The first 13-assertion fixture attempt failed during customer setup because the original `BEFORE INSERT` price-history trigger tried to write a row referencing the not-yet-created customer. The test transaction rolled back; the project was subsequently confirmed empty across its public tables and `auth.users`.
 
-- Email magic-link sign-in with self-service sign-up disabled. Admin access comes from an explicit `owner`/`admin` organization membership; a customer sees only a customer account linked server-side.
-- Admin overview for customer count, monthly billed amount, actual cash collected by receipt date, outstanding balance, and carry-forward credit; customer creation; monthly bill snapshots; receipt recording, correction, and deletion.
-- Customer portal for the linked profile, bills, receipt history, and customer-visible incident summaries.
-- Stable text IDs for customers, bills, and receipts. One bill per organization/customer/month. Receipt writes use an idempotent stable ID and an atomic RPC. Carry-forward credit is stored only as allocations from the original receipt; allocations are never counted as another payment. A receipt against an unpriced bill remains a receipt but does not create credit until a price is recorded, matching the offline ledger.
-- RLS-protected schema for price history, staff-only customer/incident details, inventory and movements, expenses, and payroll date logs. The first UI pass focuses on customer, billing, receipt, and incident views; the other areas are schema scaffolding, not feature-complete portals.
+The corrected base migration and synthetic fixture are in this branch. A separate manual patch for the already-applied project is at `supabase/review/20261001130000_customer_price_history_trigger_fix.sql`. It has **not** been applied remotely. No further database SQL or DDL, Auth-setting change, app deployment, or invitation-function deployment is part of this work.
+
+## Cloud portal and Supabase client
+
+The browser client is created only when `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` contain a valid HTTPS project URL and a non-placeholder publishable key. The browser uses the Supabase JS client with persistent Auth sessions; its configuration does not accept a database connection string or service-role key. Query helpers use the signed-in user's session and surface Supabase errors to the UI. RLS remains the authority for every row returned or changed.
+
+The portal is auth-first: it sends no anonymous data queries, does not enable self-service sign-up, and requests sign-in only for an already-provisioned account (`shouldCreateUser: false`). There is currently no first administrator Auth user, organization, or owner membership bootstrapped in the project, so no one can yet access organization data. The project owner must provision the initial authenticated administrator and create the organization/owner membership through an owner-controlled process before normal sign-in can succeed. Do not weaken RLS or use anonymous access as a bootstrap shortcut.
+
+Admin features include customer creation, monthly bill snapshots, receipt recording/correction/deletion through RPCs, and incident summaries. Customer views are scoped to the server-linked customer account. Stable IDs and the idempotent receipt RPC flow are preserved. The invite-customer Edge Function remains source-only and is not deployed; customer invitations require a separately approved server-function setup.
 
 ## Local development
 
@@ -18,32 +22,23 @@ Requires Node.js 20.19+ or 22.12+ and npm.
 
 ```sh
 cp .env.example .env.local
-# Set only VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY when an owner approves a dedicated non-production project.
+# Set only the isolated project's HTTPS URL and publishable/legacy anon key in .env.local.
 npm install
-npm run dev
 npm test
 npm run build
+npm run dev
 ```
 
-Without both frontend variables, the portal shows a setup message and does not create a Supabase client or send requests. The browser build may contain **only** the project URL and publishable/legacy anon key. A service-role/secret key must never be placed in `.env.local`, Vite variables, source files, or browser output.
+`.env.local` is ignored by git. A publishable/legacy anon key is intended for the browser; a database connection string, service-role key, or other privileged credential is not. Never commit local environment files or generated build output. If the two frontend variables are absent or still placeholders, the portal shows setup guidance and creates no Supabase client.
 
-## Database and Auth setup — not performed here
+## Manual SQL review
 
-Before any owner chooses to connect this edition, use a dedicated, non-production Supabase project that is explicitly approved for this purpose. Do not apply this migration to the existing production project merely because its name appears in screenshots. Confirm the destination, project owner, one-organization/multi-organization tenancy decision, administrator list, customer invitation process, Auth email provider, email delivery/rate limits, final site URL, and redirect URLs first. The schema supports multiple organizations; the initial portal selects the first authorized organization/account and should be extended with an explicit chooser before users are assigned to multiple organizations.
+The corrective patch is additive and wrapped in a transaction. It replaces the trigger function, removes only the prior trigger definition, and creates an `AFTER INSERT` trigger plus a `BEFORE UPDATE` trigger. This allows initial price history to reference an existing customer row while retaining subsequent plan/price history and `updated_at` behavior. It does not create/drop tables, delete rows, change RLS policies, or grant anonymous access.
 
-A project owner with database migration privileges must review and apply `supabase/migrations/20261001120000_cloud_portal.sql` to that isolated project. The migration enables RLS for every public customer-data table, revokes broad client grants, grants only intended operations to `authenticated`, creates no `anon` policies, and pins security-definer functions to an empty search path with schema-qualified references. Admin/customer identity links are not client-writable. Bootstrap the first owner membership through an owner-controlled process after migration; do not promote a user by changing browser data or JWT metadata.
+A project owner/reviewer should inspect that exact patch and, if accepted, manually apply it only to the approved isolated non-production project. It is not part of the automatic migration directory and has not been run remotely. If rollback is ever needed, restore the old trigger only after correcting its FK-ordering issue; reverting to the old trigger unchanged would bring back the insert failure. No table/data rollback is needed for this patch.
 
-The `invite-customer` Edge Function requires JWT verification, an exact `APP_ORIGIN`, a publishable key for validating the caller session, and the platform's server-side `SUPABASE_SERVICE_ROLE_KEY` environment secret for the invitation/link operation. That privileged key is expected only in server-side function configuration; it is not a frontend setup input and has not been requested or used here. Restrict invitation access to organization owners/admins. Review the function and SQL tests before deployment.
+## Tests and limitations
 
-The app needs only these **frontend** values when the project is ready:
+`npm test` runs synthetic ledger tests, static security-contract checks, tests for the client configuration and query/RPC adapter with mocked Supabase responses, and checks for the trigger correction. The pgTAP fixture now has 16 assertions covering RLS, stable receipt retry behavior, credit allocations, and customer price-history inserts/updates. It requires a disposable local Supabase stack (`supabase test db`); the Supabase CLI and Docker are unavailable here, so pgTAP cannot be run in this environment. No synthetic fixture or real customer record was written to the remote project during this implementation.
 
-1. Supabase project URL.
-2. Publishable key (or legacy anon key).
-
-Also pending from the project owner are the approved project/tenant setup, database migration permission, Auth provider and redirect settings, and permission to deploy the server-side invitation function. No secret key is required in the browser. Do not supply a service-role key to this task.
-
-## Tests and known limitations
-
-`npm test` covers synthetic accounting calculations and static security-contract checks. `supabase/tests/cloud_portal_rls.test.sql` contains additional synthetic pgTAP scenarios for cross-organization/customer isolation, direct receipt-write denial, stable-ID retry behavior, and non-cash credit allocations. It requires a disposable local Supabase stack (`supabase test db`) and was not run here because the Supabase CLI and Docker are unavailable. No live or production database has been used.
-
-This is a reviewable first cloud pass, not a production-ready migration or full parity replacement. Local backup import/export has intentionally not been wired to cloud writes; no real-data migration, offline outbox/sync, conflict workflow, invitation resend/recovery, multi-organization chooser, operational monitoring, rate-limit policy review, or independent penetration test is included. Keep the original offline app as the authoritative deployment until a separately authorized migration plan, full RLS integration test, project-owner review, backup/reconciliation rehearsal with synthetic data, and deployment approval are complete.
+This remains a reviewable first cloud pass, not a production-ready replacement or full offline parity port. Local backup import/export is not connected to cloud writes; there is no offline sync/outbox, conflict workflow, multi-organization chooser, invitation recovery, operational monitoring, rate-limit review, or independent penetration test. Keep the existing offline app as the authoritative deployment until project-owner bootstrap, local database integration tests, review, reconciliation rehearsal, and separate deployment approval are complete.

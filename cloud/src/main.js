@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
+import { createPortalClient } from './supabase-client.js';
+import { invokeRpc, loadContexts, loadPortalRows } from './portal-data.js';
 import { amountToMinorUnits, calculateDashboard, formatMoney } from './ledger.js';
 import './styles.css';
 
@@ -9,21 +10,11 @@ const portalPanel = document.querySelector('#portal-panel');
 const loginForm = document.querySelector('#login-form');
 const loginMessage = document.querySelector('#login-message');
 
-const projectUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
-const configured = projectUrl.startsWith('https://')
-  && !projectUrl.includes('YOUR_PROJECT_REF')
-  && Boolean(publishableKey)
-  && !publishableKey.includes('YOUR_PUBLISHABLE');
+const supabase = createPortalClient(import.meta.env);
 
-if (!configured) {
+if (!supabase) {
   configMessage.hidden = false;
 } else {
-  // Only the project URL and publishable/anon key are included in the browser.
-  const supabase = createClient(projectUrl, publishableKey, {
-    auth: { autoRefreshToken: true, persistSession: true, detectSessionInUrl: true },
-  });
-
   const pageState = {
     user: null,
     contexts: [],
@@ -98,94 +89,11 @@ if (!configured) {
     portalPanel.innerHTML = '<div class="panel loading-panel"><span class="spinner" aria-hidden="true"></span><p>Loading records allowed for this account…</p></div>';
   }
 
-  async function rowsFor(table, columns, applyFilters, orderBy) {
-    const allRows = [];
-    const pageSize = 1000;
-    for (let offset = 0; offset < 50000; offset += pageSize) {
-      let query = supabase.from(table).select(columns);
-      query = applyFilters(query);
-      query = query.order(orderBy.column, { ascending: orderBy.ascending ?? true });
-      const { data, error } = await query.range(offset, offset + pageSize - 1);
-      if (error) throw error;
-      allRows.push(...(data ?? []));
-      if ((data ?? []).length < pageSize) return allRows;
-    }
-    throw new Error('The current screen reached its safe paging limit. Narrow the date range and try again.');
-  }
-
-  async function loadContexts(user) {
-    const { data: memberships, error: membershipError } = await supabase
-      .from('organization_memberships')
-      .select('organization_id, role')
-      .eq('user_id', user.id);
-    if (membershipError) throw membershipError;
-
-    if ((memberships ?? []).length) {
-      const organizationIds = [...new Set(memberships.map((entry) => entry.organization_id))];
-      const { data: organizations, error: organizationError } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .in('id', organizationIds);
-      if (organizationError) throw organizationError;
-      const nameById = new Map((organizations ?? []).map((organization) => [organization.id, organization.name]));
-      return memberships
-        .filter((entry) => ['owner', 'admin'].includes(entry.role))
-        .map((entry) => ({
-          kind: 'admin',
-          organizationId: entry.organization_id,
-          organizationName: nameById.get(entry.organization_id) ?? 'ISP organization',
-          role: entry.role,
-        }));
-    }
-
-    const { data: accounts, error: accountError } = await supabase
-      .from('customer_portal_accounts')
-      .select('organization_id, customer_id');
-    if (accountError) throw accountError;
-    const linkedAccounts = accounts ?? [];
-    const contexts = [];
-    for (const account of linkedAccounts) {
-      const { data: customer, error: customerError } = await supabase
-        .from('customers')
-        .select('name')
-        .eq('organization_id', account.organization_id)
-        .eq('id', account.customer_id)
-        .maybeSingle();
-      if (customerError) throw customerError;
-      if (customer) contexts.push({
-        kind: 'customer',
-        organizationId: account.organization_id,
-        customerId: account.customer_id,
-        customerName: customer.name,
-      });
-    }
-    return contexts;
-  }
-
-  async function loadPortalRows(context) {
-    const byOrganization = (query) => query.eq('organization_id', context.organizationId);
-    const customerOnly = (query) => byOrganization(query).eq('customer_id', context.customerId);
-    const customerTableOnly = (query) => byOrganization(query).eq('id', context.customerId);
-    const [customers, bills, receipts, allocations, incidents] = await Promise.all([
-      rowsFor('customers', 'id, customer_number, name, plan_name, service_address, service_status, monthly_fee_cents, archived',
-        context.kind === 'admin' ? byOrganization : customerTableOnly, { column: 'customer_number' }),
-      rowsFor('bills', 'id, customer_id, period, amount_due_cents, due_date, plan_snapshot',
-        context.kind === 'admin' ? byOrganization : customerOnly, { column: 'period', ascending: false }),
-      rowsFor('receipts', 'id, customer_id, origin_bill_id, received_on, amount_cents, method',
-        context.kind === 'admin' ? byOrganization : customerOnly, { column: 'received_on', ascending: false }),
-      rowsFor('receipt_allocations', 'receipt_id, bill_id, customer_id, amount_cents, allocation_kind',
-        context.kind === 'admin' ? byOrganization : customerOnly, { column: 'created_at', ascending: true }),
-      rowsFor('incidents', 'id, customer_id, customer_visible_summary, status, reported_at, offline_at, restored_at',
-        context.kind === 'admin' ? byOrganization : customerOnly, { column: 'reported_at', ascending: false }),
-    ]);
-    return { customers, bills, receipts, allocations, incidents };
-  }
-
   async function selectContext(context) {
     pageState.context = context;
     showPortalLoading();
     try {
-      pageState.rows = await loadPortalRows(context);
+      pageState.rows = await loadPortalRows(supabase, context);
       renderPortal();
     } catch (error) {
       portalPanel.innerHTML = `<div class="panel"><p class="eyebrow">Could not load records</p><h2>Access was not granted</h2><p class="error-text">${escapeHtml(error.message || 'The request failed.')}</p><p>Database row-level policies remain authoritative; contact the ISP administrator if this account should have portal access.</p><button class="button secondary" data-action="sign-out">Sign out</button></div>`;
@@ -209,7 +117,7 @@ if (!configured) {
     pageState.user = session.user;
     showPortalLoading();
     try {
-      pageState.contexts = await loadContexts(session.user);
+      pageState.contexts = await loadContexts(supabase, session.user);
       if (!pageState.contexts.length) {
         portalPanel.innerHTML = '<div class="panel"><p class="eyebrow">No portal access</p><h2>This email is not linked to an ISP account</h2><p>Ask the ISP administrator to assign an Admin role or send a customer invitation.</p><button class="button secondary" data-action="sign-out">Sign out</button></div>';
         bindSharedActions();
@@ -411,12 +319,11 @@ if (!configured) {
       try {
         const period = String(formData.get('period') ?? '');
         if (!/^\d{4}-\d{2}$/.test(period)) throw new Error('Choose a valid billing month.');
-        const { error } = await supabase.rpc('create_monthly_bill', {
+        await invokeRpc(supabase, 'create_monthly_bill', {
           p_organization_id: context.organizationId,
           p_customer_id: String(formData.get('customer_id')),
           p_period: `${period}-01`,
         });
-        if (error) throw error;
         setMessage(message, 'Bill snapshot saved. Existing monthly snapshots are not overwritten.');
         await refreshCurrentContext();
       } catch (error) {
@@ -467,11 +374,10 @@ if (!configured) {
           saveReceiptAttempt(context, crypto.randomUUID());
           attempt = pendingReceiptAttempt;
         }
-        const { error } = await supabase.rpc('record_cash_receipt', {
+        await invokeRpc(supabase, 'record_cash_receipt', {
           ...payload,
           p_receipt_id: attempt.id,
         });
-        if (error) throw error;
         clearReceiptAttempt();
         form.elements.amount.value = '';
         setMessage(message, 'Receipt recorded. Carry-forward credit is shown separately, not as another payment.');
@@ -518,11 +424,10 @@ if (!configured) {
       const receipt = pageState.rows.receipts.find((row) => row.id === button.dataset.id);
       if (!receipt || !window.confirm('Delete this cash receipt? Its allocations will be recalculated, and this deletion cannot be undone.')) return;
       try {
-        const { error } = await supabase.rpc('delete_cash_receipt', {
+        await invokeRpc(supabase, 'delete_cash_receipt', {
           p_organization_id: context.organizationId,
           p_receipt_id: receipt.id,
         });
-        if (error) throw error;
         await refreshCurrentContext();
       } catch (error) {
         window.alert(error.message || 'Receipt could not be deleted.');
@@ -536,7 +441,7 @@ if (!configured) {
       event.preventDefault();
       const formData = new FormData(event.currentTarget);
       try {
-        const { error } = await supabase.rpc('correct_cash_receipt', {
+        await invokeRpc(supabase, 'correct_cash_receipt', {
           p_organization_id: context.organizationId,
           p_receipt_id: String(formData.get('receipt_id')),
           p_bill_id: String(formData.get('bill_id')),
@@ -544,7 +449,6 @@ if (!configured) {
           p_amount_cents: amountToMinorUnits(formData.get('amount')),
           p_method: String(formData.get('method') ?? '').trim(),
         });
-        if (error) throw error;
         portalPanel.querySelector('#receipt-dialog')?.close();
         await refreshCurrentContext();
       } catch (error) {
@@ -586,7 +490,7 @@ if (!configured) {
     if (!pageState.context) return;
     showPortalLoading();
     try {
-      pageState.rows = await loadPortalRows(pageState.context);
+      pageState.rows = await loadPortalRows(supabase, pageState.context);
       renderPortal();
     } catch (error) {
       portalPanel.innerHTML = `<div class="panel"><h2>Refresh failed</h2><p class="error-text">${escapeHtml(error.message || 'The request failed.')}</p><button class="button secondary" data-action="sign-out">Sign out</button></div>`;

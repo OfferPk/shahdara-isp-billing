@@ -1,7 +1,7 @@
 -- Synthetic-only database tests. Run with `supabase test db` against a local,
 -- disposable Supabase stack; never run these fixtures against production.
 begin;
-select plan(13);
+select plan(16);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -19,6 +19,8 @@ insert into public.customers (organization_id, id, customer_number, name, plan_n
   ('20000000-0000-4000-8000-000000000001', 'synthetic-customer-a', 1, 'Synthetic Customer A', 'Starter', 10000, 'active'),
   ('20000000-0000-4000-8000-000000000001', 'synthetic-customer-b', 2, 'Synthetic Customer B', 'Starter', 10000, 'active'),
   ('20000000-0000-4000-8000-000000000002', 'synthetic-customer-c', 1, 'Synthetic Customer C', 'Starter', 10000, 'active');
+select is((select count(*)::integer from public.price_history where customer_id = 'synthetic-customer-a'), 1,
+  'new customer price history is recorded after the customer row exists');
 insert into public.customer_portal_accounts (organization_id, customer_id, user_id) values
   ('20000000-0000-4000-8000-000000000001', 'synthetic-customer-a', '10000000-0000-4000-8000-000000000002');
 insert into public.bills (organization_id, id, customer_id, period, amount_due_cents, due_date) values
@@ -44,6 +46,14 @@ reset role;
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 select is((select count(*)::integer from public.customers where organization_id = '20000000-0000-4000-8000-000000000001'), 2, 'admin sees customers in the authorized organization');
 select is((select count(*)::integer from public.customers where organization_id = '20000000-0000-4000-8000-000000000002'), 0, 'admin cannot cross into another organization');
+update public.customers set monthly_fee_cents = 12500, plan_name = 'Plus'
+where organization_id = '20000000-0000-4000-8000-000000000001' and id = 'synthetic-customer-a';
+select is((select monthly_fee_cents from public.price_history
+  where customer_id = 'synthetic-customer-a' and effective_on = current_date), 12500::bigint,
+  'subsequent price updates are preserved in price history');
+select is((select plan_name from public.price_history
+  where customer_id = 'synthetic-customer-a' and effective_on = current_date), 'Plus'::text,
+  'subsequent plan updates are preserved in price history');
 
 select public.record_cash_receipt(
   '20000000-0000-4000-8000-000000000001', 'synthetic-customer-a',

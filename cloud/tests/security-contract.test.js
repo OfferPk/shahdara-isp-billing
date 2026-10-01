@@ -8,6 +8,8 @@ const migrationPath = resolve(root, 'supabase/migrations/20261001120000_cloud_po
 const frontendPaths = [
   resolve(root, 'src/main.js'),
   resolve(root, 'src/ledger.js'),
+  resolve(root, 'src/supabase-client.js'),
+  resolve(root, 'src/portal-data.js'),
   resolve(root, 'index.html'),
   resolve(root, '.env.example'),
 ];
@@ -56,12 +58,22 @@ test('browser files contain no service-role key or server-only secret configurat
   assert.doesNotMatch(contents, /SERVICE_ROLE|SECRET_KEY|service_role/i);
   assert.match(contents, /VITE_SUPABASE_URL/);
   assert.match(contents, /VITE_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(contents, /clientFactory\(config\.url, config\.publishableKey/);
 });
 
 test('customer-account linking is not writable by authenticated clients', () => {
   assert.match(migration, /grant select on public\.organizations,[\s\S]*public\.customer_portal_accounts/i);
   assert.doesNotMatch(migration, /grant (?:insert|update|delete)[^;]*public\.customer_portal_accounts/i);
   assert.match(migration, /create policy customer_accounts_scoped_read[\s\S]*user_id = \(select auth\.uid\(\)\)/i);
+});
+
+test('portal sign-in remains auth-first with self-service sign-up disabled', async () => {
+  const main = await readFile(resolve(root, 'src/main.js'), 'utf8');
+  assert.match(main, /signInWithOtp/);
+  assert.match(main, /shouldCreateUser:\s*false/);
+  assert.match(main, /onAuthStateChange/);
+  assert.match(main, /getSession\(\)/);
+  assert.doesNotMatch(main, /auth\.signUp\s*\(/);
 });
 
 test('customer-readable ledger rows contain no staff notes or creator identifiers', () => {

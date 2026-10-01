@@ -1,7 +1,7 @@
 -- Synthetic-only database tests. Run with `supabase test db` against a local,
 -- disposable Supabase stack; never run these fixtures against production.
 begin;
-select plan(16);
+select plan(17);
 
 insert into auth.users (id, aud, role, email, encrypted_password, email_confirmed_at,
                         raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -43,9 +43,12 @@ select throws_ok(
   '42501', null, 'customer cannot directly insert a cash receipt'
 );
 reset role;
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
+select is(current_user::text, 'authenticated', 'administrator RLS checks execute as authenticated');
 select is((select count(*)::integer from public.customers where organization_id = '20000000-0000-4000-8000-000000000001'), 2, 'admin sees customers in the authorized organization');
 select is((select count(*)::integer from public.customers where organization_id = '20000000-0000-4000-8000-000000000002'), 0, 'admin cannot cross into another organization');
+reset role;
 update public.customers set monthly_fee_cents = 12500, plan_name = 'Plus'
 where organization_id = '20000000-0000-4000-8000-000000000001' and id = 'synthetic-customer-a';
 select is((select monthly_fee_cents from public.price_history

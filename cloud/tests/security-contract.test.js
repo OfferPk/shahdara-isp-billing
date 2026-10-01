@@ -84,6 +84,11 @@ test('customer-readable ledger rows contain no staff notes or creator identifier
   }
 });
 
+test('admin cross-organization pgTAP assertion runs as authenticated', async () => {
+  const pgTap = await readFile(resolve(root, 'supabase/tests/cloud_portal_rls.test.sql'), 'utf8');
+  assert.match(pgTap, /reset role;\s*set local role authenticated;\s*select set_config\('request\.jwt\.claim\.sub', '10000000-0000-4000-8000-000000000001', true\);\s*select is\(current_user::text, 'authenticated'[\s\S]*?admin cannot cross into another organization/i);
+});
+
 test('customer invitations verify the caller JWT, enforce exact origin, and check organization admin membership', async () => {
   const edgeFunction = await readFile(resolve(root, 'supabase/functions/invite-customer/index.ts'), 'utf8');
   assert.match(edgeFunction, /requestOrigin !== appOrigin/);

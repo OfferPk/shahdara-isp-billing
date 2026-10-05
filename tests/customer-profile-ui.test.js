@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { calculatePaymentAllocations } from '../core.js';
-import { currentBillPresentation, contactActionTargets } from '../profile-ui.js';
+import { createInitialState, saveBillMonth, addPayment, calculatePaymentAllocations } from '../core.js';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft } from '../profile-ui.js';
 
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const index = read('index.html');
@@ -94,7 +94,7 @@ test('complaints tab mounts existing incident records and empty state without a 
   assert.doesNotMatch(helper, /localStorage|STORAGE_KEY|incidents\s*=\s*\[\]/);
 });
 
-test('saved-phone shortcuts are derived without country-code inference and never send or auto-activate', () => {
+test('saved-phone shortcuts require an explicit international number for WhatsApp and never guess a country code', () => {
   assert.equal(contactActionTargets(''), null);
   assert.equal(contactActionTargets('   '), null);
   assert.equal(contactActionTargets('extension only'), null);
@@ -102,8 +102,63 @@ test('saved-phone shortcuts are derived without country-code inference and never
     tel:'tel:+923001234567',
     whatsapp:'https://wa.me/923001234567'
   });
-  assert.equal(contactActionTargets('0300-1234567').whatsapp, 'https://wa.me/03001234567');
+  assert.deepEqual(contactActionTargets('0300-1234567'), { tel:'tel:03001234567', whatsapp:null });
+  assert.equal(contactActionTargets('+92 300 123 4567 ext 9'), null);
+  assert.equal(contactActionTargets('+9999999999999999').whatsapp, null);
   assert.match(app, /href="\$\{escapeHtml\(phoneTargets\.tel\)\}"/);
-  assert.match(app, /href="\$\{escapeHtml\(phoneTargets\.whatsapp\)\}" target="_blank" rel="noopener"/);
-  assert.doesNotMatch(app, /fetch\([^)]*(?:wa\.me|phoneTargets)|window\.open\([^)]*(?:wa\.me|phoneTargets)|sendText|autoSend/i);
+  assert.match(app, /href="\$\{escapeHtml\(phoneTargets\.whatsapp\)\}" target="_blank" rel="noopener noreferrer"/);
+  assert.match(index, /Phone \/ WhatsApp number/);
+});
+
+test('global search preview shows exact partial and paid bill state and actual receipt entries', () => {
+  const referenceDate = new Date(2026, 8, 29, 12);
+  let state = createInitialState();
+  state = saveBillMonth(state, 'seed-001', { month:'2026-09', dueAmount:'1200', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', '2026-09', { date:'2026-09-12', amount:'300', method:'Easypaisa' }, referenceDate);
+  state = saveBillMonth(state, 'seed-002', { month:'2026-09', dueAmount:'800', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-002', '2026-09', { date:'2026-09-13', amount:'800', method:'JazzCash' }, referenceDate);
+
+  const partial = buildGlobalLedgerSearch(state, 'Nazeer', '2026-09');
+  assert.equal(partial.length, 1);
+  assert.equal(partial[0].billing.statusLabel, 'Partial');
+  assert.equal(partial[0].billing.billAmountLabel, 'PKR 1,200');
+  assert.equal(partial[0].billing.receivedAmountLabel, 'PKR 300');
+  assert.equal(partial[0].billing.balanceDueLabel, 'PKR 900');
+  assert.equal(partial[0].receipts[0].date, '2026-09-12');
+  assert.equal(partial[0].receipts[0].method, 'Easypaisa');
+  const paid = buildGlobalLedgerSearch(state, 'Paid', '2026-09');
+  assert.deepEqual(paid.map(result => result.customer.id), ['seed-002']);
+  assert.equal(paid[0].billing.statusLabel, 'Paid');
+});
+
+test('WhatsApp receipt draft encodes one customer’s amount, date, method, and bill context for manual review', () => {
+  const draft = createReceiptWhatsAppDraft('+92 (300) 123-4567', {
+    customerName:"O'Brien & Sons",
+    customerNumber:7,
+    amount:1250,
+    date:'2026-09-12',
+    method:'Easypaisa',
+    month:'2026-09'
+  });
+  assert.ok(draft);
+  const url = new URL(draft.url);
+  assert.equal(url.origin, 'https://wa.me');
+  assert.equal(url.pathname, '/923001234567');
+  assert.equal(url.searchParams.get('text'), draft.message);
+  assert.match(draft.url, /%0A/);
+  assert.match(draft.url, /%26/);
+  for (const detail of ['O\'Brien & Sons', 'Customer #: 7', 'Amount received: PKR 1,250', 'Date: 2026-09-12', 'Payment method: Easypaisa', 'Bill month: 2026-09']) assert.ok(draft.message.includes(detail));
+  assert.doesNotMatch(draft.message, /Other Customer|Other receipt/);
+});
+
+test('invalid or incomplete phone/receipt data never produces a WhatsApp draft; opening a draft never auto-sends', () => {
+  const receipt = { customerName:'Synthetic Customer', customerNumber:1, amount:10, date:'2026-09-12', method:'Cash', month:'2026-09' };
+  assert.equal(createReceiptWhatsAppDraft('0300-1234567', receipt), null);
+  assert.equal(createReceiptWhatsAppDraft('not-a-number', receipt), null);
+  assert.equal(createReceiptWhatsAppDraft('+92 300 123 4567', { ...receipt, date:'2026-02-30' }), null);
+  assert.equal(createReceiptWhatsAppDraft('+92 300 123 4567', { ...receipt, amount:0 }), null);
+  assert.equal(createReceiptWhatsAppDraft('+92 300 123 4567', { ...receipt, method:'Unknown' }), null);
+  assert.match(app, /receiptWhatsAppActionMarkup/);
+  assert.match(app, /href="\$\{escapeHtml\(draft\.url\)\}" target="_blank" rel="noopener noreferrer"/);
+  assert.doesNotMatch(app, /fetch\([^)]*wa\.me|window\.open\([^)]*wa\.me|sendText|autoSend/i);
 });

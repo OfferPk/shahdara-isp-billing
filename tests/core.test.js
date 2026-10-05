@@ -64,6 +64,14 @@ test('profile address, optional phone, package values, and prices persist; blank
   assert.equal(customer.monthlySellingAmount, 60.75);
 });
 
+test('international WhatsApp number stays on the local customer profile after save and reload', () => {
+  const storage = store();
+  const savedNumber = '+92 (300) 123-4567';
+  const state = profile(createInitialState(), 'seed-001', { phone:savedNumber });
+  persistState(state, storage);
+  assert.equal(readState(storage).customers[0].phone, savedNumber);
+});
+
 test('legacy local profiles gain safe defaults without rewriting raw data or existing bill history', () => {
   const storage = store();
   const raw = JSON.stringify({ version:1, customers:[{ id:'legacy-1', name:'NAZEER', mohalla:'', monthlySellingAmount:100, bills:[{ id:'b1', month:currentMonth, dueAmount:50, status:'pending', payments:[] }] }] });
@@ -467,6 +475,24 @@ test('all-customer transactions are newest first, filter by date, and share name
   assert.deepEqual(listTransactions(state, { customerQuery:'Building 31' }, referenceDate).map(row => row.customerId), ['seed-001']);
   assert.deepEqual(listTransactions(state, { customerQuery:'#74' }, referenceDate).map(row => row.customerNumber), [74]);
   assert.deepEqual(listTransactions(state, { customerQuery:'NAZ' }, referenceDate).map(row => row.customerId), ['seed-001']);
+});
+
+test('global search finds customers by saved bill status, amount, and exact receipt details across customers', () => {
+  let state = createInitialState();
+  state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'1200', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-12', amount:'300', method:'Easypaisa' }), referenceDate);
+  state = saveBillMonth(state, 'seed-002', { month:currentMonth, dueAmount:'800', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-002', currentMonth, payment({ date:'2026-09-13', amount:'800', method:'JazzCash' }), referenceDate);
+
+  assert.deepEqual(searchCustomers(state, 'partial').map(row => row.id), ['seed-001']);
+  assert.deepEqual(searchCustomers(state, 'paid').map(row => row.id), ['seed-002']);
+  assert.deepEqual(searchCustomers(state, 'PKR 1,200').map(row => row.id), ['seed-001']);
+  assert.deepEqual(searchCustomers(state, 'Easypaisa').map(row => row.id), ['seed-001']);
+  assert.deepEqual(searchCustomers(state, '2026-09-12').map(row => row.id), ['seed-001']);
+  assert.deepEqual(listTransactions(state, { customerQuery:'Easypaisa' }, referenceDate).map(row => row.customerId), ['seed-001']);
+  assert.deepEqual(listTransactions(state, { customerQuery:'Paid' }, referenceDate).map(row => row.customerId), ['seed-002']);
+  assert.deepEqual(listTransactions(state, { customerQuery:'Partial' }, referenceDate).map(row => row.customerId), ['seed-001']);
+  assert.deepEqual(listTransactions(state, { customerQuery:'Easypaisa', date:'2026-09-13' }, referenceDate), []);
 });
 
 test('monthly report classifies priced customers, shows unconfigured rows as Not set, and never calls them unpaid', () => {

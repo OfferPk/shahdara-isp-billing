@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.3.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.3.2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.3.1">
+  <link rel="stylesheet" href="./styles.css?v=1.3.2">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -159,8 +159,9 @@
           <p id="transactionsCount" class="transactions-count" role="status">0 transactions</p>
         </div>
         <div class="transaction-filters">
-          <p class="transaction-filter-help">Global search also matches saved payment date, amount and method, plus bill status and amount across history. This payment-date filter still applies here. Each actual receipt stays one transaction; derived auto-credit allocations never add cash entries.</p>
-          <label for="transactionDateFilter">Filter by payment date<input id="transactionDateFilter" type="date"></label>
+          <p id="transactionFilterHelp" class="transaction-filter-help">Customer search, recency, and exact payment date combine. Recent windows use actual payment dates in Pakistan local time—not the bill month—and include today. Results stay newest first. Each actual receipt stays one transaction; derived auto-credit allocations never add cash entries.</p>
+          <label for="transactionRecencyFilter">Recent payments<select id="transactionRecencyFilter" aria-describedby="transactionFilterHelp"><option value="all" selected>All history</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label>
+          <label for="transactionDateFilter">Exact payment date<input id="transactionDateFilter" type="date"></label>
           <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
         </div>
         <ul id="transactionsList" class="transactions-list" aria-label="All recorded payments"></ul>
@@ -260,6 +261,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.3.1"></script>
+  <script type="module" src="./app.js?v=1.3.2"></script>
 </body>
 </html>

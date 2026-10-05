@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createInitialState, saveBillMonth, addPayment, calculatePaymentAllocations } from '../core.js';
+import { createInitialState, saveBillMonth, addPayment, calculatePaymentAllocations, listTransactions } from '../core.js';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft } from '../profile-ui.js';
 
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
@@ -161,4 +161,57 @@ test('invalid or incomplete phone/receipt data never produces a WhatsApp draft; 
   assert.match(app, /receiptWhatsAppActionMarkup/);
   assert.match(app, /href="\$\{escapeHtml\(draft\.url\)\}" target="_blank" rel="noopener noreferrer"/);
   assert.doesNotMatch(app, /fetch\([^)]*wa\.me|window\.open\([^)]*wa\.me|sendText|autoSend/i);
+});
+
+test('fully paid receipt states the next fifth from the bill month and includes the warm 5th/12th reminder', () => {
+  const octoberReceipt = {
+    customerName:'Synthetic Test Customer', customerNumber:1, amount:1200, date:'2026-10-05', method:'Easypaisa', month:'2026-10',
+    billStatus:'paid', billAmount:1200, balanceDueCents:0, billDueDate:'2026-10-05'
+  };
+  const original = JSON.stringify(octoberReceipt);
+  const octoberDraft = createReceiptWhatsAppDraft('+92 300 123 4567', octoberReceipt);
+  assert.equal(JSON.stringify(octoberReceipt), original, 'draft creation does not mutate the stored receipt context');
+  for (const detail of ['Bill status: Paid', 'Bill amount: PKR 1,200', 'Remaining balance: PKR 0', 'Next bill due: November 5, 2026', 'pay by the 5th', 'by the 12th', 'may be temporarily suspended', 'service will be restored after payment is received and confirmed']) {
+    assert.ok(octoberDraft.message.toLowerCase().includes(detail.toLowerCase()), `receipt contains ${detail}`);
+  }
+
+  const yearBoundaryDraft = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    ...octoberReceipt, date:'2027-01-20', month:'2026-12', billDueDate:'2026-12-05'
+  });
+  assert.match(yearBoundaryDraft.message, /Next bill due: January 5, 2027/);
+  assert.doesNotMatch(yearBoundaryDraft.message, /Next bill due: February 5, 2027/);
+});
+
+test('partial receipt shows the outstanding balance and saved current due date but never advances to the next cycle or claims Paid', () => {
+  const draft = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-10', method:'Cash', month:'2026-10',
+    billStatus:'partial', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-10-05'
+  });
+  for (const detail of ['Amount received: PKR 300', 'Bill status: Partial', 'Bill amount: PKR 1,200', 'Remaining balance: PKR 900', 'Current bill due date: October 5, 2026', 'by the 12th', 'may be temporarily suspended', 'service will be restored after payment is received and confirmed']) {
+    assert.ok(draft.message.toLowerCase().includes(detail.toLowerCase()), `partial receipt contains ${detail}`);
+  }
+  assert.doesNotMatch(draft.message, /Bill status: Paid|Next bill due:/);
+
+  const contradictoryPaidDraft = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-10', method:'Cash', month:'2026-10',
+    billStatus:'paid', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-10-05'
+  });
+  assert.doesNotMatch(contradictoryPaidDraft.message, /Bill status: Paid|Next bill due:/);
+});
+
+test('transaction-history receipt drafts use the saved bill status, balance and due date', () => {
+  const referenceDate = new Date('2026-10-04T19:00:00.000Z');
+  let state = createInitialState(['Synthetic Receipt QA']);
+  state = saveBillMonth(state, 'seed-001', { month:'2026-10', dueAmount:'1200', dueDate:'2026-10-05', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', '2026-10', { date:'2026-10-10', amount:'300', method:'Easypaisa' }, referenceDate);
+  const [row] = listTransactions(state, {}, referenceDate);
+  assert.equal(row.status, 'partial');
+  assert.equal(row.billAmount, 1200);
+  assert.equal(row.balanceDueCents, 90000);
+  assert.equal(row.billDueDate, '2026-10-05');
+  const draft = createReceiptWhatsAppDraft('+92 300 123 4567', row);
+  assert.match(draft.message, /Bill status: Partial/);
+  assert.match(draft.message, /Remaining balance: PKR 900/);
+  assert.match(draft.message, /Current bill due date: October 5, 2026/);
+  assert.doesNotMatch(draft.message, /Next bill due:/);
 });

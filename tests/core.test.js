@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   INITIAL_NAMES, PAYMENT_METHODS, createInitialState, readState, persistState,
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateMohalla, updateCustomerProfile, searchCustomers, generateMonthlyBillsThroughCurrentMonth,
-  saveBillMonth, addPayment, correctPayment, deletePayment, recordedAmount, monthsForHistory,
+  saveBillMonth, addPayment, correctPayment, deletePayment, recordedAmount, monthsForHistory, nextCycleDueDateFromBillMonth,
   customerPackageProfit, calculateDashboard, calculatePaymentAllocations, listTransactions, buildMonthlyReport,
   effectiveBillStatus, derivedBillStatus, filterCustomersByStatus, addIncident, updateIncident, deleteIncident, countCustomerIncidentsLast30Days,
   exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
@@ -475,6 +475,43 @@ test('all-customer transactions are newest first, filter by date, and share name
   assert.deepEqual(listTransactions(state, { customerQuery:'Building 31' }, referenceDate).map(row => row.customerId), ['seed-001']);
   assert.deepEqual(listTransactions(state, { customerQuery:'#74' }, referenceDate).map(row => row.customerNumber), [74]);
   assert.deepEqual(listTransactions(state, { customerQuery:'NAZ' }, referenceDate).map(row => row.customerId), ['seed-001']);
+});
+
+test('transaction recency windows use inclusive Pakistan-local payment dates and intersect with name/date filters', () => {
+  const pktMidnight = new Date('2026-10-04T19:00:00.000Z');
+  const justBeforePktMidnight = new Date('2026-10-04T18:59:59.999Z');
+  let state = createInitialState(['Synthetic Recency A','Synthetic Recency B','Synthetic Recency C','Synthetic Recency D','Synthetic Recency E','Synthetic Recency F','Synthetic Recency G']);
+  state = saveBillMonth(state, 'seed-001', { month:'2026-10', dueAmount:'30', dueDate:'2026-10-05', status:'pending' }, pktMidnight);
+  state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-10-01', amount:'10' }), pktMidnight);
+  state = addPayment(state, 'seed-001', '2026-09', payment({ date:'2026-09-29', amount:'20' }), pktMidnight);
+  state = addPayment(state, 'seed-001', '2026-10', payment({ date:'2026-10-05', amount:'30' }), pktMidnight);
+  state = saveBillMonth(state, 'seed-002', { month:'2026-10', dueAmount:'100', status:'pending' }, pktMidnight);
+  state = addPayment(state, 'seed-002', '2026-10', payment({ date:'2026-09-28', amount:'40' }), pktMidnight);
+  state = addPayment(state, 'seed-003', '2026-10', payment({ date:'2026-10-06', amount:'50' }), pktMidnight);
+  state = addPayment(state, 'seed-004', '2026-07', payment({ date:'2026-07-08', amount:'60' }), pktMidnight);
+  state = addPayment(state, 'seed-005', '2026-07', payment({ date:'2026-07-07', amount:'70' }), pktMidnight);
+  state = addPayment(state, 'seed-006', '2026-09', payment({ date:'2026-09-06', amount:'80' }), pktMidnight);
+  state = addPayment(state, 'seed-007', '2026-09', payment({ date:'2026-09-05', amount:'90' }), pktMidnight);
+
+  const allHistory = listTransactions(state, {}, pktMidnight);
+  assert.deepEqual(allHistory.map(row => row.date), ['2026-10-06','2026-10-05','2026-10-01','2026-09-29','2026-09-28','2026-09-06','2026-09-05','2026-07-08','2026-07-07']);
+  assert.equal(allHistory.find(row => row.date === '2026-10-05').status, 'paid');
+  assert.equal(allHistory.find(row => row.date === '2026-10-05').balanceDueCents, 0);
+
+  const last7 = listTransactions(state, { recencyDays:7 }, pktMidnight);
+  assert.deepEqual(last7.map(row => row.date), ['2026-10-05','2026-10-01','2026-09-29']);
+  assert.equal(last7.find(row => row.date === '2026-10-01').month, '2026-08', 'an old bill month is included when its actual payment date is recent');
+  assert.ok(!last7.some(row => row.month === '2026-10' && row.date === '2026-09-28'), 'a current bill month is excluded when its actual payment date is old');
+  assert.deepEqual(listTransactions(state, { recencyDays:30 }, pktMidnight).map(row => row.date), ['2026-10-05','2026-10-01','2026-09-29','2026-09-28','2026-09-06']);
+  assert.deepEqual(listTransactions(state, { recencyDays:90 }, pktMidnight).map(row => row.date), ['2026-10-05','2026-10-01','2026-09-29','2026-09-28','2026-09-06','2026-09-05','2026-07-08']);
+  assert.ok(listTransactions(state, { recencyDays:7 }, justBeforePktMidnight).some(row => row.date === '2026-09-28'), 'the local calendar day boundary advances at midnight PKT, not UTC midnight');
+
+  assert.deepEqual(listTransactions(state, { customerQuery:'Synthetic Recency A', date:'2026-10-05', recencyDays:7 }, pktMidnight).map(row => row.customerId), ['seed-001']);
+  assert.deepEqual(listTransactions(state, { customerQuery:'Synthetic Recency A', date:'2026-09-28', recencyDays:7 }, pktMidnight), [], 'exact date and customer search intersect with recency');
+  assert.deepEqual(listTransactions(state, { date:'2026-09-28' }, pktMidnight).map(row => row.customerId), ['seed-002'], 'clearing recency restores the exact-date-only history');
+  assert.deepEqual(listTransactions(state, { recencyDays:'all' }, pktMidnight), allHistory, 'All history preserves the original newest-first ledger');
+  assert.deepEqual(listTransactions(state, { customerQuery:'No matching synthetic customer', recencyDays:7 }, pktMidnight), [], 'no matches produce an empty result');
+  assert.throws(() => listTransactions(state, { recencyDays:14 }, pktMidnight), /Choose All history, Last 7 days/);
 });
 
 test('global search finds customers by saved bill status, amount, and exact receipt details across customers', () => {
@@ -977,6 +1014,16 @@ test('optional due dates are validated, shown in PKT reports/exports and add no 
   assert.equal(calculateDashboard(createInitialState(), karachiMidnight).today, '2026-10-01');
   assert.equal(monthsForHistory(nearMidnight)[0], '2026-09');
   assert.equal(monthsForHistory(karachiMidnight)[0], '2026-10');
+});
+
+test('next-cycle due date derives from the bill month and rolls across month and year boundaries', () => {
+  assert.equal(nextCycleDueDateFromBillMonth('2026-10'), '2026-11-05');
+  assert.equal(nextCycleDueDateFromBillMonth('2026-11'), '2026-12-05');
+  assert.equal(nextCycleDueDateFromBillMonth('2026-12'), '2027-01-05');
+  assert.equal(nextCycleDueDateFromBillMonth('2027-01'), '2027-02-05');
+  assert.equal(nextCycleDueDateFromBillMonth('2026-13'), null);
+  assert.equal(nextCycleDueDateFromBillMonth('0000-12'), null);
+  assert.equal(nextCycleDueDateFromBillMonth('9999-12'), null);
 });
 
 test('archiving preserves profile number, bills, receipts and credit; unarchive resumes without duplicate or archived-month bills', () => {

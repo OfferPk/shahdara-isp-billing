@@ -1,4 +1,4 @@
-import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, searchCustomers } from './core.js';
+import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -13,6 +13,14 @@ const validCalendarDate = value => {
   const [, year, month, day] = match.map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
+const formatReceiptDate = value => {
+  if (!validCalendarDate(value)) return null;
+  const [year, month, day] = String(value).split('-').map(Number);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(12, 0, 0, 0);
+  return new Intl.DateTimeFormat('en-US', { month:'long', day:'numeric', year:'numeric', timeZone:'UTC' }).format(date);
 };
 const validMonth = value => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(value ?? ''));
 const safeLine = (value, limit = 120) => String(value ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, limit);
@@ -85,6 +93,16 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   const date = String(receipt?.date ?? '');
   const month = String(receipt?.month ?? '');
   if (!target || !name || !Number.isFinite(amount) || amount <= 0 || !validCalendarDate(date) || !validMonth(month) || !PAYMENT_METHODS.includes(method)) return null;
+  const billAmount = Number(receipt?.billAmount);
+  const balanceDueCents = Number(receipt?.balanceDueCents);
+  const hasBillContext = Number.isFinite(billAmount) && billAmount > 0 && Number.isSafeInteger(balanceDueCents) && balanceDueCents >= 0;
+  const requestedStatus = receipt?.billStatus ?? receipt?.status;
+  const billStatus = hasBillContext
+    ? requestedStatus === 'paid' && balanceDueCents === 0 ? 'paid'
+      : requestedStatus === 'partial' && balanceDueCents > 0 ? 'partial'
+        : requestedStatus === 'pending' && balanceDueCents > 0 ? 'pending'
+          : null
+    : null;
   const lines = [
     'Shahdara ISP Billing — Payment Receipt',
     `Customer: ${name}`,
@@ -94,6 +112,26 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
     `Payment method: ${method}`,
     `Bill month: ${month}`
   ];
+  if (billStatus) {
+    lines.push(`Bill status: ${{ paid:'Paid', partial:'Partial', pending:'Pending' }[billStatus]}`);
+    lines.push(`Bill amount: ${formatPKR(billAmount)}`);
+    if (billStatus === 'paid') {
+      lines.push(`Remaining balance: ${formatPKR(0)}`);
+      const nextBillDueLabel = formatReceiptDate(nextCycleDueDateFromBillMonth(month));
+      if (nextBillDueLabel) {
+        lines.push(`Next bill due: ${nextBillDueLabel}`);
+        lines.push(`Friendly reminder: Your next monthly bill is due by ${nextBillDueLabel}. Please try to pay by the 5th to help keep your service uninterrupted. If payment has not been received by the 12th, service may be temporarily suspended. Service will be restored after payment is received and confirmed. Thank you for your continued support.`);
+      }
+    } else {
+      lines.push(`${billStatus === 'partial' ? 'Remaining balance' : 'Balance due'}: ${formatPKR(balanceDueCents / 100)}`);
+      const currentBillDueLabel = formatReceiptDate(receipt?.billDueDate);
+      if (currentBillDueLabel) lines.push(`Current bill due date: ${currentBillDueLabel}`);
+      if (billStatus === 'partial') {
+        const settleBy = currentBillDueLabel ? ` by ${currentBillDueLabel}` : ' at your earliest convenience';
+        lines.push(`Friendly reminder: This payment is partial; ${formatPKR(balanceDueCents / 100)} remains due for this bill. Please settle the remaining balance${settleBy}. If the balance has not been received by the 12th, service may be temporarily suspended. Service will be restored after payment is received and confirmed. Thank you for your understanding.`);
+      }
+    }
+  }
   const message = lines.join('\n');
   return { url:`${target}?text=${encodeURIComponent(message)}`, message };
 }

@@ -5,14 +5,14 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.3.1';
+} from './core.js?v=1.3.2';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.3.1';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.3.1';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft } from './profile-ui.js?v=1.3.1';
+} from './phase3.js?v=1.3.2';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.3.2';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft } from './profile-ui.js?v=1.3.2';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -343,7 +343,7 @@ function renderHistory(customer) {
     const generatedNote = bill?.generated && bill.priceSnapshot !== null && bill.priceSnapshot !== undefined ? `<p class="bill-snapshot-note">Auto-generated from the saved selling price: ${escapeHtml(formatAmount(bill.priceSnapshot))}. This month’s snapshot stays unchanged if the price is edited later.</p>` : '';
     const payments = (bill?.payments ?? []).map(payment => {
       const allocation = paymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { date:payment.date, amount:payment.amount, method:payment.method, month, paymentId:payment.id })}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { date:payment.date, amount:payment.amount, method:payment.method, month, paymentId:payment.id, billStatus:status.value, billAmount:effectiveAmount, balanceDueCents:monthAllocation?.balanceDueCents ?? null, billDueDate:bill?.dueDate ?? null })}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
@@ -363,7 +363,9 @@ function renderHistory(customer) {
 }
 function renderTransactions() {
   const date = $('#transactionDateFilter').value;
-  const transactions = listTransactions(state, { customerQuery:searchQuery(), date });
+  const recencyValue = $('#transactionRecencyFilter').value;
+  const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
+  const transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
   const total = listTransactions(state).length;
   $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'}`;
   $('#transactionsEmpty').hidden = transactions.length > 0;
@@ -704,7 +706,8 @@ $('#currentBillPaymentShortcut').addEventListener('click', () => openPaymentEntr
 $('#showTransactionsButton').addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
 $('#showReportsButton').addEventListener('click', () => { switchView('reports'); renderMonthlyReport(); });
 $('#transactionDateFilter').addEventListener('input', renderTransactions);
-$('#clearTransactionFilters').addEventListener('click', () => { $('#transactionDateFilter').value = ''; $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
+$('#transactionRecencyFilter').addEventListener('change', renderTransactions);
+$('#clearTransactionFilters').addEventListener('click', () => { $('#transactionRecencyFilter').value = 'all'; $('#transactionDateFilter').value = ''; $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
 function setBillingMonth(month) {
   if (!monthsForHistory().includes(month)) return;
   selectedBillingMonth = month;

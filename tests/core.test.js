@@ -155,13 +155,46 @@ test('history is limited to exactly 24 months and old months are rejected', () =
   assert.throws(() => saveBillMonth(state, state.customers[0].id, { month:'2024-09', status:'pending' }, referenceDate), /last 24 months/);
 });
 
-test('accepts all four requested payment methods', () => {
+test('accepts all existing payment methods and both added shop-cash choices', () => {
   const state = createInitialState(); const customerId = state.customers[0].id;
-  assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','Bank Transfer']);
+  assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','Bank Transfer','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
   for (const [index, method] of PAYMENT_METHODS.entries()) {
     const next = addPayment(state, customerId, currentMonth, payment({ method, amount:String(index + 1) }), referenceDate);
     assert.equal(next.customers[0].bills[0].payments[0].method, method);
   }
+});
+
+test('payer is optional metadata on one payment, persists locally, and old payer-less receipts remain valid', () => {
+  const storage = store();
+  let state = createInitialState(['Synthetic Waseem Payer','Synthetic Hassan Payer','Synthetic Legacy Receipt']);
+  state = addPayment(state, 'seed-001', currentMonth, payment({ method:'Cash at Waseem Abbasi shop', paidBy:'Tanveer' }), referenceDate);
+  state = addPayment(state, 'seed-002', currentMonth, payment({ method:'Cash at Hassan shop', paidBy:'   ' }), referenceDate);
+  state = addPayment(state, 'seed-003', currentMonth, payment({ method:'Cash' }), referenceDate);
+
+  const [waseemReceipt] = state.customers[0].bills[0].payments;
+  const [hassanReceipt] = state.customers[1].bills[0].payments;
+  const [legacyReceipt] = state.customers[2].bills[0].payments;
+  assert.equal(waseemReceipt.paidBy, 'Tanveer');
+  assert.equal(hassanReceipt.method, 'Cash at Hassan shop');
+  assert.equal(Object.hasOwn(hassanReceipt, 'paidBy'), false, 'blank payer is not inferred or stored');
+  assert.equal(Object.hasOwn(legacyReceipt, 'paidBy'), false, 'old receipt shape needs no payer field');
+  assert.equal(state.customers[0].name, 'Synthetic Waseem Payer', 'payer does not replace customer identity');
+  assert.equal(listTransactions(state, { customerQuery:'Tanveer' }, referenceDate).length, 1);
+
+  persistState(state, storage);
+  state = readState(storage);
+  const restoredWaseem = state.customers[0].bills[0].payments[0];
+  assert.equal(restoredWaseem.paidBy, 'Tanveer');
+  assert.equal(listTransactions(state, {}, referenceDate).find(row => row.paymentId === restoredWaseem.id).paidBy, 'Tanveer');
+  assert.equal(listTransactions(state, {}, referenceDate).find(row => row.paymentId === legacyReceipt.id).paidBy, '');
+  assert.match(exportAllPayments(state), /Paid by: Tanveer/);
+  assert.match(exportCustomerHistory(state, 'seed-001'), /Paid by: Tanveer/);
+  assert.doesNotMatch(exportCustomerHistory(state, 'seed-003'), /Paid by:/);
+
+  state = correctPayment(state, 'seed-001', currentMonth, restoredWaseem.id, payment({ date:'2026-09-16', method:'Cash at Waseem Abbasi shop' }), referenceDate);
+  assert.equal(state.customers[0].bills[0].payments[0].paidBy, 'Tanveer', 'editing other receipt fields preserves saved payer when omitted');
+  state = correctPayment(state, 'seed-001', currentMonth, restoredWaseem.id, payment({ date:'2026-09-16', method:'Cash at Waseem Abbasi shop', paidBy:'' }), referenceDate);
+  assert.equal(Object.hasOwn(state.customers[0].bills[0].payments[0], 'paidBy'), false, 'an explicit blank correction clears only this receipt payer');
 });
 
 test('pending partial payments reduce the current selling amount and collection uses actual entries', () => {

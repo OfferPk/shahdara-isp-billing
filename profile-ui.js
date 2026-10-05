@@ -14,15 +14,18 @@ const validCalendarDate = value => {
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 };
+const validMonth = value => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(value ?? ''));
 const formatReceiptDate = value => {
   if (!validCalendarDate(value)) return null;
   const [year, month, day] = String(value).split('-').map(Number);
   const date = new Date(0);
   date.setUTCFullYear(year, month - 1, day);
   date.setUTCHours(12, 0, 0, 0);
-  return new Intl.DateTimeFormat('en-US', { month:'long', day:'numeric', year:'numeric', timeZone:'UTC' }).format(date);
+  return new Intl.DateTimeFormat('en-US', { month:'short', day:'numeric', year:'numeric', timeZone:'UTC' }).format(date).replace(',', '');
 };
-const validMonth = value => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(value ?? ''));
+const formatReceiptMonth = value => validMonth(value)
+  ? new Intl.DateTimeFormat('en-US', { month:'short', year:'numeric', timeZone:'UTC' }).format(new Date(`${value}-01T00:00:00Z`))
+  : null;
 const safeLine = (value, limit = 120) => String(value ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, limit);
 
 /** Present only a saved bill and the balance computed from existing payment allocations. */
@@ -92,7 +95,8 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   const customerNumber = Number(receipt?.customerNumber);
   const date = String(receipt?.date ?? '');
   const month = String(receipt?.month ?? '');
-  if (!target || !name || !Number.isFinite(amount) || amount <= 0 || !validCalendarDate(date) || !validMonth(month) || !PAYMENT_METHODS.includes(method)) return null;
+  if (!target || !name || !Number.isSafeInteger(customerNumber) || customerNumber < 1 || !Number.isFinite(amount) || amount <= 0 || !validCalendarDate(date) || !validMonth(month) || !PAYMENT_METHODS.includes(method)) return null;
+
   const billAmount = Number(receipt?.billAmount);
   const balanceDueCents = Number(receipt?.balanceDueCents);
   const hasBillContext = Number.isFinite(billAmount) && billAmount > 0 && Number.isSafeInteger(balanceDueCents) && balanceDueCents >= 0;
@@ -100,38 +104,58 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   const billStatus = hasBillContext
     ? requestedStatus === 'paid' && balanceDueCents === 0 ? 'paid'
       : requestedStatus === 'partial' && balanceDueCents > 0 ? 'partial'
-        : requestedStatus === 'pending' && balanceDueCents > 0 ? 'pending'
-          : null
+        : null
     : null;
+  const paidBy = safeLine(receipt?.paidBy, 100);
   const lines = [
-    'Shahdara ISP Billing — Payment Receipt',
-    `Customer: ${name}`,
-    ...(Number.isSafeInteger(customerNumber) && customerNumber > 0 ? [`Customer #: ${customerNumber}`] : []),
-    `Amount received: ${formatPKR(amount)}`,
-    `Date: ${date}`,
-    `Payment method: ${method}`,
-    `Bill month: ${month}`
+    '🧾 SHAHDARA ISP — PAYMENT RECEIPT',
+    '',
+    `👤 Customer: ${name}`,
+    `🆔 Customer #: ${customerNumber}`,
+    ...(paidBy ? [`Paid by: ${paidBy}`] : []),
+    '',
+    `💰 Amount ${billStatus === 'paid' ? 'Paid' : 'Received'}: ${formatPKR(amount)}`,
+    `📅 Payment Date: ${formatReceiptDate(date)}`,
+    `💳 Method: ${method}`,
+    `📆 Billing Month: ${formatReceiptMonth(month)}`
   ];
-  if (billStatus) {
-    lines.push(`Bill status: ${{ paid:'Paid', partial:'Partial', pending:'Pending' }[billStatus]}`);
-    lines.push(`Bill amount: ${formatPKR(billAmount)}`);
-    if (billStatus === 'paid') {
-      lines.push(`Remaining balance: ${formatPKR(0)}`);
-      const nextBillDueLabel = formatReceiptDate(nextCycleDueDateFromBillMonth(month));
-      if (nextBillDueLabel) {
-        lines.push(`Next bill due: ${nextBillDueLabel}`);
-        lines.push(`Friendly reminder: Your next monthly bill is due by ${nextBillDueLabel}. Please try to pay by the 5th to help keep your service uninterrupted. If payment has not been received by the 12th, service may be temporarily suspended. Service will be restored after payment is received and confirmed. Thank you for your continued support.`);
-      }
-    } else {
-      lines.push(`${billStatus === 'partial' ? 'Remaining balance' : 'Balance due'}: ${formatPKR(balanceDueCents / 100)}`);
-      const currentBillDueLabel = formatReceiptDate(receipt?.billDueDate);
-      if (currentBillDueLabel) lines.push(`Current bill due date: ${currentBillDueLabel}`);
-      if (billStatus === 'partial') {
-        const settleBy = currentBillDueLabel ? ` by ${currentBillDueLabel}` : ' at your earliest convenience';
-        lines.push(`Friendly reminder: This payment is partial; ${formatPKR(balanceDueCents / 100)} remains due for this bill. Please settle the remaining balance${settleBy}. If the balance has not been received by the 12th, service may be temporarily suspended. Service will be restored after payment is received and confirmed. Thank you for your understanding.`);
-      }
-    }
+
+  if (billStatus === 'paid') {
+    const nextBillDue = formatReceiptDate(nextCycleDueDateFromBillMonth(month)) ?? 'Not available';
+    lines.push(
+      '',
+      '✅ Status: PAID',
+      '💵 Outstanding: PKR 0',
+      '',
+      '━━━━━━━━━━━━━━',
+      `📅 Next Bill Due: ${nextBillDue}`,
+      '',
+      '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰'
+    );
+  } else if (billStatus === 'partial') {
+    const currentBillDue = formatReceiptDate(receipt?.billDueDate) ?? 'Not recorded';
+    lines.push(
+      '',
+      '🟠 Status: PARTIAL',
+      `💵 Outstanding: ${formatPKR(balanceDueCents / 100)}`,
+      `💳 Bill Amount: ${formatPKR(billAmount)}`,
+      `📅 Current Bill Due: ${currentBillDue}`
+    );
   }
+
   const message = lines.join('\n');
   return { url:`${target}?text=${encodeURIComponent(message)}`, message };
+}
+
+/** Bind each actual receipt only to its owning profile's saved number and identity. */
+export function resolveReceiptWhatsAppAction(customer, receipt) {
+  if (!customer?.id || !receipt || receipt.customerId !== customer.id) return { type:'unavailable', reason:'customer-mismatch' };
+  const phone = String(customer.phone ?? '').trim();
+  if (!contactActionTargets(phone)?.whatsapp) return { type:'phone-required', hasSavedPhone:Boolean(phone) };
+  const draft = createReceiptWhatsAppDraft(phone, {
+    ...receipt,
+    customerName:customer.name,
+    customerNumber:customer.customerNumber
+  });
+  return draft ? { type:'draft', draft } : { type:'unavailable', reason:'invalid-receipt' };
 }

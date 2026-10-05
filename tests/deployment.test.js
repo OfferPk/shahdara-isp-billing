@@ -23,15 +23,20 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v19'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v20'/);
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
   assert.match(app, /buildGlobalLedgerSearch\(state, query, selectedBillingMonth\)/);
-  assert.match(app, /createReceiptWhatsAppDraft\(customer\?\.phone/);
+  assert.match(app, /resolveReceiptWhatsAppAction\(customer, receipt\)/);
+  assert.match(profileUi, /export function resolveReceiptWhatsAppAction/);
   assert.match(core, /export function nextCycleDueDateFromBillMonth/);
   assert.match(profileUi, /nextCycleDueDateFromBillMonth\(month\)/);
   assert.match(app, /billStatus:status\.value/);
-  assert.match(profileUi, /If payment has not been received by the 12th/);
+  assert.match(profileUi, /Please pay by the 5th to avoid service interruption\. thanks 🥰/);
+  assert.match(profileUi, /Status: PARTIAL/);
+  assert.match(core, /Cash at Waseem Abbasi shop/);
+  assert.match(core, /Cash at Hassan shop/);
+  assert.match(app, /Paid by \(optional\)/);
   assert.doesNotMatch(profileUi, /fetch\s*\(|\b(?:RouterOS|RADIUS|OLT)\b/i);
   assert.doesNotMatch(app, /\b(?:suspendService|restoreService|RouterOS|RADIUS|OLT)\b/i);
   assert.match(index, /id="transactionRecencyFilter"[^>]*aria-describedby="transactionFilterHelp"/);
@@ -185,7 +190,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v19'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v20'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

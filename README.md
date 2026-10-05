@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Clarity follow-up · web build 1.2.9**
+**Ledger search and receipt drafts · web build 1.3.1**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -53,3 +53,12 @@ Open `http://localhost:8080`. Service workers require localhost or HTTPS. The au
 ## Android
 
 The owner asked to test the web app in a mobile browser before building an APK. No Android APK is built or published in this phase.
+
+
+## Global customer-ledger search and WhatsApp receipt drafts
+
+The global search covers local customer details and saved bill/receipt history, including bill status and amount plus actual payment date, amount and method. Matching customers show the selected month’s bill status, billed amount, cash received, balance due and recent actual receipt entries. Service/billing filters affect the customer list only; the transaction-date filter remains active on the transaction list, where the same global query searches history.
+
+The optional profile phone field stores the customer’s WhatsApp number locally on this device. Enter its full international form with the country calling code; the app does not guess one. From an actual saved receipt, the **WhatsApp receipt** link opens a prefilled `wa.me` message draft with customer/receipt details for the operator to review and send. The app never sends a message automatically or uploads customer records; selecting the link hands the draft to WhatsApp.
+
+Automated coverage includes cross-customer matches by Paid/Partial state and receipt details, local phone persistence, receipt text encoding, invalid/incomplete-number handling and the mobile-width search/payment-action layout rules.

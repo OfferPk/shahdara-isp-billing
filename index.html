@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.3.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.3.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.3.0">
+  <link rel="stylesheet" href="./styles.css?v=1.3.1">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -20,13 +20,13 @@
   </header>
   <aside class="data-loss-warning" role="note"><div><strong>Stored on this device only.</strong> Download a JSON backup regularly.</div><details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
   <main id="main">
-    <section class="global-search-region" aria-label="Global customer search">
+    <section class="global-search-region" aria-label="Global customer and ledger search">
       <div class="global-search-main">
-        <label class="global-search-label" for="globalCustomerSearch">Search customers by name, phone, address or ID</label>
-        <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, phone, address or ID"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
-        <p class="global-search-help">Search also filters customer and payment lists.</p>
+        <label class="global-search-label" for="globalCustomerSearch">Search customers and ledger by name, phone, ID, status, amount, date or method</label>
+        <div class="global-search-control"><input id="globalCustomerSearch" type="search" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-controls="globalCustomerOptionList" aria-expanded="false" autocomplete="off" placeholder="Name, ID, status, amount or method"><button id="clearGlobalSearch" class="secondary-button" type="button">Clear</button></div>
+        <p class="global-search-help">Search saved customers, bill status and amounts, and every actual receipt. Service/billing filters and the transaction-date filter remain active only on their own lists.</p>
       </div>
-      <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers"></div><p id="globalSearchResultCount" class="global-result-count"></p></div>
+      <div id="globalCustomerResults" class="global-customer-results" hidden><div id="globalCustomerOptionList" role="listbox" aria-label="Matching customers with billing and receipt detail"></div><p id="globalSearchResultCount" class="global-result-count"></p></div>
       <p id="globalSearchStatus" class="sr-only" role="status" aria-live="polite"></p>
     </section>
     <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">
@@ -111,7 +111,7 @@
                 <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="zoneInput"><span class="field-label">Zone <span class="optional-label">Optional · nested under area</span></span><input id="zoneInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="addressInput"><span class="field-label">Address <span class="optional-label">Optional</span></span><textarea id="addressInput" rows="2" maxlength="200" autocomplete="street-address" placeholder="Not set"></textarea></label>
-                <label class="profile-field" for="phoneInput"><span class="field-label">Phone number <span class="optional-label">Optional · never required</span></span><input id="phoneInput" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="Not set"></label>
+                <label class="profile-field" for="phoneInput"><span class="field-label">Phone / WhatsApp number <span class="optional-label">Optional · saved on this device</span></span><input id="phoneInput" type="tel" maxlength="40" inputmode="tel" autocomplete="tel" placeholder="+923001234567"><span class="profile-help">Use the full international number including country code to enable receipt drafts. No country code is guessed; the message is only drafted for review.</span></label>
                 <label class="profile-field" for="ispProviderInput"><span class="field-label">ISP / provider name <span class="optional-label">Optional · free text</span></span><input id="ispProviderInput" type="text" list="ispProviderOptions" maxlength="100" autocomplete="off" placeholder="Not set"><datalist id="ispProviderOptions"><option value="Nayatel"></option></datalist></label>
                 <label class="profile-field" for="serviceStatusInput"><span class="field-label">Service status <span class="optional-label">Manual · not a billing status · no monitoring</span></span><select id="serviceStatusInput"><option value="not-set">Not set</option><option value="active">Active</option><option value="offline">Offline</option></select></label>
                 <label class="profile-field" for="packageSpeedInput"><span class="field-label">Package / speed <span class="optional-label">Optional · choose a suggestion or enter custom text</span></span><input id="packageSpeedInput" type="text" list="packageSpeedOptions" maxlength="80" autocomplete="off" placeholder="Not set"><datalist id="packageSpeedOptions"><option value="5 Mbps"></option><option value="10 Mbps"></option><option value="15 Mbps"></option><option value="30 Mbps"></option></datalist></label>
@@ -159,7 +159,7 @@
           <p id="transactionsCount" class="transactions-count" role="status">0 transactions</p>
         </div>
         <div class="transaction-filters">
-          <p class="transaction-filter-help">Customer search above filters transactions by name, phone, address, or customer number. Each actual receipt stays one transaction; derived auto-credit allocations never add cash entries.</p>
+          <p class="transaction-filter-help">Global search also matches saved payment date, amount and method, plus bill status and amount across history. This payment-date filter still applies here. Each actual receipt stays one transaction; derived auto-credit allocations never add cash entries.</p>
           <label for="transactionDateFilter">Filter by payment date<input id="transactionDateFilter" type="date"></label>
           <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
         </div>
@@ -260,6 +260,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.3.0"></script>
+  <script type="module" src="./app.js?v=1.3.1"></script>
 </body>
 </html>

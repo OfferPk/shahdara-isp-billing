@@ -22,9 +22,12 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v17'/);
-  assert.match(index, /Search customers by name, phone, address or ID/);
-  assert.match(index, /placeholder="Name, phone, address or ID"/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v18'/);
+  assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
+  assert.match(index, /placeholder="Name, ID, status, amount or method"/);
+  assert.match(app, /buildGlobalLedgerSearch\(state, query, selectedBillingMonth\)/);
+  assert.match(app, /createReceiptWhatsAppDraft\(customer\?\.phone/);
+  assert.match(index, /No country code is guessed/);
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
   assert.match(styles, /text-align:\s*right/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
@@ -36,6 +39,8 @@ test('narrow mobile header and global search can flex and wrap instead of clippi
   assert.match(styles, /\.global-search-control input\s*\{[^}]*flex:\s*1 1 0;[^}]*min-width:\s*0;/);
   assert.match(styles, /\.global-search-control input::placeholder\s*\{[^}]*font-size:\s*11px/);
   assert.doesNotMatch(styles, /@media\s*\(max-width:\s*340px\)[^{]*\{[^}]*font-size:\s*13px/);
+  assert.ok(styles.includes('@media(max-width:620px){.global-result-option{gap:7px;padding:10px}'), 'mobile search results keep compact spacing');
+  assert.ok(styles.includes('.payment-row{align-items:flex-start;flex-wrap:wrap}.payment-main{flex:1 1 100%}.payment-actions,.transaction-actions{width:100%;justify-content:flex-start}'), 'mobile receipt and transaction actions wrap beneath their details');
 });
 
 test('customer-list empty-state renderer tolerates mismatched cached markup without aborting the app', () => {
@@ -164,7 +169,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v17'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v18'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

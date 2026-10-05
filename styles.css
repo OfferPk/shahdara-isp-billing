@@ -1050,3 +1050,20 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   .profile-view-heading h3{font-size:13px}
   .profile-edit-button{min-height:38px}
 }
+
+
+/* Global ledger search shows the bill summary and the exact saved receipt context together. */
+.global-result-option{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:start;gap:9px;min-height:0;padding:10px 12px;text-align:left}
+.global-result-number{padding-top:2px;white-space:nowrap}
+.global-result-copy{display:grid;gap:4px;min-width:0}
+.global-result-name{display:block;min-width:0;overflow-wrap:anywhere;font-weight:700;line-height:1.3}
+.global-result-ledger,.global-result-receipt{display:block;color:#5c7169;font-size:11px;font-weight:500;line-height:1.45;overflow-wrap:anywhere}
+.global-result-ledger .customer-billing-badge{min-height:22px;padding:2px 7px;font-size:10px;vertical-align:middle}
+.global-result-receipt{color:#71817c}
+.profile-contact-note{margin:8px 0 0;color:#667a72;font-size:11px;line-height:1.5}
+.receipt-whatsapp-action{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 9px;border:1px solid #bfd7cb;border-radius:8px;background:#f4faf6;color:#215b46;font:600 10px 'DM Sans',sans-serif;text-decoration:none;white-space:nowrap}
+.receipt-whatsapp-action:hover{background:#e8f5ed;border-color:#8fbda5}
+.receipt-whatsapp-action:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
+.whatsapp-receipt-unavailable{color:#798982;font-size:10px;line-height:1.4;text-align:center}
+.payment-actions,.transaction-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
+@media(max-width:620px){.global-result-option{gap:7px;padding:10px}.global-result-ledger,.global-result-receipt{font-size:10px}.payment-row{align-items:flex-start;flex-wrap:wrap}.payment-main{flex:1 1 100%}.payment-actions,.transaction-actions{width:100%;justify-content:flex-start}.receipt-whatsapp-action{min-height:38px;font-size:11px}}

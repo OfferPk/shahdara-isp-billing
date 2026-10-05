@@ -24,6 +24,7 @@ const monthKey = date => { const p = zonedParts(date, { year:'numeric', month:'2
 function shiftMonth(month, delta) { const [year, number] = month.split('-').map(Number); const index = year * 12 + number - 1 + delta; return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`; }
 const nextMonthKey = month => shiftMonth(month, 1);
 const dateKey = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
+const offsetDateKey = (date, days) => { const shifted = new Date(`${date}T00:00:00.000Z`); shifted.setUTCDate(shifted.getUTCDate() + days); return shifted.toISOString().slice(0, 10); };
 const localDateTimeValue = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
 function parseLocalDateTime(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(value ?? ''));
@@ -123,6 +124,16 @@ export function monthsForHistory(referenceDate = new Date()) {
   return Array.from({ length:MONTH_LIMIT }, (_, i) => shiftMonth(current, -i));
 }
 
+/** Derive the following cycle's fifth from the bill period, never the payment date. */
+export function nextCycleDueDateFromBillMonth(month) {
+  if (!validMonthString(month)) return null;
+  const [year, monthNumber] = month.split('-').map(Number);
+  if (year < 1 || (year === 9999 && monthNumber === 12)) return null;
+  const nextYear = monthNumber === 12 ? year + 1 : year;
+  const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+  return `${String(nextYear).padStart(4, '0')}-${String(nextMonth).padStart(2, '0')}-05`;
+}
+
 /**
  * Generate one immutable bill snapshot for each missing retained month on or after
  * the customer's saved price-effective month. Runs locally when the app opens,
@@ -164,17 +175,43 @@ export function addCustomer(state, name, referenceDate = new Date()) {
   return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
-function customerMatchesQuery(customer, query) {
-  const normalized = String(query ?? '').trim().toLocaleLowerCase();
+function customerMatchesQuery(customer, query, allocations = null) {
+  const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
-  const fields = [customer.name, customer.phone, customer.address].map(value => String(value ?? '').toLocaleLowerCase());
+  const fields = [customer.name, customer.phone ?? customer.customerPhone, customer.address ?? customer.customerAddress, customer.customerNumber]
+    .map(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase());
   if (fields.some(value => value.includes(normalized))) return true;
   const numberQuery = normalized.replace(/^#\s*/, '').trim();
-  return /^\d+$/.test(numberQuery) && String(customer.customerNumber ?? '').includes(numberQuery);
+  if (/^\d+$/.test(numberQuery) && String(customer.customerNumber ?? '').includes(numberQuery)) return true;
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  if (!bills.length) return false;
+  const ledgerAllocations = allocations ?? calculatePaymentAllocations({ customers:[customer] });
+  const ledgerFields = [];
+  for (const bill of bills) {
+    const status = derivedBillStatus(customer, bill, ledgerAllocations);
+    const summary = ledgerAllocations.forMonth?.(customer.id, bill.month);
+    const billAmount = bill.dueAmount;
+    const received = (bill.payments ?? []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+    const balance = summary?.balanceDueCents === null || summary?.balanceDueCents === undefined ? null : summary.balanceDueCents / 100;
+    ledgerFields.push(bill.month, bill.id, status, billAmount, received, balance);
+    for (const amount of [billAmount, received, balance]) if (amount !== null && amount !== undefined && amount !== '') ledgerFields.push(formatPKR(amount));
+    for (const payment of bill.payments ?? []) ledgerFields.push(payment.id, payment.date, payment.method, payment.amount, formatPKR(payment.amount));
+  }
+  return ledgerFields.some(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase().includes(normalized));
+}
+
+function transactionMatchesQuery(row, query) {
+  const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+  if (!normalized) return true;
+  const fields = [row.customerName, row.customerNumber, row.customerPhone, row.customerAddress, row.month, row.date, row.method, row.status, row.paymentId, row.amount, formatPKR(row.amount), `#${row.customerNumber}`];
+  return customerMatchesQuery({ name:row.customerName, customerNumber:row.customerNumber, customerPhone:row.customerPhone, customerAddress:row.customerAddress }, normalized)
+    || fields.some(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase().includes(normalized));
 }
 
 export function searchCustomers(state, query = '') {
-  return state.customers.filter(customer => customerMatchesQuery(customer, query));
+  if (!String(query ?? '').normalize('NFKC').trim()) return state.customers.slice();
+  const allocations = calculatePaymentAllocations(state);
+  return state.customers.filter(customer => customerMatchesQuery(customer, query, allocations));
 }
 
 export function derivedBillStatus(customer, bill, allocations = null) {
@@ -209,7 +246,7 @@ export function filterCustomersByStatus(state, { serviceStatus = 'all', billingS
   if (!['all','paid','pending','partial','not-set'].includes(billingStatus)) throw new Error('Choose All, Paid, Pending, Partial, or Not set for billing status.');
   const allocations = calculatePaymentAllocations(state);
   return state.customers.filter(customer => {
-    if (!customerMatchesQuery(customer, customerQuery)) return false;
+    if (!customerMatchesQuery(customer, customerQuery, allocations)) return false;
     if (serviceStatus !== 'all' && (customer.serviceStatus ?? 'not-set') !== serviceStatus) return false;
     if (billingStatus === 'all') return true;
     const bill = (customer.bills ?? []).find(item => item.month === month);
@@ -578,8 +615,12 @@ export function effectiveBillStatus(customer, bill, referenceDate = new Date()) 
   return status === 'paid' ? 'received' : status === 'not-set' ? 'not-recorded' : 'pending';
 }
 
-export function listTransactions(state, { customerQuery = '', date = '' } = {}, referenceDate = new Date()) {
+export function listTransactions(state, { customerQuery = '', date = '', recencyDays = null } = {}, referenceDate = new Date()) {
   const query = String(customerQuery).trim().toLocaleLowerCase();
+  const windowDays = recencyDays === null || recencyDays === undefined || recencyDays === '' || recencyDays === 'all' ? null : Number(recencyDays);
+  if (windowDays !== null && ![7, 30, 90].includes(windowDays)) throw new Error('Choose All history, Last 7 days, Last 30 days, or Last 90 days.');
+  const throughDate = windowDays === null ? null : dateKey(referenceDate);
+  const fromDate = windowDays === null ? null : offsetDateKey(throughDate, 1 - windowDays);
   const allocations = calculatePaymentAllocations(state);
   return state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).map(payment => ({
     id: payment.id,
@@ -591,12 +632,15 @@ export function listTransactions(state, { customerQuery = '', date = '' } = {}, 
     customerPhone: customer.phone,
     customerAddress: customer.address,
     month: bill.month,
+    billAmount: bill.dueAmount ?? null,
+    balanceDueCents: allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? null,
+    billDueDate: bill.dueDate ?? null,
     status: billStatusWithAllocations(customer, bill, allocations),
     date: payment.date,
     amount: Number(payment.amount),
     method: payment.method,
     allocation:allocations.byPaymentId.get(payment.id)
-  })))).filter(row => customerMatchesQuery({ name:row.customerName, phone:row.customerPhone, address:row.customerAddress, customerNumber:row.customerNumber }, query) && (!date || row.date === date))
+  })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));
 }
 
@@ -605,7 +649,7 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
   if (statusFilter === 'unpaid') statusFilter = 'pending';
   if (!['all', 'paid', 'pending', 'partial', 'not-set'].includes(statusFilter)) throw new Error('Choose All, Paid, Pending, Partial, or Not set.');
   const allocations = calculatePaymentAllocations(state);
-  return state.customers.filter(customer => customerMatchesQuery(customer, customerQuery)).map(customer => {
+  return state.customers.filter(customer => customerMatchesQuery(customer, customerQuery, allocations)).map(customer => {
     const bill = customer.bills.find(item => item.month === month);
     const configuredAmount = bill?.dueAmount ?? null;
     const amountReceived = recordedAmount(bill);

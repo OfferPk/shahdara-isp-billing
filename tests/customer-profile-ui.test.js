@@ -166,6 +166,8 @@ test('each actual profile-history receipt has one customer-bound draft action an
   assert.match(app, /selectCustomer\(customerId\);[\s\S]*?profileEditMode = true;[\s\S]*?activateProfileTab\('info'\);[\s\S]*?phoneInput\.focus\(\)/);
   assert.match(app, /class="receipt-phone-help"/);
   assert.match(styles, /\.receipt-whatsapp-action,\.receipt-phone-help\{[^}]*min-height:44px/);
+  assert.match(app, /class="receipt-network-note">Internet required to open WhatsApp\./);
+  assert.match(app, /an internet connection is required to open WhatsApp/);
 });
 
 test('receipt draft safely encodes actual customer and payment fields', () => {

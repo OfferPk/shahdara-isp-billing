@@ -23,11 +23,13 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v23'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v24'/);
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
   assert.match(app, /buildGlobalLedgerSearch\(state, query, selectedBillingMonth\)/);
   assert.match(app, /resolveReceiptWhatsAppAction\(customer, receipt\)/);
+  assert.match(app, /class="receipt-network-note">Internet required to open WhatsApp\./);
+  assert.match(app, /an internet connection is required to open WhatsApp/);
   assert.match(profileUi, /export function resolveReceiptWhatsAppAction/);
   assert.match(core, /export function nextCycleDueDateFromBillMonth/);
   assert.match(profileUi, /nextCycleDueDateFromBillMonth\(month\)/);
@@ -223,7 +225,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v23'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v24'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

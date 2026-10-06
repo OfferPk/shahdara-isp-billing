@@ -159,7 +159,9 @@ test('each actual profile-history receipt has one customer-bound draft action an
   assert.equal((paymentRenderer.match(/receiptWhatsAppActionMarkup\(/g) ?? []).length, 1);
   assert.match(paymentRenderer, /customerId:customer\.id/);
   assert.match(paymentRenderer, /paymentId:payment\.id/);
-  assert.match(app, /receiptWhatsAppActionMarkup\(customer, transaction\)/);
+  assert.match(app, /receiptWhatsAppActionMarkup\(customer,\s*\{\s*\.\.\.transaction/);
+  assert.match(app, /billStatus:receiptBillStatus/);
+  assert.match(app, /balanceDueCents:receiptData\?\.balanceDueCents/);
   assert.match(app, /function bindReceiptPhoneActions\(container\)/);
   assert.match(app, /bindReceiptPhoneActions\(historyContainer\)/);
   assert.match(app, /bindReceiptPhoneActions\(transactionList\)/);
@@ -314,7 +316,7 @@ test('new-payment and correction forms expose an optional, non-autofilled payer 
   assert.match(app, /autocomplete="off"/);
   assert.match(app, /paidBy:data\.get\('paidBy'\)/);
   assert.match(app, /paidBy:payment\.paidBy/);
-  assert.match(app, /receiptWhatsAppActionMarkup\(customer, transaction\)/);
+  assert.match(app, /receiptWhatsAppActionMarkup\(customer,\s*\{\s*\.\.\.transaction/);
   assert.match(app, /correctPayment\(state,[^\n]*paidBy:data\.get\('paidBy'\)/);
   assert.match(app, /function paymentPayerMarkup\(payment\)/);
   assert.match(app, /Paid by: \$\{escapeHtml\(paidBy\)\}/);

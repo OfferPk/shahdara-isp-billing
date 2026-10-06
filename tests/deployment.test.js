@@ -9,6 +9,7 @@ const app = read('app.js');
 const core = read('core.js');
 const phase3 = read('phase3.js');
 const profileUi = read('profile-ui.js');
+const receipt = read('receipt.js');
 const styles = read('styles.css');
 const worker = read('sw.js');
 
@@ -19,11 +20,12 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(app, new RegExp(`from '\\./phase3\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   assert.match(app, new RegExp(`from '\\./profile-labels\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   assert.match(app, new RegExp(`from '\\./profile-ui\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
+  assert.match(app, new RegExp(`from '\\./receipt\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   const register = index.indexOf(`navigator.serviceWorker.register('./sw.js?v=${version}'`);
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v25'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v26'/);
   assert.equal((app.match(/max="\$\{localDate\(\)\}"/g) ?? []).length, 2, 'new receipts and corrections use the current Pakistan-local date as their maximum');
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
@@ -34,7 +36,8 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(profileUi, /export function resolveReceiptWhatsAppAction/);
   assert.match(core, /export function nextCycleDueDateFromBillMonth/);
   assert.match(profileUi, /nextCycleDueDateFromBillMonth\(month\)/);
-  assert.match(app, /billStatus:status\.value/);
+  assert.match(app, /billStatus:receiptData\.status === 'PAID'/);
+  assert.match(app, /balanceDueCents:receiptData\.balanceDueCents/);
   assert.match(profileUi, /Received date:/);
   assert.match(profileUi, /receiptMonthDate\(month, 1\)/);
   assert.match(profileUi, /Package date: \$\{packageDate\} \(renewal day: 1st of every month\)/);
@@ -63,7 +66,11 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
   assert.match(styles, /text-align:\s*right/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
-  for (const asset of ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+  for (const asset of ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./receipt.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+  assert.match(app, /data-print-receipt/);
+  assert.match(app, /Balance due after this payment/);
+  assert.match(styles, /@media print/);
+  assert.match(receipt, /calculatePaymentAllocations/);
 });
 
 test('customer-list search controls and combines with billing status filtering', () => {
@@ -226,7 +233,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v25'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v26'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

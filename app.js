@@ -326,7 +326,7 @@ function receiptWhatsAppActionMarkup(customer, receipt) {
     return `<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
   }
   if (action.type !== 'draft') return '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
-  return `<a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; it will not send automatically">WhatsApp receipt</a>`;
+  return `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">WhatsApp receipt</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
 }
 function editCustomerPhoneFromReceipt(customerId) {
   if (!customerId || !state.customers.some(customer => customer.id === customerId)) return;

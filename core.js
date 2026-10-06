@@ -432,9 +432,10 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
 
-function validatePayment({ date, amount, method, paidBy }) {
+function validatePayment({ date, amount, method, paidBy }, referenceDate = new Date()) {
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
+  if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
   const cents = checkPositiveAmount(amount);
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
   const payer = String(paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
@@ -445,7 +446,7 @@ function validatePayment({ date, amount, method, paidBy }) {
 export function addPayment(state, customerId, month, fields, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
-  const payment = { id: makeId(), ...validatePayment(fields) };
+  const payment = { id: makeId(), ...validatePayment(fields, referenceDate) };
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
@@ -458,7 +459,7 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   const bill = customer.bills.find(b => b.month === month);
   const existingPayment = bill?.payments.find(p => p.id === paymentId);
   if (!existingPayment) throw new Error('Payment not found.');
-  const payment = { id:paymentId, ...validatePayment(fields), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  const payment = { id:paymentId, ...validatePayment(fields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }
 

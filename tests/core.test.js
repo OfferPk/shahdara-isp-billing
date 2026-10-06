@@ -85,6 +85,7 @@ test('legacy local profiles gain safe defaults without rewriting raw data or exi
   assert.equal(restored.customers[0].monthlyPurchaseCost, null);
   assert.equal(restored.customers[0].monthlySellingAmount, 100);
   assert.equal(restored.customers[0].bills[0].dueAmount, 50);
+  assert.equal(Object.hasOwn(restored.customers[0].bills[0], 'packageRenewalDate'), false, 'the display-only package date is not added to old local bill history');
   assert.equal(restored.customers[0].monthlyPriceSchedule[0].amount, 100);
   assert.ok(restored.customers[0].monthlyPriceSchedule[0].effectiveMonth > currentMonth);
   assert.equal(storage.getItem('shahdara-isp-billing-v1'), raw);
@@ -195,6 +196,22 @@ test('payer is optional metadata on one payment, persists locally, and old payer
   assert.equal(state.customers[0].bills[0].payments[0].paidBy, 'Tanveer', 'editing other receipt fields preserves saved payer when omitted');
   state = correctPayment(state, 'seed-001', currentMonth, restoredWaseem.id, payment({ date:'2026-09-16', method:'Cash at Waseem Abbasi shop', paidBy:'' }), referenceDate);
   assert.equal(Object.hasOwn(state.customers[0].bills[0].payments[0], 'paidBy'), false, 'an explicit blank correction clears only this receipt payer');
+});
+
+test('late current-month receipts retain their actual received date and the bill keeps its fifth-of-month due date', () => {
+  const octoberReference = new Date('2026-10-20T12:00:00+05:00');
+  let state = createInitialState(['Synthetic Current Month Payment']);
+  state = saveBillMonth(state, 'seed-001', { month:'2026-10', dueAmount:'1200', dueDate:'2026-10-05', status:'pending' }, octoberReference);
+  state = addPayment(state, 'seed-001', '2026-10', { date:'2026-10-15', amount:'300', method:'Easypaisa' }, octoberReference);
+
+  const bill = state.customers[0].bills.find(item => item.month === '2026-10');
+  const [transaction] = listTransactions(state, {}, octoberReference);
+  assert.equal(bill.month, '2026-10');
+  assert.equal(bill.dueDate, '2026-10-05', 'the 5th due date is not rewritten');
+  assert.equal(bill.payments[0].date, '2026-10-15', 'the actual late received date is not rewritten');
+  assert.equal(transaction.month, '2026-10', 'the selected bill month stays separate');
+  assert.equal(transaction.date, '2026-10-15', 'transaction date remains the actual receipt date');
+  assert.equal(Object.hasOwn(bill, 'packageRenewalDate'), false, 'the package date is derived for display and is not added to saved history');
 });
 
 test('pending partial payments reduce the current selling amount and collection uses actual entries', () => {

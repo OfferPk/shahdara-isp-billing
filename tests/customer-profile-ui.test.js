@@ -32,9 +32,10 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 🆔 Customer #: 3
 
 💰 Amount Paid: PKR 2,000
-📅 Payment Date: Oct 5 2026
+📅 Received date: Oct 5 2026
 💳 Method: Cash
 📆 Billing Month: Oct 2026
+📦 Package date: Oct 1 2026 (renewal day: 1st of every month)
 
 ✅ Status: PAID
 💵 Outstanding: PKR 0
@@ -42,7 +43,7 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 ━━━━━━━━━━━━━━
 📅 Next Bill Due: Nov 5 2026
 
-⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰`;
+⚠️ Service interruption reminder: possible after Nov 12 2026 if unpaid. thanks 🥰`;
 
 test('customer profiles open in read-only mode and existing fields are revealed only by Edit', () => {
   assert.match(index, /id="customerProfileView"[^>]*class="customer-profile-view"/);
@@ -184,7 +185,7 @@ test('receipt draft safely encodes actual customer and payment fields', () => {
   assert.match(draft.url, /%0A/);
   assert.match(draft.url, /%26/);
   assert.match(draft.url, /%F0%9F/);
-  for (const detail of ["O'Brien & Sons second line", 'Customer #: 7', 'Amount Received: PKR 1,250', 'Payment Date: Sep 12 2026', 'Method: Easypaisa', 'Billing Month: Sep 2026']) assert.ok(draft.message.includes(detail));
+  for (const detail of ["O'Brien & Sons second line", 'Customer #: 7', 'Amount Received: PKR 1,250', 'Received date: Sep 12 2026', 'Method: Easypaisa', 'Billing Month: Sep 2026', 'Package date: Sep 1 2026 (renewal day: 1st of every month)']) assert.ok(draft.message.includes(detail));
   assert.doesNotMatch(draft.message, /\nsecond line|Other Customer|Other receipt/);
 });
 
@@ -197,6 +198,7 @@ test('fully-paid draft exactly matches the approved receipt template and calcula
   const draft = createReceiptWhatsAppDraft('+92 300 123 4567', receipt);
   assert.equal(JSON.stringify(receipt), original, 'draft creation does not mutate the saved receipt context');
   assert.equal(draft.message, fullPaidTemplate);
+  assert.doesNotMatch(draft.message, /automatically|scheduled|performed/i, 'the receipt states a package date, not an automatic renewal action');
   const url = new URL(draft.url);
   assert.equal(url.searchParams.get('text'), fullPaidTemplate);
 
@@ -212,16 +214,28 @@ test('partial receipt shows actual received amount, outstanding balance and save
     customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-10', method:'Cash', month:'2026-10',
     billStatus:'partial', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-10-05'
   });
-  for (const detail of ['💰 Amount Received: PKR 300', '📅 Payment Date: Oct 10 2026', '📆 Billing Month: Oct 2026', '🟠 Status: PARTIAL', '💵 Outstanding: PKR 900', '💳 Bill Amount: PKR 1,200', '📅 Current Bill Due: Oct 5 2026']) {
+  for (const detail of ['💰 Amount Received: PKR 300', '📅 Received date: Oct 10 2026', '📆 Billing Month: Oct 2026', '📦 Package date: Oct 1 2026 (renewal day: 1st of every month)', '🟠 Status: PARTIAL', '💵 Outstanding: PKR 900', '💳 Bill Amount: PKR 1,200', '📅 Current Bill Due: Oct 5 2026', '⚠️ Service interruption reminder: possible after Oct 12 2026 if a balance remains unpaid.']) {
     assert.ok(draft.message.includes(detail), `partial receipt contains ${detail}`);
   }
   assert.doesNotMatch(draft.message, /Status: PAID|Outstanding: PKR 0|Next Bill Due:/);
+  assert.doesNotMatch(draft.message, /automatically|scheduled|performed/i, 'a partial receipt does not claim a network-side renewal action');
 
   const contradictoryPaidDraft = createReceiptWhatsAppDraft('+92 300 123 4567', {
     customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-10', method:'Cash', month:'2026-10',
     billStatus:'paid', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-10-05'
   });
   assert.doesNotMatch(contradictoryPaidDraft.message, /Status: PAID|Outstanding: PKR 0|Next Bill Due:/);
+});
+
+test('late receipt date remains distinct from the package date derived from the selected bill month', () => {
+  const draft = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-15', method:'Cash', month:'2026-09',
+    billStatus:'partial', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-09-05'
+  });
+  for (const detail of ['📅 Received date: Oct 15 2026', '📆 Billing Month: Sep 2026', '📦 Package date: Sep 1 2026 (renewal day: 1st of every month)', '📅 Current Bill Due: Sep 5 2026', '⚠️ Service interruption reminder: possible after Sep 12 2026 if a balance remains unpaid.']) {
+    assert.ok(draft.message.includes(detail), `late-payment receipt contains ${detail}`);
+  }
+  assert.doesNotMatch(draft.message, /automatically|scheduled|performed|Package date: Oct 1 2026/i);
 });
 
 test('receipt action uses the selected customer phone/name/number and rejects a cross-customer receipt', () => {

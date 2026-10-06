@@ -23,7 +23,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v22'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v23'/);
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
   assert.match(app, /buildGlobalLedgerSearch\(state, query, selectedBillingMonth\)/);
@@ -32,11 +32,18 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(core, /export function nextCycleDueDateFromBillMonth/);
   assert.match(profileUi, /nextCycleDueDateFromBillMonth\(month\)/);
   assert.match(app, /billStatus:status\.value/);
-  assert.match(profileUi, /Please pay by the 5th to avoid service interruption\. thanks 🥰/);
+  assert.match(profileUi, /Received date:/);
+  assert.match(profileUi, /receiptMonthDate\(month, 1\)/);
+  assert.match(profileUi, /Package date: \$\{packageDate\} \(renewal day: 1st of every month\)/);
+  assert.match(profileUi, /Next Bill Due: \$\{nextBillDue\}/);
+  assert.match(profileUi, /Service interruption reminder: possible after \$\{nextServiceReminder\} if unpaid/);
+  assert.match(profileUi, /Current Bill Due: \$\{currentBillDue\}/);
+  assert.doesNotMatch(profileUi, /automatically.{0,40}(?:renew|package)|scheduled.{0,40}(?:renew|package)/i);
   assert.match(profileUi, /Status: PARTIAL/);
   assert.match(core, /Cash at Waseem Abbasi shop/);
   assert.match(core, /Cash at Hassan shop/);
   assert.match(app, /Paid by \(optional\)/);
+  assert.doesNotMatch(index, /name=["']packageRenewalDate["']/i, 'admins are not prompted to enter a package date');
   assert.doesNotMatch(profileUi, /fetch\s*\(|\b(?:RouterOS|RADIUS|OLT)\b/i);
   assert.doesNotMatch(app, /\b(?:suspendService|restoreService|RouterOS|RADIUS|OLT)\b/i);
   assert.match(index, /id="transactionRecencyFilter"[^>]*aria-describedby="transactionFilterHelp"/);
@@ -215,7 +222,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v22'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v23'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

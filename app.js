@@ -5,14 +5,14 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.2';
+} from './core.js?v=1.4.3';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.2';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.2';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.2';
+} from './phase3.js?v=1.4.3';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.3';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.3';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');

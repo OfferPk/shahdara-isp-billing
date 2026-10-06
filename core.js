@@ -1,4 +1,5 @@
 import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY } from './phase3.js';
+import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -421,10 +422,12 @@ export function countCustomerIncidentsLast30Days(state, customerId, referenceDat
   }).length;
 }
 
-export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined }, referenceDate = new Date()) {
+export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined, packageId = '', clearPackageSnapshot = false }, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   if (status !== 'pending') throw new Error('Paid status is derived from actual receipts or valid carry-forward credit. Record an actual payment instead of manually marking a bill paid.');
-  const due = checkPositiveAmount(dueAmount, true);
+  const selectedPackage = packageId ? createBillPackageSnapshot(packageId) : null;
+  if (packageId && !selectedPackage) throw new Error('Choose one of the available monthly packages.');
+  const due = checkPositiveAmount(selectedPackage?.nominalPrice ?? dueAmount, true);
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers do not receive new bills. Unarchive the customer first.');
@@ -436,8 +439,9 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   const amountChanged = existing && ((oldAmount === null) !== (due === null) || (oldAmount !== null && due !== null && moneyCents(oldAmount) !== moneyCents(due)));
   if (amountChanged) amountHistory.push({ changedAt:localDateTimeValue(referenceDate), previousAmount:oldAmount, newAmount:due, source:'manual correction' });
   const bill = existing
-    ? { ...existing, dueAmount:due, dueDate:savedDueDate, status, amountHistory }
-    : { id:makeId(), month, dueAmount:due, dueDate:savedDueDate, status, payments:[], generated:false, priceSnapshot:null, createdAt:localDateTimeValue(referenceDate), amountHistory:[] };
+    ? { ...existing, dueAmount:due, dueDate:savedDueDate, status, amountHistory, ...(selectedPackage ? { packageSnapshot:selectedPackage } : {}) }
+    : { id:makeId(), month, dueAmount:due, dueDate:savedDueDate, status, payments:[], generated:false, priceSnapshot:null, createdAt:localDateTimeValue(referenceDate), amountHistory:[], ...(selectedPackage ? { packageSnapshot:selectedPackage } : {}) };
+  if (clearPackageSnapshot && !selectedPackage) delete bill.packageSnapshot;
   const bills = [...customer.bills.filter(b => b.month !== month), bill].sort((a,b) => b.month.localeCompare(a.month));
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
@@ -977,6 +981,9 @@ function validateBackupState(source) {
       validBackupAmount(bill.dueAmount, `bill amount for ${bill.month}`);
       validBackupAmount(bill.priceSnapshot, `price snapshot for ${bill.month}`);
       const dueDate = checkOptionalDate(bill.dueDate ?? null);
+      const hasPackageSnapshot = Object.hasOwn(bill, 'packageSnapshot');
+      const packageSnapshot = hasPackageSnapshot ? validateBillPackageSnapshot(bill.packageSnapshot) : undefined;
+      if (hasPackageSnapshot && !packageSnapshot) throw new Error(`Backup bill ${bill.month} has an invalid package snapshot.`);
       if (!Array.isArray(bill.payments ?? []) || !Array.isArray(bill.amountHistory ?? [])) throw new Error(`Backup bill ${bill.month} has an invalid payment or correction list.`);
       const payments = bill.payments.map(payment => {
         if (!payment || typeof payment.id !== 'string' || !payment.id || paymentIds.has(payment.id)) throw new Error(`Backup has a missing or duplicate payment ID for ${bill.month}.`);
@@ -989,7 +996,7 @@ function validateBackupState(source) {
         validBackupAmount(correction.previousAmount, 'previous bill amount');
         validBackupAmount(correction.newAmount, 'corrected bill amount');
       }
-      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [] };
+      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}) };
     });
     const incidents = sourceIncidents.map(incident => {
       if (!incident || typeof incident.id !== 'string' || !incident.id || incidentIds.has(incident.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate incident ID.`);
@@ -1086,7 +1093,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }

@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'shahdara-isp-billing-';
-const CACHE_NAME = 'shahdara-isp-billing-v26';
-const APP_FILES = ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg'];
+const CACHE_NAME = 'shahdara-isp-billing-v28';
+const APP_FILES = ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_FILES)));

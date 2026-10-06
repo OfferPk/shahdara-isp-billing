@@ -5,14 +5,16 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.5';
+} from './core.js?v=1.4.7';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.5';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.5';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.5';
+} from './phase3.js?v=1.4.7';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.7';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.7';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.4.7';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.4.7';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -343,11 +345,61 @@ function editCustomerPhoneFromReceipt(customerId) {
 function bindReceiptPhoneActions(container) {
   container.querySelectorAll('[data-edit-receipt-phone]').forEach(button => button.addEventListener('click', () => editCustomerPhoneFromReceipt(button.dataset.editReceiptPhone)));
 }
+function receiptFieldMarkup(label, value, className = '') {
+  return `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${className}">${value ? escapeHtml(value) : '&nbsp;'}</dd></div>`;
+}
+function clearReceiptPrint() {
+  document.body.classList.remove('printing-receipt');
+  const area = $('#receiptPrintArea');
+  if (area) { area.hidden = true; area.replaceChildren(); }
+}
+function printPaymentReceipt(customerId, month, paymentId) {
+  const customer = state.customers.find(row => row.id === customerId);
+  const bill = customer?.bills?.find(row => row.month === month);
+  const payment = bill?.payments?.find(row => row.id === paymentId);
+  if (!customer || !bill || !payment) { toast('This saved payment receipt is no longer available.'); return; }
+  const receipt = buildPaymentReceipt(customer, bill, payment);
+  const area = $('#receiptPrintArea');
+  const statusClass = receipt.status === 'PAID' ? 'receipt-status-paid' : receipt.status === 'PARTIAL' ? 'receipt-status-partial' : '';
+  const balance = receipt.balanceDueCents === null ? '' : formatAmount(receipt.balanceDueCents / 100);
+  const fields = [
+    ['Customer name', receipt.customerName],
+    ['Account / customer ID', receipt.customerId ? `#${receipt.customerId}` : ''],
+    ['Payment date', receipt.paymentDate ? humanDate(receipt.paymentDate) : ''],
+    ['Transaction ID', receipt.transactionId],
+    ['Package', receipt.package],
+    ['Internet speed', receipt.speedMbps ? `${receipt.speedMbps} Mbps` : ''],
+    ['Package duration', receipt.packageDuration],
+    ['Package type', receipt.packageType],
+    ['Data limit', receipt.dataLimit],
+    ['Nominal package price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
+    ['Package date', receipt.packageDate],
+    ['Amount received', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount)],
+    ['Payment method', receipt.paymentMethod],
+    ['Service period start', receipt.servicePeriodStart],
+    ['Service period end', receipt.servicePeriodEnd],
+    ['Receipt status', receipt.status, statusClass],
+    ['Balance due after this payment', balance]
+  ];
+  area.innerHTML = `<article class="receipt-sheet"><header class="receipt-head"><div><span class="receipt-brand">Shahdara ISP</span><h1>Payment receipt</h1><p>Generated from the selected locally saved payment record</p></div><span class="receipt-mark">${escapeHtml(receipt.status || 'RECEIPT')}</span></header><dl class="receipt-fields">${fields.map(([label,value,className]) => receiptFieldMarkup(label, value, className ?? '')).join('')}</dl>${receipt.status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰</p>' : ''}<footer class="receipt-terms"><h2>Package terms</h2><p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n','<br>')}</p></footer></article>`;
+  area.hidden = false;
+  document.body.classList.add('printing-receipt');
+  requestAnimationFrame(() => {
+    try { window.print(); }
+    catch { toast('Printing is not available in this browser.'); }
+    finally { clearReceiptPrint(); }
+  });
+}
 function billAmountAuditMarkup(bill) {
   const changes = bill?.amountHistory ?? [];
   if (!changes.length) return '';
   const items = changes.map(change => `<li>${escapeHtml(humanLocalDateTime(change.changedAt))}: ${escapeHtml(formatAmount(change.previousAmount))} → ${escapeHtml(formatAmount(change.newAmount))}</li>`).join('');
   return `<details class="bill-audit"><summary>Bill amount corrections (${changes.length})</summary><ol>${items}</ol></details>`;
+}
+function billPackageSelectorMarkup(bill, month) {
+  const savedPlan = validateBillPackageSnapshot(bill?.packageSnapshot);
+  const options = BILL_PACKAGES.map(plan => `<option value="${plan.id}" ${savedPlan?.packageId === plan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('');
+  return `<label class="field-label full" for="package-${month}">Monthly package <span class="optional-label">Optional · six preset rates</span></label><select id="package-${month}" class="full" name="packageId" data-bill-package aria-describedby="package-help-${month}"><option value="" ${savedPlan ? '' : 'selected'}>No preset package — enter amount manually</option>${options}</select><p id="package-help-${month}" class="field-help full">A preset stores its exact label, speed, nominal price, type and applicable cap on this bill only. It does not change the customer profile or future recurring rate. Actual payments stay separate; older bills are never inferred or backfilled.</p>`;
 }
 function renderHistory(customer) {
   const monthList = monthsForHistory();
@@ -372,7 +424,8 @@ function renderHistory(customer) {
     const generatedNote = bill?.generated && bill.priceSnapshot !== null && bill.priceSnapshot !== undefined ? `<p class="bill-snapshot-note">Auto-generated from the saved selling price: ${escapeHtml(formatAmount(bill.priceSnapshot))}. This month’s snapshot stays unchanged if the price is edited later.</p>` : '';
     const payments = (bill?.payments ?? []).map(payment => {
       const allocation = paymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:status.value, billAmount:effectiveAmount, balanceDueCents:monthAllocation?.balanceDueCents ?? null, billDueDate:bill?.dueDate ?? null })}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
+      const receiptData = buildPaymentReceipt(customer, bill, payment);
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
@@ -381,14 +434,24 @@ function renderHistory(customer) {
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? 'Optional' : 'Required to create a bill';
     const amountPlaceholder = bill ? 'Leave blank only if not known' : 'Enter confirmed amount in PKR';
+    const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
+    const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid"><label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid">${packageSelector}<label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}"><summary><span class="month-label">${escapeHtml(monthName(month))}</span><span class="history-count">${bill ? `${bill.payments?.length ?? 0} payment${bill.payments?.length === 1 ? '' : 's'}` : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="Payments for ${escapeHtml(monthName(month))}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
+  historyContainer.querySelectorAll('select[data-bill-package]').forEach(select => select.addEventListener('change', () => {
+    const plan = billPackageById(select.value);
+    select.form.dataset.packageSelectionChanged = 'true';
+    const amount = select.form.elements.namedItem('dueAmount');
+    if (plan) { amount.value = String(plan.price); amount.readOnly = true; select.form.dataset.clearPackageSnapshot = 'false'; }
+    else { amount.readOnly = false; select.form.dataset.clearPackageSnapshot = 'true'; }
+  }));
   historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => form.addEventListener('submit', onPaymentSubmit));
   historyContainer.querySelectorAll('[data-edit-payment]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.editPayment, 'history')));
   historyContainer.querySelectorAll('[data-delete-payment]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.deletePayment)));
+  historyContainer.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   bindReceiptPhoneActions(historyContainer);
 }
 function renderTransactions() {
@@ -403,10 +466,15 @@ function renderTransactions() {
     const customer = state.customers.find(item => item.id === transaction.customerId);
     const statusText = reportStatusLabel(transaction.status);
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[transaction.customerServiceStatus] ?? 'Not set';
-    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, transaction)}<button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
+    const savedBill = customer?.bills?.find(bill => bill.month === transaction.month);
+    const savedPayment = savedBill?.payments?.find(payment => payment.id === transaction.paymentId);
+    const receiptData = customer && savedBill && savedPayment ? buildPaymentReceipt(customer, savedBill, savedPayment) : null;
+    const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
+    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">Print receipt</button><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
+  transactionList.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   bindReceiptPhoneActions(transactionList);
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
@@ -628,7 +696,18 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
 function onBillSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
-  try { state = saveBillMonth(state, selectedCustomerId, { month:form.dataset.month, dueAmount:data.get('dueAmount') || null, dueDate:data.get('dueDate') || null, status:'pending' }); save(); renderDetail(); toast('Bill details saved on this device.'); }
+  try {
+    const packageChanged = form.dataset.packageSelectionChanged === 'true';
+    state = saveBillMonth(state, selectedCustomerId, {
+      month:form.dataset.month,
+      dueAmount:data.get('dueAmount') || null,
+      dueDate:data.get('dueDate') || null,
+      status:'pending',
+      packageId:packageChanged ? data.get('packageId') : '',
+      clearPackageSnapshot:packageChanged && form.dataset.clearPackageSnapshot === 'true'
+    });
+    save(); renderDetail(); toast('Bill details saved on this device.');
+  }
   catch (error) { toast(error.message); }
 }
 function onPaymentSubmit(event) {

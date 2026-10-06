@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Printable payment receipts, customer-profile receipts, local list search and backup tools · web build 1.4.8**
+**Printable payment receipts, customer-profile receipts, local list search and backup tools · web build 1.4.9**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -42,14 +42,14 @@ The first visit needs a network connection. The service worker caches the static
 - PKT-based six-month charts show bill-snapshot revenue vs receipt-date cash, recorded customer growth, dated month-end outstanding snapshots, current manual Active/Offline status and actual cash income vs actual dated expenses. Forecasts include eligible offline subscriptions with configured next-month rates. Live Active/Offline/Not set counts are calculated from saved nonarchived profiles and embedded in their service-filter buttons; billing-state filters remain independent. Online percentage excludes Not set profiles and shows its denominator. Empty history is labeled no entries/not set rather than a fabricated zero. Offline alone is not churn.
 - Inventory, expenses, optional profile fields and package history are included in the validated, preview-before-merge local JSON backup. Charts use bundled SVG; no external visualization assets or billing-data network calls are used.
 
-## Owner Center candidate features (web build 1.4.8)
+## Owner Center features (web build 1.4.9)
 
 - A repeat-safe local month close is saved on the first app open after a Pakistan-local month rollover. It captures the closing month’s bill count (including unpriced bills), priced/unpriced counts, saved billing, actual receipt-date collection, pending balance, dated expenses, cash profit, and a comparison with the preceding month. Manual customer/service status is timestamped as captured; it is not represented as a historical network snapshot. Closings travel through the existing validated JSON backup/merge flow.
 - The read-only Owner Command Center accepts deterministic English, Urdu and Roman Urdu text questions over local records. Voice transcription is offered only when a locally installed browser speech model is verified and `processLocally` is available; no cloud fallback or automatic model download is used. Recognized text must be reviewed and tapped through Ask before running.
 - Customer profiles show Customer 360 details, locally saved notes, actual receipts, separate unapplied advance credit, all-bill outstanding, current bill state, recent payment behavior, transparent health score/reasons, and existing monthly ledger history. New scores are withheld when fewer than two completed priced bill months are available.
 - Mobile-friendly customer rankings filter by month, saved area/mohalla, package and manual status. Dues recovery groups only recorded positive balances, exposes its priority factors, and provides customer-bound friendly/overdue/final/payment-confirmation WhatsApp drafts. Drafts open only after a manual tap; no messages are sent automatically and no country code is guessed.
 - Month-to-month comparisons and ledger-based performance explanations distinguish service-month billing from receipt-date cash and label missing historical status or mutable old-month balances. The 14 requested mohalla names are editable suggestions only and do not preassign any customer.
-- Smart Alerts and the additional area/date-range intelligence and trend charts remain in the [saved roadmap](ROADMAP.md); no missing area, expense allocation, staff, payment or business cause is fabricated.
+- Local Smart Alerts use explicit rules: at least 5 distinct customers with an unpaid bill due today; any customer with positive balances in 2 or more priced bill months; a category whose month-to-date expenses are at least 50% and PKR 500 above its average through the same day in at least 2 prior recorded-expense months; a decline in distinct billed-customer counts by package between the prior 2 completed months only when all bill rows have saved package labels/history; or today's receipts below 80% of the average on at least 2 receipt-bearing same-weekday dates in the prior 4 weeks. Missing comparison history is stated rather than guessed, manual Offline status is not a verified outage, and no alerts are stored, monitored in the background, or sent to anyone. Broader area/date-range intelligence and trend charts remain in the [saved roadmap](ROADMAP.md); no missing area, expense allocation, staff, payment or business cause is fabricated.
 
 ## Local checks
 

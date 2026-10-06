@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');
-const index=read('index.html'),app=read('app.js'),ui=read('owner-ui.js'),styles=read('styles.css'),worker=read('sw.js'),build=read('build.mjs');
+const index=read('index.html'),app=read('app.js'),ui=read('owner-ui.js'),insights=read('owner-insights.js'),styles=read('styles.css'),worker=read('sw.js'),build=read('build.mjs');
 
 test('phone-first navigation and the Owner Center expose the requested local views',()=>{
   for(const label of ['Home','Customers','Collection','Reports','More'])assert.match(index,new RegExp(`>${label}</button>`));
-  for(const id of ['ownerCommandCenter','ownerCommandInput','ownerCommandAnswer','savedMonthlyClosings','compareMonthA','compareMonthB','monthComparisonMetrics','performanceExplainForm','customerRankingResults','duesRecoveryGroups'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
+  for(const id of ['ownerCommandCenter','ownerCommandInput','ownerCommandAnswer','savedMonthlyClosings','compareMonthA','compareMonthB','monthComparisonMetrics','performanceExplainForm','customerRankingResults','smartAlertsPanel','smartAlertsSummary','smartAlertsList','duesRecoveryGroups'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
   assert.match(ui,/data-mobile-nav/);
   const navHandler=ui.slice(ui.indexOf("document.querySelectorAll('[data-mobile-nav]')"),ui.indexOf("document.querySelectorAll('[data-mobile-more]')"));
   assert.match(navHandler,/if\(action==='more'\)[\s\S]*?return;/,'More retains the visibility state set by its dedicated toggle listener');
@@ -39,6 +39,17 @@ test('WhatsApp recovery remains owner-triggered and offers templates without bac
   assert.match(ui,/Review WhatsApp draft/);
   assert.match(ui,/data-open-recovery-customer/);
   assert.doesNotMatch(ui,/fetch\s*\(|sendBeacon|window\.open\s*\(|sendText|autoSend/i);
+});
+
+test('Smart Alerts stay rule-based, local-only, accessible and directly reachable from More',()=>{
+  assert.match(index,/data-mobile-more="alerts">Smart Alerts<\/button>/);
+  assert.match(ui,/buildSmartAlerts\(getState\(\),new Date\(\)\)/);
+  assert.match(ui,/result\.checks\.filter\(row=>row\.status==='clear'/);
+  assert.match(ui,/smart-alert-rule-details/);
+  assert.match(ui,/data-open-smart-alert-customer/);
+  assert.match(ui,/insufficient history/);
+  assert.match(insights,/not a verified network outage/i);
+  assert.doesNotMatch(ui,/fetch\s*\(|sendBeacon|autoSend/i);
 });
 
 test('user-provided mohalla values are optional suggestions, not seeded customer assignments',()=>{

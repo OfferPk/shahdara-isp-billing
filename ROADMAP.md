@@ -4,7 +4,7 @@
 
 **Product goal:** The owner should be able to manage ISP cash, customer ledgers and business accounts from a phone in roughly 10–20 seconds, even without internet.
 
-**Status (2026-10-07):** The v1.4.8 candidate is implemented in this clean copy of the live repository and is **not published yet**. Phase 1 (new 3Mbps/100GB price, automatic local close, read-only Owner Command Center and mobile navigation), Phase 2 (Customer 360, health/behavior analytics and filtered rankings), the Smart Dues Recovery/WhatsApp part of Phase 3, and month comparisons/performance explanations in Phase 4 are implemented and automated tests/build are passing. Smart Alerts, the broader additional business-trend and Area Intelligence views, and remaining roadmap work are still planned. Complete mobile review and the authorized token-based publication check remain before calling this a release.
+**Status (2026-10-07):** v1.4.8 remains live on GitHub Pages. The v1.4.9 implementation and static build are verified with 190 passing automated tests and desktop plus 390px phone-width smoke checks; publication is pending. Phases 1–2 and Smart Dues Recovery/WhatsApp in Phase 3 are already included; this release completes Phase 3 Smart Alerts. Phase 4 month comparisons/performance explanations are included, while broader Business Analytics/Area Intelligence and later work remain on the roadmap.
 
 ## Non-negotiable data and safety rules
 
@@ -42,9 +42,9 @@
 
 - Add a **Smart Dues Recovery** queue for unpaid/partially paid balances, ranked using outstanding amount, recorded overdue duration, payment/health history, previous late payments and recorded customer value. Show **High Priority / Medium Priority / Low Priority**, the score reasons, number of customers and recoverable total per group. Link directly to the customer billing history.
 - Add a **WhatsApp Follow-up Center** with personalized drafts for friendly reminder, overdue reminder, final reminder and payment confirmation. Include saved customer name, outstanding, saved due date, package and previous balance where available. The owner selects a template and manually opens/reviews the draft; never auto-contact anyone.
-- Add transparent local rule-based **Smart Alerts**: unusually many pending payments today, a customer with two unpaid months, expense above its available baseline, declining customer count for a package, and today’s collection below the comparable prior week. Suppress or qualify alerts when comparison history is insufficient; do not call manual Offline a verified network outage.
+- Add transparent local rule-based **Smart Alerts**: flag at least 5 distinct customers with a saved positive balance due today; any customer with positive balances in 2 or more priced bill months; a category whose month-to-date expense is at least 50% and PKR 500 above its same-cutoff average across at least 2 recorded expense months; a decline in distinct billed-customer counts by package between the prior 2 completed months only when all saved bill rows have usable dated package history; or today’s actual receipts below 80% of the mean on at least 2 receipt-bearing same-weekday dates in the prior 4 weeks. Explain fixed rules, suppress or qualify comparisons when history is insufficient, and never treat manual Offline as a verified outage. Alerts are read-only, on-device and do not poll or contact customers.
 
-**Acceptance:** Recovery totals equal recorded positive balances; scores expose their formula; WhatsApp links are customer-bound and require a saved full international number; tests prove no auto-send or background contact.
+**Acceptance:** Recovery totals equal recorded positive balances; scores expose their formula; WhatsApp links are customer-bound and require a saved full international number; tests prove no auto-send or background contact. Smart Alerts thresholds, dated-history suppression, Pakistan-local due dates, safe text rendering, direct customer routes and read-only/offline behavior are covered by unit and UI tests.
 
 ### Phase 4 — Monthly comparisons and Business Analytics
 

@@ -316,3 +316,89 @@ export function explainBusinessPerformance(state,metric,monthA,monthB,referenceD
   }
   return{metric:selected,monthA,monthB,change:change.absoluteChange,percentChange:change.percentChange,drivers,basis,explanation:`Recorded ${selected} ${change.absoluteChange>0?'increased':'decreased'} by ${pkr(Math.abs(cents(change.absoluteChange)))} (${change.percentChange===null?'percentage change unavailable because the earlier total was zero':`${Math.abs(change.percentChange)}%`}). Main measured contributors are listed below. These figures describe ledger movements, not proven outside causes.`};
 }
+
+
+const isCalendarDate = value => {
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value ?? ''))return false;
+  const parsed=new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===value;
+};
+function shiftDate(date,days) { return new Date(Date.parse(`${date}T00:00:00Z`)+days*86400000).toISOString().slice(0,10); }
+function daysInMonth(month) { const [year,number]=month.split('-').map(Number);return new Date(Date.UTC(year,number,0)).getUTCDate(); }
+function monthOffset(month,delta) { const [year,number]=month.split('-').map(Number),index=year*12+number-1+delta;return`${Math.floor(index/12)}-${String(index%12+1).padStart(2,'0')}`; }
+function recordedPackageForMonth(customer,bill,month) {
+  const saved=String(bill?.packageSnapshot?.label??'').trim();if(saved)return saved;
+  const history=(customer.packageHistory??[]).filter(row=>isCalendarDate(row.date)&&row.date.slice(0,7)<=month).sort((a,b)=>b.date.localeCompare(a.date));
+  const name=String(history[0]?.newPackage??'').trim();return name||null;
+}
+
+/** Derive local-only, read-only alerts. No alerts or history are persisted or sent anywhere. */
+export function buildSmartAlerts(state,referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+  const asOf=dateFor(referenceDate),currentMonth=asOf.slice(0,7),alerts=[],insufficient=[],checks=[];
+  const check=(id,status,note='')=>checks.push({id,status,note});
+  const addInsufficient=(id,note)=>{insufficient.push({id,note});check(id,'insufficient',note);};
+  const positiveBills=[];
+  for(const customer of state.customers??[])for(const bill of customer.bills??[]) {
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(bill.month??'')||bill.month>currentMonth||!validPrice(bill.dueAmount))continue;
+    const dueCents=cents(bill.dueAmount),balanceCents=Math.max(0,allocations.forMonth(customer.id,bill.month)?.balanceDueCents??dueCents);
+    if(balanceCents>0)positiveBills.push({customer,bill,balanceCents});
+  }
+
+  const dueToday=positiveBills.filter(row=>isCalendarDate(row.bill.dueDate)&&row.bill.dueDate===asOf),dueCustomers=new Map();
+  for(const row of dueToday){const current=dueCustomers.get(row.customer.id)??{customer:row.customer,bills:0,balanceCents:0};current.bills++;current.balanceCents+=row.balanceCents;dueCustomers.set(row.customer.id,current);}
+  const dueCount=dueCustomers.size,dueBillCount=dueToday.length,dueBalance=dueToday.reduce((sum,row)=>sum+row.balanceCents,0);
+  if(dueCount>=5)alerts.push({id:'due-today',severity:'warning',title:`${dueCount} customers have unpaid bills due today`,detail:`${dueBillCount} saved bill(s) · ${pkr(dueBalance)} outstanding. Rule: at least 5 distinct customers with a recorded due date today. No historical daily due-status snapshots exist, so this is a count threshold—not a historical anomaly.`});
+  check('due-today',dueCount>=5?'alert':'clear',dueCount>=5?'':`${dueCount} customer(s) with an unpaid bill due today; the alert threshold is 5.`);
+
+  const byCustomer=new Map();
+  for(const row of positiveBills){const entry=byCustomer.get(row.customer.id)??{customer:row.customer,months:new Map(),balanceCents:0};entry.months.set(row.bill.month,(entry.months.get(row.bill.month)??0)+row.balanceCents);entry.balanceCents+=row.balanceCents;byCustomer.set(row.customer.id,entry);}
+  const multipleMonthCustomers=[...byCustomer.values()].filter(row=>row.months.size>=2).sort((a,b)=>b.balanceCents-a.balanceCents);
+  for(const row of multipleMonthCustomers){const months=[...row.months.keys()].sort();alerts.push({id:`unpaid-months-${row.customer.id}`,severity:'warning',title:`${row.customer.name||'Customer'} has balances in ${months.length} unpaid months`,detail:`Saved bill months: ${months.join(', ')} · ${pkr(row.balanceCents)} outstanding across those months.`,customerId:row.customer.id,customerName:row.customer.name||'Customer'});}
+  check('two-unpaid-months',multipleMonthCustomers.length?'alert':'clear',multipleMonthCustomers.length?'': 'No customer currently has positive saved balances in two or more distinct priced bill months.');
+
+  const validExpenses=(state.expenses??[]).filter(row=>isCalendarDate(row.date)&&row.date<=asOf&&Number.isFinite(Number(row.amount))&&Number(row.amount)>0);
+  const dayOfMonth=Number(asOf.slice(8,10)),mtdByMonth=new Map();
+  for(const row of validExpenses){const month=row.date.slice(0,7),cutoff=month===currentMonth?dayOfMonth:Math.min(dayOfMonth,daysInMonth(month));if(Number(row.date.slice(8,10))>cutoff)continue;const values=mtdByMonth.get(month)??{totalCents:0,categories:new Map()};const value=cents(row.amount),category=String(row.category??'').trim()||'Not recorded';values.totalCents+=value;values.categories.set(category,(values.categories.get(category)??0)+value);mtdByMonth.set(month,values);}
+  const baselineMonths=[1,2,3].map(offset=>monthOffset(currentMonth,-offset)).filter(month=>mtdByMonth.has(month)).sort();
+  const currentExpenses=mtdByMonth.get(currentMonth),expenseCategories=[...new Set(currentExpenses?[...currentExpenses.categories.keys()]:[])],expenseAlerts=[];
+  if(!expenseCategories.length){check('expense-baseline','clear','No positive dated expense has been recorded so far this month.');}
+  else {
+    let missingExpenseBaseline=false;
+    for(const category of expenseCategories){
+      if(baselineMonths.length<2){missingExpenseBaseline=true;addInsufficient(`expense-baseline-${category}`,`No expense alert for “${category}”: only ${baselineMonths.length} prior month-to-date period(s) contain dated expense entries; at least 2 are required.`);continue;}
+      const baselineCents=Math.round(baselineMonths.reduce((sum,month)=>sum+(mtdByMonth.get(month).categories.get(category)??0),0)/baselineMonths.length),actualCents=currentExpenses.categories.get(category)??0;
+      if(baselineCents<=0){missingExpenseBaseline=true;addInsufficient(`expense-baseline-${category}`,`No expense alert for “${category}”: recorded month-to-date spending in the ${baselineMonths.length} comparison month(s) provides no positive category baseline.`);continue;}
+      if(actualCents>=baselineCents*1.5&&actualCents-baselineCents>=50000)expenseAlerts.push({id:`expense-${category}`,severity:'notice',title:`${category} expenses are above their recent baseline`,detail:`This month to date: ${pkr(actualCents)} vs ${pkr(baselineCents)} average over ${baselineMonths.join(', ')} through the same day of month. Rule: at least 50% and PKR 500 above the recorded baseline.`});
+    }
+    alerts.push(...expenseAlerts);
+    if(expenseAlerts.length)check('expense-baseline','alert','');else if(!missingExpenseBaseline)check('expense-baseline','clear',`No category is at least 50% and PKR 500 above its baseline from ${baselineMonths.length} comparable recorded-expense month(s).`);
+  }
+
+  const previousCompletedMonth=monthOffset(currentMonth,-1),earlierCompletedMonth=monthOffset(currentMonth,-2),packageMonthRows=[];
+  for(const month of [earlierCompletedMonth,previousCompletedMonth]){
+    const rows=(state.customers??[]).flatMap(customer=>(customer.bills??[]).filter(bill=>bill.month===month).map(bill=>({customer,bill,name:recordedPackageForMonth(customer,bill,month)})));
+    packageMonthRows.push({month,rows});
+  }
+  const packageDataComplete=packageMonthRows.every(period=>period.rows.length>0&&period.rows.every(row=>row.name));
+  if(!packageDataComplete){const missing=packageMonthRows.filter(period=>!period.rows.length||period.rows.some(row=>!row.name)).map(period=>period.month);addInsufficient('package-counts',`Package trend is not shown: complete recorded package labels for all saved bill rows are unavailable in ${missing.join(' and ')}. Counts require dated bill package snapshots/history; current manual status is not substituted.`);}
+  else {
+    const counts=packageMonthRows.map(period=>{const map=new Map();for(const row of period.rows){const ids=map.get(row.name)??new Set();ids.add(row.customer.id);map.set(row.name,ids);}return{month:period.month,counts:new Map([...map].map(([name,ids])=>[name,ids.size]))};});
+    const names=new Set([...counts[0].counts.keys(),...counts[1].counts.keys()]),declines=[];
+    for(const name of names){const before=counts[0].counts.get(name)??0,after=counts[1].counts.get(name)??0;if(after<before)declines.push({name,before,after});}
+    for(const row of declines)alerts.push({id:`package-decline-${row.name}`,severity:'notice',title:`${row.name} billed-customer count declined`,detail:`${row.before} customer(s) in ${counts[0].month} → ${row.after} in ${counts[1].month}. This uses distinct customers with saved service-month bill package snapshots/history; it is not a verified count of active network connections.`});
+    check('package-counts',declines.length?'alert':'clear',declines.length?'':`No decline in recorded billed-customer counts between ${counts[0].month} and ${counts[1].month}.`);
+  }
+
+  const dailyReceipts=new Map();
+  for(const customer of state.customers??[])for(const bill of customer.bills??[])for(const payment of bill.payments??[]){if(!isCalendarDate(payment.date)||payment.date>asOf||!Number.isFinite(Number(payment.amount))||Number(payment.amount)<=0)continue;dailyReceipts.set(payment.date,(dailyReceipts.get(payment.date)??0)+cents(payment.amount));}
+  const matchingWeekdays=[7,14,21,28].map(days=>shiftDate(asOf,-days)).filter(date=>dailyReceipts.has(date));
+  const currentCollection=dailyReceipts.get(asOf)??0;
+  if(matchingWeekdays.length<2)addInsufficient('collection-baseline',`No low-collection comparison yet: only ${matchingWeekdays.length} of the prior 4 same-weekday dates have saved receipts; at least 2 receipt-bearing comparison days are required.`);
+  else {
+    const baselineCents=Math.round(matchingWeekdays.reduce((sum,date)=>sum+dailyReceipts.get(date),0)/matchingWeekdays.length);
+    if(baselineCents>0&&currentCollection<baselineCents*0.8)alerts.push({id:'collection-below-weekday-baseline',severity:'notice',title:'Today’s collection is below comparable prior weeks',detail:`Today: ${pkr(currentCollection)} vs ${pkr(baselineCents)} average across ${matchingWeekdays.length} receipt-bearing same-weekday date(s) in the prior 4 weeks. Alert threshold: below 80% of baseline. Dates without saved receipts are not treated as samples; no daily snapshots are saved.`});
+    check('collection-baseline',baselineCents>0&&currentCollection<baselineCents*0.8?'alert':'clear',baselineCents>0&&currentCollection<baselineCents*0.8?'':`Today’s ${pkr(currentCollection)} is not below 80% of the ${matchingWeekdays.length}-sample comparable weekday baseline (${pkr(baselineCents)}).`);
+  }
+
+  return{asOf,alerts,insufficient,checks,allClear:alerts.length===0&&insufficient.length===0,manualStatusNote:'Manual Offline status is not a verified network outage and is not used as an alert.'};
+}

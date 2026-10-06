@@ -43,7 +43,7 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 ━━━━━━━━━━━━━━
 📅 Next Bill Due: Nov 5 2026
 
-⚠️ Service interruption reminder: possible after Nov 12 2026 if unpaid. thanks 🥰`;
+⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰`;
 
 test('customer profiles open in read-only mode and existing fields are revealed only by Edit', () => {
   assert.match(index, /id="customerProfileView"[^>]*class="customer-profile-view"/);
@@ -209,15 +209,16 @@ test('fully-paid draft exactly matches the approved receipt template and calcula
   assert.doesNotMatch(yearBoundaryDraft.message, /Feb 5 2027/);
 });
 
-test('partial receipt shows actual received amount, outstanding balance and saved current due date only', () => {
+test('partial receipt shows actual received amount, outstanding balance, saved due date and the 5th-day reminder', () => {
   const draft = createReceiptWhatsAppDraft('+92 300 123 4567', {
     customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-10', method:'Cash', month:'2026-10',
     billStatus:'partial', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-10-05'
   });
-  for (const detail of ['💰 Amount Received: PKR 300', '📅 Received date: Oct 10 2026', '📆 Billing Month: Oct 2026', '📦 Package date: Oct 1 2026 (renewal day: 1st of every month)', '🟠 Status: PARTIAL', '💵 Outstanding: PKR 900', '💳 Bill Amount: PKR 1,200', '📅 Current Bill Due: Oct 5 2026', '⚠️ Service interruption reminder: possible after Oct 12 2026 if a balance remains unpaid.']) {
+  for (const detail of ['💰 Amount Received: PKR 300', '📅 Received date: Oct 10 2026', '📆 Billing Month: Oct 2026', '📦 Package date: Oct 1 2026 (renewal day: 1st of every month)', '🟠 Status: PARTIAL', '💵 Outstanding: PKR 900', '💳 Bill Amount: PKR 1,200', '📅 Current Bill Due: Oct 5 2026', '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰']) {
     assert.ok(draft.message.includes(detail), `partial receipt contains ${detail}`);
   }
   assert.doesNotMatch(draft.message, /Status: PAID|Outstanding: PKR 0|Next Bill Due:/);
+  assert.doesNotMatch(draft.message, /possible after|after (?:Oct|Sep) 12/i);
   assert.doesNotMatch(draft.message, /automatically|scheduled|performed/i, 'a partial receipt does not claim a network-side renewal action');
 
   const contradictoryPaidDraft = createReceiptWhatsAppDraft('+92 300 123 4567', {
@@ -232,9 +233,10 @@ test('late receipt date remains distinct from the package date derived from the 
     customerName:'Synthetic Test Customer', customerNumber:1, amount:300, date:'2026-10-15', method:'Cash', month:'2026-09',
     billStatus:'partial', billAmount:1200, balanceDueCents:90000, billDueDate:'2026-09-05'
   });
-  for (const detail of ['📅 Received date: Oct 15 2026', '📆 Billing Month: Sep 2026', '📦 Package date: Sep 1 2026 (renewal day: 1st of every month)', '📅 Current Bill Due: Sep 5 2026', '⚠️ Service interruption reminder: possible after Sep 12 2026 if a balance remains unpaid.']) {
+  for (const detail of ['📅 Received date: Oct 15 2026', '📆 Billing Month: Sep 2026', '📦 Package date: Sep 1 2026 (renewal day: 1st of every month)', '📅 Current Bill Due: Sep 5 2026', '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰']) {
     assert.ok(draft.message.includes(detail), `late-payment receipt contains ${detail}`);
   }
+  assert.doesNotMatch(draft.message, /possible after|after (?:Oct|Sep) 12/i);
   assert.doesNotMatch(draft.message, /automatically|scheduled|performed|Package date: Oct 1 2026/i);
 });
 

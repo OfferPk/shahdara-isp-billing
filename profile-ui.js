@@ -109,7 +109,6 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
     : null;
   const paidBy = safeLine(receipt?.paidBy, 100);
   const packageDate = formatReceiptDate(receiptMonthDate(month, 1)) ?? 'Not available';
-  const currentServiceReminder = formatReceiptDate(receiptMonthDate(month, 12)) ?? 'Not available';
   const lines = [
     '🧾 SHAHDARA ISP — PAYMENT RECEIPT',
     '',
@@ -127,7 +126,6 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   if (billStatus === 'paid') {
     const nextBillDueDate = nextCycleDueDateFromBillMonth(month);
     const nextBillDue = formatReceiptDate(nextBillDueDate) ?? 'Not available';
-    const nextServiceReminder = formatReceiptDate(receiptMonthDate(nextBillDueDate?.slice(0, 7), 12)) ?? 'Not available';
     lines.push(
       '',
       '✅ Status: PAID',
@@ -136,7 +134,7 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
       '━━━━━━━━━━━━━━',
       `📅 Next Bill Due: ${nextBillDue}`,
       '',
-      `⚠️ Service interruption reminder: possible after ${nextServiceReminder} if unpaid. thanks 🥰`
+      '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰'
     );
   } else if (billStatus === 'partial') {
     const currentBillDue = formatReceiptDate(receipt?.billDueDate) ?? 'Not recorded';
@@ -146,7 +144,7 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
       `💵 Outstanding: ${formatPKR(balanceDueCents / 100)}`,
       `💳 Bill Amount: ${formatPKR(billAmount)}`,
       `📅 Current Bill Due: ${currentBillDue}`,
-      `⚠️ Service interruption reminder: possible after ${currentServiceReminder} if a balance remains unpaid.`
+      '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰'
     );
   }
 

@@ -36,7 +36,8 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(profileUi, /receiptMonthDate\(month, 1\)/);
   assert.match(profileUi, /Package date: \$\{packageDate\} \(renewal day: 1st of every month\)/);
   assert.match(profileUi, /Next Bill Due: \$\{nextBillDue\}/);
-  assert.match(profileUi, /Service interruption reminder: possible after \$\{nextServiceReminder\} if unpaid/);
+  assert.match(profileUi, /⚠️ Please pay by the 5th to avoid service interruption\. thanks 🥰/);
+  assert.doesNotMatch(profileUi, /possible after|after.*12/i);
   assert.match(profileUi, /Current Bill Due: \$\{currentBillDue\}/);
   assert.doesNotMatch(profileUi, /automatically.{0,40}(?:renew|package)|scheduled.{0,40}(?:renew|package)/i);
   assert.match(profileUi, /Status: PARTIAL/);

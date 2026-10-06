@@ -1,5 +1,5 @@
 export const BILL_PACKAGES = Object.freeze([
-  Object.freeze({ id:'3mbps-100gb', label:'3Mbps / 100GB', price:100, speedMbps:3, dataLimit:'100 GB' }),
+  Object.freeze({ id:'3mbps-100gb', label:'3Mbps / 100GB', price:1000, speedMbps:3, dataLimit:'100 GB' }),
   Object.freeze({ id:'3mbps-300gb', label:'3Mbps / 300GB', price:1600, speedMbps:3, dataLimit:'300 GB' }),
   Object.freeze({ id:'5mbps-150gb', label:'5Mbps / 150GB', price:1500, speedMbps:5, dataLimit:'150 GB' }),
   Object.freeze({ id:'5mbps-500gb', label:'5Mbps / 500GB', price:2500, speedMbps:5, dataLimit:'500 GB' }),
@@ -48,5 +48,8 @@ export function validateBillPackageSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
   const expected = createBillPackageSnapshot(snapshot.packageId);
   if (!expected) return null;
-  return Object.keys(expected).every(key => snapshot[key] === expected[key]) ? expected : null;
+  if (Object.keys(expected).every(key => snapshot[key] === expected[key])) return expected;
+  // Keep the former PKR 100 amount valid only for historical bill/receipt snapshots.
+  const legacy = snapshot.packageId === '3mbps-100gb' ? { ...expected, nominalPrice:100 } : null;
+  return legacy && Object.keys(legacy).every(key => snapshot[key] === legacy[key]) ? legacy : null;
 }

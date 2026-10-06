@@ -3,18 +3,20 @@ import {
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
-  deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
+  deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.7';
+} from './core.js?v=1.4.8';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.7';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.7';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.7';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.4.7';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.4.7';
+} from './phase3.js?v=1.4.8';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.8';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.8';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.4.8';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.4.8';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior } from './owner-insights.js?v=1.4.8';
+import { setupOwnerCenter } from './owner-ui.js?v=1.4.8';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -39,6 +41,7 @@ try {
   };
 }
 state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
+if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
 if (storageAvailable) { try { persistState(state, localStorage); } catch { storageAvailable = false; } }
 let selectedCustomerId = null;
 let profileEditMode = false;
@@ -50,6 +53,7 @@ let selectedBillingMonth = monthsForHistory()[0];
 let selectedPayrollMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
 let toastTimer;
+let refreshOwnerCenter = () => {};
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
 const localDate = (date = new Date()) => { const p=zonedDateTimeParts(date); return `${p.year}-${p.month}-${p.day}`; };
 const localDateTime = (date = new Date()) => { const p=zonedDateTimeParts(date); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
@@ -113,9 +117,10 @@ function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
 function save() {
   state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
+  if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
   if (persistenceBlocked) {
     toast('Saved data could not be read. No changes were written; use a valid JSON backup to recover it.');
-    renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderPhase3();
+    renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); refreshOwnerCenter(); renderPhase3();
     return false;
   }
   try { persistState(state, localStorage); storageAvailable = true; }
@@ -125,6 +130,7 @@ function save() {
   renderCustomers();
   renderTransactions();
   renderMonthlyReport();
+  refreshOwnerCenter();
   renderPhase3();
   renderStorageWarning();
   return storageAvailable;
@@ -136,6 +142,7 @@ function checkMonthlyBilling() {
 function renderDashboard() {
   const referenceDate = new Date();
   const totals = calculateDashboard(state, referenceDate);
+  const currentCash = buildMonthlyClosingSnapshot(state, totals.currentMonth, referenceDate);
   const retainedMonths = new Set(monthsForHistory(referenceDate));
   const allBillRows = state.customers.flatMap(customer => (customer.bills ?? []).map(bill => ({ bill })));
   const retainedBills = allBillRows.filter(({bill}) => retainedMonths.has(bill.month));
@@ -159,6 +166,10 @@ function renderDashboard() {
   $('#dashboardTotalCollection').textContent = retainedPayments.length ? formatAmount(totals.totalCollection) : 'No payment entries';
   $('#dashboardTotalDue').textContent = retainedBills.length === 0 ? 'No bill entries' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : 'Not set';
   $('#dashboardTodayCollection').textContent = todayPayments ? formatAmount(totals.todayCollection) : 'No payment entries';
+  $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : 'No entries';
+  $('#dashboardCurrentExpensesPeriod').textContent = `Actual dated expenses · ${monthName(totals.currentMonth)}`;
+  $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : 'No recorded activity';
+  $('#dashboardCashProfitPeriod').textContent = `${formatAmount(currentCash.collection)} actual receipts − ${formatAmount(currentCash.expenses)} recorded expenses`;
   $('#dashboardPreviousCollection').textContent = previousMonthPayments ? formatAmount(totals.previousMonthCollection) : 'No payment entries';
   $('#dashboardCurrentMonthDue').textContent = currentBills.length === 0 ? 'No bill entries' : pricedCurrentBills.length ? formatAmount(totals.currentMonthDue) : 'Not set';
   $('#dashboardPendingCredit').textContent = allPayments.length ? formatAmount(totals.pendingCredit) : 'No credit entries';
@@ -195,36 +206,48 @@ function tenurePresentation(customer) {
 function profileReceiptSummaryMarkup(customer) {
   const receipts = summarizeCustomerReceipts(customer);
   const tenure = tenurePresentation(customer);
+  const allocations = calculatePaymentAllocations(state);
+  const behavior = buildCustomerPaymentBehavior(state, customer, new Date(), allocations);
+  const health = behavior?.health;
+  const pendingCreditCents = [...allocations.byPaymentId.values()].filter(row => row.customerId === customer.id).reduce((sum,row) => sum + (row.unappliedCreditCents ?? 0), 0);
   const receiptRows = receipts.monthly.map(row => `<li class="receipt-month-row"><span>${escapeHtml(monthName(row.month))}</span><strong>${escapeHtml(formatAmount(row.amount))}</strong><small>${plural(row.receiptCount, 'receipt')}</small></li>`).join('');
-  return `<section class="customer-receipt-summary" aria-label="Recorded receipts and connection time"><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>Total actually received</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : 'No receipts recorded'}</strong><small>${receipts.receiptCount ? `${plural(receipts.receiptCount, 'recorded receipt')} · across all saved months` : 'Bills and charges are not counted as receipts.'}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article></div><div class="receipt-month-history"><div class="receipt-month-heading"><strong>Receipts by payment month</strong><span>Grouped by actual payment date · bill amounts excluded</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="Actual receipts by payment month">${receiptRows}</ul>` : '<p class="receipt-month-empty">No actual receipt entries have been recorded.</p>'}</div></section>`;
+  const lastPayment = behavior?.receipts[0] ?? null;
+  const scoreText = health?.score === null || health?.score === undefined ? 'Insufficient history' : `${health.score}/100 · ${health.category}`;
+  const scoreReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
+  const behaviorCards = behavior ? `<article class="profile-summary-stat"><span>Outstanding · all saved bills</span><strong>${escapeHtml(formatAmount(behavior.totalOutstanding))}</strong><small>Credit is tracked separately.</small></article><article class="profile-summary-stat"><span>Unused advance / credit</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : 'None recorded'}</strong><small>Prepaid receipt balance not yet applied.</small></article><article class="profile-summary-stat"><span>Average monthly actual payment</span><strong>${behavior.averageMonthlyPayment===null?'Not calculable':escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(behavior.averageMonthlyPaymentBasis)}</small></article><article class="profile-summary-stat"><span>Average settlement delay</span><strong>${behavior.averagePaymentDelayDays===null?'Not recorded':`${behavior.averagePaymentDelayDays} days`}</strong><small>${behavior.delaySampleCount} saved due-date/settlement pair(s).</small></article><article class="profile-summary-stat"><span>Payment range</span><strong>${behavior.highestPayment===null?'Not recorded':`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>Lowest to highest actual receipt.</small></article><article class="profile-summary-stat"><span>Late / partial payments</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${behavior.totalPayments} actual receipt(s) in history.</small></article><article class="profile-summary-stat"><span>Payment consistency</span><strong>${behavior.paymentConsistency===null?'Insufficient history':`${behavior.paymentConsistency}%`}</strong><small>${behavior.consistencySettledMonths}/${behavior.consistencyBillMonths} completed priced months settled.</small></article><article class="profile-summary-stat"><span>Last payment</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):'Not recorded'}</strong><small>${lastPayment?`${escapeHtml(humanDate(lastPayment.date))} · actual receipt`: 'No actual receipts recorded.'}</small></article>` : '';
+  return `<section class="customer-receipt-summary" aria-label="Customer 360: receipts, credit, payment behavior and health"><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>Total actually received</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : 'No receipts recorded'}</strong><small>${receipts.receiptCount ? `${plural(receipts.receiptCount, 'recorded receipt')} · across all saved months` : 'Bills and charges are not counted as receipts.'}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${behaviorCards}</div><section class="customer-health-summary" aria-label="Customer health score"><strong>Health: ${escapeHtml(scoreText)}</strong><details><summary>Why this score / history basis</summary><ul>${scoreReasons || '<li>No score reasons are available.</li>'}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>Receipts by payment month</strong><span>Grouped by actual payment date · bill amounts excluded</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="Actual receipts by payment month">${receiptRows}</ul>` : '<p class="receipt-month-empty">No actual receipt entries have been recorded.</p>'}</div></section>`;
 }
-function customerCardMarkup(customer, archived = false) {
+function customerCardMarkup(customer, archived = false, allocations = calculatePaymentAllocations(state)) {
   const receipts = summarizeCustomerReceipts(customer);
   const tenure = tenurePresentation(customer);
   const monthBill = (customer.bills ?? []).find(bill => bill.month === selectedBillingMonth);
   const billing = statusPresentation(customer, monthBill);
   const billingLabel = `${monthName(selectedBillingMonth)} bill: ${billing.label}`;
   const manualStatus = manualServiceStatusLabel(customer.serviceStatus);
+  const health = buildCustomerHealthScore(state, customer, new Date(), allocations);
+  const healthLabel = health?.score === null || !health ? 'Health · insufficient history' : `Health · ${health.score}/100 · ${health.category}`;
+  const healthReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
   const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : 'No receipts';
   const receiptCount = receipts.receiptCount ? plural(receipts.receiptCount, 'recorded receipt') : 'No payment entries';
-  const openLabel = `Open customer profile for #${customer.customerNumber}, ${customer.name}. Total actual receipts: ${receiptValue}. Time with ISP: ${tenure.primary}. ${tenure.detail}.`;
+  const openLabel = `Open customer profile for #${customer.customerNumber}, ${customer.name}. Total actual receipts: ${receiptValue}. ${healthLabel}. Time with ISP: ${tenure.primary}. ${tenure.detail}.`;
   const serviceButtons = ['active','offline','not-set'].map(status => {
     const label = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[status];
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="Set customer ${customer.customerNumber} manual service status to ${label}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" aria-label="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" aria-label="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
 function renderCustomers() {
   const customerQuery = customerListQuery();
+  const healthAllocations = calculatePaymentAllocations(state);
   const filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery });
   const active = filtered.filter(customer => !customer.archived);
   const archived = filtered.filter(customer => customer.archived);
   const searched = searchCustomers(state, customerQuery);
   const activeTotal = searched.filter(customer => !customer.archived).length;
   const archivedTotal = searched.filter(customer => customer.archived).length;
-  customerList.innerHTML = active.map(customer => customerCardMarkup(customer)).join('');
-  $('#archivedCustomerList').innerHTML = archived.map(customer => customerCardMarkup(customer, true)).join('');
+  customerList.innerHTML = active.map(customer => customerCardMarkup(customer, false, healthAllocations)).join('');
+  $('#archivedCustomerList').innerHTML = archived.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
   $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
   $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
   $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
@@ -289,6 +312,8 @@ function switchView(view) {
     $(`#${sectionId}`).hidden = !active;
     $(`#${buttonId}`).setAttribute('aria-current', active ? 'page' : 'false');
   }
+  const mobileView = view === 'transactions' ? 'collection' : view === 'reports' ? 'reports' : view === 'customers' ? 'customers' : 'more';
+  document.querySelectorAll('[data-mobile-nav]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileNav === mobileView ? 'page' : 'false'));
 }
 for (const [name, [tabId]] of Object.entries(profileTabMap)) $(`#${tabId}`).addEventListener('click', () => activateProfileTab(name));
 $('.profile-tabs').addEventListener('keydown', event => {
@@ -544,6 +569,7 @@ function renderCustomerProfileView(customer) {
     ['Area / mohalla', customer.mohalla || 'Not set'],
     ['Zone', customer.zone || 'Not set'],
     ['Address', customer.address || 'Not set'],
+    ['Notes', customer.notes?.trim() || 'Not set'],
     ['ISP / provider', customer.ispProvider || 'Not set'],
     ['Service status', manualServiceStatusLabel(customer.serviceStatus)],
     ['Package / speed', customer.packageSpeed || 'Not set'],
@@ -564,8 +590,10 @@ function renderCustomerProfileView(customer) {
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
-  const summary = currentBillPresentation(customer, month, calculatePaymentAllocations(state));
-  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>Current billing · ${escapeHtml(monthName(month))}</h3><details class="help-tip"><summary class="help-icon" aria-label="Current bill and balance guidance" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">Bill amount is the saved bill for this month. Paid, Partial, Pending, or Not set is derived from saved receipts and carried credit. Net due is the existing calculated balance; no bill or amount is invented.</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>Monthly bill</span><strong>${escapeHtml(summary.billAmountLabel)}</strong></article><article class="current-bill-stat"><span>Billing status</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>Net due balance</span><strong>${escapeHtml(summary.balanceDueLabel)}</strong></article></div>`;
+  const allocations = calculatePaymentAllocations(state);
+  const summary = currentBillPresentation(customer, month, allocations);
+  const unusedCreditCents = [...allocations.byPaymentId.values()].filter(row => row.customerId === customer.id).reduce((sum,row) => sum + (row.unappliedCreditCents ?? 0), 0);
+  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>Current billing · ${escapeHtml(monthName(month))}</h3><details class="help-tip"><summary class="help-icon" aria-label="Current bill and balance guidance" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">Bill amount is the saved bill for this month. Paid, Partial, Pending, or Not set is derived from saved receipts and carried credit. Net due is the existing calculated balance; no bill or amount is invented.</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>Monthly bill</span><strong>${escapeHtml(summary.billAmountLabel)}</strong></article><article class="current-bill-stat"><span>Actual cash received on bill</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):'No receipts'}</strong></article><article class="current-bill-stat"><span>Billing status</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>Net due balance</span><strong>${escapeHtml(summary.balanceDueLabel)}</strong></article><article class="current-bill-stat"><span>Unused advance credit</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):'None recorded'}</strong></article></div>`;
 }
 function renderDetail() {
   const customer = selectedCustomer();
@@ -593,6 +621,7 @@ function renderDetail() {
   $('#mohallaInput').value = customer.mohalla ?? '';
   $('#zoneInput').value = customer.zone ?? '';
   $('#addressInput').value = customer.address ?? '';
+  $('#customerNotesInput').value = customer.notes ?? '';
   $('#phoneInput').value = customer.phone ?? '';
   $('#ispProviderInput').value = customer.ispProvider ?? '';
   $('#packageSpeedInput').value = customer.packageSpeed ?? '';
@@ -864,7 +893,7 @@ $('#saveMohallaButton').addEventListener('click', () => {
   if (!selectedCustomer()) return;
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
-      mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, phone:$('#phoneInput').value,
+      mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:$('#phoneInput').value,
       ispProvider:$('#ispProviderInput').value,
       serviceStatus:$('#serviceStatusInput').value,
       packageSpeed:$('#packageSpeedInput').value, monthlyPurchaseCost:$('#monthlyPurchaseCostInput').value,
@@ -1071,3 +1100,4 @@ $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
 renderPhase3();
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderAnalytics,renderInventory,renderExpenses}).refresh;

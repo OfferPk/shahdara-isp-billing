@@ -87,6 +87,30 @@ export function contactActionTargets(phone) {
   };
 }
 
+/** Build a user-reviewed customer follow-up draft; this helper never opens or sends WhatsApp. */
+export function createWhatsAppFollowupDraft(phone, customer, details, template = 'friendly') {
+  const target = contactActionTargets(phone)?.whatsapp;
+  const name = safeLine(customer?.name);
+  const outstanding = Number(details?.outstanding);
+  const previousBalance = Number(details?.previousBalance ?? 0);
+  const dueDate = validCalendarDate(details?.dueDate) ? formatReceiptDate(details.dueDate) : 'Not recorded';
+  const packageName = safeLine(details?.packageName, 80) || 'Not recorded';
+  if (!target || !name || !Number.isFinite(outstanding) || outstanding < 0 || !Number.isFinite(previousBalance) || previousBalance < 0) return null;
+  const paymentAmount = Number(details?.paymentAmount);
+  const paymentDate = String(details?.paymentDate ?? '');
+  if (template === 'payment-confirmation' && (!Number.isFinite(paymentAmount) || paymentAmount <= 0 || !validCalendarDate(paymentDate))) return null;
+  const linesByTemplate = {
+    friendly:[`Assalamu alaikum ${name},`, '', `This is a friendly reminder about your Shahdara ISP bill.`, `Outstanding balance: ${formatPKR(outstanding)}`, `Previous balance: ${formatPKR(previousBalance)}`, `Due date: ${dueDate}`, `Package: ${packageName}`, '', `If you have already paid, please let us know so we can check the local record. Thank you.`],
+    overdue:[`Assalamu alaikum ${name},`, '', `Our saved record shows an overdue Shahdara ISP balance of ${formatPKR(outstanding)}.`, `Previous balance: ${formatPKR(previousBalance)}`, `Due date: ${dueDate}`, `Package: ${packageName}`, '', `Please let us know if you have already paid, or contact us to discuss the balance. Thank you.`],
+    final:[`Assalamu alaikum ${name},`, '', `Final reminder from Shahdara ISP regarding the saved outstanding balance of ${formatPKR(outstanding)}.`, `Previous balance: ${formatPKR(previousBalance)}`, `Due date: ${dueDate}`, `Package: ${packageName}`, '', `Please contact us to settle the balance or tell us if your payment is missing from our records. Thank you.`],
+    'payment-confirmation':[`Assalamu alaikum ${name},`, '', `We confirm that a payment of ${formatPKR(paymentAmount)} was recorded on ${formatReceiptDate(paymentDate)} for your Shahdara ISP account.`, `Remaining balance: ${formatPKR(outstanding)}`, `Previous balance: ${formatPKR(previousBalance)}`, `Due date: ${dueDate}`, `Package: ${packageName}`, '', `Thank you.`]
+  };
+  const lines = linesByTemplate[template];
+  if (!lines) return null;
+  const message = lines.join('\n');
+  return { url:`${target}?text=${encodeURIComponent(message)}`, message };
+}
+
 /** Return a user-reviewed wa.me composer URL for one saved receipt; never sends a message. */
 export function createReceiptWhatsAppDraft(phone, receipt) {
   const target = contactActionTargets(phone)?.whatsapp;

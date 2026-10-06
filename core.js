@@ -37,7 +37,7 @@ function parseLocalDateTime(value) {
 }
 
 export function createInitialState(names = INITIAL_NAMES) {
-  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[] };
+  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[],inventoryMovements:[],expenses:[],saadAttendanceDays:[],umairWorkdays:[],monthlyClosings:[] };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
@@ -108,7 +108,8 @@ export function readState(storage, key = STORAGE_KEY) {
   });
   const phase3 = validatePhase3State(parsed);
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
-  return { ...parsed, ...phase3, nextCustomerNumber:Math.max(storedNext, nextAvailable, highestNumber + 1), customers };
+  const monthlyClosings = validateMonthlyClosingSnapshots(parsed.monthlyClosings ?? []);
+  return { ...parsed, ...phase3, nextCustomerNumber:Math.max(storedNext, nextAvailable, highestNumber + 1), customers, monthlyClosings };
 }
 
 function validDateOrNull(value) {
@@ -338,6 +339,7 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     mohalla: cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla'),
     zone: cleanText(valueOrCurrent('zone') ?? '', 100, 'Zone'),
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
+    notes: cleanText(valueOrCurrent('notes') ?? '', 1000, 'Customer notes'),
     phone: cleanText(valueOrCurrent('phone') ?? '', 40, 'Phone number'),
     ispProvider: cleanText(valueOrCurrent('ispProvider') ?? '', 100, 'ISP/provider name'),
     serviceStatus: checkServiceStatus(valueOrCurrent('serviceStatus') ?? 'not-set'),
@@ -717,6 +719,72 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
   }).filter(row => statusFilter === 'all' || row.status === statusFilter);
 }
 
+function monthlyClosingMetrics(state, month, allocations = calculatePaymentAllocations(state)) {
+  const bills = state.customers.flatMap(customer => (customer.bills ?? []).filter(bill => bill.month === month).map(bill => ({ customer, bill })));
+  const pricedBills = bills.filter(({ bill }) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number.isFinite(Number(bill.dueAmount)) && Number(bill.dueAmount) > 0);
+  const pendingCents = pricedBills.reduce((sum, { customer, bill }) => sum + (allocations.byCustomerMonth.get(monthAllocationKey(customer.id, month))?.balanceDueCents ?? moneyCents(bill.dueAmount)), 0);
+  const pendingBillCount = pricedBills.filter(({ customer }) => (allocations.byCustomerMonth.get(monthAllocationKey(customer.id, month))?.balanceDueCents ?? 0) > 0).length;
+  const payments = state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).filter(payment => typeof payment.date === 'string' && payment.date.slice(0, 7) === month)));
+  const expenses = (state.expenses ?? []).filter(expense => typeof expense.date === 'string' && expense.date.slice(0, 7) === month);
+  const collectionCents = payments.reduce((sum, payment) => sum + moneyCents(payment.amount), 0);
+  const expenseCents = expenses.reduce((sum, expense) => sum + moneyCents(expense.amount), 0);
+  return {
+    totalCustomers:state.customers.filter(customer => customer.archived !== true).length,
+    activeCustomerCount:state.customers.filter(customer => customer.archived !== true && customer.serviceStatus === 'active').length,
+    offlineCustomerCount:state.customers.filter(customer => customer.archived !== true && customer.serviceStatus === 'offline').length,
+    notSetCustomerCount:state.customers.filter(customer => customer.archived !== true && (customer.serviceStatus ?? 'not-set') === 'not-set').length,
+    archivedCustomerCount:state.customers.filter(customer => customer.archived === true).length,
+    billCount:bills.length,
+    pricedBillCount:pricedBills.length,
+    unpricedBillCount:bills.length - pricedBills.length,
+    billedAmount:moneyValue(pricedBills.reduce((sum, row) => sum + moneyCents(row.bill.dueAmount), 0)),
+    paymentCount:payments.length,
+    collection:moneyValue(collectionCents),
+    pendingBillCount,
+    pending:moneyValue(pendingCents),
+    expenseCount:expenses.length,
+    expenses:moneyValue(expenseCents),
+    profit:moneyValue(collectionCents - expenseCents)
+  };
+}
+
+export function buildMonthlyClosingSnapshot(state, month, closedAt = new Date()) {
+  if (!validMonthString(month)) throw new Error('Choose a valid month for the closing snapshot.');
+  const allocations = calculatePaymentAllocations(state);
+  const metrics = monthlyClosingMetrics(state, month, allocations);
+  const previousMonth = shiftMonth(month, -1);
+  const savedPrevious = (state.monthlyClosings ?? []).find(snapshot => snapshot.month === previousMonth);
+  const previous = savedPrevious ?? monthlyClosingMetrics(state, previousMonth, allocations);
+  const previousMonthComparison = {
+    month:previousMonth,
+    source:savedPrevious ? 'saved-snapshot' : 'local-ledger',
+    activeCustomerCount:previous.activeCustomerCount,
+    offlineCustomerCount:previous.offlineCustomerCount,
+    notSetCustomerCount:previous.notSetCustomerCount,
+    archivedCustomerCount:previous.archivedCustomerCount,
+    billedAmount:previous.billedAmount,
+    collection:previous.collection,
+    pending:previous.pending,
+    expenses:previous.expenses,
+    profit:previous.profit
+  };
+  return { month, savedAt:localDateTimeValue(closedAt), ...metrics, previousMonthComparison };
+}
+
+export function saveMonthlyClosing(state, month, closedAt = new Date()) {
+  const snapshot = buildMonthlyClosingSnapshot(state, month, closedAt);
+  const monthlyClosings = [...(state.monthlyClosings ?? []).filter(row => row.month !== month), snapshot].sort((a, b) => b.month.localeCompare(a.month));
+  return { ...state, monthlyClosings };
+}
+
+// Offline PWAs cannot run while closed: save the prior calendar month the first time
+// the owner opens the app in a new month. Existing closes are immutable.
+export function autoClosePreviousMonth(state, referenceDate = new Date()) {
+  const previousMonth = shiftMonth(monthKey(referenceDate), -1);
+  if ((state.monthlyClosings ?? []).some(snapshot => snapshot.month === previousMonth)) return state;
+  return saveMonthlyClosing(state, previousMonth, referenceDate);
+}
+
 export function customerPackageProfit(customer) {
   if (customer?.monthlyPurchaseCost === null || customer?.monthlyPurchaseCost === undefined || customer?.monthlySellingAmount === null || customer?.monthlySellingAmount === undefined) return null;
   return moneyValue(moneyCents(customer.monthlySellingAmount) - moneyCents(customer.monthlyPurchaseCost));
@@ -919,6 +987,23 @@ function validStoredDateTime(value, label) {
   if (value === null || value === undefined || value === '') return;
   if (parseLocalDateTime(value) === null) throw new Error(`Backup contains an invalid ${label}.`);
 }
+function validateMonthlyClosingSnapshots(value) {
+  if (!Array.isArray(value) || value.length > 1200) throw new Error('Saved monthly closing snapshots have an invalid structure.');
+  const months = new Set();
+  return value.map(snapshot => {
+    if (!snapshot || typeof snapshot !== 'object' || !validMonthString(snapshot.month) || months.has(snapshot.month)) throw new Error('Saved monthly closing snapshots contain an invalid or duplicate month.');
+    months.add(snapshot.month);
+    if (typeof snapshot.savedAt !== 'string' || parseLocalDateTime(snapshot.savedAt) === null) throw new Error(`Monthly closing ${snapshot.month} has an invalid saved date.`);
+    for (const field of ['totalCustomers','activeCustomerCount','offlineCustomerCount','notSetCustomerCount','archivedCustomerCount','billCount','pricedBillCount','unpricedBillCount','paymentCount','pendingBillCount','expenseCount']) if (!Number.isSafeInteger(snapshot[field]) || snapshot[field] < 0) throw new Error(`Monthly closing ${snapshot.month} has an invalid ${field}.`);
+    if (snapshot.pricedBillCount + snapshot.unpricedBillCount !== snapshot.billCount) throw new Error(`Monthly closing ${snapshot.month} has inconsistent bill counts.`);
+    for (const field of ['billedAmount','collection','pending','expenses','profit']) if (!Number.isFinite(Number(snapshot[field])) || Math.abs(Number(snapshot[field])) > 1e12 || Math.abs(Number(snapshot[field]) * 100 - Math.round(Number(snapshot[field]) * 100)) > 1e-6) throw new Error(`Monthly closing ${snapshot.month} has an invalid ${field}.`);
+    const previous = snapshot.previousMonthComparison;
+    if (!previous || previous.month !== shiftMonth(snapshot.month, -1) || !['saved-snapshot','local-ledger'].includes(previous.source)) throw new Error(`Monthly closing ${snapshot.month} has an invalid previous-month comparison.`);
+    for (const field of ['activeCustomerCount','offlineCustomerCount','notSetCustomerCount','archivedCustomerCount']) if (!Number.isSafeInteger(previous[field]) || previous[field] < 0) throw new Error(`Monthly closing ${snapshot.month} has an invalid previous-month ${field}.`);
+    for (const field of ['billedAmount','collection','pending','expenses','profit']) if (!Number.isFinite(Number(previous[field])) || Math.abs(Number(previous[field])) > 1e12 || Math.abs(Number(previous[field]) * 100 - Math.round(Number(previous[field]) * 100)) > 1e-6) throw new Error(`Monthly closing ${snapshot.month} has an invalid previous-month ${field}.`);
+    return { month:snapshot.month, savedAt:snapshot.savedAt, totalCustomers:snapshot.totalCustomers, activeCustomerCount:snapshot.activeCustomerCount, offlineCustomerCount:snapshot.offlineCustomerCount, notSetCustomerCount:snapshot.notSetCustomerCount, archivedCustomerCount:snapshot.archivedCustomerCount, billCount:snapshot.billCount, pricedBillCount:snapshot.pricedBillCount, unpricedBillCount:snapshot.unpricedBillCount, billedAmount:Number(snapshot.billedAmount), paymentCount:snapshot.paymentCount, collection:Number(snapshot.collection), pendingBillCount:snapshot.pendingBillCount, pending:Number(snapshot.pending), expenseCount:snapshot.expenseCount, expenses:Number(snapshot.expenses), profit:Number(snapshot.profit), previousMonthComparison:{ month:previous.month, source:previous.source, activeCustomerCount:previous.activeCustomerCount, offlineCustomerCount:previous.offlineCustomerCount, notSetCustomerCount:previous.notSetCustomerCount, archivedCustomerCount:previous.archivedCustomerCount, billedAmount:Number(previous.billedAmount), collection:Number(previous.collection), pending:Number(previous.pending), expenses:Number(previous.expenses), profit:Number(previous.profit) } };
+  }).sort((a,b)=>b.month.localeCompare(a.month));
+}
 function validBackupAmount(value, label, allowZero = false) {
   if (isBlank(value)) return;
   const amount = Number(value);
@@ -939,7 +1024,7 @@ function validateBackupState(source) {
     const normalizedName = customer.name.trim().toLocaleLowerCase();
     if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
     customerNames.add(normalizedName);
-    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['phone',40,'phone number'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
       if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
     }
     if (customer.serviceStatus !== undefined && !['active','offline','not-set'].includes(customer.serviceStatus)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid manual service status.`);
@@ -1026,7 +1111,8 @@ function validateBackupState(source) {
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
   const nextCustomerNumber = Number.isSafeInteger(source.nextCustomerNumber) && source.nextCustomerNumber > 0 ? Math.max(source.nextCustomerNumber, highestNumber + 1) : highestNumber + 1;
   const phase3 = validatePhase3State(source);
-  return { ...source, ...phase3, version:1, nextCustomerNumber, customers };
+  const monthlyClosings = validateMonthlyClosingSnapshots(source.monthlyClosings ?? []);
+  return { ...source, ...phase3, version:1, nextCustomerNumber, customers, monthlyClosings };
 }
 
 export function createJsonBackup(state, exportedAt = new Date()) {
@@ -1048,7 +1134,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, filledProfileFields:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
@@ -1131,6 +1217,13 @@ export function previewJsonBackupMerge(existingState, backupText) {
     for(const date of incomingState[key]??[])if(!known.has(date)){known.add(date);counts[countKey]++;counts.changes++;}
     current[key]=[...known].sort();
   }
+  current.monthlyClosings=current.monthlyClosings??[];
+  for (const snapshot of incomingState.monthlyClosings) {
+    const existing=current.monthlyClosings.find(row=>row.month===snapshot.month);
+    if (!existing) { current.monthlyClosings.push(deepCopy(snapshot)); counts.addedMonthlyClosings++; counts.changes++; }
+    else if (!sameJson(existing,snapshot)) conflicts.push({customerNumber:null,name:'',field:`monthly closing ${snapshot.month}`});
+  }
+  current.monthlyClosings.sort((a,b)=>b.month.localeCompare(a.month));
   current.customers.sort((a,b)=>a.customerNumber-b.customerNumber);
   current.nextCustomerNumber = Math.max(existingState.nextCustomerNumber ?? 1, incomingState.nextCustomerNumber, ...current.customers.map(customer=>customer.customerNumber+1));
   const state = counts.changes ? current : existingState;

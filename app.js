@@ -5,15 +5,16 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.5';
+} from './core.js?v=1.4.6';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.5';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.5';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.5';
-import { buildPaymentReceipt } from './receipt.js?v=1.4.5';
+} from './phase3.js?v=1.4.6';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.6';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.6';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.4.6';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.4.6';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -344,7 +345,6 @@ function editCustomerPhoneFromReceipt(customerId) {
 function bindReceiptPhoneActions(container) {
   container.querySelectorAll('[data-edit-receipt-phone]').forEach(button => button.addEventListener('click', () => editCustomerPhoneFromReceipt(button.dataset.editReceiptPhone)));
 }
-const packageTermsNote = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 function receiptFieldMarkup(label, value, className = '') {
   return `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${className}">${value ? escapeHtml(value) : '&nbsp;'}</dd></div>`;
 }
@@ -372,6 +372,7 @@ function printPaymentReceipt(customerId, month, paymentId) {
     ['Package duration', receipt.packageDuration],
     ['Package type', receipt.packageType],
     ['Data limit', receipt.dataLimit],
+    ['Nominal package price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
     ['Package date', receipt.packageDate],
     ['Amount received', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount)],
     ['Payment method', receipt.paymentMethod],
@@ -380,7 +381,7 @@ function printPaymentReceipt(customerId, month, paymentId) {
     ['Receipt status', receipt.status, statusClass],
     ['Balance due after this payment', balance]
   ];
-  area.innerHTML = `<article class="receipt-sheet"><header class="receipt-head"><div><span class="receipt-brand">Shahdara ISP</span><h1>Payment receipt</h1><p>Generated from the selected locally saved payment record</p></div><span class="receipt-mark">${escapeHtml(receipt.status || 'RECEIPT')}</span></header><dl class="receipt-fields">${fields.map(([label,value,className]) => receiptFieldMarkup(label, value, className ?? '')).join('')}</dl>${receipt.status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰</p>' : ''}<footer class="receipt-terms"><h2>Package terms</h2><p dir="rtl" lang="ur">${escapeHtml(packageTermsNote).replaceAll('\n','<br>')}</p></footer></article>`;
+  area.innerHTML = `<article class="receipt-sheet"><header class="receipt-head"><div><span class="receipt-brand">Shahdara ISP</span><h1>Payment receipt</h1><p>Generated from the selected locally saved payment record</p></div><span class="receipt-mark">${escapeHtml(receipt.status || 'RECEIPT')}</span></header><dl class="receipt-fields">${fields.map(([label,value,className]) => receiptFieldMarkup(label, value, className ?? '')).join('')}</dl>${receipt.status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰</p>' : ''}<footer class="receipt-terms"><h2>Package terms</h2><p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n','<br>')}</p></footer></article>`;
   area.hidden = false;
   document.body.classList.add('printing-receipt');
   requestAnimationFrame(() => {
@@ -394,6 +395,11 @@ function billAmountAuditMarkup(bill) {
   if (!changes.length) return '';
   const items = changes.map(change => `<li>${escapeHtml(humanLocalDateTime(change.changedAt))}: ${escapeHtml(formatAmount(change.previousAmount))} → ${escapeHtml(formatAmount(change.newAmount))}</li>`).join('');
   return `<details class="bill-audit"><summary>Bill amount corrections (${changes.length})</summary><ol>${items}</ol></details>`;
+}
+function billPackageSelectorMarkup(bill, month) {
+  const savedPlan = validateBillPackageSnapshot(bill?.packageSnapshot);
+  const options = BILL_PACKAGES.map(plan => `<option value="${plan.id}" ${savedPlan?.packageId === plan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('');
+  return `<label class="field-label full" for="package-${month}">Monthly package <span class="optional-label">Optional · six preset rates</span></label><select id="package-${month}" class="full" name="packageId" data-bill-package aria-describedby="package-help-${month}"><option value="" ${savedPlan ? '' : 'selected'}>No preset package — enter amount manually</option>${options}</select><p id="package-help-${month}" class="field-help full">A preset stores its exact label, speed, nominal price, type and applicable cap on this bill only. It does not change the customer profile or future recurring rate. Actual payments stay separate; older bills are never inferred or backfilled.</p>`;
 }
 function renderHistory(customer) {
   const monthList = monthsForHistory();
@@ -428,11 +434,20 @@ function renderHistory(customer) {
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? 'Optional' : 'Required to create a bill';
     const amountPlaceholder = bill ? 'Leave blank only if not known' : 'Enter confirmed amount in PKR';
+    const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
+    const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid"><label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid">${packageSelector}<label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}"><summary><span class="month-label">${escapeHtml(monthName(month))}</span><span class="history-count">${bill ? `${bill.payments?.length ?? 0} payment${bill.payments?.length === 1 ? '' : 's'}` : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="Payments for ${escapeHtml(monthName(month))}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
+  historyContainer.querySelectorAll('select[data-bill-package]').forEach(select => select.addEventListener('change', () => {
+    const plan = billPackageById(select.value);
+    select.form.dataset.packageSelectionChanged = 'true';
+    const amount = select.form.elements.namedItem('dueAmount');
+    if (plan) { amount.value = String(plan.price); amount.readOnly = true; select.form.dataset.clearPackageSnapshot = 'false'; }
+    else { amount.readOnly = false; select.form.dataset.clearPackageSnapshot = 'true'; }
+  }));
   historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => form.addEventListener('submit', onPaymentSubmit));
   historyContainer.querySelectorAll('[data-edit-payment]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.editPayment, 'history')));
   historyContainer.querySelectorAll('[data-delete-payment]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.deletePayment)));
@@ -681,7 +696,18 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
 function onBillSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
-  try { state = saveBillMonth(state, selectedCustomerId, { month:form.dataset.month, dueAmount:data.get('dueAmount') || null, dueDate:data.get('dueDate') || null, status:'pending' }); save(); renderDetail(); toast('Bill details saved on this device.'); }
+  try {
+    const packageChanged = form.dataset.packageSelectionChanged === 'true';
+    state = saveBillMonth(state, selectedCustomerId, {
+      month:form.dataset.month,
+      dueAmount:data.get('dueAmount') || null,
+      dueDate:data.get('dueDate') || null,
+      status:'pending',
+      packageId:packageChanged ? data.get('packageId') : '',
+      clearPackageSnapshot:packageChanged && form.dataset.clearPackageSnapshot === 'true'
+    });
+    save(); renderDetail(); toast('Bill details saved on this device.');
+  }
   catch (error) { toast(error.message); }
 }
 function onPaymentSubmit(event) {

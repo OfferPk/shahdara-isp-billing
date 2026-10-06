@@ -469,6 +469,17 @@ test('rejects invalid payments and invalid calendar dates', () => {
   assert.throws(() => addPayment(state, customerId, currentMonth, payment({ date:'2026-02-29' }), referenceDate), /valid payment date/);
 });
 
+test('rejects future actual receipts and corrections at the Pakistan-local day boundary', () => {
+  const state = createInitialState(['Synthetic Test Customer']);
+  const customerId = state.customers[0].id;
+  const pakistanSept29 = new Date('2026-09-28T21:00:00.000Z');
+  const withReceipt = addPayment(state, customerId, currentMonth, payment({ date:'2026-09-29' }), pakistanSept29);
+  const paymentId = withReceipt.customers[0].bills[0].payments[0].id;
+  assert.throws(() => addPayment(state, customerId, currentMonth, payment({ date:'2026-09-30' }), pakistanSept29), /cannot be in the future/);
+  assert.throws(() => correctPayment(withReceipt, customerId, currentMonth, paymentId, payment({ date:'2026-09-30' }), pakistanSept29), /cannot be in the future/);
+  assert.doesNotThrow(() => correctPayment(withReceipt, customerId, currentMonth, paymentId, payment({ date:'2026-09-29' }), pakistanSept29));
+});
+
 
 test('customer numbers are sequential, stable across deletion and reload, and never reused', () => {
   let state = createInitialState();
@@ -528,8 +539,8 @@ test('all-customer transactions are newest first, filter by date, and share name
 });
 
 test('transaction recency windows use inclusive Pakistan-local payment dates and intersect with name/date filters', () => {
-  const pktMidnight = new Date('2026-10-04T19:00:00.000Z');
-  const justBeforePktMidnight = new Date('2026-10-04T18:59:59.999Z');
+  const pktMidnight = new Date('2026-10-05T19:00:00.000Z');
+  const justBeforePktMidnight = new Date('2026-10-05T18:59:59.999Z');
   let state = createInitialState(['Synthetic Recency A','Synthetic Recency B','Synthetic Recency C','Synthetic Recency D','Synthetic Recency E','Synthetic Recency F','Synthetic Recency G']);
   state = saveBillMonth(state, 'seed-001', { month:'2026-10', dueAmount:'30', dueDate:'2026-10-05', status:'pending' }, pktMidnight);
   state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-10-01', amount:'10' }), pktMidnight);
@@ -549,12 +560,12 @@ test('transaction recency windows use inclusive Pakistan-local payment dates and
   assert.equal(allHistory.find(row => row.date === '2026-10-05').balanceDueCents, 0);
 
   const last7 = listTransactions(state, { recencyDays:7 }, pktMidnight);
-  assert.deepEqual(last7.map(row => row.date), ['2026-10-05','2026-10-01','2026-09-29']);
+  assert.deepEqual(last7.map(row => row.date), ['2026-10-06','2026-10-05','2026-10-01']);
   assert.equal(last7.find(row => row.date === '2026-10-01').month, '2026-08', 'an old bill month is included when its actual payment date is recent');
   assert.ok(!last7.some(row => row.month === '2026-10' && row.date === '2026-09-28'), 'a current bill month is excluded when its actual payment date is old');
-  assert.deepEqual(listTransactions(state, { recencyDays:30 }, pktMidnight).map(row => row.date), ['2026-10-05','2026-10-01','2026-09-29','2026-09-28','2026-09-06']);
-  assert.deepEqual(listTransactions(state, { recencyDays:90 }, pktMidnight).map(row => row.date), ['2026-10-05','2026-10-01','2026-09-29','2026-09-28','2026-09-06','2026-09-05','2026-07-08']);
-  assert.ok(listTransactions(state, { recencyDays:7 }, justBeforePktMidnight).some(row => row.date === '2026-09-28'), 'the local calendar day boundary advances at midnight PKT, not UTC midnight');
+  assert.deepEqual(listTransactions(state, { recencyDays:30 }, pktMidnight).map(row => row.date), ['2026-10-06','2026-10-05','2026-10-01','2026-09-29','2026-09-28']);
+  assert.deepEqual(listTransactions(state, { recencyDays:90 }, pktMidnight).map(row => row.date), ['2026-10-06','2026-10-05','2026-10-01','2026-09-29','2026-09-28','2026-09-06','2026-09-05']);
+  assert.ok(listTransactions(state, { recencyDays:7 }, justBeforePktMidnight).some(row => row.date === '2026-09-29'), 'the local calendar day boundary advances at midnight PKT, not UTC midnight');
 
   assert.deepEqual(listTransactions(state, { customerQuery:'Synthetic Recency A', date:'2026-10-05', recencyDays:7 }, pktMidnight).map(row => row.customerId), ['seed-001']);
   assert.deepEqual(listTransactions(state, { customerQuery:'Synthetic Recency A', date:'2026-09-28', recencyDays:7 }, pktMidnight), [], 'exact date and customer search intersect with recency');

@@ -287,7 +287,7 @@ test('drafts reject invalid receipt fields and never auto-send or call a WhatsAp
 });
 
 test('transaction receipt drafts retain saved partial status, balance, payer and due date', () => {
-  const referenceDate = new Date('2026-10-04T19:00:00.000Z');
+  const referenceDate = new Date('2026-10-10T00:00:00.000Z');
   let state = createInitialState(['Synthetic Receipt QA']);
   state = saveBillMonth(state, 'seed-001', { month:'2026-10', dueAmount:'1200', dueDate:'2026-10-05', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-001', '2026-10', { date:'2026-10-10', amount:'300', method:'Easypaisa', paidBy:'Tanveer' }, referenceDate);
@@ -308,6 +308,8 @@ test('transaction receipt drafts retain saved partial status, balance, payer and
 });
 
 test('new-payment and correction forms expose an optional, non-autofilled payer field', () => {
+  assert.match(app, /for="date-\$\{month\}">Payment date \(Pakistan local date\)<\/label><input id="date-\$\{month\}"[^>]*name="date" type="date" max="\$\{localDate\(\)\}"/);
+  assert.match(app, /for="edit-date-\$\{escapeHtml\(payment\.id\)\}">Payment date<\/label><input id="edit-date-\$\{escapeHtml\(payment\.id\)\}"[^>]*name="date" type="date" max="\$\{localDate\(\)\}"/);
   assert.match(app, /Paid by \(optional\)/);
   assert.match(app, /autocomplete="off"/);
   assert.match(app, /paidBy:data\.get\('paidBy'\)/);

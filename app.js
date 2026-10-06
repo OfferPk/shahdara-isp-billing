@@ -5,14 +5,14 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.1';
+} from './core.js?v=1.4.2';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.1';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.1';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.1';
+} from './phase3.js?v=1.4.2';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.2';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.2';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -505,6 +505,7 @@ function renderDetail() {
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
   $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
+  $('#profileAvatar').textContent = initials(customer.name);
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
   $('#detailName').textContent = customer.name;
   renderCurrentBillSummary(customer);
@@ -512,6 +513,12 @@ function renderDetail() {
   $('#customerProfileView').hidden = profileEditMode;
   $('#customerProfileForm').hidden = !profileEditMode;
   $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
+  const serviceStatus = ['active','offline'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set';
+  const serviceStatusLabel = manualServiceStatusLabel(serviceStatus).replace('Service status: ', '');
+  const serviceStatusBadge = $('#profileServiceStatusBadge');
+  serviceStatusBadge.className = `profile-service-status profile-service-status-${serviceStatus}`;
+  serviceStatusBadge.textContent = `Service · ${serviceStatusLabel}`;
+  serviceStatusBadge.setAttribute('aria-label', `Manual service status: ${serviceStatusLabel}; not monitored`);
   $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : 'date not recorded') : '');
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;

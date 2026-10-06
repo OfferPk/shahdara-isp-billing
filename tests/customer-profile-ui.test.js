@@ -299,3 +299,26 @@ test('new-payment and correction forms expose an optional, non-autofilled payer 
   assert.match(app, /function paymentPayerMarkup\(payment\)/);
   assert.match(app, /Paid by: \$\{escapeHtml\(paidBy\)\}/);
 });
+
+
+test('customer profile uses an identity-first card with separate manual service and billing states', () => {
+  const cardStart = index.indexOf('<section class="customer-profile-card"');
+  const cardEnd = index.indexOf('</section>', cardStart);
+  assert.ok(cardStart >= 0 && cardEnd > cardStart, 'profile summary card wraps its identity and current bill');
+  const card = index.slice(cardStart, cardEnd);
+  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','archiveCustomerButton','unarchiveCustomerButton','deleteCustomerButton','customerCurrentBillSummary']) {
+    assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
+  }
+  assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);
+  assert.match(index, /class="profile-action-group" role="group" aria-label="Customer quick actions"/);
+  assert.match(index, /id="profileServiceStatusBadge"[^>]*Manual service status: Not set; not monitored/);
+  assert.ok(index.indexOf('id="customerCurrentBillSummary"') < index.indexOf('id="profileTabBilling"'), 'current-bill summary precedes the section tabs');
+  assert.match(app, /profileAvatar'\)\.textContent = initials\(customer\.name\)/);
+  assert.match(app, /profileServiceStatusBadge'[\s\S]*?profile-service-status-\$\{serviceStatus\}/);
+  assert.match(app, /Manual service status: \$\{serviceStatusLabel\}; not monitored/);
+  assert.match(styles, /\.profile-action-group>button\{min-height:44px/);
+  assert.match(styles, /\.profile-action-group \.current-payment-shortcut\{min-height:48px/);
+  assert.match(styles, /@media\(max-width:800px\)\{\.profile-action-group\{/);
+  assert.match(styles, /@media\(max-width:620px\)\{\.detail-head\{margin-bottom:0\}/);
+  assert.ok(styles.includes('.profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid'), 'profile tabs and quick actions retain a visible keyboard focus ring');
+});

@@ -5,18 +5,18 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.9';
+} from './core.js?v=1.5.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.9';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.9';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.9';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.4.9';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.4.9';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior } from './owner-insights.js?v=1.4.9';
-import { setupOwnerCenter } from './owner-ui.js?v=1.4.9';
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
+} from './phase3.js?v=1.5.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.5.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.5.0';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.5.0';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.5.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior } from './owner-insights.js?v=1.5.0';
+import { setupOwnerCenter } from './owner-ui.js?v=1.5.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -987,8 +987,56 @@ function oneSeriesSvg(rows,{key,label,title,isMoney=false}={}) {
   const description=rows.map(row=>`${row.month}: ${Number.isFinite(row[key])?row[key]:'not recorded'}`).join('; ');
   return `<svg class="phase3-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${phase3Cell(title)}"><title>${phase3Cell(title)}</title><desc>${phase3Cell(description)}</desc>${grid}${bars}</svg>`;
 }
+function signedOneSeriesSvg(rows,{key,label,title,isMoney=false}={}) {
+  const values=rows.map(row=>row[key]).filter(value=>Number.isFinite(value));if(!values.length)return '';
+  const width=720,height=220,left=76,right=12,top=14,bottom=38,plotWidth=width-left-right,plotHeight=height-top-bottom,low=Math.min(0,...values),high=Math.max(0,...values),span=Math.max(1,high-low),groupWidth=plotWidth/Math.max(rows.length,1),barWidth=Math.min(30,groupWidth*.42),zeroY=top+(high/span)*plotHeight;
+  const ticks=[high,0,low].filter((value,index,array)=>array.indexOf(value)===index),grid=ticks.map(value=>{const y=top+((high-value)/span)*plotHeight;return `<line x1="${left}" y1="${y}" x2="${width-right}" y2="${y}" class="chart-grid-line"/><text x="${left-7}" y="${y+4}" text-anchor="end" class="chart-axis-label">${phase3Cell(chartAxis(value,isMoney))}</text>`;}).join('');
+  const bars=rows.map((row,index)=>{const value=row[key],center=left+groupWidth*(index+.5),valueY=top+((high-value)/span)*plotHeight,y=Math.min(zeroY,valueY),h=Math.max(1,Math.abs(zeroY-valueY));return `${Number.isFinite(value)?`<rect x="${center-barWidth/2}" y="${y}" width="${barWidth}" height="${h}" rx="3" class="${value<0?'chart-bar-negative':'chart-bar-first'}"><title>${phase3Cell(label)} · ${phase3Cell(row.month)}: ${phase3Cell(isMoney?formatAmount(value):value)}</title></rect>`:''}<text x="${center}" y="${height-12}" text-anchor="middle" class="chart-month-label">${phase3Cell(shortMonth(row.month))}</text>`;}).join('');
+  const description=rows.map(row=>`${row.month}: ${Number.isFinite(row[key])?row[key]:'not recorded'}`).join('; ');
+  return `<svg class="phase3-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${phase3Cell(title)}"><title>${phase3Cell(title)}</title><desc>${phase3Cell(description)}</desc>${grid}${bars}</svg>`;
+}
+function categoryBarsSvg(rows,{title,isMoney=true}={}) {
+  const values=rows.filter(row=>Number.isFinite(row.value));if(!values.length)return '';
+  const width=720,left=176,right=94,top=18,rowHeight=34,bottom=16,height=Math.max(130,top+values.length*rowHeight+bottom),plotWidth=width-left-right,maximum=Math.max(...values.map(row=>row.value),1),barHeight=15;
+  const grid=[0,.5,1].map(ratio=>{const x=left+plotWidth*ratio;return `<line x1="${x}" y1="${top-5}" x2="${x}" y2="${height-bottom+1}" class="chart-grid-line"/><text x="${x}" y="${height-2}" text-anchor="middle" class="chart-axis-label">${phase3Cell(chartAxis(maximum*ratio,isMoney))}</text>`;}).join('');
+  const bars=values.map((row,index)=>{const y=top+index*rowHeight,label=String(row.label??''),short=label.length>26?`${label.slice(0,24)}…`:label,barWidth=Math.max(row.value>0?2:0,row.value/maximum*plotWidth),display=isMoney?formatAmount(row.value):String(row.value);return `<text x="${left-9}" y="${y+barHeight-2}" text-anchor="end" class="chart-axis-label">${phase3Cell(short)}</text><rect x="${left}" y="${y}" width="${barWidth}" height="${barHeight}" rx="4" class="chart-bar-first"><title>${phase3Cell(label)}: ${phase3Cell(display)}</title></rect><text x="${width-right+7}" y="${y+barHeight-2}" class="chart-axis-label">${phase3Cell(display)}</text>`;}).join('');
+  const description=values.map(row=>`${row.label}: ${row.value}`).join('; ');
+  return `<svg class="phase3-chart-svg category-chart-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="${phase3Cell(title)}"><title>${phase3Cell(title)}</title><desc>${phase3Cell(description)}</desc>${grid}${bars}</svg>`;
+}
+function prepareAreaIntelFilters(data) {
+  const month=$('#areaIntelMonth'),from=$('#areaIntelFrom'),to=$('#areaIntelTo');if(!month||!from||!to)return;
+  const history=monthsForHistory(new Date()),oldMonth=month.value,hadDates=Boolean(from.value&&to.value);
+  month.innerHTML=`<option value="">Custom date range</option>${history.map(value=>`<option value="${value}">${escapeHtml(monthName(value))}</option>`).join('')}`;
+  month.value=history.includes(oldMonth)?oldMonth:hadDates?'':data.currentMonth;
+  from.max=data.asOf;to.max=data.asOf;
+  if(!hadDates){from.value=`${data.currentMonth}-01`;to.value=data.asOf;}
+}
+function renderAreaIntelligence() {
+  const from=$('#areaIntelFrom')?.value,to=$('#areaIntelTo')?.value,table=$('#areaIntelligenceTable');if(!table)return;
+  const areaChart=$('#areaRevenueChart'),zoneChart=$('#areaZoneRevenueChart'),packageChart=$('#packageRevenueChart'),basis=$('#areaIntelBasis');
+  try {
+    const referenceDate=new Date(),area=buildAreaIntelligence(state,{startDate:from,endDate:to},referenceDate),packages=buildPackageRevenue(state,{startDate:from,endDate:to},referenceDate);
+    const namedAreas=area.rows.filter(row=>row.level==='area'&&row.billedAmount!==null).map(row=>({label:row.area.replace(/^Area:\s*/,''),value:row.billedAmount})).sort((a,b)=>b.value-a.value);
+    const zones=area.rows.filter(row=>row.level==='zone'&&row.billedAmount!==null).map(row=>({label:`${row.parentArea.replace(/^(?:Area|Mohalla):\s*/,'')} · ${row.area.replace(/^Zone:\s*/, '')}`,value:row.billedAmount})).sort((a,b)=>b.value-a.value);
+    areaChart.innerHTML=namedAreas.length?categoryBarsSvg(namedAreas,{title:`Service-month revenue by area, ${from} to ${to}`}):'<p class="empty-state">No saved priced bill snapshots for named areas in this range.</p>';
+    zoneChart.innerHTML=zones.length?categoryBarsSvg(zones,{title:`Service-month revenue by zone, ${from} to ${to}`}):'<p class="empty-state">No saved priced bill snapshots for named zones in this range.</p>';
+    packageChart.innerHTML=packages.rows.length?categoryBarsSvg(packages.rows.map(row=>({label:row.package,value:row.revenue})),{title:`Service-month revenue by recorded package, ${from} to ${to}`}):'<p class="empty-state">No positive priced bill snapshots in the selected service months.</p>';
+    table.innerHTML=area.rows.map(row=>{
+      const label=`${row.area}`;const active=row.activeCustomers===null?'Not recorded for this historical date':String(row.activeCustomers);
+      const amountOrMissing=value=>value===null?'Not recorded':formatAmount(value);
+      return `<tr class="area-row-${phase3Cell(row.level)}"><th scope="row"><span class="location-summary-label location-summary-${phase3Cell(row.level)}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${phase3Cell(row.level==='unassigned'?'Unassigned':row.level)}</span><span class="location-summary-value">${phase3Cell(label.replace(/^(?:Area|Mohalla|Zone):\s*/,''))}</span></span></th><td>${row.totalCustomers}</td><td title="${phase3Cell(row.activeCustomerSource)}">${phase3Cell(active)}</td><td>${phase3Cell(amountOrMissing(row.billedAmount))}</td><td>${phase3Cell(amountOrMissing(row.collectedAmount))}</td><td>${phase3Cell(amountOrMissing(row.outstanding))}</td><td>${row.collectionRate===null?'Not set':`${row.collectionRate}%`}</td><td>${phase3Cell(amountOrMissing(row.averageCustomerValue))}</td><td title="${phase3Cell(row.expensesSource)}">${phase3Cell(amountOrMissing(row.expenses))}</td><td title="${phase3Cell(row.estimatedProfitBasis)}">${phase3Cell(amountOrMissing(row.estimatedProfit))}</td></tr>`;
+    }).join('');
+    $('#areaIntelligenceEmpty').hidden=area.rows.length>0;
+    basis.textContent=`${from} to ${to}. ${area.basis.customers} ${area.basis.activeCustomers} ${area.basis.billing} ${area.basis.collection} ${area.basis.outstanding} ${area.basis.collectionRate} ${area.basis.averageCustomerValue} ${area.basis.expenses} ${area.basis.profit}${area.unallocatedExpenseCount?` ${area.unallocatedExpenseCount} expense record(s) in this range have no location tag.`:''} ${packages.basis}`;
+  } catch(error) {
+    table.replaceChildren();$('#areaIntelligenceEmpty').hidden=false;$('#areaIntelligenceEmpty').textContent=error.message;
+    for(const host of [areaChart,zoneChart,packageChart])host.innerHTML=`<p class="empty-state">${phase3Cell(error.message)}</p>`;
+    basis.textContent='Select a valid date range to calculate the local area and package summaries.';
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
+  prepareAreaIntelFilters(data);
   $('#analyticsPeriodNote').textContent=`Last six Pakistan local months through ${data.asOf} · ${monthName(data.currentMonth)} is partial.`;
   $('#forecastAmount').textContent=data.forecast.customersIncluded?formatAmount(data.forecast.amount):'Not set';
   $('#forecastDetail').textContent=data.forecast.customersIncluded?`${data.forecast.customersIncluded} configured subscriptions · ${data.forecast.missingPrice} eligible profiles missing a next-month price · offline status does not exclude a subscriber`:'No confirmed active subscription rates for next month.';
@@ -1014,6 +1062,11 @@ function renderAnalytics() {
   $('#growthChart').innerHTML=data.hasConnectionDates?twoSeriesSvg(growthRows,{first:'newConnections',second:'cumulative',firstLabel:'New connections',secondLabel:'Dated active count',title:'Recorded new connections and cumulative active customers with known connection dates'}):'<p class="empty-state">No recorded connection dates in the six-month period.</p>';
   const incomeSvg=twoSeriesSvg(data.incomeExpense,{first:'income',second:'expenses',firstLabel:'Cash income',secondLabel:'Recorded expense',title:'Actual cash receipts compared with dated actual expenses',isMoney:true});
   $('#incomeExpenseChart').innerHTML=data.hasIncomeRecords||data.hasExpenseRecords?incomeSvg:'<p class="empty-state">No payment receipts or expense entries in this six-month window.</p>';
+  const expenseRows=data.incomeExpense.map(row=>({month:row.month,expenses:row.expenseCount?row.expenses:null}));
+  $('#expenseTrendChart').innerHTML=data.hasExpenseRecords?oneSeriesSvg(expenseRows,{key:'expenses',label:'Recorded expenses',title:'Dated actual expense trend',isMoney:true}):'<p class="empty-state">No actual expense entries in this six-month window.</p>';
+  const profitRows=data.incomeExpense.map(row=>({month:row.month,profit:row.incomeCount||row.expenseCount?(row.income??0)-(row.expenses??0):null}));
+  $('#profitTrendChart').innerHTML=data.hasIncomeRecords||data.hasExpenseRecords?signedOneSeriesSvg(profitRows,{key:'profit',label:'Cash profit',title:'Receipt-date collection minus actual dated expenses',isMoney:true}):'<p class="empty-state">No receipts or expense entries to calculate cash profit.</p>';
+  renderAreaIntelligence();
   const incomeLegend=$('#incomeLegend'); if(incomeLegend)incomeLegend.textContent=data.hasIncomeRecords?'Cash income':'Cash income · no entries';
   const expenseLegend=$('#expenseLegend'); if(expenseLegend)expenseLegend.textContent=data.hasExpenseRecords?'Recorded expense':'Expense · no entries';
   const denominator=online.denominator,onlineWidth=denominator?online.online/denominator*100:0,offlineWidth=denominator?online.offline/denominator*100:0;
@@ -1097,6 +1150,12 @@ $('#saadAttendanceForm').addEventListener('submit',event=>{event.preventDefault(
 $('#umairWorkdayForm').addEventListener('submit',event=>{event.preventDefault();const date=new FormData(event.currentTarget).get('date');try{if((state.umairWorkdays??[]).includes(date)){toast('That workday is already recorded; no duplicate expense was added.');return;}state=addUmairWorkday(state,date);save();event.currentTarget.reset();toast('Umair workday recorded on this device.');}catch(error){toast(error.message);}});
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
 $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
+$('#areaIntelMonth').addEventListener('change',event=>{
+  const month=event.currentTarget.value;if(!month){renderAnalytics();return;}
+  const [year,number]=month.split('-').map(Number),lastDay=new Date(Date.UTC(year,number,0)).getUTCDate();
+  $('#areaIntelFrom').value=`${month}-01`;$('#areaIntelTo').value=month===localDate().slice(0,7)?localDate():`${month}-${String(lastDay).padStart(2,'0')}`;renderAnalytics();
+});
+['#areaIntelFrom','#areaIntelTo'].forEach(selector=>$(selector).addEventListener('change',()=>{if($('#areaIntelMonth').value)$('#areaIntelMonth').value='';renderAnalytics();}));
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
 renderPhase3();

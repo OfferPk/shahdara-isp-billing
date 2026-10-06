@@ -362,6 +362,110 @@ export function buildPhase3Analytics(state,referenceDate=new Date()) {
     currentBilledRevenue:revenueMap.size?money(currentBilledRevenueCents):0,currentOutstanding:outstanding.total};
 }
 
+function rangeMonths(startDate,endDate) {
+  const start=requireDate(startDate,'Start date'),end=requireDate(endDate,'End date');
+  if(start>end)throw new Error('Start date must be on or before the end date.');
+  return {start,end,startMonth:monthOf(start),endMonth:monthOf(end)};
+}
+function dateWithin(value,start,end) { return validDate(value)&&value>=start&&value<=end; }
+function areaDescriptors(path,includeUnspecifiedZone=true) {
+  const output=[];
+  if(!path.area)return[{id:'unassigned',area:'Area not set',key:'__area_not_set__',rootArea:'Area not set',level:'unassigned',parentArea:'',depth:0}];
+  const areaId=`area:${path.area.key}`,areaLabelText=`Area: ${path.area.label}`;
+  output.push({id:areaId,area:areaLabelText,key:path.area.key,rootArea:areaLabelText,level:'area',parentArea:'',depth:0});
+  let parentId=areaId,parentLabel=areaLabelText,depth=1;
+  if(path.separateMohalla) {
+    parentId=`mohalla:${path.area.key}:${path.separateMohalla.key}`;parentLabel=`Mohalla: ${path.separateMohalla.label}`;
+    output.push({id:parentId,area:parentLabel,key:path.separateMohalla.key,rootArea:areaLabelText,level:'mohalla',parentArea:areaLabelText,depth:1});depth=2;
+  }
+  if(path.zone||includeUnspecifiedZone) {
+    const zoneKey=path.zone?.key??'__zone_not_set__',zoneLabel=path.zone?`Zone: ${path.zone.label}`:'Zone not set';
+    output.push({id:`zone:${parentId}:${zoneKey}`,area:zoneLabel,key:zoneKey,rootArea:areaLabelText,level:'zone',parentArea:parentLabel,depth});
+  }
+  return output;
+}
+function packageLabelForSavedBill(customer,bill,currentMonth) {
+  const saved=String(bill?.packageSnapshot?.label??'').trim();
+  if(saved)return canonicalPackage(saved)?.label??readableLabel(saved);
+  const history=(customer.packageHistory??[]).filter(row=>validDate(row.date)&&row.date.slice(0,7)<=bill.month).sort((a,b)=>b.date.localeCompare(a.date));
+  if(history.length&&String(history[0].newPackage??'').trim())return canonicalPackage(history[0].newPackage)?.label??readableLabel(history[0].newPackage);
+  if(bill.month===currentMonth&&String(customer.packageSpeed??'').trim())return canonicalPackage(customer.packageSpeed)?.label??readableLabel(customer.packageSpeed);
+  return null;
+}
+
+/** Build date-filtered area/zone figures. Historical groupings use today's saved location assignment because location history is not stored. */
+export function buildAreaIntelligence(state,{startDate,endDate},referenceDate=new Date()) {
+  const range=rangeMonths(startDate,endDate),today=pktDate(referenceDate);
+  if(range.end>today)throw new Error('End date cannot be later than today in Pakistan time.');
+  const customers=uniqueCustomerRows(state.customers??[]),customerById=new Map(customers.map(customer=>[customer.id,customer])),groups=new Map(),customerGroupIds=new Map();
+  const ensureGroup=descriptor=>{
+    if(!groups.has(descriptor.id))groups.set(descriptor.id,{...descriptor,customerIds:new Set(),billedCents:0,billCount:0,billedCustomerIds:new Set(),collectedCents:0,receiptCount:0,outstandingCents:0,outstandingBillCount:0,expenseCents:0,expenseCount:0});
+    return groups.get(descriptor.id);
+  };
+  for(const customer of customers) {
+    const descriptors=areaDescriptors(locationPath(customer)),ids=[];
+    for(const descriptor of descriptors){const group=ensureGroup(descriptor);group.customerIds.add(customer.id);ids.push(group.id);}
+    customerGroupIds.set(customer.id,ids);
+  }
+  const bills=allBills({customers}),billHistoryByCustomer=new Map();
+  for(const {customer,bill} of bills) {
+    if(!MONTH_RE.test(String(bill.month??'')))continue;
+    if(bill.month<=range.endMonth&&nonblank(bill.dueAmount)&&Number.isFinite(Number(bill.dueAmount))&&Number(bill.dueAmount)>0)billHistoryByCustomer.set(customer.id,(billHistoryByCustomer.get(customer.id)??0)+1);
+    if(bill.month<range.startMonth||bill.month>range.endMonth||!nonblank(bill.dueAmount)||!Number.isFinite(Number(bill.dueAmount))||Number(bill.dueAmount)<=0)continue;
+    for(const id of customerGroupIds.get(customer.id)??[]){const group=groups.get(id);group.billedCents+=cents(bill.dueAmount);group.billCount++;group.billedCustomerIds.add(customer.id);}
+  }
+  const cutoff=new Date(`${range.end}T23:59:59+05:00`),outstanding=outstandingAtMonthEnd({customers},range.endMonth,cutoff);
+  for(const group of groups.values())for(const customerId of group.customerIds){group.outstandingCents+=cents(outstanding.byCustomer.get(customerId)??0);group.outstandingBillCount+=billHistoryByCustomer.get(customerId)??0;}
+  for(const {customer,payment} of paymentEntries({customers}))if(dateWithin(payment.date,range.start,range.end)) {
+    for(const id of customerGroupIds.get(customer.id)??[]){const group=groups.get(id);group.collectedCents+=cents(payment.amount);group.receiptCount++;}
+  }
+  const expenses=(state.expenses??[]).filter(expense=>dateWithin(expense.date,range.start,range.end));
+  const locationExpenses=expenses.filter(expense=>canonicalLocation(expense.area)||canonicalLocation(expense.mohalla)||canonicalLocation(expense.zone));
+  const unallocatedExpenseCount=expenses.length-locationExpenses.length;
+  for(const expense of locationExpenses) {
+    const path=locationPath(expense),descriptors=areaDescriptors(path,false);
+    for(const descriptor of descriptors){const group=groups.get(descriptor.id);if(!group)continue;group.expenseCents+=cents(expense.amount);group.expenseCount++;}
+  }
+  const currentRosterStatus=range.end===today;
+  const rows=[...groups.values()].map(group=>{
+    const billedAmount=group.billCount?money(group.billedCents):null;
+    const collectedAmount=group.receiptCount||group.billCount||locationExpenses.length?money(group.collectedCents):null;
+    const outstandingAmount=group.outstandingBillCount?money(group.outstandingCents):null;
+    const expensesAvailable=group.expenseCount>0,areaExpenses=expensesAvailable?money(group.expenseCents):null;
+    const customerValue=group.billedCustomerIds.size?money(Math.round(group.billedCents/group.billedCustomerIds.size)):null;
+    const activeCustomers=currentRosterStatus?[...group.customerIds].filter(id=>{const customer=customerById.get(id);return customer&&!customer.archived&&customer.serviceStatus==='active';}).length:null;
+    const estimatedProfit=expensesAvailable&&collectedAmount!==null?money(cents(collectedAmount)-cents(areaExpenses)):null;
+    return {...group,customerIds:undefined,billedCustomerIds:undefined,
+      totalCustomers:group.customerIds.size,activeCustomers,activeCustomerSource:currentRosterStatus?`current manual status as of ${today}`:'not captured for this historical date',
+      billedAmount,collectedAmount,outstanding:outstandingAmount,collectionRate:group.billedCents?Number((group.collectedCents/group.billedCents*100).toFixed(1)):null,
+      averageCustomerValue:customerValue,expenses:areaExpenses,estimatedProfit,
+      expensesSource:expensesAvailable?'Only expenses with an explicit saved area/mohalla/zone tag; unallocated business expenses are excluded.':locationExpenses.length?'No explicitly tagged expense entry for this area/zone in the selected range.':'Not recorded for an area/zone; whole-business expenses are not allocated.',
+      estimatedProfitBasis:estimatedProfit===null?(locationExpenses.length?'Not estimated: no explicit expense allocation is recorded for this area/zone in the selected range.':'Not estimated because explicit area/zone expense attribution is unavailable.'):'Estimate = receipt-date cash collected − explicitly area/zone-tagged expenses; unallocated whole-business expenses are excluded, so this is not full accounting profit.'};
+  }).sort((a,b)=>a.rootArea?.localeCompare(b.rootArea??'')||a.depth-b.depth||a.area.localeCompare(b.area));
+  return {startDate:range.start,endDate:range.end,startMonth:range.startMonth,endMonth:range.endMonth,asOf:range.end,
+    rows,hasAreaExpenseAttribution:locationExpenses.length>0,locationExpenseCount:locationExpenses.length,unallocatedExpenseCount,
+    basis:{customers:'Customer counts use the current saved roster and saved location assignments; historical area/customer snapshots are not available.',activeCustomers:currentRosterStatus?'Current manual Active status, shown as of today; it is not network monitoring.':'Historical area-level active status is unavailable because no dated area/zone status snapshot is stored.',billing:'Positive saved bill snapshots grouped by service month; all bill months touching the selected date range are included in full.',collection:'Actual saved receipts grouped by their payment date within the selected date range.',outstanding:`Reconstructed from saved priced bills due through ${range.endMonth} and receipt dates through ${range.end}; no saved area-level month-close balance snapshot exists.`,collectionRate:'Actual receipt-date collections during the selected date range divided by saved billing for the service months touching that range; may exceed 100%.',averageCustomerValue:'Selected-range saved billing divided by distinct customers with a priced bill in those service months.',expenses:locationExpenses.length?'Only explicit saved area/mohalla/zone expense tags are included; unallocated expenses are not spread across locations.':'No explicitly area/zone-tagged expense entries are recorded in this date range.',profit:'Estimated only when this area/zone has an explicit expense allocation; collection less tagged expenses, with unallocated whole-business expenses excluded.'}};
+}
+
+/** Group saved service-month bill snapshots by recorded package labels for a date range. */
+export function buildPackageRevenue(state,{startDate,endDate},referenceDate=new Date()) {
+  const range=rangeMonths(startDate,endDate),today=pktDate(referenceDate);
+  if(range.end>today)throw new Error('End date cannot be later than today in Pakistan time.');
+  const currentMonth=pktMonth(referenceDate),groups=new Map();let unrecordedPackageBills=0,pricedBillCount=0;
+  for(const {customer,bill} of allBills(state)) {
+    if(!MONTH_RE.test(String(bill.month??''))||bill.month<range.startMonth||bill.month>range.endMonth||!nonblank(bill.dueAmount)||!Number.isFinite(Number(bill.dueAmount))||Number(bill.dueAmount)<=0)continue;
+    pricedBillCount++;
+    const label=packageLabelForSavedBill(customer,bill,currentMonth)??'Package not recorded';
+    if(label==='Package not recorded')unrecordedPackageBills++;
+    const key=comparisonKey(label);if(!groups.has(key))groups.set(key,{package:label,revenueCents:0,billCount:0,customerIds:new Set()});
+    const group=groups.get(key);group.revenueCents+=cents(bill.dueAmount);group.billCount++;group.customerIds.add(customer.id);
+  }
+  const rows=[...groups.values()].map(row=>({package:row.package,revenue:money(row.revenueCents),billCount:row.billCount,customers:row.customerIds.size}))
+    .sort((a,b)=>b.revenue-a.revenue||a.package.localeCompare(b.package));
+  return {startDate:range.start,endDate:range.end,startMonth:range.startMonth,endMonth:range.endMonth,rows,pricedBillCount,unrecordedPackageBills,
+    basis:'Positive saved bill price snapshots grouped by service month; package labels use a saved bill snapshot or dated package history. Current package settings are not backfilled into older months.'};
+}
+
 export function validatePhase3State(source) {
   const itemIds=new Set(),movementIds=new Set(),expenseIds=new Set();
   const validateDateEntries=(entries,label)=>{

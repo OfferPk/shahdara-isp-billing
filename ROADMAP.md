@@ -4,7 +4,7 @@
 
 **Product goal:** The owner should be able to manage ISP cash, customer ledgers and business accounts from a phone in roughly 10–20 seconds, even without internet.
 
-**Status (2026-10-07):** v1.4.8 remains live on GitHub Pages. The v1.4.9 implementation and static build are verified with 190 passing automated tests and desktop plus 390px phone-width smoke checks; publication is pending. Phases 1–2 and Smart Dues Recovery/WhatsApp in Phase 3 are already included; this release completes Phase 3 Smart Alerts. Phase 4 month comparisons/performance explanations are included, while broader Business Analytics/Area Intelligence and later work remain on the roadmap.
+**Status (2026-10-07):** v1.4.9 is live on GitHub Pages; the public shell, Owner UI bundle and v30 offline-cache worker are verified. All 190 automated tests pass, the production build succeeds, and desktop plus 390px phone-width smoke checks are clean. Phase 3 Smart Alerts completes the local recovery/alerts work. Phases 1–3 and the month comparisons/performance explanations in Phase 4 are included; broader Business Analytics/Area Intelligence and later roadmap work remain planned.
 
 ## Non-negotiable data and safety rules
 

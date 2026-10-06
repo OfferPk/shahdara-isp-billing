@@ -4,7 +4,7 @@
 
 **Product goal:** The owner should be able to manage ISP cash, customer ledgers and business accounts from a phone in roughly 10–20 seconds, even without internet.
 
-**Status (2026-10-07):** v1.4.9 is live on GitHub Pages; the public shell, Owner UI bundle and v30 offline-cache worker are verified. All 190 automated tests pass, the production build succeeds, and desktop plus 390px phone-width smoke checks are clean. Phase 3 Smart Alerts completes the local recovery/alerts work. Phases 1–3 and the month comparisons/performance explanations in Phase 4 are included; broader Business Analytics/Area Intelligence and later roadmap work remain planned.
+**Status (2026-10-07):** v1.4.9 was the previously verified public GitHub Pages baseline. v1.5.0 completes Phase 4, passes all 197 automated tests, and builds successfully; a clean-origin desktop preview confirms the new analytics and Area Intelligence UI. Phases 1–4 are implemented; Phases 5–7 remain planned.
 
 ## Non-negotiable data and safety rules
 
@@ -67,9 +67,11 @@
   11. MOHALLA HAVELI
   12. MOHALLA CHUDRIYAA
   13. MOHALLA PULL
-  14. MOHALLA SHAHDARA PARK
+ 14. MOHALLA SHAHDARA PARK
 
-**Acceptance:** Verify date filters, parent/zone roll-ups without double counting, package snapshots by service month, cash collection by receipt date, and explicit “not recorded” handling for area expenses/history.
+**Acceptance (passed):** Date-range validation and filter rendering, parent/zone roll-ups without double counting, package snapshots by service month, cash collection by receipt date, and explicit “not recorded” handling for area expenses/history are covered by the calculation and UI regression tests. The 14 supplied Mohalla names remain optional suggestions only.
+
+**Verification (v1.5.0 release candidate):** All 197 automated tests pass; JavaScript syntax checks and the production build pass; the fresh-origin desktop browser smoke check confirms the trend charts, Area Intelligence heading, date controls and empty-ledger states, with no browser console errors. Narrow-screen CSS stacks charts and keeps wide analytics tables horizontally scrollable; the app remains browser-local and existing customer/billing records are not migrated or rewritten.
 
 ### Phase 5 — Inventory and optional staff records
 

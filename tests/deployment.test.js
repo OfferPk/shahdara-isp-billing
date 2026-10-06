@@ -29,7 +29,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v30'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v31'/);
   assert.equal((app.match(/max="\$\{localDate\(\)\}"/g) ?? []).length, 2, 'new receipts and corrections use the current Pakistan-local date as their maximum');
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
@@ -243,7 +243,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v30'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v31'/);
 });
 
 test('production build includes required imported feature modules and the package catalog', () => {

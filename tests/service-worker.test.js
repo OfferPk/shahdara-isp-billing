@@ -91,7 +91,7 @@ test('worker install precaches the offline shell before taking control', async (
   await worker.dispatch('install');
   assert.equal(worker.skipWaitingCalls, 1);
   assert.equal(worker.added.length, 1);
-  assert.equal(worker.added[0].name, 'shahdara-isp-billing-v30');
+  assert.equal(worker.added[0].name, 'shahdara-isp-billing-v31');
   assert.deepEqual(worker.added[0].files, [
     './','./index.html','./styles.css','./app.js','./profile-labels.js',
     './profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./owner-insights.js','./owner-ui.js','./manifest.webmanifest','./icon.svg'
@@ -104,20 +104,21 @@ test('worker activation removes only older Shahdara caches and claims clients', 
     'another-pwa-cache-v3',
     'tool-cache',
     'shahdara-isp-billing-v23',
-    'shahdara-isp-billing-v30'
+    'shahdara-isp-billing-v30',
+    'shahdara-isp-billing-v31'
   ] });
   await worker.dispatch('activate');
-  assert.deepEqual(worker.deleted, ['shahdara-isp-billing-v19','shahdara-isp-billing-v23']);
-  assert.deepEqual([...worker.names].sort(), ['another-pwa-cache-v3','shahdara-isp-billing-v30','tool-cache'].sort());
+  assert.deepEqual(worker.deleted, ['shahdara-isp-billing-v19','shahdara-isp-billing-v23','shahdara-isp-billing-v30']);
+  assert.deepEqual([...worker.names].sort(), ['another-pwa-cache-v3','shahdara-isp-billing-v31','tool-cache'].sort());
   assert.equal(worker.claimCalls, 1);
 });
 
 test('worker serves a versioned app-module request from its cache despite query parameters', async () => {
   const worker = createWorker({
-    cacheNames:['shahdara-isp-billing-v30'],
-    entries:[['shahdara-isp-billing-v30','/app.js','cached module']]
+    cacheNames:['shahdara-isp-billing-v31'],
+    entries:[['shahdara-isp-billing-v31','/app.js','cached module']]
   });
-  const result = await worker.dispatch('fetch', { url:'https://billing.example/app.js?v=1.4.9', method:'GET' });
+  const result = await worker.dispatch('fetch', { url:'https://billing.example/app.js?v=1.5.0', method:'GET' });
   assert.equal(result.responded, true);
   assert.equal(result.response, 'cached module');
   assert.equal(worker.matchOptions[0].ignoreSearch, true);
@@ -126,8 +127,8 @@ test('worker serves a versioned app-module request from its cache despite query 
 
 test('worker falls back to its cached app shell when a same-origin request fails offline', async () => {
   const worker = createWorker({
-    cacheNames:['shahdara-isp-billing-v30'],
-    entries:[['shahdara-isp-billing-v30','./index.html','cached offline shell']]
+    cacheNames:['shahdara-isp-billing-v31'],
+    entries:[['shahdara-isp-billing-v31','./index.html','cached offline shell']]
   });
   const result = await worker.dispatch('fetch', { url:'https://billing.example/uncached-route', method:'GET' });
   assert.equal(result.responded, true);

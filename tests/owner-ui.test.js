@@ -33,6 +33,18 @@ test('monthly closing, comparisons and rankings are offline assets and use saved
   assert.ok(build.includes("'owner-ui.js'"));
 });
 
+test('business analytics offers local trend charts and a month/date-filtered Area Intelligence dashboard',()=>{
+  for(const id of ['revenueCollectionChart','growthChart','outstandingChart','expenseTrendChart','profitTrendChart','areaIntelMonth','areaIntelFrom','areaIntelTo','areaRevenueChart','areaZoneRevenueChart','packageRevenueChart','areaIntelligenceTable'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
+  for(const title of ['Collection trend','Customer growth','Pending trend','Expense trend','Cash profit trend','Area-wise revenue','Zone-wise revenue','Package-wise revenue'])assert.ok(index.includes(title),`${title} chart is labeled`);
+  assert.match(app,/buildAreaIntelligence\(state,\{startDate:from,endDate:to\}/);
+  assert.match(app,/buildPackageRevenue\(state,\{startDate:from,endDate:to\}/);
+  assert.match(app,/signedOneSeriesSvg\(profitRows/);
+  assert.match(app,/areaIntelMonth.*addEventListener/);
+  assert.match(index,/Parent rows include their child rows/);
+  assert.match(index,/not a historical status snapshot/i);
+  assert.doesNotMatch(app,/fetch\s*\(|sendBeacon/);
+});
+
 test('WhatsApp recovery remains owner-triggered and offers templates without background sending',()=>{
   for(const template of ['friendly','overdue','final','payment-confirmation'])assert.ok(ui.includes(template));
   assert.match(ui,/target="_blank" rel="noopener noreferrer"/);

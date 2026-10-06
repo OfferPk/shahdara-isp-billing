@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.4.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.4.2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.4.1">
+  <link rel="stylesheet" href="./styles.css?v=1.4.2">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -92,11 +92,14 @@
         <div id="customerDetail" hidden>
           <div class="detail-head">
             <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
-            <div class="detail-title-row">
-              <div><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">CUSTOMER LEDGER</p><h2 id="detailName"></h2></div>
-              <div class="profile-action-group"><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
-            </div>
-            <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
+            <section class="customer-profile-card" aria-label="Customer profile card">
+              <div class="detail-title-row">
+                <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
+                <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
+              </div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
+            </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
               <button id="profileTabBilling" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBilling" aria-selected="true" tabindex="0">Billing &amp; Ledger</button>
               <button id="profileTabInfo" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelInfo" aria-selected="false" tabindex="-1">Customer Info</button>
@@ -266,6 +269,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.4.1"></script>
+  <script type="module" src="./app.js?v=1.4.2"></script>
 </body>
 </html>

@@ -5,14 +5,14 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.4.0';
+} from './core.js?v=1.4.1';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.4.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.0';
+} from './phase3.js?v=1.4.1';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.1';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.1';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -108,6 +108,7 @@ function toast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => { element.hidden = true; }, 2600);
 }
 function searchQuery() { return $('#globalCustomerSearch').value; }
+function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
 function save() {
   state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
   if (persistenceBlocked) {
@@ -213,10 +214,11 @@ function customerCardMarkup(customer, archived = false) {
   return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" aria-label="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
 function renderCustomers() {
-  const filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery:searchQuery() });
+  const customerQuery = customerListQuery();
+  const filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery });
   const active = filtered.filter(customer => !customer.archived);
   const archived = filtered.filter(customer => customer.archived);
-  const searched = searchCustomers(state, searchQuery());
+  const searched = searchCustomers(state, customerQuery);
   const activeTotal = searched.filter(customer => !customer.archived).length;
   const archivedTotal = searched.filter(customer => customer.archived).length;
   customerList.innerHTML = active.map(customer => customerCardMarkup(customer)).join('');
@@ -226,7 +228,7 @@ function renderCustomers() {
   $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {
-    emptySearch.textContent = searchQuery().trim() ? 'No matching customers.' : 'No customers match these service and billing filters.';
+    emptySearch.textContent = customerQuery.trim() ? 'No matching customers.' : 'No customers match these service and billing filters.';
     emptySearch.hidden = active.length > 0 || archived.length > 0;
   }
   document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerServiceFilter === selectedServiceFilter ? 'true' : 'false'));
@@ -586,6 +588,16 @@ $('#downloadJsonBackupButton').addEventListener('click', () => {
   toast('JSON backup downloaded to this device. Store it somewhere safe.');
 });
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
+$('#backupControlsToggle').addEventListener('click', event => {
+  const button = event.currentTarget;
+  const controls = $('#backupControls');
+  const opening = controls.hidden;
+  controls.hidden = !opening;
+  button.setAttribute('aria-expanded', String(opening));
+  const label = opening ? 'Hide backup and restore controls' : 'Show backup and restore controls';
+  button.setAttribute('aria-label', label);
+  button.title = label;
+});
 $('#jsonBackupFileInput').addEventListener('change', async event => {
   const file = event.currentTarget.files?.[0];
   if (!file) return;
@@ -699,6 +711,8 @@ function requestDeleteIncident(customerId, incidentId) {
   catch (error) { toast(error.message); }
 }
 
+$('#customerListSearch').addEventListener('input', renderCustomers);
+$('#clearCustomerListSearch').addEventListener('click', () => { $('#customerListSearch').value = ''; renderCustomers(); $('#customerListSearch').focus(); });
 $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
 $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });

@@ -1,0 +1,318 @@
+import { calculatePaymentAllocations, monthsForHistory } from './core.js';
+
+const cents = value => Math.round(Number(value || 0) * 100);
+const amount = value => Number((value / 100).toFixed(2));
+const validPrice = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) && Number(value) > 0;
+const zonedParts = (date, withDay = false) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:'Asia/Karachi', year:'numeric', month:'2-digit', ...(withDay ? {day:'2-digit'} : {}) }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+const monthFor = date => { const p=zonedParts(date); return `${p.year}-${p.month}`; };
+const dateFor = date => { const p=zonedParts(date,true); return `${p.year}-${p.month}-${p.day}`; };
+const shiftMonth = (month, delta) => { const [year, n]=month.split('-').map(Number); const index=year*12+n-1+delta; return `${Math.floor(index/12)}-${String(index%12+1).padStart(2,'0')}`; };
+const daysBetween = (later, earlier) => /^\d{4}-\d{2}-\d{2}$/.test(later ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(earlier ?? '') ? Math.floor((Date.parse(`${later}T00:00:00Z`)-Date.parse(`${earlier}T00:00:00Z`))/86400000) : null;
+const pkr = value => `PKR ${new Intl.NumberFormat('en-PK').format(amount(value))}`;
+
+function pricedBill(customer, bill, allocations) {
+  if (!validPrice(bill?.dueAmount)) return null;
+  const dueCents=cents(bill.dueAmount), allocation=allocations.forMonth(customer.id,bill.month);
+  const balanceCents=Math.max(0,allocation?.balanceDueCents ?? dueCents);
+  const payments=(bill.payments ?? []).filter(payment=>Number.isFinite(Number(payment.amount))&&Number(payment.amount)>0);
+  const events=[...(allocation?.creditSources ?? []).map(source=>({date:source.paymentDate,cents:Number(source.amountCents)||0})),...payments.map(payment=>({date:payment.date,cents:cents(payment.amount)}))]
+    .filter(event=>/^\d{4}-\d{2}-\d{2}$/.test(event.date ?? '')&&event.cents>0).sort((a,b)=>a.date.localeCompare(b.date));
+  let funded=0,settlementDate=null;
+  for(const event of events){funded+=event.cents;if(funded>=dueCents){settlementDate=event.date;break;}}
+  return {customerId:customer.id,month:bill.month,bill,dueCents,balanceCents,payments,settlementDate,dueDate:/^\d{4}-\d{2}-\d{2}$/.test(bill.dueDate ?? '')?bill.dueDate:null};
+}
+
+export function buildCustomerPaymentBehavior(state, customerOrId, referenceDate=new Date(), allocations=calculatePaymentAllocations(state)) {
+  const customer=typeof customerOrId==='string'?state.customers.find(item=>item.id===customerOrId):customerOrId;
+  if(!customer)return null;
+  const currentMonth=monthFor(referenceDate);
+  const bills=(customer.bills ?? []).map(bill=>pricedBill(customer,bill,allocations)).filter(Boolean).sort((a,b)=>b.month.localeCompare(a.month));
+  const receipts=(customer.bills ?? []).flatMap(bill=>(bill.payments ?? []).filter(payment=>Number.isFinite(Number(payment.amount))&&Number(payment.amount)>0).map(payment=>({...payment,month:bill.month,dueDate:/^\d{4}-\d{2}-\d{2}$/.test(bill.dueDate ?? '')?bill.dueDate:null})));
+  const receiptCents=receipts.map(row=>cents(row.amount)),totalCents=receiptCents.reduce((sum,x)=>sum+x,0);
+  const billedMonths=bills.filter(row=>row.month<=currentMonth),completedBills=billedMonths.filter(row=>row.month<currentMonth).slice(0,6);
+  const settledDated=billedMonths.filter(row=>row.dueDate&&row.settlementDate);
+  const delays=settledDated.map(row=>Math.max(0,daysBetween(row.settlementDate,row.dueDate)??0));
+  const averagePaymentDelayDays=delays.length?Number((delays.reduce((sum,x)=>sum+x,0)/delays.length).toFixed(1)):null;
+  const latePaymentCount=receipts.filter(row=>row.dueDate&&row.date>row.dueDate).length;
+  const partialPaymentCount=bills.reduce((sum,row)=>sum+row.payments.filter(payment=>cents(payment.amount)<row.dueCents).length,0);
+  const lateBillCount=billedMonths.filter(row=>row.dueDate&&(row.settlementDate?row.settlementDate>row.dueDate:row.balanceCents>0&&dateFor(referenceDate)>row.dueDate)).length;
+  const monthsWithBills=new Set(billedMonths.map(row=>row.month)).size;
+  const consistencySettled=completedBills.filter(row=>row.balanceCents===0).length;
+  const paymentConsistency=completedBills.length>=2?Math.round(consistencySettled/completedBills.length*100):null;
+  const outstandingCents=bills.reduce((sum,row)=>sum+row.balanceCents,0);
+  const currentBill=bills.find(row=>row.month===currentMonth)??null;
+  const longestOverdueDays=bills.reduce((max,row)=>row.dueDate&&row.balanceCents>0?Math.max(max,Math.max(0,daysBetween(dateFor(referenceDate),row.dueDate)??0)):max,0);
+  const health=scoreCustomer(customer,bills,completedBills,averagePaymentDelayDays,referenceDate);
+  return {
+    customerId:customer.id,totalPayments:receipts.length,totalPaymentAmount:amount(totalCents),
+    averageMonthlyPayment:monthsWithBills?amount(Math.round(totalCents/monthsWithBills)):null,
+    averageMonthlyPaymentBasis:monthsWithBills?`${monthsWithBills} saved priced bill month${monthsWithBills===1?'':'s'}`:'No priced bills recorded',
+    highestPayment:receiptCents.length?amount(Math.max(...receiptCents)):null,lowestPayment:receiptCents.length?amount(Math.min(...receiptCents)):null,
+    latePaymentCount,partialPaymentCount,lateBillCount,averagePaymentDelayDays,delaySampleCount:delays.length,
+    paymentConsistency,consistencySettledMonths:consistencySettled,consistencyBillMonths:completedBills.length,
+    totalOutstanding:amount(outstandingCents),totalOutstandingCents:outstandingCents,
+    currentBill:currentBill?{month:currentBill.month,dueAmount:amount(currentBill.dueCents),balanceDue:amount(currentBill.balanceCents),dueDate:currentBill.dueDate,status:currentBill.balanceCents===0?'Paid':currentBill.balanceCents<currentBill.dueCents?'Partial':'Pending'}:null,
+    longestOverdueDays,receipts:receipts.sort((a,b)=>b.date.localeCompare(a.date)),bills,health
+  };
+}
+
+function scoreCustomer(customer,bills,completedBills,averageDelay,referenceDate) {
+  if(completedBills.length<2)return{score:null,category:'Insufficient history',reasons:[`Only ${completedBills.length} completed priced bill month${completedBills.length===1?'':'s'} recorded; at least 2 are needed for a score.`]};
+  const currentMonth=monthFor(referenceDate),scoredBills=bills.filter(row=>row.month<=currentMonth);
+  const unsettled=completedBills.filter(row=>row.balanceCents>0).length;
+  const dated=scoredBills.filter(row=>row.dueDate);
+  const late=dated.filter(row=>row.settlementDate?row.settlementDate>row.dueDate:row.balanceCents>0&&dateFor(referenceDate)>row.dueDate).length;
+  const owed=scoredBills.reduce((sum,row)=>sum+row.balanceCents,0),billed=scoredBills.reduce((sum,row)=>sum+row.dueCents,0);
+  const partial=completedBills.filter(row=>row.payments.length>1||row.payments.some(payment=>cents(payment.amount)<row.dueCents)).length;
+  const penalties={regularity:35*unsettled/completedBills.length,overdue:dated.length?20*late/dated.length:0,balance:billed?20*Math.min(1,owed/billed):0,partial:10*partial/completedBills.length,delay:averageDelay===null?0:15*Math.min(1,averageDelay/30)};
+  const score=Math.max(0,Math.min(100,Math.round(100-Object.values(penalties).reduce((sum,value)=>sum+value,0))));
+  const category=score>=80?'Good':score>=60?'Risk':'Critical';
+  const reasons=[
+    `Payment regularity: ${completedBills.length-unsettled}/${completedBills.length} recent completed bill months settled (−${Math.round(penalties.regularity)} points).`,
+    dated.length?`Due-date history: ${late}/${dated.length} priced bills late or still overdue (−${Math.round(penalties.overdue)} points).`:'No saved due dates; late-history deduction was not applied.',
+    billed?`Outstanding: ${pkr(owed)} of ${pkr(billed)} across saved priced bills (−${Math.round(penalties.balance)} points).`:'No priced bills available for an outstanding-balance score.',
+    `Partial installments: ${partial}/${completedBills.length} recent completed bill months (−${Math.round(penalties.partial)} points).`,
+    averageDelay===null?'Average delay unavailable because no fully settled bill has a recorded due date.':`Average settlement delay: ${averageDelay} days across ${scoredBills.filter(row=>row.dueDate&&row.settlementDate).length} dated settled bills (−${Math.round(penalties.delay)} points).`
+  ];
+  return{score,category,reasons,penalties:Object.fromEntries(Object.entries(penalties).map(([key,value])=>[key,Math.round(value)])),historyMonths:completedBills.length};
+}
+
+export function buildCustomerHealthScore(state,customerOrId,referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+  return buildCustomerPaymentBehavior(state,customerOrId,referenceDate,allocations)?.health??null;
+}
+
+export const CUSTOMER_RANKING_TYPES=Object.freeze([
+  {id:'highest-paying',label:'Highest-paying customers'},{id:'most-consistent',label:'Most consistent customers'},
+  {id:'longest-standing',label:'Longest-standing customers'},{id:'highest-package',label:'Highest-value package'},
+  {id:'highest-outstanding',label:'Highest outstanding'},{id:'longest-overdue',label:'Longest overdue'},{id:'repeat-late',label:'Repeat late payers'}
+]);
+function packagePriceForMonth(customer,bill,month,referenceDate) {
+  if(validPrice(bill?.packageSnapshot?.nominalPrice))return Number(bill.packageSnapshot.nominalPrice);
+  const schedule=(customer.monthlyPriceSchedule??[]).filter(row=>row.effectiveMonth<=month&&validPrice(row.amount)).sort((a,b)=>b.effectiveMonth.localeCompare(a.effectiveMonth));
+  if(schedule.length)return Number(schedule[0].amount);
+  if(month===monthFor(referenceDate)&&validPrice(customer.monthlySellingAmount))return Number(customer.monthlySellingAmount);
+  return null;
+}
+export function buildCustomerRankings(state,{type='highest-paying',month=monthFor(new Date()),area='all',packageName='all',status='all',startDate='',endDate=''}={},referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+  if(!CUSTOMER_RANKING_TYPES.some(item=>item.id===type))throw new Error('Choose a supported customer ranking.');
+  const current=monthFor(referenceDate),selected=/^\d{4}-(0[1-9]|1[0-2])$/.test(month)&&month<=current?month:current,rows=[];let excludedCount=0;
+  for(const customer of state.customers){
+    const areaValue=customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',packageValue=customer.packageSpeed?.trim()||'Package not set';
+    if(area!=='all'&&areaValue!==area)continue;if(packageName!=='all'&&packageValue!==packageName)continue;
+    if(status==='archived'?!customer.archived:status!=='all'&&(customer.archived||(customer.serviceStatus??'not-set')!==status))continue;
+    const behavior=buildCustomerPaymentBehavior(state,customer,referenceDate,allocations),bill=(customer.bills??[]).find(row=>row.month===selected);
+    const balance=bill&&validPrice(bill.dueAmount)?allocations.forMonth(customer.id,selected)?.balanceDueCents??cents(bill.dueAmount):null;
+    const selectedReceipts=behavior.receipts.filter(payment=>payment.date.slice(0,7)===selected&&(!startDate||payment.date>=startDate)&&(!endDate||payment.date<=endDate));
+    const overdueDays=balance>0&&/^\d{4}-\d{2}-\d{2}$/.test(bill?.dueDate??'')?Math.max(0,daysBetween(dateFor(referenceDate),bill.dueDate)??0):null;
+    let value=null,displayValue='';
+    switch(type){
+      case'highest-paying':value=selectedReceipts.reduce((sum,row)=>sum+cents(row.amount),0);displayValue=pkr(value);break;
+      case'most-consistent':value=behavior.paymentConsistency;displayValue=value===null?'':`${value}% · ${behavior.consistencySettledMonths}/${behavior.consistencyBillMonths} settled`;break;
+      case'longest-standing':value=customer.connectionDate?Date.parse(`${customer.connectionDate}T00:00:00Z`):null;displayValue=customer.connectionDate?`Since ${customer.connectionDate}`:'';break;
+      case'highest-package':value=packagePriceForMonth(customer,bill,selected,referenceDate);displayValue=value===null?'':pkr(cents(value));break;
+      case'highest-outstanding':value=balance;displayValue=value===null?'':pkr(value);break;
+      case'longest-overdue':value=overdueDays;displayValue=value===null?'':`${value} day${value===1?'':'s'}`;break;
+      case'repeat-late':value=selectedReceipts.filter(payment=>payment.dueDate&&payment.date>payment.dueDate).length;displayValue=`${value} late receipt${value===1?'':'s'}`;break;
+    }
+    if(value===null||!Number.isFinite(value)){excludedCount++;continue;}
+    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,area:areaValue,package:packageValue,serviceStatus:customer.archived?'Archived':({active:'Active',offline:'Offline','not-set':'Not set'})[customer.serviceStatus??'not-set'],value,displayValue,health:behavior.health,connectionDate:customer.connectionDate??null});
+  }
+  rows.sort((a,b)=>type==='longest-standing'?a.value-b.value:b.value-a.value||a.name.localeCompare(b.name));
+  return{type,month:selected,rows:rows.slice(0,100),excludedCount,area,packageName,status};
+}
+
+function selectedMonth(query,referenceDate) {
+  const current=monthFor(referenceDate),text=String(query??'').normalize('NFKC').toLocaleLowerCase('en');
+  if(/\b(last|previous|pichle|pichlay|guzishta)\s+(month|mahine|maheena)\b|پچھلے مہینے|گزشتہ ماہ/u.test(text))return shiftMonth(current,-1);
+  const english=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const urdu=['جنوری','فروری','مارچ','اپریل','مئی','جون','جولائی','اگست','ستمبر','اکتوبر','نومبر','دسمبر'];
+  let index=english.findIndex(name=>text.includes(name));if(index<0)index=urdu.findIndex(name=>text.includes(name));
+  if(index>=0){const year=text.match(/\b(20\d{2})\b/)?.[1]??current.slice(0,4);return`${year}-${String(index+1).padStart(2,'0')}`;}
+  return current;
+}
+const contains=(text,regex,terms=[])=>regex.test(text)||terms.some(term=>text.includes(term));
+export function answerOwnerCommand(state,query,referenceDate=new Date()) {
+  const text=String(query??'').trim().normalize('NFKC').toLocaleLowerCase('en').replace(/[٠-٩]/g,digit=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
+  const current=monthFor(referenceDate),today=dateFor(referenceDate),requestedMonth=selectedMonth(text,referenceDate),month=requestedMonth<=current?requestedMonth:current;
+  const isToday=contains(text,/\b(today|aaj|aj)\b/u,['آج','آج کی','آج کا']);
+  const collectionIntent=contains(text,/\b(collection|collected|received|paisa|wasool|wasooli)\b/u,['جمع','وصولی','پیسے آئے']);
+  const expenseIntent=contains(text,/\b(expense|expenses|kharcha|kharchay)\b/u,['اخراجات','خرچ']);
+  const pendingIntent=contains(text,/\b(pending|unpaid|not paid|did not pay|nahi di|nahin di|baqi|baki)\b/u,['بقایا','بقایاجات','نہیں دی','ادا نہیں']);
+  const customerBillIntent=/\b(?:bill\s+(?:check|status|details)|check\s+bill)\b/u.test(text);
+  const outstandingIntent=contains(text,/\b(outstanding|balance|remaining|due|baki|baqi)\b/u,['بقایا','بقیہ','balance'])||customerBillIntent;
+  const areaIntent=contains(text,/\b(area|mohalla|zone)\b/u,['علاقہ','محلہ']);
+  const profitIntent=contains(text,/\b(profit|munafa|net)\b/u,['منافع']);
+  const monthNamed=/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/u.test(text)||['جنوری','فروری','مارچ','اپریل','مئی','جون','جولائی','اگست','ستمبر','اکتوبر','نومبر','دسمبر'].some(name=>text.includes(name));
+  const allocations=calculatePaymentAllocations(state);
+  const entries=state.customers.flatMap(customer=>(customer.bills??[]).map(bill=>({customer,bill,due:validPrice(bill.dueAmount)?cents(bill.dueAmount):null,balance:validPrice(bill.dueAmount)?Math.max(0,allocations.forMonth(customer.id,bill.month)?.balanceDueCents??cents(bill.dueAmount)):null})));
+  const paymentsFor=(day=null,monthFilter=null)=>state.customers.flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).filter(payment=>(!day||payment.date===day)&&(!monthFilter||payment.date.slice(0,7)===monthFilter)).map(payment=>({customer,bill,payment}))));
+  const periodPayments=paymentsFor(isToday?today:null,isToday?null:month),periodExpenses=(state.expenses??[]).filter(row=>isToday?row.date===today:row.date?.slice(0,7)===month);
+  const collectionCents=periodPayments.reduce((sum,row)=>sum+cents(row.payment.amount),0),expenseCents=periodExpenses.reduce((sum,row)=>sum+cents(row.amount),0);
+  const pending=entries.filter(row=>row.bill.month===month&&row.due!==null&&row.balance>0);
+  const allOutstanding=entries.filter(row=>row.due!==null&&row.balance>0);
+  const thresholdMatch=text.match(/(?:over|above|more than|greater than|exceed(?:ing)?|>|زیادہ|سے زیادہ)\s*(\d[\d,]*)/u)??text.match(/(\d[\d,]*)\s*(?:above|se zyada|سے زیادہ|outstanding|balance)/u);
+  const threshold=thresholdMatch?Number(thresholdMatch[1].replaceAll(',','')):null;
+  if(isToday&&collectionIntent&&expenseIntent)return{intent:'daily-summary',date:today,collection:amount(collectionCents),receiptCount:periodPayments.length,expenses:amount(expenseCents),expenseCount:periodExpenses.length};
+  if(isToday&&collectionIntent)return{intent:'daily-collection',date:today,collection:amount(collectionCents),receiptCount:periodPayments.length};
+  if(isToday&&expenseIntent)return{intent:'daily-expenses',date:today,expenses:amount(expenseCents),expenseCount:periodExpenses.length};
+  if(areaIntent&&pendingIntent){const groups=new Map();for(const row of pending){const label=row.customer.mohalla?.trim()||row.customer.zone?.trim()||'Area not recorded';const group=groups.get(label)??{area:label,cents:0,ids:new Set()};group.cents+=row.balance;group.ids.add(row.customer.id);groups.set(label,group);}const rows=[...groups.values()].map(row=>({area:row.area,outstanding:amount(row.cents),customers:row.ids.size})).sort((a,b)=>b.outstanding-a.outstanding);return{intent:'area-pending',month,rows};}
+  if(threshold!==null&&outstandingIntent){const groups=new Map();for(const row of allOutstanding){const item=groups.get(row.customer.id)??{customerId:row.customer.id,customerNumber:row.customer.customerNumber,name:row.customer.name,package:row.customer.packageSpeed||'Not recorded',cents:0};item.cents+=row.balance;groups.set(row.customer.id,item);}const rows=[...groups.values()].filter(row=>row.cents>threshold*100).map(row=>({...row,outstanding:amount(row.cents)})).sort((a,b)=>b.outstanding-a.outstanding);return{intent:'threshold-outstanding',threshold,rows,total:rows.length};}
+  if(outstandingIntent&&!pendingIntent&&!profitIntent){
+    const stop=new Set(['ka','ki','ke','kitna','kitni','kitne','balance','outstanding','remaining','due','bill','check','details','status','karo','hai','he','is','customer','customers','show','find','what','how','much','mujhe','please','batao','batayen','walay','wala','kis','kaun','aaj','month','mahine','mahina','اس','مہینے','کا','کی','کے','کتنا','کتنی','ہے','ہیں','مجھے']);
+    const candidate=text.replace(/[؟?!.،,؛:]/g,' ').split(/\s+/).filter(word=>word&&!stop.has(word)&&/[a-z]/i.test(word)).join(' ');
+    const matches=candidate?state.customers.filter(customer=>customer.name.toLocaleLowerCase('en').includes(candidate)||candidate.split(' ').some(word=>word.length>2&&customer.name.toLocaleLowerCase('en').includes(word))).map(customer=>{
+      const rows=entries.filter(row=>row.customer.id===customer.id&&row.due!==null),selected=rows.find(row=>row.bill.month===month),selectedBill=customer.bills.find(row=>row.month===month),actualPaid=(selectedBill?.payments??[]).reduce((sum,payment)=>sum+cents(payment.amount),0),credit=allocations.forMonth(customer.id,month)?.creditAppliedCents??0;
+      return{customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',month,bill:selected?amount(selected.due):null,paid:amount(actualPaid),creditApplied:amount(credit),remaining:selected?amount(selected.balance):0,totalOutstanding:amount(rows.reduce((sum,row)=>sum+row.balance,0))};
+    }):[];
+    if(matches.length)return{intent:'customer-balance',month,rows:matches};
+  }
+  if(pendingIntent){const rows=pending.map(row=>({customerId:row.customer.id,customerNumber:row.customer.customerNumber,name:row.customer.name,package:row.customer.packageSpeed||'Not recorded',bill:amount(row.due),paid:amount((row.bill.payments??[]).reduce((sum,payment)=>sum+cents(payment.amount),0)),remaining:amount(row.balance),dueDate:row.bill.dueDate??null}));return{intent:'pending-list',month,rows,pendingTotal:amount(rows.reduce((sum,row)=>sum+cents(row.remaining),0))};}
+  if(profitIntent){return{intent:'monthly-profit',month,collection:amount(collectionCents),expenses:amount(expenseCents),profit:amount(collectionCents-expenseCents),receiptCount:periodPayments.length,expenseCount:periodExpenses.length,basis:'Actual cash receipts minus recorded expenses; unpaid bills, inventory book value and estimated costs are excluded.'};}
+  if(expenseIntent)return{intent:isToday?'daily-expenses':'monthly-expenses',month,date:isToday?today:undefined,expenses:amount(expenseCents),expenseCount:periodExpenses.length};
+  if(collectionIntent||monthNamed)return{intent:isToday?'daily-collection':'monthly-collection',month,date:isToday?today:undefined,collection:amount(collectionCents),receiptCount:periodPayments.length};
+  return{intent:'help',message:'Try: “October collection”, “Ali ka balance”, “Aaj kis kis ne payment nahi di?”, “today collection and expense”, “اس مہینے profit کتنا ہے؟”, “area-wise pending”, or “customers above 5000 outstanding”. Only saved local records are queried.'};
+}
+
+
+export function buildSmartDuesRecovery(state,referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+  const rows=[];
+  for(const customer of state.customers){
+    const open=(customer.bills??[]).filter(bill=>validPrice(bill.dueAmount)).map(bill=>({bill,balance:Math.max(0,allocations.forMonth(customer.id,bill.month)?.balanceDueCents??cents(bill.dueAmount))})).filter(row=>row.balance>0);
+    if(!open.length)continue;
+    const behavior=buildCustomerPaymentBehavior(state,customer,referenceDate,allocations);
+    const outstandingCents=open.reduce((sum,row)=>sum+row.balance,0);
+    const overdueRows=open.map(row=>({date:row.bill.dueDate,days:/^\d{4}-\d{2}-\d{2}$/.test(row.bill.dueDate??'')?Math.max(0,daysBetween(dateFor(referenceDate),row.bill.dueDate)??0):null}));
+    const knownOverdue=overdueRows.filter(row=>row.days!==null).map(row=>row.days);
+    const longestOverdueDays=knownOverdue.length?Math.max(...knownOverdue):null;
+    const monthlyValue=validPrice(customer.monthlySellingAmount)?Number(customer.monthlySellingAmount):null;
+    const components={
+      amount:outstandingCents>=5000000?30:outstandingCents>=2500000?27:outstandingCents>=1000000?24:outstandingCents>=500000?20:outstandingCents>=250000?16:outstandingCents>=100000?12:6,
+      overdue:longestOverdueDays===null?0:longestOverdueDays>60?25:longestOverdueDays>30?18:longestOverdueDays>7?12:longestOverdueDays>0?5:0,
+      history:behavior.health.score===null?10:Math.round((100-behavior.health.score)/5),
+      latePayments:Math.min(15,behavior.latePaymentCount*3),
+      customerValue:monthlyValue===null?0:monthlyValue>=5000?10:monthlyValue>=2500?7:monthlyValue>=1000?4:1
+    };
+    const priorityScore=Object.values(components).reduce((sum,value)=>sum+value,0);
+    const group=priorityScore>=65?'High Priority':priorityScore>=35?'Medium Priority':'Low Priority';
+    const oldestBill=open.sort((a,b)=>(a.bill.dueDate??a.bill.month).localeCompare(b.bill.dueDate??b.bill.month))[0].bill;
+    const reasons=[`Outstanding ${pkr(outstandingCents)} (+${components.amount} amount points).`,longestOverdueDays===null?'Saved due date not available.':`${longestOverdueDays} days overdue (+${components.overdue} points).`,behavior.health.score===null?'Payment history is insufficient; neutral history points applied.':`Payment health ${behavior.health.score}/100 (+${components.history} history points).`,`${behavior.latePaymentCount} recorded late receipt${behavior.latePaymentCount===1?'':'s'} (+${components.latePayments} points).`,monthlyValue===null?'Monthly customer value not recorded.':`Saved monthly value ${pkr(cents(monthlyValue))} (+${components.customerValue} value points).`];
+    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',area:customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',archived:customer.archived===true,phone:customer.phone||'',outstanding:amount(outstandingCents),outstandingCents,openBillCount:open.length,oldestDueDate:oldestBill.dueDate??null,longestOverdueDays,latePaymentCount:behavior.latePaymentCount,health:behavior.health,monthlyValue,priorityScore,group,components,reasons});
+  }
+  const groups=['High Priority','Medium Priority','Low Priority'].map(name=>{const customers=rows.filter(row=>row.group===name).sort((a,b)=>b.priorityScore-a.priorityScore||b.outstandingCents-a.outstandingCents);return{name,customers,count:customers.length,recoverableAmount:amount(customers.reduce((sum,row)=>sum+row.outstandingCents,0))};});
+  return{asOf:dateFor(referenceDate),groups,totalCustomers:rows.length,totalRecoverable:amount(rows.reduce((sum,row)=>sum+row.outstandingCents,0)),formula:'Outstanding amount (6–30 points) + overdue days (0–25) + payment history (0–20; neutral if insufficient) + late receipts (0–15) + saved monthly value (0–10). High ≥65; Medium 35–64; Low <35. Due dates and profile value are never inferred.'};
+}
+
+
+function countMonthField(customers,field,month) { return customers.filter(customer=>typeof customer[field]==='string'&&customer[field].slice(0,7)===month).length; }
+function historicalPackageName(customer,bill,month,currentMonth) {
+  if(bill?.packageSnapshot?.label)return bill.packageSnapshot.label;
+  const history=(customer.packageHistory??[]).filter(row=>typeof row.date==='string'&&row.date.slice(0,7)<=month).sort((a,b)=>b.date.localeCompare(a.date));
+  if(history.length)return history[0].newPackage||'Package not set';
+  if(month===currentMonth&&customer.packageSpeed?.trim())return customer.packageSpeed.trim();
+  return null;
+}
+function percentChange(from,to) {
+  if(!Number.isFinite(from)||!Number.isFinite(to)||from===null||to===null)return null;
+  if(from===0)return to===0?0:null;
+  return Number(((to-from)/Math.abs(from)*100).toFixed(1));
+}
+function monthComparisonFacts(state,month,referenceDate,allocations) {
+  const currentMonth=monthFor(referenceDate),snapshot=(state.monthlyClosings??[]).find(row=>row.month===month)??null;
+  const billRows=state.customers.flatMap(customer=>(customer.bills??[]).filter(bill=>bill.month===month).map(bill=>({customer,bill})));
+  const priced=billRows.filter(({bill})=>validPrice(bill.dueAmount));
+  const billedCents=priced.reduce((sum,row)=>sum+cents(row.bill.dueAmount),0);
+  const collectionCents=state.customers.flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).filter(payment=>payment.date?.slice(0,7)===month))).reduce((sum,payment)=>sum+cents(payment.amount),0);
+  const expenseRows=(state.expenses??[]).filter(row=>row.date?.slice(0,7)===month);
+  const expenseCents=expenseRows.reduce((sum,row)=>sum+cents(row.amount),0);
+  const ledgerOutstanding=priced.reduce((sum,{customer,bill})=>sum+Math.max(0,allocations.forMonth(customer.id,month)?.balanceDueCents??cents(bill.dueAmount)),0);
+  const allAddedDates=state.customers.some(customer=>typeof customer.addedOn==='string');
+  const allConnectionDates=state.customers.some(customer=>typeof customer.connectionDate==='string');
+  const allArchiveDates=state.customers.some(customer=>typeof customer.archivedAt==='string');
+  const allCancellationDates=state.customers.some(customer=>typeof customer.cancellationDate==='string');
+  const activeCustomers=snapshot?snapshot.activeCustomerCount:month===currentMonth?state.customers.filter(customer=>!customer.archived&&customer.serviceStatus==='active').length:null;
+  const statusSource=snapshot?`saved close · captured ${snapshot.savedAt}`:month===currentMonth?`current manual status · as of ${dateFor(referenceDate)}`:'not captured historically';
+  const packageDistribution={};
+  for(const {customer,bill} of billRows){const name=historicalPackageName(customer,bill,month,currentMonth);if(name)packageDistribution[name]=(packageDistribution[name]??0)+1;}
+  const unrecordedPackages=billRows.length-Object.values(packageDistribution).reduce((sum,value)=>sum+value,0);
+  return{
+    month,
+    billCount:billRows.length,
+    pricedBillCount:priced.length,
+    unpricedBillCount:billRows.length-priced.length,
+    billedAmount:amount(billedCents),
+    collection:amount(collectionCents),
+    collectionReceiptCount:state.customers.reduce((sum,customer)=>sum+(customer.bills??[]).reduce((n,bill)=>n+(bill.payments??[]).filter(payment=>payment.date?.slice(0,7)===month).length,0),0),
+    outstanding:amount(snapshot?snapshot.pending:ledgerOutstanding),
+    outstandingSource:snapshot?`saved month-close snapshot captured ${snapshot.savedAt}`:`current ledger balance as of ${dateFor(referenceDate)}; later receipts may have changed this past month`,
+    expenses:amount(expenseCents),
+    expenseCount:expenseRows.length,
+    cashProfit:amount(collectionCents-expenseCents),
+    activeCustomers,
+    activeCustomerSource:statusSource,
+    offlineCustomers:snapshot?snapshot.offlineCustomerCount:month===currentMonth?state.customers.filter(customer=>!customer.archived&&customer.serviceStatus==='offline').length:null,
+    notSetServiceCustomers:snapshot?snapshot.notSetCustomerCount:month===currentMonth?state.customers.filter(customer=>!customer.archived&&(customer.serviceStatus??'not-set')==='not-set').length:null,
+    newCustomers:allAddedDates?countMonthField(state.customers,'addedOn',month):null,
+    newConnections:allConnectionDates?countMonthField(state.customers,'connectionDate',month):null,
+    archivedCustomers:allArchiveDates?countMonthField(state.customers,'archivedAt',month):null,
+    disconnectedCustomers:allCancellationDates?countMonthField(state.customers,'cancellationDate',month):null,
+    collectionRate:billedCents?Number((collectionCents/billedCents*100).toFixed(1)):null,
+    packageDistribution,
+    unrecordedPackageBills:unrecordedPackages,
+    packageDistributionNote:unrecordedPackages?`${unrecordedPackages} bill(s) have no saved package snapshot/history.`:'Package distribution uses saved bill snapshots or dated package history.',
+    snapshotSavedAt:snapshot?.savedAt??null,
+    source:snapshot?'saved-snapshot':'local-ledger'
+  };
+}
+
+export function buildMonthToMonthComparison(state,monthA,monthB,referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+  const valid=monthsForHistory(referenceDate);
+  if(!valid.includes(monthA)||!valid.includes(monthB))throw new Error(`Choose two distinct months within the retained ${valid.length}-month history.`);
+  if(monthA===monthB)throw new Error('Choose two different months to compare.');
+  const first=monthComparisonFacts(state,monthA,referenceDate,allocations),second=monthComparisonFacts(state,monthB,referenceDate,allocations);
+  const metrics=['billCount','pricedBillCount','unpricedBillCount','billedAmount','collection','outstanding','expenses','cashProfit','activeCustomers','offlineCustomers','notSetServiceCustomers','newCustomers','newConnections','archivedCustomers','disconnectedCustomers','collectionRate'];
+  const changes=Object.fromEntries(metrics.map(key=>{const from=first[key],to=second[key],available=Number.isFinite(from)&&Number.isFinite(to);return[key,{from,to,absoluteChange:available?Number((to-from).toFixed(2)):null,percentChange:available?percentChange(from,to):null,unavailableReason:available?'':`${key} was not saved for both selected months.`}];}));
+  const packages=[...new Set([...Object.keys(first.packageDistribution),...Object.keys(second.packageDistribution)])].sort().map(name=>{const from=first.packageDistribution[name]??0,to=second.packageDistribution[name]??0;return{name,from,to,change:to-from,percentChange:percentChange(from,to)};});
+  return{monthA:first,monthB:second,changes,packageChanges:packages,basis:{collection:'Actual receipts grouped by their saved payment date.',billedAmount:'Saved priced bill snapshots grouped by service month; unpriced bills are counted separately.',outstanding:'Saved month-close pending snapshot if present; otherwise current ledger balance for the selected bill month as of the comparison date.',profit:'Receipt-date cash collection minus actual dated expenses; not accrual/accounting profit.',activeCustomers:'Saved manual service-state snapshot when available; otherwise current manual status for the current month only. Older unsnapshotted months are unavailable.',newCustomers:'Saved profile-added dates only; this is new profile records, not necessarily new network connections.',newConnections:'Explicit saved connection dates only.',disconnectedCustomers:'Explicit cancellation dates only; archive actions are reported separately.',collectionRate:'Receipt-date collection divided by service-month bill amount. This can exceed 100% when receipts include collections of older balances.'}};
+}
+
+function aggregateMonthCustomers(state,month,key,allocations) {
+  const result=new Map();
+  for(const customer of state.customers){let total=0;
+    for(const bill of customer.bills??[]){if(key==='collection'){for(const payment of bill.payments??[])if(payment.date?.slice(0,7)===month)total+=cents(payment.amount);}
+      else if(key==='billedAmount'&&bill.month===month&&validPrice(bill.dueAmount))total+=cents(bill.dueAmount);
+      else if(key==='outstanding'&&bill.month===month&&validPrice(bill.dueAmount))total+=Math.max(0,allocations.forMonth(customer.id,month)?.balanceDueCents??cents(bill.dueAmount));}
+    if(total)result.set(customer.name,(result.get(customer.name)??0)+total);
+  }return result;
+}
+function aggregateMonthExpenses(state,month) {const result=new Map();for(const row of state.expenses??[])if(row.date?.slice(0,7)===month)result.set(row.category,(result.get(row.category)??0)+cents(row.amount));return result;}
+function contributionRows(first,second,totalChange) {
+  const totalChangeCents=cents(totalChange),keys=new Set([...first.keys(),...second.keys()]);return[...keys].map(name=>{const change=(second.get(name)??0)-(first.get(name)??0);return{name,change:amount(change),percentImpact:totalChangeCents?Number((change/totalChangeCents*100).toFixed(1)):null};}).filter(row=>row.change!==0).sort((a,b)=>Math.abs(b.change)-Math.abs(a.change)).slice(0,5);
+}
+export function explainBusinessPerformance(state,metric,monthA,monthB,referenceDate=new Date()) {
+  const selected=metric==='revenue'?'billedAmount':metric==='profit'?'cashProfit':metric;
+  if(!['billedAmount','collection','outstanding','expenses','cashProfit'].includes(selected))throw new Error('Choose revenue, collection, outstanding, expenses, or profit.');
+  const comparison=buildMonthToMonthComparison(state,monthA,monthB,referenceDate),change=comparison.changes[selected];
+  if(change.absoluteChange===null)return{metric:selected,monthA,monthB,change:null,drivers:[],explanation:'Insufficient saved data to compare both selected months.'};
+  if(change.absoluteChange===0)return{metric:selected,monthA,monthB,change:0,percentChange:change.percentChange,drivers:[],explanation:'The selected totals are equal. No net increase or decrease is recorded.'};
+  let drivers=[],basis='Recorded ledger amounts show these contributing changes; they do not establish external causes.';
+  if(selected==='cashProfit'){
+    const collectionDelta=comparison.changes.collection.absoluteChange,expenseDelta=comparison.changes.expenses.absoluteChange;
+    drivers=[{name:'Receipt-date collection',change:collectionDelta,percentImpact:change.absoluteChange?Number((collectionDelta/change.absoluteChange*100).toFixed(1)):null},{name:'Recorded expenses (deducted from cash profit)',change:-expenseDelta,percentImpact:change.absoluteChange?Number((-expenseDelta/change.absoluteChange*100).toFixed(1)):null}].filter(row=>row.change!==0);
+    basis='Exact identity for this app: cash profit change = receipt-date collection change − recorded expense change. This is not accrual or inventory-adjusted profit.';
+  } else if(selected==='expenses'){
+    drivers=contributionRows(aggregateMonthExpenses(state,monthA),aggregateMonthExpenses(state,monthB),change.absoluteChange);
+    basis='Actual dated expense entries grouped by their saved category. Category changes explain the recorded total difference, not why a purchase happened.';
+  } else if(selected==='collection'){
+    const allocations=calculatePaymentAllocations(state);drivers=contributionRows(aggregateMonthCustomers(state,monthA,'collection',allocations),aggregateMonthCustomers(state,monthB,'collection',allocations),change.absoluteChange);
+    basis='Actual receipts grouped by saved customer and payment date. Customer contribution is not a claim about external causes.';
+  } else if(selected==='billedAmount'){
+    const allocations=calculatePaymentAllocations(state);drivers=contributionRows(aggregateMonthCustomers(state,monthA,'billedAmount',allocations),aggregateMonthCustomers(state,monthB,'billedAmount',allocations),change.absoluteChange);
+    basis='Saved priced service-month bill snapshots grouped by customer. Unpriced bills and unrecorded customers do not contribute.';
+  } else {
+    const saved=(state.monthlyClosings??[]).some(snapshot=>snapshot.month===monthA||snapshot.month===monthB);
+    if(saved)return{metric:selected,monthA,monthB,change:change.absoluteChange,percentChange:change.percentChange,drivers:[],basis:'One or both totals use a saved close snapshot; per-customer close balances were not stored.',explanation:'The total change is available, but its customer-level drivers cannot be reconstructed without per-customer close snapshots.'};
+    const allocations=calculatePaymentAllocations(state);drivers=contributionRows(aggregateMonthCustomers(state,monthA,'outstanding',allocations),aggregateMonthCustomers(state,monthB,'outstanding',allocations),change.absoluteChange);
+    basis='Current recorded bill balances by service month as of today; later payments can change older-month outstanding, so this is not a historical month-end cause analysis.';
+  }
+  return{metric:selected,monthA,monthB,change:change.absoluteChange,percentChange:change.percentChange,drivers,basis,explanation:`Recorded ${selected} ${change.absoluteChange>0?'increased':'decreased'} by ${pkr(Math.abs(cents(change.absoluteChange)))} (${change.percentChange===null?'percentage change unavailable because the earlier total was zero':`${Math.abs(change.percentChange)}%`}). Main measured contributors are listed below. These figures describe ledger movements, not proven outside causes.`};
+}

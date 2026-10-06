@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createInitialState, saveBillMonth, addPayment, calculatePaymentAllocations, listTransactions } from '../core.js';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft, resolveReceiptWhatsAppAction } from '../profile-ui.js';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft, createWhatsAppFollowupDraft, resolveReceiptWhatsAppAction } from '../profile-ui.js';
 
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const index = read('index.html');
 const app = read('app.js');
 const helper = read('profile-ui.js');
+const ownerUi = read('owner-ui.js');
 const styles = read('styles.css');
 
 function syntheticCustomer(bill) {
@@ -343,4 +344,29 @@ test('customer profile uses an identity-first card with separate manual service 
   assert.match(styles, /@media\(max-width:800px\)\{\.profile-action-group\{/);
   assert.match(styles, /@media\(max-width:620px\)\{\.detail-head\{margin-bottom:0\}/);
   assert.ok(styles.includes('.profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid'), 'profile tabs and quick actions retain a visible keyboard focus ring');
+});
+
+test('follow-up center drafts all four customer-bound WhatsApp templates for review only', () => {
+  const customer = { name:'Synthetic Customer\nInjected text' };
+  const details = { outstanding:2500, previousBalance:1000, dueDate:'2026-10-05', packageName:'5 Mbps' };
+  for (const [template,phrase] of [['friendly','friendly reminder'],['overdue','overdue'],['final','Final reminder'],['payment-confirmation','payment of PKR 500']]) {
+    const draft=createWhatsAppFollowupDraft('+92 300 123 4567',customer,{...details,paymentAmount:500,paymentDate:'2026-10-07'},template);
+    assert.ok(draft,`${template} draft is available for an explicitly international number`);
+    assert.ok(draft.message.includes(phrase));
+    assert.match(draft.message,/balance: PKR 2,500|balance of PKR 2,500/);
+    assert.match(draft.message,/Previous balance: PKR 1,000/);
+    assert.match(draft.message,/Due date: Oct 5 2026/);
+    assert.match(draft.message,/Package: 5 Mbps/);
+    assert.match(draft.message,/Synthetic Customer Injected text,/);
+    assert.doesNotMatch(draft.message,/Synthetic Customer\nInjected text/);
+    const url=new URL(draft.url);
+    assert.equal(url.origin,'https://wa.me');
+    assert.equal(url.searchParams.get('text'),draft.message);
+  }
+  assert.equal(createWhatsAppFollowupDraft('0300-1234567',customer,details,'friendly'),null);
+  assert.equal(createWhatsAppFollowupDraft('+92 300 123 4567',customer,details,'unknown'),null);
+  assert.equal(createWhatsAppFollowupDraft('+92 300 123 4567',customer,details,'payment-confirmation'),null,'confirmation requires a real saved payment amount and date');
+  assert.match(ownerUi,/Review WhatsApp draft/);
+  assert.match(ownerUi,/data-recovery-template/);
+  assert.doesNotMatch(ownerUi,/fetch\s*\(|sendBeacon|window\.open\s*\(|sendText|autoSend/i);
 });

@@ -16,13 +16,14 @@ const customerId = 'seed-001';
 
 test('package selector exposes exactly the six requested labels and nominal monthly prices', () => {
   assert.deepEqual(BILL_PACKAGES.map(({ label, price }) => [label, price]), [
-    ['3Mbps / 100GB', 100],
+    ['3Mbps / 100GB', 1000],
     ['3Mbps / 300GB', 1600],
     ['5Mbps / 150GB', 1500],
     ['5Mbps / 500GB', 2500],
     ['5Mbps / 200GB', 2000],
     ['15Mbps Unlimited', 3000]
   ]);
+  assert.equal(billPackageById('3mbps-100gb').price, 1000);
   assert.equal(billPackageById('15mbps-unlimited').price, 3000);
   assert.equal(billPackageByLabel(' 5Mbps / 200GB ').id, '5mbps-200gb');
 });
@@ -45,6 +46,7 @@ test('package snapshot has canonical display label, nominal amount, speed, class
   });
   assert.equal(validateBillPackageSnapshot(createBillPackageSnapshot('5mbps-500gb')).dataLimit, '500 GB');
   assert.equal(validateBillPackageSnapshot({ packageId:'5mbps-500gb', nominalPrice:75 }), null);
+  assert.equal(validateBillPackageSnapshot({ packageId:'3mbps-100gb', label:'3Mbps / 100GB', nominalPrice:100, speedMbps:3, packageType:'Limited', dataLimit:'100 GB' }).nominalPrice, 100);
 });
 
 test('selecting a package snapshots its nominal charge on that bill, never the partial payment or Paid status', () => {
@@ -82,11 +84,21 @@ test('a Limited package receipt uses its bill snapshot and shows only its saved 
   const customer = state.customers[0];
   const bill = customer.bills[0];
   const receipt = buildPaymentReceipt(customer, bill, bill.payments[0]);
-  assert.equal(bill.dueAmount, 100);
+  assert.equal(bill.dueAmount, 1000);
   assert.equal(receipt.package, '3Mbps / 100GB');
-  assert.equal(receipt.nominalPrice, 100);
+  assert.equal(receipt.nominalPrice, 1000);
   assert.equal(receipt.packageType, 'Limited');
   assert.equal(receipt.dataLimit, '100 GB');
+  assert.equal(receipt.paidAmount, 100);
+  assert.equal(receipt.status, 'PARTIAL');
+  assert.equal(receipt.balanceDueCents, 90000);
+});
+
+test('historic PKR 100 package receipts remain unchanged after the selector price update', () => {
+  const customer = { id:customerId, customerNumber:1, name:'Historical Plan Customer', packageSpeed:'', bills:[] };
+  const bill = { id:'legacy-100gb-september', month:'2026-09', dueAmount:100, status:'pending', payments:[{ id:'legacy-100gb-payment', date:'2026-09-10', amount:100, method:'Cash' }], packageSnapshot:{ packageId:'3mbps-100gb', label:'3Mbps / 100GB', nominalPrice:100, speedMbps:3, packageType:'Limited', dataLimit:'100 GB' } };
+  const receipt = buildPaymentReceipt(customer, bill, bill.payments[0]);
+  assert.equal(receipt.nominalPrice, 100);
   assert.equal(receipt.paidAmount, 100);
   assert.equal(receipt.status, 'PAID');
 });
@@ -111,12 +123,12 @@ test('switching the package in a later month leaves prior bill snapshots and rec
   assert.deepEqual(october.packageSnapshot, octoberSnapshot);
   assert.deepEqual(october.packageSnapshot, createBillPackageSnapshot('3mbps-100gb'));
   assert.deepEqual(november.packageSnapshot, createBillPackageSnapshot('5mbps-150gb'));
-  assert.equal(october.dueAmount, 100);
+  assert.equal(october.dueAmount, 1000);
   assert.equal(november.dueAmount, 1500);
   const octoberReceipt = buildPaymentReceipt(customer, october, october.payments[0]);
   const novemberReceipt = buildPaymentReceipt(customer, november, november.payments[0]);
   assert.equal(octoberReceipt.package, '3Mbps / 100GB');
-  assert.equal(octoberReceipt.nominalPrice, 100);
+  assert.equal(octoberReceipt.nominalPrice, 1000);
   assert.equal(octoberReceipt.dataLimit, '100 GB');
   assert.equal(octoberReceipt.paidAmount, 50);
   assert.equal(octoberReceipt.status, 'PARTIAL');

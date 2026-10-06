@@ -1,4 +1,7 @@
 import { calculatePaymentAllocations } from './core.js';
+import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
+
+export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 
 const text = value => typeof value === 'string' ? value.trim() : '';
 const positiveAmount = value => {
@@ -36,10 +39,12 @@ function validStoredDate(value) {
 export function buildPaymentReceipt(customer, bill, payment) {
   if (!customer || !bill || !payment) throw new Error('A saved customer, bill and payment are required.');
 
-  const packageLabel = packageAtServiceStart(customer, bill.month);
+  const packageSnapshot = validateBillPackageSnapshot(bill.packageSnapshot);
+  const packageLabel = packageSnapshot?.label ?? packageAtServiceStart(customer, bill.month);
   const speedMatch = packageLabel.match(/\b(\d+(?:\.\d+)?)\s*Mbps\b/i);
   const billDue = positiveAmount(bill.dueAmount);
-  const nominalPrice = billDue ?? positiveAmount(bill.priceSnapshot);
+  const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
+  const packageType = packageSnapshot?.packageType ?? classifyPackagePrice(nominalPrice);
   const customerBills = Array.isArray(customer.bills) ? customer.bills : [];
   const matchingBill = customerBills.find(row => row === bill || (row?.id && bill.id && row.id === bill.id)) ?? bill;
   const orderedPayments = [...(Array.isArray(matchingBill.payments) ? matchingBill.payments : [])].sort(paymentOrder);
@@ -66,7 +71,9 @@ export function buildPaymentReceipt(customer, bill, payment) {
 
   const transactionId = text(payment.transactionId);
   const packageDuration = text(bill.packageDuration) || text(customer.packageDuration);
-  const dataLimit = text(bill.packageDataLimit) || text(customer.packageDataLimit);
+  const dataLimit = packageType === 'Limited'
+    ? packageSnapshot?.dataLimit || text(bill.packageDataLimit) || text(customer.packageDataLimit)
+    : '';
   const servicePeriodStart = /^\d{4}-(0[1-9]|1[0-2])$/.test(String(bill.month ?? '')) ? `${bill.month}-01` : '';
   const packageDate = servicePeriodStart;
   const servicePeriodEnd = validStoredDate(bill.servicePeriodEnd);
@@ -77,9 +84,9 @@ export function buildPaymentReceipt(customer, bill, payment) {
     paymentDate:validStoredDate(payment.date),
     transactionId,
     package:packageLabel,
-    speedMbps:speedMatch?.[1] ?? '',
+    speedMbps:packageSnapshot ? String(packageSnapshot.speedMbps) : speedMatch?.[1] ?? '',
     packageDuration,
-    packageType:nominalPrice === null ? '' : nominalPrice < 3000 ? 'Limited' : 'Unlimited',
+    packageType,
     dataLimit,
     nominalPrice,
     paidAmount:positiveAmount(payment.amount),

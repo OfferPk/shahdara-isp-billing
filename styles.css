@@ -1125,3 +1125,38 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 @media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr);gap:13px}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:none;flex-flow:row wrap;align-items:flex-start;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{grid-column:1/-1;min-height:48px}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:7px}.current-bill-stat{min-height:66px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px}.profile-tab-button{min-height:44px;padding:7px 8px;font-size:11px}}
 
 .receipt-whatsapp-action-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}.receipt-network-note{max-width:180px;color:var(--muted);font-size:9px;line-height:1.3;white-space:normal}
+
+.print-receipt-button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 10px;border:1px solid #b8d3c5;border-radius:8px;background:#f5faf7;color:#185641;font:700 10px 'DM Sans',sans-serif;white-space:nowrap;cursor:pointer}
+.print-receipt-button:hover{background:#e8f5ed;border-color:#82b39a}
+.print-receipt-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
+.receipt-print-area{display:none}
+.receipt-sheet{width:min(100%,760px);margin:24px auto;padding:34px;border:1px solid #d8e4dd;border-radius:16px;background:#fff;color:#172b24;font-family:Arial,'Noto Naskh Arabic',sans-serif}
+.receipt-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:20px;border-bottom:2px solid #155b49}
+.receipt-brand{color:#155b49;font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase}
+.receipt-head h1{margin:5px 0;color:#142b22;font-size:25px;letter-spacing:-.4px}
+.receipt-head p{margin:0;color:#68786f;font-size:11px}
+.receipt-mark{display:grid;place-items:center;min-width:68px;min-height:68px;border:1px solid #cde0d4;border-radius:50%;color:#155b49;font-size:11px;font-weight:800}
+.receipt-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 22px;margin:24px 0 18px}
+.receipt-field{min-width:0;margin:0}
+.receipt-field dt{margin-bottom:5px;color:#64776d;font-size:10px;font-weight:700;letter-spacing:.2px}
+.receipt-field dd{min-height:27px;margin:0;padding:3px 0 5px;border-bottom:1px solid #aebdb4;color:#182c24;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.receipt-field dd.receipt-amount{color:#125b42;font-size:17px;font-weight:800}
+.receipt-field dd.receipt-status{color:#315b4a;font-size:12px;font-weight:800;letter-spacing:.4px}
+.receipt-field dd.receipt-status-paid{color:#145b38}
+.receipt-field dd.receipt-status-partial{color:#8a4c08}
+.receipt-reminder{margin:20px 0;padding:11px 13px;border-left:3px solid #c18b28;background:#fff8e8;color:#644808;font-size:11px;font-weight:700;line-height:1.5}
+.receipt-terms{margin-top:25px;padding-top:15px;border-top:1px solid #d6e1da}
+.receipt-terms h2{margin:0 0 8px;color:#38574a;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
+.receipt-terms p{margin:0;color:#293d34;font-size:12px;line-height:1.8}
+.receipt-terms p[dir=rtl]{font-family:'Noto Naskh Arabic','Noto Sans Arabic',Arial,sans-serif;text-align:right}
+@media(max-width:620px){.receipt-sheet{margin:12px auto;padding:20px}.receipt-fields{grid-template-columns:1fr;gap:12px 14px}.receipt-head h1{font-size:21px}.receipt-mark{min-width:54px;min-height:54px}}
+@media print{
+  @page{size:A4;margin:13mm}
+  html,body{min-width:0!important;min-height:0!important;background:#fff!important}
+  body.printing-receipt *{visibility:hidden!important}
+  body.printing-receipt #receiptPrintArea,body.printing-receipt #receiptPrintArea *{visibility:visible!important}
+  body.printing-receipt #receiptPrintArea{display:block!important;position:fixed;inset:0;width:100%;max-width:none;margin:0;padding:0;background:#fff}
+  body.printing-receipt .receipt-sheet{width:100%;max-width:none;min-height:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}
+  body.printing-receipt .receipt-head{break-inside:avoid}
+  body.printing-receipt .receipt-fields,body.printing-receipt .receipt-reminder,body.printing-receipt .receipt-terms{break-inside:avoid}
+}

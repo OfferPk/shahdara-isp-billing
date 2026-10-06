@@ -1,12 +1,14 @@
 # Shahdara ISP Billing
 
-**Customer-profile receipts, local list search and backup tools · web build 1.4.4**
+**Printable payment receipts, customer-profile receipts, local list search and backup tools · web build 1.4.5**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
 ## Privacy, starter data and backups
 
 The public repository and site contain exactly the 74 supplied starter customer names, in the supplied order. Those names are publicly visible. Starter address, phone, package/provider, monthly price/cost, service status, bills, receipts and complaint/outage data are blank or unset; no demo ledger is preloaded.
+
+Printable receipts are generated from the selected local payment and its billing-month record. They keep the true received payment date distinct from the package date (the first of the selected bill month) and service-period start, keep partial receipts PARTIAL with the balance calculated at that payment, and leave transaction references, package duration, data caps, and service-period end blank unless those values are explicitly saved. Limited/Unlimited classification uses the bill's saved nominal amount, not the amount received.
 
 Customer profiles, billing, inventory movements and expenses are stored only in this browser's local storage on this device. There is no account, backend, billing-data upload or cloud/device sync. Clearing site data, changing browsers/devices, browser storage eviction or losing the device can remove records. **Download a JSON backup regularly and keep it somewhere separate.** JSON restore is validated and previewed before a merge; it is merge-only, preserves existing nonblank conflicts, and never silently replaces or deletes existing records. Backup files can contain personal/customer financial data, so store them securely. TXT exports and JSON backups are produced only when the operator requests them.
 

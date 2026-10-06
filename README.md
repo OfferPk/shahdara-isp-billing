@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Customer-profile receipts and payment attribution · web build 1.4.0**
+**Customer-profile receipts, local list search and backup tools · web build 1.4.1**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -14,7 +14,7 @@ The first visit needs a network connection. The service worker caches the static
 
 ## Phase 1/2 web features preserved
 
-- Exactly 74 starter names; stable unique customer numbers; global partial search by name, optional phone/address or customer number. Customer IDs/numbers remain stable after deletion; numbers are never reused.
+- Exactly 74 starter names; stable unique customer numbers; customer-list search by name, phone, customer number or record ID combines with Paid, Partial, Pending and Not set bill filters; global partial search by name, optional phone/address or customer number. Customer IDs/numbers remain stable after deletion; numbers are never reused.
 - Editable optional address/phone, free-text ISP/provider (including a Nayatel suggestion), manual service state (Active / Offline / Not set) with direct color-coded customer-card choices, package/speed (5, 10, 15 and 30 Mbps suggestions plus custom text), monthly provider cost and one monthly selling amount. All starter values remain blank.
 - Live expected package margin and expected recurring provider-cost totals/breakdowns. Incomplete profiles are excluded and counted; estimates are not collected cash profit or cash paid.
 - Automatic monthly bill snapshots begin in the configured effective local month; price edits do not rewrite past obligations. New monthly bills default to the 5th; an explicitly customized due date is respected, and historical snapshots are not backfilled or rewritten. No automatic late penalty is applied. Archived customers retain IDs, bills, receipts, credit and complaints; archiving stops new bills, and unarchiving resumes without backfilling archived months. Permanent delete is separately confirmed and warns that all local history will be removed.
@@ -26,7 +26,7 @@ The first visit needs a network connection. The service worker caches the static
 - Transactions, customer histories and one-click monthly Paid, Pending, Partial and Not set reports. Reports/history show the retained 24 billing months; aged credit sources remain visible where used and remain available for correction/deletion locally. Cash collection totals count actual receipts only.
 - Dashboard includes active customers, actual collections, total/current due, today/previous-month collections, expected package profit, expected provider costs by ISP, service-state counts and unapplied prepaid credit. PKR is explicit throughout; the app performs no currency conversion.
 - Manual per-customer complaint/outage records with report/offline/restored times, notes, open/resolved state, edits/deletes and rolling 30-day counts. No network/router monitoring is performed.
-- Phone-first controls, accessible form labels, local TXT exports, versioned offline assets and non-destructive migration safeguards.
+- Phone-first controls, accessible form labels, local TXT exports, versioned offline assets and non-destructive migration safeguards. JSON backup and reviewed restore controls are tucked behind an accessible eye toggle at the page footer.
 
 ## Phase 3 web features
 

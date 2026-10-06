@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.4.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.4.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.4.0">
+  <link rel="stylesheet" href="./styles.css?v=1.4.1">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -18,7 +18,7 @@
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
   </header>
-  <aside class="data-loss-warning" role="note"><div><strong>Stored on this device only.</strong> Download a JSON backup regularly.</div><details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
+  <aside class="data-loss-warning" role="note"><div><strong>Stored on this device only.</strong> Download a JSON backup regularly.</div><details class="help-tip backup-help"><summary class="help-icon" aria-label="Backup and local storage guidance" aria-controls="backupGuidance">i</summary><span id="backupGuidance" class="help-tip-content" role="tooltip">Clearing site data, changing browsers or devices, storage eviction, or losing this device can remove the ledger. There is no account or cloud sync.</span></details><p id="storageRecoveryWarning" class="storage-recovery-warning" role="alert" hidden></p></aside>
   <main id="main">
     <section class="global-search-region" aria-label="Global customer and ledger search">
       <div class="global-search-main">
@@ -70,6 +70,11 @@
           <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month"><span class="customer-filter-label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false">Not set</button></div>
           <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
         </section>
+        <div class="customer-list-search">
+          <label class="customer-list-search-label" for="customerListSearch">Search this list</label>
+          <div class="customer-list-search-control"><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search">Clear</button></div>
+          <p id="customerListSearchHelp" class="customer-list-search-help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
+        </div>
         <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
         <details id="archivedCustomersPanel" class="archived-customers-panel"><summary>Archived customers <span id="archivedCustomerCount" class="count-badge">0</span></summary><ul id="archivedCustomerList" class="archived-customer-list" aria-label="Archived customer profiles"></ul></details>
         <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
@@ -239,7 +244,7 @@
     </section>
   </main>
 
-  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button></footer>
+  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div></div></div></div></footer>
 
   <dialog id="jsonBackupDialog" class="modal backup-modal">
     <section>
@@ -261,6 +266,6 @@
     </form>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.4.0"></script>
+  <script type="module" src="./app.js?v=1.4.1"></script>
 </body>
 </html>

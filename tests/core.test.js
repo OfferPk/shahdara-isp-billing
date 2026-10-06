@@ -639,6 +639,29 @@ test('customer-card filters combine manual service state, derived bill state, se
   assert.equal(derivedBillStatus(customer, customer.bills.find(bill => bill.month === currentMonth)), 'paid');
 });
 
+test('customer-list search matches name, formatted phone, customer number and stable ID across every billing-status filter', () => {
+  let state = createInitialState(['Synthetic Paid Search','Synthetic Partial Search','Synthetic Pending Search','Synthetic Not Set Search']);
+  state = profile(state, 'seed-001', { phone:'+92 (300) 111-2222' });
+  state = profile(state, 'seed-002', { phone:'0300-222-3333' });
+  state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'100' }), referenceDate);
+  state = saveBillMonth(state, 'seed-002', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+  state = addPayment(state, 'seed-002', currentMonth, payment({ amount:'40' }), referenceDate);
+  state = saveBillMonth(state, 'seed-003', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
+
+  assert.deepEqual(searchCustomers(state, 'Synthetic Paid Search').map(row => row.id), ['seed-001']);
+  assert.deepEqual(searchCustomers(state, '923001112222').map(row => row.id), ['seed-001'], 'phone digits match regardless of saved punctuation');
+  assert.deepEqual(searchCustomers(state, '0300 222 3333').map(row => row.id), ['seed-002'], 'spaces in a phone query do not require matching saved punctuation');
+  assert.deepEqual(searchCustomers(state, '#3').map(row => row.id), ['seed-003']);
+  assert.deepEqual(searchCustomers(state, 'seed-004').map(row => row.id), ['seed-004']);
+
+  const matches = (billingStatus, customerQuery) => filterCustomersByStatus(state, { billingStatus, month:currentMonth, customerQuery }, referenceDate).map(row => row.id);
+  assert.deepEqual(matches('paid', 'Synthetic Paid Search'), ['seed-001']);
+  assert.deepEqual(matches('partial', '03002223333'), ['seed-002']);
+  assert.deepEqual(matches('pending', '#3'), ['seed-003']);
+  assert.deepEqual(matches('not-set', 'seed-004'), ['seed-004']);
+});
+
 test('correcting and deleting one of multiple installments updates history, totals, status, exports, and reload', () => {
   const storage = store(); let state = createInitialState();
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);

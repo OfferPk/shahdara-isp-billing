@@ -291,6 +291,16 @@ function checkPositiveAmount(value, optional = false) {
   if (!Number.isFinite(number) || number <= 0) throw new Error('Amount must be greater than zero.');
   return Math.round(number * 100) / 100;
 }
+function checkPaymentAmount(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw new Error('Amount must be greater than zero.');
+  const cents = Math.round(number * 100);
+  const normalizedAmount = cents / 100;
+  if (!Number.isSafeInteger(cents) || cents < 1 || number !== normalizedAmount) {
+    throw new Error('Payment amount must be at least PKR 0.01, use no more than two decimal places, and fit safely in cents.');
+  }
+  return normalizedAmount;
+}
 function checkCost(value) {
   if (value === '' || value === null || value === undefined) return null;
   const number = Number(value);
@@ -436,7 +446,7 @@ function validatePayment({ date, amount, method, paidBy }, referenceDate = new D
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
-  const cents = checkPositiveAmount(amount);
+  const cents = checkPaymentAmount(amount);
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
   const payer = String(paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (payer.length > 100) throw new Error('Paid by must be 100 characters or fewer.');

@@ -469,6 +469,21 @@ test('rejects invalid payments and invalid calendar dates', () => {
   assert.throws(() => addPayment(state, customerId, currentMonth, payment({ date:'2026-02-29' }), referenceDate), /valid payment date/);
 });
 
+test('payment creation and correction reject fractions of a rupee-cent without changing saved receipts', () => {
+  const state = createInitialState(['Synthetic Test Customer']); const customerId = state.customers[0].id;
+  const withReceipt = addPayment(state, customerId, currentMonth, payment({ amount:'12.30' }), referenceDate);
+  const paymentId = withReceipt.customers[0].bills[0].payments[0].id;
+  for (const amount of ['0.001','1.005','1.0000000001']) {
+    assert.throws(() => addPayment(state, customerId, currentMonth, payment({ amount }), referenceDate), /two decimal places/);
+    assert.throws(() => correctPayment(withReceipt, customerId, currentMonth, paymentId, payment({ amount }), referenceDate), /two decimal places/);
+    assert.equal(withReceipt.customers[0].bills[0].payments[0].amount, 12.3, 'a rejected correction leaves the existing receipt unchanged');
+  }
+  const corrected = correctPayment(withReceipt, customerId, currentMonth, paymentId, payment({ amount:'0.29' }), referenceDate);
+  assert.equal(corrected.customers[0].bills[0].payments[0].amount, 0.29);
+  const oneCentReceipt = addPayment(state, customerId, currentMonth, payment({ amount:'0.01' }), referenceDate);
+  assert.equal(oneCentReceipt.customers[0].bills[0].payments[0].amount, 0.01);
+});
+
 test('rejects future actual receipts and corrections at the Pakistan-local day boundary', () => {
   const state = createInitialState(['Synthetic Test Customer']);
   const customerId = state.customers[0].id;

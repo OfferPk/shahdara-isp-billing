@@ -23,7 +23,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v20'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v21'/);
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
   assert.match(app, /buildGlobalLedgerSearch\(state, query, selectedBillingMonth\)/);
@@ -53,6 +53,31 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(styles, /text-align:\s*right/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
   for (const asset of ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./core.js','./phase3.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+});
+
+test('customer-list search controls and combines with billing status filtering', () => {
+  assert.match(index, /id="customerListSearch"[^>]*type="search"/);
+  assert.match(index, /id="clearCustomerListSearch"/);
+  assert.match(index, /Matches customer name, phone, customer number or record ID/);
+  assert.match(app, /customerQuery\s*\}\s*\)\s*;/);
+  assert.match(app, /filterCustomersByStatus\(state,\s*\{[^}]*customerQuery/);
+  assert.match(app, /function customerListQuery\(\) \{ return \$\('#customerListSearch'\)\.value\.trim\(\) \|\| searchQuery\(\); \}/);
+  assert.match(app, /renderGlobalSearch\(\); renderCustomers\(\); renderTransactions\(\)/);
+  for (const status of ['paid','partial','pending','not-set']) assert.ok(index.includes(`data-customer-billing-filter="${status}"`));
+  assert.match(core, /customer\.id/);
+});
+
+test('JSON backup controls sit at the bottom behind an accessible eye toggle and restore remains preview-before-merge', () => {
+  assert.ok(index.indexOf('id="backupControlsToggle"') > index.indexOf('</main>'), 'backup toggle is in the footer after the main app');
+  assert.ok(index.indexOf('id="downloadJsonBackupButton"') > index.indexOf('</main>'), 'JSON backup action is no longer in the top warning');
+  assert.match(index, /id="backupControlsToggle"[^>]*aria-label="Show backup and restore controls"[^>]*aria-controls="backupControls"[^>]*aria-expanded="false"/);
+  assert.match(index, /id="backupControls" class="backup-controls-panel" hidden/);
+  assert.match(app, /\$\('#backupControlsToggle'\)\.addEventListener\('click'/);
+  assert.match(app, /controls\.hidden\s*=\s*!opening/);
+  assert.match(index, /id="jsonBackupDialog" class="modal backup-modal"/);
+  assert.match(index, /id="applyJsonBackupButton"[^>]*disabled/);
+  assert.match(app, /previewJsonBackupMerge\(state/);
+  assert.match(app, /if \(!pendingBackupPreview\?\.canApply\) return;/);
 });
 
 test('narrow mobile header and global search can flex and wrap instead of clipping', () => {
@@ -190,7 +215,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v20'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v21'/);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

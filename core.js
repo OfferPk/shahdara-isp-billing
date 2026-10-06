@@ -178,9 +178,12 @@ export function addCustomer(state, name, referenceDate = new Date()) {
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
-  const fields = [customer.name, customer.phone ?? customer.customerPhone, customer.address ?? customer.customerAddress, customer.customerNumber]
+  const phoneValues = [customer.phone, customer.customerPhone];
+  const fields = [customer.name, ...phoneValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
     .map(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase());
   if (fields.some(value => value.includes(normalized))) return true;
+  const phoneQuery = normalized.replace(/\D/g, '');
+  if (/^[+\d\s().-]+$/.test(normalized) && phoneQuery.length >= 3 && phoneValues.some(value => String(value ?? '').replace(/\D/g, '').includes(phoneQuery))) return true;
   const numberQuery = normalized.replace(/^#\s*/, '').trim();
   if (/^\d+$/.test(numberQuery) && String(customer.customerNumber ?? '').includes(numberQuery)) return true;
   const bills = Array.isArray(customer.bills) ? customer.bills : [];

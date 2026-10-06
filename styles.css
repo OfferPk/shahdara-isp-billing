@@ -1061,12 +1061,13 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .global-result-ledger .customer-billing-badge{min-height:22px;padding:2px 7px;font-size:10px;vertical-align:middle}
 .global-result-receipt{color:#71817c}
 .profile-contact-note{margin:8px 0 0;color:#667a72;font-size:11px;line-height:1.5}
-.receipt-whatsapp-action{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:0 9px;border:1px solid #bfd7cb;border-radius:8px;background:#f4faf6;color:#215b46;font:600 10px 'DM Sans',sans-serif;text-decoration:none;white-space:nowrap}
-.receipt-whatsapp-action:hover{background:#e8f5ed;border-color:#8fbda5}
-.receipt-whatsapp-action:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
+.receipt-whatsapp-action,.receipt-phone-help{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 9px;border:1px solid #bfd7cb;border-radius:8px;background:#f4faf6;color:#215b46;font:600 10px 'DM Sans',sans-serif;text-decoration:none;white-space:nowrap}
+.receipt-phone-help{cursor:pointer}
+.receipt-whatsapp-action:hover,.receipt-phone-help:hover{background:#e8f5ed;border-color:#8fbda5}
+.receipt-whatsapp-action:focus-visible,.receipt-phone-help:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
 .whatsapp-receipt-unavailable{color:#798982;font-size:10px;line-height:1.4;text-align:center}
 .payment-actions,.transaction-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px}
-@media(max-width:620px){.global-result-option{gap:7px;padding:10px}.global-result-ledger,.global-result-receipt{font-size:10px}.payment-row{align-items:flex-start;flex-wrap:wrap}.payment-main{flex:1 1 100%}.payment-actions,.transaction-actions{width:100%;justify-content:flex-start}.receipt-whatsapp-action{min-height:38px;font-size:11px}}
+@media(max-width:620px){.global-result-option{gap:7px;padding:10px}.global-result-ledger,.global-result-receipt{font-size:10px}.payment-row{align-items:flex-start;flex-wrap:wrap}.payment-main{flex:1 1 100%}.payment-actions,.transaction-actions{width:100%;justify-content:flex-start}.receipt-whatsapp-action,.receipt-phone-help{min-height:44px;font-size:11px}}
 
 
 /* Recency selector uses the same readable, responsive controls as the exact-date filter. */

@@ -3,7 +3,7 @@ import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
-export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','Bank Transfer']);
+export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','Bank Transfer','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
 export const MONTH_LIMIT = 24;
 export const STORAGE_KEY = 'shahdara-isp-billing-v1';
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -195,7 +195,7 @@ function customerMatchesQuery(customer, query, allocations = null) {
     const balance = summary?.balanceDueCents === null || summary?.balanceDueCents === undefined ? null : summary.balanceDueCents / 100;
     ledgerFields.push(bill.month, bill.id, status, billAmount, received, balance);
     for (const amount of [billAmount, received, balance]) if (amount !== null && amount !== undefined && amount !== '') ledgerFields.push(formatPKR(amount));
-    for (const payment of bill.payments ?? []) ledgerFields.push(payment.id, payment.date, payment.method, payment.amount, formatPKR(payment.amount));
+    for (const payment of bill.payments ?? []) ledgerFields.push(payment.id, payment.date, payment.method, payment.paidBy, payment.amount, formatPKR(payment.amount));
   }
   return ledgerFields.some(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase().includes(normalized));
 }
@@ -203,7 +203,7 @@ function customerMatchesQuery(customer, query, allocations = null) {
 function transactionMatchesQuery(row, query) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
-  const fields = [row.customerName, row.customerNumber, row.customerPhone, row.customerAddress, row.month, row.date, row.method, row.status, row.paymentId, row.amount, formatPKR(row.amount), `#${row.customerNumber}`];
+  const fields = [row.customerName, row.customerNumber, row.customerPhone, row.customerAddress, row.month, row.date, row.method, row.paidBy, row.status, row.paymentId, row.amount, formatPKR(row.amount), `#${row.customerNumber}`];
   return customerMatchesQuery({ name:row.customerName, customerNumber:row.customerNumber, customerPhone:row.customerPhone, customerAddress:row.customerAddress }, normalized)
     || fields.some(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase().includes(normalized));
 }
@@ -429,12 +429,14 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
 
-function validatePayment({ date, amount, method }) {
+function validatePayment({ date, amount, method, paidBy }) {
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   const cents = checkPositiveAmount(amount);
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
-  return { date, amount: cents, method };
+  const payer = String(paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  if (payer.length > 100) throw new Error('Paid by must be 100 characters or fewer.');
+  return { date, amount: cents, method, ...(payer ? { paidBy:payer } : {}) };
 }
 
 export function addPayment(state, customerId, month, fields, referenceDate = new Date()) {
@@ -449,10 +451,11 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
 }
 
 export function correctPayment(state, customerId, month, paymentId, fields, referenceDate = new Date()) {
-  const payment = { id: paymentId, ...validatePayment(fields) };
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
-  if (!bill?.payments.some(p => p.id === paymentId)) throw new Error('Payment not found.');
+  const existingPayment = bill?.payments.find(p => p.id === paymentId);
+  if (!existingPayment) throw new Error('Payment not found.');
+  const payment = { id:paymentId, ...validatePayment(fields), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }
 
@@ -639,6 +642,7 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     date: payment.date,
     amount: Number(payment.amount),
     method: payment.method,
+    paidBy: String(payment.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
     allocation:allocations.byPaymentId.get(payment.id)
   })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));
@@ -813,6 +817,8 @@ function paymentLines(customer, bill, allocations) {
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[customer.serviceStatus] ?? 'Not set';
     const billingLabel = ({ paid:'Paid', pending:'Pending', partial:'Partial', 'not-set':'Not set' })[billStatusWithAllocations(customer, bill, allocations)];
     const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Service status (manual, not billing status): ${serviceLabel}`, `Billing status: ${billingLabel}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
+    const paidBy = String(payment.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
+    if (paidBy) lines.push(`Paid by: ${paidBy}`);
     if (allocation?.billUnpriced) lines.push('Allocation: selected bill has no saved amount; no excess credit was inferred.');
     else {
       lines.push(`Applied to selected bill: ${formatPKR(moneyValue(sameMonthCents))}`);

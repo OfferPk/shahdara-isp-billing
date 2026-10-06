@@ -5,14 +5,14 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.3.2';
+} from './core.js?v=1.4.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, areaLabel
-} from './phase3.js?v=1.3.2';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.3.2';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft } from './profile-ui.js?v=1.3.2';
+} from './phase3.js?v=1.4.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.4.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.4.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -58,6 +58,14 @@ const humanLocalDateTime = value => value ? new Intl.DateTimeFormat(undefined, {
 const selectedCustomer = () => state.customers.find(customer => customer.id === selectedCustomerId);
 const formatAmount = formatPKR;
 const plural = (count, one, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
+function paidByFieldMarkup(inputId, value = '') {
+  const id = escapeHtml(inputId);
+  return `<label class="field-label full" for="${id}">Paid by (optional)</label><input id="${id}" class="full" name="paidBy" type="text" maxlength="100" autocomplete="off" placeholder="Leave blank if not specified" value="${escapeHtml(value)}">`;
+}
+function paymentPayerMarkup(payment) {
+  const paidBy = String(payment?.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
+  return paidBy ? ` · Paid by: ${escapeHtml(paidBy)}` : '';
+}
 
 const profileTabMap = {
   billing:['profileTabBilling','profilePanelBilling'],
@@ -310,9 +318,28 @@ function paymentAllocationMarkup(allocation) {
   return `<span class="payment-allocation">${lines.map(escapeHtml).join('<br>')}</span>`;
 }
 function receiptWhatsAppActionMarkup(customer, receipt) {
-  const draft = createReceiptWhatsAppDraft(customer?.phone, { ...receipt, customerName:customer?.name, customerNumber:customer?.customerNumber });
-  if (!draft) return '<span class="whatsapp-receipt-unavailable" title="Save a valid full international WhatsApp number on this customer profile first.">WhatsApp number needed</span>';
-  return `<a class="receipt-whatsapp-action" href="${escapeHtml(draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; it will not send automatically">WhatsApp receipt</a>`;
+  const action = resolveReceiptWhatsAppAction(customer, receipt);
+  if (action.type === 'phone-required') {
+    const label = action.hasSavedPhone ? 'Update WhatsApp number' : 'Add WhatsApp number';
+    return `<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
+  }
+  if (action.type !== 'draft') return '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
+  return `<a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; it will not send automatically">WhatsApp receipt</a>`;
+}
+function editCustomerPhoneFromReceipt(customerId) {
+  if (!customerId || !state.customers.some(customer => customer.id === customerId)) return;
+  selectCustomer(customerId);
+  if (selectedCustomerId !== customerId) return;
+  profileEditMode = true;
+  renderDetail();
+  activateProfileTab('info');
+  const phoneInput = $('#phoneInput');
+  phoneInput.focus();
+  phoneInput.scrollIntoView({ behavior:'smooth', block:'center' });
+  toast('Edit this customer’s international WhatsApp number, then select Save profile.');
+}
+function bindReceiptPhoneActions(container) {
+  container.querySelectorAll('[data-edit-receipt-phone]').forEach(button => button.addEventListener('click', () => editCustomerPhoneFromReceipt(button.dataset.editReceiptPhone)));
 }
 function billAmountAuditMarkup(bill) {
   const changes = bill?.amountHistory ?? [];
@@ -343,7 +370,7 @@ function renderHistory(customer) {
     const generatedNote = bill?.generated && bill.priceSnapshot !== null && bill.priceSnapshot !== undefined ? `<p class="bill-snapshot-note">Auto-generated from the saved selling price: ${escapeHtml(formatAmount(bill.priceSnapshot))}. This month’s snapshot stays unchanged if the price is edited later.</p>` : '';
     const payments = (bill?.payments ?? []).map(payment => {
       const allocation = paymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { date:payment.date, amount:payment.amount, method:payment.method, month, paymentId:payment.id, billStatus:status.value, billAmount:effectiveAmount, balanceDueCents:monthAllocation?.balanceDueCents ?? null, billDueDate:bill?.dueDate ?? null })}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:status.value, billAmount:effectiveAmount, balanceDueCents:monthAllocation?.balanceDueCents ?? null, billDueDate:bill?.dueDate ?? null })}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
@@ -353,13 +380,14 @@ function renderHistory(customer) {
     const amountLabel = bill ? 'Optional' : 'Required to create a bill';
     const amountPlaceholder = bill ? 'Leave blank only if not known' : 'Enter confirmed amount in PKR';
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid"><label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select><button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid"><label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}"><summary><span class="month-label">${escapeHtml(monthName(month))}</span><span class="history-count">${bill ? `${bill.payments?.length ?? 0} payment${bill.payments?.length === 1 ? '' : 's'}` : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="Payments for ${escapeHtml(monthName(month))}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
   historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => form.addEventListener('submit', onPaymentSubmit));
   historyContainer.querySelectorAll('[data-edit-payment]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.editPayment, 'history')));
   historyContainer.querySelectorAll('[data-delete-payment]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.deletePayment)));
+  bindReceiptPhoneActions(historyContainer);
 }
 function renderTransactions() {
   const date = $('#transactionDateFilter').value;
@@ -373,10 +401,11 @@ function renderTransactions() {
     const customer = state.customers.find(item => item.id === transaction.customerId);
     const statusText = reportStatusLabel(transaction.status);
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[transaction.customerServiceStatus] ?? 'Not set';
-    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, transaction)}<button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
+    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, transaction)}<button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
+  bindReceiptPhoneActions(transactionList);
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
 function renderMonthlyReport() {
@@ -586,12 +615,12 @@ function onBillSubmit(event) {
 function onPaymentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
-  try { state = addPayment(state, selectedCustomerId, form.dataset.month, { date:data.get('date'), amount:data.get('amount'), method:data.get('method') }); save(); renderDetail(); toast('Payment recorded on this device.'); }
+  try { state = addPayment(state, selectedCustomerId, form.dataset.month, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy') }); save(); renderDetail(); toast('Payment recorded on this device.'); }
   catch (error) { toast(error.message); }
 }
 function correctionForm(payment, customerId, month, origin) {
   const options = PAYMENT_METHODS.map(method => `<option value="${method}" ${method === payment.method ? 'selected' : ''}>${method}</option>`).join('');
-  return `<form class="payment-form editing" data-kind="correct" data-origin="${origin}" data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}"><div class="form-grid"><label class="field-label full" for="edit-date-${escapeHtml(payment.id)}">Payment date</label><input id="edit-date-${escapeHtml(payment.id)}" class="full" name="date" type="date" value="${escapeHtml(payment.date)}" required><label class="field-label full" for="edit-amount-${escapeHtml(payment.id)}">Amount received (PKR)</label><input id="edit-amount-${escapeHtml(payment.id)}" class="full" name="amount" type="number" min="0.01" step="0.01" value="${escapeHtml(payment.amount)}" required><label class="field-label full" for="edit-method-${escapeHtml(payment.id)}">Payment method</label><select id="edit-method-${escapeHtml(payment.id)}" class="full" name="method">${options}</select><button class="primary-button" type="submit">Save correction</button><button class="secondary-button full" type="button" data-cancel-correction>Cancel</button></div></form>`;
+  return `<form class="payment-form editing" data-kind="correct" data-origin="${origin}" data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}"><div class="form-grid"><label class="field-label full" for="edit-date-${escapeHtml(payment.id)}">Payment date</label><input id="edit-date-${escapeHtml(payment.id)}" class="full" name="date" type="date" value="${escapeHtml(payment.date)}" required><label class="field-label full" for="edit-amount-${escapeHtml(payment.id)}">Amount received (PKR)</label><input id="edit-amount-${escapeHtml(payment.id)}" class="full" name="amount" type="number" min="0.01" step="0.01" value="${escapeHtml(payment.amount)}" required><label class="field-label full" for="edit-method-${escapeHtml(payment.id)}">Payment method</label><select id="edit-method-${escapeHtml(payment.id)}" class="full" name="method">${options}</select>${paidByFieldMarkup(`edit-paid-by-${payment.id}`, payment.paidBy ?? '')}<button class="primary-button" type="submit">Save correction</button><button class="secondary-button full" type="button" data-cancel-correction>Cancel</button></div></form>`;
 }
 function beginCorrection(customerId, month, paymentId, origin) {
   const customer = state.customers.find(item => item.id === customerId);
@@ -609,7 +638,7 @@ function onCorrectionSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
   try {
-    state = correctPayment(state, form.dataset.customerId, form.dataset.month, form.dataset.paymentId, { date:data.get('date'), amount:data.get('amount'), method:data.get('method') });
+    state = correctPayment(state, form.dataset.customerId, form.dataset.month, form.dataset.paymentId, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy') });
     save();
     if (selectedCustomerId === form.dataset.customerId) renderDetail();
     toast('Payment correction saved on this device.');

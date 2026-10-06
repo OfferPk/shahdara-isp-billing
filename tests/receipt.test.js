@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPaymentReceipt } from '../receipt.js';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from '../receipt.js';
+import { createBillPackageSnapshot } from '../package-catalog.js';
 import { createReceiptWhatsAppDraft } from '../profile-ui.js';
 
 function fixture({ dueAmount = 2000, packageSpeed = '5 Mbps', payments = [], month = '2026-08', packageHistory = [], priceSnapshot } = {}) {
@@ -148,4 +149,51 @@ test('explicit transaction reference, duration, data cap and service-period end 
   assert.equal(receipt.dataLimit, '500 GB');
   assert.equal(receipt.servicePeriodEnd, '2026-08-31');
   assert.equal(receipt.status, 'PAID');
+});
+
+test('preset Limited receipt displays its actual package cap and a paid receipt uses the listed nominal price', () => {
+  const savedPayment = payment('paid-package', 1600, '2026-08-12');
+  const { customer, bill } = fixture({ dueAmount:1600, packageSpeed:'3Mbps / 300GB', payments:[savedPayment] });
+  bill.packageSnapshot = createBillPackageSnapshot('3mbps-300gb');
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+  assert.equal(receipt.package, '3Mbps / 300GB');
+  assert.equal(receipt.nominalPrice, 1600);
+  assert.equal(receipt.paidAmount, 1600);
+  assert.equal(receipt.packageType, 'Limited');
+  assert.equal(receipt.dataLimit, '300 GB');
+  assert.equal(receipt.status, 'PAID');
+});
+
+test('Unlimited packages never show a saved or inferred data cap', () => {
+  const partial = payment('unlimited-partial', 500, '2026-08-12');
+  const { customer, bill } = fixture({ dueAmount:3000, packageSpeed:'15Mbps Unlimited', payments:[partial] });
+  bill.packageSnapshot = createBillPackageSnapshot('15mbps-unlimited');
+  customer.packageDataLimit = '2000 GB';
+  bill.packageDataLimit = '2000 GB';
+  const receipt = buildPaymentReceipt(customer, bill, partial);
+  assert.equal(receipt.packageType, 'Unlimited');
+  assert.equal(receipt.dataLimit, '');
+  assert.equal(receipt.nominalPrice, 3000);
+  assert.equal(receipt.paidAmount, 500);
+  assert.equal(receipt.status, 'PARTIAL');
+});
+
+test('unknown legacy package labels and saved caps remain compatible', () => {
+  const savedPayment = payment('legacy-cap', 300, '2026-08-12');
+  const { customer, bill } = fixture({ dueAmount:1500, packageSpeed:'Legacy custom 10 Mbps', payments:[savedPayment] });
+  customer.packageDataLimit = '120 GB';
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+  assert.equal(receipt.package, 'Legacy custom 10 Mbps');
+  assert.equal(receipt.packageType, 'Limited');
+  assert.equal(receipt.dataLimit, '120 GB');
+  customer.packageDataLimit = '';
+  assert.equal(buildPaymentReceipt(customer, bill, savedPayment).dataLimit, '');
+  customer.packageSpeed = 'Legacy custom 10 Mbps / 300GB';
+  assert.equal(buildPaymentReceipt(customer, bill, savedPayment).dataLimit, '', 'an old label alone does not invent a saved cap');
+});
+
+test('printed package terms retain the agreed Limited/Unlimited threshold and cap rules', () => {
+  assert.match(PACKAGE_TERMS_NOTE, /PKR 3,000 سے کم قیمت والے تمام پیکیجز محدود/);
+  assert.match(PACKAGE_TERMS_NOTE, /PKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited/);
+  assert.match(PACKAGE_TERMS_NOTE, /مقررہ ڈیٹا حد لاگو نہیں ہوتی/);
 });

@@ -1,7 +1,7 @@
 import { calculatePaymentAllocations } from './core.js';
 import {
   answerOwnerCommand, buildCustomerRankings, buildMonthToMonthComparison,
-  buildSmartDuesRecovery, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
+  buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
 } from './owner-insights.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 
@@ -132,8 +132,20 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       else {anchor.removeAttribute('href');anchor.setAttribute('aria-disabled','true');anchor.textContent=select.value==='payment-confirmation'?'No saved payment for confirmation':'WhatsApp details incomplete';}
     }));
   }
+  function renderSmartAlerts() {
+    const host=$('#smartAlertsList');if(!host)return;
+    const result=buildSmartAlerts(getState(),new Date());
+    setText('#smartAlertsSummary',`Checked locally as of ${result.asOf}: ${result.alerts.length} alert(s)${result.insufficient.length?` · ${result.insufficient.length} comparison(s) need more history`:''}. No customer is contacted automatically.`);
+    const alertMarkup=result.alerts.map(row=>`<article class="smart-alert-card smart-alert-${escapeHtml(row.severity)}"><div class="smart-alert-heading"><strong>${escapeHtml(row.title)}</strong><span>${row.severity==='warning'?'Attention':'Trend'}</span></div><p>${escapeHtml(row.detail)}</p>${row.customerId?`<button class="secondary-button" type="button" data-open-smart-alert-customer="${escapeHtml(row.customerId)}">Open billing history for ${escapeHtml(row.customerName)}</button>`:''}</article>`).join('');
+    const unavailableMarkup=result.insufficient.length?`<section class="smart-alert-insufficient" aria-label="Comparisons with insufficient history"><h4>Some comparisons need more local history</h4><ul>${result.insufficient.map(row=>`<li>${escapeHtml(row.note)}</li>`).join('')}</ul></section>`:'';
+    const clearChecks=result.checks.filter(row=>row.status==='clear'&&row.note);
+    const clearChecksMarkup=clearChecks.length?`<details class="smart-alert-rule-details"><summary>Show checks below their alert threshold (${clearChecks.length})</summary><ul>${clearChecks.map(row=>`<li>${escapeHtml(row.note)}</li>`).join('')}</ul></details>`:'';
+    const clearMarkup=result.allClear?'<p class="empty-state">No alert threshold is currently met. The checks use only saved local ledger entries.</p>':'';
+    host.innerHTML=`${alertMarkup}${unavailableMarkup}${clearChecksMarkup}${clearMarkup}<p class="smart-alert-footnote">${escapeHtml(result.manualStatusNote)}</p>`;
+    host.querySelectorAll('[data-open-smart-alert-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openSmartAlertCustomer)));
+  }
   function refresh() {
-    renderCommand();renderClosings();renderComparison();renderRankings();renderRecovery();
+    renderCommand();renderClosings();renderComparison();renderRankings();renderRecovery();renderSmartAlerts();
   }
 
   $('#ownerCommandForm')?.addEventListener('submit',event=>{event.preventDefault();lastQuery=$('#ownerCommandInput').value;renderCommand(lastQuery);});
@@ -173,6 +185,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   document.querySelectorAll('[data-mobile-more]').forEach(button=>button.addEventListener('click',()=>{
     const action=button.dataset.mobileMore;$('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');
     if(action==='assistant'){switchView('customers');$('#ownerCommandCenter').scrollIntoView({behavior:'smooth',block:'center'});}
+    else if(action==='alerts'){switchView('reports');$('#smartAlertsPanel').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='recovery'){switchView('reports');$('#duesRecoveryPanel').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='analytics'){switchView('analytics');renderAnalytics();$('#analyticsView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='inventory'){switchView('inventory');renderInventory();$('#inventoryView').scrollIntoView({behavior:'smooth',block:'start'});}

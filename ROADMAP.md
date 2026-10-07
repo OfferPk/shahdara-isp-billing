@@ -158,6 +158,8 @@
 
 **Acceptance:** Test missing/invalid/original dates, date corrections, leap-year and year-boundary milestones, tenure, upcoming-dashboard ordering and mobile accessibility; preserve unrelated customer/billing history and confirm that reminders never send any message or initiate contact.
 
+**Partial source implementation (web build 1.9.1):** The read-only customer profile shows the next annual milestone from the currently saved connection/subscription date only. Feb 29 maps to Feb 28 in non-leap years, and scheduled service end dates before a milestone suppress it. This does **not** complete Phase 13: owner-dashboard ordering, a correction audit trail, and full mobile/accessibility acceptance remain open. No deployment is claimed by this source note.
+
 ### Phase 14 — Customizable Owner Home Dashboard
 
 - Let the owner choose which dashboard cards/widgets are visible, save a local widget order, and set the default date range on this device. Keep preferences separate from customer/billing facts; provide a clear reset-to-default action.

@@ -87,6 +87,25 @@ export const CUSTOMER_RANKING_TYPES=Object.freeze([
   {id:'highest-outstanding',label:'Highest outstanding'},{id:'longest-overdue',label:'Longest overdue'},{id:'repeat-late',label:'Repeat late payers'},
   {id:'lifetime-value',label:'Lifetime value · actual receipts'}
 ]);
+function serviceAnniversaryDateForYear(month,day,year) {
+  const leapYear=year%4===0&&(year%100!==0||year%400===0);
+  const adjustedDay=month===2&&day===29&&!leapYear?28:day;
+  return `${String(year).padStart(4,'0')}-${String(month).padStart(2,'0')}-${String(adjustedDay).padStart(2,'0')}`;
+}
+/** Derive a local-only milestone from the saved connection date; never infer or persist a date. */
+export function buildNextServiceAnniversary(customer,referenceDate=new Date()) {
+  if(!customer)return null;
+  const tenure=summarizeCustomerTenure(customer,referenceDate);
+  if(tenure.status!=='current')return{status:tenure.status,connectionDate:tenure.connectionDate,date:null,years:null,daysUntil:null,endDate:tenure.endDate};
+  const asOf=dateFor(referenceDate),[startYear,month,day]=tenure.connectionDate.split('-').map(Number);
+  let year=Math.max(startYear+1,Number(asOf.slice(0,4)));
+  if(year>9999)return{status:'year-out-of-range',connectionDate:tenure.connectionDate,date:null,years:null,daysUntil:null,endDate:null};
+  let date=serviceAnniversaryDateForYear(month,day,year);
+  if(date<asOf){year++;if(year>9999)return{status:'year-out-of-range',connectionDate:tenure.connectionDate,date:null,years:null,daysUntil:null,endDate:null};date=serviceAnniversaryDateForYear(month,day,year);}
+  const scheduledEndDate=[customer.cancellationDate,customer.expiryDate].filter(value=>isCalendarDate(value)&&value>=asOf).sort()[0]??null;
+  if(scheduledEndDate&&date>scheduledEndDate)return{status:'ends-before-anniversary',connectionDate:tenure.connectionDate,date,years:year-startYear,daysUntil:null,endDate:scheduledEndDate};
+  return{status:date===asOf?'today':'upcoming',connectionDate:tenure.connectionDate,date,years:year-startYear,daysUntil:daysBetween(date,asOf),endDate:scheduledEndDate};
+}
 /** Derive local-only lifetime revenue and a clearly qualified 12-month estimate. */
 export function buildCustomerLifetimeValue(state,customerOrId,referenceDate=new Date()) {
   const customer=typeof customerOrId==='string'?state.customers.find(item=>item.id===customerOrId):customerOrId;
@@ -111,6 +130,7 @@ export function buildCustomerLifetimeValue(state,customerOrId,referenceDate=new 
   const historyState={...state,customers:[historyCustomer]};
   const behavior=buildCustomerPaymentBehavior(historyState,historyCustomer,referenceDate);
   const tenure=summarizeCustomerTenure(customer,referenceDate);
+  const nextServiceAnniversary=buildNextServiceAnniversary(customer,referenceDate);
   const averageMonthlyRevenueBasis=observationMonths
     ? `${observationMonths} calendar month${observationMonths===1?'':'s'} from first saved receipt through ${currentMonth}, including months without receipts.`
     : 'No valid historical receipts are recorded.';
@@ -122,7 +142,7 @@ export function buildCustomerLifetimeValue(state,customerOrId,referenceDate=new 
     firstReceiptMonth,receiptMonths,observationMonths,
     averageMonthlyRevenue:averageMonthlyRevenueCents===null?null:amount(averageMonthlyRevenueCents),averageMonthlyRevenueBasis,
     averagePaymentDelayDays:behavior?.averagePaymentDelayDays??null,paymentDelaySampleCount:behavior?.delaySampleCount??0,
-    tenure,estimatedFutureValue:estimatedFutureCents===null?null:amount(estimatedFutureCents),estimatedFutureValueBasis
+    tenure,nextServiceAnniversary,estimatedFutureValue:estimatedFutureCents===null?null:amount(estimatedFutureCents),estimatedFutureValueBasis
   };
 }
 function packagePriceForMonth(customer,bill,month,referenceDate) {

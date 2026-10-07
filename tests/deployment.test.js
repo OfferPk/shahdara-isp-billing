@@ -26,14 +26,25 @@ test('web shell assets share the package version and worker updates before app s
   assert.ok(app.includes(`from './owner-insights.js?v=${version}'`));
   assert.ok(app.includes(`from './owner-ui.js?v=${version}'`));
   assert.ok(app.includes(`from './backup-store.js?v=${version}'`));
+  assert.ok(app.includes(`from './duplicate-detection.js?v=${version}'`));
   const register = index.indexOf(`navigator.serviceWorker.register('./sw.js?v=${version}'`);
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v33'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v34'/);
   assert.match(index, /id="backupFrequencySelect"/);
   assert.match(index, /id="backupNowButton"[^>]*>Backup Now/);
   assert.match(index, /id="restoreLocalBackupButton"[^>]*>Review &amp; Restore Backup/);
+  assert.match(index, /id="newCustomerPhone"/);
+  assert.match(index, /id="newCustomerAddress"/);
+  assert.match(index, /id="duplicateCustomerReview"[^>]*role="alert"/);
+  assert.match(index, /id="continueNewCustomerAnyway"[^>]*>Continue and create a separate customer/);
+  assert.match(app, /findPossibleDuplicateCustomers\(state\.customers, details\)/);
+  assert.match(app, /data-open-duplicate-customer/);
+  assert.match(app, /allowDuplicateName/);
+  const duplicateMatcher = read('duplicate-detection.js');
+  assert.match(duplicateMatcher, /does not mutate customer records/);
+  assert.doesNotMatch(duplicateMatcher, /\b(fetch|XMLHttpRequest|WebSocket|sendBeacon)\b/);
   assert.equal((app.match(/max="\$\{localDate\(\)\}"/g) ?? []).length, 2, 'new receipts and corrections use the current Pakistan-local date as their maximum');
   assert.match(index, /Search customers and ledger by name, phone, ID, status, amount, date or method/);
   assert.match(index, /placeholder="Name, ID, status, amount or method"/);
@@ -74,7 +85,7 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(styles, /font-variant-numeric:\s*tabular-nums/);
   assert.match(styles, /text-align:\s*right/);
   assert.match(worker, /caches\.match\(event\.request\s*,\s*\{\s*ignoreSearch\s*:\s*true\s*\}\)/);
-  for (const asset of ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./owner-insights.js','./owner-ui.js','./backup-store.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
+  for (const asset of ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./owner-insights.js','./owner-ui.js','./backup-store.js','./duplicate-detection.js','./manifest.webmanifest','./icon.svg']) assert.ok(worker.includes(`'${asset}'`), `offline cache includes ${asset}`);
   assert.match(app, /data-print-receipt/);
   assert.match(app, /Balance due after this payment/);
   assert.match(styles, /@media print/);
@@ -247,12 +258,12 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v33'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v34'/);
 });
 
 test('production build includes required imported feature modules and the package catalog', () => {
   const build = read('build.mjs');
-  for (const asset of ['phase3.js','package-catalog.js','owner-insights.js','owner-ui.js','backup-store.js']) assert.ok(build.includes(`'${asset}'`), `production build copies ${asset}`);
+  for (const asset of ['phase3.js','package-catalog.js','owner-insights.js','owner-ui.js','backup-store.js','duplicate-detection.js']) assert.ok(build.includes(`'${asset}'`), `production build copies ${asset}`);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Automatic local backups, business comparisons, area intelligence & mobile analytics · web build 1.7.0**
+**Duplicate-customer safeguards, automatic local backups, business comparisons & mobile analytics · web build 1.8.0**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). This release does not publish a native APK: Android web assets sync, but native compilation cannot run on this computer without an Android SDK.
 
@@ -63,7 +63,7 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, fifth-of-month defaults at month/year boundaries, custom and historical due-date preservation, salary eligibility after full payment and status transitions, baseline exclusion, unique manual date logs, selected-month totals, no fabricated entries or cash double counting, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, validated backup/migration and merge safety, daily/weekly backup scheduling, storage-quota headroom, and offline asset/build versions. The v1.7.0 bundle contains no Android package; native Android compilation requires an Android SDK.
+Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, fifth-of-month defaults at month/year boundaries, custom and historical due-date preservation, salary eligibility after full payment and status transitions, baseline exclusion, unique manual date logs, selected-month totals, no fabricated entries or cash double counting, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, validated backup/migration and merge safety, normalized duplicate detection and explicit owner match choices, daily/weekly backup scheduling, storage-quota headroom, and offline asset/build versions. The v1.8.0 web bundle contains no Android package; native Android compilation requires an Android SDK.
 
 ## Android
 
@@ -83,7 +83,7 @@ Automated coverage includes exact full-paid and Partial draft text, correct cust
 - Customer profiles show actual historical revenue from valid local receipts (a repeated receipt ID counts once), tenure from the saved connection/end dates, average monthly receipts across the full saved-receipt period, and settlement delay for fully settled priced bills with saved due dates. Each metric explains its data basis or reports when it is unavailable.
 - The profile’s **Estimated future value · next 12 months** is a clearly marked estimate: observed average monthly receipts × 12, shown only after at least two receipt-bearing months. It is not collected cash, a guarantee, or a forecast of retention; costs and future price changes are not modeled.
 - Customer rankings include a lifetime-value option ordered by actual historical receipts only; estimated future values are displayed separately and never affect rank. Calculations are read-only and local; no existing customer, bill or receipt records are rewritten.
-- Automatic local backup was added in v1.7.0; duplicate detection, business health scoring, customer-growth targets, anniversaries and dashboard/favorite customization remain later roadmap phases.
+- Automatic local backup arrived in v1.7.0 and duplicate-customer detection in v1.8.0; business health scoring, customer-growth targets, anniversaries and dashboard/favorite customization remain later roadmap phases.
 
 ## Web release 1.7.0 — Automatic local backup
 
@@ -91,3 +91,11 @@ Automated coverage includes exact full-paid and Partial draft text, correct cust
 - Checks run at startup and when the app resumes or becomes visible. No background task is claimed while the browser app is closed. Snapshots are complete validated JSON copies of the app's persisted state in a separate app-private IndexedDB database.
 - Each write uses a unique timestamped ID and IndexedDB `add`, not replacement. A quota preflight reserves additional headroom; interrupted, unavailable or quota-limited writes preserve existing snapshots and never modify ledger state. The browser's persistence request is best-effort, not a guarantee against eviction.
 - Existing file-based JSON export and validated preview-before-merge restore remain available. The local snapshots are not an off-device backup; keep a downloaded JSON copy in a separate safe location.
+
+## Web release 1.8.0 — Duplicate customer detection
+
+Before a new customer is saved, the app compares the entered name, optional phone and address, and any supplied Mohalla/zone context against saved profiles on this device. Phone formatting and Arabic/Persian digits are normalized without guessing country prefixes; names and addresses compare after case, spacing and punctuation normalization, with conservative partial name/address matches shown as possible matches rather than conclusions. A shared area alone does not trigger a match.
+
+When a possible match is found, the review lists the existing profile, saved identifying details and the reason for the match. The owner can open that profile, edit the draft, or deliberately continue and create a separate customer. Similar names and shared addresses can be legitimate; the app never merges, replaces or deletes records automatically, and existing billing/payment history is left untouched. The matcher runs locally with no network request and its module is included in the v34 offline cache.
+
+Automated coverage includes formatted phone numbers, names/addresses with punctuation and spacing differences, partial and ambiguous matches, empty identifiers, archived/legacy contact fields, false-positive controls, record immutability, explicit same-name creation and offline asset precaching.

@@ -5,18 +5,18 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.5.0';
+} from './core.js?v=1.6.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
-} from './phase3.js?v=1.5.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.5.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.5.0';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.5.0';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.5.0';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior } from './owner-insights.js?v=1.5.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.5.0';
+} from './phase3.js?v=1.6.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.6.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.6.0';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.6.0';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.6.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.6.0';
+import { setupOwnerCenter } from './owner-ui.js?v=1.6.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -560,6 +560,22 @@ function renderIncidents(customer) {
 function profileReadonlyField(label, value) {
   return `<div class="profile-readonly-field"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
 }
+function customerLifetimeValueMarkup(lifetime) {
+  const tenure=lifetime.tenure;
+  const tenureLabel=tenure.serviceMonths===null
+    ? tenure.status==='future'?'Future connection date':tenure.status==='date-review'?'Date review required':tenure.status==='end-date-unknown'?'End date not recorded':'Not recorded'
+    : `${tenure.serviceMonths} calendar month${tenure.serviceMonths===1?'':'s'}`;
+  const tenureBasis=tenure.connectionDate
+    ? `Saved connection date: ${tenure.connectionDate}${tenure.endDate?` · ended ${tenure.endDate}`:''}.`
+    : 'Only the saved connection date is used; profile creation and first payment are not substituted.';
+  const monthlyRevenue=lifetime.averageMonthlyRevenue===null?'Insufficient history':`${formatAmount(lifetime.averageMonthlyRevenue)} / month`;
+  const delay=lifetime.averagePaymentDelayDays===null?'Not available':`${lifetime.averagePaymentDelayDays} day${lifetime.averagePaymentDelayDays===1?'':'s'} after due date`;
+  const delayBasis=lifetime.paymentDelaySampleCount
+    ? `Average nonnegative days after saved due dates across ${lifetime.paymentDelaySampleCount} fully settled priced bill${lifetime.paymentDelaySampleCount===1?'':'s'}; early/on-time settlements count as 0 days late.`
+    : 'No fully settled priced bills with recorded due dates.';
+  const future=lifetime.estimatedFutureValue===null?'Insufficient history':formatAmount(lifetime.estimatedFutureValue);
+  return `<section class="customer-lifetime-value" aria-labelledby="customerLifetimeValueHeading"><h3 id="customerLifetimeValueHeading">Customer lifetime value (CLV)</h3><dl class="customer-lifetime-grid"><div><dt>Historical revenue collected</dt><dd>${escapeHtml(formatAmount(lifetime.totalHistoricalRevenue))}</dd><dd class="customer-lifetime-basis">${lifetime.receiptCount} valid local receipt${lifetime.receiptCount===1?'':'s'}; actual receipts only.</dd></div><div><dt>Customer tenure</dt><dd>${escapeHtml(tenureLabel)}</dd><dd class="customer-lifetime-basis">${escapeHtml(tenureBasis)}</dd></div><div><dt>Average monthly revenue</dt><dd>${escapeHtml(monthlyRevenue)}</dd><dd class="customer-lifetime-basis">${escapeHtml(lifetime.averageMonthlyRevenueBasis)}</dd></div><div><dt>Average payment delay</dt><dd>${escapeHtml(delay)}</dd><dd class="customer-lifetime-basis">${escapeHtml(delayBasis)}</dd></div><div class="customer-lifetime-estimate"><dt>Estimated future value · next 12 months</dt><dd>${escapeHtml(future)}</dd><dd class="customer-lifetime-basis">${escapeHtml(lifetime.estimatedFutureValueBasis)}</dd></div></dl><p class="customer-lifetime-note">The future value is an estimate, not collected cash or a guarantee. It extrapolates the saved receipt average; it does not model customer loss, costs or future price changes.</p></section>`;
+}
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const phoneTargets = contactActionTargets(phone);
@@ -580,7 +596,9 @@ function renderCustomerProfileView(customer) {
     ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']
   ];
   const profit = customerPackageProfit(customer);
+  const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
   $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>`;
+  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
     $('#customerProfileView').hidden = true;

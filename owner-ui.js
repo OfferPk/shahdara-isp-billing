@@ -96,13 +96,19 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     for(const [selector,values,allLabel] of [['#rankingArea',areas,'All recorded areas'],['#rankingPackage',packages,'All recorded packages']]){
       const node=$(selector);if(!node)continue;const old=node.value;node.innerHTML=`<option value="all">${allLabel}</option>${values.map(value=>`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;node.value=values.includes(old)?old:'all';
     }
+    const monthFilter=$('#rankingMonth')?.closest('label');if(monthFilter)monthFilter.hidden=type?.value==='lifetime-value';
   }
   function renderRankings() {
     renderRankingOptions();
     const host=$('#customerRankingResults');if(!host)return;
     const args={type:$('#rankingType').value,month:$('#rankingMonth').value,area:$('#rankingArea').value,packageName:$('#rankingPackage').value,status:$('#rankingStatus').value};
     const result=buildCustomerRankings(getState(),args,new Date());
-    host.innerHTML=result.rows.length?result.rows.map((row,index)=>`<article class="owner-result-card"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>#${row.customerNumber} ${escapeHtml(row.name)}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span></div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><button class="secondary-button" type="button" data-open-ranking-customer="${escapeHtml(row.customerId)}">Open ledger</button></article>`).join(''):`<p class="empty-state">No customers have enough saved data for this ranking and filter. ${result.excludedCount?`${result.excludedCount} profile(s) were excluded because the ranked value is unavailable.`:''}</p>`;
+    let basis=$('#customerRankingBasis');if(!basis){basis=document.createElement('p');basis.id='customerRankingBasis';basis.className='chart-caption';basis.setAttribute('role','status');basis.setAttribute('aria-live','polite');host.before(basis);}
+    basis.textContent=args.type==='lifetime-value'?'Ranked highest to lowest by actual historical receipts saved on this device (duplicate receipt IDs count once). Future value is a separate 12-month estimate and does not affect the ranking.':'';
+    host.innerHTML=result.rows.length?result.rows.map((row,index)=>{
+      const estimate=args.type==='lifetime-value'?`<span class="owner-result-estimate">Estimated future value · next 12 months: ${row.estimatedFutureValue===null?'Insufficient history':escapeHtml(formatAmount(row.estimatedFutureValue))}. ${escapeHtml(row.estimatedFutureValueBasis)}</span>`:'';
+      return `<article class="owner-result-card"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>#${row.customerNumber} ${escapeHtml(row.name)}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span>${estimate}</div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><button class="secondary-button" type="button" data-open-ranking-customer="${escapeHtml(row.customerId)}">Open ledger</button></article>`;
+    }).join(''):`<p class="empty-state">No customers have enough saved data for this ranking and filter. ${result.excludedCount?`${result.excludedCount} profile(s) were excluded because the ranked value is unavailable.`:''}</p>`;
     host.querySelectorAll('[data-open-ranking-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openRankingCustomer)));
   }
   function followupFor(customerRow,template,allocations,referenceDate) {

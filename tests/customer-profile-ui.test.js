@@ -56,6 +56,18 @@ test('customer profiles open in read-only mode and existing fields are revealed 
   assert.match(app, /profileEditMode = false;\s*save\(\); renderDetail\(\)/);
 });
 
+test('customer profiles show receipt-based CLV and clearly label future value as an estimate', () => {
+  assert.match(app, /buildCustomerLifetimeValue\(state, customer, new Date\(\)\)/);
+  assert.match(app, /Customer lifetime value \(CLV\)/);
+  assert.match(app, /Historical revenue collected/);
+  assert.match(app, /Average monthly revenue/);
+  assert.match(app, /Average payment delay/);
+  assert.match(app, /Estimated future value · next 12 months/);
+  assert.match(app, /future value is an estimate, not collected cash or a guarantee/i);
+  assert.match(app, /Only the saved connection date is used/);
+  assert.match(styles, /\.customer-lifetime-grid/);
+});
+
 test('current bill status and net due use only saved bill values and existing receipt/credit allocations', () => {
   const pending = present({ id:'synthetic-bill-1', month:'2026-09', dueAmount:1200, payments:[] });
   assert.equal(pending.billAmount, 1200);

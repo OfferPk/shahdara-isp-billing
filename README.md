@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Business comparisons, performance explanations, area intelligence & mobile analytics · web build 1.5.0**
+**Business comparisons, performance explanations, area intelligence & mobile analytics · web build 1.6.0**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). Android packaging remains deferred until browser testing is complete; this release does not publish an APK.
 
@@ -42,7 +42,7 @@ The first visit needs a network connection. The service worker caches the static
 - PKT-based six-month charts show bill-snapshot revenue vs receipt-date cash, recorded customer growth, dated month-end outstanding snapshots, current manual Active/Offline status and actual cash income vs actual dated expenses. Forecasts include eligible offline subscriptions with configured next-month rates. Live Active/Offline/Not set counts are calculated from saved nonarchived profiles and embedded in their service-filter buttons; billing-state filters remain independent. Online percentage excludes Not set profiles and shows its denominator. Empty history is labeled no entries/not set rather than a fabricated zero. Offline alone is not churn.
 - Inventory, expenses, optional profile fields and package history are included in the validated, preview-before-merge local JSON backup. Charts use bundled SVG; no external visualization assets or billing-data network calls are used.
 
-## Owner Center features (web build 1.5.0)
+## Owner Center features (web build 1.6.0)
 
 - A repeat-safe local month close is saved on the first app open after a Pakistan-local month rollover. It captures the closing month’s bill count (including unpriced bills), priced/unpriced counts, saved billing, actual receipt-date collection, pending balance, dated expenses, cash profit, and a comparison with the preceding month. Manual customer/service status is timestamped as captured; it is not represented as a historical network snapshot. Closings travel through the existing validated JSON backup/merge flow.
 - The read-only Owner Command Center accepts deterministic English, Urdu and Roman Urdu text questions over local records. Voice transcription is offered only when a locally installed browser speech model is verified and `processLocally` is available; no cloud fallback or automatic model download is used. Recognized text must be reviewed and tapped through Ask before running.
@@ -77,3 +77,10 @@ The global search covers local customer details and saved bill/receipt history, 
 The optional profile phone field stores the customer's WhatsApp number locally on this device. Enter its full international form with the country calling code; the app does not guess one. Each actual receipt has one customer-bound **WhatsApp receipt** draft action in profile history and Transactions. The approved full-paid template includes its actual amount/date/method, billing month and next month's 5th; a Partial draft shows the actual outstanding amount and saved due-date context instead. **Paid by** appears only when manually entered for that transaction. If the selected customer has no valid international phone, **Add/Update WhatsApp number** opens that same customer's profile phone field. The draft is generated locally; the action is labeled because an internet connection is needed to open WhatsApp. Drafts open only on explicit click for review and manual sending; nothing is auto-sent or uploaded.
 
 Automated coverage includes exact full-paid and Partial draft text, correct customer/receipt/payer association, both added and all retained payment methods, old payer-less records, local persistence/correction/export, safe URL encoding, invalid/missing-phone routing, review-only drafts and accessible responsive action targets.
+
+## Web release 1.6.0 — Customer Lifetime Value
+
+- Customer profiles show actual historical revenue from valid local receipts (a repeated receipt ID counts once), tenure from the saved connection/end dates, average monthly receipts across the full saved-receipt period, and settlement delay for fully settled priced bills with saved due dates. Each metric explains its data basis or reports when it is unavailable.
+- The profile’s **Estimated future value · next 12 months** is a clearly marked estimate: observed average monthly receipts × 12, shown only after at least two receipt-bearing months. It is not collected cash, a guarantee, or a forecast of retention; costs and future price changes are not modeled.
+- Customer rankings include a lifetime-value option ordered by actual historical receipts only; estimated future values are displayed separately and never affect rank. Calculations are read-only and local; no existing customer, bill or receipt records are rewritten.
+- Automatic backup, duplicate detection, business health scoring, customer-growth targets, anniversaries and dashboard/favorite customization are subsequent roadmap phases, not features of this release.

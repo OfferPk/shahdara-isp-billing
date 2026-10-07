@@ -4,7 +4,7 @@
 
 **Product goal:** The owner should be able to manage ISP cash, customer ledgers and business accounts from a phone in roughly 10–20 seconds, even without internet.
 
-**Status (2026-10-07):** v1.4.9 was the previously verified public GitHub Pages baseline. v1.5.0 completes Phase 4, passes all 197 automated tests, and builds successfully; a clean-origin desktop preview confirms the new analytics and Area Intelligence UI. Phases 1–4 are implemented; Phases 5–7 remain planned.
+**Status (2026-10-07):** v1.5.0 is live on GitHub Pages, with the Area Intelligence controls and v31 service worker publicly verified. Phase 4 passes all 197 automated tests and the production build; a clean-origin desktop preview confirms the analytics and Area Intelligence UI. Phases 1–4 are implemented; Phases 5–7 remain planned.
 
 ## Non-negotiable data and safety rules
 
@@ -71,7 +71,7 @@
 
 **Acceptance (passed):** Date-range validation and filter rendering, parent/zone roll-ups without double counting, package snapshots by service month, cash collection by receipt date, and explicit “not recorded” handling for area expenses/history are covered by the calculation and UI regression tests. The 14 supplied Mohalla names remain optional suggestions only.
 
-**Verification (v1.5.0 release candidate):** All 197 automated tests pass; JavaScript syntax checks and the production build pass; the fresh-origin desktop browser smoke check confirms the trend charts, Area Intelligence heading, date controls and empty-ledger states, with no browser console errors. Narrow-screen CSS stacks charts and keeps wide analytics tables horizontally scrollable; the app remains browser-local and existing customer/billing records are not migrated or rewritten.
+**Verification (v1.5.0 live):** All 197 automated tests pass; JavaScript syntax checks and the production build pass; GitHub Pages serves the Area Intelligence controls and v31 service worker; the fresh-origin desktop browser smoke check confirms the trend charts, Area Intelligence heading, date controls and empty-ledger states, with no browser console errors. Narrow-screen CSS stacks charts and keeps wide analytics tables horizontally scrollable; the app remains browser-local and existing customer/billing records are not migrated or rewritten.
 
 ### Phase 5 — Inventory and optional staff records
 
@@ -94,6 +94,69 @@
 - Require explicit user action to start the microphone; use only local speech processing; do not download a model automatically or use a cloud fallback. If language support is missing, keep typed commands usable and show an honest explanation. Recognition must never trigger a mutation or send a message.
 
 **Acceptance:** Test language-model unavailable states, offline behavior, recognition-result review, permission denial, read-only command constraints and text-only fallback.
+
+### Phase 8 — Customer Lifetime Value (CLV)
+
+- On each customer profile, calculate actual historical revenue from valid saved receipt rows only; count a repeated non-empty payment ID once, and never add bill charges, forwarded credit or estimated revenue to historical cash collected.
+- Show tenure only from the saved connection date and any valid recorded end date. Do not substitute profile creation, first payment, current service status or an inferred connection date; label missing or inconsistent dates honestly.
+- Show average monthly revenue as actual historical receipts divided by calendar months from the first valid receipt through the current Pakistan-local month, including months with no receipts. Show that denominator and receipt-history window.
+- Show average payment delay as settlement delay for fully settled, priced bill months that have a recorded due date; display the sample count. If the due-date/history basis is insufficient, show “Not available”.
+- Show a distinct **Estimated future value · next 12 months** only after at least two receipt-bearing months. Disclose the formula (historical average monthly receipts × 12), as-of period, assumptions and missing attrition/price-change factors; mark it as an estimate, never collected cash or a guarantee.
+- Add a customer ranking by actual historical receipts. Show the projection separately and never use an estimate to change the historic-collected rank.
+
+**Acceptance:** Reconcile receipt totals with saved payment history; test duplicate IDs, future/invalid dates, no receipts, sparse months, missing tenure/due dates, estimates, rankings and filters; prove calculations do not mutate customer/billing data or send it over the network; verify profile labels and keyboard/mobile usability.
+
+### Phase 9 — Automatic local backup
+
+- Back up the complete offline application database on a configurable daily or weekly interval, with an honest status, last successful date/time and backup size. Automatic execution may check on app open/resume; do not claim a browser can run while it is closed unless a supported, tested native background mechanism is actually present.
+- Add owner-triggered **Backup Now** and **Restore Backup** actions. Create uniquely named, timestamped backup copies; never silently replace an existing backup, and ask for explicit confirmation before any overwrite.
+- Keep backup contents on-device; include customers, bills, payments, packages, expenses, inventory, staff, month closes and other persisted data. Preserve the existing validated JSON backup and preview-before-merge restore flow; malformed, unsupported or conflicting data fails closed.
+- Design for Android/webview storage limits: use a supported app-private or user-selected document location, request no broad filesystem access, handle absent picker/storage, low quota, interrupted writes and permission denial safely, and report failure without deleting the last known-good backup or changing ledger records.
+
+**Acceptance:** Daily/weekly due checks and settings persist locally; successful timestamp and byte size match the stored snapshot; quota/permission/offline/interruption failures leave the previous backup and ledger intact; no backup is overwritten without confirmation; restore previews validation/conflicts and preserves the existing merge protections; Android and small-device flows pass real storage-limit and app-resume tests.
+
+### Phase 10 — Duplicate customer detection
+
+- Before a new profile is saved, locally compare the entered identifying values with existing saved records, including normalized phone number, name and address, plus any other identifier that is genuinely present in the schema. Missing values are never guessed.
+- If a possible match exists, show the existing customer and the matching fields/reason. Let the owner open that profile or explicitly continue creating a separate record; explain that similar names or shared addresses can be legitimate.
+- Never merge, overwrite or delete customer records automatically. Duplicate checking is advisory and offline-only; it does not change existing billing or payment history.
+
+**Acceptance:** Cover exact and normalized phone/address/name matches, partial or ambiguous matches, empty fields and false positives; prove the owner can reach the existing profile or deliberately continue, and that neither choice silently merges, overwrites or deletes records or causes any network request.
+
+### Phase 11 — Business Health Score
+
+- Show an **0–100 analytical indicator** based only on available saved business metrics: receipt-date collection rate, outstanding-balance ratio, cash-profit margin, recorded-expense ratio, dated customer growth and documented churn. Define the observation windows, denominators, thresholds and weights in the UI.
+- Break the score into clearly labeled positive and negative factors with each measured value, direction, contribution and data basis. Missing or unreliable inputs are **Not available**, not zeros; disclose the available-factor count and any renormalization used.
+- Use only dated customer additions/connections, cancellations, archive events and retained close snapshots where available. Current manual Active/Offline status is not historical churn or a verified outage. Cash profit uses actual saved receipts minus recorded dated expenses, not billed amounts or package-margin projections.
+- Keep the score read-only and local. State alongside the score that it is an analytical indicator based on recorded data—not a financial guarantee, credit decision or forecast.
+
+**Acceptance:** Formula and factor contributions reconcile with existing report metrics for each stated period; tests cover zero denominators, missing dates, incomplete history, gains/losses and sparse snapshots; historical churn never uses present manual status; calculation does not mutate records or transmit data; labels and breakdown are accessible on phones.
+
+### Phase 12 — Customer Growth Targets
+
+- Let the owner set and edit local monthly, quarterly and yearly customer-growth targets. Goal settings are separate from the customer ledger and never change historical actuals.
+- Show actual customer count, period target, customers remaining to the target, growth percentage and progress. Define whether each saved goal means net new records in that period or a period-end customer total; display its baseline and period so the measure cannot be mistaken for the other.
+- Compare actual growth with the immediately previous matching period using dated saved customer events only; show “Not available” rather than inventing a historical baseline. Include simple responsive progress charts, with labels and actual values available to assistive technology.
+
+**Acceptance:** Monthly/quarterly/yearly goal settings persist locally and do not mutate customer records; counts, remaining totals, progress and prior-period changes reconcile for zero, negative, incomplete and exceeded targets; charts remain readable on mobile; missing event dates do not create estimated actuals.
+
+### Phase 13 — Customer Anniversaries
+
+- Preserve an explicit original joining/installation date as the anniversary anchor. Use an existing valid saved connection date only when it is genuinely the original date; do not infer one from profile creation, first bill, first payment or current service state. If the original date is missing or corrected, retain an explicit owner action and audit-safe behavior rather than silently moving past milestones.
+- Calculate customer tenure and annual milestones (1, 2, 3 years and onward) from the saved anchor. Show the next/upcoming anniversary and milestone on the customer profile and owner dashboard; display dates only, with no automatic contact, messaging or service change.
+- Keep date handling explicit for incomplete or invalid dates and February 29 anniversaries; all calculations are local and use the app’s established Pakistan timezone.
+
+**Acceptance:** Test missing/invalid/original dates, date corrections, leap-year and year-boundary milestones, tenure, upcoming-dashboard ordering and mobile accessibility; preserve unrelated customer/billing history and confirm that reminders never send any message or initiate contact.
+
+### Phase 14 — Customizable Owner Home Dashboard
+
+- Let the owner choose which dashboard cards/widgets are visible, save a local widget order, and set the default date range on this device. Keep preferences separate from customer/billing facts; provide a clear reset-to-default action.
+- Support drag-and-drop reordering where available and accessible keyboard/tap move-up/move-down controls as a fallback. Hidden widgets remain available from the customization controls.
+- Offer widgets for Today’s Collection, Outstanding, Profit, Expenses, Customer Count, Collection Target, Alerts, Quick Actions and Recent Transactions. Respect existing local data definitions: actual receipt dates, actual dated expenses, current recorded balances and explicitly configured targets; label unavailable history.
+- Add customizable **Favorite Actions** that the owner can pin, reorder or remove: Add Customer, Receive Payment, Add Expense, Create Receipt, Search Customer and Reports. Keep favorites prominent for one-tap navigation/action while preserving existing intentional form submission and receipt review steps.
+- Keep widget layout, date-range preference and favorites local/offline; preserve existing ledger and reporting behavior.
+
+**Acceptance:** Visibility/order/date-range and favorite choices persist on this device and can be reset; all widgets and favorites can be reordered without drag-and-drop; shortcuts open the intended existing local task without skipping its normal review/submit safeguards; values reconcile with source reports for each range; missing history is not invented; mobile and assistive-technology controls are verified.
 
 ## Implementation tracking
 

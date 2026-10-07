@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { addPayment, createInitialState, saveBillMonth } from '../core.js';
 import { addExpense } from '../phase3.js';
-import { answerOwnerCommand, buildCustomerPaymentBehavior, buildCustomerRankings, buildCustomerHealthScore, buildSmartDuesRecovery } from '../owner-insights.js';
+import { answerOwnerCommand, buildCustomerPaymentBehavior, buildCustomerRankings, buildCustomerHealthScore, buildCustomerLifetimeValue, buildSmartDuesRecovery } from '../owner-insights.js';
 
 const today = new Date('2026-10-07T12:00:00+05:00');
 const customerId = 'seed-001';
@@ -34,6 +34,50 @@ test('payment behavior uses actual receipts, recorded due dates, and priced-bill
   assert.equal(behavior.currentBill.balanceDue,750);
   assert.equal(behavior.health.score >= 0 && behavior.health.score <= 100,true);
   assert.ok(behavior.health.reasons.length>=4);
+});
+
+test('CLV derives actual receipts, explicit-date tenure and delay locally; future value is a qualified estimate', () => {
+  const state=historyState();state.customers[0].connectionDate='2020-01-01';
+  const first=state.customers[0].bills.find(row=>row.month==='2026-06').payments[0];
+  state.customers[0].bills.find(row=>row.month==='2026-07').payments.push({...first});
+  state.customers[0].bills.find(row=>row.month==='2026-10').payments.push({id:'future-receipt',date:'2026-10-08',amount:9999,method:'Cash'});
+  const before=JSON.stringify(state),value=buildCustomerLifetimeValue(state,customerId,today);
+  assert.equal(value.totalHistoricalRevenue,3450,'a repeated receipt ID and future-dated receipt are excluded');
+  assert.equal(value.receiptCount,5);
+  assert.equal(value.receiptMonths,5);
+  assert.equal(value.observationMonths,5,'calendar months without receipts remain in the average denominator');
+  assert.equal(value.averageMonthlyRevenue,690);
+  assert.equal(value.averagePaymentDelayDays,2.7);
+  assert.equal(value.paymentDelaySampleCount,3);
+  assert.equal(value.tenure.serviceMonths,82);
+  assert.equal(value.estimatedFutureValue,8280);
+  assert.match(value.estimatedFutureValueBasis,/Estimate only:.*× 12 months/);
+  assert.match(value.estimatedFutureValueBasis,/does not model attrition/);
+  assert.equal(JSON.stringify(state),before,'calculations never modify saved customer or payment records');
+});
+
+test('CLV distinguishes no receipts and one receipt month from enough projection history', () => {
+  const empty=buildCustomerLifetimeValue(makeState(),customerId,today);
+  assert.equal(empty.totalHistoricalRevenue,0);
+  assert.equal(empty.averageMonthlyRevenue,null);
+  assert.equal(empty.averagePaymentDelayDays,null);
+  assert.equal(empty.tenure.status,'not-recorded');
+  assert.equal(empty.estimatedFutureValue,null);
+  assert.match(empty.estimatedFutureValueBasis,/no historical receipts/);
+  let single=makeState();single=bill(single,'2026-09');single=payment(single,'2026-09','2026-09-05',1000);
+  const singleMonth=buildCustomerLifetimeValue(single,customerId,today);
+  assert.equal(singleMonth.totalHistoricalRevenue,1000);
+  assert.equal(singleMonth.estimatedFutureValue,null);
+  assert.match(singleMonth.estimatedFutureValueBasis,/at least 2 receipt-bearing/);
+});
+
+test('lifetime-value ranking sorts by actual historical receipts and keeps estimates separate', () => {
+  const state=historyState();
+  state.customers.push({...state.customers[0],id:'zero-receipts',customerNumber:2,name:'No receipts',bills:[]});
+  const result=buildCustomerRankings(state,{type:'lifetime-value',month:'2026-10'},today);
+  assert.deepEqual(result.rows.map(row=>[row.name,row.value,row.displayValue]),[['Ali',345000,'PKR 3,450'],['No receipts',0,'PKR 0']]);
+  assert.equal(result.rows[0].estimatedFutureValue,8280);
+  assert.equal(result.rows[1].estimatedFutureValue,null);
 });
 
 test('health score is withheld until at least two completed priced months and reports the reason', () => {

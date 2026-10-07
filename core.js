@@ -167,14 +167,23 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
   return changed ? { ...state, customers } : state;
 }
 
-export function addCustomer(state, name, referenceDate = new Date()) {
+export function addCustomer(state, name, referenceDate = new Date(), options = {}) {
   const cleaned = String(name ?? '').trim();
   if (!cleaned) throw new Error('Enter a customer name.');
-  if (state.customers.some(c => c.name.localeCompare(cleaned, undefined, { sensitivity: 'accent' }) === 0)) throw new Error('That customer is already in the list.');
+  if (!options.allowDuplicateName && state.customers.some(c => c.name.localeCompare(cleaned, undefined, { sensitivity: 'accent' }) === 0)) throw new Error('That customer is already in the list.');
+  const cleanText = (value, maxLength, label) => {
+    const result = String(value ?? '').trim();
+    if (result.length > maxLength) throw new Error(`${label} must be ${maxLength} characters or fewer.`);
+    return result;
+  };
+  const address = cleanText(options.address, 200, 'Address');
+  const phone = cleanText(options.phone, 40, 'Phone number');
+  const mohalla = cleanText(options.mohalla, 100, 'Mohalla');
+  const zone = cleanText(options.zone, 100, 'Zone');
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {

@@ -5,19 +5,20 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.7.0';
+} from './core.js?v=1.8.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
-} from './phase3.js?v=1.7.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.7.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.7.0';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.7.0';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.7.0';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.7.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.7.0';
-import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.7.0';
+} from './phase3.js?v=1.8.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.8.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.8.0';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.8.0';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.8.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.8.0';
+import { setupOwnerCenter } from './owner-ui.js?v=1.8.0';
+import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.8.0';
+import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.8.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -1037,14 +1038,74 @@ $('#customerFilterMonth').addEventListener('change', event => setBillingMonth(ev
 document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; renderCustomers(); }));
 document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; renderCustomers(); }));
 document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; renderMonthlyReport(); }));
-$('#addCustomerButton').addEventListener('click', () => { $('#addCustomerError').hidden = true; $('#newCustomerName').value = ''; $('#addCustomerDialog').showModal(); $('#newCustomerName').focus(); });
-$('#addCustomerForm').addEventListener('submit', event => {
-  event.preventDefault();
+function resetDuplicateReview() {
+  $('#duplicateCustomerReview').hidden = true;
+  $('#duplicateCustomerMatches').replaceChildren();
+  $('#newCustomerFields').disabled = false;
+  $('#addCustomerSubmit').hidden = false;
+}
+function renderDuplicateReview(matches) {
+  $('#duplicateCustomerMatches').innerHTML = matches.map(({ customer, reasons }) => {
+    const savedDetails = [
+      customer.phone || customer.customerPhone ? `Phone: ${customer.phone || customer.customerPhone}` : '',
+      customer.address || customer.customerAddress ? `Address: ${customer.address || customer.customerAddress}` : '',
+      customer.mohalla ? `Mohalla / area: ${customer.mohalla}` : '',
+      customer.zone ? `Zone: ${customer.zone}` : ''
+    ].filter(Boolean).map(value => `<span>${escapeHtml(value)}</span>`).join('');
+    const matchReasons = reasons.map(reason => `<li>${escapeHtml(reason.label)}</li>`).join('');
+    return `<li class="duplicate-customer-match"><div class="duplicate-customer-match-copy"><strong>Customer #${escapeHtml(customer.customerNumber)} · ${escapeHtml(customer.name)}${customer.archived ? ' · Archived' : ''}</strong><ul class="duplicate-match-reasons">${matchReasons}</ul>${savedDetails ? `<div class="duplicate-saved-details">${savedDetails}</div>` : ''}</div><button class="secondary-button" type="button" data-open-duplicate-customer="${escapeHtml(customer.id)}">Open existing profile</button></li>`;
+  }).join('');
+  $('#newCustomerFields').disabled = true;
+  $('#addCustomerSubmit').hidden = true;
+  $('#duplicateCustomerReview').hidden = false;
+  $('#editNewCustomerDetails').focus();
+}
+function saveNewCustomer(allowDuplicateName = false) {
+  const details = {
+    name:$('#newCustomerName').value,
+    phone:$('#newCustomerPhone').value,
+    address:$('#newCustomerAddress').value,
+    mohalla:$('#newCustomerMohalla').value,
+    zone:$('#newCustomerZone').value
+  };
   try {
-    state = addCustomer(state, $('#newCustomerName').value);
+    const matches = findPossibleDuplicateCustomers(state.customers, details);
+    if (matches.length && !allowDuplicateName) {
+      renderDuplicateReview(matches);
+      return;
+    }
+    state = addCustomer(state, details.name, new Date(), { ...details, allowDuplicateName });
     $('#globalCustomerSearch').value = '';
-    save(); $('#addCustomerDialog').close(); selectCustomer(state.customers.at(-1).id); toast(`Customer #${state.customers.at(-1).customerNumber} added.`);
-  } catch (error) { const errorBox = $('#addCustomerError'); errorBox.textContent = error.message; errorBox.hidden = false; }
+    save();
+    const addedCustomer = state.customers.at(-1);
+    $('#addCustomerDialog').close();
+    selectCustomer(addedCustomer.id);
+    toast(`Customer #${addedCustomer.customerNumber} added as a separate record.`);
+  } catch (error) {
+    resetDuplicateReview();
+    const errorBox = $('#addCustomerError'); errorBox.textContent = error.message; errorBox.hidden = false;
+  }
+}
+$('#addCustomerButton').addEventListener('click', () => {
+  $('#addCustomerForm').reset();
+  $('#addCustomerError').hidden = true;
+  resetDuplicateReview();
+  $('#addCustomerDialog').showModal();
+  $('#newCustomerName').focus();
+});
+$('#addCustomerForm').addEventListener('submit', event => { event.preventDefault(); saveNewCustomer(false); });
+$('#continueNewCustomerAnyway').addEventListener('click', () => saveNewCustomer(true));
+$('#editNewCustomerDetails').addEventListener('click', () => {
+  resetDuplicateReview();
+  $('#newCustomerName').focus();
+});
+$('#duplicateCustomerMatches').addEventListener('click', event => {
+  const button = event.target.closest('[data-open-duplicate-customer]');
+  if (!button) return;
+  const customerId = button.dataset.openDuplicateCustomer;
+  if (!state.customers.some(customer => customer.id === customerId)) return;
+  $('#addCustomerDialog').close();
+  selectCustomer(customerId);
 });
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $('#addCustomerDialog').close()));
 $('#saveMohallaButton').addEventListener('click', () => {

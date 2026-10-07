@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.7.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.8.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.7.0">
+  <link rel="stylesheet" href="./styles.css?v=1.8.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -281,14 +281,30 @@
   <dialog id="addCustomerDialog" class="modal">
     <form id="addCustomerForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow">NEW CUSTOMER</p><h2>Add a customer</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">×</button></div>
-      <label class="field-label" for="newCustomerName">Customer name</label>
-      <input id="newCustomerName" name="name" type="text" maxlength="100" required autocomplete="off" placeholder="Enter the real customer name">
-      <div id="addCustomerError" class="form-error" role="alert" hidden></div>
-      <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button class="primary-button" type="submit">Add customer</button></div>
+      <fieldset id="newCustomerFields" class="new-customer-fields">
+        <label class="field-label" for="newCustomerName">Customer name</label>
+        <input id="newCustomerName" name="name" type="text" maxlength="100" required autocomplete="off" placeholder="Enter the real customer name">
+        <label class="field-label" for="newCustomerPhone">Phone number <span class="optional-label">Optional</span></label>
+        <input id="newCustomerPhone" name="phone" type="tel" maxlength="40" autocomplete="tel" placeholder="Enter the saved number, including country code if recorded">
+        <label class="field-label" for="newCustomerAddress">Address <span class="optional-label">Optional</span></label>
+        <input id="newCustomerAddress" name="address" type="text" maxlength="200" autocomplete="street-address" placeholder="Enter the recorded address">
+        <label class="field-label" for="newCustomerMohalla">Mohalla / area <span class="optional-label">Optional</span></label>
+        <input id="newCustomerMohalla" name="mohalla" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
+        <label class="field-label" for="newCustomerZone">Zone <span class="optional-label">Optional</span></label>
+        <input id="newCustomerZone" name="zone" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
+        <div id="addCustomerError" class="form-error" role="alert" hidden></div>
+        <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button" type="submit">Check and add customer</button></div>
+      </fieldset>
+      <section id="duplicateCustomerReview" class="duplicate-customer-review" role="alert" aria-labelledby="duplicateCustomerHeading" hidden>
+        <div><p class="eyebrow">CHECK EXISTING RECORDS</p><h3 id="duplicateCustomerHeading">Possible matching customer</h3></div>
+        <p class="duplicate-customer-guidance">Review the matching customer and the fields that matched. Similar names or a shared address can be legitimate. No records are merged, replaced, or deleted.</p>
+        <ul id="duplicateCustomerMatches" class="duplicate-customer-matches" aria-label="Possible matching customer records"></ul>
+        <div class="modal-actions duplicate-customer-actions"><button id="editNewCustomerDetails" class="secondary-button" type="button">Edit details</button><button id="continueNewCustomerAnyway" class="primary-button" type="button">Continue and create a separate customer</button></div>
+      </section>
     </form>
   </dialog>
   <section id="receiptPrintArea" class="receipt-print-area" aria-label="Printable payment receipt" hidden></section>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.7.0"></script>
+  <script type="module" src="./app.js?v=1.8.0"></script>
 </body>
 </html>

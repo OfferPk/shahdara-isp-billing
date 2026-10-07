@@ -1311,3 +1311,22 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 
 .customer-lifetime-value{margin-top:18px;padding:14px;border:1px solid #dce9e2;border-radius:12px;background:#f8fbf9}.customer-lifetime-value h3{margin:0 0 10px;color:#244a3e;font:700 15px Manrope,system-ui,sans-serif}.customer-lifetime-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0}.customer-lifetime-grid>div{min-width:0;padding:10px;border:1px solid #e3ece7;border-radius:9px;background:#fff}.customer-lifetime-grid dt{margin:0 0 5px;color:#5b7067;font-size:10px;font-weight:700}.customer-lifetime-grid dd{margin:0;color:#1d382d;font-size:13px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}.customer-lifetime-grid small{display:block;margin-top:5px;color:#71817c;font-size:10px;line-height:1.5;overflow-wrap:anywhere}.customer-lifetime-estimate{grid-column:1/-1;background:#f2faf5!important;border-color:#cfe5d8!important}.customer-lifetime-note{margin:9px 0 0;color:#60736b;font-size:10px;line-height:1.55}.owner-result-estimate{color:#60736b!important;font-size:10px!important;line-height:1.5;overflow-wrap:anywhere}.owner-filter-grid label[hidden]{display:none}@media(max-width:620px){.customer-lifetime-value{padding:11px}.customer-lifetime-grid{grid-template-columns:1fr;gap:7px}.customer-lifetime-estimate{grid-column:auto}.customer-lifetime-grid>div{padding:9px}}
 .customer-lifetime-grid .customer-lifetime-basis{margin-top:5px;color:#71817c;font-size:10px;font-weight:400;line-height:1.5;overflow-wrap:anywhere}
+
+/* Phase 10 · advisory duplicate-customer review */
+#addCustomerDialog:has(#addCustomerForm){max-height:calc(100dvh - 24px);overflow-y:auto}
+.new-customer-fields{display:grid;gap:7px;width:100%;min-width:0;margin:0;padding:0;border:0}
+.new-customer-fields .field-label{margin-top:3px}
+.new-customer-fields .modal-actions{margin-top:12px}
+.duplicate-customer-review{margin-top:14px;padding:15px;border:1px solid #ead9b2;border-radius:13px;background:#fff9eb;color:var(--ink)}
+.duplicate-customer-review h3{margin:0;font:700 18px Manrope,sans-serif}
+.duplicate-customer-guidance{margin:8px 0 12px;color:#685b43;font-size:13px;line-height:1.5}
+.duplicate-customer-matches{display:grid;gap:10px;list-style:none;margin:0;padding:0}
+.duplicate-customer-match{display:grid;gap:10px;padding:12px;border:1px solid #e8e2d6;border-radius:10px;background:#fff}
+.duplicate-customer-match-copy{min-width:0;overflow-wrap:anywhere}
+.duplicate-customer-match-copy>strong{display:block;font-size:14px;line-height:1.45}
+.duplicate-match-reasons{display:grid;gap:4px;margin:7px 0;padding-left:19px;color:#685b43;font-size:12px;line-height:1.45}
+.duplicate-saved-details{display:grid;gap:3px;color:var(--muted);font-size:12px;line-height:1.45}
+.duplicate-customer-match>.secondary-button{justify-self:start;min-height:42px}
+.duplicate-customer-actions{flex-wrap:wrap;justify-content:stretch}
+.duplicate-customer-actions button{flex:1 1 170px;min-height:44px}
+@media(max-width:420px){#addCustomerDialog:has(#addCustomerForm){width:calc(100% - 20px);padding:16px}.duplicate-customer-review{padding:12px}.duplicate-customer-actions button{flex-basis:100%}}

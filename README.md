@@ -1,6 +1,6 @@
 # Shahdara ISP Billing
 
-**Duplicate-customer safeguards, automatic local backups, business comparisons & mobile analytics · web build 1.8.0**
+**Business Health Score, duplicate-customer safeguards, automatic local backups & mobile analytics · web build 1.9.0**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). This release does not publish a native APK: Android web assets sync, but native compilation cannot run on this computer without an Android SDK.
 
@@ -63,7 +63,7 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, fifth-of-month defaults at month/year boundaries, custom and historical due-date preservation, salary eligibility after full payment and status transitions, baseline exclusion, unique manual date logs, selected-month totals, no fabricated entries or cash double counting, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, validated backup/migration and merge safety, normalized duplicate detection and explicit owner match choices, daily/weekly backup scheduling, storage-quota headroom, and offline asset/build versions. The v1.8.0 web bundle contains no Android package; native Android compilation requires an Android SDK.
+Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, fifth-of-month defaults at month/year boundaries, custom and historical due-date preservation, salary eligibility after full payment and status transitions, baseline exclusion, unique manual date logs, selected-month totals, no fabricated entries or cash double counting, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, validated backup/migration and merge safety, normalized duplicate detection and explicit owner match choices, daily/weekly backup scheduling, storage-quota headroom, Business Health Score weights, ratios, thresholds, zero denominators, incomplete dates, sparse snapshots, cash losses, churn/status separation and immutability, plus offline asset/build versions. The v1.9.0 web bundle uses offline cache v35 and contains no Android package; native Android compilation requires an Android SDK.
 
 ## Android
 
@@ -83,7 +83,7 @@ Automated coverage includes exact full-paid and Partial draft text, correct cust
 - Customer profiles show actual historical revenue from valid local receipts (a repeated receipt ID counts once), tenure from the saved connection/end dates, average monthly receipts across the full saved-receipt period, and settlement delay for fully settled priced bills with saved due dates. Each metric explains its data basis or reports when it is unavailable.
 - The profile’s **Estimated future value · next 12 months** is a clearly marked estimate: observed average monthly receipts × 12, shown only after at least two receipt-bearing months. It is not collected cash, a guarantee, or a forecast of retention; costs and future price changes are not modeled.
 - Customer rankings include a lifetime-value option ordered by actual historical receipts only; estimated future values are displayed separately and never affect rank. Calculations are read-only and local; no existing customer, bill or receipt records are rewritten.
-- Automatic local backup arrived in v1.7.0 and duplicate-customer detection in v1.8.0; business health scoring, customer-growth targets, anniversaries and dashboard/favorite customization remain later roadmap phases.
+- Automatic local backup arrived in v1.7.0, duplicate-customer detection in v1.8.0, and the Business Health Score in v1.9.0; customer-growth targets, anniversaries and dashboard/favorite customization remain later roadmap phases.
 
 ## Web release 1.7.0 — Automatic local backup
 
@@ -99,3 +99,13 @@ Before a new customer is saved, the app compares the entered name, optional phon
 When a possible match is found, the review lists the existing profile, saved identifying details and the reason for the match. The owner can open that profile, edit the draft, or deliberately continue and create a separate customer. Similar names and shared addresses can be legitimate; the app never merges, replaces or deletes records automatically, and existing billing/payment history is left untouched. The matcher runs locally with no network request and its module is included in the v34 offline cache.
 
 Automated coverage includes formatted phone numbers, names/addresses with punctuation and spacing differences, partial and ambiguous matches, empty identifiers, archived/legacy contact fields, false-positive controls, record immutability, explicit same-name creation and offline asset precaching.
+
+## Web release 1.9.0 — Business Health Score
+
+Business Analytics shows a **0–100 indicator** for the last three completed Pakistan-local calendar months. Its original factor weights, scoring thresholds, current values, contribution points, data sources and score recombination are explained in the expandable breakdown.
+
+- Receipt-date collection is actual saved receipts divided by saved priced bill snapshots for those service months; it can exceed 100% when older balances are collected. The outstanding ratio uses a saved month-close balance when available, otherwise the current ledger balance. Cash-profit margin is actual receipt-date cash minus dated recorded expenses—not billed amounts, accrual profit or expected package margins. Expense ratio uses those same recorded expenses and receipts, so the two factors overlap and are explicitly labeled as related.
+- Dated customer growth uses saved profile-added dates and a saved prior close where available; profile additions are not necessarily new network connections. Churn counts distinct explicit cancellation dates or still-present archive timestamps against the opening profile base plus dated additions. Current manual Active/Offline labels are not treated as historical churn; cleared archive timestamps and undated events cannot be recovered.
+- Missing measures and zero denominators are **Not available**, never silently scored as zero. Unavailable factors are excluded; the remaining configured weights are renormalized to 100%, with the available-factor count and each factor's contribution shown. The score is read-only, calculated locally from saved data and is an analytical indicator—not a financial guarantee, credit decision or forecast.
+
+Synthetic-only regression tests cover date windows, report-compatible ratios, score contributions, sparse history, missing dates, zero denominators, documented churn, manual-status isolation, loss cases and non-mutation. No customer records are used as fixtures.

@@ -13,6 +13,8 @@ const receipt = read('receipt.js');
 const packages = read('package-catalog.js');
 const styles = read('styles.css');
 const worker = read('sw.js');
+const ownerInsights = read('owner-insights.js');
+const ownerUi = read('owner-ui.js');
 
 test('web shell assets share the package version and worker updates before app startup', () => {
   assert.match(index, new RegExp(`href="\\./styles\\.css\\?v=${version.replaceAll('.', '\\.') }"`));
@@ -31,7 +33,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v34'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v35'/);
   assert.match(index, /id="backupFrequencySelect"/);
   assert.match(index, /id="backupNowButton"[^>]*>Backup Now/);
   assert.match(index, /id="restoreLocalBackupButton"[^>]*>Review &amp; Restore Backup/);
@@ -258,7 +260,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v34'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v35'/);
 });
 
 test('production build includes required imported feature modules and the package catalog', () => {
@@ -280,4 +282,17 @@ test('customer cards and profile summaries expose cumulative actual receipts and
   assert.match(styles, /@media\s*\(max-width:\s*620px\)\s*\{\s*\.detail-title-row\s*\{\s*display:\s*grid/);
   assert.match(styles, /\.customer-card-stats/);
   assert.match(styles, /\.receipt-month-list/);
+});
+
+test('Business Health Score uses local saved metrics, reports unavailable inputs, and is responsive', () => {
+  assert.match(ownerInsights, /export function buildBusinessHealthScore/);
+  assert.match(ownerUi, /buildBusinessHealthScore\(getState\(\),new Date\(\)\)/);
+  assert.match(ownerUi, /Positive factors/);
+  assert.match(ownerUi, /Factors needing attention/);
+  assert.match(ownerUi, /Not available · excluded from score/);
+  assert.match(ownerUi, /not a financial guarantee/);
+  assert.match(ownerUi, /renormalized to 100%/);
+  assert.match(index, /<section id="businessHealthScore"/);
+  assert.match(styles, /\.business-health-factor-grid/);
+  assert.match(styles, /@media\(max-width:620px\)\{\.business-health-panel/);
 });

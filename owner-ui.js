@@ -1,6 +1,6 @@
 import { calculatePaymentAllocations } from './core.js';
 import {
-  answerOwnerCommand, buildCustomerRankings, buildMonthToMonthComparison,
+  answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
   buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
 } from './owner-insights.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
@@ -88,6 +88,17 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     } catch(error) { metrics.innerHTML=`<p class="empty-state">${escapeHtml(error.message)}</p>`;chart.replaceChildren();packages.replaceChildren(); }
     setText('#performanceExplanation','Select a measure and choose “Explain this change” to see its recorded contributors.');
   }
+  function renderBusinessHealthScore() {
+    const host=$('#businessHealthScore');if(!host)return;
+    const result=buildBusinessHealthScore(getState(),new Date()),period=`${monthName(result.window.startMonth)}–${monthName(result.window.endMonth)}`;
+    const factorValue=factor=>factor.value===null?'Not available':`${factor.value.toFixed(1)}%`;
+    const factorCard=factor=>`<article class="business-health-factor business-health-${factor.polarity}"><div class="business-health-factor-head"><h4>${escapeHtml(factor.label)}</h4><span class="business-health-status">${factor.polarity==='positive'?'Positive':factor.polarity==='negative'?'Needs attention':'Neutral'}</span></div><strong class="business-health-value">${escapeHtml(factorValue(factor))}</strong><p>Score quality ${factor.quality.toFixed(1)}/100 · contributes ${factor.contribution.toFixed(1)} of ${factor.effectiveWeight.toFixed(1)} available-weight points (original weight ${factor.weight}%).</p><details><summary>Metric basis and scoring</summary><p>${escapeHtml(factor.basis)}</p></details></article>`;
+    const unavailableCard=factor=>`<article class="business-health-factor business-health-unavailable"><div class="business-health-factor-head"><h4>${escapeHtml(factor.label)}</h4><span class="business-health-status">Not available</span></div><p>${escapeHtml(factor.unavailableReason)}</p><details><summary>Metric basis and scoring</summary><p>${escapeHtml(factor.basis)}</p></details></article>`;
+    const group=(polarity,label)=>{const rows=result.factors.filter(factor=>factor.polarity===polarity);return `<section class="business-health-group" aria-label="${label}"><h4>${label}</h4>${rows.length?`<div class="business-health-factor-grid">${rows.map(factorCard).join('')}</div>`:'<p class="business-health-empty">No factor falls in this group for the selected recorded data.</p>'}</section>`;};
+    const scoreMarkup=result.score===null?'<strong class="business-health-score-value">Not available</strong>':'<strong class="business-health-score-value">'+Math.round(result.score)+'<span>/100</span></strong>';
+    const availability=result.availableFactorCount?`${result.availableFactorCount} of ${result.totalFactorCount} factors available · ${result.availableWeight}% of original weights retained${result.renormalized?' and renormalized to 100%':''}. Contributions shown above sum to the displayed score.`:`0 of ${result.totalFactorCount} factors available; no score is calculated.`;
+    host.innerHTML=`<div class="business-health-heading"><div><p class="eyebrow">LOCAL-ONLY · ANALYTICAL INDICATOR</p><h3 id="businessHealthHeading">Business Health Score</h3><p>Last three completed Pakistan-local months: ${escapeHtml(period)} · calculated as of ${escapeHtml(result.asOf)}.</p></div><div class="business-health-score" aria-label="Business health score ${result.score===null?'not available':`${Math.round(result.score)} out of 100`}">${scoreMarkup}<span>${escapeHtml(result.category)}</span></div></div><p class="business-health-availability" role="status">${escapeHtml(availability)}</p><p class="business-health-disclaimer">This is an analytical indicator based on saved records—not a financial guarantee, credit decision, or forecast. Missing or unreliable measures are shown as Not available, not zero.</p>${group('positive','Positive factors')}${group('negative','Factors needing attention')}${group('neutral','Neutral factors')}${result.unavailableFactors.length?`<section class="business-health-group" aria-label="Unavailable measures"><h4>Not available · excluded from score</h4><div class="business-health-factor-grid">${result.unavailableFactors.map(unavailableCard).join('')}</div></section>`:''}<details class="business-health-formula"><summary>Weights, thresholds and interpretation</summary><p>Every factor has a quality score from 0 to 100. Available factors are combined using their original weights; when data is missing, the remaining weights are proportionally renormalized to 100%. The individual contributions reconcile to the overall score.</p><ul><li>Collection rate · 25%: 0% maps to 0 points; 90% or more maps to 100.</li><li>Outstanding ratio · 20%: 0% maps to 100 points; 50% or more maps to 0.</li><li>Cash-profit margin · 20%: −20% maps to 0; +30% or more maps to 100.</li><li>Recorded-expense ratio · 15%: 20% or less maps to 100; 70% or more maps to 0. This overlaps mathematically with cash-profit margin.</li><li>Dated customer growth · 10%: 0% maps to 50; 10% or more maps to 100.</li><li>Documented cancellation/archive rate · 10%: 0% maps to 100; 10% or more maps to 0. Missing/undated history is not assumed to be zero.</li></ul><p>All rates use the period and denominator stated under each factor. Collection is actual receipts by payment date divided by saved priced bill snapshots by service month and may exceed 100%. Profit is actual receipt-date cash minus dated recorded expenses; payroll estimates, bill charges and package-margin projections are excluded. Current manual Active/Offline status is never historical churn. Recorded-expense ratio and cash-profit margin are related measures, not independent evidence.</p></details>`;
+  }
   function renderRankingOptions() {
     const type=$('#rankingType');
     if(type&&!type.options.length) type.innerHTML=CUSTOMER_RANKING_TYPES.map(row=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.label)}</option>`).join('');
@@ -151,7 +162,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     host.querySelectorAll('[data-open-smart-alert-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openSmartAlertCustomer)));
   }
   function refresh() {
-    renderCommand();renderClosings();renderComparison();renderRankings();renderRecovery();renderSmartAlerts();
+    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderRankings();renderRecovery();renderSmartAlerts();
   }
 
   $('#ownerCommandForm')?.addEventListener('submit',event=>{event.preventDefault();lastQuery=$('#ownerCommandInput').value;renderCommand(lastQuery);});

@@ -1330,3 +1330,37 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .duplicate-customer-actions{flex-wrap:wrap;justify-content:stretch}
 .duplicate-customer-actions button{flex:1 1 170px;min-height:44px}
 @media(max-width:420px){#addCustomerDialog:has(#addCustomerForm){width:calc(100% - 20px);padding:16px}.duplicate-customer-review{padding:12px}.duplicate-customer-actions button{flex-basis:100%}}
+.business-health-panel{display:grid;gap:14px;margin:18px 0;padding:16px;border:1px solid #dce9e2;border-radius:14px;background:linear-gradient(145deg,#f5faf7,#fff)}
+.business-health-heading{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.business-health-heading h3{margin:0 0 5px;color:#1d382d;font:700 20px Manrope,system-ui,sans-serif}
+.business-health-heading p{margin:4px 0;color:#60736b;font-size:12px;line-height:1.55}
+.business-health-heading .eyebrow{color:#477561;font-size:10px;font-weight:800;letter-spacing:.08em}
+.business-health-score{display:grid;justify-items:center;gap:4px;min-width:112px;padding:11px 15px;border:1px solid #cfe2d7;border-radius:14px;background:#fff;text-align:center}
+.business-health-score-value{color:#1e654b;font:800 32px/1.1 Manrope,system-ui,sans-serif}
+.business-health-score-value span{margin-left:3px;color:#73847c;font-size:13px;font-weight:700}
+.business-health-score>span{color:#405d50;font-size:11px;font-weight:700}
+.business-health-availability,.business-health-disclaimer{margin:0;color:#526b61;font-size:12px;line-height:1.55}
+.business-health-disclaimer{padding:10px 12px;border-radius:9px;background:#eef5f1;color:#345446;font-weight:600}
+.business-health-group{display:grid;gap:8px}
+.business-health-group>h4{margin:0;color:#29493c;font-size:13px}
+.business-health-factor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.business-health-factor{min-width:0;padding:12px;border:1px solid #dfe9e4;border-left:4px solid #789184;border-radius:10px;background:#fff;overflow-wrap:anywhere}
+.business-health-positive{border-left-color:#31805f}
+.business-health-negative{border-left-color:#b45a50;background:#fffafa}
+.business-health-neutral,.business-health-unavailable{border-left-color:#8b958f;background:#fafbfa}
+.business-health-factor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.business-health-factor-head h4{margin:0;color:#263f34;font-size:12px;line-height:1.4}
+.business-health-status{flex:0 0 auto;padding:3px 7px;border-radius:999px;background:#edf5f0;color:#315c47;font-size:10px;font-weight:700}
+.business-health-negative .business-health-status{background:#fae9e7;color:#873c34}
+.business-health-neutral .business-health-status,.business-health-unavailable .business-health-status{background:#eff1ef;color:#59645e}
+.business-health-value{display:block;margin:8px 0 4px;color:#1f4837;font-size:20px;line-height:1.2}
+.business-health-factor p{margin:5px 0 0;color:#60736b;font-size:11px;line-height:1.5}
+.business-health-factor details,.business-health-formula{margin-top:8px;color:#50675c;font-size:11px;line-height:1.55}
+.business-health-factor summary,.business-health-formula summary{min-height:36px;display:flex;align-items:center;cursor:pointer;color:#315b49;font-weight:700}
+.business-health-factor details p{margin-top:3px}
+.business-health-empty{margin:0;color:#71817a;font-size:11px}
+.business-health-formula{padding:10px 12px;border:1px solid #e0e8e3;border-radius:9px;background:#fff}
+.business-health-formula ul{margin:7px 0;padding-left:20px;display:grid;gap:5px}
+.business-health-formula p{margin:7px 0;color:#53695f}
+@media(max-width:620px){.business-health-panel{gap:12px;margin:14px 0;padding:12px}.business-health-heading{align-items:flex-start;gap:10px}.business-health-heading h3{font-size:18px}.business-health-score{min-width:94px;padding:9px 10px}.business-health-score-value{font-size:27px}.business-health-factor-grid{grid-template-columns:1fr}.business-health-factor{padding:11px}}
+@media(max-width:360px){.business-health-heading{display:grid}.business-health-score{justify-self:start;display:flex;align-items:center;gap:8px}.business-health-score-value{font-size:24px}}

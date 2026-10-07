@@ -317,6 +317,60 @@ export function buildMonthToMonthComparison(state,monthA,monthB,referenceDate=ne
   return{monthA:first,monthB:second,changes,packageChanges:packages,basis:{collection:'Actual receipts grouped by their saved payment date.',billedAmount:'Saved priced bill snapshots grouped by service month; unpriced bills are counted separately.',outstanding:'Saved month-close pending snapshot if present; otherwise current ledger balance for the selected bill month as of the comparison date.',profit:'Receipt-date cash collection minus actual dated expenses; not accrual/accounting profit.',activeCustomers:'Saved manual service-state snapshot when available; otherwise current manual status for the current month only. Older unsnapshotted months are unavailable.',newCustomers:'Saved profile-added dates only; this is new profile records, not necessarily new network connections.',newConnections:'Explicit saved connection dates only.',disconnectedCustomers:'Explicit cancellation dates only; archive actions are reported separately.',collectionRate:'Receipt-date collection divided by service-month bill amount. This can exceed 100% when receipts include collections of older balances.'}};
 }
 
+const BUSINESS_HEALTH_WEIGHTS=Object.freeze({collectionRate:25,outstandingRatio:20,cashProfitMargin:20,expenseRatio:15,customerGrowth:10,documentedChurn:10});
+const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const validStoredDate=value=>isCalendarDate(value)?value:(typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(value)&&isCalendarDate(value.slice(0,10))?value.slice(0,10):null);
+function healthFactor(id,label,value,score,basis,unavailableReason='') {
+  const available=score!==null&&Number.isFinite(score);
+  return{id,label,value:value===null||!Number.isFinite(value)?null:Number(value),quality:available?Number(clamp(score,0,100).toFixed(1)):null,weight:BUSINESS_HEALTH_WEIGHTS[id],basis,unavailableReason,available};
+}
+/** Build a local-only, non-mutating health indicator from dated records and report-compatible metrics. */
+export function buildBusinessHealthScore(state,referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+  const currentMonth=monthFor(referenceDate),lastCompleteMonth=shiftMonth(currentMonth,-1),firstMonth=shiftMonth(lastCompleteMonth,-2);
+  const months=[firstMonth,shiftMonth(firstMonth,1),lastCompleteMonth],windowStart=`${firstMonth}-01`,windowEnd=`${lastCompleteMonth}-${new Date(Date.UTC(Number(lastCompleteMonth.slice(0,4)),Number(lastCompleteMonth.slice(5,7)),0)).getUTCDate()}`;
+  const facts=months.map(month=>monthComparisonFacts(state,month,referenceDate,allocations));
+  const billCents=facts.reduce((sum,row)=>sum+cents(row.billedAmount),0);
+  const outstandingCents=facts.reduce((sum,row)=>sum+cents(row.outstanding),0);
+  const receipts=(state.customers??[]).flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).filter(payment=>isCalendarDate(payment.date)&&payment.date>=windowStart&&payment.date<=windowEnd&&Number.isFinite(Number(payment.amount))&&Number(payment.amount)>0)));
+  const expenses=(state.expenses??[]).filter(row=>isCalendarDate(row.date)&&row.date>=windowStart&&row.date<=windowEnd&&Number.isFinite(Number(row.amount))&&Number(row.amount)>0);
+  const receiptCents=receipts.reduce((sum,row)=>sum+cents(row.amount),0),expenseCents=expenses.reduce((sum,row)=>sum+cents(row.amount),0),cashProfitCents=receiptCents-expenseCents;
+  const collectionRate=billCents>0?receiptCents/billCents*100:null;
+  const outstandingRatio=billCents>0?outstandingCents/billCents*100:null;
+  const cashProfitMargin=receiptCents>0?cashProfitCents/receiptCents*100:null;
+  const expenseRatio=receiptCents>0?expenseCents/receiptCents*100:null;
+  const customers=state.customers??[],allAddedDatesRecorded=customers.length>0&&customers.every(customer=>isCalendarDate(customer.addedOn));
+  const baselineMonth=shiftMonth(firstMonth,-1),baselineClose=(state.monthlyClosings??[]).find(row=>row.month===baselineMonth);
+  const snapshotBase=baselineClose&&Number.isSafeInteger(baselineClose.totalCustomers)&&Number.isSafeInteger(baselineClose.archivedCustomerCount)?baselineClose.totalCustomers+baselineClose.archivedCustomerCount:null;
+  const datedBase=allAddedDatesRecorded?customers.filter(customer=>customer.addedOn<windowStart).length:null;
+  const openingCustomerBase=snapshotBase??datedBase;
+  const openingBasis=snapshotBase!==null?`Saved ${baselineMonth} close: ${baselineClose.totalCustomers} non-archived + ${baselineClose.archivedCustomerCount} archived profiles.`:datedBase!==null?`${datedBase} current saved profiles with a recorded added-on date before ${windowStart}.`:'No complete saved opening profile count; missing added-on dates are not treated as zero.';
+  const newCustomers=allAddedDatesRecorded?customers.filter(customer=>customer.addedOn>=windowStart&&customer.addedOn<=windowEnd).length:null;
+  const growthRate=newCustomers!==null&&openingCustomerBase>0?newCustomers/openingCustomerBase*100:null;
+  const churnBase=openingCustomerBase!==null&&newCustomers!==null?openingCustomerBase+newCustomers:null;
+  const churnIds=new Set();
+  for(const customer of customers){
+    const cancellation=validStoredDate(customer.cancellationDate),archive=customer.archived===true?validStoredDate(customer.archivedAt):null;
+    if([cancellation,archive].some(date=>date&&date>=windowStart&&date<=windowEnd&&(!isCalendarDate(customer.addedOn)||date>=customer.addedOn)))churnIds.add(customer.id??customer.customerNumber);
+  }
+  const documentedChurnCount=churnIds.size;
+  const churnRate=churnBase>0&&documentedChurnCount>0?documentedChurnCount/churnBase*100:null;
+  const moneyBasis=`${firstMonth}–${lastCompleteMonth} PKT: actual positive receipt rows by payment date; ${receipts.length} receipt(s).`;
+  const billBasis=`${firstMonth}–${lastCompleteMonth} service-month priced bill snapshots; ${facts.reduce((sum,row)=>sum+row.pricedBillCount,0)} priced bill-month row(s); unpriced bills excluded.`;
+  const outstandingSources=[...new Set(facts.map(row=>row.outstandingSource))].join(' ');
+  const factors=[
+    healthFactor('collectionRate','Receipt-date collection rate',collectionRate,collectionRate===null?null:collectionRate/90*100,`${moneyBasis} Divided by ${pkr(billCents)} of saved priced service-month bills. ${billBasis} Score: 0%→0; 90% or more→100, linearly between.`,billCents===0?'Not available: no priced bill amount is recorded for this three-month window.':''),
+    healthFactor('outstandingRatio','Outstanding-balance ratio',outstandingRatio,outstandingRatio===null?null:(1-outstandingRatio/50)*100,`${pkr(outstandingCents)} outstanding ÷ ${pkr(billCents)} saved priced bill amount. ${outstandingSources} Score: 0%→100; 50% or more→0, linearly between.`,billCents===0?'Not available: no priced bill amount is recorded for this three-month window.':''),
+    healthFactor('cashProfitMargin','Cash-profit margin',cashProfitMargin,cashProfitMargin===null?null:(cashProfitMargin+20)/50*100,`${pkr(receiptCents)} actual receipts − ${pkr(expenseCents)} dated expenses = ${pkr(cashProfitCents)} cash profit, divided by actual receipts. ${receipts.length} receipt(s), ${expenses.length} expense(s). This is cash profit, not accrual/accounting profit. Score: −20%→0; +30% or more→100, linearly between.`,receiptCents===0?'Not available: no positive actual receipts are recorded, so the margin denominator is zero.':''),
+    healthFactor('expenseRatio','Recorded-expense ratio',expenseRatio,expenseRatio===null?null:expenseRatio<=20?100:(70-expenseRatio)/50*100,`${pkr(expenseCents)} dated recorded expenses ÷ ${pkr(receiptCents)} actual receipt-date collection; ${expenses.length} expense(s). Score: 20% or less→100; 70% or more→0, linearly between. This overlaps mathematically with cash-profit margin.`,receiptCents===0?'Not available: no positive actual receipts are recorded, so the ratio denominator is zero.':''),
+    healthFactor('customerGrowth','Dated customer growth',growthRate,growthRate===null?null:50+growthRate/10*50,`${growthRate===null?'No complete dated-growth rate can be calculated.':`${newCustomers} new profile(s) with a saved added-on date ÷ ${openingCustomerBase} opening profiles = ${growthRate.toFixed(1)}%.`} ${openingBasis} Score: 0% growth→50; 10% or more→100, linearly between. Profile additions are not necessarily new network connections.`,!allAddedDatesRecorded?'Not available: one or more profiles have no valid saved added-on date, so dated additions may be incomplete.':openingCustomerBase===0?'Not available: the opening profile count is zero or unavailable.':''),
+    healthFactor('documentedChurn','Documented cancellation / archive rate',churnRate,churnRate===null?null:(1-churnRate/10)*100,`${documentedChurnCount} distinct profile(s) with an explicit saved cancellation date or a still-present archive timestamp ÷ ${churnBase??'unavailable'} profiles present or added during the window = ${churnRate===null?'Not available':`${churnRate.toFixed(1)}%`}. ${openingBasis} Current Active/Offline labels are not used. Cleared archive timestamps after unarchive and undated events cannot be recovered, so this is documented churn only. Score: 0%→100; 10% or more→0, linearly between.`,!allAddedDatesRecorded?'Not available: the opening profile history is incomplete because some added-on dates are missing.':churnBase===0?'Not available: the recorded profile population is zero or unavailable.':documentedChurnCount===0?'Not available: no dated cancellation/archive event in this window establishes a recorded churn rate; absence is not assumed to mean zero churn.':'' )
+  ];
+  const available=factors.filter(row=>row.available),availableWeight=available.reduce((sum,row)=>sum+row.weight,0);
+  const normalized=available.map(row=>{const effectiveWeight=row.weight/availableWeight*100,contribution=row.quality*effectiveWeight/100;return{...row,effectiveWeight:Number(effectiveWeight.toFixed(1)),contribution:Number(contribution.toFixed(1)),polarity:row.quality>=60?'positive':row.quality<=40?'negative':'neutral'};});
+  const score=available.length?Number((normalized.reduce((sum,row)=>sum+row.contribution,0)).toFixed(1)):null;
+  return{score,category:score===null?'Insufficient recorded metrics':score>=80?'Strong recorded indicators':score>=60?'Mixed recorded indicators':'Needs attention',asOf:dateFor(referenceDate),window:{startMonth:firstMonth,endMonth:lastCompleteMonth,startDate:windowStart,endDate:windowEnd,months},availableFactorCount:available.length,totalFactorCount:factors.length,availableWeight,renormalized:available.length>0&&availableWeight!==100,openingCustomerBase,openingBasis,factors:normalized,unavailableFactors:factors.filter(row=>!row.available)};
+}
+
 function aggregateMonthCustomers(state,month,key,allocations) {
   const result=new Map();
   for(const customer of state.customers){let total=0;

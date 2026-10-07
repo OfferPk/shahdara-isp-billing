@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.8.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.9.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.8.0">
+  <link rel="stylesheet" href="./styles.css?v=1.9.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -205,6 +205,7 @@
     <section id="analyticsView" class="phase3-view" aria-labelledby="analyticsHeading" hidden>
       <div class="phase3-pane">
         <div class="phase3-heading"><div><p class="eyebrow">LOCAL PKT ANALYTICS</p><h2 id="analyticsHeading">Network &amp; revenue analytics</h2><p id="analyticsPeriodNote" class="phase3-note">Last six Pakistan local calendar months; current month is partial.</p></div><p class="local-only-badge">Calculated on this device</p></div>
+        <section id="businessHealthScore" class="business-health-panel" aria-labelledby="businessHealthHeading"></section>
         <div class="phase3-metric-grid">
           <article class="phase3-metric"><span>Expected next-month revenue</span><strong id="forecastAmount">Not set</strong><small id="forecastDetail">No configured subscription rates</small></article>
           <article class="phase3-metric"><span>Billed revenue · current service month</span><strong id="analyticsBilledRevenue">Not set</strong><small id="analyticsBilledDetail">No bill entries</small></article>
@@ -305,6 +306,6 @@
   </dialog>
   <section id="receiptPrintArea" class="receipt-print-area" aria-label="Printable payment receipt" hidden></section>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.8.0"></script>
+  <script type="module" src="./app.js?v=1.9.0"></script>
 </body>
 </html>

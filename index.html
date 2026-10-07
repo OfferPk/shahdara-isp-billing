@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.6.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.7.0',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.6.0">
+  <link rel="stylesheet" href="./styles.css?v=1.7.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -266,7 +266,7 @@
     </section>
   </main>
 
-  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review backup restore</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div></div></div></div></footer>
+  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><section class="backup-manager" aria-label="Automatic local backup"><div class="backup-manager-heading"><strong>Automatic local backup</strong><span>Saved only on this device</span></div><label for="backupFrequencySelect">Automatic frequency<select id="backupFrequencySelect"><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label><button id="backupNowButton" class="primary-button" type="button">Backup Now</button><dl class="backup-summary"><div><dt>Last successful backup</dt><dd id="backupLastSuccess">Checking…</dd></div><div><dt>Backup size</dt><dd id="backupLastSize">Not available</dd></div><div><dt>Status</dt><dd id="backupStatus" role="status" aria-live="polite">Checking local backup storage…</dd></div></dl><p class="backup-local-note">Automatic checks run when the app opens or resumes; they cannot run while it is closed. App-private backups may be removed if app/browser data is cleared or the app is uninstalled. Download a JSON copy for safekeeping elsewhere.</p><label for="savedLocalBackupSelect">Saved local backups<select id="savedLocalBackupSelect"><option value="">Choose a saved backup</option></select></label><button id="restoreLocalBackupButton" class="secondary-button" type="button" disabled>Review &amp; Restore Backup</button></section><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review JSON backup file</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div></div></div></div></footer>
 
   <dialog id="jsonBackupDialog" class="modal backup-modal">
     <section>
@@ -289,6 +289,6 @@
   </dialog>
   <section id="receiptPrintArea" class="receipt-print-area" aria-label="Printable payment receipt" hidden></section>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.6.0"></script>
+  <script type="module" src="./app.js?v=1.7.0"></script>
 </body>
 </html>

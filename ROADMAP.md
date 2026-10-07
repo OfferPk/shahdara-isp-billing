@@ -6,7 +6,7 @@
 
 **Previous verification (2026-10-07):** v1.5.0 was live on GitHub Pages, with the Area Intelligence controls and v31 service worker publicly verified. Phase 4 passed all 197 automated tests and the production build; a clean-origin desktop preview confirmed the analytics and Area Intelligence UI.
 
-**Current status (2026-10-07):** v1.6.0 is live on GitHub Pages from the `gh-pages` branch. Phase 8 CLV is released as tag `v1.6.0`; all 201 automated tests, JavaScript syntax checks and the production build pass. Phases 1–4 and 8 are implemented; Phases 5–7 and 9–14 remain planned.
+**Current status (2026-10-07):** v1.6.0 is live on GitHub Pages from the `gh-pages` branch. Phase 8 CLV is released as tag `v1.6.0`; all 201 automated tests, JavaScript syntax checks and the production build pass. Phase 9's web implementation is prepared as v1.7.0 and passed 205 tests, build/syntax checks and a clean-origin browser smoke test; native Android compilation and real-device quota/resume testing remain pending because this computer has no Android SDK. Phases 1–4 and 8 are implemented; Phase 9 web support is implemented with its Android acceptance pending; Phases 5–7 and 10–14 remain planned.
 
 ## Non-negotiable data and safety rules
 
@@ -118,6 +118,8 @@
 - Design for Android/webview storage limits: use a supported app-private or user-selected document location, request no broad filesystem access, handle absent picker/storage, low quota, interrupted writes and permission denial safely, and report failure without deleting the last known-good backup or changing ledger records.
 
 **Acceptance:** Daily/weekly due checks and settings persist locally; successful timestamp and byte size match the stored snapshot; quota/permission/offline/interruption failures leave the previous backup and ledger intact; no backup is overwritten without confirmation; restore previews validation/conflicts and preserves the existing merge protections; Android and small-device flows pass real storage-limit and app-resume tests.
+
+**Web implementation verification (v1.7.0 candidate):** The app-private IndexedDB store writes each timestamped snapshot with `add()` and atomically saves its metadata/payload; a quota preflight reserves at least 256 KiB plus size/2%-quota headroom, and write failures preserve all prior snapshots and ledger data. Startup and focus/pageshow/visibility checks use the selected daily/weekly cadence; the UI reports last-success time, JSON byte size, status, manual backup, and a saved-backup preview using the existing validated merge-only flow. The clean-origin browser test confirmed an automatic first copy, distinct manual copies, status/size, daily preference surviving reload, and preview canceled without applying. All 205 automated tests and the static build/syntax checks pass. `cap sync android` succeeded, but `android:debug` stopped because no Android SDK/`ANDROID_HOME` is configured; therefore the native build, small-device rendering, real quota exhaustion, and Android app-resume criteria remain explicitly unverified, and Phase 9 must not be marked fully accepted yet.
 
 ### Phase 10 — Duplicate customer detection
 

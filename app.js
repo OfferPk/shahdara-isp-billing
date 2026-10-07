@@ -5,18 +5,19 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.6.0';
+} from './core.js?v=1.7.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
-} from './phase3.js?v=1.6.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.6.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.6.0';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.6.0';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.6.0';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.6.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.6.0';
+} from './phase3.js?v=1.7.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.7.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.7.0';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.7.0';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.7.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.7.0';
+import { setupOwnerCenter } from './owner-ui.js?v=1.7.0';
+import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.7.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -54,6 +55,10 @@ let selectedPayrollMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
 let toastTimer;
 let refreshOwnerCenter = () => {};
+const localBackupStore = createLocalBackupStore();
+let automaticBackupInFlight = null;
+let lastAutomaticBackupCheckAt = 0;
+let backupOperationBusy = false;
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
 const localDate = (date = new Date()) => { const p=zonedDateTimeParts(date); return `${p.year}-${p.month}-${p.day}`; };
 const localDateTime = (date = new Date()) => { const p=zonedDateTimeParts(date); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
@@ -685,6 +690,101 @@ function renderStorageWarning() {
   warning.hidden = persistenceBlocked || storageAvailable;
   warning.textContent = persistenceBlocked ? `Saved billing data could not be read (${readFailureMessage || 'storage error'}). The app has not overwritten it. Use a valid JSON backup and review the merge before restoring.` : !storageAvailable ? 'Browser storage is unavailable; recent edits may not survive closing this page. Download a JSON backup after storage becomes available.' : '';
   $('#downloadJsonBackupButton').disabled = persistenceBlocked;
+  $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
+}
+function formatBackupSize(bytes) {
+  if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0) return 'Not available';
+  const value = Number(bytes);
+  if (value < 1024) return `${value} bytes`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+}
+function formatBackupDateTime(value) {
+  const date = value ? new Date(value) : null;
+  return date && Number.isFinite(date.getTime())
+    ? new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short', timeZone:PAKISTAN_TIME_ZONE }).format(date)
+    : 'Never';
+}
+function renderBackupManager({ settings, status, backups }) {
+  const frequency = settings?.frequency || DEFAULT_BACKUP_FREQUENCY;
+  $('#backupFrequencySelect').value = frequency;
+  $('#backupFrequencySelect').disabled = backupOperationBusy;
+  $('#backupLastSuccess').textContent = formatBackupDateTime(status?.lastSuccessfulAt);
+  $('#backupLastSize').textContent = formatBackupSize(status?.lastSizeBytes);
+  const failedAfterSuccess = status?.failureAt && (!status.lastSuccessfulAt || Date.parse(status.failureAt) > Date.parse(status.lastSuccessfulAt));
+  $('#backupStatus').textContent = persistenceBlocked
+    ? 'Unavailable: saved billing data could not be read. No automatic snapshot was made.'
+    : !storageAvailable
+      ? 'Unavailable: browser ledger storage is not writable. No automatic snapshot was made.'
+      : failedAfterSuccess
+        ? `Latest attempt failed: ${status.failureMessage || 'local storage error'}. Previous backups were kept.`
+        : !status?.lastSuccessfulAt || isAutomaticBackupDue(status.lastSuccessfulAt, frequency, new Date())
+          ? 'Automatic backup due · a new copy is made when the app is open.'
+          : `Up to date · automatic checks run ${frequency}.`;
+  const select = $('#savedLocalBackupSelect');
+  const selectedId = select.value;
+  select.replaceChildren(new Option('Choose a saved backup', ''));
+  for (const backup of backups ?? []) {
+    const option = new Option(`${formatBackupDateTime(backup.createdAt)} · ${formatBackupSize(backup.sizeBytes)} · ${backup.kind === 'automatic' ? 'Automatic' : 'Manual'}`, backup.id);
+    select.add(option);
+  }
+  if ([...(backups ?? [])].some(backup => backup.id === selectedId)) select.value = selectedId;
+  $('#restoreLocalBackupButton').disabled = !select.value;
+  $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
+}
+async function refreshBackupManager() {
+  try {
+    const [settings, status, backups] = await Promise.all([
+      localBackupStore.getSettings(), localBackupStore.getStatus(), localBackupStore.listBackups()
+    ]);
+    renderBackupManager({ settings, status, backups });
+    return { settings, status, backups };
+  } catch (error) {
+    $('#backupStatus').textContent = `Unavailable: ${error.message || 'app-private backup storage could not be opened'}`;
+    $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
+    $('#restoreLocalBackupButton').disabled = true;
+    return null;
+  }
+}
+async function recordBackupFailure(error) {
+  const message = error?.message || 'Local backup could not be saved.';
+  try { await localBackupStore.recordFailure(message); } catch { /* Preserve the prior snapshot if even the small status write cannot fit. */ }
+  return message;
+}
+async function saveLocalSnapshot(kind) {
+  if (persistenceBlocked || !storageAvailable) throw new Error('Saved ledger data is unavailable or not writable. No backup was created.');
+  const createdAt = new Date();
+  const backupText = createJsonBackup(state, createdAt);
+  return localBackupStore.saveBackup(backupText, { kind, createdAt });
+}
+async function checkAutomaticBackup() {
+  if (persistenceBlocked || !storageAvailable) return;
+  const currentTime = Date.now();
+  if (automaticBackupInFlight) return automaticBackupInFlight;
+  if (currentTime - lastAutomaticBackupCheckAt < 60_000) return;
+  lastAutomaticBackupCheckAt = currentTime;
+  automaticBackupInFlight = (async () => {
+    backupOperationBusy = true;
+    try {
+      const info = await refreshBackupManager();
+      if (!info || !isAutomaticBackupDue(info.status.lastSuccessfulAt, info.settings.frequency, new Date())) return;
+      $('#backupStatus').textContent = 'Automatic backup due · saving a new local copy…';
+      try {
+        await saveLocalSnapshot('automatic');
+        await refreshBackupManager();
+      } catch (error) {
+        const message = await recordBackupFailure(error);
+        await refreshBackupManager();
+        $('#backupStatus').textContent = `Automatic backup failed: ${message}. Previous backups and ledger data were kept.`;
+      }
+    } catch (error) {
+      $('#backupStatus').textContent = `Automatic backup check failed: ${error.message || 'local backup storage is unavailable'}`;
+    } finally {
+      backupOperationBusy = false;
+      await refreshBackupManager();
+    }
+  })().finally(() => { automaticBackupInFlight = null; });
+  return automaticBackupInFlight;
 }
 function renderBackupPreview(preview) {
   pendingBackupPreview = preview;
@@ -706,10 +806,50 @@ function renderBackupPreview(preview) {
 }
 $('#downloadJsonBackupButton').addEventListener('click', () => {
   if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
-  downloadJson(`shahdara-isp-billing-backup-${localDate()}.json`, createJsonBackup(state, new Date()));
+  const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
+  downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, createJsonBackup(state, new Date()));
   toast('JSON backup downloaded to this device. Store it somewhere safe.');
 });
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
+$('#backupFrequencySelect').addEventListener('change', async event => {
+  try {
+    await localBackupStore.setFrequency(event.currentTarget.value);
+    await refreshBackupManager();
+    toast(`Automatic backups set to ${event.currentTarget.value}.`);
+    void checkAutomaticBackup();
+  } catch (error) {
+    toast(`Backup schedule was not saved: ${error.message}`);
+    await refreshBackupManager();
+  }
+});
+$('#backupNowButton').addEventListener('click', async () => {
+  if (backupOperationBusy) return;
+  backupOperationBusy = true;
+  renderStorageWarning();
+  $('#backupStatus').textContent = 'Saving a new local backup…';
+  try {
+    const backup = await saveLocalSnapshot('manual');
+    toast(`Backup saved on this device (${formatBackupSize(backup.sizeBytes)}).`);
+  } catch (error) {
+    const message = await recordBackupFailure(error);
+    toast(`Backup failed: ${message}`);
+  } finally {
+    backupOperationBusy = false;
+    await refreshBackupManager();
+    renderStorageWarning();
+  }
+});
+$('#savedLocalBackupSelect').addEventListener('change', event => {
+  $('#restoreLocalBackupButton').disabled = !event.currentTarget.value;
+});
+$('#restoreLocalBackupButton').addEventListener('click', async () => {
+  const id = $('#savedLocalBackupSelect').value;
+  if (!id) { toast('Choose a saved backup first.'); return; }
+  try {
+    const backup = await localBackupStore.getBackup(id);
+    renderBackupPreview(previewJsonBackupMerge(state, backup.backupText));
+  } catch (error) { toast(`${error.message} No local data was changed.`); }
+});
 $('#backupControlsToggle').addEventListener('click', event => {
   const button = event.currentTarget;
   const controls = $('#backupControls');
@@ -953,9 +1093,9 @@ $('#customerExportButton').addEventListener('click', () => { const customer = se
 $('#exportAllButton').addEventListener('click', () => downloadTxt('shahdara-isp-payment-details.txt', exportAllPayments(state)));
 $('#backButton').addEventListener('click', () => { appShell.classList.remove('show-detail'); });
 window.addEventListener('resize', () => { if (window.innerWidth > 620) appShell.classList.remove('show-detail'); });
-window.addEventListener('focus', checkMonthlyBilling);
-window.addEventListener('pageshow', checkMonthlyBilling);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) checkMonthlyBilling(); });
+window.addEventListener('focus', () => { checkMonthlyBilling(); void checkAutomaticBackup(); });
+window.addEventListener('pageshow', () => { checkMonthlyBilling(); void checkAutomaticBackup(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthlyBilling(); void checkAutomaticBackup(); } });
 window.setInterval(checkMonthlyBilling, 60_000);
 
 populateReportMonths();
@@ -967,6 +1107,7 @@ renderTransactions();
 renderMonthlyReport();
 renderDetail();
 if (!storageAvailable) toast('Browser storage is unavailable. Entries may not persist.');
+void checkAutomaticBackup();
 
 
 function phase3Cell(value) { return escapeHtml(value ?? ''); }

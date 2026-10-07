@@ -4,7 +4,9 @@
 
 **Product goal:** The owner should be able to manage ISP cash, customer ledgers and business accounts from a phone in roughly 10–20 seconds, even without internet.
 
-**Status (2026-10-07):** v1.5.0 is live on GitHub Pages, with the Area Intelligence controls and v31 service worker publicly verified. Phase 4 passes all 197 automated tests and the production build; a clean-origin desktop preview confirms the analytics and Area Intelligence UI. Phases 1–4 are implemented; Phases 5–7 remain planned.
+**Previous verification (2026-10-07):** v1.5.0 was live on GitHub Pages, with the Area Intelligence controls and v31 service worker publicly verified. Phase 4 passed all 197 automated tests and the production build; a clean-origin desktop preview confirmed the analytics and Area Intelligence UI.
+
+**Current status (2026-10-07):** v1.6.0 is live on GitHub Pages from the `gh-pages` branch. Phase 8 CLV is released as tag `v1.6.0`; all 201 automated tests, JavaScript syntax checks and the production build pass. Phases 1–4 and 8 are implemented; Phases 5–7 and 9–14 remain planned.
 
 ## Non-negotiable data and safety rules
 
@@ -105,6 +107,8 @@
 - Add a customer ranking by actual historical receipts. Show the projection separately and never use an estimate to change the historic-collected rank.
 
 **Acceptance:** Reconcile receipt totals with saved payment history; test duplicate IDs, future/invalid dates, no receipts, sparse months, missing tenure/due dates, estimates, rankings and filters; prove calculations do not mutate customer/billing data or send it over the network; verify profile labels and keyboard/mobile usability.
+
+**Verification (released v1.6.0, tag `v1.6.0`):** All 201 automated tests passed; JavaScript syntax checks and production build passed. Pages build `1637a76` serves the v1.6.0 shell, CLV profile labels and service worker v32; a fresh browser reload reported no console errors. Existing customer/billing records remain read-only.
 
 ### Phase 9 — Automatic local backup
 

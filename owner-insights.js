@@ -1,4 +1,4 @@
-import { calculatePaymentAllocations, monthsForHistory } from './core.js';
+import { calculatePaymentAllocations, monthsForHistory, summarizeCustomerReceipts, summarizeCustomerTenure } from './core.js';
 
 const cents = value => Math.round(Number(value || 0) * 100);
 const amount = value => Number((value / 100).toFixed(2));
@@ -84,8 +84,47 @@ export function buildCustomerHealthScore(state,customerOrId,referenceDate=new Da
 export const CUSTOMER_RANKING_TYPES=Object.freeze([
   {id:'highest-paying',label:'Highest-paying customers'},{id:'most-consistent',label:'Most consistent customers'},
   {id:'longest-standing',label:'Longest-standing customers'},{id:'highest-package',label:'Highest-value package'},
-  {id:'highest-outstanding',label:'Highest outstanding'},{id:'longest-overdue',label:'Longest overdue'},{id:'repeat-late',label:'Repeat late payers'}
+  {id:'highest-outstanding',label:'Highest outstanding'},{id:'longest-overdue',label:'Longest overdue'},{id:'repeat-late',label:'Repeat late payers'},
+  {id:'lifetime-value',label:'Lifetime value · actual receipts'}
 ]);
+/** Derive local-only lifetime revenue and a clearly qualified 12-month estimate. */
+export function buildCustomerLifetimeValue(state,customerOrId,referenceDate=new Date()) {
+  const customer=typeof customerOrId==='string'?state.customers.find(item=>item.id===customerOrId):customerOrId;
+  if(!customer)return null;
+  const asOf=dateFor(referenceDate),currentMonth=asOf.slice(0,7);
+  const seenPaymentIds=new Set();
+  const historyCustomer={...customer,bills:[...(customer.bills??[])].sort((a,b)=>a.month.localeCompare(b.month)).map(bill=>({...bill,payments:(bill.payments??[]).filter(payment=>{
+    if(!isCalendarDate(payment.date)||payment.date>asOf)return false;
+    const id=typeof payment.id==='string'?payment.id.trim():'';
+    if(id&&seenPaymentIds.has(id))return false;
+    if(id)seenPaymentIds.add(id);
+    return true;
+  })}))};
+  const receipts=summarizeCustomerReceipts(historyCustomer);
+  const receiptMonths=receipts.monthly.filter(row=>row.month<=currentMonth).length;
+  const firstReceiptMonth=receipts.monthly.filter(row=>row.month<=currentMonth).at(-1)?.month??null;
+  const monthNumber=month=>Number(month.slice(0,4))*12+Number(month.slice(5,7))-1;
+  const observationMonths=firstReceiptMonth?monthNumber(currentMonth)-monthNumber(firstReceiptMonth)+1:0;
+  const historicalCents=cents(receipts.total);
+  const averageMonthlyRevenueCents=observationMonths?Math.round(historicalCents/observationMonths):null;
+  const estimatedFutureCents=receiptMonths>=2&&averageMonthlyRevenueCents!==null?averageMonthlyRevenueCents*12:null;
+  const historyState={...state,customers:[historyCustomer]};
+  const behavior=buildCustomerPaymentBehavior(historyState,historyCustomer,referenceDate);
+  const tenure=summarizeCustomerTenure(customer,referenceDate);
+  const averageMonthlyRevenueBasis=observationMonths
+    ? `${observationMonths} calendar month${observationMonths===1?'':'s'} from first saved receipt through ${currentMonth}, including months without receipts.`
+    : 'No valid historical receipts are recorded.';
+  const estimatedFutureValueBasis=estimatedFutureCents===null
+    ? receiptMonths===0?'Not estimated: no historical receipts are recorded.':'Not estimated: at least 2 receipt-bearing calendar months are required.'
+    : `Estimate only: ${pkr(averageMonthlyRevenueCents)} average monthly receipts × 12 months, based on ${receiptMonths} receipt-bearing month${receiptMonths===1?'':'s'} across ${observationMonths} calendar month${observationMonths===1?'':'s'} through ${currentMonth}; assumes that historical average continues and does not model attrition or future price changes.`;
+  return {
+    customerId:customer.id,asOf,totalHistoricalRevenue:amount(historicalCents),receiptCount:receipts.receiptCount,
+    firstReceiptMonth,receiptMonths,observationMonths,
+    averageMonthlyRevenue:averageMonthlyRevenueCents===null?null:amount(averageMonthlyRevenueCents),averageMonthlyRevenueBasis,
+    averagePaymentDelayDays:behavior?.averagePaymentDelayDays??null,paymentDelaySampleCount:behavior?.delaySampleCount??0,
+    tenure,estimatedFutureValue:estimatedFutureCents===null?null:amount(estimatedFutureCents),estimatedFutureValueBasis
+  };
+}
 function packagePriceForMonth(customer,bill,month,referenceDate) {
   if(validPrice(bill?.packageSnapshot?.nominalPrice))return Number(bill.packageSnapshot.nominalPrice);
   const schedule=(customer.monthlyPriceSchedule??[]).filter(row=>row.effectiveMonth<=month&&validPrice(row.amount)).sort((a,b)=>b.effectiveMonth.localeCompare(a.effectiveMonth));
@@ -101,6 +140,7 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
     if(area!=='all'&&areaValue!==area)continue;if(packageName!=='all'&&packageValue!==packageName)continue;
     if(status==='archived'?!customer.archived:status!=='all'&&(customer.archived||(customer.serviceStatus??'not-set')!==status))continue;
     const behavior=buildCustomerPaymentBehavior(state,customer,referenceDate,allocations),bill=(customer.bills??[]).find(row=>row.month===selected);
+    const lifetime=type==='lifetime-value'?buildCustomerLifetimeValue(state,customer,referenceDate):null;
     const balance=bill&&validPrice(bill.dueAmount)?allocations.forMonth(customer.id,selected)?.balanceDueCents??cents(bill.dueAmount):null;
     const selectedReceipts=behavior.receipts.filter(payment=>payment.date.slice(0,7)===selected&&(!startDate||payment.date>=startDate)&&(!endDate||payment.date<=endDate));
     const overdueDays=balance>0&&/^\d{4}-\d{2}-\d{2}$/.test(bill?.dueDate??'')?Math.max(0,daysBetween(dateFor(referenceDate),bill.dueDate)??0):null;
@@ -113,9 +153,11 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
       case'highest-outstanding':value=balance;displayValue=value===null?'':pkr(value);break;
       case'longest-overdue':value=overdueDays;displayValue=value===null?'':`${value} day${value===1?'':'s'}`;break;
       case'repeat-late':value=selectedReceipts.filter(payment=>payment.dueDate&&payment.date>payment.dueDate).length;displayValue=`${value} late receipt${value===1?'':'s'}`;break;
+      case'lifetime-value':value=cents(lifetime.totalHistoricalRevenue);displayValue=pkr(value);break;
     }
     if(value===null||!Number.isFinite(value)){excludedCount++;continue;}
-    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,area:areaValue,package:packageValue,serviceStatus:customer.archived?'Archived':({active:'Active',offline:'Offline','not-set':'Not set'})[customer.serviceStatus??'not-set'],value,displayValue,health:behavior.health,connectionDate:customer.connectionDate??null});
+    rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,area:areaValue,package:packageValue,serviceStatus:customer.archived?'Archived':({active:'Active',offline:'Offline','not-set':'Not set'})[customer.serviceStatus??'not-set'],value,displayValue,health:behavior.health,connectionDate:customer.connectionDate??null,
+      ...(lifetime?{estimatedFutureValue:lifetime.estimatedFutureValue,estimatedFutureValueBasis:lifetime.estimatedFutureValueBasis}:{} )});
   }
   rows.sort((a,b)=>type==='longest-standing'?a.value-b.value:b.value-a.value||a.name.localeCompare(b.name));
   return{type,month:selected,rows:rows.slice(0,100),excludedCount,area,packageName,status};

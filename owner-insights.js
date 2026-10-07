@@ -106,6 +106,19 @@ export function buildNextServiceAnniversary(customer,referenceDate=new Date()) {
   if(scheduledEndDate&&date>scheduledEndDate)return{status:'ends-before-anniversary',connectionDate:tenure.connectionDate,date,years:year-startYear,daysUntil:null,endDate:scheduledEndDate};
   return{status:date===asOf?'today':'upcoming',connectionDate:tenure.connectionDate,date,years:year-startYear,daysUntil:daysBetween(date,asOf),endDate:scheduledEndDate};
 }
+/** Return the nearest locally derived service milestones without changing saved profiles. */
+export function buildUpcomingServiceAnniversaries(state,referenceDate=new Date(),limit=8) {
+  const maximum=Number.isFinite(Number(limit))?Math.max(0,Math.min(50,Math.floor(Number(limit)))):8;
+  const rows=[];
+  for(const customer of state?.customers??[]) {
+    if(customer.archived)continue;
+    const milestone=buildNextServiceAnniversary(customer,referenceDate);
+    if(!milestone||!['today','upcoming'].includes(milestone.status))continue;
+    rows.push({customerId:customer.id,customerNumber:customer.customerNumber??null,name:customer.name??'Unnamed customer',date:milestone.date,years:milestone.years,daysUntil:milestone.daysUntil,status:milestone.status,connectionDate:milestone.connectionDate});
+  }
+  rows.sort((a,b)=>a.daysUntil-b.daysUntil||String(a.name).localeCompare(String(b.name))||String(a.customerId).localeCompare(String(b.customerId)));
+  return{asOf:dateFor(referenceDate),totalCount:rows.length,rows:rows.slice(0,maximum)};
+}
 /** Derive local-only lifetime revenue and a clearly qualified 12-month estimate. */
 export function buildCustomerLifetimeValue(state,customerOrId,referenceDate=new Date()) {
   const customer=typeof customerOrId==='string'?state.customers.find(item=>item.id===customerOrId):customerOrId;

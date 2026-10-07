@@ -8,6 +8,11 @@ const index=read('index.html'),app=read('app.js'),ui=read('owner-ui.js'),insight
 test('phone-first navigation and the Owner Center expose the requested local views',()=>{
   for(const label of ['Home','Customers','Collection','Reports','More'])assert.match(index,new RegExp(`>${label}</button>`));
   for(const id of ['ownerCommandCenter','ownerCommandInput','ownerCommandAnswer','savedMonthlyClosings','compareMonthA','compareMonthB','monthComparisonMetrics','performanceExplainForm','customerRankingResults','smartAlertsPanel','smartAlertsSummary','smartAlertsList','duesRecoveryGroups'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
+  for(const id of ['serviceAnniversaryPanel','serviceAnniversarySummary','serviceAnniversaryList'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
+  assert.match(ui,/buildUpcomingServiceAnniversaries\(getState\(\),new Date\(\),8\)/);
+  assert.match(ui,/data-open-anniversary-customer/);
+  assert.match(index,/manual Active\/Offline status is not a verified service end date/i);
+  assert.match(index,/no reminder or message is sent/i);
   assert.match(ui,/data-mobile-nav/);
   const navHandler=ui.slice(ui.indexOf("document.querySelectorAll('[data-mobile-nav]')"),ui.indexOf("document.querySelectorAll('[data-mobile-more]')"));
   assert.match(navHandler,/if\(action==='more'\)[\s\S]*?return;/,'More retains the visibility state set by its dedicated toggle listener');

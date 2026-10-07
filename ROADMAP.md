@@ -158,7 +158,7 @@
 
 **Acceptance:** Test missing/invalid/original dates, date corrections, leap-year and year-boundary milestones, tenure, upcoming-dashboard ordering and mobile accessibility; preserve unrelated customer/billing history and confirm that reminders never send any message or initiate contact.
 
-**Partial source implementation (web build 1.9.1):** The read-only customer profile shows the next annual milestone from the currently saved connection/subscription date only. Feb 29 maps to Feb 28 in non-leap years, and scheduled service end dates before a milestone suppress it. This does **not** complete Phase 13: owner-dashboard ordering, a correction audit trail, and full mobile/accessibility acceptance remain open. No deployment is claimed by this source note.
+**Partial source implementation (web build 1.9.2):** The read-only customer profile shows its next annual milestone, and the owner dashboard lists up to eight nearest eligible milestones from saved connection/subscription dates, ordered by Pakistan-local date with direct profile links. Feb 29 maps to Feb 28 in non-leap years; archived, missing/future/invalid/ended records and milestones after a saved service end are excluded. Manual Active/Offline status is not treated as a verified end date. No reminders or messages are sent. This does **not** complete Phase 13: a correction audit trail and full narrow-screen/mobile accessibility acceptance remain open. No deployment is claimed by this source note.
 
 ### Phase 14 — Customizable Owner Home Dashboard
 

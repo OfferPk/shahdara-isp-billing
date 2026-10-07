@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'shahdara-isp-billing-';
-const CACHE_NAME = 'shahdara-isp-billing-v36';
+const CACHE_NAME = 'shahdara-isp-billing-v37';
 const APP_FILES = ['./','./index.html','./styles.css','./app.js','./profile-labels.js','./profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./owner-insights.js','./owner-ui.js','./backup-store.js','./duplicate-detection.js','./manifest.webmanifest','./icon.svg'];
 
 self.addEventListener('install', event => {

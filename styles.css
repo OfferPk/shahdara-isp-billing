@@ -1364,3 +1364,14 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .business-health-formula p{margin:7px 0;color:#53695f}
 @media(max-width:620px){.business-health-panel{gap:12px;margin:14px 0;padding:12px}.business-health-heading{align-items:flex-start;gap:10px}.business-health-heading h3{font-size:18px}.business-health-score{min-width:94px;padding:9px 10px}.business-health-score-value{font-size:27px}.business-health-factor-grid{grid-template-columns:1fr}.business-health-factor{padding:11px}}
 @media(max-width:360px){.business-health-heading{display:grid}.business-health-score{justify-self:start;display:flex;align-items:center;gap:8px}.business-health-score-value{font-size:24px}}
+
+
+/* Read-only service anniversary dashboard */
+.service-anniversary-list{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:8px}
+.service-anniversary-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(125px,auto) auto;gap:10px;align-items:center;padding:10px 12px;border:1px solid #e6ede9;border-radius:10px;background:#fbfdfc}
+.service-anniversary-customer,.service-anniversary-date{display:grid;gap:3px;min-width:0}
+.service-anniversary-customer strong{font-size:12px;overflow-wrap:anywhere}
+.service-anniversary-customer span,.service-anniversary-date span{font-size:10px;color:var(--muted);line-height:1.4}
+.service-anniversary-date time{font-size:12px;font-weight:700;color:var(--green)}
+.service-anniversary-row .secondary-button{min-height:40px}
+@media(max-width:620px){.service-anniversary-row{grid-template-columns:minmax(0,1fr) auto;gap:8px}.service-anniversary-row .secondary-button{grid-column:1/-1;justify-self:start;min-height:44px}}

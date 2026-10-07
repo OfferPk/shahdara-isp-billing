@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#0e5b4d">
   <meta name="description" content="Offline-first Shahdara ISP customer billing dashboard and ledger. Billing records stay in this browser on this device.">
   <title>Shahdara ISP Billing</title>
-  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.9.1',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
+  <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js?v=1.9.2',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./styles.css?v=1.9.1">
+  <link rel="stylesheet" href="./styles.css?v=1.9.2">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -49,6 +49,7 @@
       </div>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
       <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading">Owner Command Center</h3><p>Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟"><button id="ownerVoiceButton" class="secondary-button" type="button">Voice · on-device only</button><button class="primary-button" type="submit">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
+      <section id="serviceAnniversaryPanel" class="owner-report-panel" aria-labelledby="serviceAnniversaryHeading"><div class="table-heading"><div><p class="eyebrow">SAVED CONNECTION DATES · READ-ONLY</p><h3 id="serviceAnniversaryHeading">Upcoming service anniversaries</h3></div><p class="chart-caption">Nearest 8 annual milestones, ordered by date. Uses the saved connection/subscription date only.</p></div><p id="serviceAnniversarySummary" class="chart-caption" role="status" aria-live="polite"></p><div id="serviceAnniversaryList" aria-live="polite"></div><p class="chart-caption">Manual Active/Offline status is not a verified service end date. Display only; no reminder or message is sent.</p></section>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
     </section>
 
@@ -306,6 +307,6 @@
   </dialog>
   <section id="receiptPrintArea" class="receipt-print-area" aria-label="Printable payment receipt" hidden></section>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script type="module" src="./app.js?v=1.9.1"></script>
+  <script type="module" src="./app.js?v=1.9.2"></script>
 </body>
 </html>

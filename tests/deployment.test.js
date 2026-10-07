@@ -33,7 +33,7 @@ test('web shell assets share the package version and worker updates before app s
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
   assert.ok(appModule > index.indexOf('<body>'), 'app module loads after worker registration markup');
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v36'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v37'/);
   assert.match(index, /id="backupFrequencySelect"/);
   assert.match(index, /id="backupNowButton"[^>]*>Backup Now/);
   assert.match(index, /id="restoreLocalBackupButton"[^>]*>Review &amp; Restore Backup/);
@@ -260,7 +260,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
   assert.match(phase3, /export function addUmairWorkday/);
   assert.match(styles, /\.payroll-metric-grid/);
   assert.match(styles, /@media\(max-width:620px\)\s*\{[^}]*\.payroll-summary/);
-  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v36'/);
+  assert.match(worker, /CACHE_NAME\s*=\s*'shahdara-isp-billing-v37'/);
 });
 
 test('production build includes required imported feature modules and the package catalog', () => {

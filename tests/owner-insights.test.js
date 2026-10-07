@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { addPayment, createInitialState, saveBillMonth } from '../core.js';
 import { addExpense } from '../phase3.js';
-import { answerOwnerCommand, buildBusinessHealthScore, buildCustomerPaymentBehavior, buildCustomerRankings, buildCustomerHealthScore, buildCustomerLifetimeValue, buildNextServiceAnniversary, buildSmartDuesRecovery } from '../owner-insights.js';
+import { answerOwnerCommand, buildBusinessHealthScore, buildCustomerPaymentBehavior, buildCustomerRankings, buildCustomerHealthScore, buildCustomerLifetimeValue, buildNextServiceAnniversary, buildUpcomingServiceAnniversaries, buildSmartDuesRecovery } from '../owner-insights.js';
 
 const today = new Date('2026-10-07T12:00:00+05:00');
 const customerId = 'seed-001';
@@ -88,6 +88,24 @@ test('next service anniversaries use saved connection dates, handle leap/year bo
   const yearBoundary=buildNextServiceAnniversary({connectionDate:'2023-01-01'},new Date('2026-12-31T12:00:00+05:00'));
   assert.deepEqual([yearBoundary.date,yearBoundary.years,yearBoundary.daysUntil],['2027-01-01',4,1]);
   assert.equal(JSON.stringify(customer),before,'the calculation never changes saved profile data');
+});
+
+test('upcoming service anniversary list sorts nearest first and excludes archived or unsupported dates without mutation',()=>{
+  const state={customers:[
+    {id:'later',customerNumber:4,name:'Later',connectionDate:'2020-10-10',serviceStatus:'offline'},
+    {id:'today',customerNumber:2,name:'Today',connectionDate:'2020-10-07'},
+    {id:'soon',customerNumber:3,name:'Soon',connectionDate:'2020-10-09'},
+    {id:'archived',customerNumber:5,name:'Archived',connectionDate:'2020-10-07',archived:true},
+    {id:'missing',customerNumber:6,name:'Missing',addedOn:'2020-10-07'},
+    {id:'future',customerNumber:7,name:'Future',connectionDate:'2027-01-01'},
+    {id:'ending',customerNumber:8,name:'Ending',connectionDate:'2025-10-08',expiryDate:'2026-10-07'}
+  ]};
+  const before=JSON.stringify(state),result=buildUpcomingServiceAnniversaries(state,today,2);
+  assert.equal(result.asOf,'2026-10-07');
+  assert.equal(result.totalCount,3,'manual Offline is not treated as a dated service end');
+  assert.deepEqual(result.rows.map(row=>[row.customerId,row.date,row.daysUntil]),[['today','2026-10-07',0],['soon','2026-10-09',2]]);
+  assert.equal(JSON.stringify(state),before,'dashboard data is derived without editing profiles');
+  assert.equal(buildUpcomingServiceAnniversaries({customers:[]},today).totalCount,0);
 });
 
 test('lifetime-value ranking sorts by actual historical receipts and keeps estimates separate', () => {

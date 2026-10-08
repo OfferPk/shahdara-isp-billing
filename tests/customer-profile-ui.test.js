@@ -64,6 +64,10 @@ test('customer profiles show receipt-based CLV and clearly label future value as
   assert.match(app, /Average payment delay/);
   assert.match(app, /Estimated future value · next 12 months/);
   assert.match(app, /future value is an estimate, not collected cash or a guarantee/i);
+  assert.match(app, /customerServiceAnniversaryMarkup\(lifetimeValue\.nextServiceAnniversary\)/);
+  assert.match(app, /Next service milestone/);
+  assert.match(app, /Feb 29 anniversaries use Feb 28 in non-leap years/);
+  assert.match(app, /no reminder or message is sent/i);
   assert.match(app, /Only the saved connection date is used/);
   assert.match(styles, /\.customer-lifetime-grid/);
 });

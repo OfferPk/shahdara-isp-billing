@@ -5,20 +5,20 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.9.0';
+} from './core.js?v=1.9.2';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
-} from './phase3.js?v=1.9.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.9.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.9.0';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.9.0';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.9.0';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.9.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.9.0';
-import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.9.0';
-import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.9.0';
+} from './phase3.js?v=1.9.2';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.9.2';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.9.2';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.9.2';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.9.2';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.9.2';
+import { setupOwnerCenter } from './owner-ui.js?v=1.9.2';
+import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.9.2';
+import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.9.2';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -582,6 +582,31 @@ function customerLifetimeValueMarkup(lifetime) {
   const future=lifetime.estimatedFutureValue===null?'Insufficient history':formatAmount(lifetime.estimatedFutureValue);
   return `<section class="customer-lifetime-value" aria-labelledby="customerLifetimeValueHeading"><h3 id="customerLifetimeValueHeading">Customer lifetime value (CLV)</h3><dl class="customer-lifetime-grid"><div><dt>Historical revenue collected</dt><dd>${escapeHtml(formatAmount(lifetime.totalHistoricalRevenue))}</dd><dd class="customer-lifetime-basis">${lifetime.receiptCount} valid local receipt${lifetime.receiptCount===1?'':'s'}; actual receipts only.</dd></div><div><dt>Customer tenure</dt><dd>${escapeHtml(tenureLabel)}</dd><dd class="customer-lifetime-basis">${escapeHtml(tenureBasis)}</dd></div><div><dt>Average monthly revenue</dt><dd>${escapeHtml(monthlyRevenue)}</dd><dd class="customer-lifetime-basis">${escapeHtml(lifetime.averageMonthlyRevenueBasis)}</dd></div><div><dt>Average payment delay</dt><dd>${escapeHtml(delay)}</dd><dd class="customer-lifetime-basis">${escapeHtml(delayBasis)}</dd></div><div class="customer-lifetime-estimate"><dt>Estimated future value · next 12 months</dt><dd>${escapeHtml(future)}</dd><dd class="customer-lifetime-basis">${escapeHtml(lifetime.estimatedFutureValueBasis)}</dd></div></dl><p class="customer-lifetime-note">The future value is an estimate, not collected cash or a guarantee. It extrapolates the saved receipt average; it does not model customer loss, costs or future price changes.</p></section>`;
 }
+function customerServiceAnniversaryMarkup(anniversary) {
+  if(!anniversary)return'';
+  const years=anniversary.years===null?null:`${anniversary.years}-year service anniversary`;
+  const value=anniversary.status==='today'?`Today · ${years}`
+    :anniversary.status==='upcoming'?`${humanDate(anniversary.date)} · ${years}`
+    :anniversary.status==='not-recorded'?'Not recorded'
+    :anniversary.status==='future'?'Saved connection date is in the future'
+    :anniversary.status==='date-review'?'Date review required'
+    :anniversary.status==='end-date-unknown'?'No upcoming milestone · end date unavailable'
+    :anniversary.status==='ended'?'No upcoming milestone · service ended'
+    :anniversary.status==='ends-before-anniversary'?'Service end precedes the next anniversary'
+    :'Not available for this date range';
+  const basis=anniversary.status==='not-recorded'
+    ?'Uses only the saved connection/subscription start; profile-added date, first bill and first payment are not substitutes.'
+    :anniversary.status==='today'||anniversary.status==='upcoming'
+      ?`Derived from saved connection/subscription start ${anniversary.connectionDate}. Editing and saving that date recalculates this display. Feb 29 anniversaries use Feb 28 in non-leap years. Display only; no reminder or message is sent.`
+      :anniversary.status==='ends-before-anniversary'
+        ?`Saved service end date ${anniversary.endDate} is before the next calculated milestone ${anniversary.date}.`
+        :anniversary.status==='ended'
+          ?`Saved service end date: ${anniversary.endDate??'not recorded'}.`
+          :anniversary.status==='future'
+            ?`Saved connection date: ${anniversary.connectionDate}.`
+            :'No upcoming service milestone is calculated from this saved record.';
+  return `<section class="customer-lifetime-value" aria-labelledby="customerServiceAnniversaryHeading"><h3 id="customerServiceAnniversaryHeading">Service anniversary</h3><dl class="customer-lifetime-grid"><div><dt>Next service milestone</dt><dd>${escapeHtml(value)}</dd><dd class="customer-lifetime-basis">${escapeHtml(basis)}</dd></div></dl></section>`;
+}
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const phoneTargets = contactActionTargets(phone);
@@ -605,6 +630,7 @@ function renderCustomerProfileView(customer) {
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
   $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').insertAdjacentHTML('beforeend', customerServiceAnniversaryMarkup(lifetimeValue.nextServiceAnniversary));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
     $('#customerProfileView').hidden = true;

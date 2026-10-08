@@ -1,7 +1,7 @@
 import { calculatePaymentAllocations } from './core.js';
 import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
-  buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
+  buildSmartDuesRecovery, buildSmartAlerts, buildUpcomingServiceAnniversaries, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
 } from './owner-insights.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 
@@ -161,8 +161,20 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     host.innerHTML=`${alertMarkup}${unavailableMarkup}${clearChecksMarkup}${clearMarkup}<p class="smart-alert-footnote">${escapeHtml(result.manualStatusNote)}</p>`;
     host.querySelectorAll('[data-open-smart-alert-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openSmartAlertCustomer)));
   }
+  function renderServiceAnniversaries() {
+    const host=$('#serviceAnniversaryList');if(!host)return;
+    const result=buildUpcomingServiceAnniversaries(getState(),new Date(),8);
+    setText('#serviceAnniversarySummary',`Showing ${Math.min(result.totalCount,result.rows.length)} of ${result.totalCount} upcoming service milestone(s) · Pakistan local date ${result.asOf}.`);
+    host.innerHTML=result.rows.length?`<ol class="service-anniversary-list">${result.rows.map(row=>{
+      const dateLabel=new Intl.DateTimeFormat('en-PK',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${row.date}T00:00:00Z`));
+      const countdown=row.daysUntil===0?'Today':`In ${row.daysUntil} day${row.daysUntil===1?'':'s'}`;
+      const name=escapeHtml(row.name),customerNo=row.customerNumber===null?'':`#${escapeHtml(row.customerNumber)} `;
+      return `<li class="service-anniversary-row"><div class="service-anniversary-customer"><strong>${customerNo}${name}</strong><span>${row.years}-year service anniversary · connected ${escapeHtml(row.connectionDate)}</span></div><div class="service-anniversary-date"><time datetime="${escapeHtml(row.date)}">${escapeHtml(dateLabel)}</time><span>${countdown}</span></div><button class="secondary-button" type="button" aria-label="Open profile for ${name}" data-open-anniversary-customer="${escapeHtml(row.customerId)}">Open profile</button></li>`;
+    }).join('')}</ol>`:'<p class="empty-state">No upcoming service milestones can be calculated from saved connection dates.</p>';
+    host.querySelectorAll('[data-open-anniversary-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openAnniversaryCustomer)));
+  }
   function refresh() {
-    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderRankings();renderRecovery();renderSmartAlerts();
+    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderRankings();renderRecovery();renderSmartAlerts();renderServiceAnniversaries();
   }
 
   $('#ownerCommandForm')?.addEventListener('submit',event=>{event.preventDefault();lastQuery=$('#ownerCommandInput').value;renderCommand(lastQuery);});

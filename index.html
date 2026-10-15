@@ -419,6 +419,16 @@
             </div>
             <div id="dashboardUpstreamChart" class="chart-svg-container" role="img" aria-label="Upstream ISP Transit and Multi-Homed Failover Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-acquisition">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Subscriber Acquisition ROI &amp; Payback</h4>
+                <p class="chart-subtitle">Channel CAC economics, payback velocity, and marketing ROI</p>
+              </div>
+              <button id="dashboardOpenAcquisitionModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Channel ROI</button>
+            </div>
+            <div id="dashboardAcquisitionChart" class="chart-svg-container" role="img" aria-label="Subscriber Acquisition ROI and Payback Velocity Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -866,6 +876,85 @@
 
           <div class="sim-modal-footer">
             <button id="dashboardCopyUpstreamReportBtn" class="primary-button" type="button">📋 Copy Upstream Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardAcquisitionModal" class="dashboard-modal acquisition-modal" aria-labelledby="dashboardAcquisitionModalTitle">
+        <div class="dashboard-modal-card acquisition-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">SUBSCRIBER GROWTH &amp; UNIT ECONOMICS</p>
+              <h3 id="dashboardAcquisitionModalTitle">Acquisition Channel ROI &amp; Payback Velocity</h3>
+            </div>
+            <button id="dashboardAcquisitionModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Evaluate marketing channel efficiency, customer acquisition cost (CAC), capital payback duration, and realized revenue ROI across subscriber cohorts.</p>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Total CAC Invested</span>
+              <strong id="acqTotalCacVal" class="ltv-kpi-val" style="color: #dc2626;">PKR 0</strong>
+              <span class="ltv-kpi-sub">Portfolio acquisition cost</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Realized Revenue</span>
+              <strong id="acqRealizedRevVal" class="ltv-kpi-val" style="color: #047857;">PKR 0</strong>
+              <span class="ltv-kpi-sub">Total collections</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Net Portfolio ROI</span>
+              <strong id="acqNetRoiVal" class="ltv-kpi-val" style="color: #047857;">0%</strong>
+              <span class="ltv-kpi-sub">Net marketing return</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Avg Payback</span>
+              <strong id="acqAvgPaybackVal" class="ltv-kpi-val">0 mo</strong>
+              <span class="ltv-kpi-sub">Weighted breakeven</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Fastest Channel</span>
+              <strong id="acqFastestChannelVal" class="ltv-kpi-val">None</strong>
+              <span class="ltv-kpi-sub">Quickest capital recovery</span>
+            </div>
+          </div>
+
+          <div class="sim-controls-card" style="margin-top: 14px; margin-bottom: 14px;">
+            <div class="sim-control-header">
+              <div>
+                <strong>CAC Sensitivity Multiplier</strong>
+                <p class="sim-control-desc">Simulate drop cable subsidy shifts, lineman bonuses, or fiber installation material costs.</p>
+              </div>
+              <div id="acquisitionCacPresetGroup" class="chart-range-group" role="group" aria-label="CAC sensitivity presets">
+                <button type="button" class="chart-range-btn" data-cac-multiplier="0.8">Low (-20%)</button>
+                <button type="button" class="chart-range-btn is-active" data-cac-multiplier="1.0">Base (1.0x)</button>
+                <button type="button" class="chart-range-btn" data-cac-multiplier="1.2">High (+20%)</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-container ltv-table-container">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Acquisition Channel</th>
+                  <th>Subscribers</th>
+                  <th>Unit CAC</th>
+                  <th>Avg ARPU</th>
+                  <th>Payback</th>
+                  <th>Realized Rev</th>
+                  <th>Net ROI</th>
+                  <th>Velocity Tier</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardAcquisitionTableBody">
+                <tr><td colspan="8" class="empty-cell">Evaluating subscriber acquisition channels...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="dashboardCopyAcquisitionReportBtn" class="primary-button" type="button">📋 Copy Acquisition Briefing</button>
           </div>
         </div>
       </dialog>

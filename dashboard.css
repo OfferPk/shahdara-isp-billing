@@ -1539,6 +1539,59 @@
   color: #94a3b8;
 }
 
+/* Acquisition Channel ROI & Payback Velocity Styles */
+.chart-card-acquisition {
+  background: var(--surface, #ffffff);
+}
+
+.acquisition-modal-card {
+  max-width: 820px;
+}
+
+.channel-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.channel-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.badge-good {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.badge-normal {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.badge-warn {
+  background: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+[data-theme="dark"] .badge-good {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+[data-theme="dark"] .badge-normal {
+  background: rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .badge-warn {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .sim-kpi-summary-grid,

@@ -2496,6 +2496,417 @@ export function setupUpstreamGatewayModal(state, { referenceDate = new Date(), o
   }
 }
 
+export const ACQUISITION_CHANNELS = [
+  {
+    id: 'walkin',
+    name: 'Direct Walk-in / Office',
+    baseCac: 2800,
+    grossMarginPercent: 70,
+    color: '#0e5b4d',
+    keywords: ['walk-in', 'walk in', 'office', 'branch', 'counter', 'direct']
+  },
+  {
+    id: 'technician',
+    name: 'Field Technician Referral',
+    baseCac: 3500,
+    grossMarginPercent: 68,
+    color: '#3b82f6',
+    keywords: ['technician', 'tech', 'lineman', 'splicer', 'field', 'staff', 'installer']
+  },
+  {
+    id: 'referral',
+    name: 'Customer Word-of-Mouth',
+    baseCac: 2200,
+    grossMarginPercent: 72,
+    color: '#10b981',
+    keywords: ['referral', 'friend', 'neighbor', 'relative', 'word', 'recommend', 'family']
+  },
+  {
+    id: 'marketing',
+    name: 'Local Banner & Pamphlet',
+    baseCac: 4200,
+    grossMarginPercent: 65,
+    color: '#f59e0b',
+    keywords: ['banner', 'pamphlet', 'flyer', 'poster', 'flex', 'chowk', 'drive', 'marketing']
+  },
+  {
+    id: 'digital',
+    name: 'Digital & WhatsApp Inbound',
+    baseCac: 3100,
+    grossMarginPercent: 70,
+    color: '#8b5cf6',
+    keywords: ['whatsapp', 'facebook', 'digital', 'online', 'social', 'inbound', 'helpline', 'web']
+  },
+  {
+    id: 'partnership',
+    name: 'Builder & Plaza Partner',
+    baseCac: 5500,
+    grossMarginPercent: 75,
+    color: '#06b6d4',
+    keywords: ['builder', 'plaza', 'apartment', 'scheme', 'commercial', 'colony', 'complex', 'society']
+  }
+];
+
+/**
+ * Resolves acquisition channel for a customer based on explicit properties,
+ * notes keywords, or deterministic identifier hashing.
+ */
+export function resolveCustomerAcquisitionChannel(customer) {
+  if (!customer) return ACQUISITION_CHANNELS[0];
+
+  const explicit = String(
+    customer.acquisitionChannel ||
+    customer.leadSource ||
+    customer.channel ||
+    customer.source ||
+    customer.referralSource ||
+    ''
+  ).trim().toLowerCase();
+
+  if (explicit) {
+    const match = ACQUISITION_CHANNELS.find(c =>
+      c.id.toLowerCase() === explicit ||
+      c.name.toLowerCase() === explicit ||
+      explicit.includes(c.id.toLowerCase()) ||
+      c.keywords.some(k => explicit.includes(k))
+    );
+    if (match) return match;
+  }
+
+  const notes = String(customer.notes || '').toLowerCase();
+  if (notes) {
+    for (const ch of ACQUISITION_CHANNELS) {
+      if (ch.keywords.some(k => notes.includes(k))) {
+        return ch;
+      }
+    }
+  }
+
+  const seedStr = String(customer.id || customer.phone || customer.name || 'cust');
+  let hash = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % ACQUISITION_CHANNELS.length;
+  return ACQUISITION_CHANNELS[index];
+}
+
+/**
+ * Calculates Subscriber Acquisition Channel ROI, Unit CAC economics,
+ * payback periods, and capital recovery velocity.
+ */
+export function calculateAcquisitionRoiMetrics(state, referenceDate = new Date(), options = {}) {
+  const cacMultiplier = Number.isFinite(options.cacMultiplier) ? Math.max(0.1, options.cacMultiplier) : 1.0;
+  const targetGrossMargin = Number.isFinite(options.grossMarginPercent) ? options.grossMarginPercent : null;
+  const unarchived = (state?.customers ?? []).filter(c => !c.archived);
+
+  const channelDataMap = new Map();
+  for (const ch of ACQUISITION_CHANNELS) {
+    channelDataMap.set(ch.id, {
+      id: ch.id,
+      name: ch.name,
+      color: ch.color,
+      baseCac: ch.baseCac,
+      blendedCac: Math.round(ch.baseCac * cacMultiplier),
+      grossMarginPercent: targetGrossMargin !== null ? targetGrossMargin : ch.grossMarginPercent,
+      totalAcquisitions: 0,
+      activeSubscribers: 0,
+      totalArpuCents: 0,
+      totalRealizedRevenueCents: 0,
+      customerIds: []
+    });
+  }
+
+  for (const c of unarchived) {
+    const channelDef = resolveCustomerAcquisitionChannel(c);
+    const item = channelDataMap.get(channelDef.id);
+    if (!item) continue;
+
+    item.totalAcquisitions++;
+    const isActive = c.serviceStatus === 'active' || (c.serviceStatus !== 'offline' && c.serviceStatus !== 'cancelled');
+    if (isActive) {
+      item.activeSubscribers++;
+    }
+    item.customerIds.push(c.id);
+
+    const arpu = Number(c.monthlySellingAmount) || 0;
+    if (arpu > 0) {
+      item.totalArpuCents += Math.round(arpu * 100);
+    }
+
+    let custRevenueCents = 0;
+    for (const bill of (c.bills ?? [])) {
+      for (const p of (bill.payments ?? [])) {
+        const amt = Number(p.amount) || 0;
+        if (amt > 0) custRevenueCents += Math.round(amt * 100);
+      }
+    }
+    if (custRevenueCents === 0 && Array.isArray(state?.receipts)) {
+      for (const r of state.receipts) {
+        if (r.customerId === c.id || r.customerName === c.name) {
+          const amt = Number(r.amount) || 0;
+          if (amt > 0) custRevenueCents += Math.round(amt * 100);
+        }
+      }
+    }
+    item.totalRealizedRevenueCents += custRevenueCents;
+  }
+
+  let totalPortfolioAcquisitions = 0;
+  let totalPortfolioActive = 0;
+  let totalPortfolioCac = 0;
+  let totalPortfolioRealizedRevenue = 0;
+
+  const channels = ACQUISITION_CHANNELS.map(ch => {
+    const raw = channelDataMap.get(ch.id);
+    const totalAcq = raw.totalAcquisitions;
+    const activeSubs = raw.activeSubscribers;
+    const blendedCac = raw.blendedCac;
+    const totalCac = totalAcq * blendedCac;
+    const avgArpu = totalAcq > 0 ? Math.round((raw.totalArpuCents / 100) / totalAcq) : 0;
+    const monthlyGrossProfit = avgArpu * (raw.grossMarginPercent / 100);
+    const paybackMonths = monthlyGrossProfit > 0
+      ? parseFloat((blendedCac / monthlyGrossProfit).toFixed(1))
+      : 0;
+    const totalRealizedRevenue = Math.round(raw.totalRealizedRevenueCents / 100);
+    const netRoiPercent = totalCac > 0
+      ? parseFloat((((totalRealizedRevenue - totalCac) / totalCac) * 100).toFixed(1))
+      : 0;
+
+    let velocityStatus = 'Standard Payback';
+    if (totalAcq === 0 || paybackMonths === 0) {
+      velocityStatus = 'Inactive';
+    } else if (paybackMonths <= 3.0) {
+      velocityStatus = 'Rapid Payback';
+    } else if (paybackMonths <= 5.0) {
+      velocityStatus = 'Standard Payback';
+    } else {
+      velocityStatus = 'Lagging Payback';
+    }
+
+    totalPortfolioAcquisitions += totalAcq;
+    totalPortfolioActive += activeSubs;
+    totalPortfolioCac += totalCac;
+    totalPortfolioRealizedRevenue += totalRealizedRevenue;
+
+    return {
+      id: raw.id,
+      name: raw.name,
+      color: raw.color,
+      blendedCac,
+      grossMarginPercent: raw.grossMarginPercent,
+      totalAcquisitions: totalAcq,
+      activeSubscribers: activeSubs,
+      avgArpu,
+      monthlyGrossProfit: Math.round(monthlyGrossProfit),
+      paybackMonths,
+      totalCac,
+      totalRealizedRevenue,
+      netRoiPercent,
+      velocityStatus,
+      customerIds: raw.customerIds
+    };
+  });
+
+  const portfolioNetRoiPercent = totalPortfolioCac > 0
+    ? parseFloat((((totalPortfolioRealizedRevenue - totalPortfolioCac) / totalPortfolioCac) * 100).toFixed(1))
+    : 0;
+
+  let weightedPaybackSum = 0;
+  for (const ch of channels) {
+    if (ch.totalAcquisitions > 0 && ch.paybackMonths > 0) {
+      weightedPaybackSum += ch.paybackMonths * ch.totalAcquisitions;
+    }
+  }
+  const portfolioAvgPaybackMonths = totalPortfolioAcquisitions > 0
+    ? parseFloat((weightedPaybackSum / totalPortfolioAcquisitions).toFixed(1))
+    : 0;
+
+  const activeChannels = channels.filter(c => c.totalAcquisitions > 0);
+  const sortedByRoi = [...activeChannels].sort((a, b) => b.netRoiPercent - a.netRoiPercent);
+  const highestRoiChannel = sortedByRoi[0]?.name ?? 'None';
+
+  const sortedByPayback = [...activeChannels]
+    .filter(c => c.paybackMonths > 0)
+    .sort((a, b) => a.paybackMonths - b.paybackMonths);
+  const fastestPaybackChannel = sortedByPayback[0]?.name ?? 'None';
+
+  return {
+    totalPortfolioAcquisitions,
+    totalPortfolioActive,
+    totalPortfolioCac,
+    totalPortfolioRealizedRevenue,
+    portfolioNetRoiPercent,
+    portfolioAvgPaybackMonths,
+    highestRoiChannel,
+    fastestPaybackChannel,
+    cacMultiplier,
+    channels
+  };
+}
+
+/**
+ * Generates an executive acquisition ROI and payback briefing in plain-text.
+ */
+export function generateAcquisitionBriefingReport(roiData, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - ACQUISITION CHANNEL ROI & PAYBACK BRIEFING`,
+    `Generated: ${dateStr} PKT`,
+    `=========================================`,
+    `[ PORTFOLIO UNIT ECONOMICS & ACQUISITION SUMMARY ]`,
+    `  Total Acquired Subscribers: ${roiData.totalPortfolioAcquisitions} (${roiData.totalPortfolioActive} active)`,
+    `  Total Portfolio CAC Investment: ${formatPKR(roiData.totalPortfolioCac)}`,
+    `  Total Realized Collections: ${formatPKR(roiData.totalPortfolioRealizedRevenue)}`,
+    `  Net Portfolio Marketing ROI: ${roiData.portfolioNetRoiPercent > 0 ? '+' : ''}${roiData.portfolioNetRoiPercent}%`,
+    `  Weighted Avg Payback Duration: ${roiData.portfolioAvgPaybackMonths} Months`,
+    `  Fastest Payback Channel: ${roiData.fastestPaybackChannel}`,
+    `  Highest Yield ROI Channel: ${roiData.highestRoiChannel}`,
+    ``,
+    `[ ACQUISITION CHANNEL PERFORMANCE BREAKDOWN ]`
+  ];
+
+  for (const ch of (roiData.channels ?? [])) {
+    lines.push(`  ${ch.name} [${ch.velocityStatus.toUpperCase()}]:`);
+    lines.push(`    Subscribers: ${ch.activeSubscribers} active / ${ch.totalAcquisitions} total | ARPU: ${formatPKR(ch.avgArpu)}/mo`);
+    lines.push(`    Unit CAC: ${formatPKR(ch.blendedCac)} | Payback Period: ${ch.paybackMonths} Months (Margin: ${ch.grossMarginPercent}%)`);
+    lines.push(`    Channel Investment: ${formatPKR(ch.totalCac)} | Realized Rev: ${formatPKR(ch.totalRealizedRevenue)} | Net ROI: ${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}%`);
+  }
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Acquisition Channel ROI & Payback Velocity Modal dialog.
+ */
+export function setupAcquisitionRoiModal(state, { referenceDate = new Date(), onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardAcquisitionModal');
+  const openBtn = document.getElementById('dashboardOpenAcquisitionModalBtn');
+  const closeBtn = document.getElementById('dashboardAcquisitionModalCloseBtn');
+  const copyBtn = document.getElementById('dashboardCopyAcquisitionReportBtn');
+  const tableBody = document.getElementById('dashboardAcquisitionTableBody');
+
+  const totalCacEl = document.getElementById('acqTotalCacVal');
+  const realizedRevEl = document.getElementById('acqRealizedRevVal');
+  const netRoiEl = document.getElementById('acqNetRoiVal');
+  const avgPaybackEl = document.getElementById('acqAvgPaybackVal');
+  const fastestEl = document.getElementById('acqFastestChannelVal');
+
+  let activeMultiplier = 1.0;
+
+  function renderModalContent() {
+    const data = calculateAcquisitionRoiMetrics(state, referenceDate, { cacMultiplier: activeMultiplier });
+
+    if (totalCacEl) totalCacEl.textContent = formatPKR(data.totalPortfolioCac);
+    if (realizedRevEl) realizedRevEl.textContent = formatPKR(data.totalPortfolioRealizedRevenue);
+    if (netRoiEl) {
+      netRoiEl.textContent = `${data.portfolioNetRoiPercent > 0 ? '+' : ''}${data.portfolioNetRoiPercent}%`;
+      netRoiEl.style.color = data.portfolioNetRoiPercent >= 0 ? '#047857' : '#dc2626';
+    }
+    if (avgPaybackEl) avgPaybackEl.textContent = `${data.portfolioAvgPaybackMonths} mo`;
+    if (fastestEl) fastestEl.textContent = data.fastestPaybackChannel;
+
+    if (tableBody) {
+      if (data.channels.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="empty-cell">No subscriber channels recorded</td></tr>';
+      } else {
+        tableBody.innerHTML = data.channels.map(ch => `
+          <tr>
+            <td>
+              <div class="channel-name-cell">
+                <span class="channel-color-dot" style="background:${ch.color};"></span>
+                <strong>${escapeXml(ch.name)}</strong>
+              </div>
+            </td>
+            <td><strong>${ch.totalAcquisitions}</strong> <span class="muted">(${ch.activeSubscribers} active)</span></td>
+            <td>${formatPKR(ch.blendedCac)}</td>
+            <td>${formatPKR(ch.avgArpu)}/mo</td>
+            <td><strong>${ch.paybackMonths} mo</strong></td>
+            <td>${formatPKR(ch.totalRealizedRevenue)}</td>
+            <td><strong style="color:${ch.netRoiPercent >= 0 ? '#047857' : '#dc2626'}">${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}%</strong></td>
+            <td>
+              <span class="badge ${ch.velocityStatus === 'Rapid Payback' ? 'badge-good' : (ch.velocityStatus === 'Standard Payback' ? 'badge-normal' : 'badge-warn')}">
+                ${escapeXml(ch.velocityStatus)}
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+  }
+
+  const presetBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#acquisitionCacPresetGroup .chart-range-btn')
+    : [];
+
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const mult = parseFloat(btn.dataset?.cacMultiplier || btn.getAttribute?.('data-cac-multiplier') || '1.0');
+      activeMultiplier = mult;
+      presetBtns.forEach(b => {
+        const isActive = b === btn;
+        if (b.classList?.toggle) b.classList.toggle('is-active', isActive);
+        if (b.setAttribute) b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      renderModalContent();
+    });
+  });
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', () => {
+      renderModalContent();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    });
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateAcquisitionRoiMetrics(state, referenceDate, { cacMultiplier: activeMultiplier });
+      const text = generateAcquisitionBriefingReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Acquisition ROI briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -2521,6 +2932,7 @@ export {
   renderIncidentImpactSvg,
   renderCashflowProjectionSvg,
   renderUpstreamGatewaySvg,
+  renderAcquisitionRoiSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -2540,6 +2952,7 @@ export {
   PKG_PALETTE,
   METHOD_COLORS
 } from './dashboard-charts.js';
+
 
 
 

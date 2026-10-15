@@ -678,36 +678,92 @@ export function setupMobileActionSheet({
   onToast
 } = {}) {
   if (typeof document === 'undefined') {
-    return { open: () => {}, close: () => {} };
+    return {
+      open: () => {},
+      close: () => {},
+      setContext: () => {},
+      clearContext: () => {},
+      getContext: () => null,
+      isOpen: () => false
+    };
   }
 
   const toggleBtn = document.getElementById('mobileActionSheetToggle');
   const sheet = document.getElementById('mobileActionSheet');
   const backdrop = document.getElementById('mobileActionSheetBackdrop');
   const closeBtn = document.getElementById('mobileActionSheetClose');
+  const contextBanner = document.getElementById('actionSheetContextBanner');
+  const contextName = document.getElementById('actionSheetCustomerName');
+  const contextMeta = document.getElementById('actionSheetCustomerMeta');
+  const clearContextBtn = document.getElementById('actionSheetClearContextBtn');
+  const heading = document.getElementById('mobileActionSheetHeading');
 
   if (!sheet) {
-    return { open: () => {}, close: () => {} };
+    return {
+      open: () => {},
+      close: () => {},
+      setContext: () => {},
+      clearContext: () => {},
+      getContext: () => null,
+      isOpen: () => false
+    };
   }
 
-  function openSheet() {
+  let activeContext = null;
+
+  function updateContextUi() {
+    const contextualButtons = sheet.querySelectorAll('.contextual-action');
+    if (activeContext && activeContext.customerId) {
+      if (contextBanner) contextBanner.hidden = false;
+      if (contextName) contextName.textContent = activeContext.customerName || 'Customer Profile';
+      if (contextMeta) {
+        const parts = [];
+        if (typeof activeContext.balance === 'number') {
+          parts.push(`Balance: Rs. ${activeContext.balance.toLocaleString()}`);
+        }
+        if (activeContext.phone) {
+          parts.push(activeContext.phone);
+        }
+        contextMeta.textContent = parts.join(' · ');
+      }
+      if (heading) heading.textContent = 'Customer Actions';
+      contextualButtons.forEach(btn => { btn.hidden = false; });
+    } else {
+      if (contextBanner) contextBanner.hidden = true;
+      if (heading) heading.textContent = 'Quick Actions';
+      contextualButtons.forEach(btn => { btn.hidden = true; });
+    }
+  }
+
+  function setContext(context) {
+    activeContext = context ? { ...context } : null;
+    updateContextUi();
+  }
+
+  function clearContext() {
+    activeContext = null;
+    updateContextUi();
+  }
+
+  function openSheet(context) {
+    if (context) {
+      setContext(context);
+    }
     triggerHaptic('light');
     sheet.hidden = false;
     if (backdrop) backdrop.hidden = false;
-    if (typeof requestAnimationFrame === 'function') {
-      requestAnimationFrame(() => {
-        sheet.classList.add('is-open');
-        if (backdrop) backdrop.classList.add('is-open');
-        sheet.setAttribute('aria-hidden', 'false');
-        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
-      });
-    } else {
+    const activate = () => {
       sheet.classList.add('is-open');
       if (backdrop) backdrop.classList.add('is-open');
       sheet.setAttribute('aria-hidden', 'false');
       if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'true');
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(activate);
+    } else {
+      activate();
     }
-    const firstFocusable = sheet.querySelector('button, [href], input, [tabindex]:not([tabindex="-1"])');
+    const firstFocusable = sheet.querySelector('button:not([hidden]), [href], input, [tabindex]:not([tabindex="-1"])');
     firstFocusable?.focus?.();
   }
 
@@ -742,6 +798,15 @@ export function setupMobileActionSheet({
     closeBtn.addEventListener('click', closeSheet);
   }
 
+  if (clearContextBtn && !clearContextBtn.dataset?.wiredClearContext) {
+    if (clearContextBtn.dataset) clearContextBtn.dataset.wiredClearContext = 'true';
+    else if (clearContextBtn.setAttribute) clearContextBtn.setAttribute('data-wired-clear-context', 'true');
+    clearContextBtn.addEventListener('click', () => {
+      triggerHaptic('light');
+      clearContext();
+    });
+  }
+
   if (backdrop && !backdrop.dataset?.wiredSheet) {
     if (backdrop.dataset) backdrop.dataset.wiredSheet = 'true';
     else if (backdrop.setAttribute) backdrop.setAttribute('data-wired-sheet', 'true');
@@ -767,6 +832,30 @@ export function setupMobileActionSheet({
     }, { passive: true });
   }
 
+  // Mobile Bottom Nav swipe-up to open sheet
+  const bottomNav = (typeof document !== 'undefined') ? (document.querySelector?.('.mobile-bottom-nav') || document.getElementById('mobileBottomNav')) : null;
+  let navTouchStartY = 0;
+  let navTouchStartX = 0;
+  if (bottomNav && typeof bottomNav.addEventListener === 'function' && !bottomNav.dataset?.wiredSwipeSheet) {
+    if (bottomNav.dataset) bottomNav.dataset.wiredSwipeSheet = 'true';
+    bottomNav.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches[0]) {
+        navTouchStartY = e.touches[0].clientY;
+        navTouchStartX = e.touches[0].clientX;
+      }
+    }, { passive: true });
+
+    bottomNav.addEventListener('touchend', (e) => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        const deltaY = e.changedTouches[0].clientY - navTouchStartY;
+        const deltaX = Math.abs(e.changedTouches[0].clientX - navTouchStartX);
+        if (deltaY < -40 && Math.abs(deltaY) > deltaX) {
+          openSheet();
+        }
+      }
+    }, { passive: true });
+  }
+
   // Action buttons inside sheet
   const actionButtons = sheet.querySelectorAll('[data-sheet-action]');
   actionButtons.forEach(btn => {
@@ -776,16 +865,21 @@ export function setupMobileActionSheet({
     btn.addEventListener('click', () => {
       triggerHaptic('medium');
       const action = btn.getAttribute('data-sheet-action');
+      const ctx = activeContext;
       closeSheet();
       if (typeof onAction === 'function') {
-        onAction(action);
+        onAction(action, ctx);
       }
     });
   });
 
   return {
     open: openSheet,
-    close: closeSheet
+    close: closeSheet,
+    setContext,
+    clearContext,
+    getContext: () => activeContext,
+    isOpen: () => sheet.classList.contains('is-open')
   };
 }
 
@@ -1417,6 +1511,11 @@ export function addOfflineSyncItem(item, storage = (typeof localStorage !== 'und
       summary: item.summary || 'Recorded action',
       timestamp: item.timestamp || new Date().toISOString(),
       payload: item.payload ?? null,
+      status: item.status || 'pending',
+      retryCount: typeof item.retryCount === 'number' ? item.retryCount : 0,
+      nextRetryAt: item.nextRetryAt || null,
+      lastError: item.lastError || null,
+      retryHistory: Array.isArray(item.retryHistory) ? item.retryHistory : [],
       ...item
     };
     queue.push(entry);
@@ -1425,6 +1524,271 @@ export function addOfflineSyncItem(item, storage = (typeof localStorage !== 'und
   } catch {
     return [];
   }
+}
+
+/**
+ * Updates an item in the offline sync queue.
+ */
+export function updateOfflineSyncItem(itemId, updates, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !itemId) return [];
+  try {
+    const queue = getOfflineSyncQueue(storage);
+    const index = queue.findIndex(item => item.id === itemId);
+    if (index === -1) return queue;
+    queue[index] = { ...queue[index], ...updates };
+    storage.setItem(OFFLINE_SYNC_QUEUE_KEY, JSON.stringify(queue));
+    return queue;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Removes a specific item from the offline sync queue.
+ */
+export function removeOfflineSyncItem(itemId, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !itemId) return [];
+  try {
+    const queue = getOfflineSyncQueue(storage);
+    const filtered = queue.filter(item => item.id !== itemId);
+    storage.setItem(OFFLINE_SYNC_QUEUE_KEY, JSON.stringify(filtered));
+    return filtered;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Calculates exponential backoff delay with decorrelated network jitter.
+ * Formula: baseDelay * 2^(attempt-1) capped at maxDelay, with +/- jitterFactor variation.
+ */
+export function calculateRetryDelay(attempt = 1, {
+  baseDelayMs = 1000,
+  maxDelayMs = 30000,
+  multiplier = 2,
+  jitterFactor = 0.25,
+  randomFn = Math.random
+} = {}) {
+  const safeAttempt = Math.max(1, Number(attempt) || 1);
+  const rawExponential = baseDelayMs * Math.pow(multiplier, safeAttempt - 1);
+  const boundedDelay = Math.min(maxDelayMs, rawExponential);
+  const jitterRange = boundedDelay * jitterFactor;
+  const rand = typeof randomFn === 'function' ? randomFn() : Math.random();
+  const jitterOffset = (rand * 2 - 1) * jitterRange;
+  return Math.max(baseDelayMs, Math.round(boundedDelay + jitterOffset));
+}
+
+/**
+ * Retries a specific queue item with backoff calculation and dead-letter state transitions.
+ */
+export async function retryOfflineQueueItem(itemId, {
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  maxAttempts = 5,
+  retryHandler,
+  randomFn = Math.random
+} = {}) {
+  const queue = getOfflineSyncQueue(storage);
+  const item = queue.find(it => it.id === itemId);
+  if (!item) {
+    return { success: false, item: null, status: 'not_found', error: 'Item not found in offline queue' };
+  }
+
+  const currentAttempt = (item.retryCount || 0) + 1;
+  const history = Array.isArray(item.retryHistory) ? [...item.retryHistory] : [];
+
+  let handlerSuccess = true;
+  let handlerError = null;
+
+  if (typeof retryHandler === 'function') {
+    try {
+      const res = await retryHandler(item);
+      if (res === false) {
+        handlerSuccess = false;
+        handlerError = 'Retry rejected by handler';
+      }
+    } catch (err) {
+      handlerSuccess = false;
+      handlerError = err?.message || String(err);
+    }
+  }
+
+  if (handlerSuccess) {
+    history.push({
+      attempt: currentAttempt,
+      timestamp: new Date().toISOString(),
+      status: 'succeeded'
+    });
+    const updated = {
+      ...item,
+      status: 'synced',
+      retryCount: currentAttempt,
+      retryHistory: history,
+      syncedAt: new Date().toISOString(),
+      lastError: null
+    };
+    updateOfflineSyncItem(itemId, updated, storage);
+    return { success: true, item: updated, status: 'synced' };
+  } else {
+    const isDeadLetter = currentAttempt >= maxAttempts;
+    const nextStatus = isDeadLetter ? 'dead_letter' : 'retrying';
+    const delay = isDeadLetter ? null : calculateRetryDelay(currentAttempt, { randomFn });
+    const nextRetryAt = isDeadLetter ? null : new Date(Date.now() + delay).toISOString();
+
+    history.push({
+      attempt: currentAttempt,
+      timestamp: new Date().toISOString(),
+      status: nextStatus,
+      error: handlerError
+    });
+
+    const updated = {
+      ...item,
+      status: nextStatus,
+      retryCount: currentAttempt,
+      nextRetryAt,
+      lastError: handlerError,
+      retryHistory: history
+    };
+
+    updateOfflineSyncItem(itemId, updated, storage);
+    return {
+      success: false,
+      item: updated,
+      status: nextStatus,
+      error: handlerError,
+      delay
+    };
+  }
+}
+
+/**
+ * Processes all eligible items in the offline queue (pending or scheduled retries due now).
+ */
+export async function processEligibleOfflineRetries({
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  isOnlineCheck = () => (typeof navigator !== 'undefined' && 'onLine' in navigator ? navigator.onLine : true),
+  retryHandler,
+  maxAttempts = 5,
+  randomFn,
+  now = Date.now()
+} = {}) {
+  const isOnline = typeof isOnlineCheck === 'function' ? isOnlineCheck() : true;
+  if (!isOnline) {
+    return { attempted: 0, succeeded: 0, failed: 0, deadLettered: 0, items: [], skippedOffline: true };
+  }
+
+  const queue = getOfflineSyncQueue(storage);
+  const eligible = queue.filter(item => {
+    if (item.status === 'dead_letter' || item.status === 'synced') return false;
+    if (!item.status || item.status === 'pending') return true;
+    if (item.status === 'retrying') {
+      if (!item.nextRetryAt) return true;
+      const retryTime = new Date(item.nextRetryAt).getTime();
+      return isNaN(retryTime) || retryTime <= now;
+    }
+    return false;
+  });
+
+  const results = {
+    attempted: eligible.length,
+    succeeded: 0,
+    failed: 0,
+    deadLettered: 0,
+    items: []
+  };
+
+  for (const item of eligible) {
+    const outcome = await retryOfflineQueueItem(item.id, {
+      storage,
+      maxAttempts,
+      retryHandler,
+      randomFn
+    });
+    results.items.push(outcome);
+    if (outcome.success) {
+      results.succeeded++;
+    } else if (outcome.status === 'dead_letter') {
+      results.deadLettered++;
+      results.failed++;
+    } else {
+      results.failed++;
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Starts a background resilience engine for automatically retrying offline queued actions with exponential backoff.
+ */
+export function startOfflineQueueAutoRetryEngine({
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  isOnlineCheck = () => (typeof navigator !== 'undefined' && 'onLine' in navigator ? navigator.onLine : true),
+  retryHandler,
+  pollIntervalMs = 6000,
+  maxAttempts = 5,
+  onQueueUpdated,
+  onToast
+} = {}) {
+  let timer = null;
+  let isRunning = false;
+
+  async function tick() {
+    if (!isRunning) return;
+    try {
+      const res = await processEligibleOfflineRetries({
+        storage,
+        isOnlineCheck,
+        retryHandler,
+        maxAttempts
+      });
+      if (res.attempted > 0) {
+        if (typeof onQueueUpdated === 'function') {
+          onQueueUpdated(getOfflineSyncQueue(storage), res);
+        }
+        if (res.succeeded > 0 && typeof onToast === 'function') {
+          onToast(`Auto-retry synced ${res.succeeded} offline transaction${res.succeeded === 1 ? '' : 's'}`);
+        }
+      }
+    } catch {
+      // safe error swallowing in background engine
+    }
+  }
+
+  function start() {
+    if (isRunning) return;
+    isRunning = true;
+    if (typeof window !== 'undefined' && typeof window.setInterval === 'function') {
+      timer = window.setInterval(tick, pollIntervalMs);
+    }
+  }
+
+  function stop() {
+    isRunning = false;
+    if (timer && typeof window !== 'undefined' && typeof window.clearInterval === 'function') {
+      window.clearInterval(timer);
+      timer = null;
+    }
+  }
+
+  const handleOnline = () => {
+    if (isRunning) {
+      tick();
+    }
+  };
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('online', handleOnline);
+  }
+
+  start();
+
+  return {
+    start,
+    stop,
+    isRunning: () => isRunning,
+    triggerNow: tick
+  };
 }
 
 export function clearOfflineSyncQueue(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
@@ -1767,6 +2131,8 @@ export function setupMobileSpeedDial({
 export function setupOfflineQueueModal({
   storage = (typeof localStorage !== 'undefined' ? localStorage : null),
   onSync,
+  onRetryItem,
+  onRemoveItem,
   onToast
 } = {}) {
   if (typeof document === 'undefined') {
@@ -1776,25 +2142,67 @@ export function setupOfflineQueueModal({
   const modal = document.getElementById('offlineQueueModal');
   const closeBtn = document.getElementById('closeOfflineQueueModalBtn');
   const syncBtn = document.getElementById('queueSyncAllBtn');
+  const retryFailedBtn = document.getElementById('queueRetryFailedBtn');
   const clearBtn = document.getElementById('queueClearAllBtn');
   const listEl = document.getElementById('offlineQueueList');
   const countBadge = document.getElementById('queueItemCountBadge');
+  const deadLetterBadge = document.getElementById('queueDeadLetterBadge');
   const emptyMsg = document.getElementById('offlineQueueEmptyMessage');
+  const filterBar = document.getElementById('offlineQueueFilterBar');
+  const filterAllCount = document.getElementById('queueFilterAllCount');
+  const filterPendingCount = document.getElementById('queueFilterPendingCount');
+  const filterDeadCount = document.getElementById('queueFilterDeadCount');
 
   if (!modal) {
-    return { open: () => {}, close: () => {}, render: () => {} };
+    return {
+      open: () => {},
+      close: () => {},
+      render: () => {},
+      setFilter: () => {},
+      getFilter: () => 'all'
+    };
+  }
+
+  let activeFilter = 'all';
+
+  function updateFilterCounts(queue) {
+    const total = queue.length;
+    const deadLetters = queue.filter(it => it.status === 'dead_letter').length;
+    const pending = queue.filter(it => it.status !== 'dead_letter' && it.status !== 'synced').length;
+
+    if (filterAllCount) filterAllCount.textContent = String(total);
+    if (filterPendingCount) filterPendingCount.textContent = String(pending);
+    if (filterDeadCount) filterDeadCount.textContent = String(deadLetters);
+
+    if (deadLetterBadge) {
+      deadLetterBadge.hidden = deadLetters === 0;
+      deadLetterBadge.textContent = `${deadLetters} dead letter`;
+    }
+
+    if (retryFailedBtn) {
+      retryFailedBtn.hidden = pending === 0;
+    }
   }
 
   function renderQueue() {
     const queue = getOfflineSyncQueue(storage);
     const count = queue.length;
 
+    updateFilterCounts(queue);
+
     if (countBadge) {
       countBadge.textContent = `${count} item${count === 1 ? '' : 's'} pending`;
     }
 
+    let filtered = queue;
+    if (activeFilter === 'pending') {
+      filtered = queue.filter(it => it.status !== 'dead_letter' && it.status !== 'synced');
+    } else if (activeFilter === 'dead_letter') {
+      filtered = queue.filter(it => it.status === 'dead_letter');
+    }
+
     if (emptyMsg) {
-      emptyMsg.hidden = count > 0;
+      emptyMsg.hidden = filtered.length > 0;
     }
 
     if (syncBtn) {
@@ -1803,25 +2211,85 @@ export function setupOfflineQueueModal({
 
     if (listEl) {
       listEl.innerHTML = '';
-      if (count > 0) {
-        queue.forEach(item => {
+      if (filtered.length > 0) {
+        filtered.forEach(item => {
           const card = document.createElement('div');
           card.className = 'queue-item-card';
-          card.setAttribute('role', 'listitem');
+          if (typeof card.setAttribute === 'function') {
+            card.setAttribute('role', 'listitem');
+          }
 
           const infoDiv = document.createElement('div');
+          infoDiv.className = 'queue-item-info';
+
           const title = document.createElement('div');
           title.className = 'queue-item-title';
           title.textContent = item.summary || (item.action ? `Action: ${item.action}` : 'Offline Entry');
 
+          const status = item.status || 'pending';
+          const statusTag = document.createElement('span');
+          statusTag.className = `queue-status-tag status-${status}`;
+          if (status === 'dead_letter') {
+            statusTag.textContent = `Dead Letter (${item.retryCount || 0} failed)`;
+          } else if (status === 'retrying') {
+            statusTag.textContent = `Retry #${item.retryCount || 1}`;
+          } else if (status === 'synced') {
+            statusTag.textContent = 'Synced';
+          } else {
+            statusTag.textContent = 'Pending';
+          }
+
           const time = document.createElement('div');
           time.className = 'queue-item-time';
-          time.textContent = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : 'Recent';
+          const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : 'Recent';
+          const errorDetail = item.lastError ? ` · Error: ${item.lastError}` : '';
+          time.textContent = `${timeStr}${errorDetail}`;
 
           infoDiv.appendChild(title);
+          infoDiv.appendChild(statusTag);
           infoDiv.appendChild(time);
           card.appendChild(infoDiv);
 
+          const actionsDiv = document.createElement('div');
+          actionsDiv.className = 'queue-item-actions';
+
+          const itemRetryBtn = document.createElement('button');
+          itemRetryBtn.className = 'queue-item-btn btn-retry';
+          itemRetryBtn.textContent = 'Retry';
+          itemRetryBtn.type = 'button';
+          if (typeof itemRetryBtn.addEventListener === 'function') {
+            itemRetryBtn.addEventListener('click', async () => {
+              triggerHaptic('medium');
+              itemRetryBtn.disabled = true;
+              itemRetryBtn.textContent = 'Retrying...';
+              const outcome = await retryOfflineQueueItem(item.id, { storage });
+              if (outcome.success) {
+                if (typeof onToast === 'function') onToast(`Synced: ${item.summary || item.action}`);
+              } else {
+                if (typeof onToast === 'function') onToast(`Retry failed (${outcome.status}): ${outcome.error || 'Network error'}`);
+              }
+              renderQueue();
+              if (typeof onRetryItem === 'function') onRetryItem(outcome);
+            });
+          }
+          actionsDiv.appendChild(itemRetryBtn);
+
+          const discardBtn = document.createElement('button');
+          discardBtn.className = 'queue-item-btn btn-discard';
+          discardBtn.textContent = 'Discard';
+          discardBtn.type = 'button';
+          if (typeof discardBtn.addEventListener === 'function') {
+            discardBtn.addEventListener('click', () => {
+              triggerHaptic('light');
+              removeOfflineSyncItem(item.id, storage);
+              renderQueue();
+              if (typeof onToast === 'function') onToast('Item discarded from queue');
+              if (typeof onRemoveItem === 'function') onRemoveItem(item.id);
+            });
+          }
+          actionsDiv.appendChild(discardBtn);
+
+          card.appendChild(actionsDiv);
           listEl.appendChild(card);
         });
       }
@@ -1874,6 +2342,52 @@ export function setupOfflineQueueModal({
     });
   }
 
+  function setFilter(filter) {
+    activeFilter = filter;
+    if (filterBar && typeof filterBar.querySelectorAll === 'function') {
+      const btns = filterBar.querySelectorAll('.queue-filter-btn');
+      btns.forEach(b => {
+        const isMatch = b.getAttribute?.('data-queue-filter') === filter;
+        if (b.classList && typeof b.classList.toggle === 'function') {
+          b.classList.toggle('is-active', isMatch);
+        }
+      });
+    }
+    renderQueue();
+  }
+
+  if (filterBar && !filterBar.dataset?.wiredFilter && typeof filterBar.querySelectorAll === 'function') {
+    if (filterBar.dataset) filterBar.dataset.wiredFilter = 'true';
+    else if (filterBar.setAttribute) filterBar.setAttribute('data-wired-filter', 'true');
+    const btns = filterBar.querySelectorAll('[data-queue-filter]');
+    btns.forEach(btn => {
+      if (typeof btn.addEventListener === 'function') {
+        btn.addEventListener('click', () => {
+          triggerHaptic('light');
+          const filter = btn.getAttribute('data-queue-filter');
+          setFilter(filter);
+        });
+      }
+    });
+  }
+
+  if (retryFailedBtn && !retryFailedBtn.dataset?.wired) {
+    if (retryFailedBtn.dataset) retryFailedBtn.dataset.wired = 'true';
+    else if (retryFailedBtn.setAttribute) retryFailedBtn.setAttribute('data-wired', 'true');
+    retryFailedBtn.addEventListener('click', async () => {
+      triggerHaptic('medium');
+      retryFailedBtn.disabled = true;
+      retryFailedBtn.textContent = 'Retrying...';
+      const res = await processEligibleOfflineRetries({ storage });
+      if (typeof onToast === 'function') {
+        onToast(`Processed ${res.attempted} items (${res.succeeded} synced, ${res.failed} failed)`);
+      }
+      retryFailedBtn.disabled = false;
+      retryFailedBtn.textContent = 'Retry Eligible Now';
+      renderQueue();
+    });
+  }
+
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closeModal();
   });
@@ -1881,7 +2395,9 @@ export function setupOfflineQueueModal({
   return {
     open: openModal,
     close: closeModal,
-    render: renderQueue
+    render: renderQueue,
+    setFilter,
+    getFilter: () => activeFilter
   };
 }
 

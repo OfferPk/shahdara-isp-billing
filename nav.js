@@ -1636,6 +1636,7 @@ export function setupMobileSpeedDial({
   onSearchRoster,
   onRecordPayment,
   onAddCustomer,
+  onFieldEnrollment,
   onReminders,
   onScrollTop
 } = {}) {
@@ -1715,6 +1716,8 @@ export function setupMobileSpeedDial({
           onRecordPayment();
         } else if (action === 'add-customer' && typeof onAddCustomer === 'function') {
           onAddCustomer();
+        } else if (action === 'field-enrollment' && typeof onFieldEnrollment === 'function') {
+          onFieldEnrollment();
         } else if (action === 'reminders' && typeof onReminders === 'function') {
           onReminders();
         } else if (action === 'scroll-top' && typeof onScrollTop === 'function') {
@@ -2217,6 +2220,645 @@ export function setupTabSliderIndicator({
       }
     },
     getIndicator: () => indicator
+  };
+}
+
+/**
+ * Calculates current progress percentage and metadata for customer enrollment wizard.
+ */
+export function calculateWizardProgress(currentStep, totalSteps = 4) {
+  const total = Math.max(1, Number(totalSteps) || 4);
+  const step = Math.max(1, Math.min(total, Number(currentStep) || 1));
+  const percentage = Math.round((step / total) * 100);
+  return {
+    step,
+    totalSteps: total,
+    percentage,
+    isFirst: step === 1,
+    isLast: step === total
+  };
+}
+
+/**
+ * Validates a specific step of the enrollment wizard.
+ * Returns { valid: boolean, errors: string[] }
+ */
+export function validateWizardStep(step, data = {}) {
+  const errors = [];
+  const s = Number(step) || 1;
+
+  if (s === 1) {
+    const name = String(data.name || '').trim();
+    if (!name) {
+      errors.push('Customer name is required.');
+    } else if (name.length < 2) {
+      errors.push('Customer name must be at least 2 characters.');
+    }
+    const phone = String(data.phone || '').trim();
+    if (phone) {
+      const digits = phone.replace(/\D/g, '');
+      if (digits.length < 10 || digits.length > 13) {
+        errors.push('Phone number must have between 10 and 13 digits (e.g. 0300-1234567).');
+      }
+    }
+    const cnic = String(data.cnic || '').trim();
+    if (cnic) {
+      const cnicDigits = cnic.replace(/\D/g, '');
+      if (cnicDigits.length !== 13) {
+        errors.push('CNIC must be 13 digits if provided (e.g. 35201-1234567-1).');
+      }
+    }
+  } else if (s === 2) {
+    const area = String(data.area || data.mohalla || '').trim();
+    const address = String(data.address || '').trim();
+    if (!area && !address) {
+      errors.push('Please specify an Area, Mohalla, or Street Address for fiber installation.');
+    }
+  } else if (s === 3) {
+    const rate = Number(data.monthlyRate);
+    if (Number.isNaN(rate) || rate < 0) {
+      errors.push('Monthly rate must be a valid positive number or 0.');
+    }
+    const fee = Number(data.installationFee ?? 0);
+    if (Number.isNaN(fee) || fee < 0) {
+      errors.push('Installation fee must be a valid positive number or 0.');
+    }
+  } else if (s === 4) {
+    if (!data.agreementVerified) {
+      errors.push('Field technician must confirm physical fiber link and connectivity verification.');
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Generates structured summary and metadata of customer enrollment data for review.
+ */
+export function formatCustomerSummary(data = {}) {
+  const name = String(data.name || 'Not provided').trim();
+  const phone = String(data.phone || 'Not provided').trim();
+  const cnic = String(data.cnic || 'None recorded').trim();
+  const area = String(data.area || 'Shahdara Town').trim();
+  const mohalla = String(data.mohalla || '').trim();
+  const address = String(data.address || '').trim();
+  const fullAddress = [address, mohalla, area].filter(Boolean).join(', ') || 'Not specified';
+  const fdb = String(data.fdb || 'Not assigned').trim();
+  const port = data.fiberPort ? `Port #${data.fiberPort}` : 'Unassigned';
+  const plan = String(data.packageLabel || data.packageSpeed || 'Standard Broadband').trim();
+  const rate = Number(data.monthlyRate) || 0;
+  const fee = Number(data.installationFee) || 0;
+  const totalUpfront = rate + fee;
+  const staticIp = Boolean(data.staticIp);
+  const ontOwnership = String(data.ontOwnership || 'ISP Provided');
+  const startDate = String(data.startDate || new Date().toISOString().slice(0, 10));
+
+  return {
+    name,
+    phone,
+    cnic,
+    fullAddress,
+    area,
+    mohalla,
+    address,
+    fdb,
+    port,
+    plan,
+    rate,
+    fee,
+    totalUpfront,
+    staticIp,
+    ontOwnership,
+    startDate,
+    notes: String(data.notes || '').trim()
+  };
+}
+
+export const WIZARD_DRAFT_KEY = 'shahdara_field_wizard_draft';
+
+export function getWizardDraft(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(WIZARD_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWizardDraft(draftData, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !draftData) return;
+  try {
+    storage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(draftData));
+  } catch {
+    // Ignore storage quota
+  }
+}
+
+export function clearWizardDraft(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return;
+  try {
+    storage.removeItem(WIZARD_DRAFT_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Mobile Field Technician Customer Onboarding & Multi-Step Enrollment Swipe Wizard Controller.
+ */
+export function setupCustomerEnrollmentWizard({
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onComplete,
+  onCancel,
+  onToast,
+  packages
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      open: () => {},
+      close: () => {},
+      goToStep: () => {},
+      nextStep: () => {},
+      prevStep: () => {},
+      getCurrentStep: () => 1,
+      getFormData: () => ({}),
+      reset: () => {}
+    };
+  }
+
+  const modal = document.getElementById('customerEnrollmentWizard');
+  if (!modal) {
+    return {
+      open: () => {},
+      close: () => {},
+      goToStep: () => {},
+      nextStep: () => {},
+      prevStep: () => {},
+      getCurrentStep: () => 1,
+      getFormData: () => ({}),
+      reset: () => {}
+    };
+  }
+
+  const closeBtn = document.getElementById('closeEnrollmentWizardBtn');
+  const backBtn = document.getElementById('wizardBackBtn');
+  const nextBtn = document.getElementById('wizardNextBtn');
+  const stepIndicator = document.getElementById('wizardStepIndicator');
+  const progressBar = document.getElementById('wizardProgressBar');
+  const errorBox = document.getElementById('wizardErrorBox');
+  const track = document.getElementById('wizardTrack');
+  const stepPills = Array.from(modal.querySelectorAll?.('[data-wizard-step]') ?? []);
+
+  // Form input elements
+  const nameInput = document.getElementById('wizardCustomerName');
+  const phoneInput = document.getElementById('wizardCustomerPhone');
+  const cnicInput = document.getElementById('wizardCustomerCnic');
+  const statusSelect = document.getElementById('wizardInitialStatus');
+  const areaSelect = document.getElementById('wizardAreaSelect');
+  const mohallaInput = document.getElementById('wizardMohallaInput');
+  const addressInput = document.getElementById('wizardAddressInput');
+  const fdbInput = document.getElementById('wizardFdbId');
+  const portInput = document.getElementById('wizardFiberPort');
+  const packageSelect = document.getElementById('wizardPackageSelect');
+  const rateInput = document.getElementById('wizardMonthlyRate');
+  const feeInput = document.getElementById('wizardInstallationFee');
+  const dueDateSelect = document.getElementById('wizardDueDateDay');
+  const ontSelect = document.getElementById('wizardOntOwnership');
+  const staticIpCheck = document.getElementById('wizardStaticIpCheck');
+  const summaryCard = document.getElementById('wizardSummaryCard');
+  const startDateInput = document.getElementById('wizardStartDate');
+  const techNotesInput = document.getElementById('wizardTechNotes');
+  const agreementCheck = document.getElementById('wizardAgreementCheck');
+
+  // Trigger buttons
+  const openBtn = document.getElementById('openEnrollmentWizardBtn');
+  const quickActionBtn = document.getElementById('quickActionFieldWizard');
+
+  const totalSteps = 4;
+  const stepTitles = [
+    'Account & Contact',
+    'Location & Fiber',
+    'Package & Plan',
+    'Review & Activate'
+  ];
+
+  let currentStep = 1;
+  let isOpen = false;
+
+  const standardPackageRates = {
+    '5mbps-150gb': 1500,
+    '5mbps-200gb': 2000,
+    '5mbps-500gb': 2500,
+    '15mbps-unlimited': 3000,
+    '3mbps-100gb': 1000,
+    '3mbps-300gb': 1600
+  };
+
+  function getFormData() {
+    const pkgOption = packageSelect && packageSelect.options ? packageSelect.options[packageSelect.selectedIndex] : null;
+    const pkgLabel = pkgOption ? pkgOption.text : (packageSelect?.value || '');
+
+    return {
+      name: nameInput?.value?.trim() || '',
+      phone: phoneInput?.value?.trim() || '',
+      cnic: cnicInput?.value?.trim() || '',
+      serviceStatus: statusSelect?.value || 'Active',
+      area: areaSelect?.value || '',
+      mohalla: mohallaInput?.value?.trim() || '',
+      address: addressInput?.value?.trim() || '',
+      fdb: fdbInput?.value?.trim() || '',
+      fiberPort: portInput?.value ? Number(portInput.value) : '',
+      packageSpeed: packageSelect?.value || '5mbps-150gb',
+      packageLabel: pkgLabel,
+      monthlyRate: rateInput?.value !== '' ? Number(rateInput?.value) : 1500,
+      installationFee: feeInput?.value !== '' ? Number(feeInput?.value) : 0,
+      dueDateDay: dueDateSelect?.value ? Number(dueDateSelect.value) : 10,
+      ontOwnership: ontSelect?.value || 'ISP Provided',
+      staticIp: Boolean(staticIpCheck?.checked),
+      startDate: startDateInput?.value || new Date().toISOString().slice(0, 10),
+      notes: techNotesInput?.value?.trim() || '',
+      agreementVerified: Boolean(agreementCheck?.checked)
+    };
+  }
+
+  function setFormData(data = {}) {
+    if (!data) return;
+    if (nameInput && data.name !== undefined) nameInput.value = data.name;
+    if (phoneInput && data.phone !== undefined) phoneInput.value = data.phone;
+    if (cnicInput && data.cnic !== undefined) cnicInput.value = data.cnic;
+    if (statusSelect && data.serviceStatus !== undefined) statusSelect.value = data.serviceStatus;
+    if (areaSelect && data.area !== undefined) areaSelect.value = data.area;
+    if (mohallaInput && data.mohalla !== undefined) mohallaInput.value = data.mohalla;
+    if (addressInput && data.address !== undefined) addressInput.value = data.address;
+    if (fdbInput && data.fdb !== undefined) fdbInput.value = data.fdb;
+    if (portInput && data.fiberPort !== undefined) portInput.value = data.fiberPort;
+    if (packageSelect && data.packageSpeed !== undefined) packageSelect.value = data.packageSpeed;
+    if (rateInput && data.monthlyRate !== undefined) rateInput.value = data.monthlyRate;
+    if (feeInput && data.installationFee !== undefined) feeInput.value = data.installationFee;
+    if (dueDateSelect && data.dueDateDay !== undefined) dueDateSelect.value = data.dueDateDay;
+    if (ontSelect && data.ontOwnership !== undefined) ontSelect.value = data.ontOwnership;
+    if (staticIpCheck && data.staticIp !== undefined) staticIpCheck.checked = Boolean(data.staticIp);
+    if (startDateInput && data.startDate !== undefined) startDateInput.value = data.startDate;
+    if (techNotesInput && data.notes !== undefined) techNotesInput.value = data.notes;
+    if (agreementCheck && data.agreementVerified !== undefined) agreementCheck.checked = Boolean(data.agreementVerified);
+  }
+
+  function renderSummary() {
+    if (!summaryCard) return;
+    const summary = formatCustomerSummary(getFormData());
+
+    const escape = (str) => String(str || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+
+    summaryCard.innerHTML = `
+      <div class="wizard-summary-header">
+        <h4 class="wizard-summary-title">Subscriber Enrollment Overview</h4>
+        <span class="wizard-status-tag ${summary.agreementVerified ? 'is-verified' : ''}">
+          ${escape(summary.ontOwnership)}
+        </span>
+      </div>
+      <div class="wizard-summary-grid">
+        <div class="wizard-summary-item">
+          <span class="summary-k">Customer Name</span>
+          <strong class="summary-v">${escape(summary.name)}</strong>
+        </div>
+        <div class="wizard-summary-item">
+          <span class="summary-k">Contact / WhatsApp</span>
+          <span class="summary-v">${escape(summary.phone)}</span>
+        </div>
+        <div class="wizard-summary-item">
+          <span class="summary-k">Location &amp; Address</span>
+          <span class="summary-v">${escape(summary.fullAddress)}</span>
+        </div>
+        <div class="wizard-summary-item">
+          <span class="summary-k">Optical Splitter / Port</span>
+          <span class="summary-v">${escape(summary.fdb)} · ${escape(summary.port)}</span>
+        </div>
+        <div class="wizard-summary-item wizard-highlight-plan">
+          <span class="summary-k">Assigned Tariff</span>
+          <strong class="summary-v">${escape(summary.plan)}</strong>
+        </div>
+        <div class="wizard-summary-item wizard-highlight-dues">
+          <span class="summary-k">Monthly Subscription Dues</span>
+          <strong class="summary-v highlight-green">PKR ${summary.rate.toLocaleString()} / mo</strong>
+        </div>
+        ${summary.fee > 0 ? `
+        <div class="wizard-summary-item">
+          <span class="summary-k">Installation &amp; Drop Cable</span>
+          <span class="summary-v">PKR ${summary.fee.toLocaleString()}</span>
+        </div>
+        ` : ''}
+        ${summary.staticIp ? `
+        <div class="wizard-summary-item">
+          <span class="summary-k">Static IP Add-on</span>
+          <span class="summary-v">+ PKR 500 / mo</span>
+        </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function updateStepView(newStep) {
+    currentStep = Math.max(1, Math.min(totalSteps, newStep));
+
+    // Progress bar
+    const progress = calculateWizardProgress(currentStep, totalSteps);
+    if (progressBar) {
+      if (progressBar.style) {
+        progressBar.style.width = `${progress.percentage}%`;
+      }
+      progressBar.setAttribute('aria-valuenow', String(progress.percentage));
+    }
+
+    // Slide track transform (each slide is 25% of 400% track width)
+    if (track && track.style) {
+      const offset = (currentStep - 1) * 25;
+      track.style.transform = `translateX(-${offset}%)`;
+    }
+
+    // Update slides aria-hidden
+    for (let i = 1; i <= totalSteps; i++) {
+      const slide = document.getElementById(`wizardSlide${i}`);
+      if (slide) {
+        slide.setAttribute('aria-hidden', i === currentStep ? 'false' : 'true');
+      }
+    }
+
+    // Step pills
+    stepPills.forEach(pill => {
+      const stepNum = Number(pill.getAttribute('data-wizard-step'));
+      if (stepNum === currentStep) {
+        pill.classList.add('is-active');
+        pill.classList.remove('is-completed');
+        pill.setAttribute('aria-selected', 'true');
+      } else if (stepNum < currentStep) {
+        pill.classList.remove('is-active');
+        pill.classList.add('is-completed');
+        pill.setAttribute('aria-selected', 'false');
+      } else {
+        pill.classList.remove('is-active', 'is-completed');
+        pill.setAttribute('aria-selected', 'false');
+      }
+    });
+
+    // Step indicator text
+    if (stepIndicator) {
+      stepIndicator.textContent = `Step ${currentStep} of ${totalSteps}`;
+    }
+
+    // Navigation buttons
+    if (backBtn) {
+      backBtn.disabled = currentStep === 1;
+    }
+    if (nextBtn) {
+      if (currentStep === totalSteps) {
+        nextBtn.textContent = 'Complete Enrollment ✓';
+        nextBtn.classList.add('btn-complete-enrollment');
+      } else {
+        nextBtn.textContent = `Next: ${stepTitles[currentStep] || 'Next'} →`;
+        nextBtn.classList.remove('btn-complete-enrollment');
+      }
+    }
+
+    // Render summary on Step 4
+    if (currentStep === 4) {
+      renderSummary();
+    }
+
+    // Clear error box
+    if (errorBox) {
+      errorBox.hidden = true;
+      errorBox.innerHTML = '';
+    }
+
+    // Save draft automatically on step change
+    saveWizardDraft(getFormData(), storage);
+    triggerHaptic('selection');
+  }
+
+  function goToStep(stepNumber) {
+    const target = Math.max(1, Math.min(totalSteps, stepNumber));
+    if (target > currentStep) {
+      for (let s = currentStep; s < target; s++) {
+        const validation = validateWizardStep(s, getFormData());
+        if (!validation.valid) {
+          showErrors(validation.errors);
+          return false;
+        }
+      }
+    }
+    updateStepView(target);
+    return true;
+  }
+
+  function nextStep() {
+    const validation = validateWizardStep(currentStep, getFormData());
+    if (!validation.valid) {
+      showErrors(validation.errors);
+      return false;
+    }
+
+    if (currentStep === totalSteps) {
+      const data = getFormData();
+      clearWizardDraft(storage);
+      triggerHaptic('success');
+      close();
+      if (typeof onComplete === 'function') {
+        onComplete(data);
+      }
+      return true;
+    }
+
+    return goToStep(currentStep + 1);
+  }
+
+  function prevStep() {
+    if (currentStep > 1) {
+      return goToStep(currentStep - 1);
+    }
+    return false;
+  }
+
+  function showErrors(errors) {
+    if (!errorBox) return;
+    const escape = (str) => String(str || '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+    errorBox.innerHTML = errors.map(err => `<p class="wizard-error-line">⚠️ ${escape(err)}</p>`).join('');
+    errorBox.hidden = false;
+    triggerHaptic('warning');
+  }
+
+  function open(initialData) {
+    isOpen = true;
+    if (startDateInput && !startDateInput.value) {
+      startDateInput.value = new Date().toISOString().slice(0, 10);
+    }
+
+    // Check draft or initialData
+    if (initialData) {
+      setFormData(initialData);
+    } else {
+      const draft = getWizardDraft(storage);
+      if (draft) {
+        setFormData(draft);
+      }
+    }
+
+    updateStepView(1);
+
+    if (typeof modal.showModal === 'function') {
+      try { modal.showModal(); } catch { modal.setAttribute('open', ''); }
+    } else {
+      modal.setAttribute('open', '');
+    }
+
+    if (nameInput) {
+      setTimeout(() => { nameInput.focus(); }, 50);
+    }
+  }
+
+  function close() {
+    isOpen = false;
+    if (typeof modal.close === 'function') {
+      try { modal.close(); } catch { modal.removeAttribute('open'); }
+    } else {
+      modal.removeAttribute('open');
+    }
+    if (typeof onCancel === 'function') {
+      onCancel();
+    }
+  }
+
+  function reset() {
+    clearWizardDraft(storage);
+    if (nameInput) nameInput.value = '';
+    if (phoneInput) phoneInput.value = '';
+    if (cnicInput) cnicInput.value = '';
+    if (statusSelect) statusSelect.value = 'Active';
+    if (areaSelect) areaSelect.value = 'Shahdara Town';
+    if (mohallaInput) mohallaInput.value = '';
+    if (addressInput) addressInput.value = '';
+    if (fdbInput) fdbInput.value = '';
+    if (portInput) portInput.value = '';
+    if (packageSelect) packageSelect.value = '5mbps-150gb';
+    if (rateInput) rateInput.value = '1500';
+    if (feeInput) feeInput.value = '0';
+    if (dueDateSelect) dueDateSelect.value = '10';
+    if (ontSelect) ontSelect.value = 'ISP Provided';
+    if (staticIpCheck) staticIpCheck.checked = false;
+    if (startDateInput) startDateInput.value = new Date().toISOString().slice(0, 10);
+    if (techNotesInput) techNotesInput.value = '';
+    if (agreementCheck) agreementCheck.checked = false;
+    updateStepView(1);
+  }
+
+  // Package select auto-updates monthly rate
+  if (packageSelect && !packageSelect.dataset?.wiredWizard) {
+    if (packageSelect.dataset) packageSelect.dataset.wiredWizard = 'true';
+    packageSelect.addEventListener('change', () => {
+      const selected = packageSelect.value;
+      if (standardPackageRates[selected] && rateInput) {
+        rateInput.value = String(standardPackageRates[selected]);
+      }
+    });
+  }
+
+  // Wire buttons
+  if (closeBtn && !closeBtn.dataset?.wiredWizard) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredWizard = 'true';
+    closeBtn.addEventListener('click', close);
+  }
+  if (backBtn && !backBtn.dataset?.wiredWizard) {
+    if (backBtn.dataset) backBtn.dataset.wiredWizard = 'true';
+    backBtn.addEventListener('click', prevStep);
+  }
+  if (nextBtn && !nextBtn.dataset?.wiredWizard) {
+    if (nextBtn.dataset) nextBtn.dataset.wiredWizard = 'true';
+    nextBtn.addEventListener('click', nextStep);
+  }
+
+  // Step pills click
+  stepPills.forEach(pill => {
+    if (!pill.dataset?.wiredWizard) {
+      if (pill.dataset) pill.dataset.wiredWizard = 'true';
+      pill.addEventListener('click', () => {
+        const stepNum = Number(pill.getAttribute('data-wizard-step'));
+        if (stepNum <= currentStep) {
+          goToStep(stepNum);
+        } else {
+          nextStep();
+        }
+      });
+    }
+  });
+
+  // Open trigger buttons
+  if (openBtn && !openBtn.dataset?.wiredWizard) {
+    if (openBtn.dataset) openBtn.dataset.wiredWizard = 'true';
+    openBtn.addEventListener('click', () => open());
+  }
+  if (quickActionBtn && !quickActionBtn.dataset?.wiredWizard) {
+    if (quickActionBtn.dataset) quickActionBtn.dataset.wiredWizard = 'true';
+    quickActionBtn.addEventListener('click', () => open());
+  }
+
+  // Keyboard navigation
+  modal.addEventListener('keydown', (e) => {
+    if (!isOpen && !modal.open && !modal.hasAttribute('open')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    } else if (e.key === 'Enter' && e.target && e.target.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      nextStep();
+    }
+  });
+
+  // Touch Swipe gesture support on track
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  if (track && !track.dataset?.wiredSwipe) {
+    if (track.dataset) track.dataset.wiredSwipe = 'true';
+    track.addEventListener('touchstart', (e) => {
+      if (e.touches && e.touches[0]) {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }
+    }, { passive: true });
+
+    track.addEventListener('touchend', (e) => {
+      if (e.changedTouches && e.changedTouches[0]) {
+        const deltaX = e.changedTouches[0].clientX - touchStartX;
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaX) > Math.abs(deltaY) * 1.3) {
+          if (deltaX < -50) {
+            nextStep();
+          } else if (deltaX > 50) {
+            prevStep();
+          }
+        }
+      }
+    }, { passive: true });
+  }
+
+  return {
+    open,
+    close,
+    goToStep,
+    nextStep,
+    prevStep,
+    getCurrentStep: () => currentStep,
+    getFormData,
+    setFormData,
+    reset,
+    isOpen: () => isOpen
   };
 }
 

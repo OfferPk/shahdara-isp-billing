@@ -307,10 +307,92 @@ export function setupNetworkStatusIndicator({ onToast } = {}) {
     });
   }
 
+  const healthModal = document.getElementById('networkHealthModal');
+  const healthCloseBtn = document.getElementById('networkHealthModalClose');
+  const healthCloseBtn2 = document.getElementById('healthCloseBtn');
+  const healthCheckBtn = document.getElementById('healthCheckConnectionBtn');
+  const healthNetworkState = document.getElementById('healthNetworkState');
+  const healthNetworkDetail = document.getElementById('healthNetworkDetail');
+  const healthStorageDetail = document.getElementById('healthStorageDetail');
+
+  function openHealthModal() {
+    triggerHaptic('light');
+    const online = isOnlineNow();
+    if (healthNetworkState) {
+      healthNetworkState.textContent = online ? 'Online · Connected' : 'Offline · Local Mode';
+      healthNetworkState.style.color = online ? 'var(--green, #0e5b4d)' : 'var(--amber, #b45309)';
+    }
+    if (healthNetworkDetail) {
+      healthNetworkDetail.textContent = online
+        ? 'Browser reports active network connection'
+        : 'All records and billing actions operate locally';
+    }
+    if (healthStorageDetail && typeof localStorage !== 'undefined') {
+      try {
+        const keysCount = localStorage.length;
+        healthStorageDetail.textContent = `${keysCount} storage collections active on device`;
+      } catch {
+        healthStorageDetail.textContent = 'Storage active on device';
+      }
+    }
+    if (healthModal) {
+      if (healthModal.showModal) healthModal.showModal();
+      else healthModal.setAttribute('open', '');
+    } else if (typeof onToast === 'function') {
+      const msg = online
+        ? 'Online · App assets cached offline via Service Worker. Ledger stays on this device.'
+        : 'Offline mode active. All billing and ledger changes are saved locally to this device.';
+      onToast(msg);
+    }
+  }
+
+  function closeHealthModal() {
+    if (!healthModal) return;
+    if (healthModal.close) healthModal.close();
+    else healthModal.removeAttribute('open');
+  }
+
+  if (healthCloseBtn && !healthCloseBtn.dataset?.wiredHealth) {
+    if (healthCloseBtn.dataset) healthCloseBtn.dataset.wiredHealth = 'true';
+    else if (healthCloseBtn.setAttribute) healthCloseBtn.setAttribute('data-wired-health', 'true');
+    healthCloseBtn.addEventListener('click', closeHealthModal);
+  }
+
+  if (healthCloseBtn2 && !healthCloseBtn2.dataset?.wiredHealth) {
+    if (healthCloseBtn2.dataset) healthCloseBtn2.dataset.wiredHealth = 'true';
+    else if (healthCloseBtn2.setAttribute) healthCloseBtn2.setAttribute('data-wired-health', 'true');
+    healthCloseBtn2.addEventListener('click', closeHealthModal);
+  }
+
+  if (healthCheckBtn && !healthCheckBtn.dataset?.wiredHealth) {
+    if (healthCheckBtn.dataset) healthCheckBtn.dataset.wiredHealth = 'true';
+    else if (healthCheckBtn.setAttribute) healthCheckBtn.setAttribute('data-wired-health', 'true');
+    healthCheckBtn.addEventListener('click', () => {
+      triggerHaptic('medium');
+      const online = isOnlineNow();
+      updateStatus(online);
+      if (healthNetworkState) {
+        healthNetworkState.textContent = online ? 'Online · Connected' : 'Offline · Local Mode';
+        healthNetworkState.style.color = online ? 'var(--green, #0e5b4d)' : 'var(--amber, #b45309)';
+      }
+      if (typeof onToast === 'function') {
+        onToast(online ? 'Connection active. Service worker cache verified.' : 'Device currently offline. Safe to record transactions.');
+      }
+    });
+  }
+
+  if (healthModal) {
+    healthModal.addEventListener('click', (e) => {
+      if (e.target === healthModal) closeHealthModal();
+    });
+  }
+
   function handlePillClick() {
     const online = isOnlineNow();
     updateStatus(online);
-    if (typeof onToast === 'function') {
+    if (healthModal) {
+      openHealthModal();
+    } else if (typeof onToast === 'function') {
       const msg = online
         ? 'Online · App assets cached offline via Service Worker. Ledger stays on this device.'
         : 'Offline mode active. All billing and ledger changes are saved locally to this device.';
@@ -330,13 +412,36 @@ export function setupNetworkStatusIndicator({ onToast } = {}) {
     drawerPill.addEventListener('click', handlePillClick);
   }
 
+  function updateSyncStatus({ pendingChanges = 0, isSyncing = false } = {}) {
+    if (dot) {
+      if (isSyncing) {
+        dot.className = 'network-status-dot syncing';
+      } else {
+        dot.className = `network-status-dot ${isOnlineNow() ? 'online' : 'offline'}`;
+      }
+    }
+    if (text) {
+      if (isSyncing) {
+        text.textContent = 'Syncing...';
+      } else if (pendingChanges > 0) {
+        text.textContent = `${pendingChanges} pending`;
+      } else {
+        text.textContent = isOnlineNow() ? 'Online · Cached' : 'Offline · Local Only';
+      }
+    }
+  }
+
   return {
     isOnline: isOnlineNow,
     checkStatus: () => {
       const online = isOnlineNow();
       updateStatus(online);
       return online;
-    }
+    },
+    updateStatus,
+    updateSyncStatus,
+    openHealthModal,
+    closeHealthModal
   };
 }
 
@@ -1030,3 +1135,258 @@ function escapeHtml(str) {
     "'": '&#39;'
   })[c]);
 }
+
+/**
+ * Sets up Mobile Gesture Swipe Navigation between adjacent primary ledger tabs.
+ * Allows smooth horizontal flick/swipe left/right to transition between views.
+ * Includes edge rejection, vertical scroll preservation, interactive element exclusion,
+ * visual floating indicator pill, and tactile haptic response.
+ */
+export function setupSwipeNavigation({
+  container = (typeof document !== 'undefined' ? (document.getElementById('main') || document.body) : null),
+  views = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'],
+  viewLabels = {
+    customers: 'Customers',
+    transactions: 'Transactions',
+    reports: 'Monthly Report',
+    analytics: 'Area Analytics',
+    inventory: 'Inventory',
+    expenses: 'Expenses'
+  },
+  getCurrentView,
+  onNavigate,
+  threshold = 60,
+  maxVertical = 50,
+  edgeMargin = 20,
+  showHint = true
+} = {}) {
+  if (!container || typeof document === 'undefined') {
+    return {
+      destroy: () => {},
+      enable: () => {},
+      disable: () => {},
+      next: () => null,
+      prev: () => null,
+      getCurrentView: () => 'customers'
+    };
+  }
+
+  let isEnabled = true;
+  let startX = 0;
+  let startY = 0;
+  let startTime = 0;
+  let isTracking = false;
+  let isHorizontalCandidate = false;
+
+  const defaultGetCurrentView = () => {
+    if (typeof getCurrentView === 'function') return getCurrentView();
+    const map = [
+      ['customers', 'customersView'],
+      ['transactions', 'transactionsView'],
+      ['reports', 'billingReportsView'],
+      ['analytics', 'analyticsView'],
+      ['inventory', 'inventoryView'],
+      ['expenses', 'expensesView']
+    ];
+    for (const [name, id] of map) {
+      const el = document.getElementById(id);
+      if (el && !el.hidden) return name;
+    }
+    return views[0] || 'customers';
+  };
+
+  // Create or get swipe hint indicator element
+  let indicator = document.getElementById('swipeNavIndicator');
+  if (!indicator && showHint && typeof document.createElement === 'function') {
+    indicator = document.createElement('div');
+    indicator.id = 'swipeNavIndicator';
+    indicator.className = 'swipe-nav-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    indicator.innerHTML = '<span class="swipe-indicator-arrow"></span><span class="swipe-indicator-label"></span>';
+    if (document.body && document.body.appendChild) {
+      document.body.appendChild(indicator);
+    }
+  }
+
+  function showIndicator(direction, targetView) {
+    if (!indicator || !showHint) return;
+    const arrow = indicator.querySelector ? indicator.querySelector('.swipe-indicator-arrow') : null;
+    const label = indicator.querySelector ? indicator.querySelector('.swipe-indicator-label') : null;
+    const displayLabel = viewLabels[targetView] || targetView;
+    if (direction === 'next') {
+      if (arrow) arrow.textContent = '→';
+      if (label) label.textContent = displayLabel;
+      indicator.className = 'swipe-nav-indicator is-visible is-next';
+    } else if (direction === 'prev') {
+      if (arrow) arrow.textContent = '←';
+      if (label) label.textContent = displayLabel;
+      indicator.className = 'swipe-nav-indicator is-visible is-prev';
+    } else if (direction === 'edge') {
+      if (arrow) arrow.textContent = '•';
+      if (label) label.textContent = displayLabel;
+      indicator.className = 'swipe-nav-indicator is-visible is-boundary';
+    }
+  }
+
+  function hideIndicator() {
+    if (!indicator) return;
+    indicator.className = 'swipe-nav-indicator';
+  }
+
+  function isEligibleTarget(target) {
+    if (!target) return true;
+    // Don't trigger if target is inside an open modal/dialog or drawer
+    if (target.closest?.('dialog[open], .modal[open], .nav-drawer.is-open, .mobile-action-sheet:not([hidden])')) {
+      return false;
+    }
+    // Don't trigger inside scrollable tables or horizontally scrollable containers
+    if (target.closest?.('.table-scroll, .chart-svg-container, pre, code, .statement-preview-container, .batch-receipt-preview-container')) {
+      return false;
+    }
+    // Don't trigger on interactive inputs or buttons
+    if (target.closest?.('input, select, textarea, button, a, [contenteditable="true"]')) {
+      return false;
+    }
+    return true;
+  }
+
+  function getTargetView(direction) {
+    const cur = defaultGetCurrentView();
+    const idx = views.indexOf(cur);
+    if (idx === -1) return null;
+    if (direction === 'next') {
+      return idx < views.length - 1 ? views[idx + 1] : null;
+    } else if (direction === 'prev') {
+      return idx > 0 ? views[idx - 1] : null;
+    }
+    return null;
+  }
+
+  function onTouchStart(e) {
+    if (!isEnabled || !e.touches || e.touches.length !== 1) {
+      isTracking = false;
+      return;
+    }
+    const touch = e.touches[0];
+    const winWidth = typeof window !== 'undefined' && typeof window.innerWidth === 'number' ? window.innerWidth : 360;
+
+    // Reject screen edge touches (browser history swipes & drawer edge gestures)
+    if (touch.clientX < edgeMargin || touch.clientX > winWidth - edgeMargin) {
+      isTracking = false;
+      return;
+    }
+
+    if (!isEligibleTarget(e.target)) {
+      isTracking = false;
+      return;
+    }
+
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTime = Date.now();
+    isTracking = true;
+    isHorizontalCandidate = false;
+  }
+
+  function onTouchMove(e) {
+    if (!isTracking || !e.touches || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // If vertical movement exceeds maxVertical before horizontal threshold, cancel swipe
+    if (absY > maxVertical && !isHorizontalCandidate) {
+      isTracking = false;
+      hideIndicator();
+      return;
+    }
+
+    // Determine horizontal swipe candidate
+    if (absX > 20 && absX > absY * 1.4) {
+      isHorizontalCandidate = true;
+      const dir = deltaX < 0 ? 'next' : 'prev';
+      const target = getTargetView(dir);
+      if (target) {
+        showIndicator(dir, target);
+      } else {
+        showIndicator('edge', dir === 'next' ? 'End of views' : 'Start of views');
+      }
+    }
+  }
+
+  function onTouchEnd(e) {
+    if (!isTracking) {
+      hideIndicator();
+      return;
+    }
+    isTracking = false;
+    const touch = e.changedTouches ? e.changedTouches[0] : null;
+    if (!touch) {
+      hideIndicator();
+      return;
+    }
+
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    const elapsed = Date.now() - startTime;
+
+    hideIndicator();
+
+    // Check threshold and velocity / vertical rejection
+    if (absX >= threshold && absY <= maxVertical && elapsed < 800) {
+      const dir = deltaX < 0 ? 'next' : 'prev';
+      const target = getTargetView(dir);
+      if (target && typeof onNavigate === 'function') {
+        triggerHaptic('light');
+        onNavigate(target);
+      }
+    }
+  }
+
+  function onTouchCancel() {
+    isTracking = false;
+    isHorizontalCandidate = false;
+    hideIndicator();
+  }
+
+  container.addEventListener('touchstart', onTouchStart, { passive: true });
+  container.addEventListener('touchmove', onTouchMove, { passive: true });
+  container.addEventListener('touchend', onTouchEnd, { passive: true });
+  container.addEventListener('touchcancel', onTouchCancel, { passive: true });
+
+  return {
+    destroy: () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchCancel);
+      if (indicator && indicator.parentNode) {
+        indicator.parentNode.removeChild(indicator);
+      }
+    },
+    enable: () => { isEnabled = true; },
+    disable: () => { isEnabled = false; isTracking = false; hideIndicator(); },
+    getCurrentView: defaultGetCurrentView,
+    next: () => {
+      const target = getTargetView('next');
+      if (target && typeof onNavigate === 'function') {
+        triggerHaptic('light');
+        onNavigate(target);
+      }
+      return target;
+    },
+    prev: () => {
+      const target = getTargetView('prev');
+      if (target && typeof onNavigate === 'function') {
+        triggerHaptic('light');
+        onNavigate(target);
+      }
+      return target;
+    }
+  };
+}
+

@@ -984,3 +984,292 @@ test('nav.js setupCommandPalette renders items, keyboard navigates, filters, and
   }
 });
 
+test('index.html contains swipeNavIndicator with arrow and label elements', () => {
+  assert.match(index, /id="swipeNavIndicator"\s+class="swipe-nav-indicator"/);
+  assert.match(index, /class="swipe-indicator-arrow"/);
+  assert.match(index, /class="swipe-indicator-label"/);
+});
+
+test('nav.css provides swipe indicator, syncing animation, and landscape compact layout styles', () => {
+  const navCss = read('nav.css');
+  assert.match(navCss, /\.swipe-nav-indicator\s*\{/);
+  assert.match(navCss, /\.swipe-nav-indicator\.is-visible/);
+  assert.match(navCss, /\.network-status-dot\.syncing/);
+  assert.match(navCss, /@media\s*\(max-height:\s*520px\)\s*and\s*\(orientation:\s*landscape\)/);
+  assert.match(navCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.swipe-nav-indicator/);
+});
+
+test('app.js imports and initializes setupSwipeNavigation', () => {
+  assert.match(app, /import\s*\{[^}]*setupSwipeNavigation[^}]*\}\s*from\s*'\.\/nav\.js\?v=1\.10\.0'/);
+  assert.match(app, /setupSwipeNavigation\(\{/);
+});
+
+test('nav.js setupSwipeNavigation handles touch swipes, thresholds, edge cases, and programmatic navigation', async () => {
+  const { setupSwipeNavigation } = await import('../nav.js');
+
+  const listeners = new Map();
+  const containerEl = {
+    addEventListener(ev, fn) { listeners.set(ev, fn); },
+    removeEventListener(ev) { listeners.delete(ev); }
+  };
+
+  const indicatorEl = {
+    className: '',
+    classList: {
+      remove(...args) {
+        let classes = indicatorEl.className.split(' ').filter(c => !args.includes(c));
+        indicatorEl.className = classes.join(' ');
+      }
+    },
+    querySelector(sel) {
+      if (sel === '.swipe-indicator-arrow') return { textContent: '' };
+      if (sel === '.swipe-indicator-label') return { textContent: '' };
+      return null;
+    },
+    parentNode: {
+      removeChild() {}
+    }
+  };
+
+  const origDoc = globalThis.document;
+  const origWin = globalThis.window;
+
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'swipeNavIndicator') return indicatorEl;
+      return null;
+    },
+    createElement() { return indicatorEl; },
+    body: { appendChild() {} }
+  };
+  globalThis.window = {
+    innerWidth: 400
+  };
+
+  try {
+    let navigatedTo = null;
+    let current = 'customers';
+
+    const swipe = setupSwipeNavigation({
+      container: containerEl,
+      views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'],
+      getCurrentView: () => current,
+      onNavigate: (t) => { navigatedTo = t; current = t; },
+      threshold: 50,
+      maxVertical: 40,
+      edgeMargin: 20
+    });
+
+    assert.equal(listeners.has('touchstart'), true);
+    assert.equal(listeners.has('touchmove'), true);
+    assert.equal(listeners.has('touchend'), true);
+
+    const onStart = listeners.get('touchstart');
+    const onMove = listeners.get('touchmove');
+    const onEnd = listeners.get('touchend');
+
+    // 1. Valid horizontal swipe left (towards next tab: transactions)
+    onStart({ touches: [{ clientX: 200, clientY: 300 }], target: {} });
+    onMove({ touches: [{ clientX: 130, clientY: 305 }] }); // deltaX = -70, deltaY = 5
+    onEnd({ changedTouches: [{ clientX: 130, clientY: 305 }] });
+    assert.equal(navigatedTo, 'transactions');
+    assert.equal(swipe.getCurrentView(), 'transactions');
+
+    // 2. Valid horizontal swipe right (towards previous tab: customers)
+    onStart({ touches: [{ clientX: 150, clientY: 300 }], target: {} });
+    onMove({ touches: [{ clientX: 220, clientY: 298 }] }); // deltaX = +70, deltaY = -2
+    onEnd({ changedTouches: [{ clientX: 220, clientY: 298 }] });
+    assert.equal(navigatedTo, 'customers');
+
+    // 3. Vertical scroll rejection (touch drifts vertically more than maxVertical)
+    navigatedTo = null;
+    onStart({ touches: [{ clientX: 200, clientY: 200 }], target: {} });
+    onMove({ touches: [{ clientX: 170, clientY: 260 }] }); // deltaY = 60 > maxVertical
+    onEnd({ changedTouches: [{ clientX: 120, clientY: 260 }] });
+    assert.equal(navigatedTo, null); // rejected
+
+    // 4. Screen edge rejection (touch starts < edgeMargin)
+    navigatedTo = null;
+    onStart({ touches: [{ clientX: 10, clientY: 200 }], target: {} }); // clientX = 10 < edgeMargin (20)
+    onMove({ touches: [{ clientX: 100, clientY: 200 }] });
+    onEnd({ changedTouches: [{ clientX: 100, clientY: 200 }] });
+    assert.equal(navigatedTo, null); // rejected
+
+    // 5. Ineligible target rejection (interactive input or modal)
+    navigatedTo = null;
+    const fakeInputTarget = {
+      closest(sel) {
+        return sel.includes('input') ? {} : null;
+      }
+    };
+    onStart({ touches: [{ clientX: 200, clientY: 200 }], target: fakeInputTarget });
+    onMove({ touches: [{ clientX: 120, clientY: 200 }] });
+    onEnd({ changedTouches: [{ clientX: 120, clientY: 200 }] });
+    assert.equal(navigatedTo, null); // rejected
+
+    // 6. Programmatic next and prev navigation
+    const nextTab = swipe.next();
+    assert.equal(nextTab, 'transactions');
+    assert.equal(navigatedTo, 'transactions');
+
+    const prevTab = swipe.prev();
+    assert.equal(prevTab, 'customers');
+    assert.equal(navigatedTo, 'customers');
+
+    // Clamping at beginning
+    const startTab = swipe.prev();
+    assert.equal(startTab, null);
+
+    // 7. Disable / enable controls
+    swipe.disable();
+    navigatedTo = null;
+    onStart({ touches: [{ clientX: 200, clientY: 300 }], target: {} });
+    onMove({ touches: [{ clientX: 120, clientY: 300 }] });
+    onEnd({ changedTouches: [{ clientX: 120, clientY: 300 }] });
+    assert.equal(navigatedTo, null); // disabled
+
+    swipe.enable();
+
+    // 8. Destroy cleans up listeners
+    swipe.destroy();
+    assert.equal(listeners.has('touchstart'), false);
+    assert.equal(listeners.has('touchmove'), false);
+    assert.equal(listeners.has('touchend'), false);
+  } finally {
+    globalThis.document = origDoc;
+    globalThis.window = origWin;
+  }
+});
+
+test('nav.js setupNetworkStatusIndicator supports updateSyncStatus and syncing state', async () => {
+  const { setupNetworkStatusIndicator } = await import('../nav.js');
+
+  const dotEl = { className: '' };
+  const textEl = { textContent: '' };
+  const pillEl = {
+    dataset: {},
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); },
+    classList: { toggle() {} },
+    addEventListener() {}
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'networkStatusDot') return dotEl;
+      if (id === 'networkStatusText') return textEl;
+      if (id === 'networkStatusPill') return pillEl;
+      return null;
+    }
+  };
+
+  try {
+    const net = setupNetworkStatusIndicator();
+    assert.ok(typeof net.updateSyncStatus === 'function');
+
+    // Syncing state
+    net.updateSyncStatus({ isSyncing: true });
+    assert.equal(dotEl.className, 'network-status-dot syncing');
+    assert.equal(textEl.textContent, 'Syncing...');
+
+    // Pending changes state
+    net.updateSyncStatus({ isSyncing: false, pendingChanges: 3 });
+    assert.equal(textEl.textContent, '3 pending');
+
+    // Clear pending changes
+    net.updateSyncStatus({ isSyncing: false, pendingChanges: 0 });
+    assert.ok(textEl.textContent.includes('Online'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html and nav.css provide accessible networkHealthModal dialog and styles', () => {
+  assert.match(index, /<dialog id="networkHealthModal" class="modal network-health-modal"/);
+  assert.match(index, /id="healthNetworkState"/);
+  assert.match(index, /id="healthCacheState"/);
+  assert.match(index, /id="healthStorageState"/);
+  assert.match(index, /id="healthCheckConnectionBtn"/);
+
+  const navCss = read('nav.css');
+  assert.match(navCss, /\.network-health-modal\s*\{/);
+  assert.match(navCss, /\.health-stat-card\s*\{/);
+  assert.match(navCss, /\[data-theme="dark"\]\s*\.network-health-modal/);
+});
+
+test('nav.js setupNetworkStatusIndicator opens and closes networkHealthModal on pill click', async () => {
+  const { setupNetworkStatusIndicator } = await import('../nav.js');
+
+  let modalOpen = false;
+  const modalEl = {
+    showModal() { modalOpen = true; },
+    close() { modalOpen = false; },
+    addEventListener() {}
+  };
+  const netStateEl = { textContent: '', style: {} };
+  const netDetailEl = { textContent: '' };
+  const storageDetailEl = { textContent: '' };
+  const closeBtn = { dataset: {}, addEventListener(ev, fn) { if (ev === 'click') this.onclick = fn; } };
+  const testBtn = { dataset: {}, addEventListener(ev, fn) { if (ev === 'click') this.onclick = fn; } };
+
+  let pillClick = null;
+  const pillEl = {
+    dataset: {},
+    setAttribute() {},
+    classList: { toggle() {} },
+    addEventListener(ev, fn) { if (ev === 'click') pillClick = fn; }
+  };
+
+  const origDoc = globalThis.document;
+  const origNav = globalThis.navigator;
+  const origLocal = globalThis.localStorage;
+
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'networkHealthModal') return modalEl;
+      if (id === 'healthNetworkState') return netStateEl;
+      if (id === 'healthNetworkDetail') return netDetailEl;
+      if (id === 'healthStorageDetail') return storageDetailEl;
+      if (id === 'networkHealthModalClose' || id === 'healthCloseBtn') return closeBtn;
+      if (id === 'healthCheckConnectionBtn') return testBtn;
+      if (id === 'networkStatusPill') return pillEl;
+      return null;
+    }
+  };
+  const origDesc = Object.getOwnPropertyDescriptor(globalThis.navigator, 'onLine');
+  try {
+    Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+  } catch {}
+  globalThis.localStorage = { length: 8 };
+
+  try {
+    const net = setupNetworkStatusIndicator();
+    assert.ok(typeof net.openHealthModal === 'function');
+    assert.ok(typeof net.closeHealthModal === 'function');
+
+    // Clicking pill opens modal and populates details
+    assert.ok(typeof pillClick === 'function');
+    pillClick();
+    assert.equal(modalOpen, true);
+    assert.ok(netStateEl.textContent.includes('Online'));
+    assert.ok(storageDetailEl.textContent.includes('8'));
+
+    // Clicking test connection runs test
+    testBtn.onclick();
+    assert.ok(netStateEl.textContent.includes('Online'));
+
+    // Closing modal
+    net.closeHealthModal();
+    assert.equal(modalOpen, false);
+  } finally {
+    globalThis.document = origDoc;
+    if (origDesc) {
+      try { Object.defineProperty(globalThis.navigator, 'onLine', origDesc); } catch {}
+    }
+    globalThis.localStorage = origLocal;
+  }
+});
+
+
+

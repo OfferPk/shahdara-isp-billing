@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -1623,6 +1623,20 @@ setupPullToRefresh({
     renderCustomers();
     renderDashboard();
     toast('Customer ledger updated');
+  }
+});
+
+setupSwipeNavigation({
+  container: document.getElementById('main') || document.body,
+  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'],
+  onNavigate: (target) => {
+    switchView(target);
+    if (target === 'transactions') renderTransactions();
+    else if (target === 'reports') renderMonthlyReport();
+    else if (target === 'analytics') renderAnalytics();
+    else if (target === 'inventory') renderInventory();
+    else if (target === 'expenses') renderExpenses();
+    else if (target === 'customers') renderCustomers();
   }
 });
 

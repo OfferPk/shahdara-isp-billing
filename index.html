@@ -258,6 +258,30 @@
             </div>
             <div id="dashboardHealthChart" class="chart-svg-container" role="img" aria-label="Customer account health and delinquency chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-methods">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Payment Settlement Channels</h4>
+                <p class="chart-subtitle">Cash vs digital wallet volume and transaction distribution</p>
+              </div>
+              <div id="dashboardMethodRangeGroup" class="chart-time-range-group" role="group" aria-label="Select payment methods filter">
+                <button type="button" class="chart-range-btn is-active" data-period="currentMonth">Month</button>
+                <button type="button" class="chart-range-btn" data-period="30days">30D</button>
+                <button type="button" class="chart-range-btn" data-period="all">All</button>
+              </div>
+            </div>
+            <div id="dashboardMethodsChart" class="chart-svg-container" role="img" aria-label="Payment method breakdown and settlement distribution chart"></div>
+          </article>
+          <article class="dashboard-chart-card chart-card-churn">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Customer Retention &amp; Churn Risk</h4>
+                <p class="chart-subtitle">Predictive risk gauge based on offline tenure and consecutive dues</p>
+              </div>
+              <button id="dashboardOpenChurnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">View At-Risk</button>
+            </div>
+            <div id="dashboardChurnChart" class="chart-svg-container" role="img" aria-label="Customer churn risk gauge and subscriber cohort breakdown"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -309,6 +333,35 @@
           </div>
           <div id="dashboardBriefingSlipContent" class="briefing-slip-wrapper">
             <!-- Populated dynamically by generateDashboardBriefingHtml -->
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardChurnRiskModal" class="dashboard-modal" aria-labelledby="dashboardChurnRiskModalTitle">
+        <div class="dashboard-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">RETENTION &amp; AT-RISK ACCOUNTS</p>
+              <h3 id="dashboardChurnRiskModalTitle">High &amp; Moderate Churn Risk Subscribers</h3>
+            </div>
+            <button id="dashboardChurnModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Subscribers exhibiting delinquency or offline patterns requiring immediate operator follow-up.</p>
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Subscriber</th>
+                  <th>Risk Tier</th>
+                  <th>Risk Indicators</th>
+                  <th>Outstanding</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardChurnModalTableBody">
+                <tr><td colspan="5" class="empty-cell">Loading at-risk subscriber roster...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </dialog>

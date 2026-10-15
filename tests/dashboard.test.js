@@ -5,13 +5,16 @@ import {
   calculateDashboardKpis,
   calculateCollectionVelocity,
   calculateCustomerHealthBreakdown,
+  calculatePaymentMethodBreakdown,
+  calculateChurnRiskAnalysis,
   setupDashboardQuickActions,
   generateDashboardBriefingText,
   generateDashboardBriefingHtml,
   setupDashboardBriefingButton,
   setupDashboardBriefingModal,
   setupCustomerHealthActions,
-  setupAreaDrilldownModal
+  setupAreaDrilldownModal,
+  setupChurnRiskModal
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -23,10 +26,15 @@ import {
   renderAreaDuesSvg,
   renderPackageDistributionSvg,
   renderCustomerHealthSvg,
+  renderPaymentMethodSvg,
+  renderChurnRiskGaugeSvg,
   renderDashboardCharts,
   setTrendChartDuration,
   getTrendChartDuration,
-  setupDashboardChartsEvents
+  setMethodChartPeriod,
+  getMethodChartPeriod,
+  setupDashboardChartsEvents,
+  METHOD_COLORS
 } from '../dashboard-charts.js';
 
 test('calculateDashboardKpis returns accurate subscriber breakdown and percentages', () => {
@@ -802,4 +810,312 @@ test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print,
     globalThis.document = originalDocument;
     globalThis.window = originalWindow;
   }
+});
+
+test('calculatePaymentMethodBreakdown accurately classifies cash and digital methods, calculates percentages and ticket averages', () => {
+  let state = createInitialState(['User Cash', 'User JazzCash', 'User Shop']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const month = '2026-10';
+
+  // Add payments: 1000 Cash, 2000 JazzCash, 1000 Cash at Waseem Abbasi shop
+  state = saveBillMonth(state, state.customers[0].id, { month, dueAmount: '1000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, month, { amount: '1000', date: '2026-10-02', method: 'Cash' }, refDate);
+
+  state = saveBillMonth(state, state.customers[1].id, { month, dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, month, { amount: '2000', date: '2026-10-03', method: 'JazzCash' }, refDate);
+
+  state = saveBillMonth(state, state.customers[2].id, { month, dueAmount: '1000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[2].id, month, { amount: '1000', date: '2026-10-04', method: 'Cash at Waseem Abbasi shop' }, refDate);
+
+  const breakdown = calculatePaymentMethodBreakdown(state, refDate, { period: 'currentMonth' });
+
+  assert.equal(breakdown.totalAmount, 4000);
+  assert.equal(breakdown.totalCount, 3);
+  assert.equal(breakdown.cashTotal, 2000); // 1000 Cash + 1000 shop
+  assert.equal(breakdown.digitalTotal, 2000); // 2000 JazzCash
+  assert.equal(breakdown.cashPercent, 50);
+  assert.equal(breakdown.digitalPercent, 50);
+
+  assert.equal(breakdown.methods.length, 3);
+  const jazz = breakdown.methods.find(m => m.method === 'JazzCash');
+  assert.ok(jazz);
+  assert.equal(jazz.amount, 2000);
+  assert.equal(jazz.percent, 50);
+  assert.equal(jazz.count, 1);
+  assert.equal(jazz.isDigital, true);
+});
+
+test('calculatePaymentMethodBreakdown filters by period and handles empty state gracefully', () => {
+  let state = createInitialState(['User Old', 'User Recent']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Payment in 2026-08 (older than 30 days)
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-08', dueAmount: '1500', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-08', { amount: '1500', date: '2026-08-10', method: 'Bank Transfer' }, refDate);
+
+  // Payment in 2026-10 (current month)
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '2500', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '2500', date: '2026-10-10', method: 'Easypaisa' }, refDate);
+
+  // Current month filter: should only return 2026-10 payment
+  const currentMonthData = calculatePaymentMethodBreakdown(state, refDate, { period: 'currentMonth' });
+  assert.equal(currentMonthData.totalAmount, 2500);
+  assert.equal(currentMonthData.totalCount, 1);
+  assert.equal(currentMonthData.methods[0].method, 'Easypaisa');
+
+  // All time filter: should return both payments
+  const allData = calculatePaymentMethodBreakdown(state, refDate, { period: 'all' });
+  assert.equal(allData.totalAmount, 4000);
+  assert.equal(allData.totalCount, 2);
+
+  // Empty state test
+  const emptyState = { version: 1, nextCustomerNumber: 1, customers: [], inventoryItems: [], inventoryMovements: [], expenses: [], saadAttendanceDays: [], umairWorkdays: [], monthlyClosings: [] };
+  const emptyData = calculatePaymentMethodBreakdown(emptyState, refDate, { period: 'currentMonth' });
+  assert.equal(emptyData.totalAmount, 0);
+  assert.equal(emptyData.totalCount, 0);
+  assert.equal(emptyData.methods.length, 0);
+});
+
+test('renderPaymentMethodSvg returns accessible empty state SVG when no receipts exist', () => {
+  const emptyData = { methods: [], totalAmount: 0, totalCount: 0, cashTotal: 0, digitalTotal: 0, cashPercent: 0, digitalPercent: 0, period: 'currentMonth' };
+  const svg = renderPaymentMethodSvg(emptyData);
+
+  assert.ok(svg.includes('<svg class="chart-svg chart-methods-svg"'));
+  assert.ok(svg.includes('No Payment Receipts Recorded'));
+  assert.ok(svg.includes('No receipts found for the selected time filter'));
+});
+
+test('renderPaymentMethodSvg generates valid SVG donut chart with slices, center total PKR, and method legend', () => {
+  const data = {
+    methods: [
+      { method: 'Cash', amount: 3000, count: 2, percent: 60, avgAmount: 1500, isDigital: false },
+      { method: 'JazzCash', amount: 2000, count: 1, percent: 40, avgAmount: 2000, isDigital: true }
+    ],
+    totalAmount: 5000,
+    totalCount: 3,
+    cashTotal: 3000,
+    digitalTotal: 2000,
+    cashPercent: 60,
+    digitalPercent: 40,
+    period: 'currentMonth'
+  };
+
+  const svg = renderPaymentMethodSvg(data);
+
+  assert.ok(svg.includes('<svg class="chart-svg chart-methods-svg"'));
+  assert.ok(svg.includes('donut-slice'));
+  assert.ok(svg.includes('PKR 5,000'));
+  assert.ok(svg.includes('3 receipts'));
+  assert.ok(svg.includes('Cash 60%'));
+  assert.ok(svg.includes('Digital 40%'));
+  assert.ok(svg.includes('JazzCash'));
+});
+
+test('calculateChurnRiskAnalysis identifies high, moderate, and low risk accounts based on offline status and delinquency', () => {
+  let state = createInitialState(['Healthy Cust', 'Offline Overdue', 'Consecutive Dues', 'Moderate Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer 0: Healthy (Active, no overdue dues)
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].packageSpeed = '15Mbps';
+
+  // Customer 1: High Risk (Offline with overdue balance)
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].packageSpeed = '15Mbps';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '1200', status: 'pending' }, refDate);
+
+  // Customer 2: High Risk (2 overdue bills)
+  state.customers[2].serviceStatus = 'active';
+  state.customers[2].packageSpeed = '25Mbps';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-09', dueAmount: '2000', status: 'pending' }, refDate);
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+
+  // Customer 3: Moderate Risk (1 unpaid bill, active)
+  state.customers[3].serviceStatus = 'active';
+  state.customers[3].packageSpeed = '10Mbps';
+  state = saveBillMonth(state, state.customers[3].id, { month: '2026-10', dueAmount: '1000', status: 'pending' }, refDate);
+
+  const analysis = calculateChurnRiskAnalysis(state, refDate);
+
+  assert.equal(analysis.totalCustomers, 4);
+  assert.equal(analysis.highRisk.count, 2); // Customer 1 & 2
+  assert.equal(analysis.moderateRisk.count, 1); // Customer 3
+  assert.equal(analysis.lowRisk.count, 1); // Customer 0
+
+  assert.equal(analysis.highRisk.totalDue, 5200); // 1200 + 4000
+  assert.equal(analysis.moderateRisk.totalDue, 1000);
+  assert.equal(analysis.atRiskRevenue, 6200);
+
+  // Churn risk score: (2 * 1.0 + 1 * 0.5) / 4 = 2.5 / 4 = 62.5% -> 63%
+  assert.equal(analysis.churnRiskScore, 63);
+  assert.equal(analysis.riskTier, 'high');
+  assert.equal(analysis.riskTierLabel, 'High Churn Risk');
+
+  // Top at-risk customers sorted descending by totalDue
+  assert.equal(analysis.topAtRiskCustomers.length, 3);
+  assert.equal(analysis.topAtRiskCustomers[0].name, 'Consecutive Dues');
+  assert.equal(analysis.topAtRiskCustomers[0].totalDue, 4000);
+});
+
+test('renderChurnRiskGaugeSvg returns accessible empty state when no customers exist', () => {
+  const emptyAnalysis = { totalCustomers: 0, churnRiskScore: 0, riskTier: 'low', riskTierLabel: 'Low Churn Risk', atRiskRevenue: 0, highRisk: { count: 0, percent: 0, totalDue: 0, customers: [] }, moderateRisk: { count: 0, percent: 0, totalDue: 0, customers: [] }, lowRisk: { count: 0, percent: 0, customers: [] }, topAtRiskCustomers: [] };
+  const svg = renderChurnRiskGaugeSvg(emptyAnalysis);
+
+  assert.ok(svg.includes('<svg class="chart-svg chart-churn-svg"'));
+  assert.ok(svg.includes('No Customer Profiles in Ledger'));
+});
+
+test('renderChurnRiskGaugeSvg generates valid semicircular gauge with score needle and cohort summary cards', () => {
+  const analysis = {
+    totalCustomers: 10,
+    churnRiskScore: 40,
+    riskTier: 'high',
+    riskTierLabel: 'High Churn Risk',
+    atRiskRevenue: 15000,
+    highRisk: { count: 3, percent: 30, totalDue: 10000, customers: [] },
+    moderateRisk: { count: 2, percent: 20, totalDue: 5000, customers: [] },
+    lowRisk: { count: 5, percent: 50, customers: [] },
+    topAtRiskCustomers: []
+  };
+
+  const svg = renderChurnRiskGaugeSvg(analysis);
+
+  assert.ok(svg.includes('<svg class="chart-svg chart-churn-svg"'));
+  assert.ok(svg.includes('gauge-zones'));
+  assert.ok(svg.includes('gauge-pointer'));
+  assert.ok(svg.includes('40%'));
+  assert.ok(svg.includes('High Churn Risk'));
+  assert.ok(svg.includes('High Risk'));
+  assert.ok(svg.includes('Moderate Risk'));
+  assert.ok(svg.includes('Healthy Retained'));
+  assert.ok(svg.includes('PKR 15,000'));
+});
+
+test('setupChurnRiskModal opens dialog, renders at-risk subscriber list, wires filter roster action, and handles close', () => {
+  let modalOpened = false;
+  let tableHtml = '';
+  let filterCustomerCalled = null;
+
+  const fakeModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    dataset: {},
+    addEventListener: () => {}
+  };
+  const fakeTableBody = {
+    set innerHTML(val) { tableHtml = val; },
+    querySelectorAll: () => [
+      {
+        getAttribute: (attr) => attr === 'data-filter-customer' ? 'At-Risk Subscriber' : null,
+        addEventListener: (evt, fn) => { fakeTableBody.onBtnClick = fn; }
+      }
+    ]
+  };
+  const fakeOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakeOpenBtn.onClick = fn; }
+  };
+  const fakeCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakeCloseBtn.onClick = fn; }
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardChurnRiskModal': return fakeModal;
+        case 'dashboardOpenChurnModalBtn': return fakeOpenBtn;
+        case 'dashboardChurnModalCloseBtn': return fakeCloseBtn;
+        case 'dashboardChurnModalTableBody': return fakeTableBody;
+        default: return null;
+      }
+    }
+  };
+
+  try {
+    let state = createInitialState(['At-Risk Subscriber']);
+    state.customers[0].serviceStatus = 'offline';
+    state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, new Date('2026-10-15'));
+
+    setupChurnRiskModal(state, new Date('2026-10-15'), {
+      onFilterCustomer: (name) => { filterCustomerCalled = name; }
+    });
+
+    // Test open button click
+    fakeOpenBtn.onClick();
+    assert.equal(modalOpened, true);
+    assert.ok(tableHtml.includes('At-Risk Subscriber'));
+    assert.ok(tableHtml.includes('PKR 3,000'));
+
+    // Test filter roster button click
+    fakeTableBody.onBtnClick();
+    assert.equal(filterCustomerCalled, 'At-Risk Subscriber');
+    assert.equal(modalOpened, false);
+
+    // Test close button click
+    fakeCloseBtn.onClick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('setupDashboardChartsEvents handles payment method period toggle clicks', () => {
+  let periodChangeHandler = null;
+
+  const fakeMethodGroup = {
+    dataset: {},
+    addEventListener: (evt, fn) => { periodChangeHandler = fn; }
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardMethodRangeGroup') return fakeMethodGroup;
+      return null;
+    },
+    querySelectorAll: () => []
+  };
+
+  try {
+    setMethodChartPeriod('currentMonth');
+    assert.equal(getMethodChartPeriod(), 'currentMonth');
+
+    setupDashboardChartsEvents({}, new Date('2026-10-15'));
+    assert.ok(periodChangeHandler !== null);
+
+    // Simulate clicking 30D button
+    periodChangeHandler({
+      target: {
+        closest: (sel) => ({
+          dataset: { period: '30days' },
+          getAttribute: () => '30days'
+        })
+      }
+    });
+
+    assert.equal(getMethodChartPeriod(), '30days');
+  } finally {
+    globalThis.document = originalDocument;
+    setMethodChartPeriod('currentMonth');
+  }
+});
+
+test('generateDashboardBriefingText and generateDashboardBriefingHtml include payment method settlement and churn risk sections', () => {
+  let state = createInitialState(['Briefing Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '2000', date: '2026-10-05', method: 'JazzCash' }, refDate);
+
+  const text = generateDashboardBriefingText(state, refDate);
+  assert.ok(text.includes('[ RETENTION & CHURN RISK ]'));
+  assert.ok(text.includes('Churn Risk Score:'));
+  assert.ok(text.includes('[ PAYMENT SETTLEMENT CHANNELS (2026-10) ]'));
+  assert.ok(text.includes('JazzCash:'));
+
+  const html = generateDashboardBriefingHtml(state, refDate);
+  assert.ok(html.includes('RETENTION &amp; CHURN RISK'));
+  assert.ok(html.includes('PAYMENT SETTLEMENT CHANNELS (2026-10)'));
+  assert.ok(html.includes('JazzCash'));
 });

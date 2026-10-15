@@ -902,6 +902,103 @@
   border-bottom-color: #28443b;
 }
 
+/* Payment Methods and Churn Risk Cards */
+.chart-card-methods,
+.chart-card-churn {
+  background: var(--surface, #ffffff);
+}
+
+.donut-slice {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+
+.donut-slice:hover {
+  opacity: 0.88;
+}
+
+.donut-slice:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 2px;
+}
+
+.method-legend-row {
+  transition: opacity 0.15s ease;
+  cursor: default;
+}
+
+.method-legend-row:hover {
+  opacity: 0.85;
+}
+
+.cohort-card {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  cursor: default;
+}
+
+.cohort-card:hover {
+  transform: translateX(2px);
+  opacity: 0.95;
+}
+
+.cohort-card:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 1px;
+}
+
+.risk-factors-text {
+  font-size: 11px;
+  color: var(--muted, #60756c);
+}
+
+.cust-sub-meta {
+  font-size: 10px;
+  color: var(--muted, #71817c);
+  margin-top: 1px;
+}
+
+.status-high {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.status-moderate {
+  background: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.status-low {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .chart-card-methods,
+[data-theme="dark"] .chart-card-churn {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .status-high {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+[data-theme="dark"] .status-moderate {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="dark"] .status-low {
+  background: rgba(16, 185, 129, 0.22);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
 /* Print Styles */
 @media print {
   body > *:not(#dashboardView):not(dialog[open]) {

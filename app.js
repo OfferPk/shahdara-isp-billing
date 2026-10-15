@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -58,6 +58,8 @@ if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
 if (storageAvailable) { try { persistState(state, localStorage); } catch { storageAvailable = false; } }
 let selectedCustomerId = null;
 let navDrawer = null;
+let mobileBreadcrumbs = null;
+let tabSlider = null;
 let profileEditMode = false;
 let selectedProfileTab = 'billing';
 let selectedReportFilter = 'all';
@@ -476,6 +478,11 @@ function switchView(view, { pushHistory = true } = {}) {
   const mobileView = view === 'transactions' ? 'collection' : view === 'reports' ? 'reports' : view === 'customers' ? 'customers' : 'more';
   document.querySelectorAll('[data-mobile-nav]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileNav === mobileView ? 'page' : 'false'));
   navDrawer?.updateActive(view);
+  tabSlider?.updateSlider();
+  mobileBreadcrumbs?.setBreadcrumbs([
+    { id: 'home', label: 'Home' },
+    { id: view, label: view.charAt(0).toUpperCase() + view.slice(1) }
+  ]);
   if (view !== 'customers') appShell.classList.remove('show-detail');
   if (pushHistory && typeof window !== 'undefined' && window.location) {
     const targetHash = '#' + view;
@@ -893,6 +900,12 @@ function selectCustomer(id, { pushHistory = true } = {}) {
   if (!state.customers.some(customer => customer.id === id)) return;
   switchView('customers', { pushHistory: false });
   selectedCustomerId = id;
+  const currentCust = state.customers.find(c => c.id === id);
+  mobileBreadcrumbs?.pushCrumb({
+    id: `customer-${id}`,
+    label: currentCust ? currentCust.name : 'Customer Detail',
+    data: { customerId: id }
+  });
   profileEditMode = false;
   activateProfileTab('billing');
   appShell.classList.add('show-detail');
@@ -1731,6 +1744,31 @@ setupMobileSpeedDial({
   onScrollTop: () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+});
+
+// Setup Interactive Mobile Breadcrumbs Trail
+mobileBreadcrumbs = setupMobileBreadcrumbs({
+  onNavigate: (viewId, data) => {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(viewId)) {
+      switchView(viewId);
+      if (viewId === 'customers') renderCustomers();
+      else if (viewId === 'transactions') renderTransactions();
+      else if (viewId === 'reports') renderMonthlyReport();
+      else if (viewId === 'analytics') renderAnalytics();
+      else if (viewId === 'inventory') renderInventory();
+      else if (viewId === 'expenses') renderExpenses();
+    } else if (viewId === 'home') {
+      switchView('customers');
+      renderCustomers();
+    } else if (data?.customerId) {
+      selectCustomer(data.customerId);
+    }
+  }
+});
+
+// Setup Mobile Bottom Navigation Sliding Tab Indicator
+tabSlider = setupTabSliderIndicator({
+  containerSelector: '.mobile-bottom-nav'
 });
 
 document.addEventListener('click', event => {

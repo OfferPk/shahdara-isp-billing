@@ -5,20 +5,20 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure
-} from './core.js?v=1.9.0';
+} from './core.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
-} from './phase3.js?v=1.9.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.9.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.9.0';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.9.0';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.9.0';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.9.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.9.0';
-import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.9.0';
-import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.9.0';
+} from './phase3.js?v=1.10.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
+import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.10.0';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
+import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
+import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
+import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -1169,6 +1169,46 @@ renderMonthlyReport();
 renderDetail();
 if (!storageAvailable) toast('Browser storage is unavailable. Entries may not persist.');
 void checkAutomaticBackup();
+
+function initTheme() {
+  const toggle = $('#themeToggle');
+  if (!toggle) return;
+  const getTheme = () => document.documentElement.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const applyTheme = (theme) => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('shahdara_theme', theme); } catch {}
+    const meta = $('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#0c1412' : '#0e5b4d');
+    toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+    toggle.setAttribute('title', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+  };
+  toggle.addEventListener('click', () => {
+    const next = getTheme() === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+  });
+  applyTheme(getTheme());
+}
+initTheme();
+
+document.addEventListener('click', event => {
+  const menu = $('#mobileMoreMenu');
+  const moreBtn = $('#mobileMoreButton');
+  if (menu && !menu.hidden && !menu.contains(event.target) && !moreBtn?.contains(event.target)) {
+    menu.hidden = true;
+    moreBtn?.setAttribute('aria-expanded', 'false');
+  }
+});
+
+document.addEventListener('keydown', event => {
+  if ((event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+    event.preventDefault();
+    const search = $('#globalCustomerSearch');
+    if (search) {
+      search.focus();
+      search.select();
+    }
+  }
+});
 
 
 function phase3Cell(value) { return escapeHtml(value ?? ''); }

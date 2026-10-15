@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet } from './nav.js?v=1.10.0';
 import { validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary } from './form-validation.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
@@ -1452,6 +1452,66 @@ navDrawer = setupNavigationDrawer({
 setupSidebarRailToggle();
 setupScrollToTop();
 updateNavigationBadges(state);
+setupNetworkStatusIndicator({ onToast: toast });
+setupKeyboardShortcuts({
+  onNavigate: target => {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+      switchView(target);
+      if (target === 'transactions') renderTransactions();
+      else if (target === 'reports') renderMonthlyReport();
+      else if (target === 'analytics') renderAnalytics();
+      else if (target === 'inventory') renderInventory();
+      else if (target === 'expenses') renderExpenses();
+      else if (target === 'customers') renderCustomers();
+    } else if (target === 'backup') {
+      const toggle = $('#backupControlsToggle');
+      if (toggle) toggle.click();
+      const panel = $('#backupControls');
+      if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
+    }
+  },
+  onToggleTheme: () => {
+    $('#themeToggle')?.click();
+  },
+  onToggleDrawer: () => {
+    $('#navDrawerToggle')?.click();
+  },
+  onToggleRail: () => {
+    $('#sidebarRailToggle')?.click();
+  },
+  onSearchFocus: () => {
+    const s = $('#globalCustomerSearch');
+    if (s) {
+      s.focus();
+      s.select?.();
+    }
+  },
+  onToast: toast
+});
+setupMobileActionSheet({
+  onAction: action => {
+    if (action === 'add-payment') {
+      const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment');
+      if (btn) btn.click();
+    } else if (action === 'add-customer') {
+      const btn = $('#quickActionAddCustomer') || $('#addCustomerButton');
+      if (btn) btn.click();
+    } else if (action === 'record-expense') {
+      switchView('expenses');
+      renderExpenses();
+      $('#expenseAmount')?.focus();
+    } else if (action === 'stock-movement') {
+      switchView('inventory');
+      renderInventory();
+      $('#movementItemId')?.focus();
+    } else if (action === 'toggle-theme') {
+      $('#themeToggle')?.click();
+    } else if (action === 'keyboard-help') {
+      $('#shortcutsHelpButton')?.click();
+    }
+  },
+  onToast: toast
+});
 
 document.addEventListener('click', event => {
   const menu = $('#mobileMoreMenu');

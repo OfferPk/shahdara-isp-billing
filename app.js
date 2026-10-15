@@ -25,7 +25,9 @@ import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
-  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml
+  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
+  buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
+  generateStandaloneInvoiceDocument, downloadHtmlFile
 } from './form-validation.js?v=1.10.0';
 
 
@@ -2672,6 +2674,169 @@ if (printReminderSlipBtn) {
         }
       });
     }
+  });
+}
+
+// ==========================================================================
+// CUSTOMER MONTHLY BILL INVOICE MODAL & ACTIONS
+// ==========================================================================
+let currentInvoiceCustomer = null;
+const openInvoiceBtn = $('#openBillInvoiceBtn');
+const invoiceModal = $('#customerBillInvoiceModal');
+const closeInvoiceBtn = $('#closeBillInvoiceModalBtn');
+const invoiceMonthSelect = $('#invoiceMonthSelect');
+const invoiceFormatSelect = $('#invoiceFormatSelect');
+const invoiceCustomNote = $('#invoiceCustomNote');
+const printInvoiceBtn = $('#printBillInvoiceBtn');
+const sendWhatsAppInvoiceBtn = $('#sendWhatsAppInvoiceBtn');
+const copyInvoiceTextBtn = $('#copyInvoiceTextBtn');
+const downloadInvoiceHtmlBtn = $('#downloadInvoiceHtmlBtn');
+const invoicePreviewContainer = $('#billInvoicePreviewContainer');
+
+export function renderBillInvoiceContent() {
+  if (!currentInvoiceCustomer || !invoicePreviewContainer) return;
+  const month = invoiceMonthSelect?.value || null;
+  const format = invoiceFormatSelect?.value || 'standard';
+  const customNote = invoiceCustomNote?.value || '';
+  const data = buildCustomerBillInvoiceData(currentInvoiceCustomer, month);
+  const html = generateBillInvoiceHtml(data, { format, customNote });
+  invoicePreviewContainer.innerHTML = html;
+}
+
+export function openCustomerBillInvoiceModal(cust) {
+  if (!cust) return;
+  currentInvoiceCustomer = cust;
+
+  // Populate available months in invoiceMonthSelect
+  if (invoiceMonthSelect) {
+    invoiceMonthSelect.innerHTML = '';
+    const bills = Array.isArray(cust.bills) ? cust.bills : [];
+    const months = [...new Set(bills.map(b => b.month).filter(Boolean))].sort().reverse();
+    const currentMonth = monthsForHistory(new Date())[0];
+    if (!months.includes(currentMonth)) {
+      months.unshift(currentMonth);
+    }
+    months.forEach((m, idx) => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      opt.textContent = `${m}${idx === 0 ? ' (Current / Latest)' : ''}`;
+      invoiceMonthSelect.appendChild(opt);
+    });
+    if (months.length > 0) invoiceMonthSelect.value = months[0];
+  }
+
+  if (invoiceFormatSelect) invoiceFormatSelect.value = 'standard';
+  if (invoiceCustomNote) invoiceCustomNote.value = '';
+
+  renderBillInvoiceContent();
+
+  if (invoiceModal?.showModal) invoiceModal.showModal();
+  else invoiceModal?.setAttribute('open', '');
+}
+
+if (openInvoiceBtn && invoiceModal) {
+  openInvoiceBtn.addEventListener('click', () => {
+    if (!selectedCustomerId) {
+      toast('Please select a customer first.');
+      return;
+    }
+    const cust = state.customers.find(c => c.id === selectedCustomerId);
+    if (!cust) return;
+    openCustomerBillInvoiceModal(cust);
+  });
+}
+
+if (closeInvoiceBtn && invoiceModal) {
+  closeInvoiceBtn.addEventListener('click', () => {
+    if (invoiceModal.close) invoiceModal.close();
+    else invoiceModal.removeAttribute('open');
+  });
+}
+
+if (invoiceModal) {
+  invoiceModal.addEventListener('click', (e) => {
+    if (e.target === invoiceModal) {
+      if (invoiceModal.close) invoiceModal.close();
+      else invoiceModal.removeAttribute('open');
+    }
+  });
+}
+
+if (invoiceMonthSelect) {
+  invoiceMonthSelect.addEventListener('change', renderBillInvoiceContent);
+}
+
+if (invoiceFormatSelect) {
+  invoiceFormatSelect.addEventListener('change', renderBillInvoiceContent);
+}
+
+if (invoiceCustomNote) {
+  invoiceCustomNote.addEventListener('input', renderBillInvoiceContent);
+}
+
+if (printInvoiceBtn) {
+  printInvoiceBtn.addEventListener('click', () => {
+    if (!currentInvoiceCustomer) return;
+    document.body.classList.add('printing-invoice');
+    requestAnimationFrame(() => {
+      try {
+        window.print();
+      } catch {
+        toast('Printing is not supported in this browser.');
+      } finally {
+        document.body.classList.remove('printing-invoice');
+      }
+    });
+  });
+}
+
+if (sendWhatsAppInvoiceBtn) {
+  sendWhatsAppInvoiceBtn.addEventListener('click', () => {
+    if (!currentInvoiceCustomer) return;
+    const month = invoiceMonthSelect?.value || null;
+    const customNote = invoiceCustomNote?.value || '';
+    const data = buildCustomerBillInvoiceData(currentInvoiceCustomer, month);
+    const text = buildWhatsAppBillInvoiceText(data, customNote);
+    const wa = formatWhatsAppUrl(data.phone, text);
+    if (!wa.validPhone) {
+      toast('Invalid or missing Pakistani phone number. Please update customer phone first.');
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    toast(`Opening WhatsApp for ${wa.formattedPhone}...`);
+  });
+}
+
+if (copyInvoiceTextBtn) {
+  copyInvoiceTextBtn.addEventListener('click', async () => {
+    if (!currentInvoiceCustomer) return;
+    const month = invoiceMonthSelect?.value || null;
+    const customNote = invoiceCustomNote?.value || '';
+    const data = buildCustomerBillInvoiceData(currentInvoiceCustomer, month);
+    const text = buildWhatsAppBillInvoiceText(data, customNote);
+    if (!text) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      toast('Bill invoice message copied to clipboard.');
+    } catch {
+      toast('Unable to copy to clipboard.');
+    }
+  });
+}
+
+if (downloadInvoiceHtmlBtn) {
+  downloadInvoiceHtmlBtn.addEventListener('click', () => {
+    if (!currentInvoiceCustomer) return;
+    const month = invoiceMonthSelect?.value || null;
+    const format = invoiceFormatSelect?.value || 'standard';
+    const customNote = invoiceCustomNote?.value || '';
+    const data = buildCustomerBillInvoiceData(currentInvoiceCustomer, month);
+    const standaloneHtml = generateStandaloneInvoiceDocument(data, { format, customNote });
+    const filename = `Invoice_${data.customerNumber || data.id}_${data.month || 'slip'}.html`;
+    downloadHtmlFile(filename, standaloneHtml);
+    toast(`Downloaded invoice: ${filename}`);
   });
 }
 

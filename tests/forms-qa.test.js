@@ -750,4 +750,304 @@ test('app.js integrates payment reminder modal, live template preview, WhatsApp 
   assert.match(appJs, /body\.classList\.add\('printing-reminder'\)/);
 });
 
+test('buildCustomerBillInvoiceData calculates itemized billing invoice, arrears, and net payable amount', async () => {
+  const { buildCustomerBillInvoiceData } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'cust-205',
+    customerNumber: 205,
+    name: 'Hamza Farooq',
+    phone: '03211234567',
+    mohalla: 'Chah Miran',
+    zone: 'Zone B',
+    packageSpeed: '30',
+    serviceStatus: 'active',
+    customDueDate: '2026-10-10',
+    bills: [
+      {
+        id: 'bill-2026-08',
+        month: '2026-08',
+        dueAmount: 2500,
+        payments: [{ id: 'p-1', amount: 2500 }]
+      },
+      {
+        id: 'bill-2026-09',
+        month: '2026-09',
+        dueAmount: 2500,
+        payments: [{ id: 'p-2', amount: 1000 }] // 1500 arrears
+      },
+      {
+        id: 'bill-2026-10',
+        month: '2026-10',
+        dueAmount: 2500,
+        dueDate: '2026-10-10',
+        payments: []
+      }
+    ]
+  };
+
+  const invoice = buildCustomerBillInvoiceData(customer, '2026-10');
+  assert.equal(invoice.isValid, true);
+  assert.equal(invoice.customerNumber, '205');
+  assert.equal(invoice.customerName, 'Hamza Farooq');
+  assert.equal(invoice.billingMonth, '2026-10');
+  assert.equal(invoice.invoiceNumber, 'INV-202610-205');
+  assert.equal(invoice.monthlyCharge, 2500);
+  assert.equal(invoice.arrears, 1500);
+  assert.equal(invoice.payments, 0);
+  assert.equal(invoice.netPayable, 4000); // 2500 current + 1500 arrears
+  assert.equal(invoice.dueDate, '2026-10-10');
+  assert.equal(invoice.status, 'UNPAID');
+
+  // If a payment is recorded for current month
+  customer.bills[2].payments.push({ id: 'p-3', amount: 2000 });
+  const partialInvoice = buildCustomerBillInvoiceData(customer, '2026-10');
+  assert.equal(partialInvoice.payments, 2000);
+  assert.equal(partialInvoice.netPayable, 2000); // (2500-2000) + 1500 = 2000
+  assert.equal(partialInvoice.status, 'PARTIAL');
+
+  // Safe fallback for null/empty customer
+  const nullInvoice = buildCustomerBillInvoiceData(null);
+  assert.equal(nullInvoice.isValid, false);
+  assert.equal(nullInvoice.netPayable, 0);
+  assert.equal(nullInvoice.status, 'NO_BILL');
+});
+
+test('generateBillInvoiceHtml produces standard A4 sheet and 80mm thermal slip layouts', async () => {
+  const { buildCustomerBillInvoiceData, generateBillInvoiceHtml } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'cust-301',
+    customerNumber: 301,
+    name: 'Zahid Mahmood',
+    phone: '03009876543',
+    mohalla: 'Main Bazaar',
+    zone: 'Zone 1',
+    packageSpeed: '25',
+    serviceStatus: 'active',
+    bills: [
+      {
+        id: 'bill-2026-10',
+        month: '2026-10',
+        dueAmount: 2200,
+        payments: []
+      }
+    ]
+  };
+
+  const data = buildCustomerBillInvoiceData(customer, '2026-10');
+
+  // Standard A4 Layout
+  const standardHtml = generateBillInvoiceHtml(data, { format: 'standard' });
+  assert.match(standardHtml, /class="bill-invoice-sheet"/);
+  assert.match(standardHtml, /Shahdara ISP Network/);
+  assert.match(standardHtml, /INV-202610-301/);
+  assert.match(standardHtml, /Zahid Mahmood/);
+  assert.match(standardHtml, /Main Bazaar, Zone 1/);
+  assert.match(standardHtml, /25 Mbps Fiber/);
+  assert.match(standardHtml, /2,200/);
+  assert.match(standardHtml, /Payment Instructions/);
+
+  // 80mm Thermal POS Slip Layout
+  const thermalHtml = generateBillInvoiceHtml(data, { format: 'thermal' });
+  assert.match(thermalHtml, /class="bill-invoice-slip thermal-receipt"/);
+  assert.match(thermalHtml, /MONTHLY BILL INVOICE/);
+  assert.match(thermalHtml, /#301/);
+  assert.match(thermalHtml, /TOTAL AMOUNT DUE/);
+  assert.match(thermalHtml, /2,200/);
+  assert.match(thermalHtml, /Billing Representative Signature/);
+
+  // Fallback for empty data
+  assert.match(generateBillInvoiceHtml(null), /empty-state/);
+});
+
+test('buildWhatsAppBillInvoiceText formats Urdu-English WhatsApp notification with breakdown', async () => {
+  const { buildCustomerBillInvoiceData, buildWhatsAppBillInvoiceText } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'cust-404',
+    customerNumber: 404,
+    name: 'Nasir Iqbal',
+    phone: '03331122334',
+    packageSpeed: '50',
+    bills: [
+      {
+        month: '2026-09',
+        dueAmount: 3000,
+        payments: [{ amount: 1000 }]
+      },
+      {
+        month: '2026-10',
+        dueAmount: 3000,
+        dueDate: '2026-10-05',
+        payments: []
+      }
+    ]
+  };
+
+  const data = buildCustomerBillInvoiceData(customer, '2026-10');
+  const waText = buildWhatsAppBillInvoiceText(data);
+
+  assert.match(waText, /SHAHDARA ISP NETWORK - MONTHLY BILL INVOICE/);
+  assert.match(waText, /Nasir Iqbal/);
+  assert.match(waText, /#404/);
+  assert.match(waText, /2026-10/);
+  assert.match(waText, /INV-202610-404/);
+  assert.match(waText, /رواں ماہ کے چارجز: PKR 3,000/);
+  assert.match(waText, /پچھلے بقایا جات \(Arrears\): PKR 2,000/);
+  assert.match(waText, /کل قابل ادا رقم \(Net Due\): PKR 5,000/);
+  assert.match(waText, /2026-10-05/);
+  assert.match(waText, /EasyPaisa \/ JazzCash/);
+
+  // Fallback for invalid input
+  assert.equal(buildWhatsAppBillInvoiceText(null), '');
+});
+
+test('index.html and styles.css provide customer bill invoice modal, triggers, and print layout', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+
+  assert.match(indexHtml, /id="openBillInvoiceBtn"/);
+  assert.match(indexHtml, /id="customerBillInvoiceModal"/);
+  assert.match(indexHtml, /id="invoiceMonthSelect"/);
+  assert.match(indexHtml, /id="invoiceFormatSelect"/);
+  assert.match(indexHtml, /id="invoiceCustomNote"/);
+  assert.match(indexHtml, /id="downloadInvoiceHtmlBtn"/);
+  assert.match(indexHtml, /id="printBillInvoiceBtn"/);
+  assert.match(indexHtml, /id="sendWhatsAppInvoiceBtn"/);
+  assert.match(indexHtml, /id="copyInvoiceTextBtn"/);
+  assert.match(indexHtml, /id="billInvoicePreviewContainer"/);
+
+  assert.match(stylesCss, /\.invoice-modal/);
+  assert.match(stylesCss, /\.invoice-modal-card/);
+  assert.match(stylesCss, /\.bill-invoice-sheet/);
+  assert.match(stylesCss, /\.invoice-table/);
+  assert.match(stylesCss, /\.bill-invoice-slip\.thermal-receipt/);
+  assert.match(stylesCss, /body\.printing-invoice/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.invoice-modal/);
+});
+
+test('app.js integrates customer bill invoice modal, format switcher, printing, and WhatsApp dispatch', () => {
+  const appJs = read('app.js');
+
+  assert.match(appJs, /buildCustomerBillInvoiceData/);
+  assert.match(appJs, /generateBillInvoiceHtml/);
+  assert.match(appJs, /buildWhatsAppBillInvoiceText/);
+  assert.match(appJs, /generateStandaloneInvoiceDocument/);
+  assert.match(appJs, /downloadHtmlFile/);
+  assert.match(appJs, /openCustomerBillInvoiceModal/);
+  assert.match(appJs, /renderBillInvoiceContent/);
+  assert.match(appJs, /openInvoiceBtn/);
+  assert.match(appJs, /invoiceModal/);
+  assert.match(appJs, /invoiceMonthSelect/);
+  assert.match(appJs, /invoiceFormatSelect/);
+  assert.match(appJs, /invoiceCustomNote/);
+  assert.match(appJs, /downloadInvoiceHtmlBtn/);
+  assert.match(appJs, /printInvoiceBtn/);
+  assert.match(appJs, /sendWhatsAppInvoiceBtn/);
+  assert.match(appJs, /copyInvoiceTextBtn/);
+  assert.match(appJs, /body\.classList\.add\('printing-invoice'\)/);
+});
+
+test('generateStandaloneInvoiceDocument embeds complete CSS styles and standalone HTML structure', async () => {
+  const { buildCustomerBillInvoiceData, generateStandaloneInvoiceDocument } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'cust-401',
+    customerNumber: 401,
+    name: 'Muhammad Aslam',
+    phone: '03001234567',
+    mohalla: 'Kot Mohibbu',
+    zone: 'Zone C',
+    packageSpeed: '40',
+    serviceStatus: 'active',
+    bills: [{ id: 'b-401', month: '2026-10', dueAmount: 3000, payments: [] }]
+  };
+
+  const data = buildCustomerBillInvoiceData(customer, '2026-10');
+  const docHtml = generateStandaloneInvoiceDocument(data, {
+    format: 'standard',
+    customNote: 'Please pay by 10th October.'
+  });
+
+  assert.match(docHtml, /<!DOCTYPE html>/i);
+  assert.match(docHtml, /<html lang="en">/i);
+  assert.match(docHtml, /<title>Invoice - INV-202610-401 - Shahdara ISP<\/title>/);
+  assert.match(docHtml, /Please pay by 10th October\./);
+  assert.match(docHtml, /\.bill-invoice-sheet/);
+  assert.match(docHtml, /window\.print\(\)/);
+
+  // Fallback for empty data
+  const fallbackDoc = generateStandaloneInvoiceDocument(null);
+  assert.match(fallbackDoc, /<!DOCTYPE html>/i);
+});
+
+test('downloadHtmlFile safely triggers a simulated browser download and handles headless environments gracefully', async () => {
+  const { downloadHtmlFile } = await import('../form-validation.js');
+
+  // When doc is not passed or undefined in Node environment
+  assert.doesNotThrow(() => {
+    downloadHtmlFile('test.html', '<h1>Test</h1>', null);
+  });
+
+  // With a mock document
+  let clickTriggered = false;
+  let revoked = false;
+  const mockAnchor = {
+    style: {},
+    setAttribute: (name, val) => { mockAnchor[name] = val; },
+    click: () => { clickTriggered = true; }
+  };
+  const mockDoc = {
+    createElement: (tag) => {
+      assert.equal(tag, 'a');
+      return mockAnchor;
+    },
+    body: {
+      appendChild: () => {},
+      removeChild: () => {}
+    }
+  };
+
+  const origURL = globalThis.URL;
+  globalThis.URL = {
+    createObjectURL: (blob) => 'blob:mock-url',
+    revokeObjectURL: (url) => { revoked = true; }
+  };
+
+  try {
+    downloadHtmlFile('invoice.html', '<html>content</html>', mockDoc);
+    assert.equal(clickTriggered, true);
+    assert.equal(revoked, true);
+    assert.equal(mockAnchor.download, 'invoice.html');
+  } finally {
+    globalThis.URL = origURL;
+  }
+});
+
+test('custom notes are reflected in standard invoice, thermal slip, and WhatsApp dispatch text', async () => {
+  const { buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'cust-501',
+    customerNumber: 501,
+    name: 'Tariq Javed',
+    phone: '03007654321',
+    bills: [{ id: 'b-1', month: '2026-10', dueAmount: 1800, payments: [] }]
+  };
+
+  const data = buildCustomerBillInvoiceData(customer, '2026-10');
+  const customNote = 'Speed doubled for 3 months promotion! شکریہ';
+
+  const standardHtml = generateBillInvoiceHtml(data, { format: 'standard', customNote });
+  assert.match(standardHtml, /Speed doubled for 3 months promotion! شکریہ/);
+
+  const thermalHtml = generateBillInvoiceHtml(data, { format: 'thermal', customNote });
+  assert.match(thermalHtml, /Speed doubled for 3 months promotion! شکریہ/);
+
+  const waText = buildWhatsAppBillInvoiceText(data, customNote);
+  assert.match(waText, /Speed doubled for 3 months promotion! شکریہ/);
+});
+
+
 

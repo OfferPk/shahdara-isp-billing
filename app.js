@@ -21,7 +21,7 @@ import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY 
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupAreaDrilldownModal } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop } from './nav.js?v=1.10.0';
-import { validatePakistanPhone, validatePositiveAmount } from './form-validation.js?v=1.10.0';
+import { validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary } from './form-validation.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -580,15 +580,49 @@ function renderHistory(customer) {
   historyContainer.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   bindReceiptPhoneActions(historyContainer);
 }
+let transactionMethodFilter = 'all';
+let transactionCurrentPage = 1;
+let transactionPageSize = 15;
+
+let reportSearchQuery = '';
+let reportCurrentPage = 1;
+let reportPageSize = 15;
+
 function renderTransactions() {
   const date = $('#transactionDateFilter').value;
   const recencyValue = $('#transactionRecencyFilter').value;
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
-  const transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
+  let transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
+
+  if (transactionMethodFilter !== 'all') {
+    transactions = transactions.filter(tx => tx.method === transactionMethodFilter);
+  }
+
   const total = listTransactions(state).length;
   $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'}`;
   $('#transactionsEmpty').hidden = transactions.length > 0;
-  transactionList.innerHTML = transactions.map(transaction => {
+
+  const summary = calculateTransactionSummary(transactions);
+  const totalEl = $('#txSummaryTotal');
+  const avgEl = $('#txSummaryAverage');
+  if (totalEl) totalEl.textContent = formatAmount(summary.totalAmount);
+  if (avgEl) avgEl.textContent = formatAmount(summary.averageAmount);
+
+  const paged = paginateRows(transactions, transactionCurrentPage, transactionPageSize);
+  transactionCurrentPage = paged.page;
+
+  const pagNav = $('#transactionPagination');
+  if (pagNav) {
+    pagNav.hidden = transactions.length === 0;
+    const pageInfo = $('#txPageInfo');
+    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages} (${transactions.length} total)`;
+    const prevBtn = $('#txPrevPage');
+    if (prevBtn) prevBtn.disabled = paged.page <= 1;
+    const nextBtn = $('#txNextPage');
+    if (nextBtn) nextBtn.disabled = paged.page >= paged.totalPages;
+  }
+
+  transactionList.innerHTML = paged.items.map(transaction => {
     const customer = state.customers.find(item => item.id === transaction.customerId);
     const statusText = reportStatusLabel(transaction.status);
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[transaction.customerServiceStatus] ?? 'Not set';
@@ -606,10 +640,36 @@ function renderTransactions() {
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
 function renderMonthlyReport() {
   const month = selectedBillingMonth;
-  const rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:searchQuery() });
+  const query = reportSearchQuery.trim() || searchQuery();
+  const rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:query });
   $('#monthlyReportCount').textContent = `${rows.length} ${rows.length === 1 ? 'customer' : 'customers'} · ${monthName(month)}`;
   $('#monthlyReportEmpty').hidden = rows.length > 0;
-  reportList.innerHTML = rows.map(row => {
+
+  const totalBilled = rows.reduce((s, r) => s + (r.billAmount || 0), 0);
+  const totalCollected = rows.reduce((s, r) => s + (r.amountReceived || 0), 0);
+  const totalBalance = rows.reduce((s, r) => s + (r.balanceDue || 0), 0);
+  const billedEl = $('#reportSummaryBilled');
+  const collEl = $('#reportSummaryCollected');
+  const balEl = $('#reportSummaryBalance');
+  if (billedEl) billedEl.textContent = formatAmount(totalBilled);
+  if (collEl) collEl.textContent = formatAmount(totalCollected);
+  if (balEl) balEl.textContent = formatAmount(totalBalance);
+
+  const paged = paginateRows(rows, reportCurrentPage, reportPageSize);
+  reportCurrentPage = paged.page;
+
+  const pagNav = $('#monthlyReportPagination');
+  if (pagNav) {
+    pagNav.hidden = rows.length === 0;
+    const pageInfo = $('#reportPageInfo');
+    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages} (${rows.length} total)`;
+    const prevBtn = $('#reportPrevPage');
+    if (prevBtn) prevBtn.disabled = paged.page <= 1;
+    const nextBtn = $('#reportNextPage');
+    if (nextBtn) nextBtn.disabled = paged.page >= paged.totalPages;
+  }
+
+  reportList.innerHTML = paged.items.map(row => {
     const monthlySale = row.monthlySellingAmount === null || row.monthlySellingAmount === undefined ? 'Not set' : formatAmount(row.monthlySellingAmount);
     const billAmount = row.billAmount === null ? 'Not set' : formatAmount(row.billAmount);
     const due = row.balanceDue === null ? 'Not set' : formatAmount(row.balanceDue);
@@ -1120,9 +1180,33 @@ $('#quickAddPaymentButton').addEventListener('click', () => { switchView('custom
 $('#currentBillPaymentShortcut').addEventListener('click', () => openPaymentEntry());
 $('#showTransactionsButton').addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
 $('#showReportsButton').addEventListener('click', () => { switchView('reports'); renderMonthlyReport(); });
-$('#transactionDateFilter').addEventListener('input', renderTransactions);
-$('#transactionRecencyFilter').addEventListener('change', renderTransactions);
-$('#clearTransactionFilters').addEventListener('click', () => { $('#transactionRecencyFilter').value = 'all'; $('#transactionDateFilter').value = ''; $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
+$('#transactionDateFilter').addEventListener('input', () => { transactionCurrentPage = 1; renderTransactions(); });
+$('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
+$('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+$('#txPrevPage').addEventListener('click', () => { if (transactionCurrentPage > 1) { transactionCurrentPage--; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
+$('#txNextPage').addEventListener('click', () => { transactionCurrentPage++; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); });
+$('#txPageSize').addEventListener('change', event => { transactionPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); transactionCurrentPage = 1; renderTransactions(); });
+$('#clearTransactionFilters').addEventListener('click', () => {
+  $('#transactionRecencyFilter').value = 'all';
+  $('#transactionDateFilter').value = '';
+  const methodSelect = $('#transactionMethodFilter');
+  if (methodSelect) methodSelect.value = 'all';
+  transactionMethodFilter = 'all';
+  transactionCurrentPage = 1;
+  $('#globalCustomerSearch').value = '';
+  const reportSearch = $('#reportCustomerSearch');
+  if (reportSearch) reportSearch.value = '';
+  reportSearchQuery = '';
+  reportCurrentPage = 1;
+  renderGlobalSearch();
+  renderCustomers();
+  renderTransactions();
+  renderMonthlyReport();
+});
+$('#reportCustomerSearch').addEventListener('input', event => { reportSearchQuery = event.currentTarget.value; reportCurrentPage = 1; renderMonthlyReport(); });
+$('#reportPrevPage').addEventListener('click', () => { if (reportCurrentPage > 1) { reportCurrentPage--; renderMonthlyReport(); $('#monthlyReportList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
+$('#reportNextPage').addEventListener('click', () => { reportCurrentPage++; renderMonthlyReport(); $('#monthlyReportList').scrollIntoView({ behavior:'smooth', block:'start' }); });
+$('#reportPageSize').addEventListener('change', event => { reportPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); reportCurrentPage = 1; renderMonthlyReport(); });
 function setBillingMonth(month) {
   if (!monthsForHistory().includes(month)) return;
   selectedBillingMonth = month;
@@ -1166,6 +1250,15 @@ function saveNewCustomer(allowDuplicateName = false) {
     mohalla:$('#newCustomerMohalla').value,
     zone:$('#newCustomerZone').value
   };
+  const nameValidation = validateCustomerName(details.name);
+  if (!nameValidation.valid) {
+    const errorBox = $('#addCustomerError');
+    errorBox.textContent = nameValidation.message;
+    errorBox.hidden = false;
+    $('#newCustomerName').focus();
+    return;
+  }
+  details.name = nameValidation.cleanName;
   try {
     const matches = findPossibleDuplicateCustomers(state.customers, details);
     if (matches.length && !allowDuplicateName) {

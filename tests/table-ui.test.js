@@ -161,3 +161,49 @@ test('inventory filtering and sorting logic handles items by category, query, an
   const byCostDesc = [...items].sort((a, b) => b.unitCost - a.unitCost);
   assert.deepEqual(byCostDesc.map(i => i.id), ['item-2', 'item-1', 'item-4', 'item-3']);
 });
+
+test('index.html contains transaction method filter, summary bar, and pagination elements', () => {
+  assert.match(index, /id="transactionMethodFilter"/);
+  assert.match(index, /id="transactionSummaryBar"/);
+  assert.match(index, /id="txSummaryTotal"/);
+  assert.match(index, /id="txSummaryAverage"/);
+  assert.match(index, /id="transactionPagination"/);
+  assert.match(index, /id="txPrevPage"/);
+  assert.match(index, /id="txNextPage"/);
+  assert.match(index, /id="txPageSize"/);
+});
+
+test('index.html contains monthly report search, summary bar, and pagination elements', () => {
+  assert.match(index, /id="reportCustomerSearch"/);
+  assert.match(index, /id="monthlyReportSummaryBar"/);
+  assert.match(index, /id="reportSummaryBilled"/);
+  assert.match(index, /id="reportSummaryCollected"/);
+  assert.match(index, /id="reportSummaryBalance"/);
+  assert.match(index, /id="monthlyReportPagination"/);
+  assert.match(index, /id="reportPrevPage"/);
+  assert.match(index, /id="reportNextPage"/);
+  assert.match(index, /id="reportPageSize"/);
+});
+
+test('styles.css provides table pagination and summary bar responsive and dark mode styles', () => {
+  assert.match(styles, /\.table-pagination\s*\{/);
+  assert.match(styles, /\.pagination-btn/);
+  assert.match(styles, /\.pagination-page-info/);
+  assert.match(styles, /\.transaction-summary-bar/);
+  assert.match(styles, /\.monthly-report-summary-bar/);
+  assert.match(styles, /\[data-theme="dark"\]\s*\.table-pagination/);
+  assert.match(styles, /\[data-theme="dark"\]\s*\.pagination-btn/);
+});
+
+test('app.js wires transaction method filtering, pagination, and monthly report search', () => {
+  assert.match(app, /let transactionMethodFilter\s*=\s*'all'/);
+  assert.match(app, /let transactionCurrentPage\s*=\s*1/);
+  assert.match(app, /let transactionPageSize\s*=\s*15/);
+  assert.match(app, /let reportSearchQuery\s*=\s*''/);
+  assert.match(app, /#transactionMethodFilter/);
+  assert.match(app, /#txPrevPage/);
+  assert.match(app, /#txNextPage/);
+  assert.match(app, /#reportCustomerSearch/);
+  assert.match(app, /#reportPrevPage/);
+  assert.match(app, /#reportNextPage/);
+});

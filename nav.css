@@ -1268,3 +1268,323 @@ kbd {
   color: #8fa59c;
 }
 
+/* ==========================================================================
+   NETWORK STATUS SYNCING DOT
+   ========================================================================== */
+
+.network-status-dot.syncing {
+  background: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+  animation: syncPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes syncPulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+  }
+}
+
+/* ==========================================================================
+   MOBILE SWIPE NAVIGATION INDICATOR & FEEDBACK
+   ========================================================================== */
+
+.swipe-nav-indicator {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px) scale(0.9);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(14, 30, 24, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  font: 600 13px/1.2 Manrope, system-ui, sans-serif;
+  letter-spacing: -0.2px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  z-index: 85;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.18s;
+}
+
+.swipe-nav-indicator.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.swipe-nav-indicator .swipe-indicator-arrow {
+  font-size: 15px;
+  font-weight: 700;
+  color: #34d399;
+}
+
+.swipe-nav-indicator.is-boundary .swipe-indicator-arrow {
+  color: #f59e0b;
+}
+
+.swipe-nav-indicator.is-boundary {
+  background: rgba(40, 30, 15, 0.9);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+[data-theme="dark"] .swipe-nav-indicator {
+  background: rgba(20, 35, 31, 0.92);
+  border-color: rgba(52, 211, 153, 0.25);
+  color: #e6edea;
+}
+
+@media (min-width: 900px) {
+  .swipe-nav-indicator {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swipe-nav-indicator {
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   MOBILE LANDSCAPE COMPACT LAYOUT OPTIMIZATIONS
+   (@media (max-height: 520px) and (orientation: landscape))
+   Maximizes vertical viewport for tables, ledger rows, and charts.
+   ========================================================================== */
+
+@media (max-height: 520px) and (orientation: landscape) {
+  .topbar {
+    padding: 6px 14px;
+    min-height: 44px;
+  }
+
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+  }
+
+  .brand-copy h1 {
+    font-size: 13.5px;
+    line-height: 1.1;
+  }
+
+  .brand-copy p {
+    display: none;
+  }
+
+  .nav-drawer-toggle {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .command-palette-trigger,
+  .shortcuts-help-button,
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
+    min-height: 32px;
+  }
+
+  .privacy-pill {
+    display: none;
+  }
+
+  .network-status-pill {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  /* Compact view navigation bar */
+  .view-nav {
+    padding: 4px 10px;
+    gap: 4px;
+  }
+
+  .view-nav-button {
+    min-height: 32px;
+    padding: 4px 10px;
+    font-size: 12px;
+  }
+
+  /* Compact mobile bottom nav bar */
+  .mobile-bottom-nav {
+    height: 44px;
+    padding: 2px 6px;
+  }
+
+  .mobile-bottom-nav button {
+    font-size: 10px;
+    min-height: 38px;
+    padding: 2px 4px;
+  }
+
+  .mobile-action-toggle-btn {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    margin-top: -12px;
+  }
+
+  .mobile-action-plus {
+    font-size: 16px;
+  }
+
+  /* Compact summary grid on landscape */
+  .dashboard .summary-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 8px;
+  }
+
+  .summary-card {
+    padding: 8px 10px;
+  }
+
+  .summary-value {
+    font-size: 16px;
+  }
+
+  .summary-label {
+    font-size: 11px;
+  }
+
+  .summary-period {
+    font-size: 10px;
+  }
+
+  /* Table density on landscape */
+  .table-scroll {
+    max-height: calc(100vh - 140px);
+  }
+
+  .table-scroll th,
+  .table-scroll td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  /* Dialogs and modals max height */
+  .modal,
+  .shortcuts-modal-card,
+  .statement-modal-card,
+  .batch-receipt-card {
+    max-height: 94vh;
+  }
+
+  .scroll-top-button {
+    bottom: 52px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+  }
+
+  .swipe-nav-indicator {
+    bottom: 52px;
+    padding: 5px 12px;
+    font-size: 11px;
+  }
+}
+
+/* ==========================================================================
+   NETWORK & STORAGE HEALTH MODAL
+   ========================================================================== */
+
+.network-health-modal {
+  padding: 0;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 18px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 24px 60px rgba(14, 30, 24, 0.28);
+  max-width: 520px;
+  width: min(520px, calc(100vw - 32px));
+  overflow: hidden;
+}
+
+.network-health-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.network-health-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.health-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--mint, #f4faf7);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+}
+
+.health-stat-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.health-stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.health-stat-label {
+  font: 600 11px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--muted, #71817c);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.health-stat-value {
+  font: 700 15px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+}
+
+.health-stat-detail {
+  font-size: 12px;
+  color: var(--muted, #71817c);
+}
+
+.network-health-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+[data-theme="dark"] .network-health-modal {
+  background: #14231f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .health-stat-card {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .health-stat-value {
+  color: #e6edea;
+}
+
+
+

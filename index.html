@@ -750,7 +750,52 @@
       </section>
     </form>
   </dialog>
+  <dialog id="networkHealthModal" class="modal network-health-modal" aria-labelledby="networkHealthModalTitle">
+    <section class="network-health-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">OFFLINE RESILIENCE</p>
+          <h2 id="networkHealthModalTitle">Connection &amp; Storage Health</h2>
+        </div>
+        <button id="networkHealthModalClose" class="close-button" type="button" aria-label="Close connection health modal">×</button>
+      </div>
+      <div class="network-health-grid">
+        <div class="health-stat-card">
+          <span class="health-stat-icon" aria-hidden="true">🌐</span>
+          <div class="health-stat-info">
+            <span class="health-stat-label">Network Status</span>
+            <strong id="healthNetworkState" class="health-stat-value">Checking...</strong>
+            <span id="healthNetworkDetail" class="health-stat-detail">Local mode active</span>
+          </div>
+        </div>
+        <div class="health-stat-card">
+          <span class="health-stat-icon" aria-hidden="true">📦</span>
+          <div class="health-stat-info">
+            <span class="health-stat-label">Service Worker Cache</span>
+            <strong id="healthCacheState" class="health-stat-value">Cached</strong>
+            <span class="health-stat-detail">Offline assets versioned</span>
+          </div>
+        </div>
+        <div class="health-stat-card">
+          <span class="health-stat-icon" aria-hidden="true">💾</span>
+          <div class="health-stat-info">
+            <span class="health-stat-label">Local Ledger Storage</span>
+            <strong id="healthStorageState" class="health-stat-value">Active</strong>
+            <span id="healthStorageDetail" class="health-stat-detail">Device localStorage verified</span>
+          </div>
+        </div>
+      </div>
+      <div class="network-health-actions">
+        <button id="healthCheckConnectionBtn" class="primary-button" type="button">🔄 Test Connection</button>
+        <button id="healthCloseBtn" class="secondary-button" type="button">Close</button>
+      </div>
+    </section>
+  </dialog>
   <section id="receiptPrintArea" class="receipt-print-area" aria-label="Printable payment receipt" hidden></section>
+  <div id="swipeNavIndicator" class="swipe-nav-indicator" aria-hidden="true">
+    <span class="swipe-indicator-arrow"></span>
+    <span class="swipe-indicator-label"></span>
+  </div>
   <button id="scrollTopButton" class="scroll-top-button" type="button" aria-label="Scroll to top of page" hidden>
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>
   </button>
@@ -780,10 +825,12 @@
         <div class="shortcuts-section">
           <h3>App Actions</h3>
           <ul class="shortcuts-list">
+            <li><span>Command Palette</span><div class="key-combo"><kbd>Ctrl</kbd>+<kbd>K</kbd></div></li>
             <li><span>Focus Global Search</span><div class="key-combo"><kbd>/</kbd></div></li>
             <li><span>Toggle Dark / Light Theme</span><div class="key-combo"><kbd>t</kbd></div></li>
             <li><span>Toggle Mobile Drawer</span><div class="key-combo"><kbd>m</kbd></div></li>
             <li><span>Toggle Sidebar Rail</span><div class="key-combo"><kbd>b</kbd></div></li>
+            <li><span>Swipe Next/Prev Tab (Mobile)</span><div class="key-combo"><kbd>Swipe ← / →</kbd></div></li>
             <li><span>Open Shortcuts Help</span><div class="key-combo"><kbd>?</kbd></div></li>
             <li><span>Close Modals / Drawers</span><div class="key-combo"><kbd>Esc</kbd></div></li>
           </ul>

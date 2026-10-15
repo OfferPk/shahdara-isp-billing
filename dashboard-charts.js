@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2119,6 +2119,93 @@ export function renderAcquisitionRoiSvg(roiData) {
 }
 
 /**
+ * Renders an accessible pure SVG chart displaying 24-hour diurnal bandwidth demand curve,
+ * upstream capacity threshold, and peak-hour subscriber shaping metrics.
+ */
+export function renderBandwidthShapingSvg(metrics) {
+  const width = 560;
+  const height = 240;
+
+  if (!metrics || metrics.totalProvisionedBandwidthMbps === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Bandwidth Shaping: No active subscribers">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-12 4 L-4 -8 L4 0 L12 -12" stroke="#0e5b4d" stroke-width="2" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No active bandwidth demand detected</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Provision subscriber packages to forecast peak hour contention, link saturation, and shaping headroom</text>
+      </g>
+    </svg>`;
+  }
+
+  const topPad = 38;
+  const bottomPad = 36;
+  const leftPad = 48;
+  const rightPad = 24;
+  const plotWidth = width - leftPad - rightPad;
+  const plotHeight = height - topPad - bottomPad;
+
+  const maxScale = Math.max(metrics.upstreamCapacityMbps * 1.15, metrics.peakDemandMbps * 1.25, 100);
+
+  const capacityY = Math.round(topPad + plotHeight - (metrics.upstreamCapacityMbps / maxScale) * plotHeight);
+
+  const barWidth = Math.max(8, Math.floor(plotWidth / 24) - 3);
+  const bars = (metrics.hourlyProfile ?? []).map((pt, i) => {
+    const x = leftPad + i * (plotWidth / 24) + 2;
+    const barH = Math.max(4, Math.round((pt.demandMbps / maxScale) * plotHeight));
+    const y = topPad + plotHeight - barH;
+    const isPeak = pt.isPeakHour;
+    const fill = isPeak ? '#f59e0b' : '#3b82f6';
+
+    return `
+      <g class="diurnal-bar-group">
+        <rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="2" fill="${fill}" opacity="${isPeak ? '0.9' : '0.65'}">
+          <title>${pt.label} PKT: ${pt.demandMbps} Mbps (${pt.utilizationPercent}% link capacity)${isPeak ? ' [PEAK HOUR]' : ''}</title>
+        </rect>
+      </g>
+    `;
+  }).join('');
+
+  const labelHours = [0, 4, 8, 12, 16, 20, 23];
+  const axisLabels = labelHours.map(h => {
+    const x = leftPad + h * (plotWidth / 24) + barWidth / 2;
+    return `<text x="${x}" y="${topPad + plotHeight + 14}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="${h === 20 ? '700' : '500'}" fill="${h === 20 ? '#d97706' : 'var(--muted, #71817c)'}">${String(h).padStart(2, '0')}:00</text>`;
+  }).join('');
+
+  const statusColor = metrics.congestionStatus === 'Healthy Bandwidth Headroom' ? '#047857' : (metrics.congestionStatus === 'Moderate Congestion' ? '#d97706' : '#dc2626');
+
+  return `<svg class="chart-svg shaping-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Peak Bandwidth Utilization and Diurnal Traffic Curve">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${leftPad}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
+        Peak Demand: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.peakDemandMbps} Mbps</tspan>
+      </text>
+      <text x="${plotWidth / 2}" y="0" text-anchor="middle" font-weight="600" fill="var(--muted, #71817c)">
+        Capacity: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.upstreamCapacityMbps} Mbps</tspan>
+      </text>
+      <text x="${plotWidth}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
+        Peak Utilization: <tspan font-weight="700" fill="${statusColor}">${metrics.peakUtilizationPercent}%</tspan>
+      </text>
+    </g>
+
+    <line x1="${leftPad}" y1="${capacityY}" x2="${leftPad + plotWidth}" y2="${capacityY}" stroke="#dc2626" stroke-width="1.5" stroke-dasharray="4 3" />
+    <text x="${leftPad + plotWidth}" y="${capacityY - 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#dc2626">UPSTREAM CEILING (${metrics.upstreamCapacityMbps}M)</text>
+
+    <line x1="${leftPad}" y1="${topPad + plotHeight}" x2="${leftPad + plotWidth}" y2="${topPad + plotHeight}" stroke="rgba(0,0,0,0.1)" stroke-width="1" />
+
+    ${bars}
+    ${axisLabels}
+
+    <g transform="translate(${width / 2}, ${height - 6})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Peak Surge: <tspan font-weight="700" fill="#d97706">19:00 - 23:00 PKT</tspan> · Headroom: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.headroomMbps} Mbps</tspan> · Ratio: <tspan font-weight="700" fill="var(--ink, #182e2a)">1:${metrics.oversubscriptionRatio}</tspan> · Status: <tspan font-weight="700" fill="${statusColor}">${metrics.congestionStatus}</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+/**
  * Generates an executive plain-text report of the margin simulation.
  */
 export function generateMarginSimulationReportText(simResult) {
@@ -2586,6 +2673,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupAcquisitionRoiModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  const shapingEl = document.getElementById('dashboardShapingChart');
+  if (shapingEl) {
+    const shapingData = calculateBandwidthShapingMetrics(state, referenceDate);
+    shapingEl.innerHTML = renderBandwidthShapingSvg(shapingData);
+  }
+
+  setupBandwidthShapingModal(state, { referenceDate, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

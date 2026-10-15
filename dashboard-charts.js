@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -92,6 +92,18 @@ export function setLtvMetric(metric) {
 
 export function getLtvMetric() {
   return currentLtvMetric;
+}
+
+let currentProjectionScenario = 'baseline';
+
+export function setProjectionScenario(scenario) {
+  if (['baseline', 'optimistic', 'conservative'].includes(scenario)) {
+    currentProjectionScenario = scenario;
+  }
+}
+
+export function getProjectionScenario() {
+  return currentProjectionScenario;
 }
 
 function escapeXml(str) {
@@ -1800,6 +1812,133 @@ export function renderIncidentImpactSvg(matrixData) {
   </svg>`;
 }
 
+/**
+ * Renders an accessible pure SVG chart displaying 6-month forward cashflow projections,
+ * recurring gross billed MRR, expected collections, and churn drag across scenarios.
+ */
+export function renderCashflowProjectionSvg(projectionData) {
+  const width = 560;
+  const height = 240;
+
+  if (!projectionData || !projectionData.monthlyForecasts || projectionData.monthlyForecasts.length === 0 || projectionData.totalProjectedBilled === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Forward Cashflow Projections: No recurring subscribers configured">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-8 -6 L-2 -18 L4 -12 L10 -22" stroke="#0e5b4d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No active subscriber recurring revenue</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Configure selling amounts on customer profiles to project forward recurring cashflow</text>
+      </g>
+    </svg>`;
+  }
+
+  const forecasts = projectionData.monthlyForecasts;
+  const maxBilled = Math.max(...forecasts.map(m => m.projectedBilled), 1);
+
+  const baselineY = 175;
+  const chartHeight = 115;
+  const startX = 35;
+  const totalChartW = width - 70; // 490
+  const colWidth = totalChartW / forecasts.length; // ~81.6
+
+  const barW = 28;
+  const billedBarW = 38;
+
+  const bars = forecasts.map((m, idx) => {
+    const x = startX + idx * colWidth + (colWidth / 2);
+    const billedH = Math.max(Math.round((m.projectedBilled / maxBilled) * chartHeight), 4);
+    const billedY = baselineY - billedH;
+
+    const colH = Math.max(Math.round((m.projectedCollection / maxBilled) * chartHeight), 3);
+    const colY = baselineY - colH;
+
+    const churnH = m.churnDragRevenue > 0
+      ? Math.max(Math.round((m.churnDragRevenue / maxBilled) * chartHeight), 3)
+      : 0;
+
+    return `
+      <g class="projection-col-group">
+        <!-- Gross Billed background bar -->
+        <rect x="${x - billedBarW / 2}" y="${billedY}" width="${billedBarW}" height="${billedH}" rx="5" fill="rgba(14, 91, 77, 0.12)">
+          <title>${escapeXml(m.label)} (${m.month}): Gross Billed ${formatPKR(m.projectedBilled)}</title>
+        </rect>
+
+        <!-- Projected Cash Collection bar -->
+        <rect x="${x - barW / 2}" y="${colY}" width="${barW}" height="${colH}" rx="4" fill="#0e5b4d">
+          <title>${escapeXml(m.label)}: Projected Cash ${formatPKR(m.projectedCollection)} (${projectionData.recoveryRate}% recovery)</title>
+        </rect>
+
+        <!-- Churn drag marker if applicable -->
+        ${churnH > 0 ? `
+          <rect x="${x + barW / 2 - 3}" y="${baselineY - churnH}" width="4" height="${churnH}" rx="2" fill="#ef4444">
+            <title>Churn Drag: -${formatPKR(m.churnDragRevenue)} (-${m.churnedSubscribers} subs)</title>
+          </rect>
+        ` : ''}
+
+        <!-- Top value label (Projected Collection) -->
+        <text x="${x}" y="${colY - 6}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
+          ${formatPKR(m.projectedCollection).replace('PKR ', '')}
+        </text>
+
+        <!-- Month label -->
+        <text x="${x}" y="${baselineY + 16}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">
+          ${escapeXml(m.label)}
+        </text>
+
+        <!-- Active subs -->
+        <text x="${x}" y="${baselineY + 28}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">
+          ${m.activeSubscribers} subs
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  // Trajectory connection line between months for collections
+  const linePoints = forecasts.map((m, idx) => {
+    const x = startX + idx * colWidth + (colWidth / 2);
+    const colH = Math.max(Math.round((m.projectedCollection / maxBilled) * chartHeight), 3);
+    const colY = baselineY - colH;
+    return `${x},${colY}`;
+  }).join(' ');
+
+  const footerY = height - 10;
+
+  return `<svg class="chart-svg projection-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Forward Cashflow Projections &amp; Scenario Modeler Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <!-- Chart Legend & Scenario Header -->
+    <g transform="translate(25, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
+      <rect x="0" y="-8" width="10" height="10" rx="2" fill="#0e5b4d" />
+      <text x="14" y="0" font-weight="600" fill="var(--ink, #182e2a)">Projected Cash</text>
+
+      <rect x="110" y="-8" width="10" height="10" rx="2" fill="rgba(14, 91, 77, 0.25)" />
+      <text x="124" y="0" font-weight="600" fill="var(--muted, #71817c)">Gross Billed</text>
+
+      <rect x="200" y="-8" width="6" height="10" rx="2" fill="#ef4444" />
+      <text x="210" y="0" font-weight="600" fill="var(--muted, #71817c)">Churn Drag</text>
+
+      <text x="${width - 50}" y="0" text-anchor="end" font-weight="700" fill="${projectionData.trajectoryStatus === 'Expansion' ? '#047857' : (projectionData.trajectoryStatus === 'Contraction Risk' ? '#dc2626' : '#2563eb')}">
+        ${escapeXml(projectionData.scenario.toUpperCase())} · ${escapeXml(projectionData.trajectoryStatus)}
+      </text>
+    </g>
+
+    <!-- Grid baseline -->
+    <line x1="${startX}" y1="${baselineY}" x2="${width - startX}" y2="${baselineY}" stroke="var(--line, #e2ece7)" stroke-width="1" />
+
+    ${bars}
+
+    <!-- Trajectory Trend Curve -->
+    <polyline points="${linePoints}" fill="none" stroke="#047857" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.65" stroke-dasharray="3,3" />
+
+    <!-- Bottom summary footer -->
+    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        6-Mo Cash: <tspan font-weight="700" fill="#047857">${formatPKR(projectionData.totalProjectedCashflow)}</tspan> · Monthly Run-Rate: <tspan font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(projectionData.averageMonthlyCollection)}</tspan> · Churn Drag: <tspan font-weight="700" fill="#dc2626">${formatPKR(projectionData.totalProjectedChurnLoss)}</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
 
 
 /**
@@ -2076,6 +2215,21 @@ export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
       }
     });
   }
+
+  const projectionGroup = document.getElementById('dashboardProjectionScenarioGroup');
+  if (projectionGroup && !projectionGroup.dataset?.wired) {
+    if (projectionGroup.dataset) projectionGroup.dataset.wired = 'true';
+    else if (projectionGroup.setAttribute) projectionGroup.setAttribute('data-wired', 'true');
+    projectionGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('.chart-range-btn');
+      if (!btn) return;
+      const s = btn.dataset?.chartProjectionScenario || btn.getAttribute?.('data-chart-projection-scenario');
+      if (['baseline', 'optimistic', 'conservative'].includes(s)) {
+        setProjectionScenario(s);
+        renderDashboardCharts(state, referenceDate);
+      }
+    });
+  }
 }
 
 /**
@@ -2221,6 +2375,24 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupIncidentImpactModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  const projectionEl = document.getElementById('dashboardProjectionChart');
+  if (projectionEl) {
+    const projectionData = calculateCashflowProjections(state, referenceDate, { scenario: currentProjectionScenario });
+    projectionEl.innerHTML = renderCashflowProjectionSvg(projectionData);
+  }
+
+  const projectionBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#dashboardProjectionScenarioGroup .chart-range-btn')
+    : [];
+  projectionBtns.forEach(btn => {
+    const s = btn.dataset?.chartProjectionScenario || btn.getAttribute?.('data-chart-projection-scenario');
+    const isActive = s === currentProjectionScenario;
+    if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
+    if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  setupProjectionScenarioModal(state, { referenceDate, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

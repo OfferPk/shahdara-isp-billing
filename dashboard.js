@@ -1865,6 +1865,362 @@ export function setupIncidentImpactModal(state, { referenceDate = new Date(), on
   }
 }
 
+/**
+ * Calculates forward cashflow projections over a configurable horizon (default 6 months)
+ * factoring in customer base expansion, monthly churn drag, and collection recovery realization rates.
+ * Supports Baseline, Optimistic, and Conservative operating scenarios or custom overrides.
+ */
+export function calculateCashflowProjections(state, referenceDate = new Date(), options = {}) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const horizonMonths = Math.max(1, Math.min(12, Number(options.horizonMonths) || 6));
+  const scenario = options.scenario === 'optimistic' || options.scenario === 'conservative'
+    ? options.scenario
+    : 'baseline';
+
+  const unarchived = (state?.customers ?? []).filter(c => !c.archived);
+  const activeSubs = unarchived.filter(c => c.serviceStatus === 'active');
+  const baseSubscribers = activeSubs.length > 0 ? activeSubs.length : unarchived.length;
+
+  // Base MRR
+  let baseMrr = 0;
+  for (const c of (activeSubs.length > 0 ? activeSubs : unarchived)) {
+    const amt = Number(c.monthlySellingAmount);
+    if (Number.isFinite(amt) && amt > 0) {
+      baseMrr += amt;
+    }
+  }
+
+  // Average ARPU
+  const arpu = baseSubscribers > 0 ? Math.round(baseMrr / baseSubscribers) : 0;
+
+  // Historical collection recovery realization rate (last 6 months)
+  const histMonths = monthsForHistory(ref, 6);
+  let totalHistBilled = 0;
+  let totalHistCollected = 0;
+  for (const m of histMonths) {
+    const snap = buildMonthlyClosingSnapshot(state, m, ref);
+    totalHistBilled += snap.billedAmount;
+    totalHistCollected += snap.collection;
+  }
+  const historicalRecoveryRate = totalHistBilled > 0
+    ? Math.min(100, Math.max(40, Math.round((totalHistCollected / totalHistBilled) * 100)))
+    : 85;
+
+  // Scenario parameter defaults
+  let recoveryRate = historicalRecoveryRate;
+  let monthlyChurnRate = 2.5;
+  let monthlyNetAdds = 2;
+
+  if (scenario === 'optimistic') {
+    recoveryRate = Math.min(98, Math.max(90, historicalRecoveryRate + 8));
+    monthlyChurnRate = 1.0;
+    monthlyNetAdds = 5;
+  } else if (scenario === 'conservative') {
+    recoveryRate = Math.max(50, Math.min(70, historicalRecoveryRate - 15));
+    monthlyChurnRate = 6.0;
+    monthlyNetAdds = 0;
+  }
+
+  // Allow explicit custom overrides
+  if (options.customRecoveryRate !== undefined && Number.isFinite(Number(options.customRecoveryRate))) {
+    recoveryRate = Math.max(10, Math.min(100, Number(options.customRecoveryRate)));
+  }
+  if (options.customMonthlyChurnRate !== undefined && Number.isFinite(Number(options.customMonthlyChurnRate))) {
+    monthlyChurnRate = Math.max(0, Math.min(50, Number(options.customMonthlyChurnRate)));
+  }
+  if (options.customMonthlyNetAdds !== undefined && Number.isFinite(Number(options.customMonthlyNetAdds))) {
+    monthlyNetAdds = Math.max(-50, Math.min(100, Number(options.customMonthlyNetAdds)));
+  }
+
+  const shortNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const refYear = ref.getFullYear();
+  const refMonthIndex = ref.getMonth(); // 0 to 11
+
+  const monthlyForecasts = [];
+  let currentSubs = baseSubscribers;
+  let cumulativeCash = 0;
+  let totalProjectedBilled = 0;
+  let totalProjectedCollection = 0;
+  let totalProjectedChurnLoss = 0;
+
+  for (let i = 1; i <= horizonMonths; i++) {
+    const targetDate = new Date(refYear, refMonthIndex + i, 1);
+    const targetYear = targetDate.getFullYear();
+    const targetMonth = targetDate.getMonth();
+    const monthStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+    const label = `${shortNames[targetMonth]} ${String(targetYear).slice(2)}`;
+
+    const startSubs = currentSubs;
+    const churnedSubs = Math.round(startSubs * (monthlyChurnRate / 100));
+    const addedSubs = monthlyNetAdds;
+    const endingSubs = Math.max(0, startSubs - churnedSubs + addedSubs);
+
+    const projectedBilled = endingSubs * arpu;
+    const churnDragRevenue = churnedSubs * arpu;
+    const projectedCollection = Math.round(projectedBilled * (recoveryRate / 100));
+    const projectedUncollected = Math.max(0, projectedBilled - projectedCollection);
+
+    cumulativeCash += projectedCollection;
+    totalProjectedBilled += projectedBilled;
+    totalProjectedCollection += projectedCollection;
+    totalProjectedChurnLoss += churnDragRevenue;
+
+    monthlyForecasts.push({
+      monthIndex: i,
+      month: monthStr,
+      label,
+      startingSubscribers: startSubs,
+      churnedSubscribers: churnedSubs,
+      addedSubscribers: addedSubs,
+      activeSubscribers: endingSubs,
+      projectedBilled,
+      projectedCollection,
+      churnDragRevenue,
+      projectedUncollected,
+      cumulativeCashflow: cumulativeCash
+    });
+
+    currentSubs = endingSubs;
+  }
+
+  const averageMonthlyCollection = horizonMonths > 0
+    ? Math.round(totalProjectedCollection / horizonMonths)
+    : 0;
+
+  const endingBase = monthlyForecasts[monthlyForecasts.length - 1]?.activeSubscribers ?? baseSubscribers;
+  const netSubscriberDelta = endingBase - baseSubscribers;
+
+  let trajectoryStatus = 'Stable';
+  if (netSubscriberDelta > 0 && recoveryRate >= 80) {
+    trajectoryStatus = 'Expansion';
+  } else if (netSubscriberDelta < 0 || recoveryRate <= 70) {
+    trajectoryStatus = 'Contraction Risk';
+  }
+
+  return {
+    scenario,
+    horizonMonths,
+    baseSubscribers,
+    endingSubscribers: endingBase,
+    netSubscriberDelta,
+    arpu,
+    recoveryRate,
+    monthlyChurnRate,
+    monthlyNetAdds,
+    totalProjectedCashflow: totalProjectedCollection,
+    totalProjectedBilled,
+    totalProjectedChurnLoss,
+    averageMonthlyCollection,
+    trajectoryStatus,
+    monthlyForecasts
+  };
+}
+
+/**
+ * Generates an executive forward cashflow projection plain-text briefing report.
+ */
+export function generateProjectionBriefingText(projectionData, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - FORWARD CASHFLOW & CHURN FORECAST`,
+    `Generated: ${dateStr} PKT | Horizon: ${projectionData.horizonMonths} Months`,
+    `=========================================`,
+    `[ SCENARIO CONFIGURATION: ${projectionData.scenario.toUpperCase()} ]`,
+    `  Trajectory Status: ${projectionData.trajectoryStatus.toUpperCase()}`,
+    `  Target Collection Recovery: ${projectionData.recoveryRate}%`,
+    `  Monthly Churn Assumption: ${projectionData.monthlyChurnRate}% / month`,
+    `  Monthly Net Additions: ${projectionData.monthlyNetAdds > 0 ? '+' : ''}${projectionData.monthlyNetAdds} subscribers / month`,
+    `  Current ARPU Benchmark: ${formatPKR(projectionData.arpu)}`,
+    ``,
+    `[ 6-MONTH PORTFOLIO TOTALS ]`,
+    `  Cumulative Projected Cash: ${formatPKR(projectionData.totalProjectedCashflow)}`,
+    `  Total Gross Billed: ${formatPKR(projectionData.totalProjectedBilled)}`,
+    `  Projected Churn Drag: ${formatPKR(projectionData.totalProjectedChurnLoss)}`,
+    `  Average Monthly Run-Rate: ${formatPKR(projectionData.averageMonthlyCollection)}`,
+    `  Ending Subscriber Base: ${projectionData.endingSubscribers} (${projectionData.netSubscriberDelta >= 0 ? '+' : ''}${projectionData.netSubscriberDelta} net)`,
+    ``,
+    `[ MONTH-BY-MONTH FORWARD TRAJECTORY ]`
+  ];
+
+  for (const m of (projectionData.monthlyForecasts ?? [])) {
+    lines.push(`  ${m.month} (${m.label}):`);
+    lines.push(`    Active: ${m.activeSubscribers} (Churn: -${m.churnedSubscribers}, Adds: +${m.addedSubscribers})`);
+    lines.push(`    Billed: ${formatPKR(m.projectedBilled)} | Projected Cash: ${formatPKR(m.projectedCollection)}`);
+    lines.push(`    Churn Loss: ${formatPKR(m.churnDragRevenue)} | Cumulative Cash: ${formatPKR(m.cumulativeCashflow)}`);
+  }
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Forward Cashflow Projections & Scenario Modeler Modal dialog.
+ */
+export function setupProjectionScenarioModal(state, { referenceDate = new Date(), onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardProjectionModal');
+  const openBtn = document.getElementById('dashboardOpenProjectionModalBtn');
+  const closeBtn = document.getElementById('dashboardProjectionModalCloseBtn');
+  const tableBody = document.getElementById('dashboardProjectionTableBody');
+  const copyBtn = document.getElementById('dashboardCopyProjectionReportBtn');
+
+  const recoveryInput = document.getElementById('projectionRecoveryInput');
+  const churnInput = document.getElementById('projectionChurnInput');
+  const netAddsInput = document.getElementById('projectionNetAddsInput');
+
+  const totalCashflowEl = document.getElementById('projectionTotalCashflowVal');
+  const runRateEl = document.getElementById('projectionMonthlyRunRateVal');
+  const churnDragEl = document.getElementById('projectionChurnDragVal');
+  const endingBaseEl = document.getElementById('projectionEndingBaseVal');
+  const trajectoryBadgeEl = document.getElementById('projectionTrajectoryBadge');
+
+  if (!modal) return;
+
+  let activeScenario = 'baseline';
+
+  function recalculateAndRender() {
+    const recoveryVal = recoveryInput ? parseFloat(recoveryInput.value) : undefined;
+    const churnVal = churnInput ? parseFloat(churnInput.value) : undefined;
+    const netAddsVal = netAddsInput ? parseInt(netAddsInput.value, 10) : undefined;
+
+    const data = calculateCashflowProjections(state, referenceDate, {
+      scenario: activeScenario,
+      customRecoveryRate: recoveryVal,
+      customMonthlyChurnRate: churnVal,
+      customMonthlyNetAdds: netAddsVal
+    });
+
+    if (totalCashflowEl) totalCashflowEl.textContent = formatPKR(data.totalProjectedCashflow);
+    if (runRateEl) runRateEl.textContent = `${formatPKR(data.averageMonthlyCollection)} / mo`;
+    if (churnDragEl) churnDragEl.textContent = formatPKR(data.totalProjectedChurnLoss);
+    if (endingBaseEl) {
+      const deltaSign = data.netSubscriberDelta >= 0 ? '+' : '';
+      endingBaseEl.textContent = `${data.endingSubscribers} (${deltaSign}${data.netSubscriberDelta})`;
+    }
+    if (trajectoryBadgeEl) {
+      trajectoryBadgeEl.textContent = data.trajectoryStatus;
+      trajectoryBadgeEl.className = 'sim-delta-badge ' + (
+        data.trajectoryStatus === 'Expansion' ? 'badge-expansion' :
+        data.trajectoryStatus === 'Contraction Risk' ? 'badge-contraction' : 'badge-stable'
+      );
+    }
+
+    if (tableBody) {
+      if (data.monthlyForecasts.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No projection data available</td></tr>';
+      } else {
+        tableBody.innerHTML = data.monthlyForecasts.map(m => `
+          <tr>
+            <td><strong>${escapeXml(m.label)}</strong> <span class="text-muted">(${escapeXml(m.month)})</span></td>
+            <td>${m.activeSubscribers} <span class="subs-diff text-muted">(-${m.churnedSubscribers}/+${m.addedSubscribers})</span></td>
+            <td>${formatPKR(m.projectedBilled)}</td>
+            <td class="text-success font-semibold">${formatPKR(m.projectedCollection)}</td>
+            <td class="text-danger">${formatPKR(m.churnDragRevenue)}</td>
+            <td class="font-semibold">${formatPKR(m.cumulativeCashflow)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+  }
+
+  function applyPreset(scenario) {
+    activeScenario = scenario;
+    const defaultData = calculateCashflowProjections(state, referenceDate, { scenario });
+    if (recoveryInput) recoveryInput.value = defaultData.recoveryRate;
+    if (churnInput) churnInput.value = defaultData.monthlyChurnRate;
+    if (netAddsInput) netAddsInput.value = defaultData.monthlyNetAdds;
+
+    const presetBtns = modal.querySelectorAll('[data-projection-preset]');
+    presetBtns.forEach(btn => {
+      const s = btn.getAttribute('data-projection-preset');
+      const isActive = s === scenario;
+      if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
+      if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+
+    recalculateAndRender();
+  }
+
+  function populateAndOpen() {
+    applyPreset(activeScenario || 'baseline');
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  const presetBtns = modal.querySelectorAll('[data-projection-preset]');
+  presetBtns.forEach(btn => {
+    if (!btn.dataset?.wired) {
+      if (btn.dataset) btn.dataset.wired = 'true';
+      else if (btn.setAttribute) btn.setAttribute('data-wired', 'true');
+      btn.addEventListener('click', () => {
+        const s = btn.getAttribute('data-projection-preset');
+        applyPreset(s);
+      });
+    }
+  });
+
+  [recoveryInput, churnInput, netAddsInput].forEach(inp => {
+    if (inp && !inp.dataset?.wired) {
+      if (inp.dataset) inp.dataset.wired = 'true';
+      else if (inp.setAttribute) inp.setAttribute('data-wired', 'true');
+      inp.addEventListener('input', recalculateAndRender);
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const recoveryVal = recoveryInput ? parseFloat(recoveryInput.value) : undefined;
+      const churnVal = churnInput ? parseFloat(churnInput.value) : undefined;
+      const netAddsVal = netAddsInput ? parseInt(netAddsInput.value, 10) : undefined;
+      const data = calculateCashflowProjections(state, referenceDate, {
+        scenario: activeScenario,
+        customRecoveryRate: recoveryVal,
+        customMonthlyChurnRate: churnVal,
+        customMonthlyNetAdds: netAddsVal
+      });
+      const text = generateProjectionBriefingText(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Cashflow forecast report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -1888,6 +2244,9 @@ export {
   setupMarginSimulatorModal,
   renderCustomerLtvCohortsSvg,
   renderIncidentImpactSvg,
+  renderCashflowProjectionSvg,
+  setProjectionScenario,
+  getProjectionScenario,
   setLtvMetric,
   getLtvMetric,
   setSeasonalMetric,

@@ -2221,6 +2221,281 @@ export function setupProjectionScenarioModal(state, { referenceDate = new Date()
   }
 }
 
+const PROVIDER_PROFILES = {
+  'transworld': { benchmarkLatency: 14, jitter: 1.8, lossPercent: 0.0, slaPercent: 99.9 },
+  'nayatel': { benchmarkLatency: 18, jitter: 2.1, lossPercent: 0.0, slaPercent: 99.8 },
+  'stormfiber': { benchmarkLatency: 22, jitter: 2.5, lossPercent: 0.1, slaPercent: 99.7 },
+  'ptcl': { benchmarkLatency: 28, jitter: 3.4, lossPercent: 0.2, slaPercent: 99.5 },
+  'wateen': { benchmarkLatency: 32, jitter: 4.1, lossPercent: 0.3, slaPercent: 99.4 },
+  'cybernet': { benchmarkLatency: 16, jitter: 2.0, lossPercent: 0.0, slaPercent: 99.9 }
+};
+
+function getProviderProfile(name) {
+  const norm = String(name || '').toLowerCase();
+  for (const [key, profile] of Object.entries(PROVIDER_PROFILES)) {
+    if (norm.includes(key)) return profile;
+  }
+  return { benchmarkLatency: 35, jitter: 4.5, lossPercent: 0.4, slaPercent: 99.2 };
+}
+
+/**
+ * Calculates upstream wholesale transit gateway metrics, multi-homed ISP failover status,
+ * bandwidth allocations, and latency performance across providers.
+ */
+export function calculateUpstreamGatewayMetrics(state, referenceDate = new Date()) {
+  const unarchived = (state?.customers ?? []).filter(c => !c.archived);
+  const providerMap = new Map();
+
+  for (const c of unarchived) {
+    const rawProvider = String(c.ispProvider ?? '').trim();
+    const providerName = rawProvider || 'Unassigned Gateway';
+    const key = providerName.toLowerCase();
+
+    if (!providerMap.has(key)) {
+      providerMap.set(key, {
+        provider: providerName,
+        totalSubscribers: 0,
+        activeSubscribers: 0,
+        allocatedBandwidthMbps: 0,
+        wholesaleCostCents: 0,
+        retailRevenueCents: 0
+      });
+    }
+
+    const group = providerMap.get(key);
+    group.totalSubscribers++;
+    if (c.serviceStatus === 'active') {
+      group.activeSubscribers++;
+    }
+
+    // Bandwidth parsing: e.g. "20 Mbps" -> 20, or default 15 Mbps
+    let speed = 15;
+    const speedStr = String(c.packageSpeed || c.package || '');
+    const match = speedStr.match(/(\d+)\s*(?:mbps|m)/i);
+    if (match) {
+      speed = parseInt(match[1], 10);
+    }
+    group.allocatedBandwidthMbps += speed;
+
+    const cost = Number(c.monthlyPurchaseCost);
+    if (Number.isFinite(cost) && cost > 0) {
+      group.wholesaleCostCents += Math.round(cost * 100);
+    }
+
+    const selling = Number(c.monthlySellingAmount);
+    if (Number.isFinite(selling) && selling > 0) {
+      group.retailRevenueCents += Math.round(selling * 100);
+    }
+  }
+
+  // Sort providers by active subscribers descending, then total subscribers
+  const sortedGateways = Array.from(providerMap.values()).sort(
+    (a, b) => b.activeSubscribers - a.activeSubscribers || b.totalSubscribers - a.totalSubscribers
+  );
+
+  let totalBandwidthCapacityMbps = 0;
+  let totalWholesaleCost = 0;
+  let totalRetailRevenue = 0;
+
+  const gateways = sortedGateways.map((g, idx) => {
+    const profile = getProviderProfile(g.provider);
+    const wholesaleCost = Math.round(g.wholesaleCostCents / 100);
+    const retailRevenue = Math.round(g.retailRevenueCents / 100);
+
+    totalBandwidthCapacityMbps += g.allocatedBandwidthMbps;
+    totalWholesaleCost += wholesaleCost;
+    totalRetailRevenue += retailRevenue;
+
+    let failoverRole = 'Failover Ready';
+    if (idx === 0 && g.activeSubscribers > 0) {
+      failoverRole = 'Primary Active';
+    } else if (idx === 1 && g.activeSubscribers > 0) {
+      failoverRole = 'Secondary Standby';
+    } else if (g.provider === 'Unassigned Gateway' || g.activeSubscribers === 0) {
+      failoverRole = 'Unmonitored';
+    }
+
+    let status = 'Optimal';
+    if (profile.benchmarkLatency >= 40 || profile.jitter >= 5) {
+      status = 'High Latency';
+    } else if (profile.benchmarkLatency >= 25) {
+      status = 'Moderate';
+    }
+
+    return {
+      provider: g.provider,
+      totalSubscribers: g.totalSubscribers,
+      activeSubscribers: g.activeSubscribers,
+      allocatedBandwidthMbps: g.allocatedBandwidthMbps,
+      wholesaleCost,
+      retailRevenue,
+      latencyMs: profile.benchmarkLatency,
+      jitterMs: profile.jitter,
+      lossPercent: profile.lossPercent,
+      slaPercent: profile.slaPercent,
+      failoverRole,
+      status
+    };
+  });
+
+  const configuredGateways = gateways.filter(g => g.provider !== 'Unassigned Gateway' && g.activeSubscribers > 0);
+  const primary = gateways[0] ?? null;
+  const primaryGateway = primary ? primary.provider : 'None';
+  const primaryLatencyMs = primary ? primary.latencyMs : 0;
+
+  let failoverRedundancyStatus = 'No Configured Gateway';
+  if (configuredGateways.length >= 2) {
+    failoverRedundancyStatus = 'Multi-Homed Redundant';
+  } else if (configuredGateways.length === 1) {
+    failoverRedundancyStatus = 'Single-Homed';
+  }
+
+  return {
+    totalGatewaysCount: gateways.length,
+    configuredGatewaysCount: configuredGateways.length,
+    primaryGateway,
+    primaryLatencyMs,
+    totalBandwidthCapacityMbps,
+    totalWholesaleCost,
+    totalRetailRevenue,
+    failoverRedundancyStatus,
+    gateways
+  };
+}
+
+/**
+ * Generates an executive upstream transit & failover plain-text report.
+ */
+export function generateUpstreamBriefingReport(gatewayData, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - UPSTREAM TRANSIT & FAILOVER BRIEFING`,
+    `Generated: ${dateStr} PKT`,
+    `=========================================`,
+    `[ UPSTREAM ARCHITECTURE & REDUNDANCY ]`,
+    `  Redundancy Architecture: ${gatewayData.failoverRedundancyStatus}`,
+    `  Primary Gateway: ${gatewayData.primaryGateway} (${gatewayData.primaryLatencyMs} ms latency)`,
+    `  Total Active Upstream Links: ${gatewayData.configuredGatewaysCount}`,
+    `  Total Allocated Capacity: ${gatewayData.totalBandwidthCapacityMbps} Mbps`,
+    `  Monthly Wholesale Expenditure: ${formatPKR(gatewayData.totalWholesaleCost)}`,
+    ``,
+    `[ UPSTREAM PROVIDER GATEWAY ROSTER ]`
+  ];
+
+  for (const g of (gatewayData.gateways ?? [])) {
+    lines.push(`  ${g.provider} [${g.failoverRole.toUpperCase()} · ${g.status.toUpperCase()}]:`);
+    lines.push(`    Subscribers: ${g.activeSubscribers} active (${g.totalSubscribers} total) | Bandwidth: ${g.allocatedBandwidthMbps} Mbps`);
+    lines.push(`    Latency: ${g.latencyMs} ms | Jitter: ${g.jitterMs} ms | SLA Uptime: ${g.slaPercent}%`);
+    lines.push(`    Wholesale Transit Cost: ${formatPKR(g.wholesaleCost)} | Retail Yield: ${formatPKR(g.retailRevenue)}`);
+  }
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Upstream Gateway & Latency Failover Modal dialog.
+ */
+export function setupUpstreamGatewayModal(state, { referenceDate = new Date(), onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardUpstreamModal');
+  const openBtn = document.getElementById('dashboardOpenUpstreamModalBtn');
+  const closeBtn = document.getElementById('dashboardUpstreamModalCloseBtn');
+  const tableBody = document.getElementById('dashboardUpstreamTableBody');
+  const copyBtn = document.getElementById('dashboardCopyUpstreamReportBtn');
+
+  const primaryEl = document.getElementById('upstreamPrimaryVal');
+  const latencyEl = document.getElementById('upstreamLatencyVal');
+  const capacityEl = document.getElementById('upstreamCapacityVal');
+  const redundancyBadgeEl = document.getElementById('upstreamRedundancyBadge');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const data = calculateUpstreamGatewayMetrics(state, referenceDate);
+
+    if (primaryEl) primaryEl.textContent = data.primaryGateway;
+    if (latencyEl) latencyEl.textContent = `${data.primaryLatencyMs} ms`;
+    if (capacityEl) capacityEl.textContent = `${data.totalBandwidthCapacityMbps} Mbps`;
+    if (redundancyBadgeEl) {
+      redundancyBadgeEl.textContent = data.failoverRedundancyStatus;
+      redundancyBadgeEl.className = 'sim-delta-badge ' + (
+        data.failoverRedundancyStatus === 'Multi-Homed Redundant' ? 'badge-expansion' :
+        data.failoverRedundancyStatus === 'Single-Homed' ? 'badge-stable' : 'badge-contraction'
+      );
+    }
+
+    if (tableBody) {
+      if (data.gateways.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No upstream gateway routes configured</td></tr>';
+      } else {
+        tableBody.innerHTML = data.gateways.map(g => `
+          <tr>
+            <td><strong>${escapeXml(g.provider)}</strong></td>
+            <td>${g.activeSubscribers} <span class="text-muted">(${g.totalSubscribers} total)</span></td>
+            <td>${g.allocatedBandwidthMbps} Mbps</td>
+            <td>${g.latencyMs} ms <span class="text-muted">(±${g.jitterMs}ms)</span></td>
+            <td>${formatPKR(g.wholesaleCost)}</td>
+            <td>
+              <span class="role-badge ${g.failoverRole === 'Primary Active' ? 'role-primary' : (g.failoverRole === 'Secondary Standby' ? 'role-standby' : 'role-other')}">
+                ${escapeXml(g.failoverRole)}
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateUpstreamGatewayMetrics(state, referenceDate);
+      const text = generateUpstreamBriefingReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Upstream failover report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -2245,6 +2520,7 @@ export {
   renderCustomerLtvCohortsSvg,
   renderIncidentImpactSvg,
   renderCashflowProjectionSvg,
+  renderUpstreamGatewaySvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

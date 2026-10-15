@@ -1490,6 +1490,55 @@
   border-color: rgba(59, 130, 246, 0.4);
 }
 
+/* Upstream ISP Transit & Failover Styles */
+.chart-card-upstream {
+  background: var(--surface, #ffffff);
+}
+
+.upstream-modal-card {
+  max-width: 760px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.role-primary {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.role-standby {
+  background: rgba(59, 130, 246, 0.15);
+  color: #2563eb;
+}
+
+.role-other {
+  background: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+}
+
+[data-theme="dark"] .role-primary {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+[data-theme="dark"] .role-standby {
+  background: rgba(59, 130, 246, 0.25);
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .role-other {
+  background: rgba(100, 116, 139, 0.22);
+  color: #94a3b8;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .sim-kpi-summary-grid,

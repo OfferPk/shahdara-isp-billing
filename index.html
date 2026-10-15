@@ -339,6 +339,22 @@
             </div>
             <div id="dashboardPackageMarginChart" class="chart-svg-container" role="img" aria-label="Package gross margin and wholesale transit cost chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-ltv">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Customer Lifetime Value (LTV) &amp; Cohorts</h4>
+                <p class="chart-subtitle">Historical collected revenue and retention progression by tenure</p>
+              </div>
+              <div class="chart-header-actions-row">
+                <div id="dashboardLtvMetricGroup" class="chart-range-group" role="group" aria-label="LTV cohort display metric">
+                  <button type="button" class="chart-range-btn is-active" data-ltv-metric="averageLtv">Avg LTV</button>
+                  <button type="button" class="chart-range-btn" data-ltv-metric="totalLtv">Total Revenue</button>
+                </div>
+                <button id="dashboardOpenLtvModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Cohort Drilldown</button>
+              </div>
+            </div>
+            <div id="dashboardLtvChart" class="chart-svg-container" role="img" aria-label="Customer lifetime value and tenure cohort chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -495,6 +511,79 @@
 
           <div class="sim-modal-footer">
             <button id="marginSimCopyBtn" class="primary-button" type="button">📋 Copy Simulation Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardLtvModal" class="dashboard-modal ltv-cohort-modal" aria-labelledby="dashboardLtvModalTitle">
+        <div class="dashboard-modal-card ltv-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">COHORT VALUE &amp; RETENTION DYNAMICS</p>
+              <h3 id="dashboardLtvModalTitle">Customer Lifetime Value (LTV) Cohorts</h3>
+            </div>
+            <button id="dashboardLtvModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Historical revenue generation, subscriber retention, and customer lifetime value segmented by account tenure.</p>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Average LTV</span>
+              <strong id="dashboardLtvAvgVal" class="ltv-kpi-val text-success">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Total Lifetime Revenue</span>
+              <strong id="dashboardLtvTotalVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Average Tenure</span>
+              <strong id="dashboardLtvTenureVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">LTV / ARPU Multiplier</span>
+              <strong id="dashboardLtvMultiplierVal" class="ltv-kpi-val">—</strong>
+            </div>
+          </div>
+
+          <h4 class="modal-section-title">Tenure Cohorts Matrix</h4>
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Tenure Cohort</th>
+                  <th>Subscribers</th>
+                  <th>Active Retention</th>
+                  <th>Total Collections</th>
+                  <th>Average LTV</th>
+                  <th>Avg Tenure</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardLtvCohortTableBody">
+                <tr><td colspan="6" class="empty-cell">Calculating cohort lifetime metrics...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 class="modal-section-title">Top Lifetime Value Accounts</h4>
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Subscriber</th>
+                  <th>Area &amp; Package</th>
+                  <th>Tenure</th>
+                  <th>Lifetime Collections</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardLtvTopAccountsTableBody">
+                <tr><td colspan="5" class="empty-cell">Evaluating account revenue history...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="dashboardCopyLtvReportBtn" class="primary-button" type="button">📋 Copy LTV Briefing</button>
           </div>
         </div>
       </dialog>

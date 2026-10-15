@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml
@@ -1535,9 +1535,86 @@ setupMobileActionSheet({
       $('#themeToggle')?.click();
     } else if (action === 'keyboard-help') {
       $('#shortcutsHelpButton')?.click();
+    } else if (action === 'command-palette') {
+      $('#commandPaletteTrigger')?.click();
     }
   },
   onToast: toast
+});
+
+const commandPalette = setupCommandPalette({
+  onNavigate: target => {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+      switchView(target);
+      if (target === 'transactions') renderTransactions();
+      else if (target === 'reports') renderMonthlyReport();
+      else if (target === 'analytics') renderAnalytics();
+      else if (target === 'inventory') renderInventory();
+      else if (target === 'expenses') renderExpenses();
+      else if (target === 'customers') renderCustomers();
+    } else if (target === 'dashboard') {
+      switchView('customers');
+      renderCustomers();
+      const db = $('#billingDashboard');
+      if (db) db.scrollIntoView({ behavior: 'smooth' });
+    }
+  },
+  onAction: action => {
+    if (action === 'add-payment') {
+      const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment');
+      if (btn) btn.click();
+    } else if (action === 'add-customer') {
+      const btn = $('#quickActionAddCustomer') || $('#addCustomerButton');
+      if (btn) btn.click();
+    } else if (action === 'add-expense') {
+      switchView('expenses');
+      renderExpenses();
+      $('#expenseAmount')?.focus();
+    }
+  },
+  onToggleTheme: () => {
+    $('#themeToggle')?.click();
+  },
+  onToggleRail: () => {
+    $('#sidebarRailToggle')?.click();
+  },
+  getState: () => state,
+  onSelectCustomer: customer => {
+    if (customer && customer.id) {
+      switchView('customers');
+      renderCustomers();
+      selectCustomer(customer.id);
+    }
+  }
+});
+
+const drawerPaletteBtn = $('#navDrawerCommandPaletteBtn');
+if (drawerPaletteBtn) {
+  drawerPaletteBtn.addEventListener('click', () => {
+    const drawer = $('#navDrawer');
+    const backdrop = $('#navDrawerBackdrop');
+    if (drawer) drawer.classList.remove('is-open');
+    if (backdrop) backdrop.classList.remove('is-open');
+    document.body?.classList?.remove('drawer-open');
+    commandPalette.open();
+  });
+}
+
+setupPullToRefresh({
+  containerSelector: '#customerPane',
+  indicatorSelector: '#pullToRefreshIndicator',
+  onRefresh: async () => {
+    renderCustomers();
+    renderDashboard();
+    toast('Customer ledger updated');
+  }
+});
+
+// Mobile bottom nav haptic feedback
+document.querySelectorAll('.mobile-bottom-nav button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    triggerHaptic('light');
+  });
 });
 
 document.addEventListener('click', event => {
@@ -1571,7 +1648,7 @@ document.addEventListener('keydown', event => {
       return;
     }
   }
-  if ((event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
+  if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
     event.preventDefault();
     const search = $('#globalCustomerSearch');
     if (search) {

@@ -14,6 +14,7 @@ export function setupNavigationDrawer({
   if (!drawer || !backdrop) return { open: () => {}, close: () => {}, updateActive: () => {} };
 
   function openDrawer() {
+    triggerHaptic('light');
     drawer.classList.add('is-open');
     backdrop.classList.add('is-open');
     document.body.classList.add('drawer-open');
@@ -72,6 +73,7 @@ export function setupNavigationDrawer({
     if (btn.dataset.wiredNav) return;
     btn.dataset.wiredNav = 'true';
     btn.addEventListener('click', () => {
+      triggerHaptic('selection');
       const target = btn.getAttribute('data-nav-target');
       closeDrawer();
       if (typeof onNavigate === 'function') {
@@ -584,6 +586,7 @@ export function setupMobileActionSheet({
   }
 
   function openSheet() {
+    triggerHaptic('light');
     sheet.hidden = false;
     if (backdrop) backdrop.hidden = false;
     if (typeof requestAnimationFrame === 'function') {
@@ -666,6 +669,7 @@ export function setupMobileActionSheet({
     if (btn.dataset) btn.dataset.wiredAction = 'true';
     else if (btn.setAttribute) btn.setAttribute('data-wired-action', 'true');
     btn.addEventListener('click', () => {
+      triggerHaptic('medium');
       const action = btn.getAttribute('data-sheet-action');
       closeSheet();
       if (typeof onAction === 'function') {
@@ -678,4 +682,351 @@ export function setupMobileActionSheet({
     open: openSheet,
     close: closeSheet
   };
+}
+
+/**
+ * Triggers subtle device haptic feedback when navigator.vibrate is available.
+ * @param {'light'|'medium'|'heavy'|'success'|'selection'} type
+ */
+export function triggerHaptic(type = 'light') {
+  if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return false;
+  try {
+    const patterns = {
+      light: 8,
+      medium: 18,
+      heavy: 32,
+      selection: 6,
+      success: [10, 30, 15]
+    };
+    const pattern = patterns[type] ?? 8;
+    return navigator.vibrate(pattern);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sets up an accessible mobile touch pull-to-refresh controller on target scroll container.
+ * Shows elastic pull indicator, triggers haptic feedback, and invokes onRefresh callback.
+ */
+export function setupPullToRefresh({
+  targetContainerId = 'customerPane',
+  indicatorId = 'pullToRefreshIndicator',
+  containerSelector,
+  indicatorSelector,
+  onRefresh,
+  pullThreshold = 65
+} = {}) {
+  if (typeof document === 'undefined') return { destroy: () => {} };
+
+  const container = (containerSelector && document.querySelector ? document.querySelector(containerSelector) : null)
+    || (document.getElementById ? document.getElementById(targetContainerId) : null)
+    || (document.querySelector ? document.querySelector(`#${targetContainerId}`) : null);
+
+  const indicator = (indicatorSelector && document.querySelector ? document.querySelector(indicatorSelector) : null)
+    || (document.getElementById ? document.getElementById(indicatorId) : null)
+    || (document.querySelector ? document.querySelector(`#${indicatorId}`) : null);
+
+  if (!container || !indicator) return { destroy: () => {} };
+
+  let startY = 0;
+  let currentPull = 0;
+  let isPulling = false;
+  let isRefreshing = false;
+
+  function onTouchStart(e) {
+    if (isRefreshing) return;
+    const scrollEl = container.scrollTop !== undefined ? container.scrollTop : (window.scrollY || 0);
+    if (scrollEl > 0) return;
+
+    if (e.touches && e.touches[0]) {
+      startY = e.touches[0].clientY;
+      isPulling = true;
+    }
+  }
+
+  function onTouchMove(e) {
+    if (!isPulling || isRefreshing) return;
+    if (e.touches && e.touches[0]) {
+      const y = e.touches[0].clientY;
+      const diff = y - startY;
+      if (diff > 0) {
+        currentPull = Math.min(100, Math.pow(diff, 0.85));
+        indicator.style.transform = `translateY(${currentPull}px)`;
+        indicator.classList.toggle('is-pulling', currentPull > 10);
+        indicator.classList.toggle('ready-to-refresh', currentPull >= pullThreshold);
+      }
+    }
+  }
+
+  async function onTouchEnd() {
+    if (!isPulling || isRefreshing) return;
+    isPulling = false;
+
+    if (currentPull >= pullThreshold) {
+      isRefreshing = true;
+      triggerHaptic('success');
+      indicator.classList.remove('ready-to-refresh');
+      indicator.classList.add('is-refreshing');
+      indicator.style.transform = `translateY(${pullThreshold}px)`;
+      const statusText = indicator.querySelector('.pull-refresh-text');
+      if (statusText) statusText.textContent = 'Updating ledger...';
+
+      if (typeof onRefresh === 'function') {
+        try {
+          await onRefresh();
+        } catch {
+          // ignore
+        }
+      }
+
+      setTimeout(() => {
+        indicator.classList.remove('is-refreshing');
+        indicator.style.transform = 'translateY(0)';
+        if (statusText) statusText.textContent = 'Pull to refresh';
+        isRefreshing = false;
+        currentPull = 0;
+      }, 350);
+    } else {
+      indicator.style.transform = 'translateY(0)';
+      indicator.classList.remove('is-pulling', 'ready-to-refresh');
+      currentPull = 0;
+    }
+  }
+
+  container.addEventListener('touchstart', onTouchStart, { passive: true });
+  container.addEventListener('touchmove', onTouchMove, { passive: true });
+  container.addEventListener('touchend', onTouchEnd, { passive: true });
+
+  return {
+    destroy: () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+    }
+  };
+}
+
+/**
+ * Sets up the Global Omni Command Palette (Ctrl+K / Cmd+K).
+ * Instant jump bar across navigation views, quick actions, and customer accounts.
+ */
+export function setupCommandPalette({
+  getState,
+  onNavigate,
+  onAction,
+  onSelectCustomer,
+  onToggleTheme,
+  onToggleRail
+} = {}) {
+  if (typeof document === 'undefined') return { open: () => {}, close: () => {} };
+
+  const modal = document.getElementById('commandPaletteModal');
+  const triggerBtn = document.getElementById('commandPaletteTrigger');
+  const input = document.getElementById('commandPaletteInput');
+  const resultsContainer = document.getElementById('commandPaletteResults');
+  const closeBtn = document.getElementById('commandPaletteClose');
+
+  if (!modal || !input || !resultsContainer) return { open: () => {}, close: () => {} };
+
+  let activeIndex = 0;
+  let currentItems = [];
+
+  const STATIC_COMMANDS = [
+    { id: 'nav-dash', type: 'page', title: 'Dashboard / Live Summary', hint: 'Jump to performance KPIs & charts', icon: '📊', action: () => onNavigate?.('dashboard') },
+    { id: 'nav-cust', type: 'page', title: 'Customer Roster', hint: 'View all subscriber profiles & history', icon: '👥', action: () => onNavigate?.('customers') },
+    { id: 'nav-tx', type: 'page', title: 'Transaction Ledger', hint: 'Receipts & payment allocations', icon: '💳', action: () => onNavigate?.('transactions') },
+    { id: 'nav-rep', type: 'page', title: 'Monthly Reports', hint: 'Closing snapshots & reconciliation', icon: '📑', action: () => onNavigate?.('reports') },
+    { id: 'nav-inv', type: 'page', title: 'Stock & Inventory', hint: 'Hardware units & movements', icon: '📦', action: () => onNavigate?.('inventory') },
+    { id: 'nav-exp', type: 'page', title: 'Operational Expenses', hint: 'Dated ISP expense ledger', icon: '💸', action: () => onNavigate?.('expenses') },
+    { id: 'nav-area', type: 'page', title: 'Area Intelligence', hint: 'ARPU & zone metrics', icon: '📍', action: () => onNavigate?.('analytics') },
+    { id: 'act-pay', type: 'action', title: '+ Receive Customer Payment', hint: 'Quick cash receipt modal', icon: '💰', action: () => onAction?.('add-payment') },
+    { id: 'act-cust', type: 'action', title: '+ New Subscriber Connection', hint: 'Register new customer profile', icon: '➕', action: () => onAction?.('add-customer') },
+    { id: 'act-exp', type: 'action', title: '+ Record Dated Expense', hint: 'Log operational spending', icon: '📝', action: () => onAction?.('add-expense') },
+    { id: 'act-theme', type: 'action', title: 'Toggle Dark / Light Theme', hint: 'Switch application color mode', icon: '🌓', action: () => onToggleTheme?.() },
+    { id: 'act-rail', type: 'action', title: 'Toggle Desktop Sidebar Rail', hint: 'Expand / collapse compact icon rail', icon: '📐', action: () => onToggleRail?.() }
+  ];
+
+  function openPalette() {
+    triggerHaptic('light');
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+    input.value = '';
+    activeIndex = 0;
+    renderResults('');
+    setTimeout(() => input.focus(), 20);
+  }
+
+  function closePalette() {
+    if (modal.close) modal.close();
+    else modal.removeAttribute('open');
+  }
+
+  function renderResults(query) {
+    const q = String(query).trim().toLowerCase();
+    let matches = [];
+
+    if (!q) {
+      matches = STATIC_COMMANDS;
+    } else {
+      const staticMatches = STATIC_COMMANDS.filter(cmd =>
+        cmd.title.toLowerCase().includes(q) ||
+        cmd.hint.toLowerCase().includes(q)
+      );
+
+      let customerMatches = [];
+      const state = typeof getState === 'function' ? getState() : null;
+      if (state && Array.isArray(state.customers)) {
+        customerMatches = state.customers
+          .filter(c => !c.archived && (
+            (c.name && c.name.toLowerCase().includes(q)) ||
+            (c.phone && c.phone.includes(q)) ||
+            (c.customerNumber && String(c.customerNumber).includes(q)) ||
+            (c.area && c.area.toLowerCase().includes(q))
+          ))
+          .slice(0, 6)
+          .map(c => ({
+            id: `cust-${c.id}`,
+            type: 'customer',
+            title: c.name,
+            hint: `#${c.customerNumber} · ${c.area || 'Unassigned'} · ${c.serviceStatus || 'not-set'}`,
+            icon: '👤',
+            action: () => onSelectCustomer?.(c)
+          }));
+      }
+
+      matches = [...staticMatches, ...customerMatches];
+    }
+
+    currentItems = matches;
+    if (activeIndex >= currentItems.length) activeIndex = 0;
+
+    if (currentItems.length === 0) {
+      resultsContainer.innerHTML = `
+        <div class="palette-empty-state">
+          <p>No matching commands or subscribers for <strong>"${escapeHtml(q)}"</strong></p>
+          <small>Try searching "payment", "customer", "inventory", or an account name</small>
+        </div>
+      `;
+      return;
+    }
+
+    resultsContainer.innerHTML = currentItems.map((item, idx) => {
+      const isSelected = idx === activeIndex;
+      return `
+        <div class="palette-item ${isSelected ? 'is-selected' : ''}" data-palette-index="${idx}" role="option" aria-selected="${isSelected ? 'true' : 'false'}">
+          <span class="palette-item-icon" aria-hidden="true">${item.icon}</span>
+          <div class="palette-item-text">
+            <div class="palette-item-title">
+              <span>${escapeHtml(item.title)}</span>
+              <span class="palette-type-tag tag-${item.type}">${item.type}</span>
+            </div>
+            <div class="palette-item-hint">${escapeHtml(item.hint)}</div>
+          </div>
+          <kbd class="palette-enter-hint">↵</kbd>
+        </div>
+      `;
+    }).join('');
+
+    const selEl = resultsContainer.querySelector ? resultsContainer.querySelector('.palette-item.is-selected') : null;
+    selEl?.scrollIntoView?.({ block: 'nearest' });
+  }
+
+  function executeItem(index) {
+    const item = currentItems[index];
+    if (!item) return;
+    triggerHaptic('medium');
+    closePalette();
+    if (typeof item.action === 'function') {
+      item.action();
+    }
+  }
+
+  input.addEventListener('input', () => {
+    activeIndex = 0;
+    renderResults(input.value);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (currentItems.length > 0) {
+        activeIndex = (activeIndex + 1) % currentItems.length;
+        triggerHaptic('selection');
+        updateSelectionHighlight();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (currentItems.length > 0) {
+        activeIndex = (activeIndex - 1 + currentItems.length) % currentItems.length;
+        triggerHaptic('selection');
+        updateSelectionHighlight();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      executeItem(activeIndex);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closePalette();
+    }
+  });
+
+  function updateSelectionHighlight() {
+    if (!resultsContainer.querySelectorAll) return;
+    const items = resultsContainer.querySelectorAll('.palette-item');
+    items.forEach((el, idx) => {
+      const isSel = idx === activeIndex;
+      el.classList.toggle('is-selected', isSel);
+      el.setAttribute('aria-selected', isSel ? 'true' : 'false');
+      if (isSel) el.scrollIntoView({ block: 'nearest' });
+    });
+  }
+
+  resultsContainer.addEventListener('click', (e) => {
+    const itemEl = e.target.closest('.palette-item');
+    if (!itemEl) return;
+    const idx = parseInt(itemEl.getAttribute('data-palette-index'), 10);
+    if (!isNaN(idx)) {
+      executeItem(idx);
+    }
+  });
+
+  if (triggerBtn && !triggerBtn.dataset?.wiredPalette) {
+    if (triggerBtn.dataset) triggerBtn.dataset.wiredPalette = 'true';
+    else if (triggerBtn.setAttribute) triggerBtn.setAttribute('data-wired-palette', 'true');
+    triggerBtn.addEventListener('click', openPalette);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wiredPalette) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredPalette = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired-palette', 'true');
+    closeBtn.addEventListener('click', closePalette);
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closePalette();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key?.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (modal.open || modal.hasAttribute('open')) closePalette();
+      else openPalette();
+    }
+  });
+
+  return {
+    open: openPalette,
+    close: closePalette
+  };
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[c]);
 }

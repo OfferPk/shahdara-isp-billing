@@ -676,3 +676,311 @@ test('setupMobileActionSheet manages sheet open, close, and action triggers', as
     globalThis.document = origDoc;
   }
 });
+
+test('index.html includes accessible command palette, pull-to-refresh indicator, and haptic hooks', () => {
+  const indexHtml = read('index.html');
+  assert.match(indexHtml, /id="commandPaletteTrigger"/);
+  assert.match(indexHtml, /id="navDrawerCommandPaletteBtn"/);
+  assert.match(indexHtml, /data-sheet-action="command-palette"/);
+  assert.match(indexHtml, /id="commandPaletteModal" class="command-palette-dialog"/);
+  assert.match(indexHtml, /id="commandPaletteInput" class="command-palette-input"[^>]*role="combobox"/);
+  assert.match(indexHtml, /id="commandPaletteResults" class="command-palette-results"[^>]*role="listbox"/);
+  assert.match(indexHtml, /id="pullToRefreshIndicator" class="pull-to-refresh-indicator"/);
+  assert.match(indexHtml, /class="pull-refresh-spinner"/);
+  assert.match(indexHtml, /class="pull-refresh-text"/);
+});
+
+test('nav.css includes styling for command palette dialog and pull-to-refresh gestures', () => {
+  const navCss = read('nav.css');
+  assert.match(navCss, /\.command-palette-dialog/);
+  assert.match(navCss, /\.command-palette-card/);
+  assert.match(navCss, /\.palette-search-box/);
+  assert.match(navCss, /\.palette-item/);
+  assert.match(navCss, /\.palette-item\.is-selected/);
+  assert.match(navCss, /\.pull-to-refresh-indicator/);
+  assert.match(navCss, /\.pull-refresh-spinner/);
+  assert.match(navCss, /\.pull-to-refresh-indicator\.is-pulling/);
+  assert.match(navCss, /\.pull-to-refresh-indicator\.ready-to-refresh/);
+  assert.match(navCss, /\.pull-to-refresh-indicator\.is-refreshing/);
+  assert.match(navCss, /\[data-theme="dark"\] \.command-palette-card/);
+  assert.match(navCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
+});
+
+test('nav.js triggerHaptic invokes navigator.vibrate with correct pattern and handles missing vibration API gracefully', async () => {
+  const { triggerHaptic } = await import('../nav.js');
+
+  const origNavDesc = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  let vibratePattern = null;
+
+  try {
+    const setNav = (val) => {
+      Object.defineProperty(globalThis, 'navigator', {
+        value: val,
+        configurable: true,
+        writable: true
+      });
+    };
+
+    setNav({
+      vibrate(p) { vibratePattern = p; return true; }
+    });
+
+    assert.equal(triggerHaptic('light'), true);
+    assert.deepEqual(vibratePattern, 8);
+
+    assert.equal(triggerHaptic('medium'), true);
+    assert.deepEqual(vibratePattern, 18);
+
+    assert.equal(triggerHaptic('heavy'), true);
+    assert.deepEqual(vibratePattern, 32);
+
+    assert.equal(triggerHaptic('selection'), true);
+    assert.deepEqual(vibratePattern, 6);
+
+    assert.equal(triggerHaptic('success'), true);
+    assert.deepEqual(vibratePattern, [10, 30, 15]);
+
+    // Unknown pattern falls back to light
+    assert.equal(triggerHaptic('unknown'), true);
+    assert.deepEqual(vibratePattern, 8);
+
+    // When navigator.vibrate throws or errors
+    setNav({
+      vibrate() { throw new Error('SecurityError: vibration disabled'); }
+    });
+    assert.equal(triggerHaptic('light'), false);
+
+    // When navigator.vibrate is undefined
+    setNav({});
+    assert.equal(triggerHaptic('light'), false);
+
+    // When navigator is undefined
+    setNav(undefined);
+    assert.equal(triggerHaptic('light'), false);
+  } finally {
+    if (origNavDesc) {
+      Object.defineProperty(globalThis, 'navigator', origNavDesc);
+    }
+  }
+});
+
+test('nav.js setupPullToRefresh handles touch gestures, threshold, and triggers refresh', async () => {
+  const { setupPullToRefresh } = await import('../nav.js');
+
+  const origDoc = globalThis.document;
+  const origWin = globalThis.window;
+
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      toggle: (c, force) => {
+        if (force === undefined) {
+          if (s.has(c)) s.delete(c); else s.add(c);
+        } else if (force) s.add(c);
+        else s.delete(c);
+      },
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const statusEl = { textContent: '' };
+  const indicator = {
+    classList: classListSet(),
+    style: {},
+    querySelector(sel) {
+      if (sel === '.pull-refresh-text') return statusEl;
+      return null;
+    }
+  };
+
+  const container = {
+    scrollTop: 0,
+    addEventListener(ev, fn) { listeners.set(`container:${ev}`, fn); },
+    removeEventListener(ev) { listeners.delete(`container:${ev}`); }
+  };
+
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'customerPane') return container;
+      if (id === 'pullToRefreshIndicator') return indicator;
+      return null;
+    },
+    querySelector(sel) {
+      if (sel === '#customerPane') return container;
+      if (sel === '#pullToRefreshIndicator') return indicator;
+      return null;
+    }
+  };
+  globalThis.window = {
+    pageYOffset: 0
+  };
+
+  try {
+    let refreshed = false;
+    const ptr = setupPullToRefresh({
+      containerSelector: '#customerPane',
+      indicatorSelector: '#pullToRefreshIndicator',
+      pullThreshold: 50,
+      onRefresh: async () => { refreshed = true; }
+    });
+
+    const onTouchStart = listeners.get('container:touchstart');
+    const onTouchMove = listeners.get('container:touchmove');
+    const onTouchEnd = listeners.get('container:touchend');
+
+    assert.ok(typeof onTouchStart === 'function');
+    assert.ok(typeof onTouchMove === 'function');
+    assert.ok(typeof onTouchEnd === 'function');
+
+    // 1. Partial pull under threshold
+    onTouchStart({ touches: [{ clientY: 100 }] });
+    onTouchMove({ touches: [{ clientY: 130 }] }); // diff 30px
+    assert.ok(indicator.classList.contains('is-pulling'));
+    assert.ok(!indicator.classList.contains('ready-to-refresh'));
+
+    // End partial pull
+    await onTouchEnd();
+    assert.equal(refreshed, false);
+    assert.ok(!indicator.classList.contains('is-pulling'));
+
+    // 2. Full pull exceeding threshold
+    onTouchStart({ touches: [{ clientY: 100 }] });
+    onTouchMove({ touches: [{ clientY: 220 }] }); // diff 120px
+    assert.ok(indicator.classList.contains('ready-to-refresh'));
+
+    await onTouchEnd();
+    assert.equal(refreshed, true);
+    assert.ok(indicator.classList.contains('is-refreshing'));
+
+    // Destroy cleans up listeners
+    ptr.destroy();
+    assert.equal(listeners.has('container:touchstart'), false);
+  } finally {
+    globalThis.document = origDoc;
+    globalThis.window = origWin;
+  }
+});
+
+test('nav.js setupCommandPalette renders items, keyboard navigates, filters, and executes actions', async () => {
+  const { setupCommandPalette } = await import('../nav.js');
+
+  const origDoc = globalThis.document;
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      toggle: (c, force) => {
+        if (force === undefined) {
+          if (s.has(c)) s.delete(c); else s.add(c);
+        } else if (force) s.add(c);
+        else s.delete(c);
+      },
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const resultsBox = {
+    innerHTML: '',
+    children: [],
+    addEventListener(ev, fn) { listeners.set(`results:${ev}`, fn); },
+    querySelectorAll() { return []; },
+    querySelector() { return null; }
+  };
+
+  const inputEl = {
+    value: '',
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); },
+    getAttribute(k) { return this.attributes.get(k); },
+    addEventListener(ev, fn) { listeners.set(`input:${ev}`, fn); },
+    focus() {}
+  };
+
+  const modalEl = {
+    open: false,
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    hasAttribute(k) { return k === 'open' && this.open; },
+    setAttribute(k) { if (k === 'open') this.open = true; },
+    removeAttribute(k) { if (k === 'open') this.open = false; },
+    addEventListener(ev, fn) { listeners.set(`modal:${ev}`, fn); }
+  };
+
+  const triggerEl = {
+    dataset: {},
+    addEventListener(ev, fn) { listeners.set(`trigger:${ev}`, fn); }
+  };
+
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'commandPaletteModal') return modalEl;
+      if (id === 'commandPaletteInput') return inputEl;
+      if (id === 'commandPaletteResults') return resultsBox;
+      if (id === 'commandPaletteTrigger') return triggerEl;
+      return null;
+    },
+    addEventListener(ev, fn) { listeners.set(`doc:${ev}`, fn); }
+  };
+
+  try {
+    let routed = null;
+    let actionRun = null;
+    let selectedCust = null;
+
+    const palette = setupCommandPalette({
+      onNavigate: (t) => { routed = t; },
+      onAction: (a) => { actionRun = a; },
+      getState: () => ({
+        customers: [
+          { id: 'c1', customerNumber: 101, name: 'Tariq Mehmood', phone: '03001234567', area: 'Main Bazaar', serviceStatus: 'active' },
+          { id: 'c2', customerNumber: 102, name: 'Zahid Hussain', phone: '03019876543', area: 'Kot Mohalla', serviceStatus: 'offline' }
+        ]
+      }),
+      onSelectCustomer: (c) => { selectedCust = c; }
+    });
+
+    // 1. Open palette
+    palette.open();
+    assert.equal(modalEl.open, true);
+    assert.ok(resultsBox.innerHTML.includes('Dashboard / Live Summary'));
+    assert.ok(resultsBox.innerHTML.includes('Receive Customer Payment'));
+
+    // 2. Filter input with query matching customer
+    inputEl.value = 'tariq';
+    const onInput = listeners.get('input:input');
+    assert.ok(typeof onInput === 'function');
+    onInput();
+    assert.ok(resultsBox.innerHTML.includes('Tariq Mehmood'));
+    assert.ok(!resultsBox.innerHTML.includes('Zahid Hussain'));
+
+    // 3. Execute selected customer via enter key
+    const onKeydown = listeners.get('input:keydown');
+    let defaultPrevented = false;
+    onKeydown({ key: 'Enter', preventDefault: () => { defaultPrevented = true; } });
+    assert.equal(defaultPrevented, true);
+    assert.equal(selectedCust?.id, 'c1');
+    assert.equal(modalEl.open, false);
+
+    // 4. Open again and test escape key
+    palette.open();
+    assert.equal(modalEl.open, true);
+    onKeydown({ key: 'Escape', preventDefault: () => {} });
+    assert.equal(modalEl.open, false);
+
+    // 5. Test Ctrl+K shortcut toggle
+    const onDocKeydown = listeners.get('doc:keydown');
+    assert.ok(typeof onDocKeydown === 'function');
+    onDocKeydown({ ctrlKey: true, key: 'k', preventDefault: () => {} });
+    assert.equal(modalEl.open, true);
+    onDocKeydown({ ctrlKey: true, key: 'k', preventDefault: () => {} });
+    assert.equal(modalEl.open, false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+

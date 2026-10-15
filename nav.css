@@ -330,3 +330,134 @@ body.drawer-open {
   border-color: #22372e;
   color: #8fa59c;
 }
+
+/* Rail Toggle & Header Actions */
+.nav-drawer-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: transparent;
+  color: var(--muted, #71817c);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-rail-toggle:hover {
+  background: #f4f8f6;
+  color: var(--ink, #182e2a);
+}
+
+.sidebar-rail-toggle:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 1px;
+}
+
+/* Desktop rail collapsing */
+@media (min-width: 1024px) {
+  body.sidebar-rail-collapsed .nav-drawer {
+    width: 72px;
+  }
+  body.sidebar-rail-collapsed .nav-drawer-title,
+  body.sidebar-rail-collapsed .nav-drawer-subtitle,
+  body.sidebar-rail-collapsed .nav-drawer-group-title,
+  body.sidebar-rail-collapsed .nav-drawer-item span:not(.nav-drawer-icon),
+  body.sidebar-rail-collapsed .nav-drawer-footer {
+    display: none;
+  }
+  body.sidebar-rail-collapsed .nav-drawer-item button {
+    justify-content: center;
+    padding: 10px 0;
+  }
+  body.sidebar-rail-collapsed .sidebar-rail-toggle svg {
+    transform: rotate(180deg);
+  }
+}
+
+/* Mobile Bottom Nav Badges */
+.mobile-bottom-nav button.has-badge {
+  position: relative;
+}
+
+.bottom-nav-badge {
+  position: absolute;
+  top: 4px;
+  right: calc(50% - 24px);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+  font: 800 9px/16px Manrope, system-ui, sans-serif;
+  text-align: center;
+}
+
+/* Floating Scroll to Top Button */
+.scroll-top-button {
+  position: fixed;
+  bottom: 74px;
+  right: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(14, 91, 77, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 800;
+  transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.15s ease;
+}
+
+.scroll-top-button.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.scroll-top-button:hover {
+  transform: translateY(-2px);
+  background: #094338;
+}
+
+.scroll-top-button:active {
+  transform: translateY(0);
+}
+
+.scroll-top-button:focus-visible {
+  outline: 3px solid #34d399;
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .sidebar-rail-toggle {
+  border-color: #253d35;
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .sidebar-rail-toggle:hover {
+  background: #19382e;
+  color: #34d399;
+}
+
+[data-theme="dark"] .bottom-nav-badge {
+  background: #10b981;
+  color: #0b1814;
+}
+
+[data-theme="dark"] .scroll-top-button {
+  background: #10b981;
+  color: #0b1814;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+}

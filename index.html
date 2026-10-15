@@ -429,7 +429,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -828,6 +828,34 @@
         <div class="palette-footer-hint">Offline instant actions</div>
       </div>
     </div>
+  </dialog>
+  <dialog id="accountStatementModal" class="modal statement-modal" aria-labelledby="statementModalTitle">
+    <section class="statement-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">CUSTOMER ACCOUNT LEDGER</p>
+          <h2 id="statementModalTitle">Customer Account Statement</h2>
+        </div>
+        <button id="closeStatementModalBtn" class="close-button" type="button" aria-label="Close statement modal">×</button>
+      </div>
+      <div class="statement-modal-controls">
+        <label for="statementRangeSelect">Time Range:
+          <select id="statementRangeSelect">
+            <option value="all" selected>All-time Ledger</option>
+            <option value="3m">Last 3 Months</option>
+            <option value="6m">Last 6 Months</option>
+            <option value="12m">Last 12 Months</option>
+            <option value="ytd">Current Calendar Year</option>
+          </select>
+        </label>
+        <div class="statement-modal-actions">
+          <button id="printStatementBtn" class="primary-button" type="button">🖨️ Print Statement</button>
+          <button id="downloadStatementCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+        </div>
+      </div>
+      <div id="statementPreviewContainer" class="statement-preview-container" tabindex="0" role="region" aria-label="Customer statement preview">
+      </div>
+    </section>
   </dialog>
   <dialog id="batchReceiptModal" class="modal batch-receipt-modal" aria-labelledby="batchReceiptModalTitle">
     <section class="batch-receipt-card">

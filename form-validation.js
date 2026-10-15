@@ -514,3 +514,337 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
 
   return slips.join('\n');
 }
+
+/**
+ * Formats a phone input string to Pakistani mobile mask format (03XX-XXXXXXX) if applicable,
+ * or cleanly preserves international numbers (+92 3XX XXXXXXX).
+ * @param {string} val
+ * @returns {string}
+ */
+export function maskPakistanPhone(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (str.startsWith('+')) {
+    const cleaned = '+' + str.slice(1).replace(/[^\d\s]/g, '');
+    return cleaned;
+  }
+  const digits = str.replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.startsWith('03')) {
+    if (digits.length <= 4) {
+      return digits;
+    }
+    return `${digits.slice(0, 4)}-${digits.slice(4, 11)}`;
+  } else if (digits.startsWith('923')) {
+    return `+${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 12)}`;
+  }
+  return str;
+}
+
+/**
+ * Wires real-time phone input masking on an HTML input element.
+ * @param {HTMLInputElement} inputEl
+ */
+export function wirePhoneInputMask(inputEl) {
+  if (!inputEl || inputEl.dataset?.masked) return;
+  if (inputEl.dataset) inputEl.dataset.masked = 'true';
+
+  inputEl.addEventListener('input', () => {
+    const original = inputEl.value;
+    const formatted = maskPakistanPhone(original);
+    if (formatted !== original) {
+      inputEl.value = formatted;
+    }
+  });
+}
+
+/**
+ * Formats a complete chronological customer ledger statement with running balance and range filtering.
+ * @param {Object} customer
+ * @param {Object} [options]
+ * @param {'all'|'3m'|'6m'|'12m'|'ytd'} [options.range='all']
+ * @param {Date} [options.referenceDate=new Date()]
+ * @returns {Object}
+ */
+export function formatCustomerStatement(customer, { range = 'all', referenceDate = new Date() } = {}) {
+  if (!customer) {
+    return {
+      customer: null,
+      range,
+      openingBalance: 0,
+      totalBilled: 0,
+      totalPaid: 0,
+      currentBalance: 0,
+      events: []
+    };
+  }
+
+  const allEvents = [];
+
+  // Gather bill charges
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  for (const bill of bills) {
+    const billDate = bill.dueDate || (bill.month ? `${bill.month}-05` : '1970-01-01');
+    const charge = Number(bill.dueAmount ?? 0);
+    allEvents.push({
+      date: billDate,
+      type: 'bill',
+      month: bill.month || '',
+      description: `Monthly Bill (${bill.month || 'Current'})`,
+      charge: charge > 0 ? charge : 0,
+      credit: 0,
+      method: 'Billed Snapshot',
+      ref: bill.id || ''
+    });
+
+    // Gather bill payments
+    const payments = Array.isArray(bill.payments) ? bill.payments : [];
+    for (const payment of payments) {
+      const pDate = payment.date || (bill.month ? `${bill.month}-05` : '1970-01-01');
+      const credit = Number(payment.amount ?? 0);
+      allEvents.push({
+        date: pDate,
+        type: 'payment',
+        month: bill.month || '',
+        description: `Payment Received · ${payment.method || 'Cash'}${payment.reference ? ` (Ref: ${payment.reference})` : ''}`,
+        charge: 0,
+        credit: credit > 0 ? credit : 0,
+        method: payment.method || 'Cash',
+        ref: payment.id || payment.reference || ''
+      });
+    }
+  }
+
+  // Sort chronologically ascending. On same date, bills come before payments so charge is debited before credited.
+  allEvents.sort((a, b) => {
+    const cmp = String(a.date).localeCompare(String(b.date));
+    if (cmp !== 0) return cmp;
+    if (a.type === 'bill' && b.type !== 'bill') return -1;
+    if (a.type !== 'bill' && b.type === 'bill') return 1;
+    return 0;
+  });
+
+  // Calculate cutoff date string for range filtering
+  let cutoffDate = null;
+  const ref = referenceDate instanceof Date && !isNaN(referenceDate) ? new Date(referenceDate) : new Date();
+
+  if (range === '3m') {
+    const d = new Date(ref);
+    d.setMonth(d.getMonth() - 3);
+    cutoffDate = d.toISOString().slice(0, 10);
+  } else if (range === '6m') {
+    const d = new Date(ref);
+    d.setMonth(d.getMonth() - 6);
+    cutoffDate = d.toISOString().slice(0, 10);
+  } else if (range === '12m') {
+    const d = new Date(ref);
+    d.setMonth(d.getMonth() - 12);
+    cutoffDate = d.toISOString().slice(0, 10);
+  } else if (range === 'ytd') {
+    cutoffDate = `${ref.getFullYear()}-01-01`;
+  }
+
+  let openingBalance = 0;
+  const filteredEvents = [];
+
+  for (const ev of allEvents) {
+    if (cutoffDate && ev.date < cutoffDate) {
+      openingBalance += ev.charge - ev.credit;
+    } else {
+      filteredEvents.push(ev);
+    }
+  }
+
+  let runningBalance = openingBalance;
+  let totalBilled = 0;
+  let totalPaid = 0;
+
+  const eventsWithBalance = filteredEvents.map(ev => {
+    runningBalance += ev.charge - ev.credit;
+    totalBilled += ev.charge;
+    totalPaid += ev.credit;
+    return {
+      ...ev,
+      runningBalance
+    };
+  });
+
+  return {
+    customer: {
+      id: customer.id,
+      customerNumber: customer.customerNumber,
+      name: customer.name || 'Customer',
+      phone: customer.phone || 'N/A',
+      area: customer.area || customer.mohalla || 'General',
+      package: customer.package || customer.packageSpeed || 'Standard',
+      serviceStatus: customer.serviceStatus || 'not-set'
+    },
+    range,
+    cutoffDate,
+    openingBalance,
+    totalBilled,
+    totalPaid,
+    currentBalance: runningBalance,
+    events: eventsWithBalance
+  };
+}
+
+/**
+ * Generates printable HTML statement document for customer account ledger.
+ * @param {Object} statement
+ * @returns {string}
+ */
+export function generateCustomerStatementHtml(statement) {
+  if (!statement || !statement.customer) {
+    return '<div class="statement-empty">No customer data provided for statement.</div>';
+  }
+
+  const { customer, range, openingBalance, totalBilled, totalPaid, currentBalance, events } = statement;
+  const rangeLabels = {
+    all: 'All-time Ledger',
+    '3m': 'Last 3 Months',
+    '6m': 'Last 6 Months',
+    '12m': 'Last 12 Months',
+    ytd: 'Current Calendar Year'
+  };
+  const rangeLabel = rangeLabels[range] || 'All-time Ledger';
+  const today = new Date().toISOString().slice(0, 10);
+
+  const rowsHtml = events.map(ev => `
+    <tr>
+      <td class="col-date">${ev.date}</td>
+      <td class="col-desc"><strong>${ev.description}</strong></td>
+      <td class="col-month">${ev.month || '—'}</td>
+      <td class="col-num charge-num">${ev.charge > 0 ? `PKR ${ev.charge.toLocaleString()}` : '—'}</td>
+      <td class="col-num credit-num">${ev.credit > 0 ? `PKR ${ev.credit.toLocaleString()}` : '—'}</td>
+      <td class="col-num balance-num ${ev.runningBalance > 0 ? 'is-due' : 'is-settled'}">PKR ${ev.runningBalance.toLocaleString()}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <article class="customer-account-statement" data-customer-id="${customer.id}">
+      <header class="statement-header">
+        <div class="statement-brand">
+          <div class="statement-brand-title">SHAHDARA FIBER NET</div>
+          <div class="statement-brand-sub">LOCAL ISP BROADBAND &amp; NETWORK LEDGER</div>
+          <div class="statement-doc-type">CUSTOMER ACCOUNT STATEMENT (کھاتہ اسٹیٹمنٹ)</div>
+        </div>
+        <div class="statement-meta-badge">
+          <div>Statement Date: <strong>${today}</strong></div>
+          <div>Period Scope: <strong>${rangeLabel}</strong></div>
+          <div>Status: <strong>${customer.serviceStatus.toUpperCase()}</strong></div>
+        </div>
+      </header>
+
+      <section class="statement-info-box">
+        <div class="statement-info-col">
+          <div><span class="info-label">Customer ID / No:</span> <strong>#${customer.customerNumber || customer.id}</strong></div>
+          <div><span class="info-label">Subscriber Name:</span> <strong>${customer.name}</strong></div>
+          <div><span class="info-label">Phone Contact:</span> <span>${customer.phone}</span></div>
+        </div>
+        <div class="statement-info-col">
+          <div><span class="info-label">Coverage Area:</span> <span>${customer.area}</span></div>
+          <div><span class="info-label">Package Plan:</span> <span>${customer.package}</span></div>
+          <div><span class="info-label">Opening Balance:</span> <span>PKR ${openingBalance.toLocaleString()}</span></div>
+        </div>
+      </section>
+
+      <div class="statement-summary-strip">
+        <div class="statement-summary-card">
+          <span class="summary-card-label">Total Billed Charges</span>
+          <strong class="summary-card-val">PKR ${totalBilled.toLocaleString()}</strong>
+        </div>
+        <div class="statement-summary-card">
+          <span class="summary-card-label">Total Payments Received</span>
+          <strong class="summary-card-val text-success">PKR ${totalPaid.toLocaleString()}</strong>
+        </div>
+        <div class="statement-summary-card summary-card-balance ${currentBalance > 0 ? 'balance-overdue' : 'balance-cleared'}">
+          <span class="summary-card-label">Ending Net Balance</span>
+          <strong class="summary-card-val">PKR ${currentBalance.toLocaleString()}</strong>
+        </div>
+      </div>
+
+      <div class="statement-table-wrap">
+        <table class="statement-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description / Transaction</th>
+              <th>Billing Month</th>
+              <th class="num-col">Charges (Debit)</th>
+              <th class="num-col">Payments (Credit)</th>
+              <th class="num-col">Running Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${openingBalance !== 0 ? `
+              <tr class="opening-balance-row">
+                <td class="col-date">—</td>
+                <td class="col-desc"><em>Opening Balance Carried Forward</em></td>
+                <td class="col-month">—</td>
+                <td class="col-num">—</td>
+                <td class="col-num">—</td>
+                <td class="col-num balance-num">PKR ${openingBalance.toLocaleString()}</td>
+              </tr>
+            ` : ''}
+            ${rowsHtml || '<tr><td colspan="6" class="text-center muted">No billing or payment records found for this period.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+
+      <footer class="statement-footer">
+        <p class="statement-notes">
+          All transactions are maintained locally in accordance with Shahdara ISP Billing terms. Payments made after the statement date will appear in the next cycle.
+        </p>
+        <div class="statement-sign-block">
+          <div class="statement-sig-item">
+            <div class="sig-line"></div>
+            <span>ISP Authorized Representative</span>
+          </div>
+          <div class="statement-sig-item">
+            <div class="sig-line"></div>
+            <span>Customer Signature</span>
+          </div>
+        </div>
+      </footer>
+    </article>
+  `;
+}
+
+/**
+ * Exports customer ledger statement to CSV file and triggers download.
+ * @param {Object} statement
+ * @param {Document} [doc]
+ * @returns {boolean}
+ */
+export function downloadCustomerStatementCsv(statement, doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!statement || !statement.customer) return false;
+
+  const headerSpecs = [
+    { label: 'Date', key: 'date' },
+    { label: 'Type', key: 'type' },
+    { label: 'Month', key: 'month' },
+    { label: 'Description', key: 'description' },
+    { label: 'Method / Channel', key: 'method' },
+    { label: 'Charges (PKR)', key: 'charge' },
+    { label: 'Payments (PKR)', key: 'credit' },
+    { label: 'Running Balance (PKR)', key: 'runningBalance' }
+  ];
+
+  const csvRows = statement.events.map(ev => ({
+    date: ev.date,
+    type: ev.type.toUpperCase(),
+    month: ev.month || '',
+    description: ev.description,
+    method: ev.method || '',
+    charge: ev.charge || 0,
+    credit: ev.credit || 0,
+    runningBalance: ev.runningBalance
+  }));
+
+  const csv = generateCsvContent(headerSpecs, csvRows);
+  const custName = (statement.customer.name || 'customer').replace(/[^\w-]/g, '_');
+  const filename = `statement_${custName}_${statement.range}_${new Date().toISOString().slice(0, 10)}.csv`;
+  return downloadCsvFile(filename, csv, doc);
+}

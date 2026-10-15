@@ -735,7 +735,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -1372,6 +1372,70 @@
         </div>
       </div>
       <div id="billInvoicePreviewContainer" class="bill-invoice-preview-container" tabindex="0" role="region" aria-label="Bill invoice preview"></div>
+    </section>
+  </dialog>
+  <dialog id="customerLedgerAuditModal" class="modal audit-modal" aria-labelledby="ledgerAuditModalTitle">
+    <section class="audit-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FINANCIAL RECONCILIATION &amp; QA</p>
+          <h2 id="ledgerAuditModalTitle">Customer Ledger Audit &amp; Reconciliation</h2>
+        </div>
+        <button id="closeLedgerAuditModalBtn" class="close-button" type="button" aria-label="Close ledger audit modal">×</button>
+      </div>
+      <div class="audit-modal-body">
+        <div class="audit-summary-ribbon">
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">AUDIT STATUS</span>
+            <span id="auditStatusPill" class="audit-status-badge audit-pill-clean">Balanced &amp; Clean</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">TOTAL BILLED</span>
+            <span id="auditTotalBilledVal" class="audit-kpi-val">PKR 0</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">TOTAL COLLECTED</span>
+            <span id="auditTotalPaidVal" class="audit-kpi-val">PKR 0</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">NET BALANCE DUE</span>
+            <span id="auditOutstandingVal" class="audit-kpi-val highlight-red">PKR 0</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">PREPAID CREDIT</span>
+            <span id="auditUnappliedCreditVal" class="audit-kpi-val highlight-green">PKR 0</span>
+          </div>
+        </div>
+
+        <div id="auditDiscrepancyBox" class="audit-discrepancy-box">
+          <h4 class="audit-discrepancy-title">Audit Findings &amp; Discrepancy Checks</h4>
+          <p id="auditDiscrepancyCleanMsg" class="audit-discrepancy-clean">✓ All bill snapshots match recorded receipts. No unaccounted imbalances detected.</p>
+          <ul id="auditDiscrepancyList" class="audit-discrepancy-list" hidden></ul>
+        </div>
+
+        <div class="audit-table-wrap" tabindex="0" role="region" aria-label="Audited monthly ledger table">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th>Service Month</th>
+                <th>Due Date</th>
+                <th class="text-right">Billed Amount</th>
+                <th class="text-right">Collections</th>
+                <th class="text-right">Balance Due</th>
+                <th class="text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <tr><td colspan="6" class="text-center">Select a customer to review ledger reconciliation.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="audit-modal-actions">
+        <button id="printLedgerAuditBtn" class="primary-button" type="button">🖨️ Print Audit Sheet</button>
+        <button id="copyLedgerAuditReportBtn" class="secondary-button" type="button">📋 Copy Audit Report</button>
+        <button id="exportLedgerAuditCsvBtn" class="secondary-button" type="button">📊 Export CSV</button>
+      </div>
     </section>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

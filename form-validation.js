@@ -1487,3 +1487,388 @@ function escapeHtml(str) {
   })[c]);
 }
 
+/**
+ * Helper to convert YYYY-MM to human readable label.
+ */
+function formatAuditMonthLabel(monthStr) {
+  if (!monthStr || !monthStr.includes('-')) return monthStr || '—';
+  const [y, m] = monthStr.split('-');
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const monthIndex = parseInt(m, 10) - 1;
+  if (monthIndex >= 0 && monthIndex < 12) {
+    return `${monthNames[monthIndex]} ${y}`;
+  }
+  return monthStr;
+}
+
+/**
+ * Reconciles and audits a customer's entire multi-month billing and payment history.
+ * Detects discrepancies, lingering arrears, unapplied credits, and timing mismatches.
+ * @param {Object} customer
+ * @param {Object} [state]
+ * @returns {Object}
+ */
+export function reconcileCustomerLedger(customer, state = {}) {
+  if (!customer) {
+    return {
+      customer: null,
+      reconciliationStatus: 'CLEAN',
+      statusLabel: 'No Record',
+      statusClass: 'audit-pill-clean',
+      totalBilled: 0,
+      totalPaid: 0,
+      netOutstanding: 0,
+      unappliedCredit: 0,
+      monthsBilledCount: 0,
+      monthsPaidCount: 0,
+      monthsPendingCount: 0,
+      monthsPartialCount: 0,
+      discrepancyCount: 0,
+      discrepancies: [],
+      auditRows: []
+    };
+  }
+
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  const discrepancies = [];
+  const auditRows = [];
+
+  let totalBilledCents = 0;
+  let totalPaidCents = 0;
+  let monthsPaidCount = 0;
+  let monthsPendingCount = 0;
+  let monthsPartialCount = 0;
+  let unappliedCreditCents = 0;
+
+  const receiptDatesMap = new Map();
+  const sortedBills = [...bills].sort((a, b) => (a.month || '').localeCompare(b.month || ''));
+
+  sortedBills.forEach(bill => {
+    const dueCents = Math.round(Number(bill.dueAmount ?? 0) * 100);
+    totalBilledCents += dueCents > 0 ? dueCents : 0;
+
+    const payments = Array.isArray(bill.payments) ? bill.payments : [];
+    let billDirectPaidCents = 0;
+
+    payments.forEach(p => {
+      const pCents = Math.round(Number(p.amount ?? 0) * 100);
+      if (pCents > 0) {
+        billDirectPaidCents += pCents;
+        totalPaidCents += pCents;
+
+        if (p.date) {
+          const count = receiptDatesMap.get(p.date) || 0;
+          receiptDatesMap.set(p.date, count + 1);
+
+          if (bill.month) {
+            const billYear = parseInt(bill.month.slice(0, 4), 10);
+            const billMonth = parseInt(bill.month.slice(5, 7), 10);
+            const pDate = new Date(p.date);
+            const pYear = pDate.getFullYear();
+            const pMonth = pDate.getMonth() + 1;
+            const diffMonths = (pYear - billYear) * 12 + (pMonth - billMonth);
+            if (diffMonths >= 3) {
+              discrepancies.push({
+                type: 'DELAYED_PAYMENT',
+                severity: 'warning',
+                month: bill.month,
+                message: `Payment of PKR ${(pCents / 100).toLocaleString()} on ${p.date} was settled ${diffMonths} months after service month ${bill.month}.`
+              });
+            }
+          }
+        }
+      }
+    });
+
+    const isPaid = bill.paid === true || (dueCents > 0 && billDirectPaidCents >= dueCents);
+    const isPartial = !isPaid && billDirectPaidCents > 0 && billDirectPaidCents < dueCents;
+    const isPending = !isPaid && !isPartial && dueCents > 0;
+
+    if (isPaid) monthsPaidCount++;
+    else if (isPartial) {
+      monthsPartialCount++;
+      const unpaidDiff = (dueCents - billDirectPaidCents) / 100;
+      discrepancies.push({
+        type: 'LINGERING_PARTIAL',
+        severity: 'warning',
+        month: bill.month,
+        message: `Month ${bill.month || 'unspecified'} has partial balance of PKR ${unpaidDiff.toLocaleString()} remaining.`
+      });
+    } else if (isPending) {
+      monthsPendingCount++;
+      discrepancies.push({
+        type: 'OVERDUE_ARREARS',
+        severity: 'danger',
+        month: bill.month,
+        message: `Month ${bill.month || 'unspecified'} is unpaid with outstanding balance of PKR ${(dueCents / 100).toLocaleString()}.`
+      });
+    }
+
+    const rowStatus = isPaid ? 'PAID' : isPartial ? 'PARTIAL' : isPending ? 'PENDING' : 'NOT_SET';
+    const rowBalanceCents = Math.max(0, dueCents - billDirectPaidCents);
+
+    auditRows.push({
+      month: bill.month || '—',
+      monthLabel: formatAuditMonthLabel(bill.month),
+      dueDate: bill.dueDate || (bill.month ? `${bill.month}-05` : '—'),
+      billedAmount: dueCents / 100,
+      paidAmount: billDirectPaidCents / 100,
+      balanceAmount: rowBalanceCents / 100,
+      status: rowStatus,
+      receiptCount: payments.length
+    });
+  });
+
+  for (const [date, count] of receiptDatesMap.entries()) {
+    if (count > 1) {
+      discrepancies.push({
+        type: 'DUPLICATE_RECEIPT_DATE',
+        severity: 'info',
+        date,
+        message: `${count} separate payment receipts recorded on the same date (${date}). Verify if these are multiple installments or accidental duplicates.`
+      });
+    }
+  }
+
+  if (customer.serviceStatus === 'active' && (!bills.length || totalBilledCents === 0)) {
+    discrepancies.push({
+      type: 'ACTIVE_UNBILLED',
+      severity: 'danger',
+      message: `Customer is marked Active in service status but has 0 recorded bill snapshots.`
+    });
+  }
+
+  if (totalPaidCents > totalBilledCents) {
+    unappliedCreditCents = totalPaidCents - totalBilledCents;
+    discrepancies.push({
+      type: 'SURPLUS_CREDIT',
+      severity: 'info',
+      message: `Total collections exceed total billed by PKR ${(unappliedCreditCents / 100).toLocaleString()} (advance prepaid credit).`
+    });
+  }
+
+  const netOutstandingCents = Math.max(0, totalBilledCents - totalPaidCents);
+
+  let reconciliationStatus = 'CLEAN';
+  let statusLabel = 'Balanced & Clean';
+  let statusClass = 'audit-pill-clean';
+
+  if (discrepancies.some(d => d.severity === 'danger')) {
+    reconciliationStatus = 'ARREARS_PENDING';
+    statusLabel = 'Arrears / Attention Required';
+    statusClass = 'audit-pill-danger';
+  } else if (unappliedCreditCents > 0) {
+    reconciliationStatus = 'CREDIT_SURPLUS';
+    statusLabel = 'Credit Surplus / Advance Paid';
+    statusClass = 'audit-pill-info';
+  } else if (discrepancies.length > 0) {
+    reconciliationStatus = 'DISCREPANCIES_FOUND';
+    statusLabel = 'Minor Audit Flags';
+    statusClass = 'audit-pill-warning';
+  }
+
+  return {
+    customer,
+    reconciliationStatus,
+    statusLabel,
+    statusClass,
+    totalBilled: totalBilledCents / 100,
+    totalPaid: totalPaidCents / 100,
+    netOutstanding: netOutstandingCents / 100,
+    unappliedCredit: unappliedCreditCents / 100,
+    monthsBilledCount: bills.length,
+    monthsPaidCount,
+    monthsPendingCount,
+    monthsPartialCount,
+    discrepancyCount: discrepancies.length,
+    discrepancies,
+    auditRows
+  };
+}
+
+/**
+ * Formats a comprehensive plaintext & WhatsApp-ready briefing report.
+ * @param {Object} auditResult
+ * @param {Object} [customer]
+ * @returns {string}
+ */
+export function generateLedgerAuditReport(auditResult, customer) {
+  if (!auditResult) return '';
+  const c = customer || auditResult.customer || {};
+  const dateStr = new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' });
+  const lines = [
+    `═══════════════════════════════════════════════════════`,
+    `SHAHDARA ISP BILLING · CUSTOMER LEDGER AUDIT REPORT`,
+    `═══════════════════════════════════════════════════════`,
+    `Customer: ${c.name || 'Unnamed'} (ID: ${c.customerNumber ? `#${c.customerNumber}` : (c.id || '—')})`,
+    `Phone: ${c.phone || 'Not provided'} | Area: ${c.area || c.mohalla || 'Shahdara Network'}`,
+    `Audit Date: ${dateStr}`,
+    `Reconciliation Status: [${auditResult.statusLabel || auditResult.reconciliationStatus}]`,
+    `───────────────────────────────────────────────────────`,
+    `FINANCIAL SUMMARY:`,
+    `  Total Billed:       PKR ${Number(auditResult.totalBilled || 0).toLocaleString()}`,
+    `  Total Collected:    PKR ${Number(auditResult.totalPaid || 0).toLocaleString()}`,
+    `  Net Outstanding:    PKR ${Number(auditResult.netOutstanding || 0).toLocaleString()}`,
+    `  Prepaid Credit:     PKR ${Number(auditResult.unappliedCredit || 0).toLocaleString()}`,
+    `  Months Monitored:   ${auditResult.monthsBilledCount || 0} (${auditResult.monthsPaidCount || 0} paid in full, ${auditResult.monthsPartialCount || 0} partial, ${auditResult.monthsPendingCount || 0} unpaid)`,
+    `───────────────────────────────────────────────────────`
+  ];
+
+  if (auditResult.discrepancies && auditResult.discrepancies.length > 0) {
+    lines.push(`AUDIT DISCREPANCIES & FINDINGS (${auditResult.discrepancies.length}):`);
+    auditResult.discrepancies.forEach((d, i) => {
+      const tag = d.severity === 'danger' ? '⚠️ CRITICAL' : d.severity === 'warning' ? '⚡ WARNING' : 'ℹ️ NOTICE';
+      lines.push(`  ${i + 1}. [${tag}] ${d.message}`);
+    });
+    lines.push(`───────────────────────────────────────────────────────`);
+  } else {
+    lines.push(`AUDIT FINDINGS:`);
+    lines.push(`  ✓ All recorded bill snapshots match actual receipt ledger perfectly.`);
+    lines.push(`  ✓ No orphaned balances, arrears, or unapplied carry-forwards detected.`);
+    lines.push(`───────────────────────────────────────────────────────`);
+  }
+
+  lines.push(`MONTHLY LEDGER BREAKDOWN:`);
+  lines.push(`Month     | Billed (PKR) | Paid (PKR)   | Balance Due  | Status`);
+  lines.push(`----------+--------------+--------------+--------------+---------`);
+  if (Array.isArray(auditResult.auditRows) && auditResult.auditRows.length > 0) {
+    auditResult.auditRows.forEach(r => {
+      const m = String(r.month).padEnd(9);
+      const b = String(Number(r.billedAmount).toLocaleString()).padStart(12);
+      const p = String(Number(r.paidAmount).toLocaleString()).padStart(12);
+      const bal = String(Number(r.balanceAmount).toLocaleString()).padStart(12);
+      lines.push(`${m} | ${b} | ${p} | ${bal} | ${r.status}`);
+    });
+  } else {
+    lines.push(`No historical billing months recorded for this subscriber.`);
+  }
+
+  lines.push(`═══════════════════════════════════════════════════════`);
+  lines.push(`Generated by Shahdara ISP Accounting & Quality Assurance`);
+  return lines.join('\n');
+}
+
+/**
+ * Generates RFC-4180 CSV export of audited ledger.
+ * @param {Object} auditResult
+ * @param {Object} [customer]
+ * @returns {string}
+ */
+export function generateLedgerAuditCsv(auditResult, customer) {
+  if (!auditResult) return '';
+  const headers = ['Month', 'Month_Label', 'Due_Date', 'Billed_PKR', 'Paid_PKR', 'Balance_Due_PKR', 'Status', 'Receipts_Count'];
+  const rows = [];
+
+  if (Array.isArray(auditResult.auditRows)) {
+    auditResult.auditRows.forEach(r => {
+      rows.push([
+        r.month || '',
+        r.monthLabel || '',
+        r.dueDate || '',
+        String(r.billedAmount ?? 0),
+        String(r.paidAmount ?? 0),
+        String(r.balanceAmount ?? 0),
+        r.status || '',
+        String(r.receiptCount ?? 0)
+      ]);
+    });
+  }
+
+  return generateCsvContent(headers, rows);
+}
+
+/**
+ * Generates printable HTML representation of audited ledger.
+ * @param {Object} auditResult
+ * @param {Object} [customer]
+ * @returns {string}
+ */
+export function generateLedgerAuditPrintHtml(auditResult, customer) {
+  if (!auditResult) return '';
+  const c = customer || auditResult.customer || {};
+  const dateStr = new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric' });
+
+  const rowsHtml = (auditResult.auditRows || []).map(r => `
+    <tr>
+      <td>${escapeHtml(r.monthLabel || r.month)}</td>
+      <td>${escapeHtml(r.dueDate)}</td>
+      <td class="text-right">PKR ${Number(r.billedAmount || 0).toLocaleString()}</td>
+      <td class="text-right">PKR ${Number(r.paidAmount || 0).toLocaleString()}</td>
+      <td class="text-right font-bold">PKR ${Number(r.balanceAmount || 0).toLocaleString()}</td>
+      <td class="text-center"><span class="audit-status-tag ${escapeHtml((r.status || '').toLowerCase())}">${escapeHtml(r.status)}</span></td>
+    </tr>
+  `).join('');
+
+  const discrepanciesHtml = (auditResult.discrepancies || []).map(d => `
+    <li class="audit-disc-item ${escapeHtml(d.severity)}">
+      <strong>[${escapeHtml(d.severity.toUpperCase())}]</strong> ${escapeHtml(d.message)}
+    </li>
+  `).join('');
+
+  return `
+  <div class="audit-print-document">
+    <div class="audit-print-header">
+      <div class="brand">
+        <h2>SHAHDARA ISP NETWORKS</h2>
+        <p>Customer Ledger Reconciliation &amp; Financial Quality Assurance Audit</p>
+      </div>
+      <div class="meta">
+        <p><strong>Audit Date:</strong> ${escapeHtml(dateStr)}</p>
+        <p><strong>Status:</strong> <span class="badge ${escapeHtml(auditResult.statusClass)}">${escapeHtml(auditResult.statusLabel)}</span></p>
+      </div>
+    </div>
+
+    <div class="audit-client-card">
+      <p><strong>Subscriber:</strong> ${escapeHtml(c.name || 'Unnamed')} (#${escapeHtml(c.customerNumber || c.id)})</p>
+      <p><strong>Phone:</strong> ${escapeHtml(c.phone || '—')} | <strong>Location:</strong> ${escapeHtml(c.area || c.mohalla || 'Shahdara Network')}</p>
+      <p><strong>Service Status:</strong> ${escapeHtml(c.serviceStatus || 'Not set')} | <strong>Package:</strong> ${escapeHtml(c.packageSpeed || 'Standard')}</p>
+    </div>
+
+    <div class="audit-kpi-ribbon">
+      <div class="kpi-box"><span class="kpi-label">TOTAL BILLED</span><span class="kpi-value">PKR ${Number(auditResult.totalBilled || 0).toLocaleString()}</span></div>
+      <div class="kpi-box"><span class="kpi-label">TOTAL COLLECTED</span><span class="kpi-value">PKR ${Number(auditResult.totalPaid || 0).toLocaleString()}</span></div>
+      <div class="kpi-box"><span class="kpi-label">NET BALANCE DUE</span><span class="kpi-value highlight-red">PKR ${Number(auditResult.netOutstanding || 0).toLocaleString()}</span></div>
+      <div class="kpi-box"><span class="kpi-label">PREPAID CREDIT</span><span class="kpi-value highlight-green">PKR ${Number(auditResult.unappliedCredit || 0).toLocaleString()}</span></div>
+    </div>
+
+    ${auditResult.discrepancies?.length ? `
+      <div class="audit-disc-section">
+        <h3>Audit Discrepancies &amp; Findings (${auditResult.discrepancies.length})</h3>
+        <ul class="audit-disc-list">${discrepanciesHtml}</ul>
+      </div>
+    ` : `
+      <div class="audit-clean-banner">
+        <p>✓ All recorded bill snapshots match payment ledger receipts. No unaccounted imbalances detected.</p>
+      </div>
+    `}
+
+    <table class="audit-print-table">
+      <thead>
+        <tr>
+          <th>Service Month</th>
+          <th>Due Date</th>
+          <th class="text-right">Billed Amount</th>
+          <th class="text-right">Collections</th>
+          <th class="text-right">Balance Due</th>
+          <th class="text-center">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml || '<tr><td colspan="6" class="text-center">No billing history found.</td></tr>'}
+      </tbody>
+    </table>
+
+    <div class="audit-footer-signatures">
+      <div class="sig-col">
+        <div class="sig-line"></div>
+        <p>Accounting Auditor / QA Officer</p>
+      </div>
+      <div class="sig-col">
+        <div class="sig-line"></div>
+        <p>Network Operations Director</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+

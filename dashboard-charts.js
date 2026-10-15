@@ -1,4 +1,4 @@
-import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus } from './core.js';
+import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
 import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -56,6 +56,30 @@ export function setHeatmapFilter(filter) {
 
 export function getHeatmapFilter() {
   return currentHeatmapFilter;
+}
+
+let currentSeasonalMetric = 'collections';
+let currentMarginCostPerMbps = 50;
+
+export function setSeasonalMetric(metric) {
+  if (['collections', 'billed'].includes(metric)) {
+    currentSeasonalMetric = metric;
+  }
+}
+
+export function getSeasonalMetric() {
+  return currentSeasonalMetric;
+}
+
+export function setMarginSimulatorCostPerMbps(cost) {
+  const c = Number(cost);
+  if (Number.isFinite(c) && c >= 0) {
+    currentMarginCostPerMbps = c;
+  }
+}
+
+export function getMarginSimulatorCostPerMbps() {
+  return currentMarginCostPerMbps;
 }
 
 function escapeXml(str) {
@@ -1091,6 +1115,696 @@ export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', wi
   </svg>`;
 }
 
+/**
+ * Calculates multi-year seasonal cashflow comparison across 12 calendar months (Jan-Dec)
+ * comparing the current year against the prior year (or custom years).
+ * Evaluates monthly collections or billed amounts, YoY growth deltas, and seasonal indices.
+ */
+export function calculateSeasonalCashflowComparison(state, referenceDate = new Date(), options = {}) {
+  const metric = options.metric === 'billed' ? 'billed' : 'collections';
+  const refYear = (referenceDate instanceof Date && !isNaN(referenceDate.getTime()))
+    ? referenceDate.getFullYear()
+    : new Date().getFullYear();
+  const currentYear = options.currentYear ?? refYear;
+  const priorYear = options.priorYear ?? (currentYear - 1);
+  const currentMonthIdx = (referenceDate instanceof Date && !isNaN(referenceDate.getTime()))
+    ? referenceDate.getMonth()
+    : 11;
+
+  const months = MONTH_SHORT_NAMES.map((name, idx) => ({
+    monthIndex: idx,
+    monthName: name,
+    currentYearAmount: 0,
+    currentYearCount: 0,
+    priorYearAmount: 0,
+    priorYearCount: 0,
+    yoyGrowthPercent: null,
+    seasonalIndex: 100
+  }));
+
+  if (metric === 'collections') {
+    const txs = listTransactions(state, { recencyDays: null }, referenceDate);
+    for (const t of txs) {
+      const amt = Number(t.amount) || 0;
+      if (amt <= 0 || !t.date || typeof t.date !== 'string') continue;
+      const y = parseInt(t.date.slice(0, 4), 10);
+      const mIdx = parseInt(t.date.slice(5, 7), 10) - 1;
+      if (isNaN(y) || isNaN(mIdx) || mIdx < 0 || mIdx > 11) continue;
+
+      if (y === currentYear) {
+        months[mIdx].currentYearAmount += amt;
+        months[mIdx].currentYearCount++;
+      } else if (y === priorYear) {
+        months[mIdx].priorYearAmount += amt;
+        months[mIdx].priorYearCount++;
+      }
+    }
+  } else {
+    for (const c of (state?.customers ?? [])) {
+      if (c.archived) continue;
+      const billList = Array.isArray(c.bills) ? c.bills : (c.bills ? Object.values(c.bills) : []);
+      for (const bill of billList) {
+        const amt = Number(bill?.dueAmount) || 0;
+        if (amt <= 0 || !bill?.month || typeof bill.month !== 'string') continue;
+        const y = parseInt(bill.month.slice(0, 4), 10);
+        const mIdx = parseInt(bill.month.slice(5, 7), 10) - 1;
+        if (isNaN(y) || isNaN(mIdx) || mIdx < 0 || mIdx > 11) continue;
+
+        if (y === currentYear) {
+          months[mIdx].currentYearAmount += amt;
+          months[mIdx].currentYearCount++;
+        } else if (y === priorYear) {
+          months[mIdx].priorYearAmount += amt;
+          months[mIdx].priorYearCount++;
+        }
+      }
+    }
+  }
+
+  let currentYearYtdTotal = 0;
+  let priorYearYtdTotal = 0;
+  let currentYearAnnualTotal = 0;
+  let priorYearAnnualTotal = 0;
+
+  for (let i = 0; i < 12; i++) {
+    const m = months[i];
+    currentYearAnnualTotal += m.currentYearAmount;
+    priorYearAnnualTotal += m.priorYearAmount;
+
+    if (i <= currentMonthIdx) {
+      currentYearYtdTotal += m.currentYearAmount;
+      priorYearYtdTotal += m.priorYearAmount;
+    }
+
+    if (m.priorYearAmount > 0) {
+      m.yoyGrowthPercent = Math.round(((m.currentYearAmount - m.priorYearAmount) / m.priorYearAmount) * 1000) / 10;
+    } else if (m.currentYearAmount > 0) {
+      m.yoyGrowthPercent = 100;
+    } else {
+      m.yoyGrowthPercent = null;
+    }
+  }
+
+  const activeElapsedMonths = Math.max(currentMonthIdx + 1, 1);
+  const avgMonthlyRunRate = currentYearYtdTotal / activeElapsedMonths;
+
+  for (let i = 0; i < 12; i++) {
+    const m = months[i];
+    m.seasonalIndex = avgMonthlyRunRate > 0
+      ? Math.round((m.currentYearAmount / avgMonthlyRunRate) * 100)
+      : 100;
+  }
+
+  let ytdGrowthPercent = null;
+  if (priorYearYtdTotal > 0) {
+    ytdGrowthPercent = Math.round(((currentYearYtdTotal - priorYearYtdTotal) / priorYearYtdTotal) * 1000) / 10;
+  } else if (currentYearYtdTotal > 0) {
+    ytdGrowthPercent = 100;
+  }
+
+  let peakMonth = null;
+  let maxAmt = -1;
+  for (let i = 0; i <= currentMonthIdx; i++) {
+    if (months[i].currentYearAmount > maxAmt && months[i].currentYearAmount > 0) {
+      maxAmt = months[i].currentYearAmount;
+      peakMonth = months[i];
+    }
+  }
+
+  let troughMonth = null;
+  let minAmt = Infinity;
+  for (let i = 0; i <= currentMonthIdx; i++) {
+    if (months[i].currentYearAmount > 0 && months[i].currentYearAmount < minAmt) {
+      minAmt = months[i].currentYearAmount;
+      troughMonth = months[i];
+    }
+  }
+
+  let velocityStatus = 'Baseline Period';
+  if (priorYearYtdTotal > 0) {
+    if (ytdGrowthPercent >= 10) velocityStatus = 'Accelerating';
+    else if (ytdGrowthPercent >= 0) velocityStatus = 'Stable Growth';
+    else velocityStatus = 'Contraction';
+  }
+
+  return {
+    metric,
+    currentYear,
+    priorYear,
+    currentMonthIndex: currentMonthIdx,
+    months,
+    currentYearYtdTotal,
+    priorYearYtdTotal,
+    currentYearAnnualTotal,
+    priorYearAnnualTotal,
+    ytdGrowthPercent,
+    peakMonth,
+    troughMonth,
+    velocityStatus,
+    hasPriorYearData: priorYearAnnualTotal > 0,
+    hasCurrentYearData: currentYearAnnualTotal > 0
+  };
+}
+
+/**
+ * Renders an accessible, theme-aware dual-series SVG line chart comparing
+ * seasonal cashflow trajectories between current and prior years across Jan-Dec.
+ */
+export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
+  const width = 600;
+  const height = 240;
+  const padding = { top: 40, right: 30, bottom: 42, left: 65 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+
+  if (!seasonalData || (!seasonalData.hasCurrentYearData && !seasonalData.hasPriorYearData)) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Seasonal Cashflow Comparison: No historical multi-year records">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, ${height / 2 - 12})" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-10 -4 L-4 -14 L4 -8 L10 -20" stroke="#0e5b4d" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No seasonal cashflow history yet</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Comparative YoY velocity curves will populate as payments across calendar cycles are logged</text>
+      </g>
+    </svg>`;
+  }
+
+  const allAmounts = seasonalData.months.flatMap(m => [m.currentYearAmount, m.priorYearAmount]);
+  const rawMax = Math.max(...allAmounts, 1000);
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const maxVal = Math.ceil(rawMax / magnitude) * magnitude;
+
+  const getX = (idx) => padding.left + (idx / 11) * plotWidth;
+  const getY = (val) => padding.top + plotHeight - (val / maxVal) * plotHeight;
+
+  const gridTicks = [
+    { val: maxVal, y: getY(maxVal), label: formatPKR(maxVal) },
+    { val: maxVal / 2, y: getY(maxVal / 2), label: formatPKR(maxVal / 2) },
+    { val: 0, y: getY(0), label: '0' }
+  ];
+
+  const gridLines = gridTicks.map(t => `
+    <line x1="${padding.left}" y1="${t.y}" x2="${width - padding.right}" y2="${t.y}" stroke="var(--border, rgba(0,0,0,0.08))" stroke-dasharray="3,3" />
+    <text x="${padding.left - 8}" y="${t.y + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${t.label}</text>
+  `).join('');
+
+  const xLabels = seasonalData.months.map((m, idx) => `
+    <text x="${getX(idx)}" y="${height - 18}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="${idx === seasonalData.currentMonthIndex ? '700' : '500'}" fill="${idx === seasonalData.currentMonthIndex ? 'var(--green, #0e5b4d)' : 'var(--muted, #71817c)'}">${m.monthName}</text>
+  `).join('');
+
+  let priorYearSvg = '';
+  if (seasonalData.hasPriorYearData) {
+    const priorPoints = seasonalData.months.map((m, idx) => `${getX(idx).toFixed(1)},${getY(m.priorYearAmount).toFixed(1)}`).join(' ');
+    const priorDots = seasonalData.months.map((m, idx) => `
+      <circle cx="${getX(idx).toFixed(1)}" cy="${getY(m.priorYearAmount).toFixed(1)}" r="3" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5">
+        <title>${m.monthName} ${seasonalData.priorYear}: ${formatPKR(m.priorYearAmount)}</title>
+      </circle>
+    `).join('');
+    priorYearSvg = `
+      <polyline points="${priorPoints}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4,4" />
+      ${priorDots}
+    `;
+  }
+
+  const activeMonths = seasonalData.months.slice(0, seasonalData.currentMonthIndex + 1);
+  const currentPoints = activeMonths.map((m, idx) => `${getX(idx).toFixed(1)},${getY(m.currentYearAmount).toFixed(1)}`).join(' ');
+  const areaPoints = `${getX(0).toFixed(1)},${getY(0).toFixed(1)} ${currentPoints} ${getX(activeMonths.length - 1).toFixed(1)},${getY(0).toFixed(1)}`;
+
+  const currentDots = activeMonths.map((m, idx) => `
+    <circle cx="${getX(idx).toFixed(1)}" cy="${getY(m.currentYearAmount).toFixed(1)}" r="4" fill="#0e5b4d" stroke="#ffffff" stroke-width="2">
+      <title>${m.monthName} ${seasonalData.currentYear}: ${formatPKR(m.currentYearAmount)} (${m.currentYearCount} txs)${m.yoyGrowthPercent !== null ? ` | YoY: ${m.yoyGrowthPercent > 0 ? '+' : ''}${m.yoyGrowthPercent}%` : ''}</title>
+    </circle>
+  `).join('');
+
+  let peakCallout = '';
+  if (seasonalData.peakMonth && seasonalData.peakMonth.currentYearAmount > 0) {
+    const peakX = getX(seasonalData.peakMonth.monthIndex);
+    const peakY = getY(seasonalData.peakMonth.currentYearAmount);
+    const calloutY = Math.max(peakY - 14, padding.top - 10);
+    peakCallout = `
+      <g transform="translate(${peakX}, ${calloutY})" text-anchor="middle">
+        <rect x="-42" y="-12" width="84" height="15" rx="3.5" fill="#0e5b4d" />
+        <text y="-2" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#ffffff">Peak: ${seasonalData.peakMonth.monthName} (${formatPKR(seasonalData.peakMonth.currentYearAmount)})</text>
+      </g>
+    `;
+  }
+
+  const ytdStr = seasonalData.ytdGrowthPercent !== null
+    ? `${seasonalData.ytdGrowthPercent >= 0 ? '+' : ''}${seasonalData.ytdGrowthPercent}%`
+    : 'N/A';
+
+  return `<svg class="chart-svg seasonal-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Seasonal Cashflow Trend: ${seasonalData.currentYear} vs ${seasonalData.priorYear}">
+    <defs>
+      <linearGradient id="seasonalGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#0e5b4d" stop-opacity="0.25" />
+        <stop offset="100%" stop-color="#0e5b4d" stop-opacity="0.0" />
+      </linearGradient>
+    </defs>
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${padding.left}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="10">
+      <circle cx="5" cy="-3" r="4" fill="#0e5b4d" />
+      <text x="14" y="0" font-weight="700" fill="var(--ink, #182e2a)">${seasonalData.currentYear} YTD: ${formatPKR(seasonalData.currentYearYtdTotal)}</text>
+
+      ${seasonalData.hasPriorYearData ? `
+        <line x1="170" y1="-3" x2="190" y2="-3" stroke="#94a3b8" stroke-width="2" stroke-dasharray="3,3" />
+        <circle cx="180" cy="-3" r="2.5" fill="#ffffff" stroke="#94a3b8" stroke-width="1.5" />
+        <text x="196" y="0" fill="var(--muted, #71817c)">${seasonalData.priorYear} YTD: ${formatPKR(seasonalData.priorYearYtdTotal)}</text>
+      ` : ''}
+
+      <text x="${plotWidth}" y="0" text-anchor="end" font-weight="700" fill="${seasonalData.velocityStatus === 'Accelerating' ? '#047857' : (seasonalData.velocityStatus === 'Contraction' ? '#b91c1c' : '#b45309')}">
+        YoY: ${ytdStr} (${seasonalData.velocityStatus})
+      </text>
+    </g>
+
+    ${gridLines}
+    ${priorYearSvg}
+    <polygon points="${areaPoints}" fill="url(#seasonalGrad)" />
+    <polyline points="${currentPoints}" fill="none" stroke="#0e5b4d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+    ${currentDots}
+    ${peakCallout}
+    ${xLabels}
+  </svg>`;
+}
+
+/**
+ * Analyzes subscriber package portfolio profitability, direct upstream bandwidth cost,
+ * and net gross profit margins across active customer profiles.
+ * Supports simulation parameters (e.g. custom wholesale transit cost per Mbps or retail price delta).
+ */
+export function calculatePackageMarginBreakdown(state, options = {}) {
+  const costPerMbps = Number(options.costPerMbps ?? currentMarginCostPerMbps) || 50;
+  const simulatedMultiplier = Number(options.simulatedMultiplier ?? 1.0) || 1.0;
+  const retailPriceDeltaPercent = Number(options.retailPriceDeltaPercent ?? 0) || 0;
+  const customPackageCosts = options.customPackageCosts ?? {};
+
+  const map = new Map();
+  let totalSubscribers = 0;
+  let totalRevenue = 0;
+  let totalUpstreamCost = 0;
+
+  for (const c of (state?.customers ?? [])) {
+    if (c.archived) continue;
+    totalSubscribers++;
+
+    const pkgName = (c.packageSpeed && String(c.packageSpeed).trim())
+      ? String(c.packageSpeed).trim()
+      : 'Unassigned';
+
+    let speedMbps = 5;
+    const speedMatch = pkgName.match(/(\d+(?:\.\d+)?)\s*(?:Mbps|M\b|G\b)/i);
+    if (speedMatch) {
+      speedMbps = parseFloat(speedMatch[1]);
+    } else if (pkgName.toLowerCase().includes('3mbps')) {
+      speedMbps = 3;
+    } else if (pkgName.toLowerCase().includes('15mbps')) {
+      speedMbps = 15;
+    }
+
+    let retailPrice = Number(c.monthlySellingAmount) || 0;
+    if (retailPriceDeltaPercent !== 0) {
+      retailPrice = Math.round(retailPrice * (1 + retailPriceDeltaPercent / 100));
+    }
+
+    let upstreamCost = 0;
+    if (customPackageCosts[pkgName] != null) {
+      upstreamCost = Number(customPackageCosts[pkgName]) * simulatedMultiplier;
+    } else if (c.monthlyPurchaseCost && Number(c.monthlyPurchaseCost) > 0) {
+      upstreamCost = Number(c.monthlyPurchaseCost) * simulatedMultiplier;
+    } else {
+      upstreamCost = Math.round(speedMbps * costPerMbps * simulatedMultiplier);
+    }
+
+    if (!map.has(pkgName)) {
+      map.set(pkgName, {
+        packageName: pkgName,
+        speedMbps,
+        subscriberCount: 0,
+        activeCount: 0,
+        totalRevenue: 0,
+        totalUpstreamCost: 0,
+        grossProfit: 0,
+        grossMarginPercent: 0,
+        arpu: 0,
+        avgCostPerSub: 0
+      });
+    }
+
+    const item = map.get(pkgName);
+    item.subscriberCount++;
+    if (c.serviceStatus === 'active') item.activeCount++;
+    item.totalRevenue += retailPrice;
+    item.totalUpstreamCost += upstreamCost;
+
+    totalRevenue += retailPrice;
+    totalUpstreamCost += upstreamCost;
+  }
+
+  const packages = [...map.values()].map(p => {
+    const grossProfit = p.totalRevenue - p.totalUpstreamCost;
+    const grossMarginPercent = p.totalRevenue > 0
+      ? Math.round((grossProfit / p.totalRevenue) * 100)
+      : 0;
+    const arpu = p.subscriberCount > 0
+      ? Math.round(p.totalRevenue / p.subscriberCount)
+      : 0;
+    const avgCostPerSub = p.subscriberCount > 0
+      ? Math.round(p.totalUpstreamCost / p.subscriberCount)
+      : 0;
+
+    return {
+      ...p,
+      grossProfit,
+      grossMarginPercent,
+      arpu,
+      avgCostPerSub
+    };
+  }).sort((a, b) => b.grossProfit - a.grossProfit || b.subscriberCount - a.subscriberCount);
+
+  const totalGrossProfit = totalRevenue - totalUpstreamCost;
+  const blendedMarginPercent = totalRevenue > 0
+    ? Math.round((totalGrossProfit / totalRevenue) * 100)
+    : 0;
+
+  const topMarginPackage = packages.length > 0 ? packages[0] : null;
+  const tightestMarginPackage = packages.length > 0
+    ? [...packages].sort((a, b) => a.grossMarginPercent - b.grossMarginPercent)[0]
+    : null;
+
+  return {
+    costPerMbps,
+    simulatedMultiplier,
+    retailPriceDeltaPercent,
+    totalSubscribers,
+    totalRevenue,
+    totalUpstreamCost,
+    totalGrossProfit,
+    blendedMarginPercent,
+    topMarginPackage,
+    tightestMarginPackage,
+    packages
+  };
+}
+
+/**
+ * Simulates financial margin impacts of upstream wholesale bandwidth rate changes
+ * or retail price revisions against baseline package distributions.
+ */
+export function simulateMarginAdjustment(state, { costPerMbps = 50, simulatedMultiplier = 1.0, retailPriceDeltaPercent = 0 } = {}) {
+  const baseline = calculatePackageMarginBreakdown(state, { costPerMbps: 50, simulatedMultiplier: 1.0, retailPriceDeltaPercent: 0 });
+  const simulated = calculatePackageMarginBreakdown(state, { costPerMbps, simulatedMultiplier, retailPriceDeltaPercent });
+
+  const monthlyProfitDelta = simulated.totalGrossProfit - baseline.totalGrossProfit;
+  const annualizedImpact = monthlyProfitDelta * 12;
+  const marginDeltaPercent = simulated.blendedMarginPercent - baseline.blendedMarginPercent;
+
+  return {
+    baseline,
+    simulated,
+    monthlyProfitDelta,
+    annualizedImpact,
+    marginDeltaPercent
+  };
+}
+
+/**
+ * Renders an accessible pure SVG horizontal stacked bar chart showing
+ * wholesale transit cost vs gross profit margin contribution across top packages.
+ */
+export function renderPackageMarginSvg(marginData, options = {}) {
+  const width = 560;
+  const rowHeight = 36;
+  const topPad = 32;
+  const bottomPad = 48;
+  const maxPkgs = 5;
+  const displayPackages = (marginData?.packages ?? []).slice(0, maxPkgs);
+  const height = topPad + Math.max(displayPackages.length, 1) * rowHeight + bottomPad;
+
+  if (!marginData || marginData.totalSubscribers === 0 || displayPackages.length === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} 220" width="100%" height="auto" role="img" aria-label="Package Margin & Bandwidth Cost: No subscribers configured">
+      <rect width="${width}" height="220" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 98)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-10 6 L10 6 M-6 -4 L6 -4 M-2 -14 L2 -14" stroke="#0e5b4d" stroke-width="2" stroke-linecap="round" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No package distribution data</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Margin optimization metrics will appear once customer package plans are assigned</text>
+      </g>
+    </svg>`;
+  }
+
+  const barX = 175;
+  const barMaxW = 240;
+  const maxRevenue = Math.max(...displayPackages.map(p => p.totalRevenue), 1);
+
+  const rows = displayPackages.map((pkg, idx) => {
+    const y = topPad + idx * rowHeight;
+    const totalW = Math.max((pkg.totalRevenue / maxRevenue) * barMaxW, 10);
+    const costRatio = pkg.totalRevenue > 0 ? (pkg.totalUpstreamCost / pkg.totalRevenue) : 0;
+    const costW = Math.min(Math.max(totalW * costRatio, 2), totalW - 2);
+    const marginW = totalW - costW;
+
+    return `
+      <g class="margin-row" transform="translate(0, ${y})">
+        <text x="165" y="18" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="600" fill="var(--ink, #182e2a)">
+          ${escapeXml(pkg.packageName)} <tspan font-weight="400" fill="var(--muted, #71817c)">(${pkg.subscriberCount})</tspan>
+        </text>
+
+        <rect x="${barX}" y="6" width="${costW}" height="18" rx="3" fill="#f87171">
+          <title>${escapeXml(pkg.packageName)}: Upstream Transit Cost ${formatPKR(pkg.totalUpstreamCost)}</title>
+        </rect>
+
+        <rect x="${barX + costW}" y="6" width="${marginW}" height="18" rx="3" fill="#10b981">
+          <title>${escapeXml(pkg.packageName)}: Gross Profit ${formatPKR(pkg.grossProfit)} (${pkg.grossMarginPercent}% margin)</title>
+        </rect>
+
+        <text x="${barX + totalW + 10}" y="19" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${pkg.grossMarginPercent >= 50 ? '#047857' : (pkg.grossMarginPercent >= 30 ? '#b45309' : '#b91c1c')}">
+          ${pkg.grossMarginPercent}% · ${formatPKR(pkg.grossProfit)}
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  const footerY = height - 16;
+
+  return `<svg class="chart-svg margin-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Package Margin and Bandwidth Cost Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(175, 18)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+      <rect x="0" y="-8" width="10" height="10" rx="2" fill="#f87171" />
+      <text x="14" y="0" fill="var(--muted, #71817c)">Upstream Cost (${formatPKR(marginData.totalUpstreamCost)})</text>
+
+      <rect x="155" y="-8" width="10" height="10" rx="2" fill="#10b981" />
+      <text x="169" y="0" font-weight="600" fill="var(--ink, #182e2a)">Gross Profit (${formatPKR(marginData.totalGrossProfit)})</text>
+    </g>
+
+    ${rows}
+
+    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Blended Margin: <tspan font-weight="700" fill="var(--ink, #182e2a)">${marginData.blendedMarginPercent}%</tspan> · Total Gross Margin: <tspan font-weight="700" fill="#047857">${formatPKR(marginData.totalGrossProfit)}/mo</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+/**
+ * Generates an executive plain-text report of the margin simulation.
+ */
+export function generateMarginSimulationReportText(simResult) {
+  const { simulated, monthlyProfitDelta, annualizedImpact, marginDeltaPercent } = simResult;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const deltaSign = monthlyProfitDelta >= 0 ? '+' : '';
+
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - PACKAGE MARGIN SIMULATION`,
+    `Generated: ${dateStr} PKT`,
+    `=========================================`,
+    `[ SIMULATION PARAMETERS ]`,
+    `  Upstream Transit Rate: PKR ${simulated.costPerMbps}/Mbps`,
+    `  Wholesale Cost Multiplier: ${simulated.simulatedMultiplier}x`,
+    `  Retail Price Adjustment: ${simulated.retailPriceDeltaPercent > 0 ? '+' : ''}${simulated.retailPriceDeltaPercent}%`,
+    ``,
+    `[ NETWORK-WIDE MARGIN IMPACT ]`,
+    `  Monthly Revenue: ${formatPKR(simulated.totalRevenue)}`,
+    `  Upstream Wholesale Cost: ${formatPKR(simulated.totalUpstreamCost)}`,
+    `  Net Gross Profit: ${formatPKR(simulated.totalGrossProfit)}`,
+    `  Blended Margin: ${simulated.blendedMarginPercent}% (${deltaSign}${marginDeltaPercent}% vs baseline)`,
+    `  Monthly Profit Delta: ${deltaSign}${formatPKR(monthlyProfitDelta)}/mo`,
+    `  Annualized EBITDA Impact: ${deltaSign}${formatPKR(annualizedImpact)}/yr`,
+    ``,
+    `[ PACKAGE PROFITABILITY MATRIX ]`
+  ];
+
+  for (const pkg of simulated.packages) {
+    lines.push(`  ${pkg.packageName} (${pkg.subscriberCount} subs):`);
+    lines.push(`    Revenue: ${formatPKR(pkg.totalRevenue)} | Cost: ${formatPKR(pkg.totalUpstreamCost)}`);
+    lines.push(`    Gross Profit: ${formatPKR(pkg.grossProfit)} (${pkg.grossMarginPercent}% margin)`);
+  }
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the interactive Margin Simulator Modal dialog.
+ */
+export function setupMarginSimulatorModal(state, { referenceDate = new Date(), onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardMarginSimulatorModal');
+  const openBtn = document.getElementById('dashboardOpenMarginSimulatorBtn');
+  const closeBtn = document.getElementById('dashboardMarginModalCloseBtn');
+  const costInput = document.getElementById('marginSimCostInput');
+  const tableBody = document.getElementById('marginSimTableBody');
+  const copyBtn = document.getElementById('marginSimCopyBtn');
+
+  if (!modal) return;
+
+  let currentSimOptions = {
+    costPerMbps: currentMarginCostPerMbps,
+    simulatedMultiplier: 1.0,
+    retailPriceDeltaPercent: 0
+  };
+
+  function updateSimulation() {
+    const simResult = simulateMarginAdjustment(state, currentSimOptions);
+    const { simulated, monthlyProfitDelta, annualizedImpact, marginDeltaPercent } = simResult;
+
+    const revEl = document.getElementById('marginSimRevenueVal');
+    const costEl = document.getElementById('marginSimCostVal');
+    const profitEl = document.getElementById('marginSimProfitVal');
+    const marginEl = document.getElementById('marginSimMarginVal');
+    const deltaEl = document.getElementById('marginSimDeltaBadge');
+
+    if (revEl) revEl.textContent = formatPKR(simulated.totalRevenue);
+    if (costEl) costEl.textContent = formatPKR(simulated.totalUpstreamCost);
+    if (profitEl) profitEl.textContent = formatPKR(simulated.totalGrossProfit);
+    if (marginEl) marginEl.textContent = `${simulated.blendedMarginPercent}%`;
+
+    if (deltaEl) {
+      const sign = monthlyProfitDelta >= 0 ? '+' : '';
+      deltaEl.textContent = `${sign}${formatPKR(monthlyProfitDelta)}/mo (${sign}${formatPKR(annualizedImpact)}/yr)`;
+      deltaEl.className = `sim-delta-badge ${monthlyProfitDelta >= 0 ? 'delta-positive' : 'delta-negative'}`;
+    }
+
+    if (tableBody) {
+      if (simulated.packages.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No package distribution data found.</td></tr>';
+      } else {
+        tableBody.innerHTML = simulated.packages.map(pkg => `
+          <tr>
+            <td>
+              <strong>${escapeXml(pkg.packageName)}</strong>
+              <div class="cust-sub-meta">${pkg.speedMbps} Mbps</div>
+            </td>
+            <td>${pkg.subscriberCount}</td>
+            <td>${formatPKR(pkg.arpu)}</td>
+            <td>${formatPKR(pkg.avgCostPerSub)}</td>
+            <td><strong class="text-success">${formatPKR(pkg.grossProfit)}</strong></td>
+            <td>
+              <span class="status-pill ${pkg.grossMarginPercent >= 50 ? 'status-good' : (pkg.grossMarginPercent >= 30 ? 'status-watchlist' : 'status-delinquent')}">
+                ${pkg.grossMarginPercent}%
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    return simResult;
+  }
+
+  function populateAndOpen() {
+    if (costInput) costInput.value = currentSimOptions.costPerMbps;
+    updateSimulation();
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (costInput && !costInput.dataset?.wired) {
+    if (costInput.dataset) costInput.dataset.wired = 'true';
+    else if (costInput.setAttribute) costInput.setAttribute('data-wired', 'true');
+    costInput.addEventListener('input', () => {
+      const val = parseFloat(costInput.value);
+      if (!isNaN(val) && val >= 0) {
+        currentSimOptions.costPerMbps = val;
+        setMarginSimulatorCostPerMbps(val);
+        updateSimulation();
+      }
+    });
+  }
+
+  const presetBtns = modal.querySelectorAll?.('[data-margin-preset]') ?? [];
+  presetBtns.forEach(btn => {
+    if (!btn.dataset?.wired) {
+      if (btn.dataset) btn.dataset.wired = 'true';
+      else if (btn.setAttribute) btn.setAttribute('data-wired', 'true');
+      btn.addEventListener('click', () => {
+        const preset = btn.getAttribute('data-margin-preset');
+        if (preset === 'default') {
+          currentSimOptions.costPerMbps = 50;
+          currentSimOptions.simulatedMultiplier = 1.0;
+          currentSimOptions.retailPriceDeltaPercent = 0;
+        } else if (preset === 'discount') {
+          currentSimOptions.costPerMbps = 40;
+          currentSimOptions.simulatedMultiplier = 1.0;
+        } else if (preset === 'inflation') {
+          currentSimOptions.costPerMbps = 60;
+          currentSimOptions.simulatedMultiplier = 1.15;
+        } else if (preset === 'retailHike') {
+          currentSimOptions.retailPriceDeltaPercent = 10;
+        }
+        if (costInput) costInput.value = currentSimOptions.costPerMbps;
+        setMarginSimulatorCostPerMbps(currentSimOptions.costPerMbps);
+        updateSimulation();
+      });
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const res = updateSimulation();
+      const text = generateMarginSimulationReportText(res);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Margin simulation report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard API unavailable');
+      }
+    });
+  }
+}
+
 export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
   const trendGroup = document.getElementById('dashboardTrendRangeGroup');
@@ -1103,6 +1817,21 @@ export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
       const m = parseInt(btn.dataset?.months || btn.getAttribute?.('data-months'), 10);
       if ([3, 6, 12].includes(m)) {
         setTrendChartDuration(m);
+        renderDashboardCharts(state, referenceDate);
+      }
+    });
+  }
+
+  const seasonalGroup = document.getElementById('dashboardSeasonalActions');
+  if (seasonalGroup && !seasonalGroup.dataset?.wired) {
+    if (seasonalGroup.dataset) seasonalGroup.dataset.wired = 'true';
+    else if (seasonalGroup.setAttribute) seasonalGroup.setAttribute('data-wired', 'true');
+    seasonalGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('.chart-range-btn');
+      if (!btn) return;
+      const m = btn.dataset?.seasonalMetric || btn.getAttribute?.('data-seasonal-metric');
+      if (['collections', 'billed'].includes(m)) {
+        setSeasonalMetric(m);
         renderDashboardCharts(state, referenceDate);
       }
     });
@@ -1232,6 +1961,30 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
     if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
     if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
+
+  const seasonalEl = document.getElementById('dashboardSeasonalChart');
+  if (seasonalEl) {
+    const seasonalData = calculateSeasonalCashflowComparison(state, referenceDate, { metric: currentSeasonalMetric });
+    seasonalEl.innerHTML = renderSeasonalCashflowSvg(seasonalData);
+  }
+
+  const seasonalBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#dashboardSeasonalActions .chart-range-btn')
+    : [];
+  seasonalBtns.forEach(btn => {
+    const m = btn.dataset?.seasonalMetric || btn.getAttribute?.('data-seasonal-metric');
+    const isActive = m === currentSeasonalMetric;
+    if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
+    if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  const marginEl = document.getElementById('dashboardPackageMarginChart');
+  if (marginEl) {
+    const marginData = calculatePackageMarginBreakdown(state, { costPerMbps: currentMarginCostPerMbps });
+    marginEl.innerHTML = renderPackageMarginSvg(marginData);
+  }
+
+  setupMarginSimulatorModal(state, { referenceDate, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

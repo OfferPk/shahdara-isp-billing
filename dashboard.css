@@ -1152,6 +1152,247 @@
   color: #fca5a5;
 }
 
+/* Seasonal Cashflow & Package Margin Cards */
+.chart-card-seasonal,
+.chart-card-margin {
+  display: flex;
+  flex-direction: column;
+}
+
+.seasonal-chart-svg,
+.margin-chart-svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.seasonal-chart-svg circle,
+.margin-chart-svg rect {
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.seasonal-chart-svg circle:hover {
+  transform: scale(1.3);
+  transform-origin: center;
+}
+
+.margin-row:hover rect {
+  opacity: 0.85;
+}
+
+/* Margin Simulator Modal & Controls */
+.margin-simulator-modal .dashboard-modal-card {
+  max-width: 680px;
+}
+
+.simulator-controls-panel {
+  background: var(--surface-2, #f3f7f5);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.sim-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sim-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink, #182e2a);
+}
+
+.sim-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-number-input {
+  width: 90px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 6px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  text-align: right;
+}
+
+.sim-unit {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #71817c);
+}
+
+.sim-presets-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.presets-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted, #71817c);
+}
+
+.sim-preset-btn {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink, #182e2a);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sim-preset-btn:hover {
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+  border-color: var(--green, #0e5b4d);
+}
+
+.sim-kpi-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sim-kpi-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted, #71817c);
+}
+
+.sim-kpi-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #182e2a);
+}
+
+.sim-val-cost {
+  color: #dc2626;
+}
+
+.sim-impact-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface-2, #f3f7f5);
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin-bottom: 14px;
+}
+
+.impact-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink, #182e2a);
+}
+
+.sim-delta-badge {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 4px;
+}
+
+.delta-positive {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.delta-negative {
+  background: rgba(239, 68, 68, 0.15);
+  color: #b91c1c;
+}
+
+.sim-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 14px;
+}
+
+/* Dark Theme Adjustments */
+[data-theme="dark"] .simulator-controls-panel,
+[data-theme="dark"] .sim-impact-banner {
+  background: #101c18;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .sim-preset-btn {
+  background: #182923;
+  border-color: #28443b;
+  color: #e5ece9;
+}
+
+[data-theme="dark"] .sim-preset-btn:hover {
+  background: #10b981;
+  color: #042f2e;
+}
+
+[data-theme="dark"] .sim-kpi-card {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .sim-number-input {
+  background: #101c18;
+  border-color: #28443b;
+  color: #e5ece9;
+}
+
+[data-theme="dark"] .delta-positive {
+  background: rgba(16, 185, 129, 0.25);
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .delta-negative {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .sim-kpi-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sim-input-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sim-impact-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
 /* Print Styles */
 @media print {
   body > *:not(#dashboardView):not(dialog[open]) {

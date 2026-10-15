@@ -19,7 +19,7 @@ import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLi
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions } from './dashboard.js?v=1.10.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
@@ -309,6 +309,16 @@ function renderDashboard() {
             searchInput.dispatchEvent(new Event('input'));
           }
         }
+      }
+    }
+  });
+  setupChurnRiskModal(state, referenceDate, {
+    onFilterCustomer: (customerName) => {
+      switchView('customers');
+      const searchInput = $('#customerSearch');
+      if (searchInput) {
+        searchInput.value = customerName;
+        searchInput.dispatchEvent(new Event('input'));
       }
     }
   });

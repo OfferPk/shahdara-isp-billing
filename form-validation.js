@@ -848,3 +848,189 @@ export function downloadCustomerStatementCsv(statement, doc = (typeof document !
   const filename = `statement_${custName}_${statement.range}_${new Date().toISOString().slice(0, 10)}.csv`;
   return downloadCsvFile(filename, csv, doc);
 }
+
+/**
+ * Normalizes a Pakistani or international phone number and builds a WhatsApp click-to-chat URL.
+ * Handles 03XX, +923XX, 00923XX, removes non-digit characters.
+ * @param {string} phoneStr
+ * @param {string} [messageText='']
+ * @returns {{ url: string, validPhone: boolean, formattedPhone: string, text: string }}
+ */
+export function formatWhatsAppUrl(phoneStr, messageText = '') {
+  if (!phoneStr || typeof phoneStr !== 'string') {
+    return { url: '', validPhone: false, formattedPhone: '', text: messageText };
+  }
+  const digits = phoneStr.replace(/\D/g, '');
+  let intlDigits = '';
+
+  if (digits.startsWith('92') && digits.length >= 12) {
+    intlDigits = digits;
+  } else if (digits.startsWith('0092') && digits.length >= 14) {
+    intlDigits = digits.slice(2);
+  } else if (digits.startsWith('03') && digits.length === 11) {
+    intlDigits = '92' + digits.slice(1);
+  } else if (digits.length >= 10 && digits.length <= 15) {
+    intlDigits = digits;
+  }
+
+  if (!intlDigits || intlDigits.length < 10) {
+    return { url: '', validPhone: false, formattedPhone: phoneStr.trim(), text: messageText };
+  }
+
+  const encodedText = encodeURIComponent(messageText);
+  const url = `https://wa.me/${intlDigits}${messageText ? `?text=${encodedText}` : ''}`;
+  const formattedPhone = `+${intlDigits.slice(0, 2)} ${intlDigits.slice(2, 5)} ${intlDigits.slice(5)}`;
+
+  return {
+    url,
+    validPhone: true,
+    formattedPhone,
+    text: messageText
+  };
+}
+
+/**
+ * Builds personalized payment reminder and notification message templates.
+ * @param {Object} params
+ * @param {Object} params.customer
+ * @param {string} [params.templateType='due'] - 'due', 'overdue', 'disconnection', 'payment', 'welcome'
+ * @param {Object} [params.billingData={}] - { month, billAmount, balance, dueDate, paidAmount, paymentDate, packageName }
+ * @param {string} [params.customNote='']
+ * @returns {string}
+ */
+export function buildPaymentReminderMessage({
+  customer,
+  templateType = 'due',
+  billingData = {},
+  customNote = ''
+} = {}) {
+  const name = customer?.name || 'Valued Customer';
+  const custNum = customer?.customerNumber ? `#${customer.customerNumber}` : 'Account';
+  const area = customer?.area || customer?.mohalla || 'Shahdara';
+  const month = billingData.month || new Date().toISOString().slice(0, 7);
+  const amount = Number(billingData.billAmount || billingData.amount || 0).toLocaleString();
+  const balance = Number(billingData.balance !== undefined ? billingData.balance : (billingData.billAmount || 0)).toLocaleString();
+  const dueDate = billingData.dueDate || '5th of this month';
+  const paidAmount = Number(billingData.paidAmount || 0).toLocaleString();
+  const paymentDate = billingData.paymentDate || new Date().toISOString().slice(0, 10);
+  const packageName = customer?.package || billingData.packageName || 'Internet Package';
+
+  let msg = '';
+
+  switch (templateType) {
+    case 'overdue':
+      msg = `*Shahdara ISP - Overdue Payment Notice*\n\nAssalam-o-Alaikum ${name},\nYour internet account ${custNum} (${area}) has an outstanding overdue balance of *PKR ${balance}*.\n\nKindly deposit your payment today via cash collection or online transfer (EasyPaisa / JazzCash) to avoid late service disruption.\n\nHelpline & Inquiries: Shahdara ISP Support`;
+      break;
+
+    case 'disconnection':
+      msg = `*⚠️ FINAL NOTICE / آخری اطلاع - Shahdara ISP*\n\nDear ${name},\nConnection ${custNum} is scheduled for *temporary disconnection* due to pending dues of *PKR ${balance}*.\n\nPlease clear the balance today to keep your high-speed internet active.\n\n_If you have already paid today, please ignore this notice or reply with your receipt slip._`;
+      break;
+
+    case 'payment':
+      msg = `*Shahdara ISP - Payment Received Acknowledgement*\n\nDear ${name},\nWe have successfully received payment of *PKR ${paidAmount}* for account ${custNum} on ${paymentDate}.\n\nRemaining Balance: *PKR ${balance}*\n\nThank you for choosing Shahdara ISP Services!`;
+      break;
+
+    case 'welcome':
+      msg = `*Welcome to Shahdara ISP! / خوش آمدید*\n\nDear ${name},\nYour new high-speed internet connection ${custNum} (${packageName}) is active in ${area}.\n\nFor speed tests, billing assistance, or technical support, contact our local team.\n\nThank you for joining our network!`;
+      break;
+
+    case 'due':
+    default:
+      msg = `*Shahdara ISP - Monthly Bill Reminder*\n\nAssalam-o-Alaikum ${name},\nYour internet bill for the month of *${month}* is *PKR ${amount}*, due by *${dueDate}*.\n\nAccount: ${custNum} (${area})\nTotal Payable: *PKR ${balance}*\n\nPlease settle your bill on or before the due date for uninterrupted service.\n\nThank you!\nShahdara ISP`;
+      break;
+  }
+
+  if (customNote && customNote.trim()) {
+    msg += `\n\nNote: ${customNote.trim()}`;
+  }
+
+  return msg;
+}
+
+/**
+ * Generates an 80mm printable reminder slip HTML card.
+ * @param {Object} params
+ * @returns {string}
+ */
+export function generatePaymentReminderSlipHtml({
+  customer,
+  templateType = 'due',
+  billingData = {},
+  customNote = ''
+} = {}) {
+  const name = escapeHtml(customer?.name || 'Customer');
+  const custNum = customer?.customerNumber ? `#${customer.customerNumber}` : '—';
+  const phone = escapeHtml(customer?.phone || 'Not set');
+  const area = escapeHtml(customer?.area || customer?.mohalla || 'Shahdara Area');
+  const balance = Number(billingData.balance !== undefined ? billingData.balance : (billingData.billAmount || 0)).toLocaleString();
+  const month = billingData.month || new Date().toISOString().slice(0, 7);
+  const dueDate = billingData.dueDate || '5th of this month';
+  const currentDate = new Date().toISOString().slice(0, 10);
+
+  const titleMap = {
+    due: 'Monthly Bill Due Reminder',
+    overdue: 'Overdue Dues Notice',
+    disconnection: 'Disconnection Warning',
+    payment: 'Payment Acknowledgement',
+    welcome: 'Welcome New Connection'
+  };
+  const title = titleMap[templateType] || 'Payment Reminder';
+
+  return `
+    <article class="reminder-print-slip thermal-receipt" aria-label="Customer payment reminder slip">
+      <header class="thermal-header">
+        <h2 class="thermal-company">Shahdara ISP Network</h2>
+        <p class="thermal-tagline">شاہدرہ انٹرنیٹ سروسز · بل یاد دہانی</p>
+        <div class="thermal-rule">================================</div>
+        <p class="thermal-title"><strong>${title.toUpperCase()}</strong></p>
+        <p class="thermal-date">Date: ${currentDate} · Cycle: ${month}</p>
+        <div class="thermal-rule">--------------------------------</div>
+      </header>
+
+      <section class="thermal-customer-meta">
+        <div class="thermal-row"><span>Account No:</span><strong>${custNum}</strong></div>
+        <div class="thermal-row"><span>Customer:</span><strong>${name}</strong></div>
+        <div class="thermal-row"><span>Phone:</span><span>${phone}</span></div>
+        <div class="thermal-row"><span>Area / Mohalla:</span><span>${area}</span></div>
+        <div class="thermal-row"><span>Due Date:</span><span>${dueDate}</span></div>
+      </section>
+
+      <div class="thermal-rule">--------------------------------</div>
+
+      <section class="thermal-breakdown">
+        <div class="thermal-row thermal-total-row">
+          <span>Amount Payable:</span>
+          <strong>PKR ${balance}</strong>
+        </div>
+      </section>
+
+      ${customNote ? `
+        <div class="thermal-rule">--------------------------------</div>
+        <p class="thermal-notes"><strong>Note:</strong> ${escapeHtml(customNote)}</p>
+      ` : ''}
+
+      <div class="thermal-rule">================================</div>
+
+      <footer class="thermal-footer">
+        <p class="thermal-urgent">Pay by due date to avoid service disconnection.</p>
+        <p class="thermal-payment-modes">EasyPaisa · JazzCash · Cash Collection</p>
+        <div class="thermal-sig-block">
+          <div class="thermal-sig-line"></div>
+          <span>Collector / Officer Signature</span>
+        </div>
+        <p class="thermal-closing">Thank you for your cooperation!</p>
+      </footer>
+    </article>
+  `;
+}
+
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[c]);
+}
+

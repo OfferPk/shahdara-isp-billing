@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
+  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml
 } from '../form-validation.js';
 
 
@@ -557,4 +558,196 @@ test('app.js integrates customer statement modal, thermal receipt printing, and 
   assert.match(appJs, /data-print-thermal-receipt/);
   assert.match(appJs, /wirePhoneInputMask/);
 });
+
+test('formatWhatsAppUrl formats local and international numbers into standard wa.me links with encoded text', () => {
+  assert.equal(formatWhatsAppUrl('03001234567').url, 'https://wa.me/923001234567');
+  assert.equal(formatWhatsAppUrl('+92 300 1234567').url, 'https://wa.me/923001234567');
+  assert.equal(formatWhatsAppUrl('00923219876543').url, 'https://wa.me/923219876543');
+  assert.equal(formatWhatsAppUrl('923001234567').url, 'https://wa.me/923001234567');
+  assert.equal(formatWhatsAppUrl('0300-1234567').url, 'https://wa.me/923001234567');
+
+  const withMsg = formatWhatsAppUrl('03001234567', 'Dear Customer, your bill is Rs. 2,000');
+  assert.equal(withMsg.url, 'https://wa.me/923001234567?text=Dear%20Customer%2C%20your%20bill%20is%20Rs.%202%2C000');
+  assert.equal(withMsg.validPhone, true);
+
+  // Invalid or empty inputs return validPhone: false and empty url
+  assert.equal(formatWhatsAppUrl('').validPhone, false);
+  assert.equal(formatWhatsAppUrl('').url, '');
+  assert.equal(formatWhatsAppUrl(null).validPhone, false);
+  assert.equal(formatWhatsAppUrl(null).url, '');
+  assert.equal(formatWhatsAppUrl('12345').validPhone, false);
+  assert.equal(formatWhatsAppUrl('invalid-phone').validPhone, false);
+});
+
+test('buildPaymentReminderMessage generates templates for due, overdue, disconnection, payment, and welcome', () => {
+  const customer = {
+    id: 'cust-101',
+    customerNumber: 101,
+    name: 'Muhammad Tariq',
+    phone: '03001234567',
+    package: '20 Mbps Fiber',
+    monthlyPrice: 2000,
+    area: 'Shahdara Town'
+  };
+
+  const billingData = {
+    month: '2026-10',
+    billAmount: 2000,
+    balance: 2000,
+    dueDate: '10th of the month',
+    paidAmount: 2000,
+    paymentDate: '2026-10-15',
+    packageName: '20 Mbps Fiber'
+  };
+
+  // Due template
+  const dueMsg = buildPaymentReminderMessage({ customer, templateType: 'due', billingData, customNote: 'Please pay via JazzCash' });
+  assert.match(dueMsg, /Muhammad Tariq/);
+  assert.match(dueMsg, /2,000/);
+  assert.match(dueMsg, /10th of the month/);
+  assert.match(dueMsg, /Shahdara ISP/);
+  assert.match(dueMsg, /Please pay via JazzCash/);
+
+  // Overdue template
+  const overdueMsg = buildPaymentReminderMessage({ customer, templateType: 'overdue', billingData });
+  assert.match(overdueMsg, /Overdue Payment Notice/);
+  assert.match(overdueMsg, /disruption/);
+
+  // Disconnection notice
+  const disconnMsg = buildPaymentReminderMessage({ customer, templateType: 'disconnection', billingData });
+  assert.match(disconnMsg, /FINAL NOTICE/);
+  assert.match(disconnMsg, /temporary disconnection/);
+
+  // Payment confirmation
+  const payMsg = buildPaymentReminderMessage({ customer, templateType: 'payment', billingData });
+  assert.match(payMsg, /Payment Received/);
+  assert.match(payMsg, /Thank you/);
+
+  // Welcome template
+  const welcomeMsg = buildPaymentReminderMessage({ customer, templateType: 'welcome', billingData });
+  assert.match(welcomeMsg, /Welcome to Shahdara ISP/);
+  assert.match(welcomeMsg, /20 Mbps Fiber/);
+
+  // Fallback defaults when customer is null
+  const defaultMsg = buildPaymentReminderMessage({ customer: null });
+  assert.match(defaultMsg, /Valued Customer/);
+});
+
+test('generatePaymentReminderSlipHtml creates 80mm thermal slip with customer info, notice badge, and footer', () => {
+  const customer = {
+    id: 'cust-202',
+    customerNumber: 202,
+    name: 'Zahid Mahmood',
+    phone: '0321-7654321',
+    package: '30 Mbps Unlimited',
+    monthlyPrice: 2500,
+    area: 'Begum Kot'
+  };
+
+  const billingData = {
+    month: '2026-10',
+    balance: 2500,
+    billAmount: 2500,
+    dueDate: '2026-10-10'
+  };
+
+  const html = generatePaymentReminderSlipHtml({
+    customer,
+    templateType: 'overdue',
+    billingData,
+    customNote: 'Kindly clear your outstanding balance of Rs. 2,500 immediately.'
+  });
+
+  assert.match(html, /Shahdara ISP Network/);
+  assert.match(html, /OVERDUE DUES NOTICE/);
+  assert.match(html, /Zahid Mahmood/);
+  assert.match(html, /#202/);
+  assert.match(html, /0321-7654321/);
+  assert.match(html, /Begum Kot/);
+  assert.match(html, /PKR 2,500/);
+  assert.match(html, /Kindly clear your outstanding balance/);
+  assert.match(html, /Pay by due date to avoid service disconnection/);
+});
+
+test('generatePaymentReminderSlipHtml escapes HTML and safely falls back on missing data', () => {
+  const unsafeCustomer = {
+    id: 'cust-x',
+    customerNumber: 999,
+    name: '<script>alert("xss")</script> & Ahmad',
+    phone: '0300-111<222>',
+    area: 'Area <b>Bold</b>'
+  };
+
+  const html = generatePaymentReminderSlipHtml({
+    customer: unsafeCustomer,
+    templateType: 'due',
+    billingData: {},
+    customNote: '<b>Pay promptly</b> & smile'
+  });
+
+  // Verify dangerous tags are escaped
+  assert.ok(!html.includes('<script>'));
+  assert.ok(html.includes('&lt;script&gt;'));
+  assert.ok(html.includes('&amp; Ahmad'));
+  assert.ok(html.includes('&lt;222&gt;'));
+  assert.ok(html.includes('Area &lt;b&gt;Bold&lt;/b&gt;'));
+  assert.ok(html.includes('&lt;b&gt;Pay promptly&lt;/b&gt; &amp; smile'));
+  assert.match(html, /MONTHLY BILL DUE REMINDER/);
+});
+
+test('formatWhatsAppUrl handles formatted strings with parentheses and dots', () => {
+  const res1 = formatWhatsAppUrl('+92 (300) 123.4567');
+  assert.equal(res1.validPhone, true);
+  assert.equal(res1.url, 'https://wa.me/923001234567');
+
+  const res2 = formatWhatsAppUrl('0092-321-9876543');
+  assert.equal(res2.validPhone, true);
+  assert.equal(res2.url, 'https://wa.me/923219876543');
+
+  const res3 = formatWhatsAppUrl('(0300) 123-4567');
+  assert.equal(res3.validPhone, true);
+  assert.equal(res3.url, 'https://wa.me/923001234567');
+});
+
+test('index.html and styles.css provide accessible payment reminder modal, whatsapp button, and thermal print slip', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+
+  assert.match(indexHtml, /id="openReminderModalBtn"/);
+  assert.match(indexHtml, /id="paymentReminderModal"/);
+  assert.match(indexHtml, /id="reminderTemplateSelect"/);
+  assert.match(indexHtml, /id="reminderMessageText"/);
+  assert.match(indexHtml, /id="reminderCharCount"/);
+  assert.match(indexHtml, /id="reminderPhoneNotice"/);
+  assert.match(indexHtml, /id="sendWhatsAppReminderBtn"/);
+  assert.match(indexHtml, /id="copyReminderTextBtn"/);
+  assert.match(indexHtml, /id="printReminderSlipBtn"/);
+
+  assert.match(stylesCss, /\.reminder-modal/);
+  assert.match(stylesCss, /\.reminder-modal-card/);
+  assert.match(stylesCss, /\.reminder-customer-summary/);
+  assert.match(stylesCss, /\.reminder-template-selector/);
+  assert.match(stylesCss, /\.reminder-textarea/);
+  assert.match(stylesCss, /\.whatsapp-button/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.reminder-modal-card/);
+  assert.match(stylesCss, /body\.printing-reminder/);
+  assert.match(stylesCss, /\.reminder-print-slip/);
+});
+
+test('app.js integrates payment reminder modal, live template preview, WhatsApp dispatch, and thermal print', () => {
+  const appJs = read('app.js');
+  assert.match(appJs, /formatWhatsAppUrl/);
+  assert.match(appJs, /buildPaymentReminderMessage/);
+  assert.match(appJs, /generatePaymentReminderSlipHtml/);
+  assert.match(appJs, /openPaymentReminderModal/);
+  assert.match(appJs, /openReminderBtn/);
+  assert.match(appJs, /reminderModal/);
+  assert.match(appJs, /reminderTemplateSelect/);
+  assert.match(appJs, /reminderMessageText/);
+  assert.match(appJs, /sendWhatsAppReminderBtn/);
+  assert.match(appJs, /copyReminderTextBtn/);
+  assert.match(appJs, /printReminderSlipBtn/);
+  assert.match(appJs, /body\.classList\.add\('printing-reminder'\)/);
+});
+
 

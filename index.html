@@ -230,6 +230,21 @@
             </div>
             <div id="dashboardPackageChart" class="chart-svg-container" role="img" aria-label="Package tier distribution donut chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-health">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Customer Health &amp; Delinquency Matrix</h4>
+                <p class="chart-subtitle">Account standing, watchlist, and overdue risk segments</p>
+              </div>
+              <div id="dashboardHealthActions" class="health-filter-group" role="group" aria-label="Quick filter customers by health">
+                <button type="button" class="health-filter-btn health-btn-good" data-filter-health="goodStanding" title="Filter roster: Good Standing">Good</button>
+                <button type="button" class="health-filter-btn health-btn-watch" data-filter-health="watchlist" title="Filter roster: Watchlist">Watch</button>
+                <button type="button" class="health-filter-btn health-btn-delinquent" data-filter-health="delinquent" title="Filter roster: Delinquent">Overdue</button>
+                <button type="button" class="health-filter-btn health-btn-offline" data-filter-health="offline" title="Filter roster: Offline">Offline</button>
+              </div>
+            </div>
+            <div id="dashboardHealthChart" class="chart-svg-container" role="img" aria-label="Customer account health and delinquency chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -261,6 +276,26 @@
                 <tr><td colspan="5" class="empty-cell">Loading areas...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardBriefingModal" class="dashboard-modal briefing-modal" aria-labelledby="dashboardBriefingModalTitle">
+        <div class="dashboard-modal-card briefing-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">OFFICIAL EXECUTIVE BRIEFING</p>
+              <h3 id="dashboardBriefingModalTitle">Operations &amp; Financial Slip</h3>
+            </div>
+            <button id="dashboardBriefingModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <div class="briefing-actions-bar">
+            <button id="dashboardBriefingPrintBtn" class="primary-button briefing-action-btn" type="button">🖨️ Print Slip</button>
+            <button id="dashboardBriefingCopyBtn" class="secondary-button briefing-action-btn" type="button">📋 Copy Text</button>
+            <button id="dashboardBriefingWhatsappBtn" class="secondary-button briefing-action-btn" type="button">💬 WhatsApp</button>
+          </div>
+          <div id="dashboardBriefingSlipContent" class="briefing-slip-wrapper">
+            <!-- Populated dynamically by generateDashboardBriefingHtml -->
           </div>
         </div>
       </dialog>

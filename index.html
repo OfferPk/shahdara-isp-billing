@@ -11,6 +11,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=1.10.0">
+  <link rel="stylesheet" href="./dashboard.css?v=1.10.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -41,19 +42,110 @@
         <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
+      <div class="dashboard-quick-actions" role="region" aria-label="Quick actions">
+        <button id="quickActionReceivePayment" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Receive Payment</span>
+            <span class="quick-action-sub">Record customer receipt</span>
+          </span>
+        </button>
+        <button id="quickActionAddCustomer" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Add Customer</span>
+            <span class="quick-action-sub">New connection profile</span>
+          </span>
+        </button>
+        <button id="quickActionRecordExpense" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Record Expense</span>
+            <span class="quick-action-sub">Dated operational cost</span>
+          </span>
+        </button>
+        <button id="quickActionMonthlyReports" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Monthly Report</span>
+            <span class="quick-action-sub">Closing &amp; reconciliation</span>
+          </span>
+        </button>
+        <button id="quickActionAnalytics" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Area Intelligence</span>
+            <span class="quick-action-sub">ARPU &amp; zone metrics</span>
+          </span>
+        </button>
+        <button id="quickActionBackupData" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Backup Ledger</span>
+            <span class="quick-action-sub">Safekeep JSON copy</span>
+          </span>
+        </button>
+      </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
         <article class="summary-card summary-total-due"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
         <article class="summary-card summary-today-collection"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
+        <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
+        <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
         <article class="summary-card summary-cash-profit"><p class="summary-label">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
         <article class="summary-card summary-customer-count"><p class="summary-label">Customer profiles</p><strong id="dashboardCustomerCount" class="summary-value">74</strong><p id="dashboardCustomerPeriod" class="summary-period">Roster profiles; subscription state is listed separately</p></article>
+        <article class="summary-card summary-active-customers"><p class="summary-label">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
+        <article class="summary-card summary-bill-status"><p class="summary-label">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
+        <article class="summary-card summary-new-connections"><p class="summary-label">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
         <article class="summary-card summary-total-collection"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
         <article class="summary-card summary-credit"><p class="summary-label">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
         <article class="summary-card summary-previous-collection"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
         <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost"><p class="summary-label">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
+      <section class="dashboard-charts-region" aria-labelledby="dashboardChartsHeading">
+        <div class="dashboard-charts-header">
+          <p class="eyebrow">VISUAL LEDGER INSIGHTS</p>
+          <h3 id="dashboardChartsHeading">Performance &amp; Collection Analytics</h3>
+          <p class="dashboard-charts-sub">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
+        </div>
+        <div class="dashboard-charts-grid">
+          <article class="dashboard-chart-card chart-card-trend">
+            <div class="chart-card-header">
+              <h4 class="chart-title">Revenue &amp; Collections Trend (Last 6 Months)</h4>
+              <p class="chart-subtitle">Billed snapshot revenue vs actual receipts dated in each month</p>
+            </div>
+            <div id="dashboardTrendChart" class="chart-svg-container" role="img" aria-label="Monthly revenue and collections bar chart"></div>
+          </article>
+          <article class="dashboard-chart-card chart-card-donut">
+            <div class="chart-card-header">
+              <h4 class="chart-title">Current Month Bill Settlement</h4>
+              <p class="chart-subtitle">Paid, partial, and unpaid bills distribution</p>
+            </div>
+            <div id="dashboardStatusChart" class="chart-svg-container" role="img" aria-label="Bill payment status donut chart"></div>
+          </article>
+          <article class="dashboard-chart-card chart-card-area">
+            <div class="chart-card-header">
+              <h4 class="chart-title">Outstanding Dues by Area</h4>
+              <p class="chart-subtitle">Uncollected balances grouped by customer location</p>
+            </div>
+            <div id="dashboardAreaChart" class="chart-svg-container" role="img" aria-label="Outstanding dues by area chart"></div>
+          </article>
+        </div>
+      </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
       <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading">Owner Command Center</h3><p>Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟"><button id="ownerVoiceButton" class="secondary-button" type="button">Voice · on-device only</button><button class="primary-button" type="submit">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>

@@ -144,6 +144,15 @@
             <span class="quick-action-sub">Safekeep JSON copy</span>
           </span>
         </button>
+        <button id="quickActionExecutiveBriefing" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Executive Briefing</span>
+            <span class="quick-action-sub">Copy summary slip</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -171,9 +180,16 @@
         </div>
         <div class="dashboard-charts-grid">
           <article class="dashboard-chart-card chart-card-trend">
-            <div class="chart-card-header">
-              <h4 class="chart-title">Revenue &amp; Collections Trend (Last 6 Months)</h4>
-              <p class="chart-subtitle">Billed snapshot revenue vs actual receipts dated in each month</p>
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Revenue &amp; Collections Trend</h4>
+                <p class="chart-subtitle">Billed snapshot revenue vs actual receipts dated in each month</p>
+              </div>
+              <div id="dashboardTrendRangeGroup" class="chart-time-range-group" role="group" aria-label="Select trend duration">
+                <button type="button" class="chart-range-btn" data-months="3">3M</button>
+                <button type="button" class="chart-range-btn is-active" data-months="6">6M</button>
+                <button type="button" class="chart-range-btn" data-months="12">12M</button>
+              </div>
             </div>
             <div id="dashboardTrendChart" class="chart-svg-container" role="img" aria-label="Monthly revenue and collections bar chart"></div>
           </article>
@@ -185,17 +201,56 @@
             <div id="dashboardStatusChart" class="chart-svg-container" role="img" aria-label="Bill payment status donut chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-area">
-            <div class="chart-card-header">
-              <h4 class="chart-title">Outstanding Dues by Area</h4>
-              <p class="chart-subtitle">Uncollected balances grouped by customer location</p>
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Outstanding Dues by Area</h4>
+                <p class="chart-subtitle">Uncollected balances grouped by customer location</p>
+              </div>
+              <button id="dashboardOpenAreaModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">View All</button>
             </div>
             <div id="dashboardAreaChart" class="chart-svg-container" role="img" aria-label="Outstanding dues by area chart"></div>
+          </article>
+          <article class="dashboard-chart-card chart-card-package">
+            <div class="chart-card-header">
+              <h4 class="chart-title">Package Tier Distribution</h4>
+              <p class="chart-subtitle">Subscribers and monthly revenue by tier</p>
+            </div>
+            <div id="dashboardPackageChart" class="chart-svg-container" role="img" aria-label="Package tier distribution donut chart"></div>
           </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
       <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading">Owner Command Center</h3><p>Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟"><button id="ownerVoiceButton" class="secondary-button" type="button">Voice · on-device only</button><button class="primary-button" type="submit">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
+
+      <dialog id="dashboardAreaModal" class="dashboard-modal" aria-labelledby="dashboardAreaModalTitle">
+        <div class="dashboard-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">AREA DRILLDOWN</p>
+              <h3 id="dashboardAreaModalTitle">Outstanding Balances by Area</h3>
+            </div>
+            <button id="dashboardAreaModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Breakdown of subscriber counts, active vs offline status, and uncollected dues for each area.</p>
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Area</th>
+                  <th>Subscribers</th>
+                  <th>Service Status</th>
+                  <th>Outstanding Dues</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardAreaModalTableBody">
+                <tr><td colspan="5" class="empty-cell">Loading areas...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </dialog>
     </section>
 
     <nav class="view-nav" aria-label="Billing sections">

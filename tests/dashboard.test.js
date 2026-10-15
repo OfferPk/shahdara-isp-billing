@@ -1,14 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState, addCustomer, saveBillMonth, addPayment } from '../core.js';
-import { calculateDashboardKpis, setupDashboardQuickActions } from '../dashboard.js';
+import {
+  calculateDashboardKpis,
+  setupDashboardQuickActions,
+  generateDashboardBriefingText,
+  setupDashboardBriefingButton,
+  setupAreaDrilldownModal
+} from '../dashboard.js';
 import {
   calculateMonthlyTrends,
   calculateDuesByArea,
+  calculateAreaDetailedBreakdown,
+  calculatePackageDistribution,
   renderMonthlyTrendSvg,
   renderBillStatusDonutSvg,
   renderAreaDuesSvg,
-  renderDashboardCharts
+  renderPackageDistributionSvg,
+  renderDashboardCharts,
+  setTrendChartDuration,
+  getTrendChartDuration,
+  setupDashboardChartsEvents
 } from '../dashboard-charts.js';
 
 test('calculateDashboardKpis returns accurate subscriber breakdown and percentages', () => {
@@ -275,6 +287,204 @@ test('renderDashboardCharts populates HTML chart containers correctly', () => {
     assert.ok(fakeContainers.get('dashboardTrendChart').innerHTML.includes('<svg'));
     assert.ok(fakeContainers.get('dashboardStatusChart').innerHTML.includes('<svg'));
     assert.ok(fakeContainers.get('dashboardAreaChart').innerHTML.includes('<svg'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('calculatePackageDistribution groups customers by packageSpeed, revenue, and active counts', () => {
+  let state = createInitialState(['Cust A', 'Cust B', 'Cust C', 'Cust D', 'Archived Cust']);
+  state.customers[0].packageSpeed = '5 Mbps / 150GB';
+  state.customers[0].monthlySellingAmount = '1500';
+  state.customers[0].serviceStatus = 'active';
+
+  state.customers[1].packageSpeed = '5 Mbps / 150GB';
+  state.customers[1].monthlySellingAmount = '1500';
+  state.customers[1].serviceStatus = 'offline';
+
+  state.customers[2].packageSpeed = '15 Mbps Unlimited';
+  state.customers[2].monthlySellingAmount = '3000';
+  state.customers[2].serviceStatus = 'active';
+
+  state.customers[3].packageSpeed = '';
+  state.customers[3].serviceStatus = 'not-set';
+
+  state.customers[4].packageSpeed = '15 Mbps Unlimited';
+  state.customers[4].archived = true;
+
+  const result = calculatePackageDistribution(state);
+
+  assert.equal(result.totalTracked, 4);
+  assert.equal(result.totalMonthlyRevenue, 6000); // 1500 + 1500 + 3000
+  assert.equal(result.packages.length, 3);
+
+  // Top package is 5 Mbps (2 customers)
+  const topPkg = result.packages[0];
+  assert.equal(topPkg.packageName, '5 Mbps / 150GB');
+  assert.equal(topPkg.count, 2);
+  assert.equal(topPkg.activeCount, 1);
+  assert.equal(topPkg.monthlyRevenue, 3000);
+  assert.equal(topPkg.percent, 50);
+
+  // Unassigned package exists
+  const unassigned = result.packages.find(p => p.packageName === 'Unassigned');
+  assert.ok(unassigned);
+  assert.equal(unassigned.count, 1);
+});
+
+test('renderPackageDistributionSvg generates valid SVG with donut arcs, percentage, and empty state', () => {
+  // Empty state
+  const emptySvg = renderPackageDistributionSvg({ packages: [], totalTracked: 0 });
+  assert.ok(emptySvg.includes('chart-pkg-svg'));
+  assert.ok(emptySvg.includes('0 Packages'));
+  assert.ok(emptySvg.includes('No customer package tiers assigned'));
+
+  // Active state
+  const activeSvg = renderPackageDistributionSvg({
+    packages: [
+      { packageName: '5 Mbps', count: 10, activeCount: 8, monthlyRevenue: 15000, percent: 50 },
+      { packageName: '15 Mbps', count: 10, activeCount: 9, monthlyRevenue: 30000, percent: 50 }
+    ],
+    totalTracked: 20,
+    totalMonthlyRevenue: 45000
+  });
+
+  assert.ok(activeSvg.includes('chart-pkg-svg'));
+  assert.ok(activeSvg.includes('50%'));
+  assert.ok(activeSvg.includes('5 Mbps'));
+  assert.ok(activeSvg.includes('15 Mbps'));
+  assert.ok(activeSvg.includes('PKR 45,000'));
+});
+
+test('calculateAreaDetailedBreakdown counts total, active, offline subscribers and sums total dues', () => {
+  let state = createInitialState(['Area A1', 'Area A2', 'Area B1', 'Archived User']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  state.customers[0].area = 'Gulshan Ravi';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+
+  state.customers[1].area = 'Gulshan Ravi';
+  state.customers[1].serviceStatus = 'offline';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '1000', status: 'pending' }, refDate);
+
+  state.customers[2].area = 'Shahdara Town';
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '5000', status: 'pending' }, refDate);
+
+  state.customers[3].area = 'Shahdara Town';
+  state.customers[3].archived = true;
+
+  const breakdown = calculateAreaDetailedBreakdown(state, refDate);
+
+  assert.equal(breakdown.length, 2);
+  // Shahdara Town has 5000 dues (rank 1), Gulshan Ravi has 3000 dues (rank 2)
+  assert.equal(breakdown[0].area, 'Shahdara Town');
+  assert.equal(breakdown[0].totalDue, 5000);
+  assert.equal(breakdown[0].customerCount, 1);
+  assert.equal(breakdown[0].activeCount, 1);
+
+  assert.equal(breakdown[1].area, 'Gulshan Ravi');
+  assert.equal(breakdown[1].totalDue, 3000);
+  assert.equal(breakdown[1].customerCount, 2);
+  assert.equal(breakdown[1].activeCount, 1);
+  assert.equal(breakdown[1].offlineCount, 1);
+});
+
+test('generateDashboardBriefingText generates formatted multi-line summary string', () => {
+  let state = createInitialState(['User A', 'User B']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].area = 'Main Market';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '1500', status: 'pending' }, refDate);
+
+  const text = generateDashboardBriefingText(state, refDate);
+
+  assert.ok(text.includes('SHAHDARA ISP — EXECUTIVE SUMMARY'));
+  assert.ok(text.includes('Month: 2026-10'));
+  assert.ok(text.includes('Total Profiles: 2'));
+  assert.ok(text.includes('Active Subscribers: 1'));
+  assert.ok(text.includes('Billed Snapshot Revenue: PKR 1,500'));
+  assert.ok(text.includes('TOP OUTSTANDING AREAS'));
+  assert.ok(text.includes('Main Market: PKR 1,500'));
+});
+
+test('setTrendChartDuration and getTrendChartDuration manage duration limits', () => {
+  setTrendChartDuration(3);
+  assert.equal(getTrendChartDuration(), 3);
+
+  setTrendChartDuration(12);
+  assert.equal(getTrendChartDuration(), 12);
+
+  // Invalid duration is rejected
+  setTrendChartDuration(45);
+  assert.equal(getTrendChartDuration(), 12);
+
+  // Reset to default 6
+  setTrendChartDuration(6);
+  assert.equal(getTrendChartDuration(), 6);
+});
+
+test('calculateMonthlyTrends respects custom month counts (3, 6, 12)', () => {
+  let state = createInitialState(['Test User']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  const trends3 = calculateMonthlyTrends(state, refDate, 3);
+  assert.equal(trends3.length, 3);
+
+  const trends6 = calculateMonthlyTrends(state, refDate, 6);
+  assert.equal(trends6.length, 6);
+
+  const trends12 = calculateMonthlyTrends(state, refDate, 12);
+  assert.equal(trends12.length, 12);
+});
+
+test('setupAreaDrilldownModal populates table and invokes filter roster callback', () => {
+  let state = createInitialState(['Cust One']);
+  state.customers[0].area = 'Baghbanpura';
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  const listeners = new Map();
+  const mockTableBody = { innerHTML: '', querySelectorAll: () => [] };
+  const mockModal = {
+    showModalCalled: false,
+    closeCalled: false,
+    showModal() { this.showModalCalled = true; },
+    close() { this.closeCalled = true; },
+    addEventListener(event, fn) { listeners.set(`modal:${event}`, fn); }
+  };
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener(event, fn) { listeners.set(`openBtn:${event}`, fn); }
+  };
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener(event, fn) { listeners.set(`closeBtn:${event}`, fn); }
+  };
+
+  const fakeDoc = {
+    getElementById(id) {
+      if (id === 'dashboardOpenAreaModalBtn') return mockOpenBtn;
+      if (id === 'dashboardAreaModal') return mockModal;
+      if (id === 'dashboardAreaModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardAreaModalTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = fakeDoc;
+
+  try {
+    let filteredArea = null;
+    setupAreaDrilldownModal(state, refDate, {
+      onFilterRoster: (area) => { filteredArea = area; }
+    });
+
+    // Simulate clicking open button
+    listeners.get('openBtn:click')();
+    assert.ok(mockModal.showModalCalled);
+    assert.ok(mockTableBody.innerHTML.includes('Baghbanpura'));
   } finally {
     globalThis.document = origDoc;
   }

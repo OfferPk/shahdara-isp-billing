@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -61,6 +61,7 @@ let selectedCustomerId = null;
 let navDrawer = null;
 let mobileBreadcrumbs = null;
 let tabSlider = null;
+let customerEnrollmentWizard = null;
 let profileEditMode = false;
 let selectedProfileTab = 'billing';
 let selectedReportFilter = 'all';
@@ -1568,6 +1569,8 @@ setupMobileActionSheet({
     } else if (action === 'add-customer') {
       const btn = $('#quickActionAddCustomer') || $('#addCustomerButton');
       if (btn) btn.click();
+    } else if (action === 'field-enrollment') {
+      customerEnrollmentWizard?.open();
     } else if (action === 'record-expense') {
       switchView('expenses');
       renderExpenses();
@@ -1711,6 +1714,41 @@ setupOfflineSyncBanner({
   onToast: (msg) => toast(msg)
 });
 
+// Setup Mobile Field Technician Customer Enrollment Swipe Wizard
+customerEnrollmentWizard = setupCustomerEnrollmentWizard({
+  storage: localStorage,
+  onComplete: (details) => {
+    try {
+      state = addCustomer(state, details.name, new Date(details.startDate || Date.now()), {
+        phone: details.phone,
+        address: details.address,
+        mohalla: details.mohalla,
+        zone: details.area,
+        allowDuplicateName: true
+      });
+      const addedCustomer = state.customers.at(-1);
+      if (addedCustomer) {
+        if (details.packageSpeed) {
+          addedCustomer.packageSpeed = details.packageSpeed;
+        }
+        if (details.monthlyRate) {
+          addedCustomer.monthlySellingAmount = Number(details.monthlyRate);
+        }
+        if (details.serviceStatus) {
+          addedCustomer.serviceStatus = String(details.serviceStatus).toLowerCase();
+        }
+        save();
+        renderCustomers();
+        selectCustomer(addedCustomer.id);
+        toast(`Field enrollment complete: ${addedCustomer.name} enrolled (#${addedCustomer.customerNumber}).`);
+      }
+    } catch (err) {
+      toast(err?.message || 'Failed to complete field enrollment');
+    }
+  },
+  onToast: (msg) => toast(msg)
+});
+
 // Setup Floating Mobile Speed Dial / Quick Action Dock
 setupMobileSpeedDial({
   onSearchRoster: () => {
@@ -1732,6 +1770,9 @@ setupMobileSpeedDial({
   onAddCustomer: () => {
     const btn = $('#quickActionAddCustomer') || $('#addCustomerButton');
     if (btn) btn.click();
+  },
+  onFieldEnrollment: () => {
+    customerEnrollmentWizard?.open();
   },
   onReminders: () => {
     const btn = $('#openReminderModalBtn');

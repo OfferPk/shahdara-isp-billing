@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary } from '../form-validation.js';
+import {
+  validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
+  saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml
+} from '../form-validation.js';
+
 
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const index = read('index.html');
@@ -184,4 +188,120 @@ test('calculateTransactionSummary computes totals, averages, and method distribu
 test('app.js integrates validateCustomerName in saveNewCustomer', () => {
   assert.match(app, /validateCustomerName\(details\.name\)/);
   assert.match(app, /errorBox\.textContent\s*=\s*nameValidation\.message/);
+});
+
+test('saveFormDraft, loadFormDraft, clearFormDraft, and hasFormDraft manage draft state in storage', () => {
+  const mockStorage = {
+    _data: {},
+    getItem(key) { return this._data[key] || null; },
+    setItem(key, val) { this._data[key] = String(val); },
+    removeItem(key) { delete this._data[key]; }
+  };
+
+  assert.equal(hasFormDraft('testForm', mockStorage), false);
+  assert.equal(loadFormDraft('testForm', mockStorage), null);
+
+  saveFormDraft('testForm', { name: 'Ali', phone: '03001234567' }, mockStorage);
+  assert.equal(hasFormDraft('testForm', mockStorage), true);
+
+  const loaded = loadFormDraft('testForm', mockStorage);
+  assert.equal(loaded.name, 'Ali');
+  assert.equal(loaded.phone, '03001234567');
+
+  clearFormDraft('testForm', mockStorage);
+  assert.equal(hasFormDraft('testForm', mockStorage), false);
+  assert.equal(loadFormDraft('testForm', mockStorage), null);
+});
+
+test('generateCsvContent properly escapes quotes, commas, handles newlines, and prepends UTF-8 BOM', () => {
+  const headers = [
+    { key: 'name', label: 'Full Name' },
+    { key: 'role', label: 'Designation' },
+    { key: 'quote', label: 'Note' }
+  ];
+  const rows = [
+    { name: 'John Doe', role: 'Manager', quote: 'Hello, World!' },
+    { name: 'Jane "Ace" Smith', role: 'Engineer', quote: 'Line 1\nLine 2' }
+  ];
+
+  const csv = generateCsvContent(headers, rows);
+  // Verify UTF-8 BOM
+  assert.ok(csv.startsWith('\uFEFF'));
+  // Verify header line
+  assert.match(csv, /Full Name,Designation,Note/);
+  // Verify commas escaped with quotes
+  assert.match(csv, /"Hello, World!"/);
+  // Verify double quotes escaped as ""
+  assert.match(csv, /"Jane ""Ace"" Smith"/);
+});
+
+test('generateBatchReceiptHtml generates slips with correct customer details, balance and filters', () => {
+  const customers = [
+    {
+      id: 'cust-1',
+      customerNumber: 1,
+      name: 'Babar Azam',
+      monthlyPrice: 2000,
+      area: 'Shahdara Town',
+      phone: '03001112233',
+      package: '20 Mbps Fiber',
+      bills: [{ month: '2026-10', dueAmount: 2000, paidAmount: 2000 }]
+    },
+    {
+      id: 'cust-2',
+      customerNumber: 2,
+      name: 'Shaheen Afridi',
+      monthlyPrice: 2500,
+      area: 'Begum Kot',
+      phone: '03004445566',
+      package: '30 Mbps Fiber',
+      bills: [{ month: '2026-10', dueAmount: 2500, paidAmount: 1000 }]
+    }
+  ];
+
+  const allHtml = generateBatchReceiptHtml(customers, '2026-10', null, { filter: 'all' });
+  assert.match(allHtml, /Babar Azam/);
+  assert.match(allHtml, /Shaheen Afridi/);
+  assert.match(allHtml, /SHAHDARA FIBER NET/);
+  assert.match(allHtml, /CUSTOMER BILLING SLIP/);
+  assert.match(allHtml, /status-paid/);
+  assert.match(allHtml, /status-partial/);
+
+  const pendingHtml = generateBatchReceiptHtml(customers, '2026-10', null, { filter: 'pending' });
+  assert.ok(!pendingHtml.includes('Babar Azam'));
+  assert.ok(pendingHtml.includes('Shaheen Afridi'));
+
+  const paidHtml = generateBatchReceiptHtml(customers, '2026-10', null, { filter: 'paid' });
+  assert.ok(paidHtml.includes('Babar Azam'));
+  assert.ok(!paidHtml.includes('Shaheen Afridi'));
+});
+
+test('index.html and styles.css contain Phase 12 draft notices, CSV buttons, and batch receipt modal', () => {
+  assert.match(index, /id="newCustomerDraftNotice"/);
+  assert.match(index, /id="discardNewCustomerDraftBtn"/);
+  assert.match(index, /id="expenseDraftNotice"/);
+  assert.match(index, /id="discardExpenseDraftBtn"/);
+  assert.match(index, /id="exportTransactionsCsvBtn"/);
+  assert.match(index, /id="exportExpensesCsvBtn"/);
+  assert.match(index, /id="exportInventoryCsvBtn"/);
+  assert.match(index, /id="exportMonthlyReportCsvBtn"/);
+  assert.match(index, /id="batchReceiptPrintBtn"/);
+  assert.match(index, /id="batchReceiptModal"/);
+  assert.match(index, /id="triggerBatchPrintBtn"/);
+
+  assert.match(styles, /\.draft-restore-notice/);
+  assert.match(styles, /\.draft-discard-btn/);
+  assert.match(styles, /\.batch-receipt-slip/);
+  assert.match(styles, /\.batch-slip-stub/);
+  assert.match(styles, /@media print/);
+});
+
+test('app.js wires Phase 12 draft autosave, CSV exports, and batch receipt sheet', () => {
+  assert.match(app, /wireFormDraftAutosave/);
+  assert.match(app, /#exportTransactionsCsvBtn/);
+  assert.match(app, /#exportExpensesCsvBtn/);
+  assert.match(app, /#exportInventoryCsvBtn/);
+  assert.match(app, /#exportMonthlyReportCsvBtn/);
+  assert.match(app, /#batchReceiptPrintBtn/);
+  assert.match(app, /renderBatchReceipts/);
 });

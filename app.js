@@ -21,7 +21,11 @@ import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY 
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet } from './nav.js?v=1.10.0';
-import { validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary } from './form-validation.js?v=1.10.0';
+import {
+  validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
+  saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml
+} from './form-validation.js?v=1.10.0';
+
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -60,6 +64,8 @@ let selectedPayrollMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
 let toastTimer;
 let refreshOwnerCenter = () => {};
+let customerDraftController = null;
+let expenseDraftController = null;
 const localBackupStore = createLocalBackupStore();
 let automaticBackupInFlight = null;
 let lastAutomaticBackupCheckAt = 0;
@@ -1294,6 +1300,9 @@ function saveNewCustomer(allowDuplicateName = false) {
     $('#globalCustomerSearch').value = '';
     save();
     const addedCustomer = state.customers.at(-1);
+    customerDraftController?.clear();
+    const customerNotice = $('#newCustomerDraftNotice');
+    if (customerNotice) customerNotice.hidden = true;
     $('#addCustomerDialog').close();
     selectCustomer(addedCustomer.id);
     toast(`Customer #${addedCustomer.customerNumber} added as a separate record.`);
@@ -1303,7 +1312,15 @@ function saveNewCustomer(allowDuplicateName = false) {
   }
 }
 $('#addCustomerButton').addEventListener('click', () => {
-  $('#addCustomerForm').reset();
+  if (customerDraftController?.getDraft()) {
+    customerDraftController.restore();
+    const customerNotice = $('#newCustomerDraftNotice');
+    if (customerNotice) customerNotice.hidden = false;
+  } else {
+    $('#addCustomerForm').reset();
+    const customerNotice = $('#newCustomerDraftNotice');
+    if (customerNotice) customerNotice.hidden = true;
+  }
   $('#addCustomerError').hidden = true;
   resetDuplicateReview();
   $('#addCustomerDialog').showModal();
@@ -1904,11 +1921,11 @@ function renderExpenses() {
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
-function resetExpenseForm() { $('#expenseForm').reset();$('#expenseId').value='';$('#expenseSubmit').textContent='Record actual expense';$('#expenseCancel').hidden=true; }
+function resetExpenseForm() { $('#expenseForm').reset();$('#expenseId').value='';$('#expenseSubmit').textContent='Record actual expense';$('#expenseCancel').hidden=true;const expNotice=$('#expenseDraftNotice');if(expNotice)expNotice.hidden=true; }
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
-$('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={date:data.get('date'),amount:data.get('amount'),category:data.get('category'),notes:data.get('notes')};try{const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;state=id?updateExpense(state,id,fields):addExpense(state,fields);save();resetExpenseForm();toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');}catch(error){toast(error.message);}});
+$('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={date:data.get('date'),amount:data.get('amount'),category:data.get('category'),notes:data.get('notes')};try{const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;state=id?updateExpense(state,id,fields):addExpense(state,fields);save();expenseDraftController?.clear();resetExpenseForm();toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');}catch(error){toast(error.message);}});
 $('#expenseCancel').addEventListener('click',resetExpenseForm);
 document.querySelectorAll('[data-sort-expense]').forEach(th=>{
   const toggle=()=>{
@@ -2049,6 +2066,146 @@ $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');
 $('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
 renderPhase3();
 refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderAnalytics,renderInventory,renderExpenses}).refresh;
+
+// Phase 12 · Form draft auto-save and restoration
+customerDraftController = wireFormDraftAutosave($('#addCustomerForm'), 'addCustomerForm', {
+  storage: localStorage,
+  onRestore: () => {
+    const notice = $('#newCustomerDraftNotice');
+    if (notice) notice.hidden = false;
+  },
+  onClear: () => {
+    const notice = $('#newCustomerDraftNotice');
+    if (notice) notice.hidden = true;
+  }
+});
+$('#discardNewCustomerDraftBtn')?.addEventListener('click', () => {
+  customerDraftController?.clear();
+  $('#addCustomerForm')?.reset();
+  const notice = $('#newCustomerDraftNotice');
+  if (notice) notice.hidden = true;
+  $('#newCustomerName')?.focus();
+});
+
+expenseDraftController = wireFormDraftAutosave($('#expenseForm'), 'expenseForm', {
+  storage: localStorage,
+  onRestore: () => {
+    const notice = $('#expenseDraftNotice');
+    if (notice) notice.hidden = false;
+  },
+  onClear: () => {
+    const notice = $('#expenseDraftNotice');
+    if (notice) notice.hidden = true;
+  }
+});
+$('#discardExpenseDraftBtn')?.addEventListener('click', () => {
+  expenseDraftController?.clear();
+  resetExpenseForm();
+  const notice = $('#expenseDraftNotice');
+  if (notice) notice.hidden = true;
+});
+if (expenseDraftController?.getDraft()) {
+  expenseDraftController.restore();
+}
+
+// Phase 12 · CSV exports
+$('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
+  const date = $('#transactionDateFilter')?.value;
+  const recencyValue = $('#transactionRecencyFilter')?.value;
+  const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
+  let txs = listTransactions(state, { customerQuery: searchQuery(), date, recencyDays });
+  if (transactionMethodFilter !== 'all') {
+    txs = txs.filter(tx => tx.method === transactionMethodFilter);
+  }
+  const headers = [
+    { key: 'customerNumber', label: 'Customer #' },
+    { key: 'customerName', label: 'Customer Name' },
+    { key: 'date', label: 'Payment Date' },
+    { key: 'month', label: 'Billing Month' },
+    { key: 'amount', label: 'Amount (PKR)' },
+    { key: 'method', label: 'Payment Method' },
+    { key: 'status', label: 'Billing Status' },
+    { key: 'notes', label: 'Notes' }
+  ];
+  const csv = generateCsvContent(headers, txs);
+  const filename = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadCsvFile(filename, csv);
+  toast(`Exported ${txs.length} transactions to CSV.`);
+});
+
+$('#exportExpensesCsvBtn')?.addEventListener('click', () => {
+  const expenses = state.expenses || [];
+  const headers = [
+    { key: 'date', label: 'Date' },
+    { key: 'category', label: 'Category' },
+    { key: 'amount', label: 'Amount (PKR)' },
+    { key: 'notes', label: 'Notes' }
+  ];
+  const csv = generateCsvContent(headers, expenses);
+  const filename = `expenses-${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadCsvFile(filename, csv);
+  toast(`Exported ${expenses.length} expense records to CSV.`);
+});
+
+$('#exportInventoryCsvBtn')?.addEventListener('click', () => {
+  const items = state.inventoryItems || [];
+  const headers = [
+    { key: 'name', label: 'Item Name' },
+    { key: 'category', label: 'Category' },
+    { key: 'unit', label: 'Unit' },
+    { key: 'minimumStock', label: 'Minimum Stock' },
+    { key: 'unitCost', label: 'Unit Cost (PKR)' },
+    { key: 'notes', label: 'Notes' }
+  ];
+  const csv = generateCsvContent(headers, items);
+  const filename = `inventory-${new Date().toISOString().slice(0, 10)}.csv`;
+  downloadCsvFile(filename, csv);
+  toast(`Exported ${items.length} inventory items to CSV.`);
+});
+
+$('#exportMonthlyReportCsvBtn')?.addEventListener('click', () => {
+  const month = selectedBillingMonth;
+  const query = reportSearchQuery.trim() || searchQuery();
+  const rows = buildMonthlyReport(state, { month, statusFilter: selectedReportFilter, customerQuery: query });
+  const headers = [
+    { key: 'customerNumber', label: 'Customer #' },
+    { key: 'name', label: 'Customer Name' },
+    { key: 'mohalla', label: 'Mohalla' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'billAmount', label: 'Bill Due (PKR)' },
+    { key: 'amountReceived', label: 'Paid (PKR)' },
+    { key: 'balanceDue', label: 'Balance (PKR)' },
+    { key: 'status', label: 'Status' }
+  ];
+  const csv = generateCsvContent(headers, rows);
+  const filename = `monthly-report-${month}.csv`;
+  downloadCsvFile(filename, csv);
+  toast(`Exported ${rows.length} report rows for ${month} to CSV.`);
+});
+
+// Phase 12 · Monthly Batch Receipt Sheet
+function renderBatchReceipts() {
+  const month = $('#batchReceiptMonthSelect')?.value || selectedBillingMonth;
+  const filter = $('#batchReceiptFilterSelect')?.value || 'all';
+  const html = generateBatchReceiptHtml(state.customers, month, state, { filter });
+  const container = $('#batchReceiptContainer');
+  if (container) container.innerHTML = html;
+}
+
+$('#batchReceiptPrintBtn')?.addEventListener('click', () => {
+  const monthSelect = $('#batchReceiptMonthSelect');
+  if (monthSelect) {
+    const months = monthsForHistory();
+    monthSelect.innerHTML = months.map(m => `<option value="${m}" ${m === selectedBillingMonth ? 'selected' : ''}>${monthName(m)} (${m})</option>`).join('');
+  }
+  renderBatchReceipts();
+  $('#batchReceiptModal')?.showModal();
+});
+
+$('#batchReceiptMonthSelect')?.addEventListener('change', renderBatchReceipts);
+$('#batchReceiptFilterSelect')?.addEventListener('change', renderBatchReceipts);
+$('#closeBatchReceiptModal')?.addEventListener('click', () => $('#batchReceiptModal')?.close());
+$('#triggerBatchPrintBtn')?.addEventListener('click', () => window.print());
 
 function handleRouteFromHash() {
   if (typeof window === 'undefined' || !window.location) return;

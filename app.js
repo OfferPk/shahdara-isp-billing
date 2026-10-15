@@ -24,7 +24,8 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
+  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml
 } from './form-validation.js?v=1.10.0';
 
 
@@ -2404,6 +2405,201 @@ if (downloadStatementCsvBtn) {
     if (currentStatementData) {
       downloadCustomerStatementCsv(currentStatementData);
       toast('Customer statement CSV downloaded.');
+    }
+  });
+}
+
+// Payment Reminder Modal & WhatsApp Dispatcher (Agent 3)
+const reminderModal = $('#paymentReminderModal');
+const openReminderBtn = $('#openReminderModalBtn');
+const closeReminderBtn = $('#closeReminderModalBtn');
+const reminderTemplateSelect = $('#reminderTemplateSelect');
+const reminderMessageText = $('#reminderMessageText');
+const reminderCustomerSummary = $('#reminderCustomerSummary');
+const reminderCharCount = $('#reminderCharCount');
+const reminderPhoneNotice = $('#reminderPhoneNotice');
+const sendWhatsAppReminderBtn = $('#sendWhatsAppReminderBtn');
+const copyReminderTextBtn = $('#copyReminderTextBtn');
+const printReminderSlipBtn = $('#printReminderSlipBtn');
+
+let currentReminderCustomer = null;
+
+function renderReminderContent() {
+  if (!currentReminderCustomer) return;
+  const c = currentReminderCustomer;
+  const month = monthsForHistory(new Date())[0];
+  const allocations = calculatePaymentAllocations(state);
+  const summary = currentBillPresentation(c, month, allocations);
+  const balance = summary.balanceDueCents !== null ? (summary.balanceDueCents / 100) : 0;
+  const billAmount = summary.amount !== null && summary.amount !== undefined ? Number(summary.amount) : 0;
+  const dueDate = c.customDueDate ? `${c.customDueDate}th of month` : '5th of month';
+
+  const billingData = {
+    month,
+    billAmount,
+    balance,
+    dueDate,
+    paidAmount: summary.receivedAmount || 0,
+    paymentDate: new Date().toISOString().slice(0, 10),
+    packageName: c.package || 'Standard Package'
+  };
+
+  const templateType = reminderTemplateSelect?.value || 'due';
+  const msg = buildPaymentReminderMessage({
+    customer: c,
+    templateType,
+    billingData
+  });
+
+  if (reminderMessageText) {
+    reminderMessageText.value = msg;
+  }
+  updateReminderCharCount();
+
+  if (reminderCustomerSummary) {
+    reminderCustomerSummary.innerHTML = `
+      <div class="reminder-cust-left">
+        <span class="reminder-cust-name">${escapeHtml(c.name)} (#${c.customerNumber})</span>
+        <span class="reminder-cust-sub">${escapeHtml(c.area || c.mohalla || 'Area unassigned')} · Phone: ${escapeHtml(c.phone || 'Not recorded')}</span>
+      </div>
+      <div class="reminder-cust-right">
+        <span class="reminder-due-tag">Total Balance</span>
+        <strong class="reminder-due-val">PKR ${Number(balance).toLocaleString()}</strong>
+      </div>
+    `;
+  }
+
+  const phoneRes = formatWhatsAppUrl(c.phone || '');
+  if (reminderPhoneNotice) {
+    if (phoneRes.validPhone) {
+      reminderPhoneNotice.textContent = `WhatsApp: ${phoneRes.formattedPhone}`;
+      reminderPhoneNotice.style.color = '#10b981';
+    } else {
+      reminderPhoneNotice.textContent = 'Phone number missing or invalid format';
+      reminderPhoneNotice.style.color = '#f59e0b';
+    }
+  }
+}
+
+function updateReminderCharCount() {
+  if (!reminderCharCount || !reminderMessageText) return;
+  const len = reminderMessageText.value.length;
+  reminderCharCount.textContent = `${len} characters`;
+}
+
+export function openPaymentReminderModal(cust) {
+  if (!cust) return;
+  currentReminderCustomer = cust;
+  if (reminderTemplateSelect) reminderTemplateSelect.value = 'due';
+  renderReminderContent();
+  if (reminderModal?.showModal) reminderModal.showModal();
+  else reminderModal?.setAttribute('open', '');
+}
+
+if (openReminderBtn && reminderModal) {
+  openReminderBtn.addEventListener('click', () => {
+    if (!selectedCustomerId) {
+      toast('Please select a customer first.');
+      return;
+    }
+    const cust = state.customers.find(c => c.id === selectedCustomerId);
+    if (!cust) return;
+    openPaymentReminderModal(cust);
+  });
+}
+
+if (closeReminderBtn && reminderModal) {
+  closeReminderBtn.addEventListener('click', () => {
+    if (reminderModal.close) reminderModal.close();
+    else reminderModal.removeAttribute('open');
+  });
+}
+
+if (reminderModal) {
+  reminderModal.addEventListener('click', (e) => {
+    if (e.target === reminderModal) {
+      if (reminderModal.close) reminderModal.close();
+      else reminderModal.removeAttribute('open');
+    }
+  });
+}
+
+if (reminderTemplateSelect) {
+  reminderTemplateSelect.addEventListener('change', renderReminderContent);
+}
+
+if (reminderMessageText) {
+  reminderMessageText.addEventListener('input', updateReminderCharCount);
+}
+
+if (sendWhatsAppReminderBtn) {
+  sendWhatsAppReminderBtn.addEventListener('click', () => {
+    if (!currentReminderCustomer) return;
+    const phone = currentReminderCustomer.phone || '';
+    const text = reminderMessageText?.value || '';
+    const wa = formatWhatsAppUrl(phone, text);
+    if (!wa.validPhone) {
+      toast('Invalid or missing Pakistani phone number. Please update customer phone first.');
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    toast(`Opening WhatsApp for ${wa.formattedPhone}...`);
+  });
+}
+
+if (copyReminderTextBtn) {
+  copyReminderTextBtn.addEventListener('click', async () => {
+    const text = reminderMessageText?.value || '';
+    if (!text) return;
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      toast('Reminder message copied to clipboard.');
+    } catch {
+      toast('Unable to copy to clipboard.');
+    }
+  });
+}
+
+if (printReminderSlipBtn) {
+  printReminderSlipBtn.addEventListener('click', () => {
+    if (!currentReminderCustomer) return;
+    const c = currentReminderCustomer;
+    const month = monthsForHistory(new Date())[0];
+    const allocations = calculatePaymentAllocations(state);
+    const summary = currentBillPresentation(c, month, allocations);
+    const balance = summary.balanceDueCents !== null ? (summary.balanceDueCents / 100) : 0;
+    const billAmount = summary.amount !== null && summary.amount !== undefined ? Number(summary.amount) : 0;
+    const dueDate = c.customDueDate ? `${c.customDueDate}th of month` : '5th of month';
+
+    const slipHtml = generatePaymentReminderSlipHtml({
+      customer: c,
+      templateType: reminderTemplateSelect?.value || 'due',
+      billingData: {
+        month,
+        billAmount,
+        balance,
+        dueDate
+      }
+    });
+
+    const printArea = $('#receiptPrintArea');
+    if (printArea) {
+      printArea.innerHTML = slipHtml;
+      printArea.hidden = false;
+      document.body.classList.add('printing-reminder');
+      requestAnimationFrame(() => {
+        try {
+          window.print();
+        } catch {
+          toast('Printing is not supported in this browser.');
+        } finally {
+          document.body.classList.remove('printing-reminder');
+          printArea.hidden = true;
+          printArea.innerHTML = '';
+        }
+      });
     }
   });
 }

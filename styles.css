@@ -1944,3 +1944,137 @@ html, body {
     break-inside: avoid;
   }
 }
+
+/* Table & Roster Pagination */
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  margin-top: 10px;
+  border-radius: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+}
+
+.pagination-btn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #dfe8e3);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #1f2d28);
+  font: 600 12px/1 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  touch-action: manipulation;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--mint, #e6f3ee);
+  border-color: var(--green, #0e5b4d);
+  color: var(--green, #0e5b4d);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination-page-info {
+  font: 600 12px/1 'DM Sans', system-ui, sans-serif;
+  color: var(--muted, #5b7068);
+}
+
+.pagination-size-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12px 'DM Sans', system-ui, sans-serif;
+  color: var(--muted, #5b7068);
+  margin-left: auto;
+}
+
+.pagination-size-label select {
+  min-height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+/* Transaction & Report Summary Bars */
+.transaction-summary-bar,
+.monthly-report-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin: 10px 0;
+  border-radius: 8px;
+  background: #f4f8f6;
+  border: 1px solid rgba(14, 91, 77, 0.12);
+  font-size: 12px;
+  color: var(--ink, #182e2a);
+}
+
+.tx-summary-item,
+.report-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tx-summary-label,
+.report-summary-label {
+  color: var(--muted, #5b7068);
+  font-weight: 500;
+}
+
+.report-search-bar {
+  margin: 8px 0;
+}
+
+.report-search-bar input {
+  width: 100%;
+}
+
+/* Dark mode overrides for pagination and summary bars */
+[data-theme="dark"] .table-pagination {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .pagination-btn {
+  background: #182d27;
+  border-color: #28443b;
+  color: #9ab4aa;
+}
+
+[data-theme="dark"] .pagination-btn:hover:not(:disabled) {
+  background: #203932;
+  border-color: #34d399;
+  color: #34d399;
+}
+
+[data-theme="dark"] .pagination-page-info {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .pagination-size-label {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .transaction-summary-bar,
+[data-theme="dark"] .monthly-report-summary-bar {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .tx-summary-label,
+[data-theme="dark"] .report-summary-label {
+  color: #8fa59c;
+}

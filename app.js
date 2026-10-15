@@ -337,7 +337,19 @@ function renderDashboard() {
       }
     }
   });
-  renderDashboardCharts(state, referenceDate);
+  renderDashboardCharts(state, referenceDate, {
+    onFilterCustomer: (customerName) => {
+      switchView('customers');
+      const searchInput = $('#customerSearch');
+      if (searchInput) {
+        searchInput.value = customerName;
+        searchInput.dispatchEvent(new Event('input'));
+      }
+    },
+    onToast: (msg) => {
+      toast(msg);
+    }
+  });
 }
 function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
 function tenurePresentation(customer) {

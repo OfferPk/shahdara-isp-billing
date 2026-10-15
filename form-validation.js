@@ -1871,4 +1871,785 @@ export function generateLedgerAuditPrintHtml(auditResult, customer) {
   </div>`;
 }
 
+/**
+ * Calculates sum of cash note denominations.
+ * @param {Object} denominations - Map of denomination to count, e.g. { 5000: 2, 1000: 5, ... }
+ * @returns {number}
+ */
+export function calculateDenominationTotal(denominations = {}) {
+  if (!denominations || typeof denominations !== 'object') return 0;
+  const noteValues = [5000, 1000, 500, 100, 50, 20, 10];
+  let total = 0;
+  for (const val of noteValues) {
+    const count = Number(denominations[val]) || 0;
+    if (count > 0) {
+      total += count * val;
+    }
+  }
+  return total;
+}
+
+/**
+ * Builds itemized financial daily cash register dataset (Roshnamcha / روزنامچہ کیش رجسٹر).
+ * Aggregates all collections dated on selectedDate, categorizes by payment method (cash vs digital),
+ * balances against operating expenses dated on selectedDate, incorporates opening cash float,
+ * and audits physical cash count denominations.
+ *
+ * @param {Object} state - The ISP ledger state
+ * @param {string} selectedDateStr - Target calendar date 'YYYY-MM-DD'
+ * @param {Object} [options]
+ * @param {number} [options.openingCash=0] - Initial physical cash in drawer
+ * @param {Object} [options.denominations={}] - Physical note counts { 5000: N, 1000: N, ... }
+ * @returns {Object}
+ */
+export function buildDailyRegisterData(state, selectedDateStr, options = {}) {
+  const targetDate = String(selectedDateStr || new Date().toISOString().slice(0, 10)).trim();
+  const openingCash = Math.max(0, Number(options.openingCash) || 0);
+  const denominations = options.denominations || {};
+
+  const payments = [];
+  if (state && Array.isArray(state.customers)) {
+    for (const cust of state.customers) {
+      if (Array.isArray(cust.bills)) {
+        for (const bill of cust.bills) {
+          if (Array.isArray(bill.payments)) {
+            for (let idx = 0; idx < bill.payments.length; idx++) {
+              const p = bill.payments[idx];
+              const pDate = String(p.date || '').slice(0, 10);
+              if (pDate === targetDate) {
+                const amount = Number(p.amount) || 0;
+                const method = String(p.method || 'Cash').trim();
+                const isCash = method.toLowerCase() === 'cash';
+                payments.push({
+                  customerId: cust.id,
+                  customerNumber: cust.customerNumber || '',
+                  customerName: cust.name || 'Unnamed',
+                  billMonth: bill.month || '',
+                  amount,
+                  method,
+                  isCash,
+                  notes: p.notes || '',
+                  receiptId: p.receiptId || `REC-${targetDate.replace(/-/g, '')}-${cust.customerNumber || '0'}-${idx + 1}`
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Sort payments chronologically or by customer number
+  payments.sort((a, b) => Number(a.customerNumber || 0) - Number(b.customerNumber || 0));
+
+  const expenses = [];
+  if (state && Array.isArray(state.expenses)) {
+    for (const exp of state.expenses) {
+      const expDate = String(exp.date || '').slice(0, 10);
+      if (expDate === targetDate) {
+        expenses.push({
+          id: exp.id,
+          category: exp.category || 'General',
+          amount: Number(exp.amount) || 0,
+          notes: exp.notes || ''
+        });
+      }
+    }
+  }
+
+  // Financial aggregates
+  let cashCollections = 0;
+  let digitalCollections = 0;
+  const collectionsByMethod = {
+    Cash: { count: 0, total: 0 },
+    EasyPaisa: { count: 0, total: 0 },
+    JazzCash: { count: 0, total: 0 },
+    'Bank Transfer': { count: 0, total: 0 },
+    Other: { count: 0, total: 0 }
+  };
+
+  for (const p of payments) {
+    if (p.isCash) {
+      cashCollections += p.amount;
+      collectionsByMethod.Cash.count++;
+      collectionsByMethod.Cash.total += p.amount;
+    } else {
+      digitalCollections += p.amount;
+      const normalizedKey = Object.keys(collectionsByMethod).find(
+        k => k.toLowerCase() === p.method.toLowerCase()
+      ) || 'Other';
+      collectionsByMethod[normalizedKey].count++;
+      collectionsByMethod[normalizedKey].total += p.amount;
+    }
+  }
+
+  const totalCollections = cashCollections + digitalCollections;
+  const totalExpenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+
+  // Net physical cash in register
+  const netPhysicalCash = openingCash + cashCollections - totalExpenses;
+
+  // Physical note count audit
+  const physicalCountTotal = calculateDenominationTotal(denominations);
+  const hasCountedNotes = Object.values(denominations).some(c => Number(c) > 0);
+  const cashVariance = hasCountedNotes ? (physicalCountTotal - netPhysicalCash) : 0;
+
+  let varianceStatus = 'uncounted';
+  let varianceLabel = 'Physical count pending';
+  if (hasCountedNotes) {
+    if (cashVariance === 0) {
+      varianceStatus = 'balanced';
+      varianceLabel = 'Register Balanced (PKR 0 discrepancy)';
+    } else if (cashVariance > 0) {
+      varianceStatus = 'surplus';
+      varianceLabel = `Cash Surplus (+PKR ${cashVariance.toLocaleString()})`;
+    } else {
+      varianceStatus = 'deficit';
+      varianceLabel = `Cash Deficit (-PKR ${Math.abs(cashVariance).toLocaleString()})`;
+    }
+  }
+
+  return {
+    date: targetDate,
+    payments,
+    expenses,
+    collectionsByMethod,
+    cashCollections,
+    digitalCollections,
+    totalCollections,
+    totalExpenses,
+    openingCash,
+    netPhysicalCash,
+    physicalCountTotal,
+    hasCountedNotes,
+    cashVariance,
+    varianceStatus,
+    varianceLabel,
+    denominations,
+    transactionCount: payments.length,
+    expenseCount: expenses.length
+  };
+}
+
+/**
+ * Builds professional WhatsApp message text for the daily register closing.
+ * @param {Object} data - Output of buildDailyRegisterData
+ * @returns {string}
+ */
+export function formatDailyRegisterWhatsAppText(data) {
+  if (!data) return '';
+  const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+  const lines = [
+    `📊 *SHAHDARA BROADBAND - DAILY REGISTER (ROSHNAMCHA)* 📊`,
+    `📅 *تاریخ (Date):* ${data.date}`,
+    `----------------------------------------`,
+    `💵 *کیش کاؤنٹر (PHYSICAL CASH REGISTER):*`,
+    `• ابتدائی کیش (Opening Float): PKR ${formatPkr(data.openingCash)}`,
+    `• کیش وصولی (Cash Collections): + PKR ${formatPkr(data.cashCollections)} (${data.collectionsByMethod?.Cash?.count || 0} رسیدیں)`,
+    `• یومیہ اخراجات (Cash Outflows): - PKR ${formatPkr(data.totalExpenses)} (${data.expenseCount} انٹریز)`,
+    `----------------------------------------`,
+    `💰 *نیٹ کیش دراز (NET PHYSICAL CASH IN REGISTER):*`,
+    `👉 *PKR ${formatPkr(data.netPhysicalCash)}*`,
+    ``,
+    `💳 *ڈیجیٹل و آن لائن وصولی (DIGITAL COLLECTIONS):*`,
+    `• ایزی پیسہ / جاز کیش / بینک: PKR ${formatPkr(data.digitalCollections)} (${data.transactionCount - (data.collectionsByMethod?.Cash?.count || 0)} رسیدیں)`,
+    ``,
+    `📈 *کل یومیہ وصولی (GRAND TOTAL INFLOWS):*`,
+    `👉 *PKR ${formatPkr(data.totalCollections)}* (${data.transactionCount} کل ٹرانزیکشنز)`
+  ];
+
+  if (data.hasCountedNotes) {
+    lines.push(`----------------------------------------`);
+    lines.push(`🔍 *فزیکل کیش آڈٹ (PHYSICAL COUNT AUDIT):*`);
+    lines.push(`• گنتی کی رقم (Note Count Total): PKR ${formatPkr(data.physicalCountTotal)}`);
+    lines.push(`• آڈٹ کیفیت (Audit Result): *${data.varianceLabel}*`);
+  }
+
+  lines.push(`----------------------------------------`);
+  lines.push(`تصدیق شدہ برائے فیلڈ ریکوری اور حساب کتاب`);
+  lines.push(`شاہدرہ انٹرنیٹ سروسز لیجر (آف لائن محفوظ)`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Generates RFC-4180 CSV export of the daily cash register closing statement.
+ * @param {Object} data - Output of buildDailyRegisterData
+ * @returns {string}
+ */
+export function generateDailyRegisterCsv(data) {
+  if (!data) return '';
+
+  const summaryHeaders = ['Metric', 'Amount_PKR', 'Details'];
+  const summaryRows = [
+    ['Register_Date', data.date, ''],
+    ['Opening_Cash_Float', String(data.openingCash), 'Cash carried forward at shift start'],
+    ['Cash_Collections', String(data.cashCollections), `${data.collectionsByMethod?.Cash?.count || 0} cash receipts`],
+    ['Digital_Collections', String(data.digitalCollections), `${data.transactionCount - (data.collectionsByMethod?.Cash?.count || 0)} digital receipts`],
+    ['Total_Day_Collections', String(data.totalCollections), `${data.transactionCount} total customer payments`],
+    ['Total_Day_Expenses', String(data.totalExpenses), `${data.expenseCount} expense entries`],
+    ['Net_Physical_Cash_Expected', String(data.netPhysicalCash), 'Opening + Cash Inflow - Cash Outflow'],
+    ['Physical_Count_Total', String(data.physicalCountTotal), data.hasCountedNotes ? 'Audited' : 'Uncounted'],
+    ['Cash_Variance', String(data.cashVariance), data.varianceLabel]
+  ];
+
+  const receiptHeaders = ['Type', 'Customer_No', 'Customer_Name', 'Bill_Month', 'Payment_Method', 'Amount_PKR', 'Receipt_ID', 'Notes'];
+  const receiptRows = (data.payments || []).map(p => [
+    'COLLECTION',
+    String(p.customerNumber || ''),
+    p.customerName || '',
+    p.billMonth || '',
+    p.method || '',
+    String(p.amount || 0),
+    p.receiptId || '',
+    p.notes || ''
+  ]);
+
+  const expenseRows = (data.expenses || []).map(e => [
+    'EXPENSE',
+    '',
+    '',
+    '',
+    e.category || '',
+    String(e.amount || 0),
+    e.id || '',
+    e.notes || ''
+  ]);
+
+  const allRows = [
+    ...summaryRows.map(r => ['SUMMARY', ...r]),
+    ['', '', '', '', '', '', '', ''],
+    receiptHeaders,
+    ...receiptRows,
+    ['', '', '', '', '', '', '', ''],
+    ['Type', '', '', '', 'Category', 'Amount_PKR', 'Expense_ID', 'Description'],
+    ...expenseRows
+  ];
+
+  return generateCsvContent(['Section', 'Col1', 'Col2', 'Col3', 'Col4', 'Col5', 'Col6', 'Col7'], allRows);
+}
+
+/**
+ * Generates formal printable HTML representation for Daily Cash Register / Roshnamcha sheet.
+ * @param {Object} data - Output of buildDailyRegisterData
+ * @returns {string}
+ */
+export function generateDailyRegisterPrintHtml(data) {
+  if (!data) return '';
+  const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+  const receiptsRows = (data.payments || []).map((p, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>#${escapeHtml(p.customerNumber)}</td>
+      <td><strong>${escapeHtml(p.customerName)}</strong></td>
+      <td>${escapeHtml(p.billMonth)}</td>
+      <td><span class="pay-method-pill ${p.isCash ? 'method-cash' : 'method-digital'}">${escapeHtml(p.method)}</span></td>
+      <td class="text-right font-mono font-bold">PKR ${formatPkr(p.amount)}</td>
+    </tr>
+  `).join('');
+
+  const expensesRows = (data.expenses || []).map((e, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td><strong>${escapeHtml(e.category)}</strong></td>
+      <td>${escapeHtml(e.notes || '—')}</td>
+      <td class="text-right font-mono font-bold highlight-red">PKR ${formatPkr(e.amount)}</td>
+    </tr>
+  `).join('');
+
+  const denomRows = [5000, 1000, 500, 100, 50, 20, 10].map(val => {
+    const count = Number(data.denominations?.[val]) || 0;
+    const subtotal = count * val;
+    return `
+      <div class="denom-row-item">
+        <span class="denom-val">PKR ${val.toLocaleString()} × ${count}</span>
+        <span class="denom-total font-mono">PKR ${subtotal.toLocaleString()}</span>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="register-print-document">
+      <header class="register-print-header">
+        <div class="brand">
+          <h2>SHAHDARA BROADBAND &amp; ISP NETWORKS</h2>
+          <p class="subtitle">Daily Cash Register &amp; Day-End Closing Statement (روزنامچہ کیش رجسٹر)</p>
+        </div>
+        <div class="register-meta-badge">
+          <p><strong>Register Date:</strong> ${escapeHtml(data.date)}</p>
+          <p><strong>Status:</strong> <span class="variance-pill variance-${escapeHtml(data.varianceStatus)}">${escapeHtml(data.varianceLabel)}</span></p>
+        </div>
+      </header>
+
+      <div class="register-summary-ribbon">
+        <div class="reg-kpi-card">
+          <span class="reg-kpi-lbl">Opening Cash Float</span>
+          <span class="reg-kpi-val font-mono">PKR ${formatPkr(data.openingCash)}</span>
+        </div>
+        <div class="reg-kpi-card">
+          <span class="reg-kpi-lbl">Cash Collections (${data.collectionsByMethod?.Cash?.count || 0})</span>
+          <span class="reg-kpi-val font-mono highlight-green">+ PKR ${formatPkr(data.cashCollections)}</span>
+        </div>
+        <div class="reg-kpi-card">
+          <span class="reg-kpi-lbl">Operating Outflows (${data.expenseCount})</span>
+          <span class="reg-kpi-val font-mono highlight-red">- PKR ${formatPkr(data.totalExpenses)}</span>
+        </div>
+        <div class="reg-kpi-card highlight-box">
+          <span class="reg-kpi-lbl">Net Physical Cash</span>
+          <span class="reg-kpi-val font-mono font-bold">PKR ${formatPkr(data.netPhysicalCash)}</span>
+        </div>
+        <div class="reg-kpi-card">
+          <span class="reg-kpi-lbl">Digital Inflows (${data.transactionCount - (data.collectionsByMethod?.Cash?.count || 0)})</span>
+          <span class="reg-kpi-val font-mono">PKR ${formatPkr(data.digitalCollections)}</span>
+        </div>
+        <div class="reg-kpi-card">
+          <span class="reg-kpi-lbl">Grand Total Inflows</span>
+          <span class="reg-kpi-val font-mono font-bold">PKR ${formatPkr(data.totalCollections)}</span>
+        </div>
+      </div>
+
+      <div class="register-sections-grid">
+        <section class="reg-section">
+          <h3 class="reg-section-title">1. Itemized Customer Collections (${data.transactionCount})</h3>
+          <table class="reg-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Acc #</th>
+                <th>Customer Name</th>
+                <th>Bill Month</th>
+                <th>Method</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${receiptsRows || '<tr><td colspan="6" class="text-center">No customer payments recorded on this date.</td></tr>'}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="reg-section">
+          <h3 class="reg-section-title">2. Operational Outflows &amp; Expenses (${data.expenseCount})</h3>
+          <table class="reg-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Category</th>
+                <th>Description / Notes</th>
+                <th class="text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${expensesRows || '<tr><td colspan="4" class="text-center">No expenses recorded on this date.</td></tr>'}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      ${data.hasCountedNotes ? `
+      <section class="reg-section denom-audit-section">
+        <h3 class="reg-section-title">3. Physical Cash Count &amp; Denominations Audit</h3>
+        <div class="denom-grid">
+          ${denomRows}
+        </div>
+        <div class="denom-summary-bar">
+          <span>Physical Counted Total: <strong>PKR ${formatPkr(data.physicalCountTotal)}</strong></span>
+          <span>Variance: <strong class="variance-${escapeHtml(data.varianceStatus)}">${escapeHtml(data.varianceLabel)}</strong></span>
+        </div>
+      </section>
+      ` : ''}
+
+      <footer class="register-print-signatures">
+        <div class="sig-box">
+          <div class="sig-line"></div>
+          <p>Cashier / Field Collector Signature</p>
+        </div>
+        <div class="sig-box">
+          <div class="sig-line"></div>
+          <p>Managing Accountant (Saad / Umair)</p>
+        </div>
+      </footer>
+    </div>
+  `;
+}
+
+/**
+ * Sets up Daily Cash Register (Roshnamcha) Modal Controller.
+ */
+export function setupDailyRegisterModal({
+  getState,
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onToast,
+  clipboard = (typeof navigator !== 'undefined' ? navigator.clipboard : null),
+  openWindow = (typeof window !== 'undefined' ? window.open : null)
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      open: () => {},
+      close: () => {},
+      setDate: () => {},
+      refresh: () => {},
+      getData: () => null
+    };
+  }
+
+  const modal = document.getElementById('dailyCashRegisterModal');
+  if (!modal) {
+    return {
+      open: () => {},
+      close: () => {},
+      setDate: () => {},
+      refresh: () => {},
+      getData: () => null
+    };
+  }
+
+  const closeBtn = document.getElementById('closeDailyRegisterModalBtn');
+  const dateInput = document.getElementById('registerDateInput');
+  const openingCashInput = document.getElementById('registerOpeningCash');
+  const netCashVal = document.getElementById('registerNetCashVal');
+  const digitalTotalVal = document.getElementById('registerDigitalTotalVal');
+  const totalInflowsVal = document.getElementById('registerTotalInflowsVal');
+  const totalExpensesVal = document.getElementById('registerTotalExpensesVal');
+  const physicalCountVal = document.getElementById('registerPhysicalCountVal');
+  const varianceBadge = document.getElementById('registerVarianceBadge');
+  const receiptsTableBody = document.getElementById('registerReceiptsTableBody');
+  const expensesTableBody = document.getElementById('registerExpensesTableBody');
+  const receiptsCountBadge = document.getElementById('registerReceiptsCountBadge');
+  const expensesCountBadge = document.getElementById('registerExpensesCountBadge');
+
+  // Denomination note count inputs
+  const denomInputs = {
+    5000: document.getElementById('noteCount5000'),
+    1000: document.getElementById('noteCount1000'),
+    500: document.getElementById('noteCount500'),
+    100: document.getElementById('noteCount100'),
+    50: document.getElementById('noteCount50'),
+    20: document.getElementById('noteCount20'),
+    10: document.getElementById('noteCount10')
+  };
+
+  // Action buttons
+  const printBtn = document.getElementById('printDailyRegisterBtn');
+  const whatsappBtn = document.getElementById('sendWhatsAppRegisterBtn');
+  const csvBtn = document.getElementById('exportDailyRegisterCsvBtn');
+  const copyBtn = document.getElementById('copyRegisterTextBtn');
+  const triggerBtn = document.getElementById('quickActionDailyClosingSlip');
+
+  let currentDate = new Date().toISOString().slice(0, 10);
+  let currentRegisterData = null;
+
+  function getStoredOpeningCash(date) {
+    if (!storage) return 0;
+    try {
+      const val = storage.getItem(`shahdara_daily_register_opening_${date}`);
+      return val !== null && !isNaN(Number(val)) ? Number(val) : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  function saveStoredOpeningCash(date, val) {
+    if (!storage) return;
+    try {
+      storage.setItem(`shahdara_daily_register_opening_${date}`, String(val));
+    } catch {
+      // Ignore quota
+    }
+  }
+
+  function getStoredDenominations(date) {
+    if (!storage) return {};
+    try {
+      const raw = storage.getItem(`shahdara_daily_register_notes_${date}`);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveStoredDenominations(date, denoms) {
+    if (!storage) return;
+    try {
+      storage.setItem(`shahdara_daily_register_notes_${date}`, JSON.stringify(denoms));
+    } catch {
+      // Ignore quota
+    }
+  }
+
+  function renderRegister() {
+    const state = typeof getState === 'function' ? getState() : {};
+    const openingCash = openingCashInput ? Number(openingCashInput.value) || 0 : 0;
+
+    const denominations = {};
+    for (const [val, input] of Object.entries(denomInputs)) {
+      if (input) {
+        denominations[val] = Number(input.value) || 0;
+      }
+    }
+
+    currentRegisterData = buildDailyRegisterData(state, currentDate, {
+      openingCash,
+      denominations
+    });
+
+    const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+    if (netCashVal) netCashVal.textContent = `PKR ${formatPkr(currentRegisterData.netPhysicalCash)}`;
+    if (digitalTotalVal) digitalTotalVal.textContent = `PKR ${formatPkr(currentRegisterData.digitalCollections)}`;
+    if (totalInflowsVal) totalInflowsVal.textContent = `PKR ${formatPkr(currentRegisterData.totalCollections)}`;
+    if (totalExpensesVal) totalExpensesVal.textContent = `PKR ${formatPkr(currentRegisterData.totalExpenses)}`;
+    if (physicalCountVal) physicalCountVal.textContent = `PKR ${formatPkr(currentRegisterData.physicalCountTotal)}`;
+
+    if (varianceBadge) {
+      varianceBadge.textContent = currentRegisterData.varianceLabel;
+      varianceBadge.className = `register-variance-badge status-${currentRegisterData.varianceStatus}`;
+    }
+
+    if (receiptsCountBadge) {
+      receiptsCountBadge.textContent = `${currentRegisterData.transactionCount} items`;
+    }
+    if (expensesCountBadge) {
+      expensesCountBadge.textContent = `${currentRegisterData.expenseCount} entries`;
+    }
+
+    // Render receipts table
+    if (receiptsTableBody) {
+      if (currentRegisterData.payments.length === 0) {
+        receiptsTableBody.innerHTML = '<tr><td colspan="5" class="text-center empty-muted">No collections recorded for this date.</td></tr>';
+      } else {
+        receiptsTableBody.innerHTML = currentRegisterData.payments.map((p, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>#${escapeHtml(p.customerNumber)} <strong>${escapeHtml(p.customerName)}</strong></td>
+            <td>${escapeHtml(p.billMonth)}</td>
+            <td><span class="pay-method-badge ${p.isCash ? 'badge-cash' : 'badge-digital'}">${escapeHtml(p.method)}</span></td>
+            <td class="text-right font-mono font-bold">PKR ${formatPkr(p.amount)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    // Render expenses table
+    if (expensesTableBody) {
+      if (currentRegisterData.expenses.length === 0) {
+        expensesTableBody.innerHTML = '<tr><td colspan="4" class="text-center empty-muted">No operational expenses recorded for this date.</td></tr>';
+      } else {
+        expensesTableBody.innerHTML = currentRegisterData.expenses.map((e, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td><strong>${escapeHtml(e.category)}</strong></td>
+            <td>${escapeHtml(e.notes || '—')}</td>
+            <td class="text-right font-mono font-bold highlight-red">PKR ${formatPkr(e.amount)}</td>
+          </tr>
+        `).join('');
+      }
+    }
+  }
+
+  function setDate(dateStr) {
+    if (!dateStr) return;
+    currentDate = String(dateStr).slice(0, 10);
+    if (dateInput) dateInput.value = currentDate;
+
+    // Restore saved opening cash & denominations for this date
+    const savedOpening = getStoredOpeningCash(currentDate);
+    if (openingCashInput) openingCashInput.value = String(savedOpening);
+
+    const savedNotes = getStoredDenominations(currentDate);
+    for (const [val, input] of Object.entries(denomInputs)) {
+      if (input) {
+        input.value = savedNotes[val] ? String(savedNotes[val]) : '0';
+      }
+    }
+
+    renderRegister();
+  }
+
+  function open(dateStr) {
+    const target = dateStr || currentDate || new Date().toISOString().slice(0, 10);
+    setDate(target);
+
+    if (typeof modal.showModal === 'function') {
+      try { modal.showModal(); } catch { modal.setAttribute('open', ''); }
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  function close() {
+    if (typeof modal.close === 'function') {
+      try { modal.close(); } catch { modal.removeAttribute('open'); }
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
+  // Event Listeners
+  if (closeBtn && !closeBtn.dataset?.wiredReg) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredReg = 'true';
+    closeBtn.addEventListener('click', close);
+  }
+
+  if (dateInput && !dateInput.dataset?.wiredReg) {
+    if (dateInput.dataset) dateInput.dataset.wiredReg = 'true';
+    dateInput.addEventListener('change', () => {
+      setDate(dateInput.value);
+    });
+  }
+
+  if (openingCashInput && !openingCashInput.dataset?.wiredReg) {
+    if (openingCashInput.dataset) openingCashInput.dataset.wiredReg = 'true';
+    openingCashInput.addEventListener('input', () => {
+      const val = Number(openingCashInput.value) || 0;
+      saveStoredOpeningCash(currentDate, val);
+      renderRegister();
+    });
+  }
+
+  // Denominations inputs
+  for (const [val, input] of Object.entries(denomInputs)) {
+    if (input && !input.dataset?.wiredReg) {
+      if (input.dataset) input.dataset.wiredReg = 'true';
+      input.addEventListener('input', () => {
+        const denoms = {};
+        for (const [k, el] of Object.entries(denomInputs)) {
+          if (el) denoms[k] = Number(el.value) || 0;
+        }
+        saveStoredDenominations(currentDate, denoms);
+        renderRegister();
+      });
+    }
+  }
+
+  // Quick Action / Trigger button
+  if (triggerBtn && !triggerBtn.dataset?.wiredDailyModal) {
+    if (triggerBtn.dataset) triggerBtn.dataset.wiredDailyModal = 'true';
+    triggerBtn.addEventListener('click', () => {
+      open();
+    });
+  }
+
+  const triggerTile = document.getElementById('quickActionDailyRegisterTile');
+  if (triggerTile && !triggerTile.dataset?.wiredDailyModal) {
+    if (triggerTile.dataset) triggerTile.dataset.wiredDailyModal = 'true';
+    triggerTile.addEventListener('click', () => {
+      open();
+    });
+  }
+
+  // Export CSV
+  if (csvBtn && !csvBtn.dataset?.wiredReg) {
+    if (csvBtn.dataset) csvBtn.dataset.wiredReg = 'true';
+    csvBtn.addEventListener('click', () => {
+      if (!currentRegisterData) return;
+      const csv = generateDailyRegisterCsv(currentRegisterData);
+      downloadCsvFile(`shahdara_daily_register_${currentDate}.csv`, csv);
+      if (typeof onToast === 'function') onToast('Daily Register CSV downloaded.');
+    });
+  }
+
+  // Copy text
+  if (copyBtn && !copyBtn.dataset?.wiredReg) {
+    if (copyBtn.dataset) copyBtn.dataset.wiredReg = 'true';
+    copyBtn.addEventListener('click', async () => {
+      if (!currentRegisterData) return;
+      const text = formatDailyRegisterWhatsAppText(currentRegisterData);
+      let copied = false;
+      if (clipboard && typeof clipboard.writeText === 'function') {
+        try {
+          await clipboard.writeText(text);
+          copied = true;
+        } catch {
+          copied = false;
+        }
+      }
+      if (typeof onToast === 'function') {
+        onToast(copied ? 'Daily Register briefing copied to clipboard!' : 'Daily Register briefing ready.');
+      }
+    });
+  }
+
+  // Send WhatsApp
+  if (whatsappBtn && !whatsappBtn.dataset?.wiredReg) {
+    if (whatsappBtn.dataset) whatsappBtn.dataset.wiredReg = 'true';
+    whatsappBtn.addEventListener('click', () => {
+      if (!currentRegisterData) return;
+      const text = formatDailyRegisterWhatsAppText(currentRegisterData);
+      const url = formatWhatsAppUrl('', text);
+      if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
+  }
+
+  // Print
+  if (printBtn && !printBtn.dataset?.wiredReg) {
+    if (printBtn.dataset) printBtn.dataset.wiredReg = 'true';
+    printBtn.addEventListener('click', () => {
+      if (!currentRegisterData) return;
+      const printHtml = generateDailyRegisterPrintHtml(currentRegisterData);
+      const win = openWindow ? openWindow('', '_blank') : null;
+      if (win && win.document) {
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Daily Register - ${currentRegisterData.date}</title>
+            <style>
+              body { font-family: system-ui, sans-serif; margin: 20px; color: #182e2a; }
+              .register-print-document { max-width: 820px; margin: 0 auto; }
+              .register-print-header { display: flex; justify-content: space-between; border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 16px; }
+              .register-summary-ribbon { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px; background: #f8faf9; padding: 12px; border: 1px solid #ddd; border-radius: 8px; }
+              .reg-kpi-card { display: flex; flex-direction: column; }
+              .reg-kpi-lbl { font-size: 11px; color: #60756c; }
+              .reg-kpi-val { font-size: 14px; font-weight: 700; }
+              .reg-section-title { font-size: 14px; margin: 16px 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+              .reg-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 16px; }
+              .reg-table th, .reg-table td { border: 1px solid #e0e0e0; padding: 6px 8px; text-align: left; }
+              .text-right { text-align: right; }
+              .font-mono { font-family: monospace; }
+              .highlight-green { color: #0e5b4d; }
+              .highlight-red { color: #b91c1c; }
+              .denom-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; font-size: 12px; margin-bottom: 12px; }
+              .denom-row-item { display: flex; justify-content: space-between; padding: 4px 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; }
+              .register-print-signatures { display: flex; justify-content: space-between; margin-top: 40px; }
+              .sig-box { width: 220px; text-align: center; }
+              .sig-line { border-bottom: 1px solid #000; margin-bottom: 6px; height: 30px; }
+              @media print { button { display: none !important; } }
+            </style>
+          </head>
+          <body>
+            ${printHtml}
+            <script>window.onload = function() { window.print(); };</script>
+          </body>
+          </html>
+        `);
+        win.document.close();
+      } else if (typeof window !== 'undefined' && typeof window.print === 'function') {
+        window.print();
+      }
+    });
+  }
+
+  // Keyboard navigation
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+  });
+
+  return {
+    open,
+    close,
+    setDate,
+    refresh: renderRegister,
+    getData: () => currentRegisterData
+  };
+}
+
 

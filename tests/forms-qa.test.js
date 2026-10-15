@@ -6,7 +6,8 @@ import {
   saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
-  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml
+  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
+  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal
 } from '../form-validation.js';
 
 
@@ -1287,6 +1288,319 @@ test('generateLedgerAuditPrintHtml creates printable document structure with sig
   // Null input handles gracefully
   assert.equal(generateLedgerAuditPrintHtml(null), '');
 });
+
+test('calculateDenominationTotal accurately tallies Pakistani currency notes', () => {
+  // Test standard denominations breakdown
+  assert.equal(calculateDenominationTotal({}), 0);
+  assert.equal(calculateDenominationTotal(null), 0);
+
+  // Test full till count
+  const denoms = {
+    5000: 4,  // 20,000
+    1000: 15, // 15,000
+    500: 8,   // 4,000
+    100: 25,  // 2,500
+    50: 10,   // 500
+    20: 20,   // 400
+    10: 10    // 100
+  };
+  const countTotal = calculateDenominationTotal(denoms);
+  // Expected: 20000 + 15000 + 4000 + 2500 + 500 + 400 + 100 = 42,500
+  assert.equal(countTotal, 42500);
+
+  // Negative or invalid counts ignored safely
+  const invalidRes = calculateDenominationTotal({ 5000: -2, 1000: 'abc', 500: 2 });
+  assert.equal(invalidRes, 1000);
+});
+
+test('buildDailyRegisterData reconciles collections, operational expenses, and physical cash count', () => {
+  const dummyState = {
+    customers: [
+      {
+        id: 'cust-1',
+        customerNumber: 1,
+        name: 'Rashid Ali',
+        bills: [
+          {
+            id: 'b-1',
+            month: '2026-10',
+            payments: [
+              { id: 'p-1', amount: 2000, date: '2026-10-16', method: 'Cash' },
+              { id: 'p-2', amount: 500, date: '2026-10-15', method: 'Cash' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'cust-2',
+        customerNumber: 2,
+        name: 'Usman Ghani',
+        bills: [
+          {
+            id: 'b-2',
+            month: '2026-10',
+            payments: [
+              { id: 'p-3', amount: 3500, date: '2026-10-16T11:30:00.000Z', method: 'JazzCash' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'cust-3',
+        customerNumber: 3,
+        name: 'Naveed Akhtar',
+        bills: [
+          {
+            id: 'b-3',
+            month: '2026-10',
+            payments: [
+              { id: 'p-4', amount: 1500, date: '2026-10-16', method: 'Bank Transfer' }
+            ]
+          }
+        ]
+      }
+    ],
+    expenses: [
+      { id: 'exp-1', date: '2026-10-16', category: 'Fiber Splice Repair', notes: 'Main street cut', amount: 1200 },
+      { id: 'exp-2', date: '2026-10-16', category: 'Fuel / Bike Petrol', notes: 'Line team', amount: 800 },
+      { id: 'exp-3', date: '2026-10-15', category: 'Tea & Refreshment', notes: 'Office staff', amount: 400 }
+    ]
+  };
+
+  // Case 1: Balanced Till
+  // Opening: 5,000
+  // Cash In: 2,000 (Rashid Ali)
+  // Digital In: 3,500 (JazzCash) + 1,500 (Bank) = 5,000
+  // Expenses: 1,200 + 800 = 2,000
+  // Net physical cash expected: 5,000 + 2,000 - 2,000 = 5,000
+  // Physical count: 1x 5000 note = 5,000
+  const regBalanced = buildDailyRegisterData(dummyState, '2026-10-16', {
+    openingCash: 5000,
+    denominations: { 5000: 1 }
+  });
+
+  assert.equal(regBalanced.date, '2026-10-16');
+  assert.equal(regBalanced.openingCash, 5000);
+  assert.equal(regBalanced.totalCollections, 7000);
+  assert.equal(regBalanced.cashCollections, 2000);
+  assert.equal(regBalanced.digitalCollections, 5000);
+  assert.equal(regBalanced.totalExpenses, 2000);
+  assert.equal(regBalanced.netPhysicalCash, 5000);
+  assert.equal(regBalanced.physicalCountTotal, 5000);
+  assert.equal(regBalanced.cashVariance, 0);
+  assert.equal(regBalanced.varianceStatus, 'balanced');
+  assert.match(regBalanced.varianceLabel, /Balanced/i);
+  assert.equal(regBalanced.transactionCount, 3);
+  assert.equal(regBalanced.expenseCount, 2);
+
+  // Case 2: Cash Over (physical > calculated)
+  const regOver = buildDailyRegisterData(dummyState, '2026-10-16', {
+    openingCash: 5000,
+    denominations: { 5000: 1, 500: 1 } // 5,500 -> 500 over
+  });
+  assert.equal(regOver.cashVariance, 500);
+  assert.ok(regOver.varianceStatus === 'surplus' || regOver.varianceStatus === 'over');
+  assert.match(regOver.varianceLabel, /Surplus|Over/i);
+
+  // Case 3: Cash Short (physical < calculated)
+  const regShort = buildDailyRegisterData(dummyState, '2026-10-16', {
+    openingCash: 5000,
+    denominations: { 1000: 4 } // 4,000 -> 1,000 short
+  });
+  assert.equal(regShort.cashVariance, -1000);
+  assert.ok(regShort.varianceStatus === 'deficit' || regShort.varianceStatus === 'short');
+  assert.match(regShort.varianceLabel, /Deficit|Short/i);
+
+  // Handles empty or null inputs gracefully
+  const emptyReg = buildDailyRegisterData(null, null);
+  assert.equal(emptyReg.totalCollections, 0);
+  assert.equal(emptyReg.totalExpenses, 0);
+  assert.equal(emptyReg.netPhysicalCash, 0);
+});
+
+test('formatDailyRegisterWhatsAppText creates formatted WhatsApp briefing', () => {
+  const dummyData = {
+    date: '2026-10-16',
+    openingCash: 3000,
+    totalCollections: 12500,
+    cashCollections: 7500,
+    digitalCollections: 5000,
+    totalExpenses: 2500,
+    netPhysicalCash: 8000,
+    physicalCountTotal: 8000,
+    cashVariance: 0,
+    varianceStatus: 'balanced',
+    varianceLabel: '✓ BALANCED (PKR 0)',
+    transactionCount: 5,
+    expenseCount: 2
+  };
+
+  const text = formatDailyRegisterWhatsAppText(dummyData);
+  assert.match(text, /SHAHDARA.*DAILY REGISTER/i);
+  assert.match(text, /2026-10-16/);
+  assert.match(text, /3,000/);
+  assert.match(text, /7,500/);
+  assert.match(text, /5,000/);
+  assert.match(text, /2,500/);
+  assert.match(text, /8,000/);
+  assert.match(text, /12,500/);
+
+  // Null input handles gracefully
+  assert.equal(formatDailyRegisterWhatsAppText(null), '');
+});
+
+test('generateDailyRegisterCsv creates multi-section CSV export', () => {
+  const dummyData = {
+    date: '2026-10-16',
+    openingCash: 2000,
+    totalCollections: 5000,
+    cashCollections: 3000,
+    digitalCollections: 2000,
+    totalExpenses: 1000,
+    netPhysicalCash: 4000,
+    physicalCountTotal: 4000,
+    cashVariance: 0,
+    varianceStatus: 'balanced',
+    varianceLabel: '✓ BALANCED',
+    payments: [
+      { id: 'p-1', customerNumber: 101, customerName: 'Zahid Mahmood', billMonth: '2026-10', amount: 3000, method: 'Cash' }
+    ],
+    expenses: [
+      { id: 'exp-1', category: 'Fuel', notes: 'Line team petrol', amount: 1000 }
+    ],
+    denominationBreakdown: [
+      { denomination: 1000, count: 4, subtotal: 4000 }
+    ]
+  };
+
+  const csv = generateDailyRegisterCsv(dummyData);
+  assert.match(csv, /SUMMARY,Register_Date,2026-10-16/);
+  assert.match(csv, /SUMMARY,Opening_Cash_Float,2000/);
+  assert.match(csv, /SUMMARY,Net_Physical_Cash_Expected,4000/);
+  assert.match(csv, /SUMMARY,Cash_Variance,0/);
+  assert.match(csv, /COLLECTION,101,Zahid Mahmood,2026-10,Cash,3000/);
+  assert.match(csv, /EXPENSE,,,,Fuel,1000/);
+
+  // Null input handles gracefully
+  assert.equal(generateDailyRegisterCsv(null), '');
+});
+
+test('generateDailyRegisterPrintHtml creates complete printable statement document', () => {
+  const dummyState = {
+    customers: [
+      {
+        id: 'cust-12',
+        customerNumber: 12,
+        name: 'Hamza Malik',
+        bills: [
+          {
+            id: 'b-1',
+            month: '2026-10',
+            payments: [{ id: 'p-1', amount: 10000, date: '2026-10-16', method: 'Cash' }]
+          }
+        ]
+      }
+    ],
+    expenses: [
+      { id: 'exp-1', date: '2026-10-16', category: 'Splicing Sleeve Pack', notes: 'Core maintenance', amount: 3000 }
+    ]
+  };
+
+  const regData = buildDailyRegisterData(dummyState, '2026-10-16', {
+    openingCash: 5000,
+    denominations: { 5000: 2, 1000: 2 }
+  });
+
+  const html = generateDailyRegisterPrintHtml(regData);
+  assert.match(html, /SHAHDARA BROADBAND &amp; ISP NETWORKS/);
+  assert.match(html, /Daily Cash Register &amp; Day-End Closing Statement/);
+  assert.match(html, /روزنامچہ کیش رجسٹر/);
+  assert.match(html, /Hamza Malik/);
+  assert.match(html, /Splicing Sleeve Pack/);
+  assert.match(html, /Net Physical Cash/);
+  assert.match(html, /PKR 5,000/);
+  assert.match(html, /Cashier \/ Field Collector Signature/);
+  assert.match(html, /Managing Accountant \(Saad \/ Umair\)/);
+
+  // Null input handles gracefully
+  assert.equal(generateDailyRegisterPrintHtml(null), '');
+});
+
+test('setupDailyRegisterModal initializes and exposes controller interface', () => {
+  // Test fallback safe controller when DOM elements are not present
+  const dummyStorage = {
+    store: {},
+    getItem(k) { return this.store[k] ?? null; },
+    setItem(k, v) { this.store[k] = String(v); }
+  };
+
+  const controller = setupDailyRegisterModal({
+    getState: () => ({ customers: [], expenses: [] }),
+    storage: dummyStorage
+  });
+
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.setDate, 'function');
+  assert.equal(typeof controller.refresh, 'function');
+  assert.equal(typeof controller.getData, 'function');
+
+  // Calling methods does not throw
+  controller.open('2026-10-16');
+  controller.setDate('2026-10-17');
+  controller.refresh();
+  controller.close();
+});
+
+test('DOM & CSS integration for daily cash register modal', () => {
+  const freshIndex = read('index.html');
+  const freshApp = read('app.js');
+  const freshStyles = read('styles.css');
+
+  // index.html
+  assert.match(freshIndex, /id="dailyCashRegisterModal"/);
+  assert.match(freshIndex, /id="closeDailyRegisterModalBtn"/);
+  assert.match(freshIndex, /id="registerDateInput"/);
+  assert.match(freshIndex, /id="registerOpeningCash"/);
+  assert.match(freshIndex, /id="registerNetCashVal"/);
+  assert.match(freshIndex, /id="registerDigitalTotalVal"/);
+  assert.match(freshIndex, /id="registerTotalInflowsVal"/);
+  assert.match(freshIndex, /id="registerTotalExpensesVal"/);
+  assert.match(freshIndex, /id="registerPhysicalCountVal"/);
+  assert.match(freshIndex, /id="registerVarianceBadge"/);
+  assert.match(freshIndex, /id="noteCount5000"/);
+  assert.match(freshIndex, /id="noteCount1000"/);
+  assert.match(freshIndex, /id="noteCount500"/);
+  assert.match(freshIndex, /id="noteCount100"/);
+  assert.match(freshIndex, /id="noteCount50"/);
+  assert.match(freshIndex, /id="noteCount20"/);
+  assert.match(freshIndex, /id="noteCount10"/);
+  assert.match(freshIndex, /id="registerReceiptsTableBody"/);
+  assert.match(freshIndex, /id="registerExpensesTableBody"/);
+  assert.match(freshIndex, /id="printDailyRegisterBtn"/);
+  assert.match(freshIndex, /id="sendWhatsAppRegisterBtn"/);
+  assert.match(freshIndex, /id="exportDailyRegisterCsvBtn"/);
+  assert.match(freshIndex, /id="copyRegisterTextBtn"/);
+  assert.match(freshIndex, /id="quickActionDailyClosingSlip"/);
+  assert.match(freshIndex, /id="quickActionDailyRegisterTile"/);
+
+  // app.js
+  assert.match(freshApp, /setupDailyRegisterModal/);
+  assert.match(freshApp, /dailyRegisterController/);
+  assert.match(freshApp, /#dailyCashRegisterModal/);
+
+  // styles.css
+  assert.match(freshStyles, /\.register-modal/);
+  assert.match(freshStyles, /\.register-summary-ribbon/);
+  assert.match(freshStyles, /\.register-denominations-card/);
+  assert.match(freshStyles, /\.denomination-inputs-grid/);
+  assert.match(freshStyles, /\.register-tables-split/);
+  assert.match(freshStyles, /\.status-balanced/);
+  assert.match(freshStyles, /\.status-over/);
+  assert.match(freshStyles, /\.status-short/);
+  assert.match(freshStyles, /body\.printing-register/);
+});
+
 
 
 

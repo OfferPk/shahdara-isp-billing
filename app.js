@@ -19,7 +19,7 @@ import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLi
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
-import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupAreaDrilldownModal } from './dashboard.js?v=1.10.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupAreaDrilldownModal } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer } from './nav.js?v=1.10.0';
 import { validatePakistanPhone, validatePositiveAmount } from './form-validation.js?v=1.10.0';
 
@@ -232,6 +232,21 @@ function renderDashboard() {
   if (newConnEl) {
     newConnEl.textContent = String(kpis.newConnectionsCount);
     $('#dashboardNewConnectionsPeriod').textContent = `Recorded in ${monthName(totals.currentMonth)}`;
+  }
+  const velocity = calculateCollectionVelocity(state, referenceDate);
+  const velocityValEl = $('#dashboardCollectionVelocity');
+  if (velocityValEl) {
+    velocityValEl.textContent = `${formatAmount(velocity.dailyRunRate)} / day`;
+    $('#dashboardCollectionVelocityPeriod').textContent = velocity.projectedRate !== null
+      ? `Projected: ${formatAmount(velocity.projectedMonthEnd)} (${velocity.projectedRate}% of billed) · ${velocity.daysRemaining} days left`
+      : `Day ${velocity.currentDay} of ${velocity.daysInMonth} · ${velocity.daysRemaining} days remaining`;
+    const fillEl = $('#dashboardVelocityFill');
+    if (fillEl) {
+      const pct = Math.min(100, Math.max(0, velocity.currentRate ?? 0));
+      fillEl.style.width = `${pct}%`;
+      const bar = fillEl.parentElement;
+      if (bar && bar.setAttribute) bar.setAttribute('aria-valuenow', String(pct));
+    }
   }
   setupDashboardQuickActions({
     onReceivePayment: () => { switchView('customers'); openPaymentEntry(); },

@@ -1364,3 +1364,365 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .business-health-formula p{margin:7px 0;color:#53695f}
 @media(max-width:620px){.business-health-panel{gap:12px;margin:14px 0;padding:12px}.business-health-heading{align-items:flex-start;gap:10px}.business-health-heading h3{font-size:18px}.business-health-score{min-width:94px;padding:9px 10px}.business-health-score-value{font-size:27px}.business-health-factor-grid{grid-template-columns:1fr}.business-health-factor{padding:11px}}
 @media(max-width:360px){.business-health-heading{display:grid}.business-health-score{justify-self:start;display:flex;align-items:center;gap:8px}.business-health-score-value{font-size:24px}}
+
+/* ==========================================================================
+   Modern UI Redesign & Rich Theming (Dark/Light Mode, Cards, Responsive Layout)
+   ========================================================================== */
+
+/* Topbar Actions & Theme Switcher */
+.topbar {
+  transition: background-color .2s ease, border-color .2s ease;
+}
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-toggle {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface, #fff);
+  color: var(--muted, #586e65);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all .2s cubic-bezier(.4, 0, .2, 1);
+  box-shadow: 0 2px 6px rgba(22, 52, 43, .04);
+  flex-shrink: 0;
+}
+.theme-toggle:hover {
+  background: var(--mint, #e6f3ee);
+  color: var(--green, #0e5b4d);
+  border-color: #a8d6ba;
+  transform: scale(1.05);
+}
+.theme-toggle:active {
+  transform: scale(0.95);
+}
+.theme-icon-moon {
+  display: none;
+}
+.theme-icon-sun {
+  display: block;
+}
+
+/* Modern Card Interactions */
+.summary-card {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  position: relative;
+  overflow: hidden;
+}
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(22, 52, 43, .08);
+}
+.summary-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: transparent;
+  transition: background .2s ease;
+}
+.summary-today-collection::before {
+  background: #2a9b70;
+}
+.summary-current-due::before {
+  background: #d97706;
+}
+.summary-cash-profit::before {
+  background: #0e5b4d;
+}
+
+/* Polished Scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c3d4cc;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ab4aa;
+}
+
+/* Dark Theme Tokens & Overrides */
+[data-theme="dark"] {
+  --ink: #e8f3ee;
+  --muted: #8ca39a;
+  --green: #29b88f;
+  --green-dark: #1b8a6a;
+  --mint: #16362d;
+  --line: #253d35;
+  --surface: #14241f;
+  --surface-soft: #192d27;
+  --amber: #fbbf24;
+  --amber-bg: #2d230d;
+  --shadow: 0 12px 38px rgba(0, 0, 0, .45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #e8f3ee;
+    --muted: #8ca39a;
+    --green: #29b88f;
+    --green-dark: #1b8a6a;
+    --mint: #16362d;
+    --line: #253d35;
+    --surface: #14241f;
+    --surface-soft: #192d27;
+    --amber: #fbbf24;
+    --amber-bg: #2d230d;
+    --shadow: 0 12px 38px rgba(0, 0, 0, .45);
+  }
+}
+
+[data-theme="dark"] .theme-icon-sun {
+  display: none;
+}
+[data-theme="dark"] .theme-icon-moon {
+  display: block;
+  color: #fbbf24;
+}
+
+[data-theme="dark"] body {
+  background: radial-gradient(ellipse at 86% -10%, #17362c 0, transparent 40%), #0c1512 !important;
+  color: #e8f3ee !important;
+}
+
+[data-theme="dark"] .topbar {
+  background: rgba(20, 36, 31, 0.9) !important;
+  border-bottom-color: #253d35 !important;
+}
+
+[data-theme="dark"] .privacy-pill {
+  border-color: #27473c;
+  background: #172d26;
+  color: #78c4a9;
+}
+
+[data-theme="dark"] .customer-pane,
+[data-theme="dark"] .detail-pane,
+[data-theme="dark"] .transactions-pane,
+[data-theme="dark"] .report-pane,
+[data-theme="dark"] .summary-card,
+[data-theme="dark"] .chart-card,
+[data-theme="dark"] .table-card,
+[data-theme="dark"] .phase3-metric,
+[data-theme="dark"] .provider-cost-breakdown,
+[data-theme="dark"] .global-search-main,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .welcome-card,
+[data-theme="dark"] .month-card,
+[data-theme="dark"] .transaction-card,
+[data-theme="dark"] .report-row,
+[data-theme="dark"] .incident-card,
+[data-theme="dark"] .business-health-score,
+[data-theme="dark"] .business-health-factor,
+[data-theme="dark"] .smart-alert-card,
+[data-theme="dark"] .saved-closing-card,
+[data-theme="dark"] .comparison-metric,
+[data-theme="dark"] .owner-result-card,
+[data-theme="dark"] .recovery-group,
+[data-theme="dark"] .recovery-customer-card,
+[data-theme="dark"] .customer-profile-card,
+[data-theme="dark"] .theme-toggle {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .summary-card:hover,
+[data-theme="dark"] .transaction-card:hover,
+[data-theme="dark"] .customer-select:hover,
+[data-theme="dark"] .theme-toggle:hover {
+  background: #1c322b;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+  background: #0f1c18 !important;
+  border-color: #28443b !important;
+  color: #e8f3ee !important;
+}
+
+[data-theme="dark"] input:focus,
+[data-theme="dark"] select:focus,
+[data-theme="dark"] textarea:focus {
+  border-color: #29b88f !important;
+  outline-color: #1a5845 !important;
+}
+
+[data-theme="dark"] .secondary-button,
+[data-theme="dark"] .customer-filter-button,
+[data-theme="dark"] .report-filter-button {
+  background: #182d27;
+  border-color: #28443b;
+  color: #9ab4aa;
+}
+
+[data-theme="dark"] .secondary-button:hover,
+[data-theme="dark"] .customer-filter-button:hover,
+[data-theme="dark"] .report-filter-button:hover {
+  background: #203932;
+  color: #fff;
+  border-color: #386053;
+}
+
+[data-theme="dark"] .view-nav-button {
+  background: #14241f;
+  border-color: #253d35;
+  color: #9ab4aa;
+}
+
+[data-theme="dark"] .view-nav-button:hover {
+  background: #1c322b;
+  color: #29b88f;
+}
+
+[data-theme="dark"] .view-nav-button[aria-current=page] {
+  background: #29b88f;
+  border-color: #29b88f;
+  color: #fff;
+}
+
+[data-theme="dark"] .customer-filter-panel,
+[data-theme="dark"] .transaction-filters,
+[data-theme="dark"] .customer-meta,
+[data-theme="dark"] .incident-section,
+[data-theme="dark"] .phase3-form,
+[data-theme="dark"] .analytics-range-controls,
+[data-theme="dark"] .owner-command-panel,
+[data-theme="dark"] .owner-report-panel,
+[data-theme="dark"] .customer-lifetime-value,
+[data-theme="dark"] .notice,
+[data-theme="dark"] .transactions-empty,
+[data-theme="dark"] .empty-state,
+[data-theme="dark"] .incident-empty {
+  background: #182d27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .table-scroll thead th {
+  background: #182d27;
+  color: #9ab4aa;
+}
+
+[data-theme="dark"] .table-scroll th,
+[data-theme="dark"] .table-scroll td {
+  border-bottom-color: #253d35;
+}
+
+[data-theme="dark"] .table-scroll tbody th {
+  background: #14241f;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .chart-grid-line {
+  stroke: #253d35;
+}
+
+[data-theme="dark"] .chart-axis-label,
+[data-theme="dark"] .chart-month-label {
+  fill: #8ca39a;
+}
+
+[data-theme="dark"] .mobile-bottom-nav {
+  background: rgba(20, 36, 31, 0.95);
+  border-top-color: #253d35;
+}
+
+[data-theme="dark"] .mobile-bottom-nav button {
+  color: #8ca39a;
+}
+
+[data-theme="dark"] .mobile-bottom-nav button[aria-current=page] {
+  background: #19382e;
+  color: #34d399;
+}
+
+[data-theme="dark"] .mobile-more-menu {
+  background: #14241f;
+  border-color: #253d35;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .5);
+}
+
+[data-theme="dark"] .mobile-more-menu button {
+  background: #14241f;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .mobile-more-menu button:hover {
+  background: #1c322b;
+}
+
+[data-theme="dark"] .data-loss-warning {
+  background: #2b210f;
+  border-color: #553e1a;
+  color: #fbd693;
+}
+
+[data-theme="dark"] .duplicate-customer-review {
+  background: #261c0b;
+  border-color: #553e1a;
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .duplicate-customer-match {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .summary-profit {
+  background: linear-gradient(155deg, #153428, #14241f);
+  border-color: #295744;
+}
+
+[data-theme="dark"] .summary-credit {
+  background: linear-gradient(155deg, #2d2410, #14241f);
+  border-color: #59471f;
+}
+
+[data-theme="dark"] .summary-credit .summary-value {
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .summary-provider-cost {
+  background: linear-gradient(155deg, #182239, #14241f);
+  border-color: #2a3d66;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #28443b;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #396054;
+}
+
+[data-theme="dark"] .global-customer-results {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .global-result-option {
+  background: #14241f;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .global-result-option:hover,
+[data-theme="dark"] .global-result-option:focus {
+  background: #1c322b;
+}
+

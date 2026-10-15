@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2025,7 +2025,98 @@ export function renderUpstreamGatewaySvg(gatewayData) {
   </svg>`;
 }
 
+/**
+ * Renders an accessible pure SVG horizontal bar chart comparing subscriber acquisition
+ * channel payback duration, unit CAC, and marketing ROI.
+ */
+export function renderAcquisitionRoiSvg(roiData) {
+  const width = 560;
+  const height = 240;
 
+  if (!roiData || roiData.totalPortfolioAcquisitions === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Acquisition ROI: No subscribers tracked">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-8 -6 L0 -14 L8 -6 M0 -14 L0 4" stroke="#0e5b4d" stroke-width="2" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No subscriber acquisition data available</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Add customers to evaluate acquisition channel payback velocity, CAC unit economics, and marketing ROI</text>
+      </g>
+    </svg>`;
+  }
+
+  const topPad = 38;
+  const rowHeight = 36;
+  const labelX = 140;
+  const barX = 150;
+  const barMaxW = 230;
+
+  const displayChannels = [...roiData.channels]
+    .sort((a, b) => b.totalAcquisitions - a.totalAcquisitions)
+    .slice(0, 4);
+
+  const maxMonths = Math.max(...displayChannels.map(c => c.paybackMonths), 6);
+
+  const rows = displayChannels.map((ch, idx) => {
+    const y = topPad + idx * rowHeight;
+    const normalizedWidth = Math.min(barMaxW, Math.max(12, Math.round((ch.paybackMonths / maxMonths) * barMaxW)));
+    const pillColor = ch.velocityStatus === 'Rapid Payback'
+      ? { bg: 'rgba(16, 185, 129, 0.15)', text: '#047857', label: 'RAPID' }
+      : (ch.velocityStatus === 'Standard Payback'
+        ? { bg: 'rgba(59, 130, 246, 0.15)', text: '#2563eb', label: 'STANDARD' }
+        : { bg: 'rgba(245, 158, 11, 0.15)', text: '#d97706', label: 'LAGGING' });
+
+    return `
+      <g class="acquisition-roi-row" transform="translate(0, ${y})">
+        <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">
+          ${escapeXml(ch.name)}
+          <tspan font-weight="400" font-size="9.5" fill="var(--muted, #71817c)"> (${ch.totalAcquisitions} subs)</tspan>
+        </text>
+
+        <!-- Background bar -->
+        <rect x="${barX}" y="4" width="${barMaxW}" height="16" rx="4" fill="rgba(0, 0, 0, 0.05)" />
+
+        <!-- Payback fill -->
+        <rect x="${barX}" y="4" width="${normalizedWidth}" height="16" rx="4" fill="${ch.color}">
+          <title>${escapeXml(ch.name)}: ${ch.paybackMonths} mo payback, CAC PKR ${ch.blendedCac}, ROI ${ch.netRoiPercent}%</title>
+        </rect>
+
+        <text x="${barX + normalizedWidth + 8}" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
+          ${ch.paybackMonths}m <tspan font-weight="400" fill="var(--muted, #71817c)">· ${ch.netRoiPercent > 0 ? '+' : ''}${ch.netRoiPercent}% ROI</tspan>
+        </text>
+
+        <!-- Status pill -->
+        <rect x="${width - 105}" y="3" width="75" height="18" rx="9" fill="${pillColor.bg}" />
+        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="${pillColor.text}">
+          ${pillColor.label}
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  const footerY = height - 12;
+
+  return `<svg class="chart-svg acquisition-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Acquisition Channel ROI and Payback Velocity Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
+        Fastest Channel: <tspan font-weight="700" fill="var(--ink, #182e2a)">${escapeXml(roiData.fastestPaybackChannel)}</tspan>
+      </text>
+      <text x="${width - 240}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
+        Portfolio Net ROI: <tspan font-weight="700" fill="${roiData.portfolioNetRoiPercent >= 0 ? '#047857' : '#dc2626'}">${roiData.portfolioNetRoiPercent > 0 ? '+' : ''}${roiData.portfolioNetRoiPercent}%</tspan>
+      </text>
+    </g>
+
+    ${rows}
+
+    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Total CAC: <tspan font-weight="700" fill="#dc2626">${formatPKR(roiData.totalPortfolioCac)}</tspan> · Realized Rev: <tspan font-weight="700" fill="#047857">${formatPKR(roiData.totalPortfolioRealizedRevenue)}</tspan> · Avg Payback: <tspan font-weight="700" fill="var(--ink, #182e2a)">${roiData.portfolioAvgPaybackMonths} mo</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
 
 /**
  * Generates an executive plain-text report of the margin simulation.
@@ -2487,6 +2578,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupUpstreamGatewayModal(state, { referenceDate, onToast: options.onToast });
+
+  const acqEl = document.getElementById('dashboardAcquisitionChart');
+  if (acqEl) {
+    const acqData = calculateAcquisitionRoiMetrics(state, referenceDate);
+    acqEl.innerHTML = renderAcquisitionRoiSvg(acqData);
+  }
+
+  setupAcquisitionRoiModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

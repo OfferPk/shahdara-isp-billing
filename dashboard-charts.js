@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -1710,6 +1710,97 @@ export function renderCustomerLtvCohortsSvg(ltvData, { metric = currentLtvMetric
   </svg>`;
 }
 
+/**
+ * Renders an accessible pure SVG chart displaying operational incident frequency,
+ * MTTR metrics, and active outages across network areas.
+ */
+export function renderIncidentImpactSvg(matrixData) {
+  const width = 560;
+  const height = 240;
+
+  if (!matrixData || matrixData.totalRecordedIncidents === 0 || (matrixData.areaBreakdown ?? []).length === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Network Incident and Outage Matrix: No incidents logged">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(16, 185, 129, 0.08)" />
+        <path d="M-8 -14 L-2 -8 L8 -18" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">Zero network incidents logged</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">All subscriber connections are healthy with zero open or historical outages</text>
+      </g>
+    </svg>`;
+  }
+
+  const topAreas = (matrixData.areaBreakdown ?? []).slice(0, 5);
+  const maxIncidents = Math.max(...topAreas.map(a => a.totalIncidents), 1);
+
+  const topPad = 38;
+  const rowHeight = 32;
+  const labelX = 140;
+  const barX = 150;
+  const barMaxW = 230;
+
+  const rows = topAreas.map((a, idx) => {
+    const y = topPad + idx * rowHeight;
+    const barW = Math.max(Math.round((a.totalIncidents / maxIncidents) * barMaxW), 6);
+    const hasOutages = a.activeOutages > 0;
+    const barFill = hasOutages ? '#f87171' : (a.totalIncidents >= 3 ? '#fbbf24' : '#34d399');
+
+    return `
+      <g class="incident-area-row" transform="translate(0, ${y})">
+        <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">
+          ${escapeXml(a.area)} <tspan font-weight="400" font-size="10" fill="var(--muted, #71817c)">(${a.subscribersAffected} subs)</tspan>
+        </text>
+
+        <rect x="${barX}" y="4" width="${barMaxW}" height="16" rx="4" fill="rgba(0, 0, 0, 0.04)" />
+
+        <rect x="${barX}" y="4" width="${barW}" height="16" rx="4" fill="${barFill}">
+          <title>${escapeXml(a.area)}: ${a.totalIncidents} incidents, ${a.activeOutages} active outages, MTTR ${a.meanTimeToRestoreHours} hrs</title>
+        </rect>
+
+        <text x="${barX + barW + 8}" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+          ${a.totalIncidents} inc
+        </text>
+
+        ${hasOutages ? `
+          <rect x="${width - 90}" y="3" width="60" height="18" rx="9" fill="#ef4444" fill-opacity="0.15" />
+          <text x="${width - 60}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#dc2626">
+            ${a.activeOutages} open
+          </text>
+        ` : `
+          <rect x="${width - 90}" y="3" width="60" height="18" rx="9" fill="#10b981" fill-opacity="0.15" />
+          <text x="${width - 60}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="#047857">
+            Resolved
+          </text>
+        `}
+      </g>
+    `;
+  }).join('');
+
+  const footerY = height - 14;
+
+  return `<svg class="chart-svg incident-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Network Incident and Outage Matrix Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
+        MTTR: <tspan font-weight="700" fill="var(--ink, #182e2a)">${matrixData.meanTimeToRestoreHours} hrs</tspan>
+      </text>
+      <text x="${width - 240}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
+        Active Outages: <tspan font-weight="700" fill="${matrixData.activeOutagesCount > 0 ? '#dc2626' : '#047857'}">${matrixData.activeOutagesCount}</tspan>
+      </text>
+    </g>
+
+    ${rows}
+
+    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Total Incidents: <tspan font-weight="700" fill="var(--ink, #182e2a)">${matrixData.totalRecordedIncidents}</tspan> · Affected Subs: <tspan font-weight="700" fill="var(--ink, #182e2a)">${matrixData.affectedSubscribersCount}</tspan> · Incident Rate: <tspan font-weight="700" fill="#0e5b4d">${matrixData.incidentRatePercent}%</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+
 
 /**
  * Generates an executive plain-text report of the margin simulation.
@@ -2123,6 +2214,15 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupLtvCohortModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const incidentEl = document.getElementById('dashboardIncidentChart');
+  if (incidentEl) {
+    const incidentData = calculateIncidentImpactMatrix(state, referenceDate);
+    incidentEl.innerHTML = renderIncidentImpactSvg(incidentData);
+  }
+
+  setupIncidentImpactModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
+
 

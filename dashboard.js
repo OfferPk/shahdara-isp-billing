@@ -1546,6 +1546,325 @@ export function setupLtvCohortModal(state, { referenceDate = new Date(), onFilte
   }
 }
 
+/**
+ * Calculates operational outage and network incident correlation metrics across areas,
+ * determining mean-time-to-restore (MTTR), active outages, revenue at risk, and affected subscribers.
+ */
+export function calculateIncidentImpactMatrix(state, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+
+  let totalRecordedIncidents = 0;
+  let activeOutagesCount = 0;
+  let resolvedIncidentsCount = 0;
+  let totalDowntimeMinutes = 0;
+
+  const affectedSubscribersSet = new Set();
+  const areaIncidentMap = new Map();
+  const customerIncidentStats = new Map();
+
+  for (const customer of (state?.customers ?? [])) {
+    const custIncidents = customer.incidents ?? [];
+    if (custIncidents.length === 0) continue;
+
+    const area = customer.area || 'Unassigned';
+    if (!areaIncidentMap.has(area)) {
+      areaIncidentMap.set(area, {
+        area,
+        totalIncidents: 0,
+        activeOutages: 0,
+        resolvedIncidents: 0,
+        totalDowntimeMinutes: 0,
+        affectedCustomerIds: new Set(),
+        revenueAtRiskCents: 0
+      });
+    }
+    const areaStats = areaIncidentMap.get(area);
+
+    let customerActiveOutages = 0;
+    let customerRecentIncidents = 0;
+
+    for (const incident of custIncidents) {
+      totalRecordedIncidents++;
+      areaStats.totalIncidents++;
+      affectedSubscribersSet.add(customer.id);
+      areaStats.affectedCustomerIds.add(customer.id);
+
+      const isResolved = Boolean(incident.restoredAt);
+      if (isResolved) {
+        resolvedIncidentsCount++;
+        areaStats.resolvedIncidents++;
+
+        const offTime = new Date(incident.offlineAt).getTime();
+        const resTime = new Date(incident.restoredAt).getTime();
+        if (!isNaN(offTime) && !isNaN(resTime) && resTime >= offTime) {
+          const durationMins = Math.round((resTime - offTime) / (1000 * 60));
+          totalDowntimeMinutes += durationMins;
+          areaStats.totalDowntimeMinutes += durationMins;
+        }
+      } else {
+        activeOutagesCount++;
+        areaStats.activeOutages++;
+        customerActiveOutages++;
+      }
+
+      const reportTime = new Date(incident.reportedAt).getTime();
+      const refTime = ref.getTime();
+      if (!isNaN(reportTime) && (refTime - reportTime) <= (60 * 24 * 60 * 60 * 1000)) {
+        customerRecentIncidents++;
+      }
+    }
+
+    const selling = Number(customer.monthlySellingAmount) || 0;
+    if (customerActiveOutages > 0 && selling > 0) {
+      areaStats.revenueAtRiskCents += Math.round(selling * 100);
+    }
+
+    if (custIncidents.length > 0) {
+      customerIncidentStats.set(customer.id, {
+        id: customer.id,
+        customerNumber: customer.customerNumber,
+        name: customer.name,
+        area,
+        package: customer.packageSpeed || customer.package || 'Standard',
+        totalIncidents: custIncidents.length,
+        recentIncidents: customerRecentIncidents,
+        activeOutages: customerActiveOutages,
+        serviceStatus: customer.serviceStatus || 'not-set'
+      });
+    }
+  }
+
+  const meanTimeToRestoreHours = resolvedIncidentsCount > 0
+    ? Number((totalDowntimeMinutes / (resolvedIncidentsCount * 60)).toFixed(1))
+    : 0;
+
+  const totalCustomersCount = (state?.customers ?? []).length;
+  const incidentRatePercent = totalCustomersCount > 0
+    ? Number(((affectedSubscribersSet.size / totalCustomersCount) * 100).toFixed(1))
+    : 0;
+
+  const areaBreakdown = Array.from(areaIncidentMap.values()).map(a => {
+    const mttr = a.resolvedIncidents > 0
+      ? Number((a.totalDowntimeMinutes / (a.resolvedIncidents * 60)).toFixed(1))
+      : 0;
+    const revAtRisk = Math.round(a.revenueAtRiskCents / 100);
+    let healthStatus = 'stable';
+    if (a.activeOutages > 0 || a.totalIncidents >= 5) {
+      healthStatus = 'critical';
+    } else if (a.totalIncidents >= 2) {
+      healthStatus = 'elevated';
+    }
+
+    return {
+      area: a.area,
+      totalIncidents: a.totalIncidents,
+      activeOutages: a.activeOutages,
+      resolvedIncidents: a.resolvedIncidents,
+      subscribersAffected: a.affectedCustomerIds.size,
+      revenueAtRisk: revAtRisk,
+      meanTimeToRestoreHours: mttr,
+      healthStatus
+    };
+  }).sort((a, b) => b.totalIncidents - a.totalIncidents || b.activeOutages - a.activeOutages);
+
+  const highIncidentAccounts = Array.from(customerIncidentStats.values())
+    .sort((a, b) => b.activeOutages - a.activeOutages || b.totalIncidents - a.totalIncidents)
+    .slice(0, 5);
+
+  return {
+    totalRecordedIncidents,
+    activeOutagesCount,
+    resolvedIncidentsCount,
+    meanTimeToRestoreHours,
+    affectedSubscribersCount: affectedSubscribersSet.size,
+    incidentRatePercent,
+    areaBreakdown,
+    highIncidentAccounts
+  };
+}
+
+/**
+ * Generates an executive incident operations plain-text briefing report.
+ */
+export function generateIncidentBriefingReport(matrixData, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - NETWORK INCIDENT & OUTAGE MATRIX`,
+    `Generated: ${dateStr} PKT`,
+    `=========================================`,
+    `[ OPERATIONAL SLA & OUTAGE SUMMARY ]`,
+    `  Total Incidents Recorded: ${matrixData.totalRecordedIncidents}`,
+    `  Active Open Outages: ${matrixData.activeOutagesCount}`,
+    `  Resolved Incidents: ${matrixData.resolvedIncidentsCount}`,
+    `  Mean Time to Restore (MTTR): ${matrixData.meanTimeToRestoreHours} hours`,
+    `  Affected Subscribers: ${matrixData.affectedSubscribersCount} (${matrixData.incidentRatePercent}% of base)`,
+    ``,
+    `[ AREA INCIDENT CORRELATION MATRIX ]`
+  ];
+
+  for (const a of (matrixData.areaBreakdown ?? [])) {
+    lines.push(`  ${a.area} (${a.healthStatus.toUpperCase()}):`);
+    lines.push(`    Incidents: ${a.totalIncidents} | Active Outages: ${a.activeOutages} | Affected Subs: ${a.subscribersAffected}`);
+    lines.push(`    MTTR: ${a.meanTimeToRestoreHours}h | Revenue At Risk: ${formatPKR(a.revenueAtRisk)}`);
+  }
+
+  if ((matrixData.highIncidentAccounts ?? []).length > 0) {
+    lines.push(``);
+    lines.push(`[ HIGH-INCIDENT SUBSCRIBER ACCOUNTS ]`);
+    for (const cust of matrixData.highIncidentAccounts) {
+      lines.push(`  #${cust.customerNumber} ${cust.name} (${cust.area}): ${cust.totalIncidents} incidents (${cust.activeOutages} active outages)`);
+    }
+  }
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Network Incident & Outage Correlation Modal dialog.
+ */
+export function setupIncidentImpactModal(state, { referenceDate = new Date(), onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardIncidentModal');
+  const openBtn = document.getElementById('dashboardOpenIncidentModalBtn');
+  const closeBtn = document.getElementById('dashboardIncidentModalCloseBtn');
+  const areaTableBody = document.getElementById('dashboardIncidentAreaTableBody');
+  const accountsTableBody = document.getElementById('dashboardIncidentAccountsTableBody');
+  const copyBtn = document.getElementById('dashboardCopyIncidentReportBtn');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const data = calculateIncidentImpactMatrix(state, referenceDate);
+
+    const mttrEl = document.getElementById('dashboardIncidentMttrVal');
+    const activeEl = document.getElementById('dashboardIncidentActiveVal');
+    const affectedEl = document.getElementById('dashboardIncidentAffectedVal');
+    const rateEl = document.getElementById('dashboardIncidentRateVal');
+
+    if (mttrEl) mttrEl.textContent = `${data.meanTimeToRestoreHours} hrs`;
+    if (activeEl) {
+      activeEl.textContent = `${data.activeOutagesCount}`;
+      activeEl.className = `ltv-kpi-val ${data.activeOutagesCount > 0 ? 'text-danger' : 'text-success'}`;
+    }
+    if (affectedEl) affectedEl.textContent = `${data.affectedSubscribersCount}`;
+    if (rateEl) rateEl.textContent = `${data.incidentRatePercent}%`;
+
+    if (areaTableBody) {
+      if (data.areaBreakdown.length === 0) {
+        areaTableBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No network complaints or outages recorded across service areas.</td></tr>';
+      } else {
+        areaTableBody.innerHTML = data.areaBreakdown.map(a => `
+          <tr>
+            <td><strong>${escapeXml(a.area)}</strong></td>
+            <td>${a.totalIncidents}</td>
+            <td>
+              <strong class="${a.activeOutages > 0 ? 'text-danger' : 'text-muted'}">${a.activeOutages}</strong>
+            </td>
+            <td>${a.meanTimeToRestoreHours} hrs</td>
+            <td>${formatPKR(a.revenueAtRisk)}</td>
+            <td>
+              <span class="status-pill ${a.healthStatus === 'stable' ? 'status-good' : (a.healthStatus === 'elevated' ? 'status-watchlist' : 'status-delinquent')}">
+                ${a.healthStatus}
+              </span>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (accountsTableBody) {
+      if (data.highIncidentAccounts.length === 0) {
+        accountsTableBody.innerHTML = '<tr><td colspan="5" class="empty-cell">All subscriber connections operating smoothly with zero recorded incidents.</td></tr>';
+      } else {
+        accountsTableBody.innerHTML = data.highIncidentAccounts.map(cust => `
+          <tr>
+            <td>
+              <strong>${escapeXml(cust.name)}</strong>
+              <div class="cust-sub-meta">#${cust.customerNumber} · ${escapeXml(cust.serviceStatus)}</div>
+            </td>
+            <td>
+              <div>${escapeXml(cust.area)}</div>
+              <div class="cust-sub-meta">${escapeXml(cust.package)}</div>
+            </td>
+            <td>
+              <strong>${cust.totalIncidents}</strong>
+              <span class="cust-sub-meta">(${cust.recentIncidents} in last 60d)</span>
+            </td>
+            <td>
+              <strong class="${cust.activeOutages > 0 ? 'text-danger' : 'text-muted'}">${cust.activeOutages} open</strong>
+            </td>
+            <td>
+              <button type="button" class="action-btn-sm" data-filter-customer="${escapeXml(cust.name)}">
+                View Roster
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+        accountsTableBody.querySelectorAll('[data-filter-customer]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const name = btn.getAttribute('data-filter-customer');
+            if (modal.close) modal.close();
+            else modal.removeAttribute('open');
+            if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(name);
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateIncidentImpactMatrix(state, referenceDate);
+      const text = generateIncidentBriefingReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Incident operations report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -1568,6 +1887,7 @@ export {
   generateMarginSimulationReportText,
   setupMarginSimulatorModal,
   renderCustomerLtvCohortsSvg,
+  renderIncidentImpactSvg,
   setLtvMetric,
   getLtvMetric,
   setSeasonalMetric,
@@ -1585,5 +1905,6 @@ export {
   PKG_PALETTE,
   METHOD_COLORS
 } from './dashboard-charts.js';
+
 
 

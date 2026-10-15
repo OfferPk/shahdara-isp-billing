@@ -30,6 +30,10 @@ import {
   generateLtvBriefingReport,
   setupLtvCohortModal,
   renderCustomerLtvCohortsSvg,
+  calculateIncidentImpactMatrix,
+  generateIncidentBriefingReport,
+  setupIncidentImpactModal,
+  renderIncidentImpactSvg,
   setLtvMetric,
   getLtvMetric,
   setSeasonalMetric,
@@ -2098,6 +2102,268 @@ test('setupLtvCohortModal correctly initializes, populates tables, filters custo
     globalThis.document = originalDocument;
   }
 });
+
+test('calculateIncidentImpactMatrix handles customer base with zero incidents gracefully', () => {
+  const state = { customers: [{ id: 'c1', incidents: [] }, { id: 'c2', incidents: [] }] };
+  const res = calculateIncidentImpactMatrix(state, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.equal(res.totalRecordedIncidents, 0);
+  assert.equal(res.activeOutagesCount, 0);
+  assert.equal(res.resolvedIncidentsCount, 0);
+  assert.equal(res.meanTimeToRestoreHours, 0);
+  assert.equal(res.affectedSubscribersCount, 0);
+  assert.equal(res.incidentRatePercent, 0);
+  assert.equal(res.areaBreakdown.length, 0);
+  assert.equal(res.highIncidentAccounts.length, 0);
+});
+
+test('calculateIncidentImpactMatrix accurately calculates MTTR, area correlation, and active outages', () => {
+  const state = {
+    customers: [
+      {
+        id: 'c1',
+        customerNumber: 1,
+        name: 'Tariq Mehmood',
+        area: 'Main Bazaar',
+        monthlySellingAmount: '2000',
+        incidents: [
+          {
+            id: 'inc-1',
+            reportedAt: '2026-10-10T10:00',
+            offlineAt: '2026-10-10T09:00',
+            restoredAt: '2026-10-10T13:00' // 4 hours
+          },
+          {
+            id: 'inc-2',
+            reportedAt: '2026-10-12T14:00',
+            offlineAt: '2026-10-12T13:00',
+            restoredAt: null // active outage!
+          }
+        ]
+      },
+      {
+        id: 'c2',
+        customerNumber: 2,
+        name: 'Rashid Khan',
+        area: 'Model Town',
+        monthlySellingAmount: '1500',
+        incidents: [
+          {
+            id: 'inc-3',
+            reportedAt: '2026-10-05T08:00',
+            offlineAt: '2026-10-05T07:00',
+            restoredAt: '2026-10-05T09:00' // 2 hours
+          }
+        ]
+      },
+      {
+        id: 'c3',
+        customerNumber: 3,
+        name: 'Usman Ghani',
+        area: 'Model Town',
+        incidents: []
+      }
+    ]
+  };
+
+  const res = calculateIncidentImpactMatrix(state, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.equal(res.totalRecordedIncidents, 3);
+  assert.equal(res.activeOutagesCount, 1);
+  assert.equal(res.resolvedIncidentsCount, 2);
+  assert.equal(res.meanTimeToRestoreHours, 3.0); // (4 + 2) / 2 = 3.0 hrs
+  assert.equal(res.affectedSubscribersCount, 2);
+  assert.equal(res.incidentRatePercent, 66.7); // 2 out of 3 = 66.7%
+
+  // Area breakdown
+  const mainBazaar = res.areaBreakdown.find(a => a.area === 'Main Bazaar');
+  assert.ok(mainBazaar);
+  assert.equal(mainBazaar.totalIncidents, 2);
+  assert.equal(mainBazaar.activeOutages, 1);
+  assert.equal(mainBazaar.revenueAtRisk, 2000);
+  assert.equal(mainBazaar.healthStatus, 'critical');
+
+  const modelTown = res.areaBreakdown.find(a => a.area === 'Model Town');
+  assert.ok(modelTown);
+  assert.equal(modelTown.totalIncidents, 1);
+  assert.equal(modelTown.activeOutages, 0);
+  assert.equal(modelTown.healthStatus, 'stable');
+
+  // High incident accounts
+  assert.equal(res.highIncidentAccounts[0].name, 'Tariq Mehmood');
+  assert.equal(res.highIncidentAccounts[0].activeOutages, 1);
+  assert.equal(res.highIncidentAccounts[0].totalIncidents, 2);
+});
+
+test('renderIncidentImpactSvg renders empty and populated SVG states correctly', () => {
+  const emptySvg = renderIncidentImpactSvg({ totalRecordedIncidents: 0, areaBreakdown: [] });
+  assert.ok(emptySvg.includes('Zero network incidents logged'));
+  assert.ok(emptySvg.includes('aria-label="Network Incident and Outage Matrix: No incidents logged"'));
+
+  const populatedData = {
+    totalRecordedIncidents: 5,
+    activeOutagesCount: 2,
+    resolvedIncidentsCount: 3,
+    meanTimeToRestoreHours: 2.5,
+    affectedSubscribersCount: 4,
+    incidentRatePercent: 8.0,
+    areaBreakdown: [
+      { area: 'Station Road', totalIncidents: 3, activeOutages: 1, subscribersAffected: 2, meanTimeToRestoreHours: 2.0 },
+      { area: 'Chungi Amar Sidhu', totalIncidents: 2, activeOutages: 0, subscribersAffected: 2, meanTimeToRestoreHours: 3.0 }
+    ]
+  };
+
+  const svg = renderIncidentImpactSvg(populatedData);
+  assert.ok(svg.includes('MTTR:'));
+  assert.ok(svg.includes('2.5 hrs'));
+  assert.ok(svg.includes('Active Outages:'));
+  assert.ok(svg.includes('Station Road'));
+  assert.ok(svg.includes('1 open'));
+  assert.ok(svg.includes('Resolved'));
+});
+
+test('generateIncidentBriefingReport outputs structured operational report', () => {
+  const mockData = {
+    totalRecordedIncidents: 6,
+    activeOutagesCount: 1,
+    resolvedIncidentsCount: 5,
+    meanTimeToRestoreHours: 3.2,
+    affectedSubscribersCount: 5,
+    incidentRatePercent: 12.5,
+    areaBreakdown: [
+      { area: 'Main Bazaar', healthStatus: 'critical', totalIncidents: 4, activeOutages: 1, subscribersAffected: 3, meanTimeToRestoreHours: 3.5, revenueAtRisk: 6000 }
+    ],
+    highIncidentAccounts: [
+      { customerNumber: 15, name: 'Shahid Iqbal', area: 'Main Bazaar', totalIncidents: 3, activeOutages: 1 }
+    ]
+  };
+
+  const report = generateIncidentBriefingReport(mockData, new Date('2026-10-15T12:00:00+05:00'));
+  assert.ok(report.includes('SHAHDARA ISP - NETWORK INCIDENT & OUTAGE MATRIX'));
+  assert.ok(report.includes('Mean Time to Restore (MTTR): 3.2 hours'));
+  assert.ok(report.includes('Main Bazaar (CRITICAL):'));
+  assert.ok(report.includes('Revenue At Risk: PKR 6,000'));
+  assert.ok(report.includes('#15 Shahid Iqbal (Main Bazaar): 3 incidents'));
+});
+
+test('setupIncidentImpactModal wires dialog controls, tables, roster filter, and report copy', async () => {
+  const state = {
+    customers: [
+      {
+        id: 'cust-x',
+        customerNumber: 10,
+        name: 'Imran Ashraf',
+        area: 'Bara Dari',
+        packageSpeed: '15 Mbps',
+        monthlySellingAmount: '2000',
+        incidents: [
+          { id: 'i-1', reportedAt: '2026-10-11T12:00', offlineAt: '2026-10-11T11:00', restoredAt: null }
+        ]
+      }
+    ]
+  };
+
+  let openHandler = null;
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+  let closeHandler = null;
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+  let copyHandler = null;
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+
+  const mockMttrVal = { textContent: '' };
+  const mockActiveVal = { textContent: '', className: '' };
+  const mockAffectedVal = { textContent: '' };
+  const mockRateVal = { textContent: '' };
+
+  const rosterListeners = [];
+  const mockAreaTable = { innerHTML: '' };
+  const mockAccountsTable = {
+    _html: '',
+    get innerHTML() { return this._html; },
+    set innerHTML(val) { this._html = val; },
+    querySelectorAll: (sel) => {
+      if (sel === '[data-filter-customer]') {
+        return [{
+          getAttribute: (attr) => attr === 'data-filter-customer' ? 'Imran Ashraf' : null,
+          addEventListener: (evt, fn) => { if (evt === 'click') rosterListeners.push(fn); }
+        }];
+      }
+      return [];
+    }
+  };
+
+  let modalOpened = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardIncidentModal') return mockModal;
+      if (id === 'dashboardOpenIncidentModalBtn') return mockOpenBtn;
+      if (id === 'dashboardIncidentModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardIncidentAreaTableBody') return mockAreaTable;
+      if (id === 'dashboardIncidentAccountsTableBody') return mockAccountsTable;
+      if (id === 'dashboardCopyIncidentReportBtn') return mockCopyBtn;
+      if (id === 'dashboardIncidentMttrVal') return mockMttrVal;
+      if (id === 'dashboardIncidentActiveVal') return mockActiveVal;
+      if (id === 'dashboardIncidentAffectedVal') return mockAffectedVal;
+      if (id === 'dashboardIncidentRateVal') return mockRateVal;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+  let filteredCustomer = null;
+
+  try {
+    setupIncidentImpactModal(state, {
+      referenceDate: new Date('2026-10-15T12:00:00+05:00'),
+      onFilterCustomer: (name) => { filteredCustomer = name; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockActiveVal.textContent.includes('1'));
+    assert.ok(mockAreaTable.innerHTML.includes('Bara Dari'));
+    assert.ok(mockAccountsTable.innerHTML.includes('Imran Ashraf'));
+
+    assert.equal(rosterListeners.length, 1);
+    rosterListeners[0]();
+    assert.equal(filteredCustomer, 'Imran Ashraf');
+    assert.equal(modalOpened, false);
+
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - NETWORK INCIDENT & OUTAGE MATRIX'));
+    assert.equal(toastMessage, 'Incident operations report copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 
 
 

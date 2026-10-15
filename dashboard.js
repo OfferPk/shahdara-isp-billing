@@ -1,4 +1,4 @@
-import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory } from './core.js';
+import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions } from './core.js';
 import { calculateDuesByArea, calculateAreaDetailedBreakdown } from './dashboard-charts.js';
 
 function escapeXml(str) {
@@ -205,12 +205,250 @@ export function calculateCustomerHealthBreakdown(state, referenceDate = new Date
 }
 
 /**
+ * Calculates payment method breakdown, transaction counts, digital vs physical cash share,
+ * and average ticket sizes for a selected time period ('currentMonth', '30days', 'all').
+ */
+export function calculatePaymentMethodBreakdown(state, referenceDate = new Date(), { period = 'currentMonth' } = {}) {
+  const totals = calculateDashboard(state, referenceDate);
+  const currentMonth = totals.currentMonth;
+
+  let txs = [];
+  if (period === '30days') {
+    txs = listTransactions(state, { recencyDays: 30 }, referenceDate);
+  } else {
+    txs = listTransactions(state, { recencyDays: null }, referenceDate);
+    if (period === 'currentMonth') {
+      txs = txs.filter(t => typeof t.date === 'string' && t.date.slice(0, 7) === currentMonth);
+    }
+  }
+
+  const methodMap = new Map();
+  let totalAmount = 0;
+  let totalCount = 0;
+  let cashTotal = 0;
+  let digitalTotal = 0;
+
+  for (const t of txs) {
+    const rawMethod = t.method && String(t.method).trim() ? String(t.method).trim() : 'Unspecified';
+    const amount = Number(t.amount) || 0;
+    if (amount <= 0) continue;
+
+    totalAmount += amount;
+    totalCount++;
+
+    const isDigital = ['JazzCash', 'Easypaisa', 'Bank Transfer'].some(m => rawMethod.toLowerCase().includes(m.toLowerCase()));
+    if (isDigital) {
+      digitalTotal += amount;
+    } else {
+      cashTotal += amount;
+    }
+
+    if (!methodMap.has(rawMethod)) {
+      methodMap.set(rawMethod, {
+        method: rawMethod,
+        amount: 0,
+        count: 0,
+        isDigital
+      });
+    }
+
+    const entry = methodMap.get(rawMethod);
+    entry.amount += amount;
+    entry.count++;
+  }
+
+  const methods = [...methodMap.values()]
+    .map(m => ({
+      ...m,
+      percent: totalAmount > 0 ? Math.round((m.amount / totalAmount) * 100) : 0,
+      avgAmount: m.count > 0 ? Math.round(m.amount / m.count) : 0
+    }))
+    .sort((a, b) => b.amount - a.amount || b.count - a.count);
+
+  const cashPercent = totalAmount > 0 ? Math.round((cashTotal / totalAmount) * 100) : 0;
+  const digitalPercent = totalAmount > 0 ? Math.round((digitalTotal / totalAmount) * 100) : 0;
+
+  return {
+    methods,
+    totalAmount,
+    totalCount,
+    cashTotal,
+    digitalTotal,
+    cashPercent,
+    digitalPercent,
+    period,
+    currentMonth
+  };
+}
+
+/**
+ * Evaluates retention and churn risk across all unarchived subscriber accounts.
+ * Classifies customers into High, Moderate, and Low risk cohorts based on service status,
+ * unpaid bill count, delinquency duration, and unconfigured profile parameters.
+ */
+export function calculateChurnRiskAnalysis(state, referenceDate = new Date()) {
+  const allocations = calculatePaymentAllocations(state);
+  const retainedMonths = new Set(monthsForHistory(referenceDate));
+
+  let totalCustomers = 0;
+  const highRiskCustomers = [];
+  const moderateRiskCustomers = [];
+  const lowRiskCustomers = [];
+
+  let highRiskTotalDue = 0;
+  let moderateRiskTotalDue = 0;
+
+  for (const customer of (state.customers ?? [])) {
+    if (customer.archived) continue;
+    totalCustomers++;
+
+    let unpaidBillsCount = 0;
+    let totalDueCents = 0;
+    let latestPaymentDate = null;
+
+    for (const bill of (customer.bills ?? [])) {
+      for (const p of (bill.payments ?? [])) {
+        if (p.date && (!latestPaymentDate || p.date > latestPaymentDate)) {
+          latestPaymentDate = p.date;
+        }
+      }
+
+      if (!retainedMonths.has(bill.month)) continue;
+      const amount = bill.dueAmount;
+      if (amount === null || amount === undefined || amount === '' || Number(amount) <= 0) continue;
+      const alloc = allocations.forMonth?.(customer.id, bill.month);
+      const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(amount) * 100);
+      if (balanceDueCents > 0) {
+        totalDueCents += balanceDueCents;
+        unpaidBillsCount++;
+      }
+    }
+
+    const totalDue = Math.round(totalDueCents / 100);
+    const riskFactors = [];
+
+    let daysSinceLastPayment = null;
+    if (latestPaymentDate) {
+      const pTime = new Date(latestPaymentDate).getTime();
+      const rTime = referenceDate.getTime();
+      if (!isNaN(pTime) && !isNaN(rTime)) {
+        daysSinceLastPayment = Math.max(0, Math.floor((rTime - pTime) / (1000 * 60 * 60 * 24)));
+      }
+    }
+
+    const isOffline = customer.serviceStatus === 'offline';
+    const isUnset = customer.serviceStatus === 'not-set' || !customer.serviceStatus;
+
+    if (isOffline) {
+      riskFactors.push('Offline service');
+    }
+    if (unpaidBillsCount >= 2) {
+      riskFactors.push(`${unpaidBillsCount} overdue bills`);
+    } else if (unpaidBillsCount === 1) {
+      riskFactors.push('1 unpaid bill');
+    }
+    if (daysSinceLastPayment !== null && daysSinceLastPayment > 45 && unpaidBillsCount > 0) {
+      riskFactors.push(`No payment in ${daysSinceLastPayment} days`);
+    }
+
+    const customerSummary = {
+      id: customer.id,
+      customerNumber: customer.customerNumber,
+      name: customer.name,
+      area: customer.area || 'Unassigned',
+      phone: customer.phone || '',
+      serviceStatus: customer.serviceStatus || 'not-set',
+      totalDue,
+      unpaidBillsCount,
+      latestPaymentDate,
+      daysSinceLastPayment,
+      riskFactors
+    };
+
+    if ((isOffline && totalDue > 0) || unpaidBillsCount >= 2 || (isOffline && daysSinceLastPayment !== null && daysSinceLastPayment > 45)) {
+      customerSummary.riskLevel = 'high';
+      customerSummary.riskBadge = 'High Risk';
+      highRiskCustomers.push(customerSummary);
+      highRiskTotalDue += totalDue;
+    } else if (unpaidBillsCount === 1 || isOffline || isUnset || !customer.packageSpeed) {
+      customerSummary.riskLevel = 'moderate';
+      customerSummary.riskBadge = 'Moderate Risk';
+      if (!isOffline && unpaidBillsCount === 0) {
+        if (isUnset) riskFactors.push('Service status unconfigured');
+        if (!customer.packageSpeed) riskFactors.push('Package speed not set');
+      }
+      moderateRiskCustomers.push(customerSummary);
+      moderateRiskTotalDue += totalDue;
+    } else {
+      customerSummary.riskLevel = 'low';
+      customerSummary.riskBadge = 'Healthy';
+      lowRiskCustomers.push(customerSummary);
+    }
+  }
+
+  const topAtRiskCustomers = [...highRiskCustomers, ...moderateRiskCustomers]
+    .sort((a, b) => b.totalDue - a.totalDue || b.unpaidBillsCount - a.unpaidBillsCount);
+
+  const highRiskCount = highRiskCustomers.length;
+  const moderateRiskCount = moderateRiskCustomers.length;
+  const lowRiskCount = lowRiskCustomers.length;
+
+  const highPercent = totalCustomers > 0 ? Math.round((highRiskCount / totalCustomers) * 100) : 0;
+  const moderatePercent = totalCustomers > 0 ? Math.round((moderateRiskCount / totalCustomers) * 100) : 0;
+  const lowPercent = totalCustomers > 0 ? Math.round((lowRiskCount / totalCustomers) * 100) : 0;
+
+  const churnRiskScore = totalCustomers > 0
+    ? Math.min(100, Math.round(((highRiskCount * 1.0 + moderateRiskCount * 0.5) / totalCustomers) * 100))
+    : 0;
+
+  const atRiskRevenue = highRiskTotalDue + moderateRiskTotalDue;
+
+  let riskTier = 'low';
+  let riskTierLabel = 'Low Churn Risk';
+  if (churnRiskScore >= 35) {
+    riskTier = 'high';
+    riskTierLabel = 'High Churn Risk';
+  } else if (churnRiskScore >= 15) {
+    riskTier = 'moderate';
+    riskTierLabel = 'Moderate Churn Risk';
+  }
+
+  return {
+    totalCustomers,
+    churnRiskScore,
+    riskTier,
+    riskTierLabel,
+    atRiskRevenue,
+    highRisk: {
+      count: highRiskCount,
+      percent: highPercent,
+      totalDue: highRiskTotalDue,
+      customers: highRiskCustomers
+    },
+    moderateRisk: {
+      count: moderateRiskCount,
+      percent: moderatePercent,
+      totalDue: moderateRiskTotalDue,
+      customers: moderateRiskCustomers
+    },
+    lowRisk: {
+      count: lowRiskCount,
+      percent: lowPercent,
+      customers: lowRiskCustomers
+    },
+    topAtRiskCustomers
+  };
+}
+
+/**
  * Generates formatted executive summary text suitable for clipboard copy, WhatsApp, or printing.
  */
 export function generateDashboardBriefingText(state, referenceDate = new Date()) {
   const kpis = calculateDashboardKpis(state, referenceDate);
   const health = calculateCustomerHealthBreakdown(state, referenceDate);
   const areas = calculateDuesByArea(state, referenceDate, 4);
+  const methods = calculatePaymentMethodBreakdown(state, referenceDate, { period: 'currentMonth' });
+  const churn = calculateChurnRiskAnalysis(state, referenceDate);
   const monthStr = kpis.currentMonth;
   const dateStr = referenceDate.toISOString().slice(0, 10);
 
@@ -225,12 +463,28 @@ export function generateDashboardBriefingText(state, referenceDate = new Date())
     `• Health Standing: ${health.goodStanding.count} Good, ${health.watchlist.count} Watchlist, ${health.delinquent.count} Delinquent, ${health.offline.count} Offline`,
     `• New Connections (${monthStr}): ${kpis.newConnectionsCount}`,
     ``,
+    `[ RETENTION & CHURN RISK ]`,
+    `• Churn Risk Score: ${churn.churnRiskScore}% (${churn.riskTierLabel})`,
+    `• High-Risk Accounts: ${churn.highRisk.count} accounts (${formatPKR(churn.highRisk.totalDue)} dues)`,
+    `• Moderate-Risk Accounts: ${churn.moderateRisk.count} accounts (${formatPKR(churn.moderateRisk.totalDue)} dues)`,
+    `• Total Revenue at Risk: ${formatPKR(churn.atRiskRevenue)}`,
+    ``,
     `[ MONTHLY FINANCIALS (${monthStr}) ]`,
     `• Billed Snapshot Revenue: ${formatPKR(kpis.currentMonthBilled)}`,
     `• Actual Cash Collected: ${formatPKR(kpis.currentMonthCollection)}${kpis.collectionRate !== null ? ` (${kpis.collectionRate}% collection rate)` : ''}`,
     `• Known Outstanding Dues: ${formatPKR(kpis.totalDue)}`,
-    `• Bill Settlement: ${kpis.paidBillsCount} Paid, ${kpis.partialBillsCount} Partial, ${kpis.unpaidBillsCount} Unpaid`
+    `• Bill Settlement: ${kpis.paidBillsCount} Paid, ${kpis.partialBillsCount} Partial, ${kpis.unpaidBillsCount} Unpaid`,
+    ``,
+    `[ PAYMENT SETTLEMENT CHANNELS (${monthStr}) ]`,
+    `• Total Collected: ${formatPKR(methods.totalAmount)} across ${methods.totalCount} receipts`,
+    `• Settlement Mix: ${methods.cashPercent}% Cash (${formatPKR(methods.cashTotal)}) | ${methods.digitalPercent}% Digital (${formatPKR(methods.digitalTotal)})`
   ];
+
+  if (methods.methods.length > 0) {
+    methods.methods.slice(0, 3).forEach((m, idx) => {
+      lines.push(`  ${idx + 1}. ${m.method}: ${formatPKR(m.amount)} (${m.percent}%, ${m.count} txs)`);
+    });
+  }
 
   if (areas && areas.length > 0) {
     lines.push(``, `[ TOP OUTSTANDING AREAS ]`);
@@ -283,7 +537,9 @@ export function generateDashboardBriefingHtml(state, referenceDate = new Date())
   const kpis = calculateDashboardKpis(state, referenceDate);
   const velocity = calculateCollectionVelocity(state, referenceDate);
   const health = calculateCustomerHealthBreakdown(state, referenceDate);
-  const topAreas = calculateDuesByArea(state, referenceDate, 4);
+  const areas = calculateDuesByArea(state, referenceDate, 4);
+  const methods = calculatePaymentMethodBreakdown(state, referenceDate, { period: 'currentMonth' });
+  const churn = calculateChurnRiskAnalysis(state, referenceDate);
   const monthStr = kpis.currentMonth;
   const dateStr = referenceDate.toISOString().slice(0, 10);
 
@@ -309,6 +565,18 @@ export function generateDashboardBriefingHtml(state, referenceDate = new Date())
           <div class="briefing-stat-row"><span>Watchlist (1 Due):</span> <strong class="text-warning">${health.watchlist.count} (${health.watchlist.percent}%)</strong></div>
           <div class="briefing-stat-row"><span>Delinquent (2+):</span> <strong class="text-danger">${health.delinquent.count} (${health.delinquent.percent}%)</strong></div>
           <div class="briefing-stat-row"><span>Offline Service:</span> <strong class="text-muted">${health.offline.count} (${health.offline.percent}%)</strong></div>
+        </div>
+      </div>
+
+      <div class="briefing-divider"></div>
+
+      <div class="briefing-section">
+        <h5 class="briefing-sec-title">RETENTION &amp; CHURN RISK</h5>
+        <div class="briefing-grid-2">
+          <div class="briefing-stat-row"><span>Risk Score:</span> <strong class="text-${churn.riskTier === 'high' ? 'danger' : (churn.riskTier === 'moderate' ? 'warning' : 'success')}">${churn.churnRiskScore}% (${churn.riskTierLabel})</strong></div>
+          <div class="briefing-stat-row"><span>Revenue at Risk:</span> <strong class="text-danger">${formatPKR(churn.atRiskRevenue)}</strong></div>
+          <div class="briefing-stat-row"><span>High Risk Accounts:</span> <strong>${churn.highRisk.count}</strong></div>
+          <div class="briefing-stat-row"><span>Moderate Risk:</span> <strong>${churn.moderateRisk.count}</strong></div>
         </div>
       </div>
 
@@ -350,12 +618,34 @@ export function generateDashboardBriefingHtml(state, referenceDate = new Date())
         </table>
       </div>
 
-      ${topAreas.length > 0 ? `
+      <div class="briefing-divider"></div>
+
+      <div class="briefing-section">
+        <h5 class="briefing-sec-title">PAYMENT SETTLEMENT CHANNELS (${monthStr})</h5>
+        <div class="briefing-stat-row">
+          <span>Settlement Mix:</span>
+          <strong>${methods.cashPercent}% Cash · ${methods.digitalPercent}% Digital</strong>
+        </div>
+        ${methods.methods.length > 0 ? `
+        <table class="briefing-data-table">
+          <tbody>
+            ${methods.methods.slice(0, 4).map(m => `
+              <tr>
+                <td>${escapeXml(m.method)} (${m.count} txs)</td>
+                <td class="text-right"><strong>${formatPKR(m.amount)}</strong> <small class="text-muted">(${m.percent}%)</small></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ` : '<p class="text-muted" style="margin: 4px 0; font-size: 11px;">No payments recorded in current billing month.</p>'}
+      </div>
+
+      ${areas.length > 0 ? `
       <div class="briefing-divider"></div>
       <div class="briefing-section">
         <h5 class="briefing-sec-title">TOP OUTSTANDING AREAS</h5>
         <ul class="briefing-area-list">
-          ${topAreas.map(a => `<li><span>${escapeXml(a.area)} (${a.customerCount} cust)</span> <strong>${formatPKR(a.totalDue)}</strong></li>`).join('')}
+          ${areas.map(a => `<li><span>${escapeXml(a.area)} (${a.customerCount} cust)</span> <strong>${formatPKR(a.totalDue)}</strong></li>`).join('')}
         </ul>
       </div>
       ` : ''}
@@ -615,6 +905,92 @@ export function setupAreaDrilldownModal(state, referenceDate = new Date(), { onF
   });
 }
 
+/**
+ * Wires the Churn Risk Modal dialog to display at-risk subscriber breakdown and filter customer roster.
+ */
+export function setupChurnRiskModal(state, referenceDate = new Date(), { onFilterCustomer } = {}) {
+  const openBtn = document.getElementById('dashboardOpenChurnModalBtn');
+  const modal = document.getElementById('dashboardChurnRiskModal');
+  const closeBtn = document.getElementById('dashboardChurnModalCloseBtn');
+  const tableBody = document.getElementById('dashboardChurnModalTableBody');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const analysis = calculateChurnRiskAnalysis(state, referenceDate);
+    if (tableBody) {
+      if (analysis.topAtRiskCustomers.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="5" class="empty-cell">All subscriber accounts are healthy with zero overdue balances.</td></tr>';
+      } else {
+        tableBody.innerHTML = analysis.topAtRiskCustomers.map(cust => `
+          <tr>
+            <td>
+              <strong>${escapeXml(cust.name)}</strong>
+              <div class="cust-sub-meta">#${cust.customerNumber} · ${escapeXml(cust.area)}</div>
+            </td>
+            <td>
+              <span class="status-pill status-${cust.riskLevel}">${cust.riskBadge}</span>
+            </td>
+            <td>
+              <span class="risk-factors-text">${escapeXml(cust.riskFactors.join(', ') || 'None')}</span>
+            </td>
+            <td>
+              <strong class="text-${cust.totalDue > 0 ? 'danger' : 'muted'}">${formatPKR(cust.totalDue)}</strong>
+            </td>
+            <td>
+              <button type="button" class="action-btn-sm" data-filter-customer="${escapeXml(cust.name)}">
+                View Roster
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+        tableBody.querySelectorAll('[data-filter-customer]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const name = btn.getAttribute('data-filter-customer');
+            if (modal.close) modal.close();
+            else modal.removeAttribute('open');
+            if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(name);
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn) {
+    const isWired = openBtn.dataset ? openBtn.dataset.wired : openBtn.getAttribute?.('data-wired');
+    if (!isWired) {
+      if (openBtn.dataset) openBtn.dataset.wired = 'true';
+      else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+      openBtn.addEventListener('click', populateAndOpen);
+    }
+  }
+
+  if (closeBtn) {
+    const isWired = closeBtn.dataset ? closeBtn.dataset.wired : closeBtn.getAttribute?.('data-wired');
+    if (!isWired) {
+      if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+      else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+      closeBtn.addEventListener('click', () => {
+        if (modal.close) modal.close();
+        else modal.removeAttribute('open');
+      });
+    }
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -625,9 +1001,14 @@ export {
   renderAreaDuesSvg,
   renderPackageDistributionSvg,
   renderCustomerHealthSvg,
+  renderPaymentMethodSvg,
+  renderChurnRiskGaugeSvg,
   renderDashboardCharts,
   setTrendChartDuration,
   getTrendChartDuration,
+  setMethodChartPeriod,
+  getMethodChartPeriod,
   setupDashboardChartsEvents,
-  PKG_PALETTE
+  PKG_PALETTE,
+  METHOD_COLORS
 } from './dashboard-charts.js';

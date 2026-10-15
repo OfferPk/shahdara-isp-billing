@@ -1,20 +1,30 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
 
-function escapeXml(str) {
-  return String(str ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  })[c]);
+export const METHOD_COLORS = {
+  'Cash': '#0e5b4d',
+  'JazzCash': '#dc2626',
+  'Easypaisa': '#16a34a',
+  'Bank Transfer': '#2563eb',
+  'Cash at Waseem Abbasi shop': '#d97706',
+  'Cash at Hassan shop': '#7c3aed',
+  'Other': '#64748b'
+};
+
+export function getMethodColor(methodName, index = 0) {
+  if (METHOD_COLORS[methodName]) return METHOD_COLORS[methodName];
+  for (const [key, color] of Object.entries(METHOD_COLORS)) {
+    if (String(methodName).toLowerCase().includes(key.toLowerCase())) return color;
+  }
+  const fallback = ['#0891b2', '#4f46e5', '#ca8a04', '#059669', '#9333ea', '#e11d48'];
+  return fallback[index % fallback.length];
 }
 
 let currentTrendMonths = 6;
+let currentMethodPeriod = 'currentMonth';
 
 export function setTrendChartDuration(months) {
   const m = Number(months);
@@ -25,6 +35,26 @@ export function setTrendChartDuration(months) {
 
 export function getTrendChartDuration() {
   return currentTrendMonths;
+}
+
+export function setMethodChartPeriod(period) {
+  if (['currentMonth', '30days', 'all'].includes(period)) {
+    currentMethodPeriod = period;
+  }
+}
+
+export function getMethodChartPeriod() {
+  return currentMethodPeriod;
+}
+
+function escapeXml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[c]);
 }
 
 /**
@@ -577,18 +607,255 @@ export function renderCustomerHealthSvg(healthData) {
   </svg>`;
 }
 
+/**
+ * Generates an accessible, theme-aware pure SVG donut chart and legend
+ * illustrating payment channel distribution (Cash vs Digital methods).
+ */
+export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {}) {
+  if (!data || !Array.isArray(data.methods) || data.totalCount === 0 || data.totalAmount === 0) {
+    return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Payment Methods: No recorded payments for this period">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, ${height / 2 - 10})" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-12 -6 L12 -6 M-12 2 L12 2 M-6 10 L6 10" stroke="#0e5b4d" stroke-width="2" stroke-linecap="round" />
+        <text y="28" font-family="'DM Sans', system-ui, sans-serif" font-size="13" font-weight="600" fill="var(--ink, #182e2a)">No Payment Receipts Recorded</text>
+        <text y="46" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">No receipts found for the selected time filter</text>
+      </g>
+    </svg>`;
+  }
+
+  const cx = 110;
+  const cy = 110;
+  const R = 72;
+  const r = 44;
+  const total = data.totalAmount;
+
+  let cumulativeAngle = -Math.PI / 2;
+  const slices = data.methods.map((m, idx) => {
+    const fraction = total > 0 ? (m.amount / total) : 0;
+    const angle = fraction * 2 * Math.PI;
+    const startAngle = cumulativeAngle;
+    const endAngle = cumulativeAngle + angle;
+    cumulativeAngle += angle;
+
+    const x1 = cx + R * Math.cos(startAngle);
+    const y1 = cy + R * Math.sin(startAngle);
+    const x2 = cx + R * Math.cos(endAngle);
+    const y2 = cy + R * Math.sin(endAngle);
+
+    const ix1 = cx + r * Math.cos(endAngle);
+    const iy1 = cy + r * Math.sin(endAngle);
+    const ix2 = cx + r * Math.cos(startAngle);
+    const iy2 = cy + r * Math.sin(startAngle);
+
+    const largeArc = angle > Math.PI ? 1 : 0;
+    const color = getMethodColor(m.method, idx);
+
+    const pathD = fraction >= 0.999
+      ? `M ${cx} ${cy - R} A ${R} ${R} 0 1 1 ${cx - 0.01} ${cy - R} L ${cx - 0.01} ${cy - r} A ${r} ${r} 0 1 0 ${cx} ${cy - r} Z`
+      : `M ${x1} ${y1} A ${R} ${R} 0 ${largeArc} 1 ${x2} ${y2} L ${ix1} ${iy1} A ${r} ${r} 0 ${largeArc} 0 ${ix2} ${iy2} Z`;
+
+    return {
+      ...m,
+      color,
+      pathD
+    };
+  });
+
+  const slicesSvg = slices.map(s => `
+    <path class="donut-slice" d="${s.pathD}" fill="${s.color}" tabindex="0" role="graphics-symbol" aria-label="${escapeXml(s.method)}: ${formatPKR(s.amount)} (${s.percent}%, ${s.count} transactions)">
+      <title>${escapeXml(s.method)}: ${formatPKR(s.amount)} (${s.percent}%, ${s.count} txs)</title>
+    </path>
+  `).join('');
+
+  const legendX = 224;
+  const visibleMethods = data.methods.slice(0, 5);
+  const legendSvg = visibleMethods.map((m, idx) => {
+    const y = 30 + idx * 36;
+    const color = getMethodColor(m.method, idx);
+    return `
+      <g class="method-legend-row" transform="translate(${legendX}, ${y})" tabindex="0" role="graphics-symbol" aria-label="${escapeXml(m.method)}: ${formatPKR(m.amount)} (${m.percent}%)">
+        <circle cx="6" cy="6" r="5" fill="${color}" />
+        <text x="18" y="9" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="600" fill="var(--ink, #182e2a)">${escapeXml(m.method)}</text>
+        <text x="18" y="22" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${m.count} tx${m.count === 1 ? '' : 's'} · avg ${formatPKR(m.avgAmount)}</text>
+        <text x="${width - legendX - 12}" y="10" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(m.amount)}</text>
+        <text x="${width - legendX - 12}" y="22" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="10" font-weight="600" fill="${color}">${m.percent}%</text>
+      </g>
+    `;
+  }).join('');
+
+  return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Payment Methods Settlement Distribution: Total collected ${formatPKR(data.totalAmount)} across ${data.totalCount} receipts. Physical cash: ${data.cashPercent}%, digital mobile: ${data.digitalPercent}%">
+    <g class="donut-slices-group">
+      ${slicesSvg}
+      <circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="var(--surface, #ffffff)" />
+      <text x="${cx}" y="${cy - 3}" text-anchor="middle" font-family="Manrope, system-ui, sans-serif" font-size="12.5" font-weight="800" fill="var(--ink, #182e2a)">${formatPKR(data.totalAmount)}</text>
+      <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="var(--muted, #71817c)">${data.totalCount} receipt${data.totalCount === 1 ? '' : 's'}</text>
+    </g>
+    <g class="methods-legend-group">
+      ${legendSvg}
+    </g>
+    <g class="methods-macro-split" transform="translate(18, ${height - 28})">
+      <rect width="184" height="20" rx="4" fill="var(--surface-sunken, #f0f5f2)" stroke="var(--line, #e2ece7)" stroke-width="1" />
+      <rect width="${Math.round(184 * (data.cashPercent / 100))}" height="20" rx="4" fill="#0e5b4d" opacity="0.85" />
+      <text x="8" y="14" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="${data.cashPercent > 30 ? '#ffffff' : 'var(--ink, #182e2a)'}">Cash ${data.cashPercent}%</text>
+      <text x="176" y="14" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="${data.digitalPercent > 30 ? 'var(--ink, #182e2a)' : 'var(--muted, #71817c)'}">Digital ${data.digitalPercent}%</text>
+    </g>
+    <text x="${width - 12}" y="${height - 14}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Filter: ${escapeXml(data.period)}</text>
+  </svg>`;
+}
+
+/**
+ * Generates an accessible, theme-aware pure SVG semicircular risk gauge
+ * and subscriber cohort breakdown for churn risk & retention forecast.
+ */
+export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } = {}) {
+  if (!riskData || riskData.totalCustomers === 0) {
+    return `<svg class="chart-svg chart-churn-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Retention and Churn Risk: No customer profiles">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, ${height / 2 - 10})" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-8 0 L8 0 M0 -8 L0 8" stroke="#0e5b4d" stroke-width="2" stroke-linecap="round" />
+        <text y="28" font-family="'DM Sans', system-ui, sans-serif" font-size="13" font-weight="600" fill="var(--ink, #182e2a)">No Customer Profiles in Ledger</text>
+        <text y="46" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Add subscriber connections to view retention risk analytics</text>
+      </g>
+    </svg>`;
+  }
+
+  const cx = 115;
+  const cy = 135;
+  const R = 78;
+  const r = 54;
+
+  function arcPath(fStart, fEnd) {
+    const a1 = Math.PI * (1 - fStart);
+    const a2 = Math.PI * (1 - fEnd);
+
+    const x1 = cx - R * Math.cos(fStart * Math.PI);
+    const y1 = cy - R * Math.sin(fStart * Math.PI);
+    const x2 = cx - R * Math.cos(fEnd * Math.PI);
+    const y2 = cy - R * Math.sin(fEnd * Math.PI);
+
+    const ix1 = cx - r * Math.cos(fEnd * Math.PI);
+    const iy1 = cy - r * Math.sin(fEnd * Math.PI);
+    const ix2 = cx - r * Math.cos(fStart * Math.PI);
+    const iy2 = cy - r * Math.sin(fStart * Math.PI);
+
+    return `M ${x1} ${y1} A ${R} ${R} 0 0 1 ${x2} ${y2} L ${ix1} ${iy1} A ${r} ${r} 0 0 0 ${ix2} ${iy2} Z`;
+  }
+
+  const greenArc = arcPath(0, 0.15);
+  const amberArc = arcPath(0.15, 0.35);
+  const redArc = arcPath(0.35, 1.0);
+
+  const score = Math.min(100, Math.max(0, riskData.churnRiskScore));
+  const scoreFrac = score / 100;
+  const pointerAngle = scoreFrac * Math.PI;
+  const pointerX = cx - (R - 6) * Math.cos(pointerAngle);
+  const pointerY = cy - (R - 6) * Math.sin(pointerAngle);
+
+  let riskColor = '#10b981';
+  if (riskData.riskTier === 'high') riskColor = '#ef4444';
+  else if (riskData.riskTier === 'moderate') riskColor = '#f59e0b';
+
+  const cardW = 224;
+  const cardX = 236;
+
+  return `<svg class="chart-svg chart-churn-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Retention and Churn Risk Gauge: Score ${score}%, ${escapeXml(riskData.riskTierLabel)}. ${riskData.highRisk.count} high-risk accounts (${formatPKR(riskData.highRisk.totalDue)} dues), ${riskData.moderateRisk.count} moderate-risk accounts (${formatPKR(riskData.moderateRisk.totalDue)} dues)">
+    <!-- Semicircle track zones -->
+    <g class="gauge-zones">
+      <path d="${greenArc}" fill="#10b981" opacity="0.85">
+        <title>Healthy &amp; Low Risk (0-15%)</title>
+      </path>
+      <path d="${amberArc}" fill="#f59e0b" opacity="0.85">
+        <title>Moderate Risk (15-35%)</title>
+      </path>
+      <path d="${redArc}" fill="#ef4444" opacity="0.85">
+        <title>High Delinquency Risk (35-100%)</title>
+      </path>
+    </g>
+
+    <!-- Gauge needle pointer -->
+    <g class="gauge-pointer">
+      <line x1="${cx}" y1="${cy}" x2="${pointerX}" y2="${pointerY}" stroke="var(--ink, #182e2a)" stroke-width="3" stroke-linecap="round" />
+      <circle cx="${cx}" cy="${cy}" r="6" fill="var(--ink, #182e2a)" />
+      <circle cx="${pointerX}" cy="${pointerY}" r="4" fill="${riskColor}" stroke="var(--surface, #ffffff)" stroke-width="1.5" />
+    </g>
+
+    <!-- Center readout -->
+    <g class="gauge-center-text" text-anchor="middle">
+      <text x="${cx}" y="${cy - 10}" font-family="Manrope, system-ui, sans-serif" font-size="22" font-weight="800" fill="${riskColor}">${score}%</text>
+      <text x="${cx}" y="${cy + 8}" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${riskColor}">${escapeXml(riskData.riskTierLabel)}</text>
+      <text x="${cx}" y="${cy + 24}" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" fill="var(--muted, #71817c)">Weighted Risk Score</text>
+    </g>
+
+    <!-- Right cohort summary cards -->
+    <g class="churn-cohort-cards" transform="translate(${cardX}, 18)">
+      <!-- High Risk -->
+      <g class="cohort-card cohort-high" tabindex="0" role="graphics-symbol" aria-label="High Risk: ${riskData.highRisk.count} accounts (${riskData.highRisk.percent}%), ${formatPKR(riskData.highRisk.totalDue)} overdue">
+        <rect width="${cardW}" height="42" rx="6" fill="rgba(239, 68, 68, 0.08)" stroke="rgba(239, 68, 68, 0.25)" stroke-width="1" />
+        <circle cx="14" cy="21" r="5" fill="#ef4444" />
+        <text x="26" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#b91c1c">High Risk</text>
+        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Dues: ${formatPKR(riskData.highRisk.totalDue)}</text>
+        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#b91c1c">${riskData.highRisk.count} <tspan font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">(${riskData.highRisk.percent}%)</tspan></text>
+      </g>
+
+      <!-- Moderate Risk -->
+      <g class="cohort-card cohort-mod" transform="translate(0, 48)" tabindex="0" role="graphics-symbol" aria-label="Moderate Risk: ${riskData.moderateRisk.count} accounts (${riskData.moderateRisk.percent}%), ${formatPKR(riskData.moderateRisk.totalDue)} dues">
+        <rect width="${cardW}" height="42" rx="6" fill="rgba(245, 158, 11, 0.08)" stroke="rgba(245, 158, 11, 0.25)" stroke-width="1" />
+        <circle cx="14" cy="21" r="5" fill="#f59e0b" />
+        <text x="26" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#b45309">Moderate Risk</text>
+        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Dues: ${formatPKR(riskData.moderateRisk.totalDue)}</text>
+        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#b45309">${riskData.moderateRisk.count} <tspan font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">(${riskData.moderateRisk.percent}%)</tspan></text>
+      </g>
+
+      <!-- Healthy -->
+      <g class="cohort-card cohort-low" transform="translate(0, 96)" tabindex="0" role="graphics-symbol" aria-label="Healthy Accounts: ${riskData.lowRisk.count} (${riskData.lowRisk.percent}%)">
+        <rect width="${cardW}" height="42" rx="6" fill="rgba(16, 185, 129, 0.08)" stroke="rgba(16, 185, 129, 0.25)" stroke-width="1" />
+        <circle cx="14" cy="21" r="5" fill="#10b981" />
+        <text x="26" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="#047857">Healthy Retained</text>
+        <text x="26" y="32" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Zero overdue balance</text>
+        <text x="${cardW - 10}" y="24" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12" font-weight="800" fill="#047857">${riskData.lowRisk.count} <tspan font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">(${riskData.lowRisk.percent}%)</tspan></text>
+      </g>
+
+      <!-- At-Risk Revenue Callout -->
+      <g transform="translate(0, 146)">
+        <text x="0" y="14" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">Total Revenue at Risk:</text>
+        <text x="${cardW}" y="14" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="11.5" font-weight="800" fill="#b91c1c">${formatPKR(riskData.atRiskRevenue)}</text>
+      </g>
+    </g>
+
+    <!-- Bottom subtitle -->
+    <text x="115" y="${height - 12}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Based on offline service &amp; consecutive dues</text>
+  </svg>`;
+}
+
 export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
-  const group = document.getElementById('dashboardTrendRangeGroup');
-  if (group && !group.dataset?.wired) {
-    if (group.dataset) group.dataset.wired = 'true';
-    else if (group.setAttribute) group.setAttribute('data-wired', 'true');
-    group.addEventListener('click', (e) => {
+  const trendGroup = document.getElementById('dashboardTrendRangeGroup');
+  if (trendGroup && !trendGroup.dataset?.wired) {
+    if (trendGroup.dataset) trendGroup.dataset.wired = 'true';
+    else if (trendGroup.setAttribute) trendGroup.setAttribute('data-wired', 'true');
+    trendGroup.addEventListener('click', (e) => {
       const btn = e.target.closest?.('.chart-range-btn');
       if (!btn) return;
       const m = parseInt(btn.dataset?.months || btn.getAttribute?.('data-months'), 10);
       if ([3, 6, 12].includes(m)) {
         setTrendChartDuration(m);
+        renderDashboardCharts(state, referenceDate);
+      }
+    });
+  }
+
+  const methodGroup = document.getElementById('dashboardMethodRangeGroup');
+  if (methodGroup && !methodGroup.dataset?.wired) {
+    if (methodGroup.dataset) methodGroup.dataset.wired = 'true';
+    else if (methodGroup.setAttribute) methodGroup.setAttribute('data-wired', 'true');
+    methodGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('.chart-range-btn');
+      if (!btn) return;
+      const period = btn.dataset?.period || btn.getAttribute?.('data-period');
+      if (['currentMonth', '30days', 'all'].includes(period)) {
+        setMethodChartPeriod(period);
         renderDashboardCharts(state, referenceDate);
       }
     });
@@ -609,9 +876,9 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
     trendEl.innerHTML = renderMonthlyTrendSvg(trends, { targetRevenue });
   }
 
-  // update range buttons active state
+  // update trend range buttons active state
   const rangeBtns = (typeof document.querySelectorAll === 'function')
-    ? document.querySelectorAll('.chart-range-btn')
+    ? document.querySelectorAll('#dashboardTrendRangeGroup .chart-range-btn')
     : [];
   rangeBtns.forEach(btn => {
     const m = parseInt(btn.dataset?.months || btn.getAttribute?.('data-months'), 10);
@@ -647,6 +914,29 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   if (healthEl) {
     const healthData = calculateCustomerHealthBreakdown(state, referenceDate);
     healthEl.innerHTML = renderCustomerHealthSvg(healthData);
+  }
+
+  const methodsEl = document.getElementById('dashboardMethodsChart');
+  if (methodsEl) {
+    const methodData = calculatePaymentMethodBreakdown(state, referenceDate, { period: currentMethodPeriod });
+    methodsEl.innerHTML = renderPaymentMethodSvg(methodData);
+  }
+
+  // update method range buttons active state
+  const methodRangeBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#dashboardMethodRangeGroup .chart-range-btn')
+    : [];
+  methodRangeBtns.forEach(btn => {
+    const p = btn.dataset?.period || btn.getAttribute?.('data-period');
+    const isActive = p === currentMethodPeriod;
+    if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
+    if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  const churnEl = document.getElementById('dashboardChurnChart');
+  if (churnEl) {
+    const churnData = calculateChurnRiskAnalysis(state, referenceDate);
+    churnEl.innerHTML = renderChurnRiskGaugeSvg(churnData);
   }
 
   setupDashboardChartsEvents(state, referenceDate);

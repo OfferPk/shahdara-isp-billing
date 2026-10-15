@@ -14,12 +14,14 @@ import {
   setupDashboardBriefingModal,
   setupCustomerHealthActions,
   setupAreaDrilldownModal,
-  setupChurnRiskModal
+  setupChurnRiskModal,
+  setupAreaHeatmapEvents
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
   calculateDuesByArea,
   calculateAreaDetailedBreakdown,
+  calculateAreaCollectionHeatmap,
   calculatePackageDistribution,
   renderMonthlyTrendSvg,
   renderBillStatusDonutSvg,
@@ -28,11 +30,14 @@ import {
   renderCustomerHealthSvg,
   renderPaymentMethodSvg,
   renderChurnRiskGaugeSvg,
+  renderAreaCollectionHeatmapSvg,
   renderDashboardCharts,
   setTrendChartDuration,
   getTrendChartDuration,
   setMethodChartPeriod,
   getMethodChartPeriod,
+  setHeatmapFilter,
+  getHeatmapFilter,
   setupDashboardChartsEvents,
   METHOD_COLORS
 } from '../dashboard-charts.js';
@@ -1118,4 +1123,283 @@ test('generateDashboardBriefingText and generateDashboardBriefingHtml include pa
   assert.ok(html.includes('RETENTION &amp; CHURN RISK'));
   assert.ok(html.includes('PAYMENT SETTLEMENT CHANNELS (2026-10)'));
   assert.ok(html.includes('JazzCash'));
+  assert.ok(text.includes('[ GEOGRAPHIC COLLECTION HEATMAP (2026-10) ]'));
+  assert.ok(text.includes('Overall Area Recovery:'));
+  assert.ok(html.includes('GEOGRAPHIC COLLECTION HEATMAP (2026-10)'));
+  assert.ok(html.includes('Overall Recovery:'));
 });
+
+test('calculateAreaCollectionHeatmap accurately calculates recovery rates, billed and collected amounts, and assigns efficiency tiers', () => {
+  let state = createInitialState(['AreaCust A', 'AreaCust B', 'AreaCust C']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer A in Shahdara Town: Billed 2000, Paid 2000 -> 100% (high/optimal)
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '2000', date: '2026-10-02', method: 'Cash' }, refDate);
+
+  // Customer B in Kot Abdul Malik: Billed 3000, Paid 2100 -> 70% (moderate)
+  state.customers[1].area = 'Kot Abdul Malik';
+  state.customers[1].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '2100', date: '2026-10-04', method: 'JazzCash' }, refDate);
+
+  // Customer C in Begum Kot: Billed 2000, Paid 800 -> 40% (lagging)
+  state.customers[2].area = 'Begum Kot';
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[2].id, '2026-10', { amount: '800', date: '2026-10-06', method: 'Easypaisa' }, refDate);
+
+  const heatmap = calculateAreaCollectionHeatmap(state, refDate);
+  assert.equal(heatmap.currentMonth, '2026-10');
+  assert.equal(heatmap.areas.length, 3);
+
+  const shahdara = heatmap.areas.find(a => a.area === 'Shahdara Town');
+  assert.ok(shahdara);
+  assert.equal(shahdara.billed, 2000);
+  assert.equal(shahdara.collected, 2000);
+  assert.equal(shahdara.totalDue, 0);
+  assert.equal(shahdara.recoveryRate, 100);
+  assert.equal(shahdara.tier, 'high');
+  assert.equal(shahdara.tierLabel, 'Optimal Recovery');
+  assert.equal(shahdara.heatColor, '#10b981');
+
+  const kot = heatmap.areas.find(a => a.area === 'Kot Abdul Malik');
+  assert.ok(kot);
+  assert.equal(kot.billed, 3000);
+  assert.equal(kot.collected, 2100);
+  assert.equal(kot.totalDue, 900);
+  assert.equal(kot.recoveryRate, 70);
+  assert.equal(kot.tier, 'moderate');
+  assert.equal(kot.tierLabel, 'Moderate Recovery');
+  assert.equal(kot.heatColor, '#f59e0b');
+
+  const begum = heatmap.areas.find(a => a.area === 'Begum Kot');
+  assert.ok(begum);
+  assert.equal(begum.billed, 2000);
+  assert.equal(begum.collected, 800);
+  assert.equal(begum.totalDue, 1200);
+  assert.equal(begum.recoveryRate, 40);
+  assert.equal(begum.tier, 'lagging');
+  assert.equal(begum.tierLabel, 'Lagging Collection');
+  assert.equal(begum.heatColor, '#ef4444');
+
+  // Summary assertions
+  assert.equal(heatmap.summary.totalAreas, 3);
+  assert.equal(heatmap.summary.highRecoveryCount, 1);
+  assert.equal(heatmap.summary.moderateRecoveryCount, 1);
+  assert.equal(heatmap.summary.laggingCount, 1);
+  assert.equal(heatmap.summary.totalBilled, 7000);
+  assert.equal(heatmap.summary.totalCollected, 4900);
+  assert.equal(heatmap.summary.totalOutstanding, 2100);
+  assert.equal(heatmap.summary.overallRecoveryRate, 70);
+  assert.equal(heatmap.summary.topPerformingArea.area, 'Shahdara Town');
+  assert.equal(heatmap.summary.topPerformingArea.rate, 100);
+  assert.equal(heatmap.summary.highestDueArea.area, 'Begum Kot');
+  assert.equal(heatmap.summary.highestDueArea.due, 1200);
+});
+
+test('calculateAreaCollectionHeatmap handles empty states, unassigned areas, and archived customers', () => {
+  let state = createInitialState(['Unassigned Cust', 'Archived Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer 0 has no area set
+  state.customers[0].area = '';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '1500', status: 'pending' }, refDate);
+
+  // Customer 1 is archived
+  state.customers[1].area = 'Hidden Area';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '2500', status: 'pending' }, refDate);
+  state.customers[1].archived = true;
+
+  const heatmap = calculateAreaCollectionHeatmap(state, refDate);
+  assert.equal(heatmap.areas.length, 1);
+  assert.equal(heatmap.areas[0].area, 'Unassigned');
+  assert.equal(heatmap.areas[0].billed, 1500);
+  assert.equal(heatmap.areas[0].collected, 0);
+  assert.equal(heatmap.areas[0].recoveryRate, 0);
+  assert.equal(heatmap.areas[0].tier, 'lagging');
+
+  // Completely empty state
+  const emptyHeatmap = calculateAreaCollectionHeatmap({ customers: [] }, refDate);
+  assert.equal(emptyHeatmap.areas.length, 0);
+  assert.equal(emptyHeatmap.summary.totalAreas, 0);
+  assert.equal(emptyHeatmap.summary.overallRecoveryRate, 0);
+  assert.equal(emptyHeatmap.summary.topPerformingArea, null);
+  assert.equal(emptyHeatmap.summary.highestDueArea, null);
+});
+
+test('renderAreaCollectionHeatmapSvg generates accessible SVG with summary chips and filters correctly', () => {
+  const dummyData = {
+    currentMonth: '2026-10',
+    areas: [
+      {
+        area: 'Shahdara Town',
+        customerCount: 10,
+        activeCount: 8,
+        offlineCount: 2,
+        billed: 16000,
+        collected: 15000,
+        totalDue: 1000,
+        recoveryRate: 94,
+        tier: 'high',
+        tierLabel: 'Optimal Recovery',
+        heatColor: '#10b981',
+        arpu: 2000
+      },
+      {
+        area: 'Vandala Dial Shah',
+        customerCount: 6,
+        activeCount: 5,
+        offlineCount: 1,
+        billed: 10000,
+        collected: 4000,
+        totalDue: 6000,
+        recoveryRate: 40,
+        tier: 'lagging',
+        tierLabel: 'Lagging Collection',
+        heatColor: '#ef4444',
+        arpu: 2000
+      }
+    ],
+    summary: {
+      totalAreas: 2,
+      highRecoveryCount: 1,
+      moderateRecoveryCount: 0,
+      laggingCount: 1,
+      totalBilled: 26000,
+      totalCollected: 19000,
+      totalOutstanding: 7000,
+      overallRecoveryRate: 73,
+      topPerformingArea: { area: 'Shahdara Town', rate: 94 },
+      highestDueArea: { area: 'Vandala Dial Shah', due: 6000 }
+    }
+  };
+
+  // 'all' filter renders both areas and status chips
+  const svgAll = renderAreaCollectionHeatmapSvg(dummyData, { filter: 'all' });
+  assert.ok(svgAll.includes('<svg class="chart-svg chart-heatmap-svg"'));
+  assert.ok(svgAll.includes('Optimal: <tspan fill="#047857">1</tspan>'));
+  assert.ok(svgAll.includes('Lagging: <tspan fill="#b91c1c">1</tspan>'));
+  assert.ok(svgAll.includes('Shahdara Town'));
+  assert.ok(svgAll.includes('Vandala Dial Shah'));
+  assert.ok(svgAll.includes('94%'));
+  assert.ok(svgAll.includes('40%'));
+
+  // 'high' filter renders only optimal areas
+  const svgHigh = renderAreaCollectionHeatmapSvg(dummyData, { filter: 'high' });
+  assert.ok(svgHigh.includes('Shahdara Town'));
+  assert.ok(!svgHigh.includes('Vandala Dial Shah'));
+
+  // 'moderate' filter has 0 areas, renders filter empty state
+  const svgMod = renderAreaCollectionHeatmapSvg(dummyData, { filter: 'moderate' });
+  assert.ok(svgMod.includes('No operational areas match the "moderate" recovery filter.'));
+
+  // empty data fallback
+  const svgEmpty = renderAreaCollectionHeatmapSvg(null);
+  assert.ok(svgEmpty.includes('No area collection data recorded'));
+});
+
+test('setHeatmapFilter and getHeatmapFilter validate and manage filter states', () => {
+  setHeatmapFilter('all');
+  assert.equal(getHeatmapFilter(), 'all');
+
+  setHeatmapFilter('high');
+  assert.equal(getHeatmapFilter(), 'high');
+
+  setHeatmapFilter('moderate');
+  assert.equal(getHeatmapFilter(), 'moderate');
+
+  setHeatmapFilter('lagging');
+  assert.equal(getHeatmapFilter(), 'lagging');
+
+  // Invalid value should be rejected
+  setHeatmapFilter('invalid-heat');
+  assert.equal(getHeatmapFilter(), 'lagging');
+
+  // Reset to 'all'
+  setHeatmapFilter('all');
+});
+
+test('setupDashboardChartsEvents handles heatmap filter button clicks', () => {
+  let filterClickHandler = null;
+
+  const fakeHeatmapGroup = {
+    dataset: {},
+    addEventListener: (evt, fn) => { filterClickHandler = fn; }
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardHeatmapActions') return fakeHeatmapGroup;
+      return null;
+    },
+    querySelectorAll: () => []
+  };
+
+  try {
+    setHeatmapFilter('all');
+    assert.equal(getHeatmapFilter(), 'all');
+
+    setupDashboardChartsEvents({}, new Date('2026-10-15'));
+    assert.ok(filterClickHandler !== null);
+
+    // Simulate clicking 'high' button
+    filterClickHandler({
+      target: {
+        closest: (sel) => ({
+          dataset: { filterHeat: 'high' },
+          getAttribute: () => 'high'
+        })
+      }
+    });
+
+    assert.equal(getHeatmapFilter(), 'high');
+  } finally {
+    globalThis.document = originalDocument;
+    setHeatmapFilter('all');
+  }
+});
+
+test('setupAreaHeatmapEvents wires click on area row to onFilterArea callback', () => {
+  let clickHandler = null;
+  let clickedArea = null;
+
+  const fakeContainer = {
+    dataset: {},
+    addEventListener: (evt, fn) => { clickHandler = fn; }
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardHeatmapChart') return fakeContainer;
+      return null;
+    }
+  };
+
+  try {
+    setupAreaHeatmapEvents({}, new Date('2026-10-15'), {
+      onFilterArea: (name) => { clickedArea = name; }
+    });
+
+    assert.ok(clickHandler !== null);
+
+    // Simulate clicking an area row
+    clickHandler({
+      target: {
+        closest: (sel) => ({
+          getAttribute: (attr) => (attr === 'aria-label' ? 'Begum Kot: Recovery 75%, Collected 1500, Due 500' : '')
+        })
+      }
+    });
+
+    assert.equal(clickedArea, 'Begum Kot');
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+

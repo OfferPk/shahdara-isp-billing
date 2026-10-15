@@ -999,6 +999,94 @@
   border-color: rgba(16, 185, 129, 0.4);
 }
 
+/* Geographic Collection Heatmap Card */
+.chart-card-heatmap {
+  background: var(--surface, #ffffff);
+}
+
+.heatmap-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-sunken, #edf3f0);
+  padding: 2px;
+  border-radius: 8px;
+}
+
+.heatmap-filter-btn {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: 700 11px/1 Manrope, system-ui, sans-serif;
+  color: var(--muted, #60756c);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.heatmap-filter-btn:hover {
+  color: var(--ink, #16342b);
+}
+
+.heatmap-filter-btn.is-active {
+  background: var(--surface, #ffffff);
+  color: var(--ink, #16342b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.heatmap-btn-high.is-active {
+  color: #047857;
+}
+
+.heatmap-btn-moderate.is-active {
+  color: #b45309;
+}
+
+.heatmap-btn-lagging.is-active {
+  color: #b91c1c;
+}
+
+.heatmap-area-row {
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.heatmap-area-row:hover {
+  opacity: 0.9;
+  transform: translateX(2px);
+}
+
+.heatmap-area-row:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 2px;
+}
+
+[data-theme="dark"] .chart-card-heatmap {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .heatmap-filter-group {
+  background: #101c18;
+}
+
+[data-theme="dark"] .heatmap-filter-btn.is-active {
+  background: #1e332c;
+  color: #e5ece9;
+}
+
+[data-theme="dark"] .heatmap-btn-high.is-active {
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .heatmap-btn-moderate.is-active {
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .heatmap-btn-lagging.is-active {
+  color: #fca5a5;
+}
+
 /* Print Styles */
 @media print {
   body > *:not(#dashboardView):not(dialog[open]) {

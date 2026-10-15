@@ -1,5 +1,5 @@
 import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions } from './core.js';
-import { calculateDuesByArea, calculateAreaDetailedBreakdown } from './dashboard-charts.js';
+import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
 
 function escapeXml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -449,6 +449,7 @@ export function generateDashboardBriefingText(state, referenceDate = new Date())
   const areas = calculateDuesByArea(state, referenceDate, 4);
   const methods = calculatePaymentMethodBreakdown(state, referenceDate, { period: 'currentMonth' });
   const churn = calculateChurnRiskAnalysis(state, referenceDate);
+  const heatmap = calculateAreaCollectionHeatmap(state, referenceDate);
   const monthStr = kpis.currentMonth;
   const dateStr = referenceDate.toISOString().slice(0, 10);
 
@@ -484,6 +485,19 @@ export function generateDashboardBriefingText(state, referenceDate = new Date())
     methods.methods.slice(0, 3).forEach((m, idx) => {
       lines.push(`  ${idx + 1}. ${m.method}: ${formatPKR(m.amount)} (${m.percent}%, ${m.count} txs)`);
     });
+  }
+
+  lines.push(
+    ``,
+    `[ GEOGRAPHIC COLLECTION HEATMAP (${monthStr}) ]`,
+    `• Overall Area Recovery: ${heatmap.summary.overallRecoveryRate}% across ${heatmap.summary.totalAreas} zones`,
+    `• Zone Health: ${heatmap.summary.highRecoveryCount} Optimal, ${heatmap.summary.moderateRecoveryCount} Moderate, ${heatmap.summary.laggingCount} Lagging`
+  );
+  if (heatmap.summary.topPerformingArea) {
+    lines.push(`• Top Performing Zone: ${heatmap.summary.topPerformingArea.area} (${heatmap.summary.topPerformingArea.rate}% recovery)`);
+  }
+  if (heatmap.summary.highestDueArea) {
+    lines.push(`• Highest Outstanding Dues: ${heatmap.summary.highestDueArea.area} (${formatPKR(heatmap.summary.highestDueArea.due)})`);
   }
 
   if (areas && areas.length > 0) {
@@ -540,6 +554,7 @@ export function generateDashboardBriefingHtml(state, referenceDate = new Date())
   const areas = calculateDuesByArea(state, referenceDate, 4);
   const methods = calculatePaymentMethodBreakdown(state, referenceDate, { period: 'currentMonth' });
   const churn = calculateChurnRiskAnalysis(state, referenceDate);
+  const heatmap = calculateAreaCollectionHeatmap(state, referenceDate);
   const monthStr = kpis.currentMonth;
   const dateStr = referenceDate.toISOString().slice(0, 10);
 
@@ -638,6 +653,20 @@ export function generateDashboardBriefingHtml(state, referenceDate = new Date())
           </tbody>
         </table>
         ` : '<p class="text-muted" style="margin: 4px 0; font-size: 11px;">No payments recorded in current billing month.</p>'}
+      </div>
+
+      <div class="briefing-divider"></div>
+
+      <div class="briefing-section">
+        <h5 class="briefing-sec-title">GEOGRAPHIC COLLECTION HEATMAP (${monthStr})</h5>
+        <div class="briefing-grid-2">
+          <div class="briefing-stat-row"><span>Overall Recovery:</span> <strong class="text-${heatmap.summary.overallRecoveryRate >= 80 ? 'success' : 'warning'}">${heatmap.summary.overallRecoveryRate}%</strong></div>
+          <div class="briefing-stat-row"><span>Total Zones:</span> <strong>${heatmap.summary.totalAreas} Areas</strong></div>
+          <div class="briefing-stat-row"><span>Optimal (≥85%):</span> <strong class="text-success">${heatmap.summary.highRecoveryCount}</strong></div>
+          <div class="briefing-stat-row"><span>Moderate (60-84%):</span> <strong class="text-warning">${heatmap.summary.moderateRecoveryCount}</strong></div>
+          <div class="briefing-stat-row"><span>Lagging (&lt;60%):</span> <strong class="text-danger">${heatmap.summary.laggingCount}</strong></div>
+          <div class="briefing-stat-row"><span>Top Recovery Zone:</span> <strong class="text-success">${escapeXml(heatmap.summary.topPerformingArea?.area || 'None')} (${heatmap.summary.topPerformingArea?.rate || 0}%)</strong></div>
+        </div>
       </div>
 
       ${areas.length > 0 ? `
@@ -991,10 +1020,37 @@ export function setupChurnRiskModal(state, referenceDate = new Date(), { onFilte
   });
 }
 
+/**
+ * Sets up interactions for the Geographic Area Heatmap, allowing direct clicking on
+ * area rows to filter the customer roster by area.
+ */
+export function setupAreaHeatmapEvents(state, referenceDate = new Date(), { onFilterArea } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+  const container = document.getElementById('dashboardHeatmapChart');
+  if (!container) return;
+
+  const isWired = container.dataset ? container.dataset.wired : container.getAttribute?.('data-wired');
+  if (!isWired) {
+    if (container.dataset) container.dataset.wired = 'true';
+    else if (container.setAttribute) container.setAttribute('data-wired', 'true');
+
+    container.addEventListener('click', (e) => {
+      const row = e.target.closest?.('.heatmap-area-row');
+      if (!row) return;
+      const ariaLabel = row.getAttribute?.('aria-label') || '';
+      const areaName = ariaLabel.split(':')[0]?.trim();
+      if (areaName && typeof onFilterArea === 'function') {
+        onFilterArea(areaName);
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
   calculateAreaDetailedBreakdown,
+  calculateAreaCollectionHeatmap,
   calculatePackageDistribution,
   renderMonthlyTrendSvg,
   renderBillStatusDonutSvg,
@@ -1003,12 +1059,16 @@ export {
   renderCustomerHealthSvg,
   renderPaymentMethodSvg,
   renderChurnRiskGaugeSvg,
+  renderAreaCollectionHeatmapSvg,
   renderDashboardCharts,
   setTrendChartDuration,
   getTrendChartDuration,
   setMethodChartPeriod,
   getMethodChartPeriod,
+  setHeatmapFilter,
+  getHeatmapFilter,
   setupDashboardChartsEvents,
   PKG_PALETTE,
   METHOD_COLORS
 } from './dashboard-charts.js';
+

@@ -389,10 +389,28 @@
         <div class="transaction-filters">
           <p id="transactionFilterHelp" class="transaction-filter-help">Customer search, recency, and exact payment date combine. Recent windows use actual payment dates in Pakistan local time—not the bill month—and include today. Results stay newest first. Each actual receipt stays one transaction; derived auto-credit allocations never add cash entries.</p>
           <label for="transactionRecencyFilter">Recent payments<select id="transactionRecencyFilter" aria-describedby="transactionFilterHelp"><option value="all" selected>All history</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label>
+          <label for="transactionMethodFilter">Payment method<select id="transactionMethodFilter"><option value="all" selected>All methods</option><option value="Cash">Cash</option><option value="EasyPaisa">EasyPaisa</option><option value="JazzCash">JazzCash</option><option value="Bank Transfer">Bank Transfer</option><option value="Other">Other</option></select></label>
           <label for="transactionDateFilter">Exact payment date<input id="transactionDateFilter" type="date"></label>
           <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
         </div>
+        <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">
+          <span class="tx-summary-item"><span class="tx-summary-label">Filtered total:</span> <strong id="txSummaryTotal">PKR 0</strong></span>
+          <span class="tx-summary-item"><span class="tx-summary-label">Average:</span> <span id="txSummaryAverage">PKR 0</span></span>
+        </div>
         <ul id="transactionsList" class="transactions-list" aria-label="All recorded payments"></ul>
+        <nav id="transactionPagination" class="table-pagination" aria-label="Transaction history pagination" hidden>
+          <button id="txPrevPage" class="pagination-btn" type="button" aria-label="Previous transactions page">← Previous</button>
+          <span id="txPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
+          <button id="txNextPage" class="pagination-btn" type="button" aria-label="Next transactions page">Next →</button>
+          <label class="pagination-size-label" for="txPageSize">Per page
+            <select id="txPageSize">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+        </nav>
         <p id="transactionsEmpty" class="transactions-empty" hidden>No recorded payments match these filters.</p>
       </div>
     </section>
@@ -406,8 +424,29 @@
           <button class="report-filter-button" type="button" data-report-filter="partial" aria-pressed="false">Partial</button>
           <button class="report-filter-button" type="button" data-report-filter="not-set" aria-pressed="false">Not set</button>
         </div>
+        <div class="report-search-bar">
+          <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area...">
+        </div>
+        <div id="monthlyReportSummaryBar" class="monthly-report-summary-bar" aria-live="polite">
+          <span class="report-summary-item"><span class="report-summary-label">Billed:</span> <strong id="reportSummaryBilled">PKR 0</strong></span>
+          <span class="report-summary-item"><span class="report-summary-label">Collected:</span> <span id="reportSummaryCollected">PKR 0</span></span>
+          <span class="report-summary-item"><span class="report-summary-label">Balance:</span> <span id="reportSummaryBalance">PKR 0</span></span>
+        </div>
         <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
         <ul id="monthlyReportList" class="monthly-report-list" aria-label="Customer payment status report"></ul>
+        <nav id="monthlyReportPagination" class="table-pagination" aria-label="Monthly report pagination" hidden>
+          <button id="reportPrevPage" class="pagination-btn" type="button" aria-label="Previous report page">← Previous</button>
+          <span id="reportPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
+          <button id="reportNextPage" class="pagination-btn" type="button" aria-label="Next report page">Next →</button>
+          <label class="pagination-size-label" for="reportPageSize">Per page
+            <select id="reportPageSize">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+        </nav>
         <p id="monthlyReportEmpty" class="transactions-empty" hidden>No customers match this status and search.</p>
         <p class="report-not-set-note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
         <section class="owner-report-panel" aria-labelledby="monthlyClosingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL MONTH CLOSE</p><h3 id="monthlyClosingHeading">Saved monthly closings</h3></div><p class="chart-caption">Created once when the app first opens in the next PKT calendar month. Status counts are manual values captured at the saved time, not monitored month-end status.</p></div><div id="savedMonthlyClosings" class="saved-closing-list" aria-live="polite"></div></section>

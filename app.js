@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -1646,6 +1646,77 @@ document.querySelectorAll('.mobile-bottom-nav button').forEach(btn => {
   btn.addEventListener('click', () => {
     triggerHaptic('light');
   });
+});
+
+// Setup Offline Queue Inspector Modal
+const queueModalController = setupOfflineQueueModal({
+  storage: localStorage,
+  onSync: (res) => {
+    if (res && res.processedCount > 0) {
+      try {
+        state = readState(localStorage);
+        renderCustomers();
+        renderDashboard();
+      } catch (err) {
+        console.error('Failed to reload state after offline sync:', err);
+      }
+    }
+  },
+  onToast: (msg) => toast(msg)
+});
+
+// Setup Offline Resilience & Sync Banner
+setupOfflineSyncBanner({
+  storage: localStorage,
+  onOpenQueue: () => queueModalController.open(),
+  onSyncProcessed: (res) => {
+    if (res && res.processedCount > 0) {
+      try {
+        state = readState(localStorage);
+        renderCustomers();
+        renderDashboard();
+      } catch (err) {
+        console.error('Failed to reload state after offline sync:', err);
+      }
+    }
+  },
+  onToast: (msg) => toast(msg)
+});
+
+// Setup Floating Mobile Speed Dial / Quick Action Dock
+setupMobileSpeedDial({
+  onSearchRoster: () => {
+    switchView('customers');
+    const search = $('#globalCustomerSearch') || $('#customerListSearch');
+    if (search) {
+      search.focus();
+      search.select?.();
+    }
+  },
+  onRecordPayment: () => {
+    const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment') || $('#currentBillPaymentShortcut');
+    if (btn) btn.click();
+    else {
+      switchView('customers');
+      toast('Select a customer to record payment');
+    }
+  },
+  onAddCustomer: () => {
+    const btn = $('#quickActionAddCustomer') || $('#addCustomerButton');
+    if (btn) btn.click();
+  },
+  onReminders: () => {
+    const btn = $('#openReminderModalBtn');
+    if (btn && !btn.hidden) {
+      btn.click();
+    } else {
+      switchView('customers');
+      toast('Select a customer to send WhatsApp payment reminders');
+    }
+  },
+  onScrollTop: () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 });
 
 document.addEventListener('click', event => {

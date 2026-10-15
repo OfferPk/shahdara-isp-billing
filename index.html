@@ -978,6 +978,46 @@
       </button>
     </div>
   </aside>
+  <div id="offlineSyncBanner" class="offline-sync-banner" role="status" aria-live="polite" hidden>
+    <div class="offline-sync-content">
+      <span id="offlineSyncIcon" class="offline-sync-icon" aria-hidden="true">⚡</span>
+      <span id="offlineSyncText" class="offline-sync-text">Working Offline · Local ledger active</span>
+    </div>
+    <div class="offline-sync-actions">
+      <button id="offlineSyncViewQueueBtn" class="offline-sync-btn-outline" type="button" aria-haspopup="dialog" hidden>View Queue</button>
+      <button id="offlineSyncRetryBtn" class="offline-sync-btn" type="button" hidden>Sync Now</button>
+      <button id="offlineSyncDismissBtn" class="offline-sync-dismiss" type="button" aria-label="Dismiss offline banner">×</button>
+    </div>
+  </div>
+
+  <div id="speedDialBackdrop" class="speed-dial-backdrop" hidden></div>
+  <div id="mobileSpeedDial" class="mobile-speed-dial" role="region" aria-label="Quick Navigation Speed Dial">
+    <div id="speedDialMenu" class="speed-dial-menu" role="menu" aria-label="Field Operator Shortcuts" hidden>
+      <button type="button" class="speed-dial-action" data-speed-action="search" role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🔍</span>
+        <span class="speed-action-label">Search Roster</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="payment" role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">💳</span>
+        <span class="speed-action-label">Record Payment</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="add-customer" role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">👤</span>
+        <span class="speed-action-label">Add Customer</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">💬</span>
+        <span class="speed-action-label">Reminders</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="scroll-top" role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🔝</span>
+        <span class="speed-action-label">Scroll to Top</span>
+      </button>
+    </div>
+    <button id="speedDialTrigger" class="speed-dial-trigger" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Quick Actions Speed Dial">
+      <span class="speed-dial-plus" aria-hidden="true">+</span>
+    </button>
+  </div>
   <dialog id="commandPaletteModal" class="command-palette-dialog" aria-labelledby="commandPaletteInput" aria-modal="true">
     <div class="command-palette-box">
       <div class="command-palette-search-row">
@@ -1092,6 +1132,29 @@
           <button id="printReminderSlipBtn" class="secondary-button" type="button">
             <span>🖨️ Print Reminder Slip</span>
           </button>
+        </div>
+      </div>
+    </section>
+  </dialog>
+  <dialog id="offlineQueueModal" class="modal queue-modal" aria-labelledby="offlineQueueModalTitle">
+    <section class="queue-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">LOCAL PERSISTENCE</p>
+          <h2 id="offlineQueueModalTitle">Pending Offline Actions</h2>
+        </div>
+        <button id="closeOfflineQueueModalBtn" class="close-button" type="button" aria-label="Close offline queue modal">×</button>
+      </div>
+      <div class="queue-modal-body">
+        <div class="queue-summary-bar">
+          <span id="queueItemCountBadge" class="queue-badge">0 items pending</span>
+          <span class="queue-note">Queued while offline · Saved to device storage</span>
+        </div>
+        <div id="offlineQueueList" class="offline-queue-list" role="list"></div>
+        <p id="offlineQueueEmptyMessage" class="empty-state" hidden>No pending actions in local offline queue.</p>
+        <div class="queue-modal-actions">
+          <button id="queueSyncAllBtn" class="primary-button" type="button">Sync Ledger Now</button>
+          <button id="queueClearAllBtn" class="secondary-button danger-button" type="button">Clear Queue</button>
         </div>
       </div>
     </section>

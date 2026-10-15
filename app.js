@@ -21,6 +21,7 @@ import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY 
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer } from './nav.js?v=1.10.0';
+import { validatePakistanPhone, validatePositiveAmount } from './form-validation.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -1402,6 +1403,9 @@ function prepareAreaIntelFilters(data) {
   from.max=data.asOf;to.max=data.asOf;
   if(!hadDates){from.value=`${data.currentMonth}-01`;to.value=data.asOf;}
 }
+let areaSortKey = null;
+let areaSortAsc = true;
+
 function renderAreaIntelligence() {
   const from=$('#areaIntelFrom')?.value,to=$('#areaIntelTo')?.value,table=$('#areaIntelligenceTable');if(!table)return;
   const areaChart=$('#areaRevenueChart'),zoneChart=$('#areaZoneRevenueChart'),packageChart=$('#packageRevenueChart'),basis=$('#areaIntelBasis');
@@ -1412,12 +1416,57 @@ function renderAreaIntelligence() {
     areaChart.innerHTML=namedAreas.length?categoryBarsSvg(namedAreas,{title:`Service-month revenue by area, ${from} to ${to}`}):'<p class="empty-state">No saved priced bill snapshots for named areas in this range.</p>';
     zoneChart.innerHTML=zones.length?categoryBarsSvg(zones,{title:`Service-month revenue by zone, ${from} to ${to}`}):'<p class="empty-state">No saved priced bill snapshots for named zones in this range.</p>';
     packageChart.innerHTML=packages.rows.length?categoryBarsSvg(packages.rows.map(row=>({label:row.package,value:row.revenue})),{title:`Service-month revenue by recorded package, ${from} to ${to}`}):'<p class="empty-state">No positive priced bill snapshots in the selected service months.</p>';
-    table.innerHTML=area.rows.map(row=>{
+    let areaRows = [...area.rows];
+    if (areaSortKey) {
+      areaRows.sort((a, b) => {
+        let cmp = 0;
+        if (areaSortKey === 'area') {
+          cmp = (a.area || '').localeCompare(b.area || '');
+        } else if (areaSortKey === 'totalCustomers') {
+          cmp = (a.totalCustomers || 0) - (b.totalCustomers || 0);
+        } else if (areaSortKey === 'activeCustomers') {
+          const vA = a.activeCustomers === null ? -1 : a.activeCustomers;
+          const vB = b.activeCustomers === null ? -1 : b.activeCustomers;
+          cmp = vA - vB;
+        } else if (areaSortKey === 'billedAmount') {
+          const vA = a.billedAmount === null ? -1 : a.billedAmount;
+          const vB = b.billedAmount === null ? -1 : b.billedAmount;
+          cmp = vA - vB;
+        } else if (areaSortKey === 'collectedAmount') {
+          const vA = a.collectedAmount === null ? -1 : a.collectedAmount;
+          const vB = b.collectedAmount === null ? -1 : b.collectedAmount;
+          cmp = vA - vB;
+        } else if (areaSortKey === 'outstanding') {
+          const vA = a.outstanding === null ? -1 : a.outstanding;
+          const vB = b.outstanding === null ? -1 : b.outstanding;
+          cmp = vA - vB;
+        } else if (areaSortKey === 'collectionRate') {
+          const vA = a.collectionRate === null ? -1 : a.collectionRate;
+          const vB = b.collectionRate === null ? -1 : b.collectionRate;
+          cmp = vA - vB;
+        }
+        return areaSortAsc ? cmp : -cmp;
+      });
+    }
+
+    document.querySelectorAll('[data-sort-area]').forEach(th => {
+      const key = th.dataset.sortArea;
+      const indicator = th.querySelector('.sort-indicator');
+      if (areaSortKey === key) {
+        th.setAttribute('aria-sort', areaSortAsc ? 'ascending' : 'descending');
+        if (indicator) indicator.textContent = areaSortAsc ? ' ↑' : ' ↓';
+      } else {
+        th.setAttribute('aria-sort', 'none');
+        if (indicator) indicator.textContent = '';
+      }
+    });
+
+    table.innerHTML=areaRows.map(row=>{
       const label=`${row.area}`;const active=row.activeCustomers===null?'Not recorded for this historical date':String(row.activeCustomers);
       const amountOrMissing=value=>value===null?'Not recorded':formatAmount(value);
       return `<tr class="area-row-${phase3Cell(row.level)}"><th scope="row"><span class="location-summary-label location-summary-${phase3Cell(row.level)}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${phase3Cell(row.level==='unassigned'?'Unassigned':row.level)}</span><span class="location-summary-value">${phase3Cell(label.replace(/^(?:Area|Mohalla|Zone):\s*/,''))}</span></span></th><td>${row.totalCustomers}</td><td title="${phase3Cell(row.activeCustomerSource)}">${phase3Cell(active)}</td><td>${phase3Cell(amountOrMissing(row.billedAmount))}</td><td>${phase3Cell(amountOrMissing(row.collectedAmount))}</td><td>${phase3Cell(amountOrMissing(row.outstanding))}</td><td>${row.collectionRate===null?'Not set':`${row.collectionRate}%`}</td><td>${phase3Cell(amountOrMissing(row.averageCustomerValue))}</td><td title="${phase3Cell(row.expensesSource)}">${phase3Cell(amountOrMissing(row.expenses))}</td><td title="${phase3Cell(row.estimatedProfitBasis)}">${phase3Cell(amountOrMissing(row.estimatedProfit))}</td></tr>`;
     }).join('');
-    $('#areaIntelligenceEmpty').hidden=area.rows.length>0;
+    $('#areaIntelligenceEmpty').hidden=areaRows.length>0;
     basis.textContent=`${from} to ${to}. ${area.basis.customers} ${area.basis.activeCustomers} ${area.basis.billing} ${area.basis.collection} ${area.basis.outstanding} ${area.basis.collectionRate} ${area.basis.averageCustomerValue} ${area.basis.expenses} ${area.basis.profit}${area.unallocatedExpenseCount?` ${area.unallocatedExpenseCount} expense record(s) in this range have no location tag.`:''} ${packages.basis}`;
   } catch(error) {
     table.replaceChildren();$('#areaIntelligenceEmpty').hidden=false;$('#areaIntelligenceEmpty').textContent=error.message;
@@ -1479,6 +1528,11 @@ function renderAnalytics() {
   $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
 }
+let inventorySortKey = 'name';
+let inventorySortAsc = true;
+let inventoryCategoryFilter = 'all';
+let inventorySearchQuery = '';
+
 function renderInventory() {
   const summary=inventorySummary(state),items=summary.items;
   const metric=(id,value)=>{const node=$(`#${id}`);if(node)node.textContent=value;};
@@ -1486,9 +1540,68 @@ function renderInventory() {
   metric('inventoryOnuStock',readableStock(items,'ONU'));metric('inventoryRouterStock',readableStock(items,'Router'));metric('inventoryFiberStock',readableStock(items,'Fiber cable'));metric('inventoryConnectorStock',readableStock(items,'Connector'));metric('inventoryAdapterStock',readableStock(items,'Adapter / power supply'));
   metric('inventoryLowStock',summary.hasMovements?String(summary.lowStockItems):'Not set');metric('inventoryInstalled',summary.hasMovements?String(summary.installed):'Not set');metric('inventoryDamaged',summary.hasMovements?String(summary.damaged):'Not set');metric('inventoryReturned',summary.hasMovements?String(summary.returned):'Not set');
   metric('inventoryValue',summary.hasMovements?formatAmount(summary.availableValue):'Not set');
+
+  const allItems = items;
+  const filteredItems = allItems.filter(item => {
+    if (inventoryCategoryFilter !== 'all' && item.category !== inventoryCategoryFilter) return false;
+    if (inventorySearchQuery) {
+      const q = inventorySearchQuery.toLowerCase();
+      const name = (item.name || '').toLowerCase();
+      const cat = (item.category || '').toLowerCase();
+      const notes = (item.notes || '').toLowerCase();
+      if (!name.includes(q) && !cat.includes(q) && !notes.includes(q)) return false;
+    }
+    return true;
+  });
+
+  filteredItems.sort((a, b) => {
+    let cmp = 0;
+    if (inventorySortKey === 'name') {
+      cmp = (a.name || '').localeCompare(b.name || '');
+    } else if (inventorySortKey === 'category') {
+      cmp = (a.category || '').localeCompare(b.category || '');
+    } else if (inventorySortKey === 'available') {
+      const avA = a.hasMovements ? (a.available || 0) : -1;
+      const avB = b.hasMovements ? (b.available || 0) : -1;
+      cmp = avA - avB;
+    } else if (inventorySortKey === 'unitCost') {
+      const cA = a.unitCost !== null && a.unitCost !== undefined ? Number(a.unitCost) : -1;
+      const cB = b.unitCost !== null && b.unitCost !== undefined ? Number(b.unitCost) : -1;
+      cmp = cA - cB;
+    } else if (inventorySortKey === 'value') {
+      const vA = a.hasMovements && a.value !== null ? Number(a.value) : -1;
+      const vB = b.hasMovements && b.value !== null ? Number(b.value) : -1;
+      cmp = vA - vB;
+    }
+    return inventorySortAsc ? cmp : -cmp;
+  });
+
+  const countEl = $('#inventoryTableCount');
+  if (countEl) {
+    if (inventoryCategoryFilter !== 'all' || inventorySearchQuery) {
+      countEl.textContent = `Showing ${filteredItems.length} of ${allItems.length} items`;
+    } else {
+      countEl.textContent = allItems.length ? `${allItems.length} item definitions` : '';
+    }
+  }
+
+  document.querySelectorAll('[data-sort-inventory]').forEach(th => {
+    const key = th.dataset.sortInventory;
+    const indicator = th.querySelector('.sort-indicator');
+    if (inventorySortKey === key) {
+      th.setAttribute('aria-sort', inventorySortAsc ? 'ascending' : 'descending');
+      if (indicator) indicator.textContent = inventorySortAsc ? ' ↑' : ' ↓';
+    } else {
+      th.setAttribute('aria-sort', 'none');
+      if (indicator) indicator.textContent = '';
+    }
+  });
+
   const itemsTable=$('#inventoryItemsTable');
-  itemsTable.innerHTML=items.map(item=>`<tr><th scope="row">${phase3Cell(item.name)}</th><td>${phase3Cell(item.category)}</td><td>${item.hasMovements?new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available):'Not recorded'}</td><td>${phase3Cell(item.unit)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)}</td><td>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</td><td>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</td><td>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</td><td><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></td></tr>`).join('');
-  $('#inventoryItemsEmpty').hidden=items.length>0;
+  itemsTable.innerHTML=filteredItems.map(item=>`<tr><th scope="row">${phase3Cell(item.name)}</th><td>${phase3Cell(item.category)}</td><td>${item.hasMovements?new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available):'Not recorded'}</td><td>${phase3Cell(item.unit)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)}</td><td>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</td><td>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</td><td>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</td><td><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></td></tr>`).join('');
+  $('#inventoryItemsEmpty').hidden=allItems.length>0;
+  const filterEmpty = $('#inventoryItemsFilterEmpty');
+  if (filterEmpty) filterEmpty.hidden = !(allItems.length > 0 && filteredItems.length === 0);
   const itemSelect=$('#movementItemId'),selected=itemSelect.value;
   itemSelect.innerHTML='<option value="">Choose item</option>'+items.map(item=>`<option value="${phase3Cell(item.id)}">${phase3Cell(item.name)} · ${phase3Cell(item.category)} (${phase3Cell(item.unit)})</option>`).join('');
   if(items.some(item=>item.id===selected))itemSelect.value=selected;
@@ -1500,6 +1613,11 @@ function renderInventory() {
   itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
   $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement||!window.confirm(`Delete the ${movement.type} movement of ${movement.quantity} ${movement.unit} dated ${movement.date}? This may change all current inventory balances.`))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.');}catch(error){toast(error.message);}}));
 }
+let expenseSortKey = 'date';
+let expenseSortAsc = false;
+let expenseCategoryFilter = 'all';
+let expenseSearchQuery = '';
+
 function renderExpenses() {
   const payrollMonths=monthsForHistory();
   if(!payrollMonths.includes(selectedPayrollMonth))selectedPayrollMonth=payrollMonths[0];
@@ -1519,15 +1637,56 @@ function renderExpenses() {
   $('#umairWorkdaysEmpty').hidden=payroll.umairWorkdays.length>0;
   $('#saadAttendanceList').querySelectorAll('[data-remove-attendance]').forEach(button=>button.addEventListener('click',()=>{const date=button.dataset.removeAttendance;if(!window.confirm(`Remove Saad's manually logged attendance day dated ${date}?`))return;try{state=removeSaadAttendanceDay(state,date);save();toast('Attendance date removed from this device.');}catch(error){toast(error.message);}}));
   $('#umairWorkdaysList').querySelectorAll('[data-remove-workday]').forEach(button=>button.addEventListener('click',()=>{const date=button.dataset.removeWorkday;if(!window.confirm(`Remove Umair's manually logged workday dated ${date}?`))return;try{state=removeUmairWorkday(state,date);save();toast('Workday removed from this device.');}catch(error){toast(error.message);}}));
-  const rows=[...(state.expenses??[])].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
-  $('#expenseEntryCount').textContent=rows.length?String(rows.length):'No entries';
-  $('#expenseEntryHelp').textContent=rows.length?'Actual dated expenses recorded on this device.':'No expense entries recorded; not an assertion that spending was zero.';
-  const current=buildPhase3Analytics(state,new Date()).currentMonth,monthRows=rows.filter(row=>row.date.slice(0,7)===current);
+  const allRows=[...(state.expenses??[])];
+  $('#expenseEntryCount').textContent=allRows.length?String(allRows.length):'No entries';
+  $('#expenseEntryHelp').textContent=allRows.length?'Actual dated expenses recorded on this device.':'No expense entries recorded; not an assertion that spending was zero.';
+  const current=buildPhase3Analytics(state,new Date()).currentMonth,monthRows=allRows.filter(row=>row.date.slice(0,7)===current);
   $('#expenseCurrentMonthTotal').textContent=monthRows.length?formatAmount(monthRows.reduce((sum,row)=>sum+Number(row.amount),0)):'No entries';
-  $('#expenseTable').innerHTML=rows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
-  $('#expensesEmpty').hidden=rows.length>0;
-  $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{const row=rows.find(item=>item.id===button.dataset.editExpense);if(!row)return;$('#expenseId').value=row.id;$('#expenseDate').value=row.date;$('#expenseAmount').value=row.amount;$('#expenseCategory').value=row.category;$('#expenseNotes').value=row.notes??'';$('#expenseSubmit').textContent='Save expense correction';$('#expenseCancel').hidden=false;$('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});}));
-  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{const row=rows.find(item=>item.id===button.dataset.deleteExpense);if(!row||!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category} expense dated ${row.date}?`))return;try{state=deleteExpense(state,row.id);save();toast('Expense entry deleted from this device.');}catch(error){toast(error.message);}}));
+
+  const filteredRows=allRows.filter(row=>{
+    if(expenseCategoryFilter!=='all'&&row.category!==expenseCategoryFilter)return false;
+    if(expenseSearchQuery){
+      const q=expenseSearchQuery.toLowerCase();
+      const matchCat=String(row.category||'').toLowerCase().includes(q);
+      const matchNotes=String(row.notes||'').toLowerCase().includes(q);
+      if(!matchCat&&!matchNotes)return false;
+    }
+    return true;
+  });
+
+  filteredRows.sort((a,b)=>{
+    let cmp=0;
+    if(expenseSortKey==='date'){
+      cmp=a.date.localeCompare(b.date)||a.id.localeCompare(b.id);
+    }else if(expenseSortKey==='category'){
+      cmp=a.category.localeCompare(b.category)||b.date.localeCompare(a.date);
+    }else if(expenseSortKey==='amount'){
+      cmp=(Number(a.amount)||0)-(Number(b.amount)||0)||b.date.localeCompare(a.date);
+    }
+    return expenseSortAsc?cmp:-cmp;
+  });
+
+  $('#expenseTable').innerHTML=filteredRows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
+  $('#expensesEmpty').hidden=allRows.length>0;
+  const filterEmpty=$('#expensesFilterEmpty');
+  if(filterEmpty)filterEmpty.hidden=allRows.length===0||filteredRows.length>0;
+  const countBadge=$('#expenseTableCount');
+  if(countBadge){
+    if(!allRows.length)countBadge.textContent='';
+    else if(filteredRows.length===allRows.length)countBadge.textContent=`${allRows.length} expense${allRows.length===1?'':'s'}`;
+    else countBadge.textContent=`Showing ${filteredRows.length} of ${allRows.length} expenses`;
+  }
+
+  document.querySelectorAll('[data-sort-expense]').forEach(th=>{
+    const key=th.dataset.sortExpense;
+    const isCurrent=key===expenseSortKey;
+    th.setAttribute('aria-sort',isCurrent?(expenseSortAsc?'ascending':'descending'):'none');
+    const indicator=th.querySelector('.sort-indicator');
+    if(indicator)indicator.textContent=isCurrent?(expenseSortAsc?'↑':'↓'):'';
+  });
+
+  $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{const row=allRows.find(item=>item.id===button.dataset.editExpense);if(!row)return;$('#expenseId').value=row.id;$('#expenseDate').value=row.date;$('#expenseAmount').value=row.amount;$('#expenseCategory').value=row.category;$('#expenseNotes').value=row.notes??'';$('#expenseSubmit').textContent='Save expense correction';$('#expenseCancel').hidden=false;$('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});}));
+  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{const row=allRows.find(item=>item.id===button.dataset.deleteExpense);if(!row||!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category} expense dated ${row.date}?`))return;try{state=deleteExpense(state,row.id);save();toast('Expense entry deleted from this device.');}catch(error){toast(error.message);}}));
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
@@ -1537,6 +1696,131 @@ $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
 $('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={date:data.get('date'),amount:data.get('amount'),category:data.get('category'),notes:data.get('notes')};try{const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;state=id?updateExpense(state,id,fields):addExpense(state,fields);save();resetExpenseForm();toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');}catch(error){toast(error.message);}});
 $('#expenseCancel').addEventListener('click',resetExpenseForm);
+document.querySelectorAll('[data-sort-expense]').forEach(th=>{
+  const toggle=()=>{
+    const key=th.dataset.sortExpense;
+    if(expenseSortKey===key){
+      expenseSortAsc=!expenseSortAsc;
+    }else{
+      expenseSortKey=key;
+      expenseSortAsc=(key==='category');
+    }
+    renderExpenses();
+  };
+  th.addEventListener('click',toggle);
+  th.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();
+      toggle();
+    }
+  });
+});
+$('#expenseCategoryFilter')?.addEventListener('change',e=>{
+  expenseCategoryFilter=e.currentTarget.value;
+  renderExpenses();
+});
+$('#expenseSearchInput')?.addEventListener('input',e=>{
+  expenseSearchQuery=e.currentTarget.value.trim();
+  renderExpenses();
+});
+$('#clearExpenseFilters')?.addEventListener('click',()=>{
+  expenseCategoryFilter='all';
+  expenseSearchQuery='';
+  const cat=$('#expenseCategoryFilter');if(cat)cat.value='all';
+  const inp=$('#expenseSearchInput');if(inp)inp.value='';
+  renderExpenses();
+});
+document.querySelectorAll('[data-sort-inventory]').forEach(th=>{
+  const toggle=()=>{
+    const key=th.dataset.sortInventory;
+    if(inventorySortKey===key){
+      inventorySortAsc=!inventorySortAsc;
+    }else{
+      inventorySortKey=key;
+      inventorySortAsc=(key==='name'||key==='category');
+    }
+    renderInventory();
+  };
+  th.addEventListener('click',toggle);
+  th.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();
+      toggle();
+    }
+  });
+});
+$('#inventoryCategoryFilter')?.addEventListener('change',e=>{
+  inventoryCategoryFilter=e.currentTarget.value;
+  renderInventory();
+});
+$('#inventorySearchInput')?.addEventListener('input',e=>{
+  inventorySearchQuery=e.currentTarget.value.trim();
+  renderInventory();
+});
+$('#clearInventoryFilters')?.addEventListener('click',()=>{
+  inventoryCategoryFilter='all';
+  inventorySearchQuery='';
+  const cat=$('#inventoryCategoryFilter');if(cat)cat.value='all';
+  const inp=$('#inventorySearchInput');if(inp)inp.value='';
+  renderInventory();
+});
+document.querySelectorAll('[data-sort-area]').forEach(th=>{
+  const toggle=()=>{
+    const key=th.dataset.sortArea;
+    if(areaSortKey===key){
+      areaSortAsc=!areaSortAsc;
+    }else{
+      areaSortKey=key;
+      areaSortAsc=(key==='area');
+    }
+    renderAreaIntelligence();
+  };
+  th.addEventListener('click',toggle);
+  th.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){
+      e.preventDefault();
+      toggle();
+    }
+  });
+});
+function wirePhoneValidationHelper(inputId,hintId){
+  const input=$(inputId);
+  const hint=$(hintId);
+  if(!input||!hint)return;
+  const update=()=>{
+    const val=input.value;
+    const res=validatePakistanPhone(val);
+    if(res.empty){
+      hint.textContent='';
+      hint.className='phone-validation-hint';
+      input.removeAttribute('aria-invalid');
+    }else if(res.valid){
+      hint.textContent=res.message;
+      hint.className='phone-validation-hint '+(res.tip?'tip':'valid');
+      input.removeAttribute('aria-invalid');
+    }else{
+      hint.textContent=res.message;
+      hint.className='phone-validation-hint '+(res.tip?'tip':'invalid');
+      if(!res.tip)input.setAttribute('aria-invalid','true');
+      else input.removeAttribute('aria-invalid');
+    }
+  };
+  input.addEventListener('input',update);
+}
+wirePhoneValidationHelper('#phoneInput','#phoneValidationHint');
+wirePhoneValidationHelper('#newCustomerPhone','#newCustomerPhoneHint');
+['#monthlySellingAmountInput','#monthlyPurchaseCostInput','#expenseAmount','#movementQuantity','#inventoryMinimum','#inventoryUnitCost'].forEach(sel=>{
+  const node=$(sel);
+  if(!node)return;
+  node.addEventListener('input',()=>{
+    const val=node.value;
+    if(val!==''&&Number(val)<0){
+      node.setAttribute('aria-invalid','true');
+    }else{
+      node.removeAttribute('aria-invalid');
+    }
+  });
+});
 $('#saadAttendanceForm').addEventListener('submit',event=>{event.preventDefault();const date=new FormData(event.currentTarget).get('date');try{if((state.saadAttendanceDays??[]).includes(date)){toast('That attendance date is already recorded; no duplicate was added.');return;}state=addSaadAttendanceDay(state,date);save();event.currentTarget.reset();toast('Saad attendance day recorded on this device.');}catch(error){toast(error.message);}});
 $('#umairWorkdayForm').addEventListener('submit',event=>{event.preventDefault();const date=new FormData(event.currentTarget).get('date');try{if((state.umairWorkdays??[]).includes(date)){toast('That workday is already recorded; no duplicate expense was added.');return;}state=addUmairWorkday(state,date);save();event.currentTarget.reset();toast('Umair workday recorded on this device.');}catch(error){toast(error.message);}});
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});

@@ -1674,3 +1674,323 @@ test('setupOfflineQueueModal renders pending items, clears queue, and handles sy
     globalThis.document = origDoc;
   }
 });
+
+test('index.html and nav.css provide markup and styling for mobile breadcrumbs and tab slider', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+
+  // Markup assertions
+  assert.match(indexHtml, /<nav id="mobileBreadcrumbBar" class="mobile-breadcrumb-bar" aria-label="Breadcrumb navigation" hidden>/);
+  assert.match(indexHtml, /id="breadcrumbBackBtn" class="breadcrumb-back-btn"/);
+  assert.match(indexHtml, /id="breadcrumbList" class="breadcrumb-list" role="list"/);
+
+  // CSS assertions
+  assert.match(navCss, /\.mobile-breadcrumb-bar\s*\{/);
+  assert.match(navCss, /\.breadcrumb-back-btn\s*\{/);
+  assert.match(navCss, /\.breadcrumb-list\s*\{/);
+  assert.match(navCss, /\.breadcrumb-link\s*\{/);
+  assert.match(navCss, /\.breadcrumb-separator\s*\{/);
+  assert.match(navCss, /\.breadcrumb-current-label\s*\{/);
+  assert.match(navCss, /\.nav-slider-indicator\s*\{/);
+  assert.match(navCss, /\[data-theme="dark"\]\s*\.mobile-breadcrumb-bar/);
+  assert.match(navCss, /\[data-theme="dark"\]\s*\.nav-slider-indicator/);
+  assert.match(navCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.nav-slider-indicator/);
+});
+
+test('app.js imports and initializes setupMobileBreadcrumbs and setupTabSliderIndicator', () => {
+  const appCode = read('app.js');
+  assert.match(appCode, /setupMobileBreadcrumbs/);
+  assert.match(appCode, /setupTabSliderIndicator/);
+  assert.match(appCode, /mobileBreadcrumbs\s*=\s*setupMobileBreadcrumbs\(\{/);
+  assert.match(appCode, /tabSlider\s*=\s*setupTabSliderIndicator\(\{/);
+  assert.match(appCode, /mobileBreadcrumbs\?\.setBreadcrumbs\(/);
+  assert.match(appCode, /tabSlider\?\.updateSlider\(\)/);
+  assert.match(appCode, /mobileBreadcrumbs\?\.pushCrumb\(/);
+});
+
+test('setupMobileBreadcrumbs manages stack, rendering, navigation callbacks, and back actions', async () => {
+  const { setupMobileBreadcrumbs } = await import('../nav.js');
+
+  const listeners = new Map();
+  const makeElement = (tag, id = '') => {
+    let htmlContent = '';
+    const el = {
+      tagName: tag.toUpperCase(),
+      id,
+      className: '',
+      hidden: false,
+      attributes: new Map(),
+      children: [],
+      dataset: {},
+      get innerHTML() { return htmlContent; },
+      set innerHTML(val) {
+        htmlContent = val;
+        if (val === '') this.children = [];
+      },
+      setAttribute(k, v) { this.attributes.set(k, v); },
+      getAttribute(k) { return this.attributes.get(k); },
+      removeAttribute(k) { this.attributes.delete(k); },
+      appendChild(c) { this.children.push(c); },
+      addEventListener(ev, fn) {
+        listeners.set(`${id || tag}:${ev}`, fn);
+      },
+      removeEventListener(ev, fn) {
+        listeners.delete(`${id || tag}:${ev}`);
+      },
+      querySelectorAll(sel) {
+        const found = [];
+        const traverse = (node) => {
+          if (!node) return;
+          if (sel.includes('button') && node.tagName === 'BUTTON') found.push(node);
+          if (Array.isArray(node.children)) node.children.forEach(traverse);
+        };
+        traverse(this);
+        return found;
+      }
+    };
+    return el;
+  };
+
+  const container = makeElement('nav', 'mobileBreadcrumbBar');
+  const list = makeElement('ol', 'breadcrumbList');
+  const backBtn = makeElement('button', 'breadcrumbBackBtn');
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'mobileBreadcrumbBar') return container;
+      if (id === 'breadcrumbList') return list;
+      if (id === 'breadcrumbBackBtn') return backBtn;
+      return null;
+    },
+    createElement(tag) {
+      return makeElement(tag);
+    }
+  };
+
+  try {
+    let navigatedTo = null;
+    const breadcrumbs = setupMobileBreadcrumbs({
+      containerId: 'mobileBreadcrumbBar',
+      listId: 'breadcrumbList',
+      backBtnId: 'breadcrumbBackBtn',
+      initialCrumbs: [{ id: 'home', label: 'Home' }],
+      hideOnSingle: true,
+      maxItems: 4,
+      onNavigate: (id, data, crumb) => {
+        navigatedTo = { id, data, crumb };
+      }
+    });
+
+    // Initially single root item: container and backBtn hidden
+    assert.equal(container.hidden, true);
+    assert.equal(backBtn.hidden, true);
+    assert.equal(list.children.length, 1);
+    assert.equal(list.children[0].attributes.get('aria-current'), 'page');
+    assert.equal(list.children[0].children[0].textContent, 'Home');
+
+    // Push new crumb: 'customers'
+    breadcrumbs.pushBreadcrumb({ id: 'customers', label: 'Customers' });
+    assert.equal(container.hidden, false);
+    assert.equal(backBtn.hidden, false);
+    assert.equal(backBtn.attributes.get('aria-label'), 'Back to Home');
+    assert.equal(list.children.length, 2);
+
+    // Prior crumb is button link, last crumb is current page
+    const firstLi = list.children[0];
+    const secondLi = list.children[1];
+    assert.equal(firstLi.children[0].tagName, 'BUTTON');
+    assert.equal(firstLi.children[0].textContent, 'Home');
+    assert.equal(firstLi.children[1].className, 'breadcrumb-separator');
+    assert.equal(secondLi.attributes.get('aria-current'), 'page');
+    assert.equal(secondLi.children[0].textContent, 'Customers');
+
+    // Push customer detail crumb: 'cust-101'
+    breadcrumbs.pushBreadcrumb({ id: 'cust-101', label: 'Ali Raza', data: { customerId: 101 } });
+    assert.equal(list.children.length, 3);
+    assert.equal(backBtn.attributes.get('aria-label'), 'Back to Customers');
+
+    // Push duplicate crumb (navigating to an existing crumb in trail)
+    breadcrumbs.pushBreadcrumb({ id: 'customers', label: 'Customers List' });
+    assert.equal(list.children.length, 2);
+    assert.equal(list.children[1].children[0].textContent, 'Customers List');
+
+    // Push multiple crumbs up to maxItems boundary
+    breadcrumbs.pushBreadcrumb({ id: 'section-a', label: 'Section A' });
+    breadcrumbs.pushBreadcrumb({ id: 'section-b', label: 'Section B' });
+    breadcrumbs.pushBreadcrumb({ id: 'section-c', label: 'Section C' });
+    const trail = breadcrumbs.getBreadcrumbTrail();
+    assert.equal(trail.length, 4); // maxItems is 4, root preserved
+    assert.equal(trail[0].id, 'home');
+    assert.equal(trail[trail.length - 1].id, 'section-c');
+
+    // Test clicking back button
+    assert.ok(listeners.has('breadcrumbBackBtn:click'));
+    listeners.get('breadcrumbBackBtn:click')();
+    assert.ok(navigatedTo);
+    assert.equal(navigatedTo.id, 'section-b');
+    assert.equal(breadcrumbs.getBreadcrumbTrail().length, 3);
+
+    // Test popCrumb explicitly
+    const popped = breadcrumbs.popCrumb();
+    assert.equal(popped.id, 'section-b');
+    assert.equal(navigatedTo.id, 'section-a');
+
+    // Test resetBreadcrumbs
+    breadcrumbs.resetBreadcrumbs([{ id: 'home', label: 'Overview' }]);
+    assert.equal(breadcrumbs.getBreadcrumbTrail().length, 1);
+    assert.equal(container.hidden, true);
+
+    // Test setBreadcrumbTrail
+    breadcrumbs.setBreadcrumbTrail([
+      { id: 'home', label: 'Home' },
+      { id: 'reports', label: 'Reports' },
+      { id: 'monthly', label: 'Monthly Summary' }
+    ]);
+    assert.equal(breadcrumbs.getBreadcrumbTrail().length, 3);
+    assert.equal(container.hidden, false);
+    assert.equal(backBtn.hidden, false);
+
+    // Test keyboard navigation handler
+    assert.ok(listeners.has('breadcrumbList:keydown'));
+    const keydownHandler = listeners.get('breadcrumbList:keydown');
+    let focusedBtn = null;
+    const mockFocusable1 = { tagName: 'BUTTON', className: 'breadcrumb-link', focus: () => { focusedBtn = 1; } };
+    const mockFocusable2 = { tagName: 'BUTTON', className: 'breadcrumb-link', focus: () => { focusedBtn = 2; } };
+    list.querySelectorAll = () => [mockFocusable1, mockFocusable2];
+
+    globalThis.document.activeElement = mockFocusable1;
+    let prevented = false;
+    keydownHandler({ key: 'ArrowRight', preventDefault: () => { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(focusedBtn, 2);
+
+    // Clean up
+    breadcrumbs.destroy();
+    assert.equal(listeners.has('breadcrumbBackBtn:click'), false);
+    assert.equal(listeners.has('breadcrumbList:keydown'), false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('setupTabSliderIndicator creates indicator, updates position and styles, and cleans up', async () => {
+  const { setupTabSliderIndicator } = await import('../nav.js');
+
+  const listeners = new Map();
+  const windowListeners = new Map();
+
+  const mockTab1 = {
+    nodeType: 1,
+    id: 'tab-home',
+    dataset: { mobileNav: 'home' },
+    attributes: new Map([['aria-current', 'page']]),
+    getAttribute(k) { return this.attributes.get(k); },
+    getBoundingClientRect: () => ({ left: 10, top: 20, width: 80, height: 40 })
+  };
+
+  const mockTab2 = {
+    nodeType: 1,
+    id: 'tab-customers',
+    dataset: { mobileNav: 'customers' },
+    attributes: new Map([['aria-current', 'false']]),
+    getAttribute(k) { return this.attributes.get(k); },
+    getBoundingClientRect: () => ({ left: 100, top: 20, width: 90, height: 40 })
+  };
+
+  let indicatorEl = null;
+  const container = {
+    nodeType: 1,
+    className: 'mobile-bottom-nav',
+    scrollLeft: 0,
+    scrollTop: 0,
+    style: {
+      properties: new Map(),
+      setProperty(k, v) { this.properties.set(k, v); },
+      getPropertyValue(k) { return this.properties.get(k); }
+    },
+    children: [mockTab1, mockTab2],
+    querySelector(sel) {
+      if (sel.includes('nav-slider-indicator')) return indicatorEl;
+      if (sel.includes('customers')) return mockTab2;
+      if (sel.includes('home')) return mockTab1;
+      if (sel.includes('page')) return mockTab1;
+      return null;
+    },
+    insertBefore(newChild, refChild) {
+      indicatorEl = newChild;
+      this.children.unshift(newChild);
+    },
+    removeChild(child) {
+      this.children = this.children.filter(c => c !== child);
+      indicatorEl = null;
+    },
+    getBoundingClientRect: () => ({ left: 0, top: 20, width: 360, height: 50 })
+  };
+
+  const origDoc = globalThis.document;
+  const origWindow = globalThis.window;
+
+  globalThis.document = {
+    querySelector(sel) {
+      if (sel === '.mobile-bottom-nav') return container;
+      return null;
+    },
+    createElement(tag) {
+      return {
+        nodeType: 1,
+        tagName: tag.toUpperCase(),
+        className: '',
+        style: {},
+        attributes: new Map(),
+        setAttribute(k, v) { this.attributes.set(k, v); },
+        getAttribute(k) { return this.attributes.get(k); },
+        parentNode: container
+      };
+    }
+  };
+
+  globalThis.window = {
+    addEventListener(ev, fn) { windowListeners.set(ev, fn); },
+    removeEventListener(ev, fn) { windowListeners.delete(ev, fn); },
+    setTimeout: (fn) => { fn(); return 1; },
+    clearTimeout: () => {}
+  };
+
+  try {
+    const slider = setupTabSliderIndicator({
+      containerSelector: '.mobile-bottom-nav',
+      indicatorClass: 'nav-slider-indicator'
+    });
+
+    assert.ok(slider.getIndicator());
+    assert.equal(slider.getIndicator().className, 'nav-slider-indicator');
+    assert.equal(slider.getIndicator().attributes.get('aria-hidden'), 'true');
+
+    // Initial position was set for active tab (mockTab1)
+    assert.equal(slider.getIndicator().style.opacity, '1');
+    assert.equal(slider.getIndicator().style.width, '80px');
+    assert.equal(slider.getIndicator().style.height, '40px');
+    assert.equal(slider.getIndicator().style.transform, 'translate3d(10px, 0px, 0)');
+    assert.equal(container.style.getPropertyValue('--slider-x'), '10px');
+
+    // Switch to tab 2
+    slider.updateSlider(mockTab2);
+    assert.equal(slider.getIndicator().style.width, '90px');
+    assert.equal(slider.getIndicator().style.transform, 'translate3d(100px, 0px, 0)');
+    assert.equal(container.style.getPropertyValue('--slider-x'), '100px');
+
+    // Resize event triggers update
+    assert.ok(windowListeners.has('resize'));
+    windowListeners.get('resize')();
+    assert.ok(slider.getIndicator().style.opacity, '1');
+
+    // Destroy cleans up
+    slider.destroy();
+    assert.equal(windowListeners.has('resize'), false);
+  } finally {
+    globalThis.document = origDoc;
+    globalThis.window = origWindow;
+  }
+});
+

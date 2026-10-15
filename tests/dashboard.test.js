@@ -38,6 +38,10 @@ import {
   generateProjectionBriefingText,
   setupProjectionScenarioModal,
   renderCashflowProjectionSvg,
+  renderUpstreamGatewaySvg,
+  calculateUpstreamGatewayMetrics,
+  generateUpstreamBriefingReport,
+  setupUpstreamGatewayModal,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -2611,6 +2615,190 @@ test('setupProjectionScenarioModal wires up dialog, presets, custom inputs, and 
     await copyHandler();
     assert.ok(copiedText.includes('SHAHDARA ISP - FORWARD CASHFLOW & CHURN FORECAST'));
     assert.equal(toastMessage, 'Cashflow forecast report copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateUpstreamGatewayMetrics groups subscribers by carrier, determines primary route and failover status', () => {
+  let state = createInitialState(['Cust 1', 'Cust 2', 'Cust 3', 'Cust 4']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].ispProvider = 'Nayatel';
+  state.customers[0].packageSpeed = '20 Mbps';
+  state.customers[0].monthlyPurchaseCost = 1200;
+  state.customers[0].monthlySellingAmount = 2500;
+
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].ispProvider = 'Nayatel';
+  state.customers[1].packageSpeed = '10 Mbps';
+  state.customers[1].monthlyPurchaseCost = 800;
+  state.customers[1].monthlySellingAmount = 1800;
+
+  state.customers[2].serviceStatus = 'active';
+  state.customers[2].ispProvider = 'PTCL';
+  state.customers[2].packageSpeed = '15 Mbps';
+  state.customers[2].monthlyPurchaseCost = 900;
+  state.customers[2].monthlySellingAmount = 1900;
+
+  state.customers[3].serviceStatus = 'offline';
+  state.customers[3].ispProvider = 'StormFiber';
+  state.customers[3].packageSpeed = '30 Mbps';
+
+  const data = calculateUpstreamGatewayMetrics(state, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.equal(data.totalGatewaysCount, 3);
+  assert.equal(data.configuredGatewaysCount, 2); // Nayatel (2 active) and PTCL (1 active)
+  assert.equal(data.primaryGateway, 'Nayatel');
+  assert.equal(data.primaryLatencyMs, 18);
+  assert.equal(data.failoverRedundancyStatus, 'Multi-Homed Redundant');
+  assert.equal(data.totalBandwidthCapacityMbps, 75); // 20 + 10 + 15 + 30
+  assert.equal(data.totalWholesaleCost, 2900); // 1200 + 800 + 900
+
+  const nayatel = data.gateways.find(g => g.provider === 'Nayatel');
+  assert.ok(nayatel);
+  assert.equal(nayatel.activeSubscribers, 2);
+  assert.equal(nayatel.failoverRole, 'Primary Active');
+  assert.equal(nayatel.status, 'Optimal');
+
+  const ptcl = data.gateways.find(g => g.provider === 'PTCL');
+  assert.ok(ptcl);
+  assert.equal(ptcl.activeSubscribers, 1);
+  assert.equal(ptcl.failoverRole, 'Secondary Standby');
+});
+
+test('calculateUpstreamGatewayMetrics handles empty and unassigned accounts', () => {
+  const emptyData = calculateUpstreamGatewayMetrics(createInitialState([]));
+  assert.equal(emptyData.totalGatewaysCount, 0);
+  assert.equal(emptyData.totalBandwidthCapacityMbps, 0);
+  assert.equal(emptyData.failoverRedundancyStatus, 'No Configured Gateway');
+
+  let state = createInitialState(['User X']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].ispProvider = ''; // unassigned
+  const unassignedData = calculateUpstreamGatewayMetrics(state);
+  assert.equal(unassignedData.totalGatewaysCount, 1);
+  assert.equal(unassignedData.gateways[0].provider, 'Unassigned Gateway');
+  assert.equal(unassignedData.failoverRedundancyStatus, 'No Configured Gateway');
+});
+
+test('generateUpstreamBriefingReport formats briefing report accurately', () => {
+  let state = createInitialState(['Cust 1']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].ispProvider = 'Transworld';
+  state.customers[0].packageSpeed = '50 Mbps';
+  state.customers[0].monthlyPurchaseCost = 2500;
+  state.customers[0].monthlySellingAmount = 4500;
+
+  const data = calculateUpstreamGatewayMetrics(state, new Date('2026-10-15T12:00:00+05:00'));
+  const text = generateUpstreamBriefingReport(data, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.ok(text.includes('SHAHDARA ISP - UPSTREAM TRANSIT & FAILOVER BRIEFING'));
+  assert.ok(text.includes('Primary Gateway: Transworld'));
+  assert.ok(text.includes('14 ms latency'));
+  assert.ok(text.includes('Total Allocated Capacity: 50 Mbps'));
+  assert.ok(text.includes('Wholesale Transit Cost: PKR 2,500'));
+});
+
+test('renderUpstreamGatewaySvg renders clean SVG and handles empty state', () => {
+  const emptySvg = renderUpstreamGatewaySvg(null);
+  assert.ok(emptySvg.includes('No upstream ISP provider assigned'));
+
+  let state = createInitialState(['Cust 1']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].ispProvider = 'Nayatel';
+  state.customers[0].packageSpeed = '25 Mbps';
+  const data = calculateUpstreamGatewayMetrics(state);
+
+  const svg = renderUpstreamGatewaySvg(data);
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('Upstream ISP Transit &amp; Multi-Homed Failover Chart'));
+  assert.ok(svg.includes('Nayatel'));
+  assert.ok(svg.includes('PRIMARY'));
+  assert.ok(svg.includes('25M'));
+});
+
+test('setupUpstreamGatewayModal wires up modal dialog, KPIs, table, and clipboard export', async () => {
+  let state = createInitialState(['Cust 1', 'Cust 2']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].ispProvider = 'Nayatel';
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].ispProvider = 'PTCL';
+
+  let openHandler = null;
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+  let closeHandler = null;
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+  let copyHandler = null;
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+
+  const mockPrimaryVal = { textContent: '' };
+  const mockLatencyVal = { textContent: '' };
+  const mockCapacityVal = { textContent: '' };
+  const mockRedundancyBadge = { textContent: '', className: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  let modalOpened = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardUpstreamModal') return mockModal;
+      if (id === 'dashboardOpenUpstreamModalBtn') return mockOpenBtn;
+      if (id === 'dashboardUpstreamModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyUpstreamReportBtn') return mockCopyBtn;
+      if (id === 'upstreamPrimaryVal') return mockPrimaryVal;
+      if (id === 'upstreamLatencyVal') return mockLatencyVal;
+      if (id === 'upstreamCapacityVal') return mockCapacityVal;
+      if (id === 'upstreamRedundancyBadge') return mockRedundancyBadge;
+      if (id === 'dashboardUpstreamTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  try {
+    setupUpstreamGatewayModal(state, {
+      referenceDate: new Date('2026-10-15T12:00:00+05:00'),
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.equal(mockPrimaryVal.textContent, 'Nayatel');
+    assert.ok(mockLatencyVal.textContent.includes('ms'));
+    assert.ok(mockCapacityVal.textContent.includes('Mbps'));
+    assert.equal(mockRedundancyBadge.textContent, 'Multi-Homed Redundant');
+    assert.ok(mockTableBody.innerHTML.includes('Nayatel'));
+    assert.ok(mockTableBody.innerHTML.includes('PTCL'));
+
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - UPSTREAM TRANSIT & FAILOVER BRIEFING'));
+    assert.equal(toastMessage, 'Upstream failover report copied to clipboard!');
 
     closeHandler();
     assert.equal(modalOpened, false);

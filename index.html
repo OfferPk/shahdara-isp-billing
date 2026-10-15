@@ -374,6 +374,23 @@
             </div>
             <div id="dashboardIncidentChart" class="chart-svg-container" role="img" aria-label="Network incident and outage matrix chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-projection">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Forward Cashflow &amp; Churn Projections</h4>
+                <p class="chart-subtitle">6-month forward recurring revenue scenarios &amp; collection curves</p>
+              </div>
+              <div class="chart-header-actions-row">
+                <div id="dashboardProjectionScenarioGroup" class="chart-range-group" role="group" aria-label="Projection scenario">
+                  <button type="button" class="chart-range-btn is-active" data-chart-projection-scenario="baseline">Base</button>
+                  <button type="button" class="chart-range-btn" data-chart-projection-scenario="optimistic">Bull</button>
+                  <button type="button" class="chart-range-btn" data-chart-projection-scenario="conservative">Bear</button>
+                </div>
+                <button id="dashboardOpenProjectionModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Scenario Modeler</button>
+              </div>
+            </div>
+            <div id="dashboardProjectionChart" class="chart-svg-container" role="img" aria-label="Forward cashflow projection and churn scenario chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -676,6 +693,97 @@
 
           <div class="sim-modal-footer">
             <button id="dashboardCopyIncidentReportBtn" class="primary-button" type="button">📋 Copy Incident Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardProjectionModal" class="dashboard-modal projection-modal" aria-labelledby="dashboardProjectionModalTitle">
+        <div class="dashboard-modal-card projection-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">REVENUE FORECASTING &amp; SCENARIO MODELER</p>
+              <h3 id="dashboardProjectionModalTitle">6-Month Forward Cashflow Projections</h3>
+            </div>
+            <button id="dashboardProjectionModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Simulate cashflow collection curves, retention impact, and subscriber growth under customizable operating conditions.</p>
+
+          <div class="simulator-controls-panel">
+            <div class="sim-presets-bar" role="group" aria-label="Scenario presets">
+              <span class="presets-label">Scenarios:</span>
+              <button type="button" class="sim-preset-btn is-active" data-projection-preset="baseline">Standard Baseline</button>
+              <button type="button" class="sim-preset-btn" data-projection-preset="optimistic">Optimistic Growth (+10% Rec, 1% Churn)</button>
+              <button type="button" class="sim-preset-btn" data-projection-preset="conservative">Stress Test (-15% Rec, 6% Churn)</button>
+            </div>
+            <div class="projection-inputs-grid">
+              <div class="sim-input-row">
+                <label for="projectionRecoveryInput" class="sim-label">Target Recovery Rate (%):</label>
+                <div class="sim-input-wrap">
+                  <input id="projectionRecoveryInput" type="number" min="30" max="100" step="1" value="85" class="sim-number-input">
+                  <span class="sim-unit">%</span>
+                </div>
+              </div>
+              <div class="sim-input-row">
+                <label for="projectionChurnInput" class="sim-label">Monthly Churn Rate (%):</label>
+                <div class="sim-input-wrap">
+                  <input id="projectionChurnInput" type="number" min="0" max="25" step="0.5" value="2.5" class="sim-number-input">
+                  <span class="sim-unit">% / mo</span>
+                </div>
+              </div>
+              <div class="sim-input-row">
+                <label for="projectionNetAddsInput" class="sim-label">Monthly Net Additions:</label>
+                <div class="sim-input-wrap">
+                  <input id="projectionNetAddsInput" type="number" min="-20" max="50" step="1" value="2" class="sim-number-input">
+                  <span class="sim-unit">subs / mo</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="sim-kpi-summary-grid">
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">6-Mo Projected Cashflow</span>
+              <strong id="projectionTotalCashflowVal" class="sim-kpi-val text-success">—</strong>
+            </div>
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Monthly Run-Rate (Avg)</span>
+              <strong id="projectionMonthlyRunRateVal" class="sim-kpi-val">—</strong>
+            </div>
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Projected Churn Drag</span>
+              <strong id="projectionChurnDragVal" class="sim-kpi-val sim-val-cost">—</strong>
+            </div>
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Ending Subscriber Base</span>
+              <strong id="projectionEndingBaseVal" class="sim-kpi-val">—</strong>
+            </div>
+          </div>
+
+          <div class="sim-impact-banner">
+            <span class="impact-label">Portfolio Trajectory &amp; Health:</span>
+            <span id="projectionTrajectoryBadge" class="sim-delta-badge">Evaluating...</span>
+          </div>
+
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Active Subs</th>
+                  <th>Gross Billed</th>
+                  <th>Expected Recovery</th>
+                  <th>Churn Drag</th>
+                  <th>Cumulative Cashflow</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardProjectionTableBody">
+                <tr><td colspan="6" class="empty-cell">Calculating forward scenarios...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="dashboardCopyProjectionReportBtn" class="primary-button" type="button">📋 Copy Forecast Briefing</button>
           </div>
         </div>
       </dialog>

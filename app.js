@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupAreaDrilldownModal } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop } from './nav.js?v=1.10.0';
 import { validatePakistanPhone, validatePositiveAmount } from './form-validation.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
@@ -352,6 +352,7 @@ function renderCustomers() {
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-set-service]').forEach(button => button.addEventListener('click', () => setManualServiceStatus(button.dataset.setService, button.dataset.serviceStatus)));
   $('#archivedCustomerList').querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
+  updateNavigationBadges(state);
 }
 function setManualServiceStatus(customerId, serviceStatus) {
   const label = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[serviceStatus];
@@ -1330,6 +1331,10 @@ navDrawer = setupNavigationDrawer({
   }
 });
 
+setupSidebarRailToggle();
+setupScrollToTop();
+updateNavigationBadges(state);
+
 document.addEventListener('click', event => {
   const menu = $('#mobileMoreMenu');
   const moreBtn = $('#mobileMoreButton');
@@ -1641,6 +1646,7 @@ function renderInventory() {
   $('#inventoryMovementsEmpty').hidden=summary.movements.length>0;
   itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
   $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement||!window.confirm(`Delete the ${movement.type} movement of ${movement.quantity} ${movement.unit} dated ${movement.date}? This may change all current inventory balances.`))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.');}catch(error){toast(error.message);}}));
+  updateNavigationBadges(state);
 }
 let expenseSortKey = 'date';
 let expenseSortAsc = false;
@@ -1716,6 +1722,7 @@ function renderExpenses() {
 
   $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{const row=allRows.find(item=>item.id===button.dataset.editExpense);if(!row)return;$('#expenseId').value=row.id;$('#expenseDate').value=row.date;$('#expenseAmount').value=row.amount;$('#expenseCategory').value=row.category;$('#expenseNotes').value=row.notes??'';$('#expenseSubmit').textContent='Save expense correction';$('#expenseCancel').hidden=false;$('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});}));
   $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{const row=allRows.find(item=>item.id===button.dataset.deleteExpense);if(!row||!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category} expense dated ${row.date}?`))return;try{state=deleteExpense(state,row.id);save();toast('Expense entry deleted from this device.');}catch(error){toast(error.message);}}));
+  updateNavigationBadges(state);
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }

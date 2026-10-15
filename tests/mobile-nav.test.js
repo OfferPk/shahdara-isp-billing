@@ -133,3 +133,196 @@ test('nav.js setupNavigationDrawer opens, closes, traps focus, and calls onNavig
     globalThis.document = origDoc;
   }
 });
+
+test('index.html includes sidebar rail toggle, navigation badges, and scroll-to-top button', () => {
+  assert.match(index, /id="sidebarRailToggle"[^>]*class="sidebar-rail-toggle"/);
+  assert.match(index, /id="navBadgeCustomers"[^>]*class="nav-drawer-badge"/);
+  assert.match(index, /id="navBadgeInventory"[^>]*class="nav-drawer-badge"/);
+  assert.match(index, /id="navBadgeExpenses"[^>]*class="nav-drawer-badge"/);
+  assert.match(index, /id="bottomNavBadgeCustomers"[^>]*class="bottom-nav-badge"/);
+  assert.match(index, /id="scrollTopButton"[^>]*class="scroll-top-button"/);
+});
+
+test('nav.css includes desktop rail collapse styles and scroll-to-top button styles', () => {
+  const navCss = read('nav.css');
+  assert.match(navCss, /\.sidebar-rail-toggle/);
+  assert.match(navCss, /\.sidebar-rail-collapsed/);
+  assert.match(navCss, /\.bottom-nav-badge/);
+  assert.match(navCss, /\.scroll-top-button/);
+  assert.match(navCss, /\.scroll-top-button\.is-visible/);
+});
+
+test('updateNavigationBadges updates badge text and visibility correctly', async () => {
+  const { updateNavigationBadges } = await import('../nav.js');
+  const makeBadge = (target) => ({
+    target,
+    textContent: '',
+    hidden: true,
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); }
+  });
+  const cBadge1 = makeBadge('customers');
+  const cBadge2 = makeBadge('customers');
+  const iBadge = makeBadge('inventory');
+  const eBadge = makeBadge('expenses');
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    querySelectorAll(selector) {
+      if (selector === '[data-nav-badge="customers"]') return [cBadge1, cBadge2];
+      if (selector === '[data-nav-badge="inventory"]') return [iBadge];
+      if (selector === '[data-nav-badge="expenses"]') return [eBadge];
+      return [];
+    }
+  };
+
+  try {
+    const fakeState = {
+      customers: [
+        { id: '1', archived: false, serviceStatus: 'active' },
+        { id: '2', archived: false, serviceStatus: 'offline' },
+        { id: '3', archived: true, serviceStatus: 'active' }
+      ],
+      inventoryItems: [
+        { id: 'item1', minimumStock: 5 },
+        { id: 'item2', minimumStock: 1 }
+      ],
+      expenses: [{ id: 'exp1' }, { id: 'exp2' }, { id: 'exp3' }]
+    };
+
+    updateNavigationBadges(fakeState);
+
+    assert.equal(cBadge1.textContent, '2');
+    assert.equal(cBadge1.hidden, false);
+    assert.equal(cBadge2.textContent, '2');
+    assert.equal(cBadge2.hidden, false);
+    assert.equal(iBadge.textContent, '2');
+    assert.equal(iBadge.hidden, false);
+    assert.equal(eBadge.textContent, '3');
+    assert.equal(eBadge.hidden, false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('setupSidebarRailToggle toggles collapsed state and persists preference', async () => {
+  const { setupSidebarRailToggle } = await import('../nav.js');
+  const storage = new Map();
+  const origStorage = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem(k) { return storage.get(k) || null; },
+    setItem(k, v) { storage.set(k, String(v)); }
+  };
+
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      toggle: (c, v) => (v ?? !s.has(c)) ? s.add(c) : s.delete(c),
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const toggleBtn = {
+    id: 'sidebarRailToggle',
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); },
+    getAttribute(k) { return this.attributes.get(k); },
+    addEventListener(ev, fn) { listeners.set(ev, fn); }
+  };
+  const bodyEl = {
+    classList: classListSet()
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'sidebarRailToggle') return toggleBtn;
+      return null;
+    },
+    body: bodyEl
+  };
+
+  try {
+    const controller = setupSidebarRailToggle();
+    assert.ok(typeof controller.toggleRail === 'function');
+    assert.equal(controller.isRailCollapsed(), false);
+
+    controller.toggleRail();
+    assert.equal(controller.isRailCollapsed(), true);
+    assert.ok(bodyEl.classList.contains('sidebar-rail-collapsed'));
+    assert.equal(toggleBtn.getAttribute('aria-pressed'), 'true');
+    assert.equal(storage.get('shahdara_sidebar_rail'), 'collapsed');
+
+    // Click handler test
+    const clickHandler = listeners.get('click');
+    assert.ok(typeof clickHandler === 'function');
+    clickHandler();
+    assert.equal(controller.isRailCollapsed(), false);
+    assert.equal(storage.get('shahdara_sidebar_rail'), 'expanded');
+  } finally {
+    globalThis.localStorage = origStorage;
+    globalThis.document = origDoc;
+  }
+});
+
+test('setupScrollToTop handles button click and scroll visibility', async () => {
+  const { setupScrollToTop } = await import('../nav.js');
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      toggle: (c, v) => (v ?? !s.has(c)) ? s.add(c) : s.delete(c),
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const btn = {
+    id: 'scrollTopButton',
+    classList: classListSet(),
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); },
+    getAttribute(k) { return this.attributes.get(k); },
+    addEventListener(ev, fn) { listeners.set(`btn:${ev}`, fn); }
+  };
+
+  let scrollCalled = null;
+  const origWindow = globalThis.window;
+  const origDoc = globalThis.document;
+
+  globalThis.window = {
+    scrollY: 400,
+    scrollTo(opts) { scrollCalled = opts; },
+    addEventListener(ev, fn) { listeners.set(`win:${ev}`, fn); }
+  };
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'scrollTopButton') return btn;
+      return null;
+    }
+  };
+
+  try {
+    setupScrollToTop();
+    const clickFn = listeners.get('btn:click');
+    assert.ok(typeof clickFn === 'function');
+    clickFn();
+    assert.deepEqual(scrollCalled, { top: 0, behavior: 'smooth' });
+
+    const scrollFn = listeners.get('win:scroll');
+    assert.ok(typeof scrollFn === 'function');
+    scrollFn();
+    assert.ok(btn.classList.contains('is-visible'));
+
+    globalThis.window.scrollY = 50;
+    scrollFn();
+    assert.ok(!btn.classList.contains('is-visible'));
+  } finally {
+    globalThis.window = origWindow;
+    globalThis.document = origDoc;
+  }
+});

@@ -3419,5 +3419,278 @@ html, body {
   }
 }
 
+/* ==========================================================================
+   CUSTOMER LEDGER RECONCILIATION & AUDIT MODAL (agent3 - shahdara-forms-qa)
+   ========================================================================== */
+
+.audit-modal {
+  max-width: 960px;
+  width: 95vw;
+  max-height: 92vh;
+  border-radius: 14px;
+  padding: 0;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 20px 48px rgba(14, 30, 24, 0.25);
+  overflow: hidden;
+}
+
+.audit-modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+}
+
+.audit-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.audit-summary-ribbon {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.audit-kpi-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface-sunken, #f0f5f2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.audit-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.audit-kpi-val {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #182e2a);
+}
+
+.audit-kpi-val.highlight-red {
+  color: #c53030;
+}
+
+.audit-kpi-val.highlight-green {
+  color: #0e5b4d;
+}
+
+.audit-status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.audit-pill-clean {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.audit-pill-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.audit-pill-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.audit-pill-info {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.audit-discrepancy-box {
+  border-radius: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+}
+
+.audit-discrepancy-box.has-discrepancies {
+  border-left: 4px solid #d97706;
+  background: #fffdfa;
+}
+
+.audit-discrepancy-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--ink, #182e2a);
+}
+
+.audit-discrepancy-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink, #182e2a);
+}
+
+.audit-discrepancy-clean {
+  margin: 0;
+  font-size: 13px;
+  color: #065f46;
+  font-weight: 500;
+}
+
+.audit-table-wrap {
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  overflow-x: auto;
+  max-height: 280px;
+}
+
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.audit-table th {
+  background: var(--surface-sunken, #f0f5f2);
+  color: var(--muted, #60756c);
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.audit-table td {
+  padding: 10px 14px;
+  border-top: 1px solid var(--line, #e2ece7);
+}
+
+.audit-status-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.audit-status-tag.paid {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.audit-status-tag.partial {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.audit-status-tag.pending {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.audit-status-tag.not_set {
+  background: #e2ece7;
+  color: #60756c;
+}
+
+.audit-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line, #e2ece7);
+  background: var(--surface-sunken, #f0f5f2);
+}
+
+[data-theme="dark"] .audit-modal {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .audit-kpi-card {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .audit-kpi-val {
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .audit-discrepancy-box {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .audit-discrepancy-box.has-discrepancies {
+  background: #232219;
+  border-color: #5c4416;
+}
+
+[data-theme="dark"] .audit-table th {
+  background: #192e27;
+  color: #9ab3a8;
+}
+
+[data-theme="dark"] .audit-table td {
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .audit-modal-actions {
+  background: #101c18;
+  border-color: #253d35;
+}
+
+/* Print Rules for Customer Ledger Audit */
+@media print {
+  body.printing-audit * {
+    visibility: hidden !important;
+  }
+  body.printing-audit #customerLedgerAuditModal,
+  body.printing-audit #customerLedgerAuditModal * {
+    visibility: visible !important;
+  }
+  body.printing-audit #customerLedgerAuditModal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  body.printing-audit .modal-heading,
+  body.printing-audit .audit-modal-actions {
+    display: none !important;
+  }
+  body.printing-audit .audit-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+  }
+}
+
+
 
 

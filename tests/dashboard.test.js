@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createInitialState, addCustomer, saveBillMonth, addPayment } from '../core.js';
 import {
   calculateDashboardKpis,
+  calculateCollectionVelocity,
   setupDashboardQuickActions,
   generateDashboardBriefingText,
   setupDashboardBriefingButton,
@@ -488,4 +489,39 @@ test('setupAreaDrilldownModal populates table and invokes filter roster callback
   } finally {
     globalThis.document = origDoc;
   }
+});
+
+test('calculateCollectionVelocity calculates daily run rate and month-end projection accurately', () => {
+  let state = createInitialState(['Velocity Cust 1', 'Velocity Cust 2']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00'); // day 15 of 31
+
+  // 4000 billed, 1500 collected by day 15
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '1500', date: '2026-10-10', method: 'Cash' }, refDate);
+
+  const velocity = calculateCollectionVelocity(state, refDate);
+
+  assert.equal(velocity.currentMonth, '2026-10');
+  assert.equal(velocity.daysInMonth, 31);
+  assert.equal(velocity.currentDay, 15);
+  assert.equal(velocity.daysRemaining, 16);
+  assert.equal(velocity.collectedSoFar, 1500);
+  assert.equal(velocity.billedAmount, 4000);
+  assert.equal(velocity.dailyRunRate, 100); // 1500 / 15 = 100
+  assert.equal(velocity.projectedMonthEnd, 3100); // 1500 + 100 * 16 = 3100
+  assert.equal(velocity.currentRate, 38); // 1500 / 4000 = 37.5% -> 38%
+  assert.equal(velocity.projectedRate, 78); // 3100 / 4000 = 77.5% -> 78%
+});
+
+test('calculateCollectionVelocity handles zero collections gracefully', () => {
+  let state = createInitialState(['Zero Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const velocity = calculateCollectionVelocity(state, refDate);
+
+  assert.equal(velocity.collectedSoFar, 0);
+  assert.equal(velocity.dailyRunRate, 0);
+  assert.equal(velocity.projectedMonthEnd, 0);
+  assert.equal(velocity.currentRate, null);
+  assert.equal(velocity.projectedRate, null);
 });

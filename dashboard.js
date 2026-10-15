@@ -87,6 +87,44 @@ export function calculateDashboardKpis(state, referenceDate = new Date()) {
 }
 
 /**
+ * Calculates current month collection velocity, daily run-rate, days remaining,
+ * and projected month-end collection.
+ */
+export function calculateCollectionVelocity(state, referenceDate = new Date()) {
+  const totals = calculateDashboard(state, referenceDate);
+  const currentMonth = totals.currentMonth;
+  const currentCash = buildMonthlyClosingSnapshot(state, currentMonth, referenceDate);
+
+  const year = parseInt(currentMonth.slice(0, 4), 10);
+  const month = parseInt(currentMonth.slice(5, 7), 10);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const currentDay = Math.max(1, Math.min(referenceDate.getDate(), daysInMonth));
+
+  const collectedSoFar = Number(currentCash.collection) || 0;
+  const billedAmount = Number(currentCash.billedAmount) || 0;
+
+  const dailyRunRate = currentDay > 0 ? Math.round(collectedSoFar / currentDay) : 0;
+  const daysRemaining = Math.max(0, daysInMonth - currentDay);
+  const projectedMonthEnd = Math.round(collectedSoFar + dailyRunRate * daysRemaining);
+
+  const currentRate = billedAmount > 0 ? Math.round((collectedSoFar / billedAmount) * 100) : null;
+  const projectedRate = billedAmount > 0 ? Math.round((projectedMonthEnd / billedAmount) * 100) : null;
+
+  return {
+    currentMonth,
+    daysInMonth,
+    currentDay,
+    daysRemaining,
+    collectedSoFar,
+    billedAmount,
+    dailyRunRate,
+    projectedMonthEnd,
+    currentRate,
+    projectedRate
+  };
+}
+
+/**
  * Generates formatted executive summary text suitable for clipboard copy, WhatsApp, or printing.
  */
 export function generateDashboardBriefingText(state, referenceDate = new Date()) {

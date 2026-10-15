@@ -3691,6 +3691,383 @@ html, body {
   }
 }
 
+/* Daily Cash Register & Day-End Closing Statement Modal (Roshnamcha) */
+.register-modal {
+  width: 95vw;
+  max-width: 840px;
+  border-radius: 16px;
+  border: 1px solid var(--line, #e2ece7);
+  padding: 0;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  max-height: 92vh;
+}
+
+.register-modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+}
+
+.register-controls-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--surface-subtle, #f8faf9);
+  border-bottom: 1px solid var(--line, #e2ece7);
+}
+
+.register-inputs-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.register-control-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--muted, #60756c);
+}
+
+.register-date-input,
+.register-cash-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  font: 600 13px/1.2 Manrope, monospace, sans-serif;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+}
+
+.register-summary-ribbon {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  padding: 14px 24px;
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line, #e2ece7);
+}
+
+.reg-kpi-card {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--surface-subtle, #f8faf9);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.reg-kpi-lbl {
+  font: 600 11px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.reg-kpi-val {
+  font: 700 15px/1.2 Manrope, monospace, sans-serif;
+  color: var(--ink, #182e2a);
+}
+
+.reg-kpi-card.highlight-green .reg-kpi-val {
+  color: #047857;
+}
+
+.reg-kpi-card.highlight-red .reg-kpi-val {
+  color: #b91c1c;
+}
+
+.reg-kpi-card.highlight-box {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+
+.reg-kpi-card.highlight-box .reg-kpi-val {
+  color: #15803d;
+}
+
+.register-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Denominations physical count card */
+.register-denominations-card {
+  background: var(--surface-subtle, #f8faf9);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.denom-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.denom-title {
+  font: 700 13px/1.2 Manrope, system-ui, sans-serif;
+  margin: 0;
+  color: var(--ink, #182e2a);
+}
+
+.denom-inputs-grid,
+.denomination-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.denom-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.denom-col label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #60756c);
+}
+
+.denom-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.15));
+  border-radius: 6px;
+  font: 600 12px/1.2 Manrope, monospace, sans-serif;
+  text-align: right;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+}
+
+.denom-audit-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+}
+
+.register-variance-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.register-variance-badge.status-balanced {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.register-variance-badge.status-surplus,
+.register-variance-badge.status-over {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.register-variance-badge.status-deficit,
+.register-variance-badge.status-short {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.register-variance-badge.status-uncounted {
+  background: #e2ece7;
+  color: #60756c;
+}
+
+/* Split Tables layout */
+.register-tables-grid,
+.register-tables-split {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .register-tables-grid,
+  .register-tables-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.reg-table-card {
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.reg-table-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: var(--surface-subtle, #f8faf9);
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.reg-table-head-row h4 {
+  font: 700 12px/1.2 Manrope, system-ui, sans-serif;
+  margin: 0;
+  color: var(--ink, #182e2a);
+}
+
+.reg-scroll-table {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.reg-table-el {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.reg-table-el th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-subtle, #f8faf9);
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  font-weight: 600;
+  color: var(--muted, #60756c);
+}
+
+.reg-table-el td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.pay-method-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.pay-method-badge.badge-cash {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.pay-method-badge.badge-digital {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.register-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 24px;
+  background: var(--surface-sunken, #f0f5f2);
+  border-top: 1px solid var(--line, #e2ece7);
+}
+
+/* Dark mode overrides for register modal */
+[data-theme="dark"] .register-modal {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .register-controls-bar,
+[data-theme="dark"] .register-summary-ribbon,
+[data-theme="dark"] .reg-kpi-card,
+[data-theme="dark"] .register-denominations-card,
+[data-theme="dark"] .reg-table-head-row,
+[data-theme="dark"] .reg-table-el th {
+  background: #192e27;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .reg-kpi-val,
+[data-theme="dark"] .denom-title,
+[data-theme="dark"] .reg-table-head-row h4 {
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .register-date-input,
+[data-theme="dark"] .register-cash-input,
+[data-theme="dark"] .denom-input {
+  background: #101c18;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .reg-table-card {
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .reg-table-el td {
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .register-modal-actions {
+  background: #101c18;
+  border-color: #253d35;
+}
+
+/* Print Rules for Daily Cash Register */
+@media print {
+  body.printing-daily-register *,
+  body.printing-register * {
+    visibility: hidden !important;
+  }
+  body.printing-daily-register #dailyCashRegisterModal,
+  body.printing-daily-register #dailyCashRegisterModal *,
+  body.printing-register #dailyCashRegisterModal,
+  body.printing-register #dailyCashRegisterModal * {
+    visibility: visible !important;
+  }
+  body.printing-daily-register #dailyCashRegisterModal,
+  body.printing-register #dailyCashRegisterModal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  body.printing-daily-register .modal-heading,
+  body.printing-daily-register .register-modal-actions,
+  body.printing-register .modal-heading,
+  body.printing-register .register-modal-actions {
+    display: none !important;
+  }
+  body.printing-daily-register .reg-scroll-table,
+  body.printing-register .reg-scroll-table {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
+
 
 
 

@@ -197,6 +197,15 @@
             <span class="quick-action-sub">Technician swipe wizard</span>
           </span>
         </button>
+        <button id="quickActionDailyRegisterTile" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h0M2 9.5h20M9 15h6"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Cash Register</span>
+            <span class="quick-action-sub">Roshnamcha &amp; closing</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -1821,6 +1830,148 @@
         <button id="printLedgerAuditBtn" class="primary-button" type="button">🖨️ Print Audit Sheet</button>
         <button id="copyLedgerAuditReportBtn" class="secondary-button" type="button">📋 Copy Audit Report</button>
         <button id="exportLedgerAuditCsvBtn" class="secondary-button" type="button">📊 Export CSV</button>
+      </div>
+    </section>
+  </dialog>
+  <dialog id="dailyCashRegisterModal" class="modal register-modal" aria-labelledby="dailyRegisterModalTitle">
+    <section class="register-modal-card">
+      <div class="modal-header register-modal-header">
+        <div class="register-header-text">
+          <h3 id="dailyRegisterModalTitle" class="modal-title">Daily Cash Register &amp; Day-End Closing (روزنامچہ)</h3>
+          <p class="modal-subtitle">Shahdara ISP Network Operations · Physical Cash Count &amp; Reconciliation</p>
+        </div>
+        <button id="closeDailyRegisterModalBtn" class="modal-close" type="button" aria-label="Close daily register modal">×</button>
+      </div>
+
+      <div class="register-controls-bar">
+        <div class="register-control-group">
+          <label for="registerDateInput" class="form-label">Register Date</label>
+          <input type="date" id="registerDateInput" class="form-input" aria-label="Select register date">
+        </div>
+        <div class="register-control-group">
+          <label for="registerOpeningCash" class="form-label">Opening Float / Cash in Till (PKR)</label>
+          <input type="number" id="registerOpeningCash" class="form-input" min="0" step="10" placeholder="0" aria-label="Opening cash float amount">
+        </div>
+      </div>
+
+      <div class="register-summary-ribbon" role="region" aria-label="Daily cash flow summary metrics">
+        <div class="register-summary-card">
+          <span class="register-summary-label">NET PHYSICAL CASH</span>
+          <strong id="registerNetCashVal" class="register-summary-val highlight-green">PKR 0</strong>
+          <span class="register-summary-sub">Float + Cash In - Expenses</span>
+        </div>
+        <div class="register-summary-card">
+          <span class="register-summary-label">DIGITAL COLLECTIONS</span>
+          <strong id="registerDigitalTotalVal" class="register-summary-val highlight-blue">PKR 0</strong>
+          <span class="register-summary-sub">Easypaisa / JazzCash / Bank</span>
+        </div>
+        <div class="register-summary-card">
+          <span class="register-summary-label">TOTAL RECEIPTS</span>
+          <strong id="registerTotalInflowsVal" class="register-summary-val">PKR 0</strong>
+          <span class="register-summary-sub">Cash &amp; Digital payments</span>
+        </div>
+        <div class="register-summary-card">
+          <span class="register-summary-label">RECORDED EXPENSES</span>
+          <strong id="registerTotalExpensesVal" class="register-summary-val highlight-red">PKR 0</strong>
+          <span class="register-summary-sub">Daily operational costs</span>
+        </div>
+      </div>
+
+      <div class="register-denominations-card">
+        <div class="register-denominations-header">
+          <div class="denominations-title-wrap">
+            <h4 class="denominations-title">Physical Till Count (حساب کیش کاؤنٹر)</h4>
+            <span class="denominations-sub">Count Pakistani currency notes in register drawer</span>
+          </div>
+          <div class="register-variance-wrap">
+            <span class="variance-sub-label">Count Total: <strong id="registerPhysicalCountVal">PKR 0</strong></span>
+            <span id="registerVarianceBadge" class="register-variance-badge status-balanced">BALANCED</span>
+          </div>
+        </div>
+        <div class="denomination-inputs-grid">
+          <div class="denomination-field">
+            <label for="noteCount5000" class="denom-label"><span class="denom-note">Rs. 5,000</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount5000" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+          <div class="denomination-field">
+            <label for="noteCount1000" class="denom-label"><span class="denom-note">Rs. 1,000</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount1000" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+          <div class="denomination-field">
+            <label for="noteCount500" class="denom-label"><span class="denom-note">Rs. 500</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount500" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+          <div class="denomination-field">
+            <label for="noteCount100" class="denom-label"><span class="denom-note">Rs. 100</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount100" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+          <div class="denomination-field">
+            <label for="noteCount50" class="denom-label"><span class="denom-note">Rs. 50</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount50" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+          <div class="denomination-field">
+            <label for="noteCount20" class="denom-label"><span class="denom-note">Rs. 20</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount20" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+          <div class="denomination-field">
+            <label for="noteCount10" class="denom-label"><span class="denom-note">Rs. 10</span> <span class="denom-x">×</span></label>
+            <input type="number" id="noteCount10" class="form-input denom-input" min="0" step="1" placeholder="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="register-tables-split">
+        <div class="register-table-col">
+          <div class="register-section-header">
+            <h4>Incoming Collections</h4>
+            <span id="registerReceiptsCountBadge" class="section-count-badge">0 items</span>
+          </div>
+          <div class="register-table-wrap" tabindex="0" role="region" aria-label="Collections on this date">
+            <table class="register-data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Customer</th>
+                  <th>Bill Month</th>
+                  <th>Channel</th>
+                  <th class="text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="registerReceiptsTableBody">
+                <tr><td colspan="5" class="text-center empty-muted">No collections recorded for this date.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="register-table-col">
+          <div class="register-section-header">
+            <h4>Daily Operational Expenses</h4>
+            <span id="registerExpensesCountBadge" class="section-count-badge">0 entries</span>
+          </div>
+          <div class="register-table-wrap" tabindex="0" role="region" aria-label="Expenses on this date">
+            <table class="register-data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Category</th>
+                  <th>Description / Notes</th>
+                  <th class="text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="registerExpensesTableBody">
+                <tr><td colspan="4" class="text-center empty-muted">No operational expenses recorded for this date.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="register-modal-actions">
+        <button id="printDailyRegisterBtn" class="primary-button" type="button">🖨️ Print Closing Slip</button>
+        <button id="sendWhatsAppRegisterBtn" class="action-btn-whatsapp" type="button">💬 Send WhatsApp Briefing</button>
+        <button id="exportDailyRegisterCsvBtn" class="secondary-button" type="button">📊 Export Day CSV</button>
+        <button id="copyRegisterTextBtn" class="secondary-button" type="button">📋 Copy Summary</button>
       </div>
     </section>
   </dialog>

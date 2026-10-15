@@ -28,7 +28,8 @@ import {
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
   generateStandaloneInvoiceDocument, downloadHtmlFile,
-  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml
+  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
+  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -157,6 +158,9 @@ function save() {
   refreshOwnerCenter();
   renderPhase3();
   renderStorageWarning();
+  if (typeof dailyRegisterController?.refresh === 'function') {
+    dailyRegisterController.refresh();
+  }
   return storageAvailable;
 }
 function checkMonthlyBilling() {
@@ -3077,6 +3081,26 @@ if (exportLedgerAuditCsvBtn) {
     downloadCsvFile(filename, csv);
     toast(`Exported ledger audit: ${filename}`);
   });
+}
+
+// Setup Daily Cash Register & Day-End Closing (Roshnamcha)
+export let dailyRegisterController;
+if (typeof document !== 'undefined') {
+  dailyRegisterController = setupDailyRegisterModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const dailyCashRegisterModal = $('#dailyCashRegisterModal');
+  if (dailyCashRegisterModal) {
+    dailyCashRegisterModal.addEventListener('click', (e) => {
+      if (e.target === dailyCashRegisterModal) {
+        if (dailyCashRegisterModal.close) dailyCashRegisterModal.close();
+        else dailyCashRegisterModal.removeAttribute('open');
+      }
+    });
+  }
 }
 
 function handleRouteFromHash() {

@@ -1586,5 +1586,390 @@ kbd {
   color: #e6edea;
 }
 
+/* Offline Sync & Connectivity Resilience Banner */
+.offline-sync-banner {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height, 60px) + 12px);
+  left: 16px;
+  right: 16px;
+  max-width: 520px;
+  margin: 0 auto;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  font: 500 13px/1.3 Manrope, system-ui, sans-serif;
+}
 
+.offline-sync-banner.is-offline {
+  background: rgba(254, 243, 199, 0.94);
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
 
+.offline-sync-banner.is-syncing {
+  background: rgba(224, 242, 254, 0.94);
+  border: 1px solid #38bdf8;
+  color: #0369a1;
+}
+
+.offline-sync-banner.is-online,
+.offline-sync-banner.is-synced {
+  background: rgba(209, 250, 229, 0.94);
+  border: 1px solid #10b981;
+  color: #065f46;
+}
+
+.offline-sync-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.offline-sync-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.is-offline .offline-sync-icon {
+  animation: pulse-warn 2s infinite ease-in-out;
+}
+
+.is-syncing .offline-sync-icon {
+  display: inline-block;
+  animation: spin-icon 1s infinite linear;
+}
+
+@keyframes pulse-warn {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.9); }
+}
+
+@keyframes spin-icon {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.offline-sync-text {
+  font-weight: 600;
+}
+
+.offline-sync-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.offline-sync-btn {
+  background: #0e5b4d;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font: 600 12px/1.2 Manrope, system-ui, sans-serif;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.offline-sync-btn:hover {
+  opacity: 0.9;
+}
+
+.offline-sync-btn-outline {
+  background: transparent;
+  color: inherit;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font: 600 11px/1.2 Manrope, system-ui, sans-serif;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.offline-sync-btn-outline:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.offline-sync-dismiss {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.offline-sync-dismiss:hover {
+  opacity: 1;
+}
+
+/* Floating Mobile Quick Navigation Speed Dial */
+.speed-dial-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 1035;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-speed-dial {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height, 60px) + 16px);
+  right: 16px;
+  z-index: 1040;
+}
+
+.speed-dial-trigger {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 16px rgba(14, 91, 77, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.speed-dial-plus {
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-speed-dial.is-open .speed-dial-trigger {
+  background: #182e2a;
+}
+
+.mobile-speed-dial.is-open .speed-dial-plus {
+  transform: rotate(45deg);
+}
+
+.speed-dial-menu {
+  position: absolute;
+  bottom: 60px;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+.speed-dial-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  border-radius: 30px;
+  padding: 8px 16px 8px 12px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--ink, #182e2a);
+  font: 600 13px/1.2 Manrope, system-ui, sans-serif;
+  transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.speed-dial-action:hover,
+.speed-dial-action:focus-visible {
+  background: #f0fdf4;
+  border-color: #0e5b4d;
+  color: #0e5b4d;
+  transform: translateX(-4px);
+  outline: none;
+}
+
+.speed-action-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.speed-action-label {
+  letter-spacing: 0.2px;
+}
+
+/* Hide on desktop screens where full sidebar and topbar are present */
+@media (min-width: 900px) {
+  .mobile-speed-dial,
+  .speed-dial-backdrop {
+    display: none !important;
+  }
+}
+
+/* Dark Theme Adjustments */
+[data-theme="dark"] .offline-sync-banner.is-offline {
+  background: rgba(69, 26, 3, 0.95);
+  border-color: #d97706;
+  color: #fde68a;
+}
+
+[data-theme="dark"] .offline-sync-banner.is-syncing {
+  background: rgba(12, 74, 110, 0.95);
+  border-color: #0284c7;
+  color: #bae6fd;
+}
+
+[data-theme="dark"] .offline-sync-banner.is-online,
+[data-theme="dark"] .offline-sync-banner.is-synced {
+  background: rgba(6, 78, 59, 0.95);
+  border-color: #059669;
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .speed-dial-action {
+  background: #192e27;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .speed-dial-action:hover,
+[data-theme="dark"] .speed-dial-action:focus-visible {
+  background: #203c32;
+  border-color: #10b981;
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .speed-dial-trigger {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  .offline-sync-banner,
+  .speed-dial-trigger,
+  .speed-dial-plus,
+  .speed-dial-action {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* OFFLINE QUEUE INSPECTOR MODAL */
+.queue-modal {
+  border: none;
+  border-radius: 16px;
+  padding: 0;
+  max-width: 520px;
+  width: 92vw;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.25);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+}
+
+.queue-modal::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.queue-modal-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.queue-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--surface-sunken, #f0f5f2);
+  border: 1px solid var(--line, #e2ece7);
+  font-size: 13px;
+}
+
+.queue-badge {
+  font-weight: 700;
+  color: #d97706;
+  background: #fef3c7;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.queue-note {
+  color: var(--muted, #60756c);
+  font-size: 12px;
+}
+
+.offline-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.queue-item-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+}
+
+.queue-item-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.queue-item-time {
+  font-size: 11px;
+  color: var(--muted, #60756c);
+}
+
+.queue-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+[data-theme="dark"] .queue-modal {
+  background: #152722;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .queue-summary-bar {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .queue-item-card {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .queue-badge {
+  background: rgba(217, 119, 6, 0.2);
+  color: #fde68a;
+}

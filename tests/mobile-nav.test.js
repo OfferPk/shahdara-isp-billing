@@ -1277,5 +1277,390 @@ test('nav.js setupNetworkStatusIndicator opens and closes networkHealthModal on 
   }
 });
 
+test('index.html, nav.css, and app.js include offline resilience banner and speed dial components', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
 
+  // index.html elements
+  assert.match(indexHtml, /id="offlineSyncBanner"/);
+  assert.match(indexHtml, /id="offlineSyncText"/);
+  assert.match(indexHtml, /id="offlineSyncRetryBtn"/);
+  assert.match(indexHtml, /id="offlineSyncDismissBtn"/);
+  assert.match(indexHtml, /id="speedDialBackdrop"/);
+  assert.match(indexHtml, /id="mobileSpeedDial"/);
+  assert.match(indexHtml, /id="speedDialTrigger"/);
+  assert.match(indexHtml, /id="speedDialMenu"/);
+  assert.match(indexHtml, /data-speed-action="search"/);
+  assert.match(indexHtml, /data-speed-action="payment"/);
+  assert.match(indexHtml, /data-speed-action="add-customer"/);
+  assert.match(indexHtml, /data-speed-action="reminders"/);
+  assert.match(indexHtml, /data-speed-action="scroll-top"/);
 
+  // nav.css styles
+  assert.match(navCss, /\.offline-sync-banner/);
+  assert.match(navCss, /\.offline-sync-banner\.is-offline/);
+  assert.match(navCss, /\.offline-sync-banner\.is-syncing/);
+  assert.match(navCss, /\.mobile-speed-dial/);
+  assert.match(navCss, /\.speed-dial-trigger/);
+  assert.match(navCss, /\.speed-dial-menu/);
+  assert.match(navCss, /\.speed-dial-action/);
+  assert.match(navCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.speed-dial-action/);
+
+  // app.js integration
+  assert.match(appJs, /setupOfflineSyncBanner/);
+  assert.match(appJs, /setupMobileSpeedDial/);
+});
+
+test('offline sync queue helpers manage queued actions in storage safely', async () => {
+  const { getOfflineSyncQueue, addOfflineSyncItem, clearOfflineSyncQueue, processOfflineSyncQueue } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  // Initial queue is empty
+  assert.deepEqual(getOfflineSyncQueue(mockStorage), []);
+
+  // Add items
+  const item1 = addOfflineSyncItem({ action: 'record_payment', customerId: 'cust-1', amount: 1500 }, mockStorage);
+  assert.equal(item1.length, 1);
+  assert.equal(item1[0].action, 'record_payment');
+  assert.equal(item1[0].amount, 1500);
+  assert.ok(item1[0].id);
+  assert.ok(item1[0].timestamp);
+
+  const item2 = addOfflineSyncItem({ action: 'add_customer', name: 'Zeeshan' }, mockStorage);
+  assert.equal(item2.length, 2);
+
+  // Retrieve queue
+  const currentQueue = getOfflineSyncQueue(mockStorage);
+  assert.equal(currentQueue.length, 2);
+
+  // Process queue
+  let processedResult = null;
+  const syncRes = processOfflineSyncQueue({
+    storage: mockStorage,
+    onComplete: (res) => {
+      processedResult = res;
+    }
+  });
+
+  assert.equal(syncRes.processedCount, 2);
+  assert.equal(syncRes.success, true);
+  assert.equal(processedResult.processedCount, 2);
+  assert.deepEqual(getOfflineSyncQueue(mockStorage), []);
+
+  // Clear queue
+  addOfflineSyncItem({ action: 'temp' }, mockStorage);
+  assert.equal(getOfflineSyncQueue(mockStorage).length, 1);
+  clearOfflineSyncQueue(mockStorage);
+  assert.equal(getOfflineSyncQueue(mockStorage).length, 0);
+});
+
+test('setupOfflineSyncBanner responds to online/offline state, retry, and dismissal', async () => {
+  const { setupOfflineSyncBanner, addOfflineSyncItem } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const listeners = new Map();
+  const banner = {
+    hidden: true,
+    className: '',
+    classList: {
+      contains: (c) => banner.className.includes(c)
+    }
+  };
+  const icon = { textContent: '' };
+  const text = { textContent: '' };
+  const retryBtn = { hidden: true, addEventListener: (ev, fn) => listeners.set(`retry:${ev}`, fn) };
+  const dismissBtn = { addEventListener: (ev, fn) => listeners.set(`dismiss:${ev}`, fn) };
+
+  const origDoc = globalThis.document;
+  const origNav = globalThis.navigator;
+  const origWindow = globalThis.window;
+
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'offlineSyncBanner') return banner;
+      if (id === 'offlineSyncIcon') return icon;
+      if (id === 'offlineSyncText') return text;
+      if (id === 'offlineSyncRetryBtn') return retryBtn;
+      if (id === 'offlineSyncDismissBtn') return dismissBtn;
+      return null;
+    }
+  };
+  globalThis.window = {
+    addEventListener: (ev, fn) => listeners.set(`win:${ev}`, fn)
+  };
+  const origOnlineDesc = Object.getOwnPropertyDescriptor(globalThis.navigator, 'onLine');
+  try {
+    Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true, writable: true });
+  } catch {}
+
+  try {
+    let syncedRes = null;
+    let toastedMsg = null;
+    const bannerCtrl = setupOfflineSyncBanner({
+      storage: mockStorage,
+      onSyncProcessed: (res) => { syncedRes = res; },
+      onToast: (msg) => { toastedMsg = msg; }
+    });
+
+    // When offline, banner is visible with offline class
+    assert.equal(banner.hidden, false);
+    assert.ok(banner.className.includes('is-offline'));
+    assert.ok(text.textContent.includes('Offline Mode'));
+
+    // Add item to queue while offline
+    addOfflineSyncItem({ action: 'note' }, mockStorage);
+    bannerCtrl.update();
+    assert.ok(text.textContent.includes('1 pending action'));
+
+    // Go online
+    try {
+      Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true, writable: true });
+    } catch {}
+    listeners.get('win:online')();
+    // Trigger immediate sync
+    bannerCtrl.syncNow();
+    assert.ok(syncedRes);
+    assert.equal(syncedRes.processedCount, 1);
+    assert.ok(toastedMsg.includes('Sync complete'));
+
+    // Dismiss button hides banner
+    assert.ok(listeners.has('dismiss:click'));
+    listeners.get('dismiss:click')();
+    assert.equal(banner.hidden, true);
+  } finally {
+    globalThis.document = origDoc;
+    globalThis.window = origWindow;
+    if (origOnlineDesc) {
+      try { Object.defineProperty(globalThis.navigator, 'onLine', origOnlineDesc); } catch {}
+    }
+  }
+});
+
+test('setupMobileSpeedDial controls opening, closing, keyboard navigation, and action execution', async () => {
+  const { setupMobileSpeedDial } = await import('../nav.js');
+
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const containerClasses = classListSet();
+  const container = {
+    id: 'mobileSpeedDial',
+    classList: containerClasses,
+    contains: (el) => el === container || el === trigger || el === menu,
+    addEventListener: (ev, fn) => listeners.set(`container:${ev}`, fn)
+  };
+
+  let triggerAriaExpanded = 'false';
+  let triggerFocused = false;
+  const trigger = {
+    id: 'speedDialTrigger',
+    dataset: {},
+    setAttribute: (k, v) => { if (k === 'aria-expanded') triggerAriaExpanded = v; },
+    getAttribute: (k) => k === 'aria-expanded' ? triggerAriaExpanded : null,
+    focus: () => { triggerFocused = true; },
+    addEventListener: (ev, fn) => listeners.set(`trigger:${ev}`, fn)
+  };
+
+  const actionCallbacks = {};
+  const searchBtn = {
+    tagName: 'BUTTON',
+    getAttribute: (k) => k === 'data-speed-action' ? 'search' : null,
+    dataset: {},
+    focus: () => {},
+    addEventListener: (ev, fn) => { actionCallbacks['search'] = fn; }
+  };
+  const paymentBtn = {
+    tagName: 'BUTTON',
+    getAttribute: (k) => k === 'data-speed-action' ? 'payment' : null,
+    dataset: {},
+    focus: () => {},
+    addEventListener: (ev, fn) => { actionCallbacks['payment'] = fn; }
+  };
+
+  const menu = {
+    id: 'speedDialMenu',
+    hidden: true,
+    querySelector: (sel) => searchBtn,
+    querySelectorAll: (sel) => [searchBtn, paymentBtn],
+    contains: (el) => el === searchBtn || el === paymentBtn
+  };
+
+  const backdrop = {
+    id: 'speedDialBackdrop',
+    hidden: true,
+    dataset: {},
+    contains: (el) => el === backdrop,
+    addEventListener: (ev, fn) => listeners.set(`backdrop:${ev}`, fn)
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'mobileSpeedDial') return container;
+      if (id === 'speedDialTrigger') return trigger;
+      if (id === 'speedDialMenu') return menu;
+      if (id === 'speedDialBackdrop') return backdrop;
+      return null;
+    },
+    addEventListener: (ev, fn) => listeners.set(`doc:${ev}`, fn)
+  };
+
+  try {
+    let searchTriggered = false;
+    let paymentTriggered = false;
+
+    const dial = setupMobileSpeedDial({
+      onSearchRoster: () => { searchTriggered = true; },
+      onRecordPayment: () => { paymentTriggered = true; }
+    });
+
+    assert.equal(dial.isOpen(), false);
+
+    // Open via trigger
+    listeners.get('trigger:click')({ stopPropagation: () => {} });
+    assert.equal(dial.isOpen(), true);
+    assert.equal(containerClasses.contains('is-open'), true);
+    assert.equal(menu.hidden, false);
+    assert.equal(backdrop.hidden, false);
+    assert.equal(triggerAriaExpanded, 'true');
+
+    // Trigger search action
+    assert.ok(actionCallbacks['search']);
+    actionCallbacks['search']();
+    assert.equal(searchTriggered, true);
+    assert.equal(dial.isOpen(), false);
+    assert.equal(containerClasses.contains('is-open'), false);
+    assert.equal(menu.hidden, true);
+    assert.equal(backdrop.hidden, true);
+
+    // Reopen and close with escape
+    dial.open();
+    assert.equal(dial.isOpen(), true);
+    let defaultPrevented = false;
+    listeners.get('container:keydown')({ key: 'Escape', preventDefault: () => { defaultPrevented = true; } });
+    assert.equal(defaultPrevented, true);
+    assert.equal(dial.isOpen(), false);
+
+    // Reopen and close with backdrop click
+    dial.open();
+    assert.equal(dial.isOpen(), true);
+    listeners.get('backdrop:click')();
+    assert.equal(dial.isOpen(), false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('setupOfflineQueueModal renders pending items, clears queue, and handles sync action', async () => {
+  const { setupOfflineQueueModal, addOfflineSyncItem } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  addOfflineSyncItem({ action: 'record_payment', summary: 'Receipt for Ali', timestamp: '2026-10-16T00:30:00Z' }, mockStorage);
+  addOfflineSyncItem({ action: 'add_customer', summary: 'New subscriber Tariq', timestamp: '2026-10-16T00:32:00Z' }, mockStorage);
+
+  const listeners = new Map();
+  let modalOpen = false;
+
+  const modal = {
+    id: 'offlineQueueModal',
+    showModal: () => { modalOpen = true; },
+    close: () => { modalOpen = false; },
+    setAttribute: () => { modalOpen = true; },
+    removeAttribute: () => { modalOpen = false; },
+    addEventListener: (ev, fn) => listeners.set(`modal:${ev}`, fn)
+  };
+  const closeBtn = { id: 'closeOfflineQueueModalBtn', dataset: {}, addEventListener: (ev, fn) => listeners.set(`close:${ev}`, fn) };
+  const syncBtn = { id: 'queueSyncAllBtn', dataset: {}, disabled: false, addEventListener: (ev, fn) => listeners.set(`sync:${ev}`, fn) };
+  const clearBtn = { id: 'queueClearAllBtn', dataset: {}, addEventListener: (ev, fn) => listeners.set(`clear:${ev}`, fn) };
+  const listEl = {
+    id: 'offlineQueueList',
+    innerHTML: '',
+    children: [],
+    appendChild: (child) => { listEl.children.push(child); }
+  };
+  const countBadge = { id: 'queueItemCountBadge', textContent: '' };
+  const emptyMsg = { id: 'offlineQueueEmptyMessage', hidden: false };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'offlineQueueModal') return modal;
+      if (id === 'closeOfflineQueueModalBtn') return closeBtn;
+      if (id === 'queueSyncAllBtn') return syncBtn;
+      if (id === 'queueClearAllBtn') return clearBtn;
+      if (id === 'offlineQueueList') return listEl;
+      if (id === 'queueItemCountBadge') return countBadge;
+      if (id === 'offlineQueueEmptyMessage') return emptyMsg;
+      return null;
+    },
+    createElement(tag) {
+      return {
+        tagName: tag.toUpperCase(),
+        className: '',
+        attributes: new Map(),
+        setAttribute(k, v) { this.attributes.set(k, v); },
+        appendChild: function(c) { this.children = this.children || []; this.children.push(c); }
+      };
+    }
+  };
+
+  try {
+    let syncedRes = null;
+    let toastedMsg = null;
+
+    const queueModal = setupOfflineQueueModal({
+      storage: mockStorage,
+      onSync: (r) => { syncedRes = r; },
+      onToast: (msg) => { toastedMsg = msg; }
+    });
+
+    // Opening modal renders queue
+    queueModal.open();
+    assert.equal(modalOpen, true);
+    assert.ok(countBadge.textContent.includes('2 items pending'));
+    assert.equal(emptyMsg.hidden, true);
+    assert.equal(listEl.children.length, 2);
+
+    // Clicking close button
+    assert.ok(listeners.has('close:click'));
+    listeners.get('close:click')();
+    assert.equal(modalOpen, false);
+
+    // Triggering sync button
+    assert.ok(listeners.has('sync:click'));
+    listeners.get('sync:click')();
+    assert.ok(syncedRes);
+    assert.equal(syncedRes.processedCount, 2);
+    assert.ok(toastedMsg.includes('Synced 2 queued items'));
+    assert.ok(countBadge.textContent.includes('0 items pending'));
+    assert.equal(emptyMsg.hidden, false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

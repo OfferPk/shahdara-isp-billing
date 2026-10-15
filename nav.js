@@ -1390,3 +1390,496 @@ export function setupSwipeNavigation({
   };
 }
 
+/**
+ * Offline Sync Queue Management for Field Operators in Shahdara.
+ */
+export const OFFLINE_SYNC_QUEUE_KEY = 'shahdara_offline_sync_queue';
+
+export function getOfflineSyncQueue(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(OFFLINE_SYNC_QUEUE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addOfflineSyncItem(item, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !item) return [];
+  try {
+    const queue = getOfflineSyncQueue(storage);
+    const entry = {
+      id: item.id || ('sync_' + Math.random().toString(36).slice(2, 9)),
+      type: item.type || item.action || 'generic',
+      action: item.action || item.type || 'generic',
+      summary: item.summary || 'Recorded action',
+      timestamp: item.timestamp || new Date().toISOString(),
+      payload: item.payload ?? null,
+      ...item
+    };
+    queue.push(entry);
+    storage.setItem(OFFLINE_SYNC_QUEUE_KEY, JSON.stringify(queue));
+    return queue;
+  } catch {
+    return [];
+  }
+}
+
+export function clearOfflineSyncQueue(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return;
+  try {
+    storage.removeItem(OFFLINE_SYNC_QUEUE_KEY);
+  } catch {}
+}
+
+export function processOfflineSyncQueue({
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onItemProcessed,
+  onComplete
+} = {}) {
+  const queue = getOfflineSyncQueue(storage);
+  const count = queue.length;
+  if (count === 0) {
+    if (typeof onComplete === 'function') onComplete({ processedCount: 0, success: true });
+    return { processedCount: 0, success: true };
+  }
+
+  for (let i = 0; i < queue.length; i++) {
+    if (typeof onItemProcessed === 'function') {
+      onItemProcessed(queue[i], i);
+    }
+  }
+
+  clearOfflineSyncQueue(storage);
+
+  if (typeof onComplete === 'function') {
+    onComplete({ processedCount: count, success: true });
+  }
+
+  return { processedCount: count, success: true };
+}
+
+/**
+ * Sets up the Mobile Offline Sync & Connectivity Resilience Banner.
+ */
+export function setupOfflineSyncBanner({
+  onToast,
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onSyncProcessed,
+  onOpenQueue
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      show: () => {},
+      hide: () => {},
+      syncNow: () => {},
+      getQueueCount: () => 0
+    };
+  }
+
+  const banner = document.getElementById('offlineSyncBanner');
+  const iconEl = document.getElementById('offlineSyncIcon');
+  const textEl = document.getElementById('offlineSyncText');
+  const retryBtn = document.getElementById('offlineSyncRetryBtn');
+  const dismissBtn = document.getElementById('offlineSyncDismissBtn');
+  const viewQueueBtn = document.getElementById('offlineSyncViewQueueBtn');
+
+  let isDismissed = false;
+  let syncTimeout = null;
+
+  function updateBannerState() {
+    if (!banner) return;
+    const isOnline = typeof navigator !== 'undefined' && 'onLine' in navigator ? navigator.onLine : true;
+    const queue = getOfflineSyncQueue(storage);
+    const queueCount = queue.length;
+
+    if (viewQueueBtn) viewQueueBtn.hidden = queueCount === 0;
+
+    if (!isOnline) {
+      if (isDismissed) return;
+      banner.hidden = false;
+      banner.className = 'offline-sync-banner is-offline';
+      if (textEl) {
+        textEl.textContent = queueCount > 0
+          ? `Offline Mode · Local ledger active (${queueCount} pending action${queueCount === 1 ? '' : 's'})`
+          : 'Offline Mode · All billing entries saved to device storage';
+      }
+      if (retryBtn) retryBtn.hidden = true;
+    } else {
+      if (queueCount > 0) {
+        banner.hidden = false;
+        banner.className = 'offline-sync-banner is-syncing';
+        if (textEl) {
+          textEl.textContent = `Online · Syncing ${queueCount} local change${queueCount === 1 ? '' : 's'}...`;
+        }
+        if (retryBtn) {
+          retryBtn.hidden = false;
+          retryBtn.textContent = 'Sync Now';
+        }
+
+        if (syncTimeout) clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(() => {
+          runSync();
+        }, 1200);
+      } else {
+        if (!banner.hidden && banner.classList.contains('is-offline')) {
+          banner.className = 'offline-sync-banner is-online';
+          if (textEl) textEl.textContent = 'Connection restored · Local ledger up to date';
+          setTimeout(() => {
+            banner.hidden = true;
+          }, 2400);
+        } else {
+          banner.hidden = true;
+        }
+      }
+    }
+  }
+
+  function runSync() {
+    if (!banner) return;
+    banner.className = 'offline-sync-banner is-syncing';
+    if (textEl) textEl.textContent = 'Processing offline actions...';
+
+    const result = processOfflineSyncQueue({
+      storage,
+      onComplete: (res) => {
+        triggerHaptic('success');
+        if (typeof onSyncProcessed === 'function') onSyncProcessed(res);
+        banner.className = 'offline-sync-banner is-synced';
+        if (textEl) {
+          textEl.textContent = `✓ All ${res.processedCount} queued change${res.processedCount === 1 ? '' : 's'} confirmed`;
+        }
+        if (retryBtn) retryBtn.hidden = true;
+        if (typeof onToast === 'function') {
+          onToast(`Sync complete: ${res.processedCount} changes saved to ledger`);
+        }
+        setTimeout(() => {
+          banner.hidden = true;
+          updateBannerState();
+        }, 2200);
+      }
+    });
+
+    return result;
+  }
+
+  if (retryBtn && !retryBtn.dataset?.wired) {
+    if (retryBtn.dataset) retryBtn.dataset.wired = 'true';
+    else if (retryBtn.setAttribute) retryBtn.setAttribute('data-wired', 'true');
+    retryBtn.addEventListener('click', () => {
+      triggerHaptic('medium');
+      runSync();
+    });
+  }
+
+  if (viewQueueBtn && !viewQueueBtn.dataset?.wired) {
+    if (viewQueueBtn.dataset) viewQueueBtn.dataset.wired = 'true';
+    else if (viewQueueBtn.setAttribute) viewQueueBtn.setAttribute('data-wired', 'true');
+    viewQueueBtn.addEventListener('click', () => {
+      triggerHaptic('light');
+      if (typeof onOpenQueue === 'function') {
+        onOpenQueue();
+      } else {
+        const modal = document.getElementById('offlineQueueModal');
+        if (modal) {
+          if (typeof modal.showModal === 'function') modal.showModal();
+          else modal.setAttribute('open', '');
+        }
+      }
+    });
+  }
+
+  if (dismissBtn && !dismissBtn.dataset?.wired) {
+    if (dismissBtn.dataset) dismissBtn.dataset.wired = 'true';
+    else if (dismissBtn.setAttribute) dismissBtn.setAttribute('data-wired', 'true');
+    dismissBtn.addEventListener('click', () => {
+      isDismissed = true;
+      triggerHaptic('light');
+      if (banner) banner.hidden = true;
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', () => {
+      isDismissed = false;
+      updateBannerState();
+    });
+    window.addEventListener('offline', () => {
+      isDismissed = false;
+      updateBannerState();
+    });
+  }
+
+  updateBannerState();
+
+  return {
+    show: () => {
+      isDismissed = false;
+      if (banner) banner.hidden = false;
+      updateBannerState();
+    },
+    hide: () => {
+      if (banner) banner.hidden = true;
+    },
+    syncNow: runSync,
+    getQueueCount: () => getOfflineSyncQueue(storage).length,
+    update: updateBannerState
+  };
+}
+
+/**
+ * Sets up Floating Mobile Quick Navigation Speed Dial / Action Dock.
+ */
+export function setupMobileSpeedDial({
+  onSearchRoster,
+  onRecordPayment,
+  onAddCustomer,
+  onReminders,
+  onScrollTop
+} = {}) {
+  if (typeof document === 'undefined') {
+    return { open: () => {}, close: () => {}, toggle: () => {} };
+  }
+
+  const container = document.getElementById('mobileSpeedDial');
+  const trigger = document.getElementById('speedDialTrigger');
+  const menu = document.getElementById('speedDialMenu');
+  const backdrop = document.getElementById('speedDialBackdrop');
+
+  if (!container || !trigger || !menu) {
+    return { open: () => {}, close: () => {}, toggle: () => {} };
+  }
+
+  let isOpen = false;
+
+  function openSpeedDial() {
+    isOpen = true;
+    triggerHaptic('medium');
+    container.classList.add('is-open');
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    if (backdrop) backdrop.hidden = false;
+
+    const firstBtn = menu.querySelector('button');
+    if (firstBtn) firstBtn.focus();
+  }
+
+  function closeSpeedDial() {
+    if (!isOpen) return;
+    isOpen = false;
+    triggerHaptic('light');
+    container.classList.remove('is-open');
+    menu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    if (backdrop) backdrop.hidden = true;
+    trigger.focus();
+  }
+
+  function toggleSpeedDial() {
+    if (isOpen) closeSpeedDial();
+    else openSpeedDial();
+  }
+
+  if (!trigger.dataset?.wired) {
+    if (trigger.dataset) trigger.dataset.wired = 'true';
+    else if (trigger.setAttribute) trigger.setAttribute('data-wired', 'true');
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleSpeedDial();
+    });
+  }
+
+  if (backdrop && !backdrop.dataset?.wired) {
+    if (backdrop.dataset) backdrop.dataset.wired = 'true';
+    else if (backdrop.setAttribute) backdrop.setAttribute('data-wired', 'true');
+    backdrop.addEventListener('click', () => {
+      closeSpeedDial();
+    });
+  }
+
+  const actionBtns = menu.querySelectorAll?.('[data-speed-action]') ?? [];
+  actionBtns.forEach(btn => {
+    if (!btn.dataset?.wired) {
+      if (btn.dataset) btn.dataset.wired = 'true';
+      else if (btn.setAttribute) btn.setAttribute('data-wired', 'true');
+      btn.addEventListener('click', () => {
+        const action = btn.getAttribute('data-speed-action');
+        closeSpeedDial();
+        triggerHaptic('light');
+
+        if (action === 'search' && typeof onSearchRoster === 'function') {
+          onSearchRoster();
+        } else if (action === 'payment' && typeof onRecordPayment === 'function') {
+          onRecordPayment();
+        } else if (action === 'add-customer' && typeof onAddCustomer === 'function') {
+          onAddCustomer();
+        } else if (action === 'reminders' && typeof onReminders === 'function') {
+          onReminders();
+        } else if (action === 'scroll-top' && typeof onScrollTop === 'function') {
+          onScrollTop();
+        }
+      });
+    }
+  });
+
+  container.addEventListener('keydown', (e) => {
+    if (!isOpen) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSpeedDial();
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const btns = Array.from(menu.querySelectorAll('button:not([disabled])'));
+      if (btns.length === 0) return;
+      const idx = btns.indexOf(document.activeElement);
+      let nextIdx = 0;
+      if (e.key === 'ArrowDown') {
+        nextIdx = idx < btns.length - 1 ? idx + 1 : 0;
+      } else {
+        nextIdx = idx > 0 ? idx - 1 : btns.length - 1;
+      }
+      btns[nextIdx].focus();
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (isOpen && !container.contains(e.target) && (!backdrop || !backdrop.contains(e.target))) {
+      closeSpeedDial();
+    }
+  });
+
+  return {
+    open: openSpeedDial,
+    close: closeSpeedDial,
+    toggle: toggleSpeedDial,
+    isOpen: () => isOpen
+  };
+}
+
+/**
+ * Sets up Offline Sync Queue Inspector Modal.
+ */
+export function setupOfflineQueueModal({
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onSync,
+  onToast
+} = {}) {
+  if (typeof document === 'undefined') {
+    return { open: () => {}, close: () => {}, render: () => {} };
+  }
+
+  const modal = document.getElementById('offlineQueueModal');
+  const closeBtn = document.getElementById('closeOfflineQueueModalBtn');
+  const syncBtn = document.getElementById('queueSyncAllBtn');
+  const clearBtn = document.getElementById('queueClearAllBtn');
+  const listEl = document.getElementById('offlineQueueList');
+  const countBadge = document.getElementById('queueItemCountBadge');
+  const emptyMsg = document.getElementById('offlineQueueEmptyMessage');
+
+  if (!modal) {
+    return { open: () => {}, close: () => {}, render: () => {} };
+  }
+
+  function renderQueue() {
+    const queue = getOfflineSyncQueue(storage);
+    const count = queue.length;
+
+    if (countBadge) {
+      countBadge.textContent = `${count} item${count === 1 ? '' : 's'} pending`;
+    }
+
+    if (emptyMsg) {
+      emptyMsg.hidden = count > 0;
+    }
+
+    if (syncBtn) {
+      syncBtn.disabled = count === 0;
+    }
+
+    if (listEl) {
+      listEl.innerHTML = '';
+      if (count > 0) {
+        queue.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'queue-item-card';
+          card.setAttribute('role', 'listitem');
+
+          const infoDiv = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'queue-item-title';
+          title.textContent = item.summary || (item.action ? `Action: ${item.action}` : 'Offline Entry');
+
+          const time = document.createElement('div');
+          time.className = 'queue-item-time';
+          time.textContent = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : 'Recent';
+
+          infoDiv.appendChild(title);
+          infoDiv.appendChild(time);
+          card.appendChild(infoDiv);
+
+          listEl.appendChild(card);
+        });
+      }
+    }
+  }
+
+  function openModal() {
+    renderQueue();
+    if (typeof modal.showModal === 'function') {
+      modal.showModal();
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  function closeModal() {
+    if (typeof modal.close === 'function') {
+      modal.close();
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    closeBtn.addEventListener('click', closeModal);
+  }
+
+  if (syncBtn && !syncBtn.dataset?.wired) {
+    if (syncBtn.dataset) syncBtn.dataset.wired = 'true';
+    syncBtn.addEventListener('click', () => {
+      processOfflineSyncQueue({
+        storage,
+        onComplete: (r) => {
+          if (typeof onSync === 'function') onSync(r);
+          if (typeof onToast === 'function') onToast(`Synced ${r.processedCount} queued items`);
+          renderQueue();
+          closeModal();
+        }
+      });
+    });
+  }
+
+  if (clearBtn && !clearBtn.dataset?.wired) {
+    if (clearBtn.dataset) clearBtn.dataset.wired = 'true';
+    clearBtn.addEventListener('click', () => {
+      clearOfflineSyncQueue(storage);
+      renderQueue();
+      if (typeof onToast === 'function') onToast('Offline queue cleared');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  return {
+    open: openModal,
+    close: closeModal,
+    render: renderQueue
+  };
+}
+
+

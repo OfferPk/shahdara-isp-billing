@@ -1377,12 +1377,14 @@
   color: #fca5a5;
 }
 
-/* Customer Lifetime Value (LTV) Cohorts Styles */
-.chart-card-ltv {
+/* Customer Lifetime Value (LTV) Cohorts & Incident Matrix Styles */
+.chart-card-ltv,
+.chart-card-incident {
   background: var(--surface, #ffffff);
 }
 
-.ltv-modal-card {
+.ltv-modal-card,
+.incident-modal-card {
   max-width: 720px;
 }
 

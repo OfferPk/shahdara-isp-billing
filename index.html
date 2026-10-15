@@ -355,6 +355,16 @@
             </div>
             <div id="dashboardLtvChart" class="chart-svg-container" role="img" aria-label="Customer lifetime value and tenure cohort chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-incident">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Network Outages &amp; Incident Matrix</h4>
+                <p class="chart-subtitle">Area complaint frequency, MTTR recovery speed, and active downtime</p>
+              </div>
+              <button id="dashboardOpenIncidentModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Incident Matrix</button>
+            </div>
+            <div id="dashboardIncidentChart" class="chart-svg-container" role="img" aria-label="Network incident and outage matrix chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -584,6 +594,79 @@
 
           <div class="sim-modal-footer">
             <button id="dashboardCopyLtvReportBtn" class="primary-button" type="button">📋 Copy LTV Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardIncidentModal" class="dashboard-modal incident-impact-modal" aria-labelledby="dashboardIncidentModalTitle">
+        <div class="dashboard-modal-card incident-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">NETWORK RELIABILITY &amp; SLA PERFORMANCE</p>
+              <h3 id="dashboardIncidentModalTitle">Operational Outage &amp; Incident Matrix</h3>
+            </div>
+            <button id="dashboardIncidentModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Historical outage analysis, area correlation matrix, MTTR recovery velocity, and active network downtime.</p>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Mean Time to Restore</span>
+              <strong id="dashboardIncidentMttrVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Active Open Outages</span>
+              <strong id="dashboardIncidentActiveVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Affected Subscribers</span>
+              <strong id="dashboardIncidentAffectedVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Subscriber Incident Rate</span>
+              <strong id="dashboardIncidentRateVal" class="ltv-kpi-val">—</strong>
+            </div>
+          </div>
+
+          <h4 class="modal-section-title">Area Outage Correlation Matrix</h4>
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Service Area</th>
+                  <th>Total Incidents</th>
+                  <th>Active Outages</th>
+                  <th>MTTR (Hours)</th>
+                  <th>At-Risk Revenue</th>
+                  <th>Health Status</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardIncidentAreaTableBody">
+                <tr><td colspan="6" class="empty-cell">Calculating area incident metrics...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 class="modal-section-title">High-Incident Accounts Roster</h4>
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Subscriber</th>
+                  <th>Area &amp; Package</th>
+                  <th>Incident History</th>
+                  <th>Current State</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardIncidentAccountsTableBody">
+                <tr><td colspan="5" class="empty-cell">Analyzing subscriber complaint logs...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="dashboardCopyIncidentReportBtn" class="primary-button" type="button">📋 Copy Incident Report</button>
           </div>
         </div>
       </dialog>

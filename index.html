@@ -290,6 +290,21 @@
             </div>
             <div id="dashboardChurnChart" class="chart-svg-container" role="img" aria-label="Customer churn risk gauge and subscriber cohort breakdown"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-heatmap">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Geographic Collection Heatmap</h4>
+                <p class="chart-subtitle">Collection efficiency &amp; recovery rate by operational zone</p>
+              </div>
+              <div id="dashboardHeatmapActions" class="heatmap-filter-group" role="group" aria-label="Filter areas by collection recovery">
+                <button type="button" class="heatmap-filter-btn is-active" data-filter-heat="all">All</button>
+                <button type="button" class="heatmap-filter-btn heatmap-btn-high" data-filter-heat="high" title="Recovery ≥ 85%">Optimal</button>
+                <button type="button" class="heatmap-filter-btn heatmap-btn-moderate" data-filter-heat="moderate" title="Recovery 60-84%">Moderate</button>
+                <button type="button" class="heatmap-filter-btn heatmap-btn-lagging" data-filter-heat="lagging" title="Recovery &lt; 60%">Lagging</button>
+              </div>
+            </div>
+            <div id="dashboardHeatmapChart" class="chart-svg-container" role="img" aria-label="Geographic collection heatmap and recovery rate chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>

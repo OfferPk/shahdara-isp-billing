@@ -1,4 +1,4 @@
-import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR } from './core.js';
+import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus } from './core.js';
 import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -25,6 +25,7 @@ export function getMethodColor(methodName, index = 0) {
 
 let currentTrendMonths = 6;
 let currentMethodPeriod = 'currentMonth';
+let currentHeatmapFilter = 'all';
 
 export function setTrendChartDuration(months) {
   const m = Number(months);
@@ -45,6 +46,16 @@ export function setMethodChartPeriod(period) {
 
 export function getMethodChartPeriod() {
   return currentMethodPeriod;
+}
+
+export function setHeatmapFilter(filter) {
+  if (['all', 'high', 'moderate', 'lagging'].includes(filter)) {
+    currentHeatmapFilter = filter;
+  }
+}
+
+export function getHeatmapFilter() {
+  return currentHeatmapFilter;
 }
 
 function escapeXml(str) {
@@ -183,6 +194,164 @@ export function calculateAreaDetailedBreakdown(state, referenceDate = new Date()
       totalDue: Math.round(g.totalDueCents / 100)
     }))
     .sort((a, b) => b.totalDue - a.totalDue || b.customerCount - a.customerCount);
+}
+
+/**
+ * Computes geographic collection heatmap and recovery rates by area.
+ * Evaluates current-month billed snapshot amounts, cash collections,
+ * recovery percentage, ARPU, and efficiency status tiers.
+ */
+export function calculateAreaCollectionHeatmap(state, referenceDate = new Date()) {
+  const currentSnapshot = calculateDashboard(state, referenceDate);
+  const currentMonth = currentSnapshot.currentMonth;
+  const allocations = calculatePaymentAllocations(state);
+  const retainedMonths = new Set(monthsForHistory(referenceDate));
+
+  const areaMap = new Map();
+
+  for (const customer of (state.customers ?? [])) {
+    if (customer.archived) continue;
+    const areaName = (customer.area && String(customer.area).trim()) ? String(customer.area).trim() : 'Unassigned';
+
+    if (!areaMap.has(areaName)) {
+      areaMap.set(areaName, {
+        area: areaName,
+        customerCount: 0,
+        activeCount: 0,
+        offlineCount: 0,
+        currentBilledCents: 0,
+        currentCollectedCents: 0,
+        totalDueCents: 0,
+        paidBillsCount: 0,
+        unpaidBillsCount: 0,
+        partialBillsCount: 0
+      });
+    }
+
+    const group = areaMap.get(areaName);
+    group.customerCount++;
+    if (customer.serviceStatus === 'active') group.activeCount++;
+    else if (customer.serviceStatus === 'offline') group.offlineCount++;
+
+    const bills = Array.isArray(customer.bills) ? customer.bills : [];
+    for (const bill of bills) {
+      if (!retainedMonths.has(bill.month)) continue;
+      const amount = bill.dueAmount;
+      const hasPrice = amount !== null && amount !== undefined && amount !== '' && Number(amount) > 0;
+
+      // Outstanding dues across retained history
+      if (hasPrice) {
+        const summary = allocations.forMonth?.(customer.id, bill.month);
+        const balanceDueCents = summary?.balanceDueCents ?? Math.round(Number(amount) * 100);
+        if (balanceDueCents > 0) {
+          group.totalDueCents += balanceDueCents;
+        }
+      }
+
+      // Current month billed revenue and status
+      if (bill.month === currentMonth) {
+        if (hasPrice) {
+          const billedCents = Math.round(Number(amount) * 100);
+          group.currentBilledCents += billedCents;
+          const status = derivedBillStatus(customer, bill, allocations);
+          if (status === 'PAID') group.paidBillsCount++;
+          else if (status === 'PARTIAL') group.partialBillsCount++;
+          else group.unpaidBillsCount++;
+        }
+      }
+
+      // Actual cash receipts dated in current month for this customer
+      const payments = Array.isArray(bill.payments) ? bill.payments : [];
+      for (const p of payments) {
+        if (typeof p.date === 'string' && p.date.startsWith(currentMonth)) {
+          const amt = Number(p.amount) || 0;
+          if (amt > 0) {
+            group.currentCollectedCents += Math.round(amt * 100);
+          }
+        }
+      }
+    }
+  }
+
+  let totalBilled = 0;
+  let totalCollected = 0;
+  let totalOutstanding = 0;
+
+  const areas = [...areaMap.values()].map(g => {
+    const billed = Math.round(g.currentBilledCents / 100);
+    const collected = Math.round(g.currentCollectedCents / 100);
+    const totalDue = Math.round(g.totalDueCents / 100);
+
+    totalBilled += billed;
+    totalCollected += collected;
+    totalOutstanding += totalDue;
+
+    const recoveryRate = billed > 0 ? Math.round((collected / billed) * 100) : (collected > 0 ? 100 : 0);
+
+    let tier = 'neutral';
+    let tierLabel = 'No Activity';
+    let heatColor = '#64748b'; // slate
+    if (billed > 0 || collected > 0) {
+      if (recoveryRate >= 85) {
+        tier = 'high';
+        tierLabel = 'Optimal Recovery';
+        heatColor = '#10b981'; // emerald
+      } else if (recoveryRate >= 60) {
+        tier = 'moderate';
+        tierLabel = 'Moderate Recovery';
+        heatColor = '#f59e0b'; // amber
+      } else {
+        tier = 'lagging';
+        tierLabel = 'Lagging Collection';
+        heatColor = '#ef4444'; // rose
+      }
+    }
+
+    const arpu = g.activeCount > 0 ? Math.round(billed / g.activeCount) : 0;
+
+    return {
+      area: g.area,
+      customerCount: g.customerCount,
+      activeCount: g.activeCount,
+      offlineCount: g.offlineCount,
+      billed,
+      collected,
+      totalDue,
+      recoveryRate,
+      tier,
+      tierLabel,
+      heatColor,
+      arpu,
+      paidBillsCount: g.paidBillsCount,
+      partialBillsCount: g.partialBillsCount,
+      unpaidBillsCount: g.unpaidBillsCount
+    };
+  }).sort((a, b) => b.billed - a.billed || b.totalDue - a.totalDue || b.customerCount - a.customerCount);
+
+  const highRecoveryCount = areas.filter(a => a.tier === 'high').length;
+  const moderateRecoveryCount = areas.filter(a => a.tier === 'moderate').length;
+  const laggingCount = areas.filter(a => a.tier === 'lagging').length;
+  const overallRecoveryRate = totalBilled > 0 ? Math.round((totalCollected / totalBilled) * 100) : 0;
+
+  const topPerformingArea = [...areas].filter(a => a.billed > 0).sort((a, b) => b.recoveryRate - a.recoveryRate)[0] || null;
+  const highestDueArea = [...areas].sort((a, b) => b.totalDue - a.totalDue)[0] || null;
+
+  return {
+    currentMonth,
+    areas,
+    summary: {
+      totalAreas: areas.length,
+      highRecoveryCount,
+      moderateRecoveryCount,
+      laggingCount,
+      totalBilled,
+      totalCollected,
+      totalOutstanding,
+      overallRecoveryRate,
+      topPerformingArea: topPerformingArea ? { area: topPerformingArea.area, rate: topPerformingArea.recoveryRate } : null,
+      highestDueArea: highestDueArea && highestDueArea.totalDue > 0 ? { area: highestDueArea.area, due: highestDueArea.totalDue } : null
+    }
+  };
 }
 
 /**
@@ -829,6 +998,99 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
   </svg>`;
 }
 
+/**
+ * Renders an accessible, theme-aware pure SVG geographic collection heatmap.
+ * Shows operational recovery status chips, area recovery progress tracks,
+ * collected vs billed metrics, and outstanding dues.
+ */
+export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', width = 520, height = 270 } = {}) {
+  if (!heatmapData || !Array.isArray(heatmapData.areas) || heatmapData.areas.length === 0) {
+    return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Geographic Collection Heatmap: No area data available">
+      <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" fill="var(--muted, #71817c)">No area collection data recorded for this period.</text>
+    </svg>`;
+  }
+
+  const { areas, summary } = heatmapData;
+  const visibleAreas = areas.filter(a => filter === 'all' || a.tier === filter);
+
+  const headerY = 16;
+  const pillW = Math.floor((width - 40) / 3);
+
+  // Status Summary Chips at top
+  const headerMarkup = `
+    <g class="heatmap-summary-chips" transform="translate(10, ${headerY})">
+      <!-- Optimal Chip -->
+      <g transform="translate(0, 0)">
+        <rect width="${pillW}" height="28" rx="6" fill="rgba(16, 185, 129, 0.08)" stroke="rgba(16, 185, 129, 0.28)" stroke-width="1"/>
+        <circle cx="12" cy="14" r="4" fill="#10b981"/>
+        <text x="22" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">Optimal: <tspan fill="#047857">${summary.highRecoveryCount}</tspan></text>
+      </g>
+      <!-- Moderate Chip -->
+      <g transform="translate(${pillW + 10}, 0)">
+        <rect width="${pillW}" height="28" rx="6" fill="rgba(245, 158, 11, 0.08)" stroke="rgba(245, 158, 11, 0.28)" stroke-width="1"/>
+        <circle cx="12" cy="14" r="4" fill="#f59e0b"/>
+        <text x="22" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">Moderate: <tspan fill="#b45309">${summary.moderateRecoveryCount}</tspan></text>
+      </g>
+      <!-- Lagging Chip -->
+      <g transform="translate(${(pillW + 10) * 2}, 0)">
+        <rect width="${pillW}" height="28" rx="6" fill="rgba(239, 68, 68, 0.08)" stroke="rgba(239, 68, 68, 0.28)" stroke-width="1"/>
+        <circle cx="12" cy="14" r="4" fill="#ef4444"/>
+        <text x="22" y="18" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">Lagging: <tspan fill="#b91c1c">${summary.laggingCount}</tspan></text>
+      </g>
+    </g>
+  `;
+
+  if (visibleAreas.length === 0) {
+    return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Geographic Collection Heatmap: No matching areas">
+      ${headerMarkup}
+      <text x="${width / 2}" y="${height / 2 + 20}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" fill="var(--muted, #71817c)">No operational areas match the "${escapeXml(filter)}" recovery filter.</text>
+    </svg>`;
+  }
+
+  const displayAreas = visibleAreas.slice(0, 5);
+  const rowStartY = 58;
+  const rowHeight = 36;
+  const barX = 140;
+  const barWidth = width - barX - 110;
+
+  const rowsMarkup = displayAreas.map((item, idx) => {
+    const y = rowStartY + idx * rowHeight;
+    const ratePercent = Math.min(100, Math.max(0, item.recoveryRate));
+    const fillW = Math.round((ratePercent / 100) * barWidth);
+
+    return `
+      <g class="heatmap-area-row" transform="translate(10, ${y})" tabindex="0" role="graphics-symbol" aria-label="${escapeXml(item.area)}: Recovery ${item.recoveryRate}%, Collected ${formatPKR(item.collected)} of ${formatPKR(item.billed)}, Total Due ${formatPKR(item.totalDue)}">
+        <!-- Area Title and Sub Count -->
+        <text x="0" y="14" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--ink, #182e2a)">${escapeXml(item.area)}</text>
+        <text x="0" y="27" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${item.customerCount} subs (${item.activeCount} active)</text>
+
+        <!-- Progress Track and Heat Fill -->
+        <g transform="translate(${barX}, 6)">
+          <rect width="${barWidth}" height="10" rx="5" fill="var(--surface-sunken, #e2ece7)" opacity="0.8"/>
+          ${fillW > 0 ? `<rect width="${fillW}" height="10" rx="5" fill="${item.heatColor}"/>` : ''}
+          <text x="0" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">Coll: ${formatPKR(item.collected)} / ${formatPKR(item.billed)}</text>
+          ${item.totalDue > 0 ? `<text x="${barWidth}" y="21" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="#b91c1c">Due: ${formatPKR(item.totalDue)}</text>` : ''}
+        </g>
+
+        <!-- Recovery Rate & Tier Badge -->
+        <g transform="translate(${width - 20}, 14)">
+          <text x="0" y="0" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="12.5" font-weight="800" fill="${item.heatColor}">${item.recoveryRate}%</text>
+          <text x="0" y="13" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="600" fill="${item.heatColor}">${escapeXml(item.tierLabel.split(' ')[0])}</text>
+        </g>
+      </g>
+    `;
+  }).join('');
+
+  const footerY = height - 12;
+  const footerText = `Overall Collection Efficiency: ${summary.overallRecoveryRate}% · ${summary.totalAreas} Operational Zones`;
+
+  return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Geographic Collection Heatmap: Overall recovery ${summary.overallRecoveryRate}%, ${summary.highRecoveryCount} optimal, ${summary.moderateRecoveryCount} moderate, ${summary.laggingCount} lagging zones">
+    ${headerMarkup}
+    ${rowsMarkup}
+    <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${escapeXml(footerText)}</text>
+  </svg>`;
+}
+
 export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
   const trendGroup = document.getElementById('dashboardTrendRangeGroup');
@@ -856,6 +1118,21 @@ export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
       const period = btn.dataset?.period || btn.getAttribute?.('data-period');
       if (['currentMonth', '30days', 'all'].includes(period)) {
         setMethodChartPeriod(period);
+        renderDashboardCharts(state, referenceDate);
+      }
+    });
+  }
+
+  const heatmapGroup = document.getElementById('dashboardHeatmapActions');
+  if (heatmapGroup && !heatmapGroup.dataset?.wired) {
+    if (heatmapGroup.dataset) heatmapGroup.dataset.wired = 'true';
+    else if (heatmapGroup.setAttribute) heatmapGroup.setAttribute('data-wired', 'true');
+    heatmapGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('.heatmap-filter-btn');
+      if (!btn) return;
+      const f = btn.dataset?.filterHeat || btn.getAttribute?.('data-filter-heat');
+      if (['all', 'high', 'moderate', 'lagging'].includes(f)) {
+        setHeatmapFilter(f);
         renderDashboardCharts(state, referenceDate);
       }
     });
@@ -938,6 +1215,23 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
     const churnData = calculateChurnRiskAnalysis(state, referenceDate);
     churnEl.innerHTML = renderChurnRiskGaugeSvg(churnData);
   }
+
+  const heatmapEl = document.getElementById('dashboardHeatmapChart');
+  if (heatmapEl) {
+    const heatmapData = calculateAreaCollectionHeatmap(state, referenceDate);
+    heatmapEl.innerHTML = renderAreaCollectionHeatmapSvg(heatmapData, { filter: currentHeatmapFilter });
+  }
+
+  // update heatmap filter buttons active state
+  const heatmapBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#dashboardHeatmapActions .heatmap-filter-btn')
+    : [];
+  heatmapBtns.forEach(btn => {
+    const f = btn.dataset?.filterHeat || btn.getAttribute?.('data-filter-heat');
+    const isActive = f === currentHeatmapFilter;
+    if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
+    if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

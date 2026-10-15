@@ -1237,10 +1237,14 @@ test('nav.js setupNetworkStatusIndicator opens and closes networkHealthModal on 
       return null;
     }
   };
-  const origDesc = Object.getOwnPropertyDescriptor(globalThis.navigator, 'onLine');
-  try {
-    Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
-  } catch {}
+  const origDesc = origNav ? Object.getOwnPropertyDescriptor(origNav, 'onLine') : null;
+  if (!origNav) {
+    globalThis.navigator = { onLine: true };
+  } else {
+    try {
+      Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
+    } catch {}
+  }
   globalThis.localStorage = { length: 8 };
 
   try {
@@ -1264,7 +1268,9 @@ test('nav.js setupNetworkStatusIndicator opens and closes networkHealthModal on 
     assert.equal(modalOpen, false);
   } finally {
     globalThis.document = origDoc;
-    if (origDesc) {
+    if (!origNav) {
+      delete globalThis.navigator;
+    } else if (origDesc) {
       try { Object.defineProperty(globalThis.navigator, 'onLine', origDesc); } catch {}
     }
     globalThis.localStorage = origLocal;

@@ -184,6 +184,17 @@
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
         <article class="summary-card summary-total-due"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
         <article class="summary-card summary-today-collection"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
+        <article class="summary-card summary-daily-closing">
+          <div class="daily-closing-header">
+            <p class="summary-label">Daily Register &amp; Closing</p>
+            <span id="dashboardClosingStatusBadge" class="closing-badge badge-no-activity">No Activity</span>
+          </div>
+          <strong id="dashboardDailyClosingValue" class="summary-value">No payment entries</strong>
+          <p id="dashboardDailyClosingPeriod" class="summary-period">Benchmark target: calculating...</p>
+          <div class="daily-closing-actions">
+            <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button">📋 Daily Slip</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>

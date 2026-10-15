@@ -15,7 +15,10 @@ import {
   setupCustomerHealthActions,
   setupAreaDrilldownModal,
   setupChurnRiskModal,
-  setupAreaHeatmapEvents
+  setupAreaHeatmapEvents,
+  calculateDailyClosingSummary,
+  generateDailyClosingSlipText,
+  setupDailyClosingCard
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -1402,4 +1405,110 @@ test('setupAreaHeatmapEvents wires click on area row to onFilterArea callback', 
     globalThis.document = originalDocument;
   }
 });
+
+test('calculateDailyClosingSummary computes accurate collections, benchmark targets, and status today', () => {
+  let state = createInitialState(['Closing Cust A', 'Closing Cust B']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer A: Billed 3100 in 2026-10 (October has 31 days -> dailyTarget = 6200 / 31 = 200)
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '3100', status: 'pending' }, refDate);
+  // Payment today
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '2000', date: '2026-10-15', method: 'Cash' }, refDate);
+  // Payment earlier in month
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '1000', date: '2026-10-05', method: 'Cash' }, refDate);
+
+  // Customer B: Billed 3100
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '3100', status: 'pending' }, refDate);
+  // Payment today
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '1500', date: '2026-10-15', method: 'JazzCash' }, refDate);
+
+  const summary = calculateDailyClosingSummary(state, refDate);
+  assert.equal(summary.todayStr, '2026-10-15');
+  assert.equal(summary.todayCollected, 3500);
+  assert.equal(summary.todayCount, 2);
+  assert.equal(summary.averageTicket, 1750);
+  assert.equal(summary.dailyTarget, 200); // 6200 / 31 = 200
+  assert.ok(summary.targetAttainment > 100);
+  assert.equal(summary.closingStatus, 'exceeded');
+  assert.equal(summary.statusLabel, 'Target Met (100%+)');
+
+  assert.equal(summary.methods.length, 2);
+  const cash = summary.methods.find(m => m.method === 'Cash');
+  assert.ok(cash);
+  assert.equal(cash.amount, 2000);
+  const jc = summary.methods.find(m => m.method === 'JazzCash');
+  assert.ok(jc);
+  assert.equal(jc.amount, 1500);
+
+  // Empty day
+  const emptyDaySummary = calculateDailyClosingSummary(state, new Date('2026-10-16T12:00:00+05:00'));
+  assert.equal(emptyDaySummary.todayCollected, 0);
+  assert.equal(emptyDaySummary.todayCount, 0);
+  assert.equal(emptyDaySummary.closingStatus, 'no-activity');
+});
+
+test('generateDailyClosingSlipText formats complete daily closing text', () => {
+  let state = createInitialState(['Slip Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '2000', date: '2026-10-15', method: 'Easypaisa' }, refDate);
+
+  const text = generateDailyClosingSlipText(state, refDate);
+  assert.ok(text.includes('DAILY REGISTER CLOSING'));
+  assert.ok(text.includes('Date: 2026-10-15 PKT'));
+  assert.ok(text.includes('Total Collections Today:'));
+  assert.ok(text.includes('Easypaisa:'));
+});
+
+test('setupDailyClosingCard populates DOM elements and wires clipboard copy', async () => {
+  let state = createInitialState(['Card Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '3100', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '1200', date: '2026-10-15', method: 'Cash' }, refDate);
+
+  const mockValue = { textContent: '' };
+  const mockPeriod = { textContent: '' };
+  const mockBadge = { textContent: '', className: '' };
+  let clickHandler = null;
+  const mockBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { clickHandler = fn; }
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardDailyClosingValue') return mockValue;
+      if (id === 'dashboardDailyClosingPeriod') return mockPeriod;
+      if (id === 'dashboardClosingStatusBadge') return mockBadge;
+      if (id === 'quickActionDailyClosingSlip') return mockBtn;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (str) => { copiedText = str; }
+  };
+
+  try {
+    setupDailyClosingCard(state, refDate, {
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(mockValue.textContent.includes('1 tx'));
+    assert.ok(mockPeriod.textContent.includes('Target:'));
+    assert.ok(mockBadge.className.includes('closing-badge'));
+
+    assert.ok(clickHandler !== null);
+    await clickHandler();
+    assert.ok(copiedText.includes('DAILY REGISTER CLOSING'));
+    assert.equal(toastMessage, 'Daily closing slip copied to clipboard!');
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 

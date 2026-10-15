@@ -166,6 +166,14 @@
         <article class="summary-card summary-active-customers"><p class="summary-label">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
         <article class="summary-card summary-bill-status"><p class="summary-label">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
         <article class="summary-card summary-new-connections"><p class="summary-label">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
+        <article class="summary-card summary-velocity">
+          <p class="summary-label">Collection velocity &amp; projection</p>
+          <strong id="dashboardCollectionVelocity" class="summary-value">PKR 0 / day</strong>
+          <p id="dashboardCollectionVelocityPeriod" class="summary-period">Projected month-end closing</p>
+          <div class="velocity-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Collection rate of billed amount">
+            <div id="dashboardVelocityFill" class="velocity-fill" style="width: 0%"></div>
+          </div>
+        </article>
         <article class="summary-card summary-total-collection"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
         <article class="summary-card summary-credit"><p class="summary-label">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
         <article class="summary-card summary-previous-collection"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>

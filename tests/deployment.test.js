@@ -33,6 +33,7 @@ test('web shell assets share the package version and worker updates before app s
   assert.ok(app.includes(`from './duplicate-detection.js?v=${version}'`));
   assert.ok(app.includes(`from './dashboard.js?v=${version}'`));
   assert.ok(app.includes(`from './nav.js?v=${version}'`));
+  assert.ok(app.includes(`from './form-validation.js?v=${version}'`));
   const register = index.indexOf(`navigator.serviceWorker.register('./sw.js?v=${version}'`);
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');
@@ -269,7 +270,7 @@ test('payroll follow-up remains local-only, owner-entered, selected-month, and h
 
 test('production build includes required imported feature modules and the package catalog', () => {
   const build = read('build.mjs');
-  for (const asset of ['phase3.js','package-catalog.js','owner-insights.js','owner-ui.js','backup-store.js','duplicate-detection.js']) assert.ok(build.includes(`'${asset}'`), `production build copies ${asset}`);
+  for (const asset of ['phase3.js','package-catalog.js','owner-insights.js','owner-ui.js','backup-store.js','duplicate-detection.js','form-validation.js']) assert.ok(build.includes(`'${asset}'`), `production build copies ${asset}`);
 });
 
 test('customer cards and profile summaries expose cumulative actual receipts and date-based tenure', () => {

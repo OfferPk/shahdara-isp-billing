@@ -100,3 +100,64 @@ test('expense sorting logic orders rows by date, category, and amount in both di
   const byCategoryAsc = [...sampleExpenses].sort((a, b) => a.category.localeCompare(b.category));
   assert.deepEqual(byCategoryAsc.map(e => e.id), ['exp-1', 'exp-2', 'exp-3']);
 });
+
+test('inventory table markup contains filter toolbar, count badge, sortable headers, and filter empty state', () => {
+  assert.match(index, /id="inventoryCategoryFilter"/);
+  assert.match(index, /id="inventorySearchInput"/);
+  assert.match(index, /id="clearInventoryFilters"/);
+  assert.match(index, /id="inventoryTableCount"/);
+  assert.match(index, /data-sort-inventory="name"/);
+  assert.match(index, /data-sort-inventory="category"/);
+  assert.match(index, /data-sort-inventory="available"/);
+  assert.match(index, /data-sort-inventory="unitCost"/);
+  assert.match(index, /data-sort-inventory="value"/);
+  assert.match(index, /id="inventoryItemsFilterEmpty"/);
+});
+
+test('area intelligence table markup contains sortable headers', () => {
+  assert.match(index, /data-sort-area="area"/);
+  assert.match(index, /data-sort-area="totalCustomers"/);
+  assert.match(index, /data-sort-area="activeCustomers"/);
+  assert.match(index, /data-sort-area="billedAmount"/);
+  assert.match(index, /data-sort-area="collectedAmount"/);
+  assert.match(index, /data-sort-area="outstanding"/);
+  assert.match(index, /data-sort-area="collectionRate"/);
+});
+
+test('app.js wires inventory and area intelligence table sorting and filtering', () => {
+  assert.match(app, /let inventorySortKey\s*=\s*'name'/);
+  assert.match(app, /let inventoryCategoryFilter\s*=\s*'all'/);
+  assert.match(app, /let inventorySearchQuery\s*=\s*''/);
+  assert.match(app, /data-sort-inventory/);
+  assert.match(app, /clearInventoryFilters/);
+  assert.match(app, /let areaSortKey\s*=\s*null/);
+  assert.match(app, /data-sort-area/);
+});
+
+test('inventory filtering and sorting logic handles items by category, query, and numbers', () => {
+  const items = [
+    { id: 'item-1', name: 'ZTE F660 ONU', category: 'ONU', available: 12, hasMovements: true, unitCost: 3200, value: 38400, notes: 'Dual-band gigabit' },
+    { id: 'item-2', name: 'TP-Link Archer C6', category: 'Router', available: 5, hasMovements: true, unitCost: 4500, value: 22500, notes: 'Wi-Fi 5 AC1200' },
+    { id: 'item-3', name: 'Single-mode 2-Core Drop', category: 'Fiber cable', available: 1200, hasMovements: true, unitCost: 18, value: 21600, notes: 'Roll drum 1000m' },
+    { id: 'item-4', name: 'SC-APC Fast Connector', category: 'Connector', available: 80, hasMovements: true, unitCost: 45, value: 3600, notes: 'Green connectors' }
+  ];
+
+  // Category filter
+  const onus = items.filter(i => i.category === 'ONU');
+  assert.equal(onus.length, 1);
+  assert.equal(onus[0].id, 'item-1');
+
+  // Search query in notes
+  const q = 'gigabit';
+  const matched = items.filter(i => i.name.toLowerCase().includes(q) || i.notes.toLowerCase().includes(q));
+  assert.equal(matched.length, 1);
+  assert.equal(matched[0].id, 'item-1');
+
+  // Sort by available ascending
+  const byAvailAsc = [...items].sort((a, b) => a.available - b.available);
+  assert.deepEqual(byAvailAsc.map(i => i.id), ['item-2', 'item-1', 'item-4', 'item-3']);
+
+  // Sort by unit cost descending
+  const byCostDesc = [...items].sort((a, b) => b.unitCost - a.unitCost);
+  assert.deepEqual(byCostDesc.map(i => i.id), ['item-2', 'item-1', 'item-4', 'item-3']);
+});

@@ -364,8 +364,9 @@ function renderGlobalSearch() {
     selectCustomer(customerId);
   }));
 }
-function switchView(view) {
+function switchView(view, { pushHistory = true } = {}) {
   const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'] };
+  if (!views[view]) view = 'customers';
   for (const [name, [sectionId, buttonId]] of Object.entries(views)) {
     const active = name === view;
     $(`#${sectionId}`).hidden = !active;
@@ -373,6 +374,13 @@ function switchView(view) {
   }
   const mobileView = view === 'transactions' ? 'collection' : view === 'reports' ? 'reports' : view === 'customers' ? 'customers' : 'more';
   document.querySelectorAll('[data-mobile-nav]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileNav === mobileView ? 'page' : 'false'));
+  if (view !== 'customers') appShell.classList.remove('show-detail');
+  if (pushHistory && typeof window !== 'undefined' && window.location) {
+    const targetHash = '#' + view;
+    if (window.location.hash !== targetHash) {
+      try { history.pushState({ view }, '', targetHash); } catch {}
+    }
+  }
 }
 for (const [name, [tabId]] of Object.entries(profileTabMap)) $(`#${tabId}`).addEventListener('click', () => activateProfileTab(name));
 $('.profile-tabs').addEventListener('keydown', event => {
@@ -715,13 +723,16 @@ function renderDetail() {
   renderIncidents(customer);
   renderHistory(customer);
 }
-function selectCustomer(id) {
+function selectCustomer(id, { pushHistory = true } = {}) {
   if (!state.customers.some(customer => customer.id === id)) return;
-  switchView('customers');
+  switchView('customers', { pushHistory: false });
   selectedCustomerId = id;
   profileEditMode = false;
   activateProfileTab('billing');
   appShell.classList.add('show-detail');
+  if (pushHistory && typeof window !== 'undefined' && window.location) {
+    try { history.pushState({ customerId: id }, '', `#customer=${encodeURIComponent(id)}`); } catch {}
+  }
   renderCustomers();
   renderDetail();
   $('#detailPane').scrollTop = 0;
@@ -1205,7 +1216,18 @@ $('#incidentForm').addEventListener('submit', onIncidentSubmit);
 $('#cancelIncidentEditButton').addEventListener('click', () => { closeIncidentEditor(); renderDetail(); });
 $('#customerExportButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) downloadTxt(`customer-${customer.customerNumber}-billing-history.txt`, exportCustomerHistory(state, customer.id)); });
 $('#exportAllButton').addEventListener('click', () => downloadTxt('shahdara-isp-payment-details.txt', exportAllPayments(state)));
-$('#backButton').addEventListener('click', () => { appShell.classList.remove('show-detail'); });
+$('#backButton').addEventListener('click', () => {
+  appShell.classList.remove('show-detail');
+  if (typeof window !== 'undefined' && window.location && window.location.hash.startsWith('#customer')) {
+    try {
+      history.pushState({ view: 'customers' }, '', '#customers');
+    } catch {
+      window.location.hash = '#customers';
+    }
+  }
+  const selectedBtn = selectedCustomerId ? document.querySelector(`[data-customer-id="${CSS.escape(selectedCustomerId)}"]`) : null;
+  if (selectedBtn) selectedBtn.focus?.();
+});
 window.addEventListener('resize', () => { if (window.innerWidth > 620) appShell.classList.remove('show-detail'); });
 window.addEventListener('focus', () => { checkMonthlyBilling(); void checkAutomaticBackup(); });
 window.addEventListener('pageshow', () => { checkMonthlyBilling(); void checkAutomaticBackup(); });
@@ -1253,6 +1275,27 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    const menu = $('#mobileMoreMenu');
+    if (menu && !menu.hidden) {
+      menu.hidden = true;
+      const moreBtn = $('#mobileMoreButton');
+      if (moreBtn) {
+        moreBtn.setAttribute('aria-expanded', 'false');
+        moreBtn.focus?.();
+      }
+      return;
+    }
+    if (appShell.classList.contains('show-detail') && window.innerWidth <= 620) {
+      appShell.classList.remove('show-detail');
+      if (typeof window !== 'undefined' && window.location && window.location.hash.startsWith('#customer')) {
+        try { history.pushState({ view: 'customers' }, '', '#customers'); } catch { window.location.hash = '#customers'; }
+      }
+      const selectedBtn = selectedCustomerId ? document.querySelector(`[data-customer-id="${CSS.escape(selectedCustomerId)}"]`) : null;
+      if (selectedBtn) selectedBtn.focus?.();
+      return;
+    }
+  }
   if ((event.key === '/' || ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k')) && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
     event.preventDefault();
     const search = $('#globalCustomerSearch');
@@ -1473,3 +1516,41 @@ $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');
 $('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
 renderPhase3();
 refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderAnalytics,renderInventory,renderExpenses}).refresh;
+
+function handleRouteFromHash() {
+  if (typeof window === 'undefined' || !window.location) return;
+  const raw = (window.location.hash || '').replace(/^#\/?/, '').trim();
+  if (!raw) return;
+  if (raw.startsWith('customer=')) {
+    const cid = decodeURIComponent(raw.slice('customer='.length));
+    if (state.customers.some(c => c.id === cid)) {
+      selectCustomer(cid, { pushHistory: false });
+      return;
+    }
+  }
+  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'];
+  if (validViews.includes(raw)) {
+    switchView(raw, { pushHistory: false });
+    if (raw === 'transactions') renderTransactions();
+    else if (raw === 'reports') renderMonthlyReport();
+    else if (raw === 'analytics') renderAnalytics();
+    else if (raw === 'inventory') renderInventory();
+    else if (raw === 'expenses') renderExpenses();
+    else if (raw === 'customers') renderCustomers();
+  }
+}
+
+window.addEventListener('popstate', event => {
+  if (event.state?.customerId) {
+    selectCustomer(event.state.customerId, { pushHistory: false });
+  } else {
+    if (appShell.classList.contains('show-detail')) {
+      appShell.classList.remove('show-detail');
+    }
+    handleRouteFromHash();
+  }
+});
+window.addEventListener('hashchange', handleRouteFromHash);
+if (typeof window !== 'undefined' && window.location?.hash) {
+  handleRouteFromHash();
+}

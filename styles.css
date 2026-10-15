@@ -1726,3 +1726,64 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   background: #1c322b;
 }
 
+/* ==========================================================================
+   Mobile Responsive Navigation & Layout Enhancements (Agent2)
+   ========================================================================== */
+
+/* Accessible view enter transitions */
+.page-view, .phase3-view, .transactions-view, .billing-reports-view {
+  animation: navViewEnter 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes navViewEnter {
+  from {
+    opacity: 0.85;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-view, .phase3-view, .transactions-view, .billing-reports-view {
+    animation: none !important;
+  }
+}
+
+/* Accessible visible focus states */
+.view-nav-button:focus-visible,
+.mobile-bottom-nav button:focus-visible,
+.mobile-more-menu button:focus-visible,
+.back-button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+
+/* Mobile bottom nav touch feedback and tap size */
+.mobile-bottom-nav button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+
+.mobile-bottom-nav button:active {
+  transform: scale(0.96);
+}
+
+.mobile-more-menu button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-more-menu button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+
+/* Ensure no accidental horizontal scrollbar on mobile viewports */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}

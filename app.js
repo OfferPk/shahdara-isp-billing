@@ -19,7 +19,7 @@ import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLi
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
-import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts } from './dashboard.js?v=1.10.0';
+import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupAreaDrilldownModal } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer } from './nav.js?v=1.10.0';
 import { validatePakistanPhone, validatePositiveAmount } from './form-validation.js?v=1.10.0';
 
@@ -250,6 +250,20 @@ function renderDashboard() {
       if (toggle) toggle.click();
       const panel = $('#backupControls');
       if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
+    },
+    onBriefing: () => {
+      setupDashboardBriefingButton(state, referenceDate, { onToast: toast });
+    }
+  });
+  setupDashboardBriefingButton(state, referenceDate, { onToast: toast });
+  setupAreaDrilldownModal(state, referenceDate, {
+    onFilterRoster: (areaName) => {
+      switchView('customers');
+      const searchInput = $('#customerSearch');
+      if (searchInput) {
+        searchInput.value = areaName;
+        searchInput.dispatchEvent(new Event('input'));
+      }
     }
   });
   renderDashboardCharts(state, referenceDate);

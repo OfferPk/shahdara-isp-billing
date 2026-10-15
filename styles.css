@@ -2078,3 +2078,275 @@ html, body {
 [data-theme="dark"] .report-summary-label {
   color: #8fa59c;
 }
+
+/* Form Draft Restoration & Auto-save */
+.draft-restore-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fdf8e6;
+  border: 1px solid #f3d997;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #7d5203;
+}
+
+.draft-restore-notice[hidden] {
+  display: none !important;
+}
+
+.draft-discard-btn {
+  background: transparent;
+  border: 1px solid #d49e35;
+  color: #7d5203;
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.draft-discard-btn:hover {
+  background: #faeaaf;
+}
+
+[data-theme="dark"] .draft-restore-notice {
+  background: #2b2513;
+  border-color: #634f19;
+  color: #f7d277;
+}
+
+[data-theme="dark"] .draft-discard-btn {
+  border-color: #8c7028;
+  color: #f7d277;
+}
+
+[data-theme="dark"] .draft-discard-btn:hover {
+  background: #423617;
+}
+
+/* Batch Receipt Modal and Print Grid */
+.batch-receipt-dialog {
+  max-width: 900px;
+  width: 95vw;
+}
+
+.batch-receipt-card {
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.batch-receipt-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f4f8f6;
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+.batch-receipt-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink, #182e2a);
+}
+
+.batch-receipt-slips-container {
+  overflow-y: auto;
+  max-height: 60vh;
+  display: grid;
+  gap: 16px;
+  padding: 8px;
+  background: #f8faf9;
+  border: 1px solid #e1ebe6;
+  border-radius: 8px;
+}
+
+.batch-receipt-slip {
+  background: #fff;
+  border: 1px dashed #7a9488;
+  border-radius: 6px;
+  padding: 16px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  font-size: 12px;
+  color: #182e2a;
+}
+
+.batch-slip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #dce8e2;
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+}
+
+.batch-slip-brand {
+  display: flex;
+  flex-direction: column;
+}
+
+.batch-slip-brand strong {
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  color: var(--green, #0e5b4d);
+}
+
+.batch-slip-brand span {
+  font-size: 10px;
+  color: #5b7068;
+}
+
+.batch-slip-status {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.batch-slip-status.status-paid {
+  background: #e6f7ec;
+  color: #0c6b32;
+}
+
+.batch-slip-status.status-pending {
+  background: #feeceb;
+  color: #b91c1c;
+}
+
+.batch-slip-status.status-partial {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.batch-slip-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.batch-slip-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.batch-field-label {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.batch-amount {
+  color: var(--green, #0e5b4d);
+}
+
+.batch-balance {
+  color: #b91c1c;
+}
+
+.batch-slip-footer {
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 8px;
+  font-size: 10px;
+}
+
+.batch-slip-note {
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.batch-slip-stub {
+  background: #f1f5f9;
+  border: 1px dashed #94a3b8;
+  padding: 6px 10px;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.batch-stub-cut {
+  font-weight: 600;
+  color: #475569;
+}
+
+.batch-empty-state {
+  text-align: center;
+  padding: 30px;
+  color: #64748b;
+  font-style: italic;
+}
+
+[data-theme="dark"] .batch-receipt-controls {
+  background: #14241f;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .batch-receipt-slips-container {
+  background: #101a16;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .batch-receipt-slip {
+  background: #182a24;
+  border-color: #3b564b;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .batch-slip-stub {
+  background: #14221d;
+  border-color: #3b564b;
+  color: #9ab4aa;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #batchReceiptModal,
+  #batchReceiptModal * {
+    visibility: visible;
+  }
+  #batchReceiptModal {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    background: transparent;
+  }
+  .batch-receipt-controls,
+  .batch-receipt-card .modal-header,
+  .batch-receipt-card .modal-actions {
+    display: none !important;
+  }
+  .batch-receipt-slips-container {
+    overflow: visible !important;
+    max-height: none !important;
+    background: none !important;
+    border: none !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  .batch-receipt-slip {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 20px;
+    border: 1px dashed #000;
+    color: #000;
+    background: #fff !important;
+  }
+}

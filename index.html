@@ -440,6 +440,7 @@
           <label for="transactionMethodFilter">Payment method<select id="transactionMethodFilter"><option value="all" selected>All methods</option><option value="Cash">Cash</option><option value="EasyPaisa">EasyPaisa</option><option value="JazzCash">JazzCash</option><option value="Bank Transfer">Bank Transfer</option><option value="Other">Other</option></select></label>
           <label for="transactionDateFilter">Exact payment date<input id="transactionDateFilter" type="date"></label>
           <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
+          <button id="exportTransactionsCsvBtn" class="secondary-button" type="button" title="Export transactions to CSV">Export CSV</button>
         </div>
         <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">
           <span class="tx-summary-item"><span class="tx-summary-label">Filtered total:</span> <strong id="txSummaryTotal">PKR 0</strong></span>
@@ -474,6 +475,8 @@
         </div>
         <div class="report-search-bar">
           <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area...">
+          <button id="exportMonthlyReportCsvBtn" class="secondary-button" type="button" title="Export monthly report to CSV">Export CSV</button>
+          <button id="batchReceiptPrintBtn" class="secondary-button" type="button" title="Print monthly billing slips">Print Slips</button>
         </div>
         <div id="monthlyReportSummaryBar" class="monthly-report-summary-bar" aria-live="polite">
           <span class="report-summary-item"><span class="report-summary-label">Billed:</span> <strong id="reportSummaryBilled">PKR 0</strong></span>
@@ -563,6 +566,7 @@
               <input id="inventorySearchInput" type="search" class="table-filter-input" placeholder="Search item name or notes..." autocomplete="off">
             </div>
             <button id="clearInventoryFilters" type="button" class="secondary-button table-filter-clear">Clear filters</button>
+            <button id="exportInventoryCsvBtn" type="button" class="secondary-button" title="Export inventory to CSV">Export CSV</button>
             <span id="inventoryTableCount" class="table-filter-count" role="status" aria-live="polite"></span>
           </div>
           <div class="table-scroll"><table><thead><tr><th scope="col" class="sortable-th" data-sort-inventory="name" tabindex="0" role="button" aria-sort="none" title="Sort by item name">Item <span class="sort-indicator" aria-hidden="true"></span></th><th scope="col" class="sortable-th" data-sort-inventory="category" tabindex="0" role="button" aria-sort="none" title="Sort by category">Category <span class="sort-indicator" aria-hidden="true"></span></th><th scope="col" class="sortable-th" data-sort-inventory="available" tabindex="0" role="button" aria-sort="none" title="Sort by available stock">Available <span class="sort-indicator" aria-hidden="true"></span></th><th scope="col">Unit</th><th scope="col">Minimum</th><th scope="col" class="sortable-th" data-sort-inventory="unitCost" tabindex="0" role="button" aria-sort="none" title="Sort by unit cost">Unit cost <span class="sort-indicator" aria-hidden="true"></span></th><th scope="col" class="sortable-th" data-sort-inventory="value" tabindex="0" role="button" aria-sort="none" title="Sort by available value">Available value <span class="sort-indicator" aria-hidden="true"></span></th><th scope="col">Installed / damaged / returned</th><th scope="col">Actions</th></tr></thead><tbody id="inventoryItemsTable"></tbody></table></div><p id="inventoryItemsEmpty" class="empty-state">No inventory items have been entered.</p><p id="inventoryItemsFilterEmpty" class="empty-state" hidden>No recorded inventory items match the current category and search filter.</p>
@@ -581,7 +585,7 @@
         <section class="table-card" aria-labelledby="saadAttendanceHeading"><div class="table-heading"><div><p class="eyebrow">OWNER-ENTERED DATES</p><h3 id="saadAttendanceHeading">Saad’s attendance</h3></div></div><p class="phase3-note">Enter each actual attendance date manually. Duplicate dates are ignored; attendance is informational and does not multiply Saad’s monthly salary.</p><form id="saadAttendanceForm" class="phase3-form"><label>Attendance date (PKT)<input id="saadAttendanceDate" name="date" type="date" required></label><div class="form-actions"><button class="primary-button" type="submit">Log attendance date</button></div></form><ul id="saadAttendanceList" class="payroll-date-list" aria-label="Saad attendance dates for selected month"></ul><p id="saadAttendanceEmpty" class="empty-state">No attendance dates recorded for this month.</p></section>
         <section class="table-card" aria-labelledby="umairWorkdayHeading"><div class="table-heading"><div><p class="eyebrow">OWNER-ENTERED DATES</p><h3 id="umairWorkdayHeading">Umair’s workdays</h3></div></div><p class="phase3-note">Enter each actual work date manually. Each unique logged date contributes PKR 1,000 to the selected month’s calculated workday amount; no unlogged workday is created.</p><form id="umairWorkdayForm" class="phase3-form"><label>Work date (PKT)<input id="umairWorkdayDate" name="date" type="date" required></label><div class="form-actions"><button class="primary-button" type="submit">Log workday</button></div></form><ul id="umairWorkdaysList" class="payroll-date-list" aria-label="Umair workdays for selected month"></ul><p id="umairWorkdaysEmpty" class="empty-state">No workdays recorded for this month.</p></section>
         <section class="table-card"><div class="table-heading"><div><p class="eyebrow">REAL DATED AMOUNTS ONLY</p><h3>Add or correct an expense</h3></div></div>
-          <form id="expenseForm" class="phase3-form"><input id="expenseId" name="expenseId" type="hidden"><label>Payment date (PKT)<input id="expenseDate" name="date" type="date" required></label><label>Amount paid (PKR)<input id="expenseAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount"></label><label>Category<select id="expenseCategory" name="category" required><option value="">Choose category</option><option>Nayatel bill</option><option>Electricity</option><option>Salary — Saad</option><option>Salary — Umair</option><option>Cable</option><option>ONU</option><option>Routers</option><option>Charger</option><option>Repairs</option><option>OLT</option><option>Tools</option><option>RADIUS server bill</option><option>Other expenses</option></select></label><label class="form-wide">Notes<textarea id="expenseNotes" name="notes" maxlength="1000" rows="2" placeholder="Optional"></textarea></label><div class="form-actions form-wide"><button id="expenseSubmit" class="primary-button" type="submit">Record actual expense</button><button id="expenseCancel" class="secondary-button" type="button" hidden>Cancel edit</button></div></form>
+          <form id="expenseForm" class="phase3-form"><input id="expenseId" name="expenseId" type="hidden"><div id="expenseDraftNotice" class="draft-restore-notice form-wide" role="status" hidden><span>Unsaved expense draft restored from this device.</span><button id="discardExpenseDraftBtn" class="draft-discard-btn" type="button">Discard</button></div><label>Payment date (PKT)<input id="expenseDate" name="date" type="date" required></label><label>Amount paid (PKR)<input id="expenseAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount"></label><label>Category<select id="expenseCategory" name="category" required><option value="">Choose category</option><option>Nayatel bill</option><option>Electricity</option><option>Salary — Saad</option><option>Salary — Umair</option><option>Cable</option><option>ONU</option><option>Routers</option><option>Charger</option><option>Repairs</option><option>OLT</option><option>Tools</option><option>RADIUS server bill</option><option>Other expenses</option></select></label><label class="form-wide">Notes<textarea id="expenseNotes" name="notes" maxlength="1000" rows="2" placeholder="Optional"></textarea></label><div class="form-actions form-wide"><button id="expenseSubmit" class="primary-button" type="submit">Record actual expense</button><button id="expenseCancel" class="secondary-button" type="button" hidden>Cancel edit</button></div></form>
           <div class="table-filter-toolbar" role="search" aria-label="Filter recorded expenses">
             <div class="table-filter-group">
               <label for="expenseCategoryFilter" class="sr-only">Filter by category</label>
@@ -606,6 +610,7 @@
               <label for="expenseSearchInput" class="sr-only">Search expenses</label>
               <input id="expenseSearchInput" class="table-filter-input" type="search" placeholder="Search notes or category…" autocomplete="off">
               <button id="clearExpenseFilters" class="secondary-button table-filter-clear" type="button">Clear</button>
+              <button id="exportExpensesCsvBtn" class="secondary-button" type="button" title="Export expenses to CSV">Export CSV</button>
             </div>
             <p id="expenseTableCount" class="table-filter-count" role="status" aria-live="polite"></p>
           </div>
@@ -630,6 +635,7 @@
   <dialog id="addCustomerDialog" class="modal">
     <form id="addCustomerForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow">NEW CUSTOMER</p><h2>Add a customer</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">×</button></div>
+      <div id="newCustomerDraftNotice" class="draft-restore-notice" role="status" hidden><span>Unsaved customer draft restored from this device.</span><button id="discardNewCustomerDraftBtn" class="draft-discard-btn" type="button">Discard</button></div>
       <fieldset id="newCustomerFields" class="new-customer-fields">
         <label class="field-label" for="newCustomerName">Customer name</label>
         <input id="newCustomerName" name="name" type="text" maxlength="100" required autocomplete="off" placeholder="Enter the real customer name">
@@ -730,7 +736,29 @@
         <span class="sheet-action-label">Shortcuts (?)</span>
       </button>
     </div>
-  </aside>
+  <dialog id="batchReceiptModal" class="modal batch-receipt-modal" aria-labelledby="batchReceiptModalTitle">
+    <section class="batch-receipt-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">MONTHLY BILLING SLIPS</p>
+          <h2 id="batchReceiptModalTitle">Customer Billing Slips</h2>
+        </div>
+        <button id="batchReceiptModalCloseBtn" class="close-button" type="button" aria-label="Close billing slips modal">×</button>
+      </div>
+      <div class="batch-receipt-controls">
+        <label for="batchReceiptFilterSelect">Filter slips
+          <select id="batchReceiptFilterSelect">
+            <option value="all">All customer accounts</option>
+            <option value="pending" selected>Pending / Unpaid bills only</option>
+            <option value="paid">Paid accounts only</option>
+          </select>
+        </label>
+        <button id="triggerBatchPrintBtn" class="primary-button" type="button">Print All Slips</button>
+      </div>
+      <div id="batchReceiptPreviewContainer" class="batch-receipt-preview-container" tabindex="0" role="region" aria-label="Slips preview">
+      </div>
+    </section>
+  </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <script type="module" src="./app.js?v=1.10.0"></script>
 </body>

@@ -2146,3 +2146,445 @@ kbd {
   }
 }
 
+/* Mobile Field Technician Customer Enrollment Swipe Wizard */
+.enrollment-wizard-modal {
+  border: none;
+  border-radius: 16px;
+  padding: 0;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+  width: 95vw;
+  max-width: 580px;
+  overflow: hidden;
+  max-height: 90vh;
+}
+
+.enrollment-wizard-modal::backdrop {
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.wizard-modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.wizard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+}
+
+.wizard-header h2 {
+  font: 700 18px/1.2 Manrope, system-ui, sans-serif;
+  margin: 2px 0 0;
+  color: var(--ink, #182e2a);
+}
+
+/* Stepper Tabs */
+.wizard-stepper {
+  display: flex;
+  padding: 10px 16px;
+  background: var(--surface-subtle, #f8faf9);
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.06));
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wizard-step-pill {
+  flex: 1;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  background: var(--surface, #ffffff);
+  color: var(--muted, #60756c);
+  font: 600 12px/1.2 Manrope, system-ui, sans-serif;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.wizard-step-pill .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wizard-step-pill.is-active {
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+  border-color: var(--green, #0e5b4d);
+  box-shadow: 0 2px 8px rgba(14, 91, 77, 0.25);
+}
+
+.wizard-step-pill.is-active .step-num {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.wizard-step-pill.is-completed {
+  background: var(--mint, #e6f3ee);
+  color: var(--green, #0e5b4d);
+  border-color: rgba(14, 91, 77, 0.2);
+}
+
+.wizard-step-pill.is-completed .step-num {
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+}
+
+/* Progress Track */
+.wizard-progress-track {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.06);
+  width: 100%;
+  overflow: hidden;
+}
+
+.wizard-progress-bar {
+  height: 100%;
+  background: var(--green, #0e5b4d);
+  transition: width 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Error Box */
+.wizard-error-box {
+  background: #fef2f2;
+  border-left: 4px solid #ef4444;
+  padding: 10px 16px;
+  margin: 12px 16px 0;
+  border-radius: 4px;
+}
+
+.wizard-error-line {
+  color: #b91c1c;
+  font-size: 12px;
+  margin: 2px 0;
+  font-weight: 500;
+}
+
+/* Viewport and Track */
+.wizard-viewport {
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+  flex: 1;
+}
+
+.wizard-track {
+  display: flex;
+  width: 400%;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.wizard-slide {
+  flex: 0 0 25%;
+  width: 25%;
+  box-sizing: border-box;
+  padding: 16px 20px 20px;
+  max-height: 56vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.wizard-slide-title {
+  font: 700 15px/1.3 Manrope, system-ui, sans-serif;
+  margin: 0 0 4px;
+  color: var(--ink, #182e2a);
+}
+
+.wizard-slide-sub {
+  font-size: 12px;
+  color: var(--muted, #60756c);
+  margin: 0 0 16px;
+}
+
+/* Form inputs inside wizard */
+.wizard-form-group {
+  margin-bottom: 12px;
+}
+
+.wizard-form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.wizard-form-row .flex-1 {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.wizard-label {
+  display: block;
+  font: 600 12px/1.3 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+  margin-bottom: 4px;
+}
+
+.required-star {
+  color: #ef4444;
+  font-weight: 700;
+}
+
+.optional-tag {
+  color: var(--muted, #60756c);
+  font-weight: 400;
+  font-size: 11px;
+}
+
+.wizard-input,
+.wizard-select,
+.wizard-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.15));
+  border-radius: 8px;
+  font: 500 13px/1.4 Manrope, system-ui, sans-serif;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wizard-input:focus,
+.wizard-select:focus,
+.wizard-textarea:focus {
+  border-color: var(--green, #0e5b4d);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 91, 77, 0.15);
+}
+
+.wizard-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--muted, #60756c);
+  margin-top: 3px;
+}
+
+.wizard-checkbox-row {
+  margin: 12px 0;
+}
+
+.wizard-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--ink, #182e2a);
+}
+
+.wizard-agreement-box {
+  background: var(--surface-subtle, #f8faf9);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  border-radius: 8px;
+  padding: 12px;
+  margin: 14px 0 6px;
+}
+
+.agreement-label {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Summary Card in Step 4 */
+.wizard-summary-card {
+  background: var(--surface-subtle, #f8faf9);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.wizard-summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.wizard-summary-title {
+  font: 700 13px/1.2 Manrope, system-ui, sans-serif;
+  margin: 0;
+  color: var(--ink, #182e2a);
+}
+
+.wizard-status-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: var(--mint, #e6f3ee);
+  color: var(--green, #0e5b4d);
+  font-weight: 600;
+}
+
+.wizard-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.wizard-summary-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.summary-k {
+  font-size: 11px;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.summary-v {
+  font-size: 13px;
+  color: var(--ink, #182e2a);
+}
+
+.wizard-highlight-plan,
+.wizard-highlight-dues {
+  grid-column: span 1;
+  background: rgba(14, 91, 77, 0.05);
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+/* Footer & Controls */
+.wizard-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  background: var(--surface, #ffffff);
+}
+
+.wizard-step-indicator {
+  font: 600 12px/1 Manrope, system-ui, sans-serif;
+  color: var(--muted, #60756c);
+}
+
+.wizard-nav-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  min-width: 90px;
+}
+
+.btn-complete-enrollment {
+  background: var(--green, #0e5b4d) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.wizard-trigger-btn {
+  background: var(--mint, #e6f3ee);
+  color: var(--green, #0e5b4d);
+  border: 1px solid rgba(14, 91, 77, 0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.wizard-trigger-btn:hover {
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .enrollment-wizard-modal {
+  background: #152722;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .wizard-header,
+[data-theme="dark"] .wizard-footer {
+  border-color: #253d35;
+  background: #152722;
+}
+
+[data-theme="dark"] .wizard-header h2,
+[data-theme="dark"] .wizard-slide-title,
+[data-theme="dark"] .wizard-label,
+[data-theme="dark"] .summary-v,
+[data-theme="dark"] .wizard-summary-title {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .wizard-stepper,
+[data-theme="dark"] .wizard-summary-card,
+[data-theme="dark"] .wizard-agreement-box {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .wizard-step-pill {
+  background: #152722;
+  border-color: #253d35;
+  color: #9ab3a8;
+}
+
+[data-theme="dark"] .wizard-step-pill.is-active {
+  background: #0e5b4d;
+  color: #ffffff;
+  border-color: #5eead4;
+}
+
+[data-theme="dark"] .wizard-step-pill.is-completed {
+  background: rgba(94, 234, 212, 0.15);
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.3);
+}
+
+[data-theme="dark"] .wizard-input,
+[data-theme="dark"] .wizard-select,
+[data-theme="dark"] .wizard-textarea {
+  background: #192e27;
+  color: #e6edea;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .wizard-highlight-plan,
+[data-theme="dark"] .wizard-highlight-dues {
+  background: rgba(94, 234, 212, 0.08);
+}
+
+[data-theme="dark"] .wizard-trigger-btn {
+  background: rgba(94, 234, 212, 0.15);
+  color: #5eead4;
+  border-color: rgba(94, 234, 212, 0.3);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .wizard-track,
+  .wizard-progress-bar,
+  .wizard-step-pill {
+    transition: none !important;
+  }
+}
+

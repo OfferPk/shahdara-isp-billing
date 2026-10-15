@@ -188,6 +188,15 @@
             <span class="quick-action-sub">Copy summary slip</span>
           </span>
         </button>
+        <button id="quickActionFieldWizard" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Field Enrollment</span>
+            <span class="quick-action-sub">Technician swipe wizard</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -872,7 +881,10 @@
         </div>
         <div class="pane-heading">
           <div><p class="eyebrow">LOCAL LEDGER</p><h2>Customers <span id="customerCount" class="count-badge">0</span></h2></div>
-          <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
+          <div class="pane-heading-actions">
+            <button id="openEnrollmentWizardBtn" class="action-btn-sm wizard-trigger-btn" type="button" title="Open Mobile Field Technician Enrollment Wizard">📱 Wizard</button>
+            <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
+          </div>
         </div>
         <section class="customer-filter-panel" aria-label="Customer filters">
           <label class="customer-filter-month" for="customerFilterMonth">Billing month <select id="customerFilterMonth"></select></label>
@@ -1309,6 +1321,10 @@
         <span class="sheet-action-icon" aria-hidden="true">👤</span>
         <span class="sheet-action-label">Add Customer</span>
       </button>
+      <button type="button" class="sheet-action-tile" data-sheet-action="field-enrollment">
+        <span class="sheet-action-icon" aria-hidden="true">📱</span>
+        <span class="sheet-action-label">Field Wizard</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -1357,6 +1373,10 @@
       <button type="button" class="speed-dial-action" data-speed-action="add-customer" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">👤</span>
         <span class="speed-action-label">Add Customer</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="field-enrollment" role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">📱</span>
+        <span class="speed-action-label">Field Wizard</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -1509,6 +1529,200 @@
           <button id="queueSyncAllBtn" class="primary-button" type="button">Sync Ledger Now</button>
           <button id="queueClearAllBtn" class="secondary-button danger-button" type="button">Clear Queue</button>
         </div>
+      </div>
+    </section>
+  </dialog>
+  <dialog id="customerEnrollmentWizard" class="modal enrollment-wizard-modal" aria-labelledby="enrollmentWizardTitle">
+    <section class="wizard-modal-card">
+      <div class="wizard-header">
+        <div>
+          <p id="wizardEyebrow" class="eyebrow">FIELD TECHNICIAN ONBOARDING</p>
+          <h2 id="enrollmentWizardTitle">Customer Enrollment Wizard</h2>
+        </div>
+        <button id="closeEnrollmentWizardBtn" class="close-button" type="button" aria-label="Close enrollment wizard">×</button>
+      </div>
+
+      <div class="wizard-stepper" role="tablist" aria-label="Enrollment Steps">
+        <button id="wizardStepPill1" type="button" class="wizard-step-pill is-active" role="tab" aria-selected="true" data-wizard-step="1">
+          <span class="step-num">1</span>
+          <span class="step-label">Account</span>
+        </button>
+        <button id="wizardStepPill2" type="button" class="wizard-step-pill" role="tab" aria-selected="false" data-wizard-step="2">
+          <span class="step-num">2</span>
+          <span class="step-label">Location</span>
+        </button>
+        <button id="wizardStepPill3" type="button" class="wizard-step-pill" role="tab" aria-selected="false" data-wizard-step="3">
+          <span class="step-num">3</span>
+          <span class="step-label">Package</span>
+        </button>
+        <button id="wizardStepPill4" type="button" class="wizard-step-pill" role="tab" aria-selected="false" data-wizard-step="4">
+          <span class="step-num">4</span>
+          <span class="step-label">Review</span>
+        </button>
+      </div>
+
+      <div class="wizard-progress-track" role="progressbar" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" aria-label="Enrollment progress">
+        <div id="wizardProgressBar" class="wizard-progress-bar" style="width: 25%;"></div>
+      </div>
+
+      <div id="wizardErrorBox" class="wizard-error-box" role="alert" hidden></div>
+
+      <div class="wizard-viewport">
+        <div id="wizardTrack" class="wizard-track" style="transform: translateX(0%);">
+          <!-- Step 1: Account & Contact -->
+          <div id="wizardSlide1" class="wizard-slide" role="tabpanel" aria-labelledby="wizardStepPill1" data-slide-index="1">
+            <h3 class="wizard-slide-title">1. Subscriber &amp; Contact Information</h3>
+            <p class="wizard-slide-sub">Enter primary subscriber credentials and telephone contact for field billing.</p>
+            <div class="wizard-form-group">
+              <label for="wizardCustomerName" class="wizard-label">Full Name <span class="required-star">*</span></label>
+              <input id="wizardCustomerName" class="wizard-input" type="text" placeholder="e.g. Muhammad Usman" autocomplete="off" required>
+            </div>
+            <div class="wizard-form-group">
+              <label for="wizardCustomerPhone" class="wizard-label">Mobile Phone (WhatsApp) <span class="required-star">*</span></label>
+              <input id="wizardCustomerPhone" class="wizard-input" type="tel" placeholder="0300-1234567" autocomplete="tel">
+              <span id="wizardPhoneHint" class="wizard-hint">Pakistan mobile number for SMS &amp; WhatsApp billing slips</span>
+            </div>
+            <div class="wizard-form-row">
+              <div class="wizard-form-group flex-1">
+                <label for="wizardCustomerCnic" class="wizard-label">CNIC / ID Card <span class="optional-tag">Optional</span></label>
+                <input id="wizardCustomerCnic" class="wizard-input" type="text" placeholder="35201-xxxxxxx-x" maxlength="15">
+              </div>
+              <div class="wizard-form-group flex-1">
+                <label for="wizardInitialStatus" class="wizard-label">Initial Status</label>
+                <select id="wizardInitialStatus" class="wizard-select">
+                  <option value="Active" selected>🟢 Active (Ready)</option>
+                  <option value="Pending">🟡 Pending Installation</option>
+                  <option value="Offline">⚪ Offline Setup</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Location & Fiber Distribution -->
+          <div id="wizardSlide2" class="wizard-slide" role="tabpanel" aria-labelledby="wizardStepPill2" data-slide-index="2" aria-hidden="true">
+            <h3 class="wizard-slide-title">2. Physical Location &amp; Fiber Node</h3>
+            <p class="wizard-slide-sub">Specify neighborhood, street location, and pole/splitter box terminal.</p>
+            <div class="wizard-form-row">
+              <div class="wizard-form-group flex-1">
+                <label for="wizardAreaSelect" class="wizard-label">Area / Sector <span class="required-star">*</span></label>
+                <select id="wizardAreaSelect" class="wizard-select">
+                  <option value="Shahdara Town" selected>Shahdara Town</option>
+                  <option value="Saeed Park">Saeed Park</option>
+                  <option value="Begum Kot">Begum Kot</option>
+                  <option value="Wandala Road">Wandala Road</option>
+                  <option value="Jia Musa">Jia Musa</option>
+                  <option value="Baradari Road">Baradari Road</option>
+                  <option value="Clifton Colony">Clifton Colony</option>
+                  <option value="Match Factory">Match Factory</option>
+                  <option value="Yousaf Park">Yousaf Park</option>
+                  <option value="Qaiser Town">Qaiser Town</option>
+                  <option value="Other">Other Area...</option>
+                </select>
+              </div>
+              <div class="wizard-form-group flex-1">
+                <label for="wizardMohallaInput" class="wizard-label">Mohalla / Block</label>
+                <input id="wizardMohallaInput" class="wizard-input" type="text" placeholder="e.g. Mohalla Farooqia">
+              </div>
+            </div>
+            <div class="wizard-form-group">
+              <label for="wizardAddressInput" class="wizard-label">Street &amp; House Details</label>
+              <input id="wizardAddressInput" class="wizard-input" type="text" placeholder="e.g. Street 4, House 12-B">
+            </div>
+            <div class="wizard-form-row">
+              <div class="wizard-form-group flex-1">
+                <label for="wizardFdbId" class="wizard-label">Fiber Splitter / FDB Box</label>
+                <input id="wizardFdbId" class="wizard-input" type="text" placeholder="e.g. FDB-04 / Pole 18">
+              </div>
+              <div class="wizard-form-group flex-1">
+                <label for="wizardFiberPort" class="wizard-label">Fiber Port #</label>
+                <input id="wizardFiberPort" class="wizard-input" type="number" min="1" max="32" placeholder="Port (1-16)">
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Package & Billing Plan -->
+          <div id="wizardSlide3" class="wizard-slide" role="tabpanel" aria-labelledby="wizardStepPill3" data-slide-index="3" aria-hidden="true">
+            <h3 class="wizard-slide-title">3. Package &amp; Tariff Assignment</h3>
+            <p class="wizard-slide-sub">Select internet speed profile and configure initial charges and recurring rate.</p>
+            <div class="wizard-form-group">
+              <label for="wizardPackageSelect" class="wizard-label">Broadband Package Tier</label>
+              <select id="wizardPackageSelect" class="wizard-select">
+                <option value="5mbps-150gb" selected>5 Mbps (150 GB) — PKR 1,500/mo</option>
+                <option value="5mbps-200gb">5 Mbps (200 GB) — PKR 2,000/mo</option>
+                <option value="5mbps-500gb">5 Mbps (500 GB) — PKR 2,500/mo</option>
+                <option value="15mbps-unlimited">15 Mbps Unlimited — PKR 3,000/mo</option>
+                <option value="3mbps-100gb">3 Mbps (100 GB) — PKR 1,000/mo</option>
+                <option value="3mbps-300gb">3 Mbps (300 GB) — PKR 1,600/mo</option>
+                <option value="custom">Custom Plan</option>
+              </select>
+            </div>
+            <div class="wizard-form-row">
+              <div class="wizard-form-group flex-1">
+                <label for="wizardMonthlyRate" class="wizard-label">Monthly Rate (PKR) <span class="required-star">*</span></label>
+                <input id="wizardMonthlyRate" class="wizard-input" type="number" min="0" step="50" value="1500" required>
+              </div>
+              <div class="wizard-form-group flex-1">
+                <label for="wizardInstallationFee" class="wizard-label">Installation Fee (PKR)</label>
+                <input id="wizardInstallationFee" class="wizard-input" type="number" min="0" step="100" value="0">
+              </div>
+            </div>
+            <div class="wizard-form-row">
+              <div class="wizard-form-group flex-1">
+                <label for="wizardDueDateDay" class="wizard-label">Monthly Due Day</label>
+                <select id="wizardDueDateDay" class="wizard-select">
+                  <option value="5">5th of month</option>
+                  <option value="10" selected>10th of month</option>
+                  <option value="15">15th of month</option>
+                  <option value="20">20th of month</option>
+                  <option value="25">25th of month</option>
+                </select>
+              </div>
+              <div class="wizard-form-group flex-1">
+                <label for="wizardOntOwnership" class="wizard-label">Optical Router (ONT)</label>
+                <select id="wizardOntOwnership" class="wizard-select">
+                  <option value="ISP Provided" selected>ISP Provided</option>
+                  <option value="Customer Owned">Customer Owned</option>
+                  <option value="Rental">Monthly Rental</option>
+                </select>
+              </div>
+            </div>
+            <div class="wizard-checkbox-row">
+              <label class="wizard-checkbox-label">
+                <input id="wizardStaticIpCheck" type="checkbox">
+                <span>Assign Dedicated Static IP Address (+PKR 500)</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 4: Verification & Activation Review -->
+          <div id="wizardSlide4" class="wizard-slide" role="tabpanel" aria-labelledby="wizardStepPill4" data-slide-index="4" aria-hidden="true">
+            <h3 class="wizard-slide-title">4. Review &amp; Activation Confirmation</h3>
+            <p class="wizard-slide-sub">Inspect enrollment summary and confirm fiber link connectivity.</p>
+            <div id="wizardSummaryCard" class="wizard-summary-card">
+              <!-- Rendered dynamically -->
+            </div>
+            <div class="wizard-form-group">
+              <label for="wizardStartDate" class="wizard-label">Service Connection Date</label>
+              <input id="wizardStartDate" class="wizard-input" type="date">
+            </div>
+            <div class="wizard-form-group">
+              <label for="wizardTechNotes" class="wizard-label">Technician Notes / Cable Length</label>
+              <textarea id="wizardTechNotes" class="wizard-textarea" rows="2" placeholder="e.g. 75m drop fiber, DB power -19 dBm, verified on TP-Link ONT"></textarea>
+            </div>
+            <div class="wizard-agreement-box">
+              <label class="wizard-checkbox-label agreement-label">
+                <input id="wizardAgreementCheck" type="checkbox">
+                <span><strong>Verification Confirmed:</strong> Physical fiber link spliced, optical signal strength verified (&lt; -24 dBm), and subscriber registered in Shahdara ledger.</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wizard-footer">
+        <button id="wizardBackBtn" class="secondary-button wizard-nav-btn" type="button" disabled>← Back</button>
+        <span id="wizardStepIndicator" class="wizard-step-indicator">Step 1 of 4</span>
+        <button id="wizardNextBtn" class="primary-button wizard-nav-btn" type="button">Next: Location →</button>
       </div>
     </section>
   </dialog>

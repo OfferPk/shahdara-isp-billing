@@ -1994,3 +1994,377 @@ test('setupTabSliderIndicator creates indicator, updates position and styles, an
   }
 });
 
+test('index.html provides accessible markup for Mobile Field Technician Enrollment Wizard', () => {
+  assert.match(index, /<dialog id="customerEnrollmentWizard" class="modal enrollment-wizard-modal" aria-labelledby="enrollmentWizardTitle">/);
+  assert.match(index, /id="wizardStepPill1"[^>]*data-wizard-step="1"/);
+  assert.match(index, /id="wizardStepPill2"[^>]*data-wizard-step="2"/);
+  assert.match(index, /id="wizardStepPill3"[^>]*data-wizard-step="3"/);
+  assert.match(index, /id="wizardStepPill4"[^>]*data-wizard-step="4"/);
+  assert.match(index, /id="wizardProgressBar"/);
+  assert.match(index, /id="wizardTrack"/);
+  assert.match(index, /id="wizardSlide1"/);
+  assert.match(index, /id="wizardSlide2"/);
+  assert.match(index, /id="wizardSlide3"/);
+  assert.match(index, /id="wizardSlide4"/);
+  assert.match(index, /id="openEnrollmentWizardBtn"/);
+  assert.match(index, /id="quickActionFieldWizard"/);
+  assert.match(index, /data-sheet-action="field-enrollment"/);
+  assert.match(index, /data-speed-action="field-enrollment"/);
+});
+
+test('nav.css provides responsive styles, stepper styling, dark mode and motion overrides for enrollment wizard', () => {
+  const navCss = read('nav.css');
+  assert.match(navCss, /\.enrollment-wizard-modal/);
+  assert.match(navCss, /\.wizard-stepper/);
+  assert.match(navCss, /\.wizard-step-pill/);
+  assert.match(navCss, /\.wizard-progress-bar/);
+  assert.match(navCss, /\.wizard-track/);
+  assert.match(navCss, /\.wizard-slide/);
+  assert.match(navCss, /\[data-theme="dark"\]\s*\.enrollment-wizard-modal/);
+  assert.match(navCss, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.wizard-track/);
+});
+
+test('calculateWizardProgress computes step bounds and progress percentages', async () => {
+  const { calculateWizardProgress } = await import('../nav.js');
+
+  const step1 = calculateWizardProgress(1, 4);
+  assert.equal(step1.step, 1);
+  assert.equal(step1.percentage, 25);
+  assert.equal(step1.isFirst, true);
+  assert.equal(step1.isLast, false);
+
+  const step2 = calculateWizardProgress(2, 4);
+  assert.equal(step2.step, 2);
+  assert.equal(step2.percentage, 50);
+  assert.equal(step2.isFirst, false);
+  assert.equal(step2.isLast, false);
+
+  const step3 = calculateWizardProgress(3, 4);
+  assert.equal(step3.step, 3);
+  assert.equal(step3.percentage, 75);
+
+  const step4 = calculateWizardProgress(4, 4);
+  assert.equal(step4.step, 4);
+  assert.equal(step4.percentage, 100);
+  assert.equal(step4.isFirst, false);
+  assert.equal(step4.isLast, true);
+
+  // Clamps out of range
+  assert.equal(calculateWizardProgress(0, 4).step, 1);
+  assert.equal(calculateWizardProgress(99, 4).step, 4);
+});
+
+test('validateWizardStep validates step-specific fields and rules', async () => {
+  const { validateWizardStep } = await import('../nav.js');
+
+  // Step 1: name & phone
+  assert.equal(validateWizardStep(1, { name: '' }).valid, false);
+  assert.equal(validateWizardStep(1, { name: 'A' }).valid, false);
+  assert.equal(validateWizardStep(1, { name: 'Usman', phone: '123' }).valid, false);
+  assert.equal(validateWizardStep(1, { name: 'Usman', phone: '03001234567', cnic: '123' }).valid, false);
+  assert.equal(validateWizardStep(1, { name: 'Usman', phone: '03001234567', cnic: '3520112345671' }).valid, true);
+
+  // Step 2: location
+  assert.equal(validateWizardStep(2, { area: '', mohalla: '', address: '' }).valid, false);
+  assert.equal(validateWizardStep(2, { area: 'Shahdara Town' }).valid, true);
+
+  // Step 3: package & rate
+  assert.equal(validateWizardStep(3, { monthlyRate: -100 }).valid, false);
+  assert.equal(validateWizardStep(3, { monthlyRate: 'invalid' }).valid, false);
+  assert.equal(validateWizardStep(3, { monthlyRate: 1500, installationFee: -50 }).valid, false);
+  assert.equal(validateWizardStep(3, { monthlyRate: 1500, installationFee: 500 }).valid, true);
+
+  // Step 4: verification confirmation
+  assert.equal(validateWizardStep(4, { agreementVerified: false }).valid, false);
+  assert.equal(validateWizardStep(4, { agreementVerified: true }).valid, true);
+});
+
+test('formatCustomerSummary and wizard draft storage functions', async () => {
+  const { formatCustomerSummary, saveWizardDraft, getWizardDraft, clearWizardDraft } = await import('../nav.js');
+
+  const summary = formatCustomerSummary({
+    name: 'Muhammad Ali',
+    phone: '0321-9876543',
+    area: 'Saeed Park',
+    mohalla: 'Street 3',
+    address: 'House 55',
+    fdb: 'FDB-02',
+    fiberPort: 4,
+    packageLabel: '5 Mbps (200 GB)',
+    monthlyRate: 2000,
+    installationFee: 1000,
+    staticIp: true,
+    ontOwnership: 'ISP Provided'
+  });
+
+  assert.equal(summary.name, 'Muhammad Ali');
+  assert.equal(summary.phone, '0321-9876543');
+  assert.equal(summary.fullAddress, 'House 55, Street 3, Saeed Park');
+  assert.equal(summary.fdb, 'FDB-02');
+  assert.equal(summary.port, 'Port #4');
+  assert.equal(summary.rate, 2000);
+  assert.equal(summary.fee, 1000);
+  assert.equal(summary.totalUpfront, 3000);
+  assert.equal(summary.staticIp, true);
+
+  // Draft storage
+  const mockStorage = new Map();
+  const fakeStorage = {
+    getItem: (k) => mockStorage.get(k) || null,
+    setItem: (k, v) => mockStorage.set(k, String(v)),
+    removeItem: (k) => mockStorage.delete(k)
+  };
+
+  assert.equal(getWizardDraft(fakeStorage), null);
+  saveWizardDraft({ name: 'Draft User', step: 2 }, fakeStorage);
+  const loaded = getWizardDraft(fakeStorage);
+  assert.equal(loaded.name, 'Draft User');
+  assert.equal(loaded.step, 2);
+  clearWizardDraft(fakeStorage);
+  assert.equal(getWizardDraft(fakeStorage), null);
+});
+
+test('setupCustomerEnrollmentWizard controls stepper progression, validation, swipe gestures, and completion', async () => {
+  const { setupCustomerEnrollmentWizard } = await import('../nav.js');
+
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const createFakeEl = (id) => ({
+    id,
+    classList: classListSet(),
+    attributes: new Map(),
+    dataset: {},
+    style: {},
+    value: '',
+    checked: false,
+    disabled: false,
+    setAttribute(k, v) { this.attributes.set(k, String(v)); },
+    getAttribute(k) { return this.attributes.get(k); },
+    hasAttribute(k) { return this.attributes.has(k); },
+    removeAttribute(k) { this.attributes.delete(k); },
+    addEventListener(event, fn) { listeners.set(`${id}:${event}`, fn); },
+    querySelectorAll() { return []; },
+    querySelector() { return null; },
+    focus() {}
+  });
+
+  const modal = createFakeEl('customerEnrollmentWizard');
+  modal.showModal = () => { modal.setAttribute('open', ''); };
+  modal.close = () => { modal.removeAttribute('open'); };
+
+  const closeBtn = createFakeEl('closeEnrollmentWizardBtn');
+  const backBtn = createFakeEl('wizardBackBtn');
+  const nextBtn = createFakeEl('wizardNextBtn');
+  const stepIndicator = createFakeEl('wizardStepIndicator');
+  const progressBar = createFakeEl('wizardProgressBar');
+  const errorBox = createFakeEl('wizardErrorBox');
+  const track = createFakeEl('wizardTrack');
+
+  const pill1 = createFakeEl('wizardStepPill1');
+  pill1.setAttribute('data-wizard-step', '1');
+  const pill2 = createFakeEl('wizardStepPill2');
+  pill2.setAttribute('data-wizard-step', '2');
+  const pill3 = createFakeEl('wizardStepPill3');
+  pill3.setAttribute('data-wizard-step', '3');
+  const pill4 = createFakeEl('wizardStepPill4');
+  pill4.setAttribute('data-wizard-step', '4');
+
+  const nameInput = createFakeEl('wizardCustomerName');
+  const phoneInput = createFakeEl('wizardCustomerPhone');
+  const cnicInput = createFakeEl('wizardCustomerCnic');
+  const statusSelect = createFakeEl('wizardInitialStatus');
+  statusSelect.value = 'Active';
+
+  const areaSelect = createFakeEl('wizardAreaSelect');
+  areaSelect.value = 'Shahdara Town';
+  const mohallaInput = createFakeEl('wizardMohallaInput');
+  const addressInput = createFakeEl('wizardAddressInput');
+  const fdbInput = createFakeEl('wizardFdbId');
+  const portInput = createFakeEl('wizardFiberPort');
+
+  const packageSelect = createFakeEl('wizardPackageSelect');
+  packageSelect.value = '5mbps-150gb';
+  packageSelect.options = [{ text: '5 Mbps (150 GB)', value: '5mbps-150gb' }];
+  packageSelect.selectedIndex = 0;
+  const rateInput = createFakeEl('wizardMonthlyRate');
+  rateInput.value = '1500';
+  const feeInput = createFakeEl('wizardInstallationFee');
+  feeInput.value = '0';
+  const dueDateSelect = createFakeEl('wizardDueDateDay');
+  dueDateSelect.value = '10';
+  const ontSelect = createFakeEl('wizardOntOwnership');
+  ontSelect.value = 'ISP Provided';
+  const staticIpCheck = createFakeEl('wizardStaticIpCheck');
+
+  const summaryCard = createFakeEl('wizardSummaryCard');
+  const startDateInput = createFakeEl('wizardStartDate');
+  const techNotesInput = createFakeEl('wizardTechNotes');
+  const agreementCheck = createFakeEl('wizardAgreementCheck');
+
+  const slide1 = createFakeEl('wizardSlide1');
+  const slide2 = createFakeEl('wizardSlide2');
+  const slide3 = createFakeEl('wizardSlide3');
+  const slide4 = createFakeEl('wizardSlide4');
+
+  modal.querySelectorAll = (sel) => {
+    if (sel.includes('data-wizard-step')) return [pill1, pill2, pill3, pill4];
+    return [];
+  };
+
+  const elementsMap = new Map([
+    ['customerEnrollmentWizard', modal],
+    ['closeEnrollmentWizardBtn', closeBtn],
+    ['wizardBackBtn', backBtn],
+    ['wizardNextBtn', nextBtn],
+    ['wizardStepIndicator', stepIndicator],
+    ['wizardProgressBar', progressBar],
+    ['wizardErrorBox', errorBox],
+    ['wizardTrack', track],
+    ['wizardStepPill1', pill1],
+    ['wizardStepPill2', pill2],
+    ['wizardStepPill3', pill3],
+    ['wizardStepPill4', pill4],
+    ['wizardCustomerName', nameInput],
+    ['wizardCustomerPhone', phoneInput],
+    ['wizardCustomerCnic', cnicInput],
+    ['wizardInitialStatus', statusSelect],
+    ['wizardAreaSelect', areaSelect],
+    ['wizardMohallaInput', mohallaInput],
+    ['wizardAddressInput', addressInput],
+    ['wizardFdbId', fdbInput],
+    ['wizardFiberPort', portInput],
+    ['wizardPackageSelect', packageSelect],
+    ['wizardMonthlyRate', rateInput],
+    ['wizardInstallationFee', feeInput],
+    ['wizardDueDateDay', dueDateSelect],
+    ['wizardOntOwnership', ontSelect],
+    ['wizardStaticIpCheck', staticIpCheck],
+    ['wizardSummaryCard', summaryCard],
+    ['wizardStartDate', startDateInput],
+    ['wizardTechNotes', techNotesInput],
+    ['wizardAgreementCheck', agreementCheck],
+    ['wizardSlide1', slide1],
+    ['wizardSlide2', slide2],
+    ['wizardSlide3', slide3],
+    ['wizardSlide4', slide4]
+  ]);
+
+  const mockStorageMap = new Map();
+  const fakeStorage = {
+    getItem: (k) => mockStorageMap.get(k) || null,
+    setItem: (k, v) => mockStorageMap.set(k, String(v)),
+    removeItem: (k) => mockStorageMap.delete(k)
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementsMap.get(id) || null,
+    querySelectorAll: (sel) => {
+      if (sel.includes('data-wizard-step')) return [pill1, pill2, pill3, pill4];
+      return [];
+    }
+  };
+
+  try {
+    let completedData = null;
+    const wizard = setupCustomerEnrollmentWizard({
+      storage: fakeStorage,
+      onComplete: (data) => { completedData = data; }
+    });
+
+    // Opening wizard
+    wizard.open();
+    assert.equal(wizard.getCurrentStep(), 1);
+    assert.equal(backBtn.disabled, true);
+    assert.equal(progressBar.style.width, '25%');
+
+    // Trying to advance without name fails validation
+    nameInput.value = '';
+    const advancedWithoutName = wizard.nextStep();
+    assert.equal(advancedWithoutName, false);
+    assert.equal(wizard.getCurrentStep(), 1);
+    assert.equal(errorBox.hidden, false);
+
+    // Provide valid name and phone
+    nameInput.value = 'Rizwan Ahmad';
+    phoneInput.value = '0302-7654321';
+    const advancedToStep2 = wizard.nextStep();
+    assert.equal(advancedToStep2, true);
+    assert.equal(wizard.getCurrentStep(), 2);
+    assert.equal(progressBar.style.width, '50%');
+    assert.equal(backBtn.disabled, false);
+
+    // Advance to Step 3
+    addressInput.value = 'Main Bazar Street 2';
+    const advancedToStep3 = wizard.nextStep();
+    assert.equal(advancedToStep3, true);
+    assert.equal(wizard.getCurrentStep(), 3);
+    assert.equal(progressBar.style.width, '75%');
+
+    // Advance to Step 4
+    rateInput.value = '2000';
+    const advancedToStep4 = wizard.nextStep();
+    assert.equal(advancedToStep4, true);
+    assert.equal(wizard.getCurrentStep(), 4);
+    assert.equal(progressBar.style.width, '100%');
+    assert.equal(nextBtn.textContent, 'Complete Enrollment ✓');
+    assert.ok(summaryCard.innerHTML.includes('Rizwan Ahmad'));
+
+    // Step regression via prevStep
+    wizard.prevStep();
+    assert.equal(wizard.getCurrentStep(), 3);
+    wizard.goToStep(4);
+    assert.equal(wizard.getCurrentStep(), 4);
+
+    // Trying to submit on Step 4 without agreement fails
+    agreementCheck.checked = false;
+    const submittedWithoutAgreement = wizard.nextStep();
+    assert.equal(submittedWithoutAgreement, false);
+
+    // Check agreement and complete enrollment
+    agreementCheck.checked = true;
+    const completed = wizard.nextStep();
+    assert.equal(completed, true);
+    assert.ok(completedData);
+    assert.equal(completedData.name, 'Rizwan Ahmad');
+    assert.equal(completedData.phone, '0302-7654321');
+    assert.equal(completedData.monthlyRate, 2000);
+
+    // Test swipe gesture handlers
+    wizard.open();
+    assert.equal(wizard.getCurrentStep(), 1);
+    const touchStartFn = listeners.get('wizardTrack:touchstart');
+    const touchEndFn = listeners.get('wizardTrack:touchend');
+    assert.ok(typeof touchStartFn === 'function');
+    assert.ok(typeof touchEndFn === 'function');
+
+    // Simulate swipe left (deltaX = -80)
+    touchStartFn({ touches: [{ clientX: 200, clientY: 100 }] });
+    nameInput.value = 'Tariq Mehmood';
+    touchEndFn({ changedTouches: [{ clientX: 120, clientY: 105 }] });
+    assert.equal(wizard.getCurrentStep(), 2);
+
+    // Simulate swipe right (deltaX = 80)
+    touchStartFn({ touches: [{ clientX: 100, clientY: 100 }] });
+    touchEndFn({ changedTouches: [{ clientX: 180, clientY: 105 }] });
+    assert.equal(wizard.getCurrentStep(), 1);
+
+    // Keyboard Escape closes
+    const keydownFn = listeners.get('customerEnrollmentWizard:keydown');
+    assert.ok(typeof keydownFn === 'function');
+    let defaultPrevented = false;
+    keydownFn({ key: 'Escape', preventDefault: () => { defaultPrevented = true; } });
+    assert.equal(defaultPrevented, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+

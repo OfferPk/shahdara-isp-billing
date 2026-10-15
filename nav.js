@@ -127,3 +127,118 @@ export function setupNavigationDrawer({
     updateActive
   };
 }
+
+/**
+ * Updates live badges on navigation drawer and mobile bottom nav items.
+ */
+export function updateNavigationBadges(state) {
+  if (!state || typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+
+  const customers = Array.isArray(state.customers) ? state.customers : [];
+  const totalCustomers = customers.filter(c => !c.archived).length;
+  const expensesCount = Array.isArray(state.expenses) ? state.expenses.length : 0;
+  const inventoryCount = Array.isArray(state.inventoryItems) ? state.inventoryItems.length : 0;
+
+  function setBadges(target, count, label) {
+    const badges = document.querySelectorAll(`[data-nav-badge="${target}"]`);
+    badges.forEach(badge => {
+      badge.textContent = String(count);
+      badge.hidden = count === 0;
+      if (label && badge.setAttribute) {
+        badge.setAttribute('aria-label', `${count} ${label}`);
+      }
+    });
+  }
+
+  setBadges('customers', totalCustomers, 'active customer profiles');
+  setBadges('expenses', expensesCount, 'recorded expenses');
+  setBadges('inventory', inventoryCount, 'inventory items');
+}
+
+/**
+ * Manages desktop sidebar rail mode toggle (expanded vs collapsed icon rail).
+ */
+export function setupSidebarRailToggle() {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') {
+    return { isRailCollapsed: () => false, toggleRail: () => {} };
+  }
+
+  const toggleBtn = document.getElementById('sidebarRailToggle');
+  const storage = typeof localStorage !== 'undefined' ? localStorage : null;
+  const savedPref = storage?.getItem?.('shahdara_sidebar_rail');
+
+  function applyRailState(collapsed) {
+    if (document.body && document.body.classList) {
+      document.body.classList.toggle('sidebar-rail-collapsed', collapsed);
+    }
+    if (toggleBtn) {
+      toggleBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      toggleBtn.setAttribute('title', collapsed ? 'Expand sidebar' : 'Collapse to icon rail');
+    }
+    try {
+      storage?.setItem?.('shahdara_sidebar_rail', collapsed ? 'collapsed' : 'expanded');
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  if (savedPref === 'collapsed') {
+    applyRailState(true);
+  }
+
+  if (toggleBtn && !toggleBtn.dataset?.wiredRail) {
+    if (toggleBtn.dataset) toggleBtn.dataset.wiredRail = 'true';
+    else if (toggleBtn.setAttribute) toggleBtn.setAttribute('data-wired-rail', 'true');
+    toggleBtn.addEventListener('click', () => {
+      const isCurrentlyCollapsed = document.body?.classList?.contains('sidebar-rail-collapsed') ?? false;
+      applyRailState(!isCurrentlyCollapsed);
+    });
+  }
+
+  return {
+    isRailCollapsed: () => document.body?.classList?.contains('sidebar-rail-collapsed') ?? false,
+    toggleRail: () => {
+      const current = document.body?.classList?.contains('sidebar-rail-collapsed') ?? false;
+      applyRailState(!current);
+    }
+  };
+}
+
+/**
+ * Sets up accessible floating scroll-to-top button.
+ */
+export function setupScrollToTop() {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+  const btn = document.getElementById('scrollTopButton');
+  if (!btn) return;
+
+  if (!btn.dataset?.wiredScroll) {
+    if (btn.dataset) btn.dataset.wiredScroll = 'true';
+    else if (btn.setAttribute) btn.setAttribute('data-wired-scroll', 'true');
+
+    btn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      btn.blur?.();
+    });
+
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        ticking = true;
+        const update = () => {
+          const scrollY = typeof window !== 'undefined' ? (window.scrollY || document.documentElement?.scrollTop || 0) : 0;
+          const shouldShow = scrollY > 300;
+          btn.hidden = !shouldShow;
+          btn.classList.toggle('is-visible', shouldShow);
+          ticking = false;
+        };
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(update);
+        } else {
+          update();
+        }
+      }
+    }, { passive: true });
+  }
+}

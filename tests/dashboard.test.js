@@ -42,6 +42,12 @@ import {
   calculateUpstreamGatewayMetrics,
   generateUpstreamBriefingReport,
   setupUpstreamGatewayModal,
+  calculateAcquisitionRoiMetrics,
+  generateAcquisitionBriefingReport,
+  setupAcquisitionRoiModal,
+  renderAcquisitionRoiSvg,
+  resolveCustomerAcquisitionChannel,
+  ACQUISITION_CHANNELS,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -2799,6 +2805,223 @@ test('setupUpstreamGatewayModal wires up modal dialog, KPIs, table, and clipboar
     await copyHandler();
     assert.ok(copiedText.includes('SHAHDARA ISP - UPSTREAM TRANSIT & FAILOVER BRIEFING'));
     assert.equal(toastMessage, 'Upstream failover report copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateAcquisitionRoiMetrics correctly segments subscribers into acquisition channels and computes CAC payback', () => {
+  const state = createInitialState();
+  const res = calculateAcquisitionRoiMetrics(state, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.ok(res.totalPortfolioAcquisitions > 0);
+  assert.ok(res.totalPortfolioActive > 0);
+  assert.ok(res.totalPortfolioCac > 0);
+  assert.equal(typeof res.portfolioNetRoiPercent, 'number');
+  assert.equal(typeof res.portfolioAvgPaybackMonths, 'number');
+  assert.ok(res.channels.length === 6);
+
+  const walkin = res.channels.find(c => c.id === 'walkin');
+  assert.ok(walkin);
+  assert.equal(walkin.name, 'Direct Walk-in / Office');
+  assert.equal(walkin.blendedCac, 2800);
+  assert.ok(['Rapid Payback', 'Standard Payback', 'Lagging Payback', 'Inactive'].includes(walkin.velocityStatus));
+});
+
+test('calculateAcquisitionRoiMetrics handles explicit channels, notes keywords, and sensitivity multiplier', () => {
+  const customCust1 = {
+    id: 'cust-walkin',
+    name: 'Walkin Test',
+    acquisitionChannel: 'walkin',
+    monthlySellingAmount: 3000,
+    serviceStatus: 'active',
+    bills: [{ payments: [{ amount: 9000 }] }]
+  };
+  const customCust2 = {
+    id: 'cust-tech',
+    name: 'Tech Test',
+    notes: 'Introduced by lineman Faiz on site',
+    monthlySellingAmount: 2500,
+    serviceStatus: 'active',
+    bills: [{ payments: [{ amount: 5000 }] }]
+  };
+  const customCust3 = {
+    id: 'cust-builder',
+    name: 'Plaza Test',
+    leadSource: 'builder',
+    monthlySellingAmount: 5000,
+    serviceStatus: 'active',
+    bills: []
+  };
+
+  const state = {
+    customers: [customCust1, customCust2, customCust3],
+    receipts: []
+  };
+
+  const baseline = calculateAcquisitionRoiMetrics(state, new Date(), { cacMultiplier: 1.0 });
+  assert.equal(baseline.totalPortfolioAcquisitions, 3);
+  assert.equal(baseline.totalPortfolioActive, 3);
+
+  const tech = baseline.channels.find(c => c.id === 'technician');
+  assert.equal(tech.totalAcquisitions, 1);
+  assert.equal(tech.blendedCac, 3500);
+  assert.equal(tech.totalRealizedRevenue, 5000);
+  assert.ok(tech.netRoiPercent > 0);
+
+  // Test sensitivity multiplier 1.2
+  const sensitive = calculateAcquisitionRoiMetrics(state, new Date(), { cacMultiplier: 1.2 });
+  const techSensitive = sensitive.channels.find(c => c.id === 'technician');
+  assert.equal(techSensitive.blendedCac, Math.round(3500 * 1.2));
+  assert.ok(techSensitive.paybackMonths > tech.paybackMonths);
+});
+
+test('calculateAcquisitionRoiMetrics handles empty state safely', () => {
+  const emptyState = { customers: [], receipts: [] };
+  const res = calculateAcquisitionRoiMetrics(emptyState);
+
+  assert.equal(res.totalPortfolioAcquisitions, 0);
+  assert.equal(res.totalPortfolioActive, 0);
+  assert.equal(res.totalPortfolioCac, 0);
+  assert.equal(res.totalPortfolioRealizedRevenue, 0);
+  assert.equal(res.portfolioNetRoiPercent, 0);
+  assert.equal(res.portfolioAvgPaybackMonths, 0);
+  assert.equal(res.highestRoiChannel, 'None');
+  assert.equal(res.fastestPaybackChannel, 'None');
+});
+
+test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty state fallback', () => {
+  const emptyState = { customers: [], receipts: [] };
+  const emptyData = calculateAcquisitionRoiMetrics(emptyState);
+  const emptySvg = renderAcquisitionRoiSvg(emptyData);
+
+  assert.ok(emptySvg.includes('<svg'));
+  assert.ok(emptySvg.includes('No subscriber acquisition data available'));
+
+  const populatedState = createInitialState();
+  const popData = calculateAcquisitionRoiMetrics(populatedState);
+  const svg = renderAcquisitionRoiSvg(popData);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('acquisition-roi-row'));
+  assert.ok(svg.includes('Total CAC:'));
+  assert.ok(svg.includes('Portfolio Net ROI:'));
+});
+
+test('generateAcquisitionBriefingReport generates structured plain text summary', () => {
+  const state = createInitialState();
+  const data = calculateAcquisitionRoiMetrics(state);
+  const report = generateAcquisitionBriefingReport(data, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.ok(report.includes('SHAHDARA ISP - ACQUISITION CHANNEL ROI & PAYBACK BRIEFING'));
+  assert.ok(report.includes('PORTFOLIO UNIT ECONOMICS & ACQUISITION SUMMARY'));
+  assert.ok(report.includes('ACQUISITION CHANNEL PERFORMANCE BREAKDOWN'));
+  assert.ok(report.includes('Direct Walk-in / Office'));
+  assert.ok(report.includes('Net Portfolio Marketing ROI:'));
+});
+
+test('setupAcquisitionRoiModal wires modal open, close, preset multipliers, and clipboard copy', async () => {
+  const state = createInitialState();
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  const presetHandlers = [];
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') openHandler = handler; }
+  };
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') closeHandler = handler; }
+  };
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') copyHandler = handler; }
+  };
+
+  const mockTotalCacVal = { textContent: '' };
+  const mockRealizedRevVal = { textContent: '' };
+  const mockNetRoiVal = { textContent: '', style: {} };
+  const mockAvgPaybackVal = { textContent: '' };
+  const mockFastestVal = { textContent: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockPresetBtns = [
+    {
+      dataset: { cacMultiplier: '0.8' },
+      classList: { toggle: () => {} },
+      setAttribute: () => {},
+      addEventListener: (evt, handler) => { if (evt === 'click') presetHandlers.push(handler); }
+    },
+    {
+      dataset: { cacMultiplier: '1.0' },
+      classList: { toggle: () => {} },
+      setAttribute: () => {},
+      addEventListener: (evt, handler) => { if (evt === 'click') presetHandlers.push(handler); }
+    }
+  ];
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardAcquisitionModal') return mockModal;
+      if (id === 'dashboardOpenAcquisitionModalBtn') return mockOpenBtn;
+      if (id === 'dashboardAcquisitionModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyAcquisitionReportBtn') return mockCopyBtn;
+      if (id === 'acqTotalCacVal') return mockTotalCacVal;
+      if (id === 'acqRealizedRevVal') return mockRealizedRevVal;
+      if (id === 'acqNetRoiVal') return mockNetRoiVal;
+      if (id === 'acqAvgPaybackVal') return mockAvgPaybackVal;
+      if (id === 'acqFastestChannelVal') return mockFastestVal;
+      if (id === 'dashboardAcquisitionTableBody') return mockTableBody;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('#acquisitionCacPresetGroup')) return mockPresetBtns;
+      return [];
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  try {
+    setupAcquisitionRoiModal(state, {
+      referenceDate: new Date('2026-10-15T12:00:00+05:00'),
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockTotalCacVal.textContent.includes('PKR'));
+    assert.ok(mockAvgPaybackVal.textContent.includes('mo'));
+    assert.ok(mockTableBody.innerHTML.includes('Direct Walk-in / Office'));
+
+    // Trigger low CAC preset (0.8x)
+    presetHandlers[0]();
+    assert.ok(mockTotalCacVal.textContent.includes('PKR'));
+
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - ACQUISITION CHANNEL ROI & PAYBACK BRIEFING'));
+    assert.equal(toastMessage, 'Acquisition ROI briefing copied to clipboard!');
 
     closeHandler();
     assert.equal(modalOpened, false);

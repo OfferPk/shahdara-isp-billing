@@ -5,7 +5,8 @@ import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
-  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml
+  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
+  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml
 } from '../form-validation.js';
 
 
@@ -1048,6 +1049,245 @@ test('custom notes are reflected in standard invoice, thermal slip, and WhatsApp
   const waText = buildWhatsAppBillInvoiceText(data, customNote);
   assert.match(waText, /Speed doubled for 3 months promotion! شکریہ/);
 });
+
+test('index.html, styles.css, and app.js provide markup, styles, and wiring for customer ledger audit', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // HTML assertions
+  assert.match(indexHtml, /id="openLedgerAuditBtn"/);
+  assert.match(indexHtml, /<dialog id="customerLedgerAuditModal" class="modal audit-modal"/);
+  assert.match(indexHtml, /id="closeLedgerAuditModalBtn"/);
+  assert.match(indexHtml, /id="auditStatusPill"/);
+  assert.match(indexHtml, /id="auditTotalBilledVal"/);
+  assert.match(indexHtml, /id="auditTotalPaidVal"/);
+  assert.match(indexHtml, /id="auditOutstandingVal"/);
+  assert.match(indexHtml, /id="auditUnappliedCreditVal"/);
+  assert.match(indexHtml, /id="auditDiscrepancyBox"/);
+  assert.match(indexHtml, /id="auditDiscrepancyList"/);
+  assert.match(indexHtml, /id="auditTableBody"/);
+  assert.match(indexHtml, /id="printLedgerAuditBtn"/);
+  assert.match(indexHtml, /id="copyLedgerAuditReportBtn"/);
+  assert.match(indexHtml, /id="exportLedgerAuditCsvBtn"/);
+
+  // Styles assertions
+  assert.match(stylesCss, /\.audit-modal\s*\{/);
+  assert.match(stylesCss, /\.audit-kpi-card\s*\{/);
+  assert.match(stylesCss, /\.audit-status-badge\s*\{/);
+  assert.match(stylesCss, /\.audit-pill-clean\s*\{/);
+  assert.match(stylesCss, /\.audit-pill-danger\s*\{/);
+  assert.match(stylesCss, /\[data-theme="dark"\]\s*\.audit-modal/);
+  assert.match(stylesCss, /@media print[\s\S]*?body\.printing-audit\s*#customerLedgerAuditModal/);
+
+  // App assertions
+  assert.match(appJs, /reconcileCustomerLedger/);
+  assert.match(appJs, /generateLedgerAuditReport/);
+  assert.match(appJs, /generateLedgerAuditCsv/);
+  assert.match(appJs, /renderLedgerAuditModal/);
+  assert.match(appJs, /openLedgerAuditBtn\.addEventListener/);
+  assert.match(appJs, /printLedgerAuditBtn\.addEventListener/);
+  assert.match(appJs, /copyLedgerAuditReportBtn\.addEventListener/);
+  assert.match(appJs, /exportLedgerAuditCsvBtn\.addEventListener/);
+});
+
+test('reconcileCustomerLedger identifies clean balanced accounts and detects discrepancies', () => {
+  // 1. Clean customer
+  const cleanCustomer = {
+    id: 'cust-101',
+    customerNumber: 101,
+    name: 'Hamza Farooq',
+    phone: '03001112233',
+    serviceStatus: 'active',
+    bills: [
+      { id: 'b-1', month: '2026-08', dueAmount: 2000, paid: true, payments: [{ id: 'p-1', amount: 2000, date: '2026-08-05' }] },
+      { id: 'b-2', month: '2026-09', dueAmount: 2000, paid: true, payments: [{ id: 'p-2', amount: 2000, date: '2026-09-04' }] }
+    ]
+  };
+  const cleanResult = reconcileCustomerLedger(cleanCustomer);
+  assert.equal(cleanResult.reconciliationStatus, 'CLEAN');
+  assert.equal(cleanResult.totalBilled, 4000);
+  assert.equal(cleanResult.totalPaid, 4000);
+  assert.equal(cleanResult.netOutstanding, 0);
+  assert.equal(cleanResult.unappliedCredit, 0);
+  assert.equal(cleanResult.monthsPaidCount, 2);
+  assert.equal(cleanResult.discrepancyCount, 0);
+  assert.equal(cleanResult.auditRows.length, 2);
+  assert.equal(cleanResult.auditRows[0].status, 'PAID');
+
+  // 2. Customer with overdue arrears and lingering partial
+  const arrearsCustomer = {
+    id: 'cust-102',
+    customerNumber: 102,
+    name: 'Bilal Ahmad',
+    serviceStatus: 'active',
+    bills: [
+      { id: 'b-1', month: '2026-08', dueAmount: 2500, paid: false, payments: [{ id: 'p-1', amount: 1500, date: '2026-08-10' }] },
+      { id: 'b-2', month: '2026-09', dueAmount: 2500, paid: false, payments: [] }
+    ]
+  };
+  const arrearsResult = reconcileCustomerLedger(arrearsCustomer);
+  assert.equal(arrearsResult.reconciliationStatus, 'ARREARS_PENDING');
+  assert.equal(arrearsResult.totalBilled, 5000);
+  assert.equal(arrearsResult.totalPaid, 1500);
+  assert.equal(arrearsResult.netOutstanding, 3500);
+  assert.equal(arrearsResult.monthsPartialCount, 1);
+  assert.equal(arrearsResult.monthsPendingCount, 1);
+  assert.ok(arrearsResult.discrepancies.some(d => d.type === 'LINGERING_PARTIAL'));
+  assert.ok(arrearsResult.discrepancies.some(d => d.type === 'OVERDUE_ARREARS'));
+
+  // 3. Customer with advance credit surplus
+  const surplusCustomer = {
+    id: 'cust-103',
+    customerNumber: 103,
+    name: 'Zainab Bibi',
+    serviceStatus: 'active',
+    bills: [
+      { id: 'b-1', month: '2026-09', dueAmount: 1800, paid: true, payments: [{ id: 'p-1', amount: 3000, date: '2026-09-02' }] }
+    ]
+  };
+  const surplusResult = reconcileCustomerLedger(surplusCustomer);
+  assert.equal(surplusResult.reconciliationStatus, 'CREDIT_SURPLUS');
+  assert.equal(surplusResult.unappliedCredit, 1200);
+  assert.ok(surplusResult.discrepancies.some(d => d.type === 'SURPLUS_CREDIT'));
+
+  // 4. Delayed payment timing check (settled 4 months later)
+  const delayedCustomer = {
+    id: 'cust-104',
+    name: 'Kamran Ali',
+    serviceStatus: 'active',
+    bills: [
+      { id: 'b-1', month: '2026-04', dueAmount: 2000, paid: true, payments: [{ id: 'p-1', amount: 2000, date: '2026-08-15' }] }
+    ]
+  };
+  const delayedResult = reconcileCustomerLedger(delayedCustomer);
+  assert.ok(delayedResult.discrepancies.some(d => d.type === 'DELAYED_PAYMENT'));
+
+  // 5. Multiple receipts on same date check
+  const dupReceiptCustomer = {
+    id: 'cust-105',
+    name: 'Rashid Mehmood',
+    bills: [
+      {
+        id: 'b-1', month: '2026-09', dueAmount: 3000, paid: true,
+        payments: [
+          { id: 'p-1', amount: 1500, date: '2026-09-05' },
+          { id: 'p-2', amount: 1500, date: '2026-09-05' }
+        ]
+      }
+    ]
+  };
+  const dupResult = reconcileCustomerLedger(dupReceiptCustomer);
+  assert.ok(dupResult.discrepancies.some(d => d.type === 'DUPLICATE_RECEIPT_DATE'));
+
+  // 6. Active customer with 0 bills
+  const unbilledActive = {
+    id: 'cust-106',
+    name: 'New Subscriber',
+    serviceStatus: 'active',
+    bills: []
+  };
+  const unbilledResult = reconcileCustomerLedger(unbilledActive);
+  assert.ok(unbilledResult.discrepancies.some(d => d.type === 'ACTIVE_UNBILLED'));
+
+  // 7. Null customer handling
+  const nullResult = reconcileCustomerLedger(null);
+  assert.equal(nullResult.customer, null);
+  assert.equal(nullResult.totalBilled, 0);
+  assert.equal(nullResult.discrepancyCount, 0);
+});
+
+test('generateLedgerAuditReport formats comprehensive text briefing report', () => {
+  const customer = {
+    id: 'cust-201',
+    customerNumber: 201,
+    name: 'Usman Ghani',
+    phone: '03219876543',
+    area: 'Mohalla Sheikhan',
+    bills: [
+      { id: 'b-1', month: '2026-08', dueAmount: 2200, paid: true, payments: [{ id: 'p-1', amount: 2200, date: '2026-08-05' }] },
+      { id: 'b-2', month: '2026-09', dueAmount: 2200, paid: false, payments: [{ id: 'p-2', amount: 1000, date: '2026-09-07' }] }
+    ]
+  };
+
+  const auditResult = reconcileCustomerLedger(customer);
+  const report = generateLedgerAuditReport(auditResult, customer);
+
+  assert.match(report, /SHAHDARA ISP BILLING · CUSTOMER LEDGER AUDIT REPORT/);
+  assert.match(report, /Customer:\s*Usman Ghani/);
+  assert.match(report, /ID:\s*#201/);
+  assert.match(report, /03219876543/);
+  assert.match(report, /Mohalla Sheikhan/);
+  assert.match(report, /Total Billed:\s*PKR 4,400/);
+  assert.match(report, /Total Collected:\s*PKR 3,200/);
+  assert.match(report, /Net Outstanding:\s*PKR 1,200/);
+  assert.match(report, /AUDIT DISCREPANCIES & FINDINGS/);
+  assert.match(report, /MONTHLY LEDGER BREAKDOWN/);
+  assert.match(report, /2026-08/);
+  assert.match(report, /2026-09/);
+
+  // Null input handles gracefully
+  assert.equal(generateLedgerAuditReport(null), '');
+});
+
+test('generateLedgerAuditCsv outputs valid RFC-4180 CSV with UTF-8 BOM and correct columns', () => {
+  const customer = {
+    id: 'cust-301',
+    customerNumber: 301,
+    name: 'Shahid Nadeem',
+    bills: [
+      { id: 'b-1', month: '2026-08', dueAmount: 1500, dueDate: '2026-08-05', paid: true, payments: [{ id: 'p-1', amount: 1500, date: '2026-08-04' }] },
+      { id: 'b-2', month: '2026-09', dueAmount: 1500, dueDate: '2026-09-05', paid: false, payments: [] }
+    ]
+  };
+
+  const auditResult = reconcileCustomerLedger(customer);
+  const csv = generateLedgerAuditCsv(auditResult, customer);
+
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /Month,Month_Label,Due_Date,Billed_PKR,Paid_PKR,Balance_Due_PKR,Status,Receipts_Count/);
+  assert.match(csv, /2026-08,August 2026,2026-08-05,1500,1500,0,PAID,1/);
+  assert.match(csv, /2026-09,September 2026,2026-09-05,1500,0,1500,PENDING,0/);
+
+  // Null input handles gracefully
+  assert.equal(generateLedgerAuditCsv(null), '');
+});
+
+test('generateLedgerAuditPrintHtml creates printable document structure with signatures', () => {
+  const customer = {
+    id: 'cust-401',
+    customerNumber: 401,
+    name: 'Farhan Akhtar',
+    phone: '03334445566',
+    area: 'Railway Road',
+    serviceStatus: 'active',
+    packageSpeed: '25 Mbps',
+    bills: [
+      { id: 'b-1', month: '2026-09', dueAmount: 2500, dueDate: '2026-09-05', paid: true, payments: [{ id: 'p-1', amount: 2500, date: '2026-09-03' }] }
+    ]
+  };
+
+  const auditResult = reconcileCustomerLedger(customer);
+  const html = generateLedgerAuditPrintHtml(auditResult, customer);
+
+  assert.match(html, /SHAHDARA ISP NETWORKS/);
+  assert.match(html, /Customer Ledger Reconciliation &amp; Financial Quality Assurance Audit/);
+  assert.match(html, /Farhan Akhtar/);
+  assert.match(html, /#401/);
+  assert.match(html, /03334445566/);
+  assert.match(html, /Railway Road/);
+  assert.match(html, /TOTAL BILLED/);
+  assert.match(html, /TOTAL COLLECTED/);
+  assert.match(html, /NET BALANCE DUE/);
+  assert.match(html, /audit-print-table/);
+  assert.match(html, /September 2026/);
+  assert.match(html, /Accounting Auditor \/ QA Officer/);
+  assert.match(html, /Network Operations Director/);
+
+  // Null input handles gracefully
+  assert.equal(generateLedgerAuditPrintHtml(null), '');
+});
+
 
 
 

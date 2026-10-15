@@ -27,7 +27,8 @@ import {
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
-  generateStandaloneInvoiceDocument, downloadHtmlFile
+  generateStandaloneInvoiceDocument, downloadHtmlFile,
+  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml
 } from './form-validation.js?v=1.10.0';
 
 
@@ -2887,6 +2888,153 @@ if (downloadInvoiceHtmlBtn) {
     const filename = `Invoice_${data.customerNumber || data.id}_${data.month || 'slip'}.html`;
     downloadHtmlFile(filename, standaloneHtml);
     toast(`Downloaded invoice: ${filename}`);
+  });
+}
+
+// ==========================================================================
+// CUSTOMER LEDGER RECONCILIATION & AUDIT MODAL (agent3 - shahdara-forms-qa)
+// ==========================================================================
+let currentAuditCustomer = null;
+let currentAuditResult = null;
+const openLedgerAuditBtn = $('#openLedgerAuditBtn');
+const ledgerAuditModal = $('#customerLedgerAuditModal');
+const closeLedgerAuditModalBtn = $('#closeLedgerAuditModalBtn');
+const auditStatusPill = $('#auditStatusPill');
+const auditTotalBilledVal = $('#auditTotalBilledVal');
+const auditTotalPaidVal = $('#auditTotalPaidVal');
+const auditOutstandingVal = $('#auditOutstandingVal');
+const auditUnappliedCreditVal = $('#auditUnappliedCreditVal');
+const auditDiscrepancyBox = $('#auditDiscrepancyBox');
+const auditDiscrepancyCleanMsg = $('#auditDiscrepancyCleanMsg');
+const auditDiscrepancyList = $('#auditDiscrepancyList');
+const auditTableBody = $('#auditTableBody');
+const printLedgerAuditBtn = $('#printLedgerAuditBtn');
+const copyLedgerAuditReportBtn = $('#copyLedgerAuditReportBtn');
+const exportLedgerAuditCsvBtn = $('#exportLedgerAuditCsvBtn');
+
+export function renderLedgerAuditModal(customer) {
+  if (!customer) return;
+  currentAuditCustomer = customer;
+  currentAuditResult = reconcileCustomerLedger(customer, state);
+
+  if (auditStatusPill) {
+    auditStatusPill.className = `audit-status-badge ${currentAuditResult.statusClass}`;
+    auditStatusPill.textContent = currentAuditResult.statusLabel;
+  }
+  if (auditTotalBilledVal) {
+    auditTotalBilledVal.textContent = `PKR ${Number(currentAuditResult.totalBilled).toLocaleString()}`;
+  }
+  if (auditTotalPaidVal) {
+    auditTotalPaidVal.textContent = `PKR ${Number(currentAuditResult.totalPaid).toLocaleString()}`;
+  }
+  if (auditOutstandingVal) {
+    auditOutstandingVal.textContent = `PKR ${Number(currentAuditResult.netOutstanding).toLocaleString()}`;
+  }
+  if (auditUnappliedCreditVal) {
+    auditUnappliedCreditVal.textContent = `PKR ${Number(currentAuditResult.unappliedCredit).toLocaleString()}`;
+  }
+
+  if (auditDiscrepancyBox && auditDiscrepancyList && auditDiscrepancyCleanMsg) {
+    const hasIssues = currentAuditResult.discrepancies.length > 0;
+    auditDiscrepancyBox.classList.toggle('has-discrepancies', hasIssues);
+    auditDiscrepancyCleanMsg.hidden = hasIssues;
+    auditDiscrepancyList.hidden = !hasIssues;
+    auditDiscrepancyList.innerHTML = '';
+
+    if (hasIssues) {
+      currentAuditResult.discrepancies.forEach(d => {
+        const li = document.createElement('li');
+        li.className = `audit-discrepancy-item ${d.severity}`;
+        li.textContent = `[${d.severity.toUpperCase()}] ${d.message}`;
+        auditDiscrepancyList.appendChild(li);
+      });
+    }
+  }
+
+  if (auditTableBody) {
+    auditTableBody.innerHTML = '';
+    if (currentAuditResult.auditRows.length > 0) {
+      currentAuditResult.auditRows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(r.monthLabel || r.month)}</td>
+          <td>${escapeHtml(r.dueDate)}</td>
+          <td class="text-right">PKR ${Number(r.billedAmount).toLocaleString()}</td>
+          <td class="text-right">PKR ${Number(r.paidAmount).toLocaleString()}</td>
+          <td class="text-right font-bold">PKR ${Number(r.balanceAmount).toLocaleString()}</td>
+          <td class="text-center"><span class="audit-status-tag ${(r.status || '').toLowerCase()}">${escapeHtml(r.status)}</span></td>
+        `;
+        auditTableBody.appendChild(tr);
+      });
+    } else {
+      auditTableBody.innerHTML = '<tr><td colspan="6" class="text-center">No billing history found for this subscriber.</td></tr>';
+    }
+  }
+}
+
+if (openLedgerAuditBtn && ledgerAuditModal) {
+  openLedgerAuditBtn.addEventListener('click', () => {
+    if (!selectedCustomerId) {
+      toast('Please select a customer first.');
+      return;
+    }
+    const cust = state.customers.find(c => c.id === selectedCustomerId);
+    if (!cust) return;
+    renderLedgerAuditModal(cust);
+    if (ledgerAuditModal.showModal) ledgerAuditModal.showModal();
+    else ledgerAuditModal.setAttribute('open', '');
+  });
+}
+
+if (closeLedgerAuditModalBtn && ledgerAuditModal) {
+  closeLedgerAuditModalBtn.addEventListener('click', () => {
+    if (ledgerAuditModal.close) ledgerAuditModal.close();
+    else ledgerAuditModal.removeAttribute('open');
+  });
+}
+
+if (ledgerAuditModal) {
+  ledgerAuditModal.addEventListener('click', (e) => {
+    if (e.target === ledgerAuditModal) {
+      if (ledgerAuditModal.close) ledgerAuditModal.close();
+      else ledgerAuditModal.removeAttribute('open');
+    }
+  });
+}
+
+if (printLedgerAuditBtn) {
+  printLedgerAuditBtn.addEventListener('click', () => {
+    if (!currentAuditCustomer) return;
+    document.body.classList.add('printing-audit');
+    window.print();
+    setTimeout(() => {
+      document.body.classList.remove('printing-audit');
+    }, 500);
+  });
+}
+
+if (copyLedgerAuditReportBtn) {
+  copyLedgerAuditReportBtn.addEventListener('click', async () => {
+    if (!currentAuditCustomer || !currentAuditResult) return;
+    const reportText = generateLedgerAuditReport(currentAuditResult, currentAuditCustomer);
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(reportText);
+      }
+      toast('Audit report copied to clipboard.');
+    } catch {
+      toast('Unable to copy audit report to clipboard.');
+    }
+  });
+}
+
+if (exportLedgerAuditCsvBtn) {
+  exportLedgerAuditCsvBtn.addEventListener('click', () => {
+    if (!currentAuditCustomer || !currentAuditResult) return;
+    const csv = generateLedgerAuditCsv(currentAuditResult, currentAuditCustomer);
+    const filename = `Ledger_Audit_${currentAuditCustomer.customerNumber || currentAuditCustomer.id}_${new Date().toISOString().slice(0, 10)}.csv`;
+    downloadCsvFile(filename, csv);
+    toast(`Exported ledger audit: ${filename}`);
   });
 }
 

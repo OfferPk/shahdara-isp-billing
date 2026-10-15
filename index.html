@@ -554,7 +554,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -1157,6 +1157,40 @@
           <button id="queueClearAllBtn" class="secondary-button danger-button" type="button">Clear Queue</button>
         </div>
       </div>
+    </section>
+  </dialog>
+  <dialog id="customerBillInvoiceModal" class="modal invoice-modal" aria-labelledby="billInvoiceModalTitle">
+    <section class="invoice-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">SUBSCRIBER INVOICE &amp; SLIP</p>
+          <h2 id="billInvoiceModalTitle">Monthly Bill Invoice</h2>
+        </div>
+        <button id="closeBillInvoiceModalBtn" class="close-button" type="button" aria-label="Close invoice modal">×</button>
+      </div>
+      <div class="invoice-modal-controls">
+        <div class="invoice-control-group">
+          <label for="invoiceMonthSelect">Billing Month:
+            <select id="invoiceMonthSelect"></select>
+          </label>
+          <label for="invoiceFormatSelect">Print Layout:
+            <select id="invoiceFormatSelect">
+              <option value="standard" selected>📄 Standard A4 Sheet</option>
+              <option value="thermal">🧾 80mm POS Slip</option>
+            </select>
+          </label>
+          <label for="invoiceCustomNote" class="invoice-note-label">Bill Notice:
+            <input id="invoiceCustomNote" type="text" placeholder="Optional announcement or notice..." maxlength="120">
+          </label>
+        </div>
+        <div class="invoice-actions-right">
+          <button id="printBillInvoiceBtn" class="primary-button" type="button">🖨️ Print Invoice Slip</button>
+          <button id="sendWhatsAppInvoiceBtn" class="secondary-button whatsapp-button" type="button">💬 Send WhatsApp</button>
+          <button id="copyInvoiceTextBtn" class="secondary-button" type="button">📋 Copy Text</button>
+          <button id="downloadInvoiceHtmlBtn" class="secondary-button" type="button" title="Save standalone HTML bill file">💾 Save File</button>
+        </div>
+      </div>
+      <div id="billInvoicePreviewContainer" class="bill-invoice-preview-container" tabindex="0" role="region" aria-label="Bill invoice preview"></div>
     </section>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

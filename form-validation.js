@@ -1024,6 +1024,459 @@ export function generatePaymentReminderSlipHtml({
   `;
 }
 
+/**
+ * Calculates itemized billing invoice data for a customer for a given month.
+ * @param {Object} customer
+ * @param {string} [targetMonth] e.g. '2026-10'
+ * @param {Object} [options]
+ * @returns {Object}
+ */
+export function buildCustomerBillInvoiceData(customer, targetMonth = null, { referenceDate = new Date() } = {}) {
+  if (!customer) {
+    return {
+      isValid: false,
+      invoiceNumber: 'INV-000000-000',
+      billingMonth: 'N/A',
+      issueDate: 'N/A',
+      dueDate: 'N/A',
+      customerNumber: '000',
+      customerName: 'Valued Subscriber',
+      phone: 'Not recorded',
+      area: 'Shahdara Town',
+      packageName: 'Broadband Package',
+      monthlyCharge: 0,
+      arrears: 0,
+      payments: 0,
+      advanceCredit: 0,
+      netPayable: 0,
+      status: 'NO_BILL'
+    };
+  }
+
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  
+  // Sort bills chronologically by month
+  const sortedBills = [...bills].sort((a, b) => (a.month || '').localeCompare(b.month || ''));
+
+  // If targetMonth not provided, use latest bill month or current PKT month
+  let selectedBill = null;
+  if (targetMonth) {
+    selectedBill = sortedBills.find(b => b.month === targetMonth);
+  }
+  if (!selectedBill && sortedBills.length > 0) {
+    selectedBill = sortedBills[sortedBills.length - 1];
+  }
+
+  const billingMonth = selectedBill?.month || targetMonth || new Date().toISOString().slice(0, 7);
+  const custNum = customer.customerNumber ? String(customer.customerNumber).padStart(3, '0') : (customer.id || '001');
+  const invoiceNumber = `INV-${billingMonth.replace('-', '')}-${custNum}`;
+
+  // Issue date: 1st of billing month
+  const issueDate = `${billingMonth}-01`;
+  const dueDate = selectedBill?.dueDate || customer.customDueDate || `${billingMonth}-05`;
+
+  const monthlyCharge = Number(selectedBill?.dueAmount ?? customer.monthlySellingAmount ?? 0);
+
+  // Arrears: sum unpaid balances on all bills strictly BEFORE this billingMonth
+  let arrears = 0;
+  for (const b of sortedBills) {
+    if ((b.month || '') < billingMonth) {
+      const bDue = Number(b.dueAmount ?? 0);
+      const bPaid = Array.isArray(b.payments) ? b.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0) : 0;
+      const bBal = Math.max(0, bDue - bPaid);
+      arrears += bBal;
+    }
+  }
+
+  // Payments applied to selected bill
+  const billPayments = Array.isArray(selectedBill?.payments)
+    ? selectedBill.payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0)
+    : 0;
+
+  // Total balance for this bill
+  const netBillBalance = Math.max(0, monthlyCharge - billPayments);
+  const totalPayable = netBillBalance + arrears;
+
+  let status = 'UNPAID';
+  if (!selectedBill && monthlyCharge === 0) {
+    status = 'NO_BILL';
+  } else if (totalPayable === 0) {
+    status = 'PAID';
+  } else if (billPayments > 0 || (monthlyCharge > 0 && totalPayable < (monthlyCharge + arrears))) {
+    status = 'PARTIAL';
+  }
+
+  const area = [customer.mohalla, customer.zone].filter(Boolean).join(', ') || 'Shahdara Town';
+  const packageName = customer.packageSpeed ? `${customer.packageSpeed} Mbps Fiber` : 'Standard Package';
+
+  return {
+    isValid: true,
+    invoiceNumber,
+    billingMonth,
+    issueDate,
+    dueDate,
+    customerNumber: custNum,
+    customerName: customer.name || 'Valued Subscriber',
+    phone: customer.phone || 'Not recorded',
+    address: customer.address || '',
+    area,
+    packageName,
+    serviceStatus: customer.serviceStatus || 'active',
+    monthlyCharge,
+    arrears,
+    payments: billPayments,
+    advanceCredit: 0,
+    netPayable: totalPayable,
+    status
+  };
+}
+
+/**
+ * Generates semantic printable HTML for a customer billing invoice slip.
+ * @param {Object} data - Output of buildCustomerBillInvoiceData
+ * @param {Object} [options]
+ * @param {'standard'|'thermal'} [options.format='standard']
+ * @returns {string}
+ */
+export function generateBillInvoiceHtml(data, { format = 'standard', customNote = '' } = {}) {
+  if (!data || !data.isValid) {
+    return `<div class="empty-state">No invoice data available for this subscriber.</div>`;
+  }
+
+  const formatPkr = (n) => new Intl.NumberFormat('en-PK').format(n || 0);
+
+  if (format === 'thermal') {
+    return `
+      <article class="bill-invoice-slip thermal-receipt" aria-label="Customer 80mm thermal bill invoice slip">
+        <header class="thermal-header">
+          <h2 class="thermal-company">Shahdara ISP Network</h2>
+          <p class="thermal-tagline">شاہدرہ انٹرنیٹ سروسز · ماہانہ بل انوائس</p>
+          <div class="thermal-rule">================================</div>
+          <p class="thermal-title"><strong>MONTHLY BILL INVOICE</strong></p>
+          <p class="thermal-date">Invoice: ${escapeHtml(data.invoiceNumber)}</p>
+          <p class="thermal-date">Billing Month: ${escapeHtml(data.billingMonth)}</p>
+          <div class="thermal-rule">--------------------------------</div>
+        </header>
+
+        <section class="thermal-customer-meta">
+          <div class="thermal-row"><span>Account No:</span><strong>#${escapeHtml(data.customerNumber)}</strong></div>
+          <div class="thermal-row"><span>Subscriber:</span><strong>${escapeHtml(data.customerName)}</strong></div>
+          <div class="thermal-row"><span>Phone:</span><span>${escapeHtml(data.phone)}</span></div>
+          <div class="thermal-row"><span>Area:</span><span>${escapeHtml(data.area)}</span></div>
+          <div class="thermal-row"><span>Package:</span><span>${escapeHtml(data.packageName)}</span></div>
+          <div class="thermal-row"><span>Status:</span><span>${escapeHtml(data.status)}</span></div>
+        </section>
+
+        <div class="thermal-rule">--------------------------------</div>
+
+        <section class="thermal-breakdown">
+          <div class="thermal-row"><span>Monthly Charge:</span><span>PKR ${formatPkr(data.monthlyCharge)}</span></div>
+          ${data.arrears > 0 ? `<div class="thermal-row"><span>Arrears / Previous Due:</span><span>PKR ${formatPkr(data.arrears)}</span></div>` : ''}
+          ${data.payments > 0 ? `<div class="thermal-row"><span>Payments Received:</span><span>- PKR ${formatPkr(data.payments)}</span></div>` : ''}
+          <div class="thermal-rule">--------------------------------</div>
+          <div class="thermal-row thermal-total-row">
+            <span>TOTAL AMOUNT DUE:</span>
+            <strong>PKR ${formatPkr(data.netPayable)}</strong>
+          </div>
+          <div class="thermal-row thermal-due-row">
+            <span>DUE DATE:</span>
+            <strong>${escapeHtml(data.dueDate)}</strong>
+          </div>
+        </section>
+
+        ${customNote ? `
+          <div class="thermal-rule">--------------------------------</div>
+          <p class="thermal-notes"><strong>Note:</strong> ${escapeHtml(customNote)}</p>
+        ` : ''}
+
+        <div class="thermal-rule">================================</div>
+
+        <footer class="thermal-footer">
+          <p class="thermal-urgent">Please pay on or before due date to ensure uninterrupted connectivity.</p>
+          <p class="thermal-payment-modes">Payment: EasyPaisa · JazzCash · Doorstep Cash</p>
+          <div class="thermal-sig-block">
+            <div class="thermal-sig-line"></div>
+            <span>Billing Representative Signature</span>
+          </div>
+          <p class="thermal-closing">Thank you for choosing Shahdara ISP!</p>
+        </footer>
+      </article>
+    `;
+  }
+
+  // Standard A4 / Executive Invoice Sheet
+  return `
+    <article class="bill-invoice-sheet" aria-label="Customer monthly bill invoice sheet">
+      <header class="invoice-header">
+        <div class="invoice-brand-block">
+          <div class="invoice-brand-badge" aria-hidden="true">S</div>
+          <div>
+            <h1 class="invoice-title">Shahdara ISP Network</h1>
+            <p class="invoice-subtitle">High-Speed Broadband &amp; Optical Fiber Services</p>
+            <p class="invoice-urdu-tag">شاہدرہ انٹرنیٹ سروسز · کسٹمر بل انوائس</p>
+          </div>
+        </div>
+        <div class="invoice-meta-block">
+          <div class="invoice-badge ${data.status.toLowerCase()}">${escapeHtml(data.status)}</div>
+          <p class="invoice-number"><strong>Invoice #:</strong> ${escapeHtml(data.invoiceNumber)}</p>
+          <p class="invoice-date"><strong>Issue Date:</strong> ${escapeHtml(data.issueDate)}</p>
+          <p class="invoice-due-date"><strong>Due Date:</strong> ${escapeHtml(data.dueDate)}</p>
+          <p class="invoice-cycle"><strong>Billing Cycle:</strong> ${escapeHtml(data.billingMonth)}</p>
+        </div>
+      </header>
+
+      ${customNote ? `
+      <div class="invoice-note-banner">
+        <strong>Special Notice:</strong> ${escapeHtml(customNote)}
+      </div>
+      ` : ''}
+
+      <div class="invoice-parties-grid">
+        <div class="invoice-party-box">
+          <p class="party-label">BILLED TO (SUBSCRIBER)</p>
+          <h2 class="party-name">${escapeHtml(data.customerName)}</h2>
+          <p class="party-line"><strong>Account No:</strong> #${escapeHtml(data.customerNumber)}</p>
+          <p class="party-line"><strong>Phone:</strong> ${escapeHtml(data.phone)}</p>
+          <p class="party-line"><strong>Area / Zone:</strong> ${escapeHtml(data.area)}</p>
+          ${data.address ? `<p class="party-line"><strong>Address:</strong> ${escapeHtml(data.address)}</p>` : ''}
+        </div>
+        <div class="invoice-party-box service-box">
+          <p class="party-label">SUBSCRIPTION PROFILE</p>
+          <h2 class="party-name">${escapeHtml(data.packageName)}</h2>
+          <p class="party-line"><strong>Service State:</strong> ${escapeHtml(data.serviceStatus)}</p>
+          <p class="party-line"><strong>Service Period:</strong> 01-${escapeHtml(data.billingMonth)} to Month End</p>
+          <p class="party-line"><strong>Provider Gateway:</strong> Shahdara Core Optical</p>
+        </div>
+      </div>
+
+      <table class="invoice-table" aria-label="Invoice charge breakdown">
+        <thead>
+          <tr>
+            <th scope="col" class="col-desc">Description &amp; Service Item</th>
+            <th scope="col" class="col-period">Period</th>
+            <th scope="col" class="col-rate text-right">Nominal Rate</th>
+            <th scope="col" class="col-amount text-right">Amount (PKR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <strong>${escapeHtml(data.packageName)}</strong>
+              <div class="invoice-item-sub">Monthly recurring internet broadband package subscription</div>
+            </td>
+            <td>${escapeHtml(data.billingMonth)}</td>
+            <td class="text-right">PKR ${formatPkr(data.monthlyCharge)}</td>
+            <td class="text-right">PKR ${formatPkr(data.monthlyCharge)}</td>
+          </tr>
+          ${data.arrears > 0 ? `
+          <tr class="arrears-row">
+            <td>
+              <strong>Previous Arrears / Unpaid Balance</strong>
+              <div class="invoice-item-sub">Accumulated balance from prior unclosed billing cycles</div>
+            </td>
+            <td>Prior Cycles</td>
+            <td class="text-right">—</td>
+            <td class="text-right">PKR ${formatPkr(data.arrears)}</td>
+          </tr>
+          ` : ''}
+          ${data.payments > 0 ? `
+          <tr class="credits-row">
+            <td>
+              <strong>Recorded Payments / Installments</strong>
+              <div class="invoice-item-sub">Direct receipts credited against this month's bill</div>
+            </td>
+            <td>${escapeHtml(data.billingMonth)}</td>
+            <td class="text-right">—</td>
+            <td class="text-right">- PKR ${formatPkr(data.payments)}</td>
+          </tr>
+          ` : ''}
+        </tbody>
+      </table>
+
+      <div class="invoice-summary-section">
+        <div class="invoice-payment-guidance">
+          <h3>Payment Instructions (طریقہ ادائیگی)</h3>
+          <ul>
+            <li><strong>EasyPaisa / JazzCash:</strong> Send to operator account with Account No #${escapeHtml(data.customerNumber)} in reference.</li>
+            <li><strong>Doorstep Collection:</strong> Hand over to authorized billing team (Umair / Saad) and request immediate digital receipt.</li>
+            <li><strong>Helpline &amp; Support:</strong> Contact field technician for line latency or billing queries.</li>
+          </ul>
+        </div>
+        <div class="invoice-totals-box">
+          <div class="totals-row">
+            <span>Current Month Charges:</span>
+            <span>PKR ${formatPkr(data.monthlyCharge)}</span>
+          </div>
+          ${data.arrears > 0 ? `
+          <div class="totals-row">
+            <span>Previous Arrears:</span>
+            <span>PKR ${formatPkr(data.arrears)}</span>
+          </div>
+          ` : ''}
+          ${data.payments > 0 ? `
+          <div class="totals-row">
+            <span>Payments Deducted:</span>
+            <span>- PKR ${formatPkr(data.payments)}</span>
+          </div>
+          ` : ''}
+          <div class="totals-divider"></div>
+          <div class="totals-row grand-total">
+            <span>Net Payable by Due Date:</span>
+            <strong>PKR ${formatPkr(data.netPayable)}</strong>
+          </div>
+          <div class="totals-row due-date-highlight">
+            <span>Payment Due Date:</span>
+            <strong>${escapeHtml(data.dueDate)}</strong>
+          </div>
+        </div>
+      </div>
+
+      <footer class="invoice-footer">
+        <p class="notice">Notice: Please clear dues on or before <strong>${escapeHtml(data.dueDate)}</strong> to avoid automatic service suspension. For complaints or speed upgrades, contact our office.</p>
+        <div class="invoice-auth-block">
+          <div class="auth-sig-line"></div>
+          <span>Authorized Signature &amp; Stamp</span>
+        </div>
+      </footer>
+    </article>
+  `;
+}
+
+/**
+ * Builds clean WhatsApp text message for the customer monthly bill invoice.
+ * @param {Object} data - Output of buildCustomerBillInvoiceData
+ * @param {string} [customNote='']
+ * @returns {string}
+ */
+export function buildWhatsAppBillInvoiceText(data, customNote = '') {
+  if (!data || !data.isValid) return '';
+  const formatPkr = (n) => new Intl.NumberFormat('en-PK').format(n || 0);
+
+  const lines = [
+    `*SHAHDARA ISP NETWORK - MONTHLY BILL INVOICE*`,
+    `----------------------------------------`,
+    `محترم صارف: *${data.customerName}*`,
+    `اکاؤنٹ نمبر: *#${data.customerNumber}*`,
+    `پیکج: *${data.packageName}*`,
+    `بل کا مہینہ: *${data.billingMonth}*`,
+    `انوائس نمبر: *${data.invoiceNumber}*`,
+    `----------------------------------------`,
+    `*تفصیلات بل (Bill Details):*`,
+    `• رواں ماہ کے چارجز: PKR ${formatPkr(data.monthlyCharge)}`
+  ];
+
+  if (data.arrears > 0) {
+    lines.push(`• پچھلے بقایا جات (Arrears): PKR ${formatPkr(data.arrears)}`);
+  }
+  if (data.payments > 0) {
+    lines.push(`• ادا شدہ رقم (Paid): PKR ${formatPkr(data.payments)}`);
+  }
+
+  if (customNote) {
+    lines.push(`• ضروری نوٹ (Notice): ${customNote}`);
+  }
+
+  lines.push(`----------------------------------------`);
+  lines.push(`*کل قابل ادا رقم (Net Due): PKR ${formatPkr(data.netPayable)}*`);
+  lines.push(`*آخری تاریخ (Due Date): ${data.dueDate}*`);
+  lines.push(`----------------------------------------`);
+  lines.push(`برائے مہربانی آخری تاریخ سے پہلے ادائیگی یقینی بنائیں تاکہ انٹرنیٹ سروس بلاتعطل جاری رہے۔`);
+  lines.push(`ادائیگی بذریعہ: EasyPaisa / JazzCash یا کیش کلیکٹر۔`);
+  lines.push(`شکریہ! شاہدرہ انٹرنیٹ سروسز نیٹ ورک`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Generates a complete standalone HTML document with embedded styles for offline saving/viewing.
+ * @param {Object} data
+ * @param {Object} [options]
+ * @returns {string}
+ */
+export function generateStandaloneInvoiceDocument(data, { format = 'standard', customNote = '' } = {}) {
+  const bodyHtml = generateBillInvoiceHtml(data, { format, customNote });
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Invoice - ${escapeHtml(data?.invoiceNumber || 'INV')} - Shahdara ISP</title>
+  <style>
+    body { font-family: Manrope, system-ui, -apple-system, sans-serif; background: #f7fafc; margin: 0; padding: 24px; display: flex; justify-content: center; }
+    .bill-invoice-sheet { background: #fff; max-width: 760px; width: 100%; padding: 32px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .invoice-header { display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; }
+    .invoice-brand-block { display: flex; gap: 14px; align-items: center; }
+    .invoice-brand-badge { width: 46px; height: 46px; border-radius: 10px; background: #0e5b4d; color: #fff; font: 800 24px/46px sans-serif; text-align: center; }
+    .invoice-title { font-size: 20px; font-weight: 800; color: #0e5b4d; margin: 0; }
+    .invoice-subtitle { font-size: 12px; color: #718096; margin: 2px 0 0; }
+    .invoice-urdu-tag { font-size: 13px; color: #2d3748; margin: 2px 0 0; direction: rtl; }
+    .invoice-meta-block { text-align: right; font-size: 12px; color: #4a5568; }
+    .invoice-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-weight: 700; font-size: 11px; text-transform: uppercase; margin-bottom: 6px; }
+    .invoice-badge.unpaid { background: #fed7d7; color: #c53030; }
+    .invoice-badge.paid { background: #c6f6d5; color: #22543d; }
+    .invoice-badge.partial { background: #feebc8; color: #c05621; }
+    .invoice-parties-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0; }
+    .invoice-party-box { background: #f7fafc; padding: 16px; border-radius: 8px; border: 1px solid #edf2f7; }
+    .party-label { font-size: 10px; font-weight: 700; color: #718096; margin: 0 0 6px; }
+    .party-name { font-size: 16px; font-weight: 700; color: #1a202c; margin: 0 0 8px; }
+    .party-line { font-size: 12px; color: #4a5568; margin: 3px 0; }
+    .invoice-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
+    .invoice-table th { background: #edf2f7; color: #2d3748; padding: 10px 14px; text-align: left; }
+    .invoice-table td { padding: 12px 14px; border-bottom: 1px solid #edf2f7; }
+    .text-right { text-align: right; }
+    .invoice-summary-section { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; margin-top: 20px; padding-top: 16px; border-top: 2px solid #e2e8f0; }
+    .invoice-payment-guidance { font-size: 11px; color: #4a5568; }
+    .invoice-totals-box { background: #f7fafc; padding: 16px; border-radius: 8px; border: 1px solid #edf2f7; }
+    .totals-row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; color: #4a5568; }
+    .totals-divider { height: 1px; background: #cbd5e0; margin: 8px 0; }
+    .totals-row.grand-total { font-size: 15px; font-weight: 800; color: #0e5b4d; }
+    .totals-row.due-date-highlight { font-size: 13px; font-weight: 700; color: #c53030; margin-top: 6px; }
+    .invoice-footer { margin-top: 28px; padding-top: 16px; border-top: 1px dashed #cbd5e0; display: flex; justify-content: space-between; align-items: flex-end; }
+    .invoice-footer .notice { font-size: 11px; color: #718096; max-width: 440px; margin: 0; line-height: 1.4; }
+    .auth-sig-line { width: 140px; border-bottom: 1px solid #718096; margin-bottom: 4px; }
+    .invoice-note-banner { background: #fffaf0; border: 1px solid #feebc8; border-left: 4px solid #dd6b20; padding: 10px 14px; border-radius: 6px; margin: 16px 0; font-size: 12px; color: #7b341e; }
+    .standalone-print-bar { max-width: 760px; width: 100%; margin-bottom: 12px; display: flex; justify-content: flex-end; }
+    .standalone-print-btn { background: #0e5b4d; color: #fff; border: none; border-radius: 6px; padding: 8px 16px; font-weight: 700; cursor: pointer; font-size: 13px; }
+    @media print { .standalone-print-bar { display: none !important; } body { background: #fff; padding: 0; } .bill-invoice-sheet { box-shadow: none; padding: 0; } }
+  </style>
+</head>
+<body>
+  <div class="standalone-print-bar">
+    <button type="button" class="standalone-print-btn" onclick="window.print()">🖨️ Print / Save PDF</button>
+  </div>
+  ${bodyHtml}
+</body>
+</html>`;
+}
+
+/**
+ * Triggers browser download of HTML content as a file.
+ * @param {string} filename
+ * @param {string} htmlContent
+ * @param {Document} [doc]
+ * @returns {boolean}
+ */
+export function downloadHtmlFile(filename, htmlContent, doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!doc || typeof Blob === 'undefined' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+    return false;
+  }
+  try {
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = doc.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename || 'invoice.html');
+    if (link.style) link.style.display = 'none';
+    if (doc.body) doc.body.appendChild(link);
+    link.click();
+    if (doc.body) doc.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;',

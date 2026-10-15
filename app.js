@@ -19,6 +19,7 @@ import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLi
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
+import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts } from './dashboard.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -197,6 +198,58 @@ function renderDashboard() {
   if (totals.incompleteProfitProfiles) notes.push(`Profit not set for ${plural(totals.incompleteProfitProfiles, 'profile')} missing a selling amount or provider cost; excluded from expected package profit.`);
   if (totals.customersMissingProviderCost) notes.push(`Provider cost not set for ${plural(totals.customersMissingProviderCost, 'active profile')}; excluded from expected monthly provider cost.`);
   $('#dashboardExcludedAmounts').textContent = notes.length ? notes.join(' ') : 'Dues use each saved month’s bill snapshot after receipts and carry-forward credit; credits are not new cash.';
+
+  const kpis = calculateDashboardKpis(state, referenceDate);
+  const activeSubscribersEl = $('#dashboardActiveCustomers');
+  if (activeSubscribersEl) {
+    activeSubscribersEl.textContent = `${kpis.activeSubscribers} (${kpis.activePercent}%)`;
+    $('#dashboardActiveCustomersPeriod').textContent = `${kpis.offlineSubscribers} offline · ${kpis.unsetSubscribers} not set`;
+  }
+  const billStatusEl = $('#dashboardMonthBillStatus');
+  if (billStatusEl) {
+    if (kpis.totalCurrentMonthBills === 0) {
+      billStatusEl.textContent = 'No bill entries';
+      $('#dashboardMonthBillStatusPeriod').textContent = 'No bills recorded for current month';
+    } else {
+      billStatusEl.textContent = `${kpis.paidBillsCount} paid · ${kpis.unpaidBillsCount} unpaid`;
+      $('#dashboardMonthBillStatusPeriod').textContent = `${kpis.partialBillsCount} partial · ${kpis.totalCurrentMonthBills} total bills in ${monthName(totals.currentMonth)}`;
+    }
+  }
+  const billedRevenueEl = $('#dashboardCurrentMonthBilled');
+  if (billedRevenueEl) {
+    billedRevenueEl.textContent = kpis.currentMonthBilled > 0 ? formatAmount(kpis.currentMonthBilled) : 'No bill entries';
+    $('#dashboardCurrentMonthBilledPeriod').textContent = kpis.collectionRate !== null ? `Collection rate ${kpis.collectionRate}% of billed amount` : `Priced snapshots · ${monthName(totals.currentMonth)}`;
+  }
+  const monthCollectionEl = $('#dashboardCurrentMonthCollection');
+  if (monthCollectionEl) {
+    monthCollectionEl.textContent = currentCash.paymentCount ? formatAmount(kpis.currentMonthCollection) : 'No payment entries';
+    $('#dashboardCurrentMonthCollectionPeriod').textContent = `${currentCash.paymentCount} receipt${currentCash.paymentCount === 1 ? '' : 's'} dated in ${monthName(totals.currentMonth)}`;
+  }
+  const newConnEl = $('#dashboardNewConnections');
+  if (newConnEl) {
+    newConnEl.textContent = String(kpis.newConnectionsCount);
+    $('#dashboardNewConnectionsPeriod').textContent = `Recorded in ${monthName(totals.currentMonth)}`;
+  }
+  setupDashboardQuickActions({
+    onReceivePayment: () => { switchView('customers'); openPaymentEntry(); },
+    onAddCustomer: () => {
+      $('#addCustomerForm').reset();
+      $('#addCustomerError').hidden = true;
+      resetDuplicateReview();
+      $('#addCustomerDialog').showModal();
+      $('#newCustomerName').focus();
+    },
+    onRecordExpense: () => { switchView('expenses'); renderExpenses(); },
+    onMonthlyReport: () => { switchView('reports'); renderMonthlyReport(); },
+    onAnalytics: () => { switchView('analytics'); renderAnalytics(); },
+    onBackup: () => {
+      const toggle = $('#backupControlsToggle');
+      if (toggle) toggle.click();
+      const panel = $('#backupControls');
+      if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+  renderDashboardCharts(state, referenceDate);
 }
 function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
 function tenurePresentation(customer) {

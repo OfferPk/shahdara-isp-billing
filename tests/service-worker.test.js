@@ -93,7 +93,7 @@ test('worker install precaches the offline shell before taking control', async (
   assert.equal(worker.added.length, 1);
   assert.equal(worker.added[0].name, 'shahdara-isp-billing-v36');
   assert.deepEqual(worker.added[0].files, [
-    './','./index.html','./styles.css','./app.js','./profile-labels.js',
+    './','./index.html','./styles.css','./dashboard.css','./app.js','./dashboard.js','./dashboard-charts.js','./profile-labels.js',
     './profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./owner-insights.js','./owner-ui.js','./backup-store.js','./duplicate-detection.js','./manifest.webmanifest','./icon.svg'
   ]);
 });

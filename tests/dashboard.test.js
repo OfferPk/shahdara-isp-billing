@@ -18,7 +18,18 @@ import {
   setupAreaHeatmapEvents,
   calculateDailyClosingSummary,
   generateDailyClosingSlipText,
-  setupDailyClosingCard
+  setupDailyClosingCard,
+  calculateSeasonalCashflowComparison,
+  renderSeasonalCashflowSvg,
+  calculatePackageMarginBreakdown,
+  simulateMarginAdjustment,
+  renderPackageMarginSvg,
+  generateMarginSimulationReportText,
+  setupMarginSimulatorModal,
+  setSeasonalMetric,
+  getSeasonalMetric,
+  setMarginSimulatorCostPerMbps,
+  getMarginSimulatorCostPerMbps
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -1506,6 +1517,299 @@ test('setupDailyClosingCard populates DOM elements and wires clipboard copy', as
     await clickHandler();
     assert.ok(copiedText.includes('DAILY REGISTER CLOSING'));
     assert.equal(toastMessage, 'Daily closing slip copied to clipboard!');
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateSeasonalCashflowComparison handles empty state gracefully', () => {
+  const state = createInitialState([]);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const res = calculateSeasonalCashflowComparison(state, refDate);
+
+  assert.equal(res.currentYear, 2026);
+  assert.equal(res.priorYear, 2025);
+  assert.equal(res.months.length, 12);
+  assert.equal(res.currentYearAnnualTotal, 0);
+  assert.equal(res.priorYearAnnualTotal, 0);
+  assert.equal(res.hasPriorYearData, false);
+  assert.equal(res.hasCurrentYearData, false);
+  assert.equal(res.velocityStatus, 'Baseline Period');
+});
+
+test('calculateSeasonalCashflowComparison computes monthly and YoY metrics from transactions', () => {
+  let state = createInitialState(['Customer Alpha', 'Customer Beta']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Prior year 2025 payments
+  state = saveBillMonth(state, state.customers[0].id, { month: '2025-05', dueAmount: '3000', status: 'pending' }, new Date('2025-05-10T12:00:00+05:00'));
+  state = addPayment(state, state.customers[0].id, '2025-05', { amount: '2500', date: '2025-05-15', method: 'Cash' }, new Date('2025-05-15T12:00:00+05:00'));
+
+  // Current year 2026 payments
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-05', dueAmount: '3500', status: 'pending' }, new Date('2026-05-10T12:00:00+05:00'));
+  state = addPayment(state, state.customers[0].id, '2026-05', { amount: '3500', date: '2026-05-12', method: 'Cash' }, new Date('2026-05-12T12:00:00+05:00'));
+
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '5000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '5000', date: '2026-10-05', method: 'JazzCash' }, refDate);
+
+  const res = calculateSeasonalCashflowComparison(state, refDate, { metric: 'collections' });
+
+  assert.equal(res.hasPriorYearData, true);
+  assert.equal(res.hasCurrentYearData, true);
+  assert.equal(res.priorYearAnnualTotal, 2500);
+  assert.equal(res.currentYearAnnualTotal, 8500);
+
+  // Month 4 (May) comparison
+  const may = res.months[4];
+  assert.equal(may.monthName, 'May');
+  assert.equal(may.priorYearAmount, 2500);
+  assert.equal(may.currentYearAmount, 3500);
+  assert.equal(may.yoyGrowthPercent, 40);
+
+  // October is peak
+  assert.equal(res.peakMonth.monthName, 'Oct');
+  assert.equal(res.peakMonth.currentYearAmount, 5000);
+  assert.equal(res.velocityStatus, 'Accelerating');
+});
+
+test('calculateSeasonalCashflowComparison supports billed metric', () => {
+  let state = createInitialState(['Customer Gamma']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-03', dueAmount: '4000', status: 'pending' }, refDate);
+
+  const res = calculateSeasonalCashflowComparison(state, refDate, { metric: 'billed' });
+  assert.equal(res.metric, 'billed');
+  assert.equal(res.months[2].monthName, 'Mar');
+  assert.equal(res.months[2].currentYearAmount, 4000);
+});
+
+test('renderSeasonalCashflowSvg renders empty state and populated chart', () => {
+  const emptyRes = calculateSeasonalCashflowComparison(createInitialState([]), new Date('2026-10-15'));
+  const emptySvg = renderSeasonalCashflowSvg(emptyRes);
+  assert.ok(emptySvg.includes('No seasonal cashflow history yet'));
+
+  const populatedData = {
+    metric: 'collections',
+    currentYear: 2026,
+    priorYear: 2025,
+    currentMonthIndex: 9,
+    months: [
+      { monthIndex: 0, monthName: 'Jan', currentYearAmount: 1000, priorYearAmount: 800, yoyGrowthPercent: 25 },
+      { monthIndex: 1, monthName: 'Feb', currentYearAmount: 1200, priorYearAmount: 900, yoyGrowthPercent: 33.3 },
+      { monthIndex: 2, monthName: 'Mar', currentYearAmount: 1100, priorYearAmount: 1000, yoyGrowthPercent: 10 },
+      { monthIndex: 3, monthName: 'Apr', currentYearAmount: 1500, priorYearAmount: 1200, yoyGrowthPercent: 25 },
+      { monthIndex: 4, monthName: 'May', currentYearAmount: 1800, priorYearAmount: 1300, yoyGrowthPercent: 38.5 },
+      { monthIndex: 5, monthName: 'Jun', currentYearAmount: 1400, priorYearAmount: 1200, yoyGrowthPercent: 16.7 },
+      { monthIndex: 6, monthName: 'Jul', currentYearAmount: 1600, priorYearAmount: 1400, yoyGrowthPercent: 14.3 },
+      { monthIndex: 7, monthName: 'Aug', currentYearAmount: 1900, priorYearAmount: 1500, yoyGrowthPercent: 26.7 },
+      { monthIndex: 8, monthName: 'Sep', currentYearAmount: 2100, priorYearAmount: 1700, yoyGrowthPercent: 23.5 },
+      { monthIndex: 9, monthName: 'Oct', currentYearAmount: 2500, priorYearAmount: 1900, yoyGrowthPercent: 31.6 },
+      { monthIndex: 10, monthName: 'Nov', currentYearAmount: 0, priorYearAmount: 1800, yoyGrowthPercent: null },
+      { monthIndex: 11, monthName: 'Dec', currentYearAmount: 0, priorYearAmount: 2000, yoyGrowthPercent: null }
+    ],
+    currentYearYtdTotal: 16100,
+    priorYearYtdTotal: 12900,
+    currentYearAnnualTotal: 16100,
+    priorYearAnnualTotal: 16700,
+    ytdGrowthPercent: 24.8,
+    peakMonth: { monthIndex: 9, monthName: 'Oct', currentYearAmount: 2500 },
+    troughMonth: { monthIndex: 0, monthName: 'Jan', currentYearAmount: 1000 },
+    velocityStatus: 'Accelerating',
+    hasPriorYearData: true,
+    hasCurrentYearData: true
+  };
+
+  const svg = renderSeasonalCashflowSvg(populatedData);
+  assert.ok(svg.includes('seasonal-chart-svg'));
+  assert.ok(svg.includes('Peak: Oct'));
+  assert.ok(svg.includes('2026 YTD:'));
+  assert.ok(svg.includes('2025 YTD:'));
+  assert.ok(svg.includes('Accelerating'));
+});
+
+test('calculatePackageMarginBreakdown analyzes package profitability correctly', () => {
+  let state = createInitialState(['Sub 1', 'Sub 2', 'Sub 3']);
+  state.customers[0].packageSpeed = '15Mbps Unlimited';
+  state.customers[0].monthlySellingAmount = '3000';
+  state.customers[0].serviceStatus = 'active';
+
+  state.customers[1].packageSpeed = '15Mbps Unlimited';
+  state.customers[1].monthlySellingAmount = '3000';
+  state.customers[1].serviceStatus = 'active';
+
+  state.customers[2].packageSpeed = '5Mbps / 150GB';
+  state.customers[2].monthlySellingAmount = '1500';
+  state.customers[2].serviceStatus = 'active';
+
+  const breakdown = calculatePackageMarginBreakdown(state, { costPerMbps: 50 });
+
+  assert.equal(breakdown.totalSubscribers, 3);
+  assert.equal(breakdown.totalRevenue, 7500);
+  assert.equal(breakdown.totalUpstreamCost, 1750);
+  assert.equal(breakdown.totalGrossProfit, 5750);
+  assert.equal(breakdown.blendedMarginPercent, 77);
+
+  assert.equal(breakdown.packages.length, 2);
+  const p15 = breakdown.packages.find(p => p.packageName === '15Mbps Unlimited');
+  assert.equal(p15.subscriberCount, 2);
+  assert.equal(p15.totalRevenue, 6000);
+  assert.equal(p15.grossProfit, 4500);
+  assert.equal(p15.grossMarginPercent, 75);
+});
+
+test('simulateMarginAdjustment simulates wholesale price changes and delta impact', () => {
+  let state = createInitialState(['Sub 1']);
+  state.customers[0].packageSpeed = '10 Mbps';
+  state.customers[0].monthlySellingAmount = '2000';
+
+  const sim = simulateMarginAdjustment(state, { costPerMbps: 40 });
+
+  assert.equal(sim.baseline.totalGrossProfit, 1500);
+  assert.equal(sim.simulated.totalGrossProfit, 1600);
+  assert.equal(sim.monthlyProfitDelta, 100);
+  assert.equal(sim.annualizedImpact, 1200);
+});
+
+test('renderPackageMarginSvg renders empty state and rows', () => {
+  const emptySvg = renderPackageMarginSvg({ totalSubscribers: 0 });
+  assert.ok(emptySvg.includes('No package distribution data'));
+
+  const populatedData = {
+    totalSubscribers: 10,
+    totalRevenue: 20000,
+    totalUpstreamCost: 6000,
+    totalGrossProfit: 14000,
+    blendedMarginPercent: 70,
+    packages: [
+      {
+        packageName: '15Mbps Unlimited',
+        subscriberCount: 6,
+        totalRevenue: 15000,
+        totalUpstreamCost: 4500,
+        grossProfit: 10500,
+        grossMarginPercent: 70
+      }
+    ]
+  };
+
+  const svg = renderPackageMarginSvg(populatedData);
+  assert.ok(svg.includes('margin-chart-svg'));
+  assert.ok(svg.includes('15Mbps Unlimited'));
+  assert.ok(svg.includes('70%'));
+  assert.ok(svg.includes('Blended Margin:'));
+});
+
+test('generateMarginSimulationReportText produces structured text report', () => {
+  let state = createInitialState(['Sim Cust']);
+  state.customers[0].packageSpeed = '15Mbps';
+  state.customers[0].monthlySellingAmount = '3000';
+
+  const sim = simulateMarginAdjustment(state, { costPerMbps: 50 });
+  const text = generateMarginSimulationReportText(sim);
+
+  assert.ok(text.includes('SHAHDARA ISP - PACKAGE MARGIN SIMULATION'));
+  assert.ok(text.includes('Upstream Transit Rate: PKR 50/Mbps'));
+  assert.ok(text.includes('Net Gross Profit:'));
+  assert.ok(text.includes('15Mbps'));
+});
+
+test('setupMarginSimulatorModal wires interactive dialog controls and clipboard', async () => {
+  let state = createInitialState(['Modal Cust']);
+  state.customers[0].packageSpeed = '15Mbps';
+  state.customers[0].monthlySellingAmount = '3000';
+
+  let openHandler = null;
+  let closeHandler = null;
+  let inputHandler = null;
+  let copyHandler = null;
+  let presetHandlers = [];
+
+  const mockRev = { textContent: '' };
+  const mockCost = { textContent: '' };
+  const mockProfit = { textContent: '' };
+  const mockMargin = { textContent: '' };
+  const mockDelta = { textContent: '', className: '' };
+  const mockTableBody = { innerHTML: '' };
+  const mockInput = {
+    value: '50',
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'input') inputHandler = fn; }
+  };
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+  const mockPresetBtn = {
+    dataset: {},
+    getAttribute: (attr) => attr === 'data-margin-preset' ? 'discount' : null,
+    addEventListener: (evt, fn) => { if (evt === 'click') presetHandlers.push(fn); }
+  };
+  let modalOpened = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {},
+    querySelectorAll: (sel) => sel === '[data-margin-preset]' ? [mockPresetBtn] : []
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardMarginSimulatorModal') return mockModal;
+      if (id === 'dashboardOpenMarginSimulatorBtn') return mockOpenBtn;
+      if (id === 'dashboardMarginModalCloseBtn') return mockCloseBtn;
+      if (id === 'marginSimCostInput') return mockInput;
+      if (id === 'marginSimTableBody') return mockTableBody;
+      if (id === 'marginSimCopyBtn') return mockCopyBtn;
+      if (id === 'marginSimRevenueVal') return mockRev;
+      if (id === 'marginSimCostVal') return mockCost;
+      if (id === 'marginSimProfitVal') return mockProfit;
+      if (id === 'marginSimMarginVal') return mockMargin;
+      if (id === 'marginSimDeltaBadge') return mockDelta;
+      return null;
+    }
+  };
+
+  let toastMsg = null;
+  let copiedContent = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedContent = t; }
+  };
+
+  try {
+    setupMarginSimulatorModal(state, {
+      onToast: (msg) => { toastMsg = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockRev.textContent.includes('3,000'));
+    assert.ok(mockTableBody.innerHTML.includes('15Mbps'));
+
+    mockInput.value = '40';
+    inputHandler();
+    assert.ok(mockCost.textContent.includes('600'));
+
+    assert.equal(presetHandlers.length, 1);
+    presetHandlers[0]();
+    assert.equal(mockInput.value, 40);
+
+    await copyHandler();
+    assert.ok(copiedContent.includes('SHAHDARA ISP - PACKAGE MARGIN SIMULATION'));
+    assert.equal(toastMsg, 'Margin simulation report copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
   } finally {
     globalThis.document = originalDocument;
   }

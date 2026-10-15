@@ -316,6 +316,29 @@
             </div>
             <div id="dashboardHeatmapChart" class="chart-svg-container" role="img" aria-label="Geographic collection heatmap and recovery rate chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-seasonal">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Seasonal Cashflow &amp; Multi-Year Velocity</h4>
+                <p class="chart-subtitle">Jan–Dec collection trajectories and year-over-year pacing</p>
+              </div>
+              <div id="dashboardSeasonalActions" class="chart-range-group" role="group" aria-label="Seasonal cashflow metric">
+                <button type="button" class="chart-range-btn is-active" data-seasonal-metric="collections">Collections</button>
+                <button type="button" class="chart-range-btn" data-seasonal-metric="billed">Billed</button>
+              </div>
+            </div>
+            <div id="dashboardSeasonalChart" class="chart-svg-container" role="img" aria-label="Seasonal cashflow multi-year comparison chart"></div>
+          </article>
+          <article class="dashboard-chart-card chart-card-margin">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Package Margin &amp; Wholesale Transit</h4>
+                <p class="chart-subtitle">Upstream bandwidth cost vs gross profit contribution by tier</p>
+              </div>
+              <button id="dashboardOpenMarginSimulatorBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Simulate Margins</button>
+            </div>
+            <div id="dashboardPackageMarginChart" class="chart-svg-container" role="img" aria-label="Package gross margin and wholesale transit cost chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -396,6 +419,82 @@
                 <tr><td colspan="5" class="empty-cell">Loading at-risk subscriber roster...</td></tr>
               </tbody>
             </table>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardMarginSimulatorModal" class="dashboard-modal margin-simulator-modal" aria-labelledby="dashboardMarginModalTitle">
+        <div class="dashboard-modal-card margin-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">WHOLESALE BANDWIDTH &amp; EBITDA</p>
+              <h3 id="dashboardMarginModalTitle">Package Margin &amp; Cost Simulator</h3>
+            </div>
+            <button id="dashboardMarginModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Simulate network profit margins based on upstream transit wholesale bandwidth rates and package pricing.</p>
+
+          <div class="simulator-controls-panel">
+            <div class="sim-input-row">
+              <label for="marginSimCostInput" class="sim-label">Wholesale Transit Rate (PKR / Mbps):</label>
+              <div class="sim-input-wrap">
+                <input id="marginSimCostInput" type="number" min="0" max="500" step="1" value="50" class="sim-number-input">
+                <span class="sim-unit">PKR/Mbps</span>
+              </div>
+            </div>
+            <div class="sim-presets-bar" role="group" aria-label="Simulation quick presets">
+              <span class="presets-label">Presets:</span>
+              <button type="button" class="sim-preset-btn" data-margin-preset="default">Default (50 PKR)</button>
+              <button type="button" class="sim-preset-btn" data-margin-preset="discount">Wholesale Bulk (-20%)</button>
+              <button type="button" class="sim-preset-btn" data-margin-preset="inflation">Upstream Hike (+15%)</button>
+              <button type="button" class="sim-preset-btn" data-margin-preset="retailHike">Retail Fee (+10%)</button>
+            </div>
+          </div>
+
+          <div class="sim-kpi-summary-grid">
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Projected Revenue</span>
+              <strong id="marginSimRevenueVal" class="sim-kpi-val">—</strong>
+            </div>
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Upstream Bandwidth</span>
+              <strong id="marginSimCostVal" class="sim-kpi-val sim-val-cost">—</strong>
+            </div>
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Net Gross Profit</span>
+              <strong id="marginSimProfitVal" class="sim-kpi-val text-success">—</strong>
+            </div>
+            <div class="sim-kpi-card">
+              <span class="sim-kpi-label">Blended Margin</span>
+              <strong id="marginSimMarginVal" class="sim-kpi-val">—</strong>
+            </div>
+          </div>
+
+          <div class="sim-impact-banner">
+            <span class="impact-label">Estimated Monthly EBITDA Delta:</span>
+            <span id="marginSimDeltaBadge" class="sim-delta-badge">Evaluating...</span>
+          </div>
+
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Package Plan</th>
+                  <th>Subscribers</th>
+                  <th>Retail ARPU</th>
+                  <th>Upstream Cost</th>
+                  <th>Gross Profit</th>
+                  <th>Gross Margin</th>
+                </tr>
+              </thead>
+              <tbody id="marginSimTableBody">
+                <tr><td colspan="6" class="empty-cell">Calculating package profitability...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="marginSimCopyBtn" class="primary-button" type="button">📋 Copy Simulation Report</button>
           </div>
         </div>
       </dialog>

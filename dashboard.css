@@ -1592,6 +1592,15 @@
   color: #fbbf24;
 }
 
+/* Bandwidth Shaping & Concurrency Styles */
+.chart-card-shaping {
+  background: var(--surface, #ffffff);
+}
+
+.shaping-modal-card {
+  max-width: 800px;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .sim-kpi-summary-grid,

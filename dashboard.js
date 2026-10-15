@@ -2907,6 +2907,261 @@ export function setupAcquisitionRoiModal(state, { referenceDate = new Date(), on
   }
 }
 
+/**
+ * Calculates peak hour bandwidth demand, oversubscription contention,
+ * diurnal 24-hour traffic projection, and dynamic subscriber shaping forecast.
+ */
+export function calculateBandwidthShapingMetrics(state, referenceDate = new Date(), options = {}) {
+  const oversubscriptionRatio = Number.isFinite(options.oversubscriptionRatio) ? Math.max(1, options.oversubscriptionRatio) : 8;
+  const peakConcurrencyPercent = Number.isFinite(options.peakConcurrencyPercent) ? Math.max(10, Math.min(100, options.peakConcurrencyPercent)) : 80;
+
+  const unarchived = (state?.customers ?? []).filter(c => !c.archived);
+  const activeSubs = unarchived.filter(c => c.serviceStatus === 'active' || (c.serviceStatus !== 'offline' && c.serviceStatus !== 'cancelled'));
+
+  let totalProvisionedBandwidthMbps = 0;
+  for (const c of activeSubs) {
+    let speed = 15;
+    const speedStr = String(c.packageSpeed || c.package || '');
+    const match = speedStr.match(/(\d+)\s*(?:mbps|m)/i);
+    if (match) {
+      speed = parseInt(match[1], 10);
+    }
+    totalProvisionedBandwidthMbps += speed;
+  }
+
+  let upstreamCapacityMbps = 400;
+  if (Number.isFinite(options.upstreamCapacityMbps) && options.upstreamCapacityMbps > 0) {
+    upstreamCapacityMbps = options.upstreamCapacityMbps;
+  } else {
+    try {
+      const gw = calculateUpstreamGatewayMetrics(state, referenceDate);
+      if (gw && gw.totalBandwidthCapacityMbps > 0) {
+        upstreamCapacityMbps = gw.totalBandwidthCapacityMbps;
+      }
+    } catch {
+      upstreamCapacityMbps = 400;
+    }
+  }
+
+  const peakDemandMbps = Math.round((totalProvisionedBandwidthMbps / oversubscriptionRatio) * (peakConcurrencyPercent / 100));
+  const offPeakDemandMbps = Math.round(peakDemandMbps * 0.35);
+
+  const peakUtilizationPercent = upstreamCapacityMbps > 0
+    ? parseFloat(((peakDemandMbps / upstreamCapacityMbps) * 100).toFixed(1))
+    : 0;
+
+  const headroomMbps = Math.max(0, upstreamCapacityMbps - peakDemandMbps);
+
+  let congestionStatus = 'Healthy Bandwidth Headroom';
+  if (activeSubs.length === 0 || totalProvisionedBandwidthMbps === 0) {
+    congestionStatus = 'Idle Network';
+  } else if (peakUtilizationPercent < 70) {
+    congestionStatus = 'Healthy Bandwidth Headroom';
+  } else if (peakUtilizationPercent <= 85) {
+    congestionStatus = 'Moderate Congestion';
+  } else {
+    congestionStatus = 'Critical Saturation Risk';
+  }
+
+  const DIURNAL_MULTIPLIERS = [
+    0.22, 0.18, 0.15, 0.14, 0.15, 0.20,
+    0.32, 0.45, 0.55, 0.58, 0.60, 0.62,
+    0.65, 0.64, 0.66, 0.70, 0.78, 0.88,
+    0.95, 1.00, 0.98, 0.92, 0.75, 0.45
+  ];
+
+  const hourlyProfile = DIURNAL_MULTIPLIERS.map((mult, h) => {
+    const demand = Math.round(peakDemandMbps * mult);
+    const util = upstreamCapacityMbps > 0
+      ? parseFloat(((demand / upstreamCapacityMbps) * 100).toFixed(1))
+      : 0;
+    return {
+      hour: h,
+      label: `${String(h).padStart(2, '0')}:00`,
+      demandMbps: demand,
+      utilizationPercent: util,
+      isPeakHour: h >= 19 && h <= 23
+    };
+  });
+
+  const projected10DemandMbps = Math.round(peakDemandMbps * 1.10);
+  const projected25DemandMbps = Math.round(peakDemandMbps * 1.25);
+  const projected50DemandMbps = Math.round(peakDemandMbps * 1.50);
+
+  let recommendedUpgradeMbps = 0;
+  if (projected25DemandMbps > upstreamCapacityMbps) {
+    const def = projected25DemandMbps - upstreamCapacityMbps;
+    recommendedUpgradeMbps = Math.ceil(def / 50) * 50;
+  }
+
+  return {
+    activeSubscribersCount: activeSubs.length,
+    totalProvisionedBandwidthMbps,
+    upstreamCapacityMbps,
+    oversubscriptionRatio,
+    peakConcurrencyPercent,
+    peakDemandMbps,
+    offPeakDemandMbps,
+    peakUtilizationPercent,
+    headroomMbps,
+    congestionStatus,
+    hourlyProfile,
+    projected10DemandMbps,
+    projected25DemandMbps,
+    projected50DemandMbps,
+    recommendedUpgradeMbps
+  };
+}
+
+/**
+ * Generates plain-text briefing on peak bandwidth utilization and shaping forecast.
+ */
+export function generateBandwidthShapingReport(metrics, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - PEAK TRAFFIC & SHAPING BRIEFING`,
+    `Generated: ${dateStr} PKT`,
+    `=========================================`,
+    `[ BANDWIDTH CAPACITY & CONCURRENCY SUMMARY ]`,
+    `  Active Subscribers: ${metrics.activeSubscribersCount}`,
+    `  Total Provisioned Access: ${metrics.totalProvisionedBandwidthMbps} Mbps`,
+    `  Upstream Wholesale Transit Link: ${metrics.upstreamCapacityMbps} Mbps`,
+    `  Oversubscription Contention Ratio: 1:${metrics.oversubscriptionRatio}`,
+    `  Peak Concurrency Assumption: ${metrics.peakConcurrencyPercent}%`,
+    ``,
+    `[ UTILIZATION & CONGESTION STATUS ]`,
+    `  Peak Evening Demand (19:00 - 23:00 PKT): ${metrics.peakDemandMbps} Mbps`,
+    `  Peak Link Utilization: ${metrics.peakUtilizationPercent}%`,
+    `  Available Link Headroom: ${metrics.headroomMbps} Mbps`,
+    `  Network Congestion Status: ${metrics.congestionStatus.toUpperCase()}`,
+    ``,
+    `[ SUBSCRIBER EXPANSION FORECAST ]`,
+    `  +10% Growth Demand: ${metrics.projected10DemandMbps} Mbps (${metrics.upstreamCapacityMbps > 0 ? Math.round((metrics.projected10DemandMbps / metrics.upstreamCapacityMbps) * 100) : 0}% capacity)`,
+    `  +25% Growth Demand: ${metrics.projected25DemandMbps} Mbps (${metrics.upstreamCapacityMbps > 0 ? Math.round((metrics.projected25DemandMbps / metrics.upstreamCapacityMbps) * 100) : 0}% capacity)`,
+    `  +50% Growth Demand: ${metrics.projected50DemandMbps} Mbps (${metrics.upstreamCapacityMbps > 0 ? Math.round((metrics.projected50DemandMbps / metrics.upstreamCapacityMbps) * 100) : 0}% capacity)`,
+    `  Recommended Link Expansion: ${metrics.recommendedUpgradeMbps > 0 ? `+${metrics.recommendedUpgradeMbps} Mbps` : 'Adequate Link Capacity'}`
+  ];
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Bandwidth Shaping & Concurrency Modal dialog.
+ */
+export function setupBandwidthShapingModal(state, { referenceDate = new Date(), onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardShapingModal');
+  const openBtn = document.getElementById('dashboardOpenShapingModalBtn');
+  const closeBtn = document.getElementById('dashboardShapingModalCloseBtn');
+  const copyBtn = document.getElementById('dashboardCopyShapingReportBtn');
+
+  const provEl = document.getElementById('shapingProvisionedVal');
+  const peakEl = document.getElementById('shapingPeakDemandVal');
+  const utilEl = document.getElementById('shapingUtilVal');
+  const headroomEl = document.getElementById('shapingHeadroomVal');
+  const statusBadge = document.getElementById('shapingStatusBadge');
+
+  const p10El = document.getElementById('shapingProj10Val');
+  const p25El = document.getElementById('shapingProj25Val');
+  const p50El = document.getElementById('shapingProj50Val');
+  const upgradeEl = document.getElementById('shapingUpgradeRecVal');
+
+  let activeRatio = 8;
+
+  function renderModalContent() {
+    const data = calculateBandwidthShapingMetrics(state, referenceDate, { oversubscriptionRatio: activeRatio });
+
+    if (provEl) provEl.textContent = `${data.totalProvisionedBandwidthMbps} Mbps`;
+    if (peakEl) peakEl.textContent = `${data.peakDemandMbps} Mbps`;
+    if (utilEl) {
+      utilEl.textContent = `${data.peakUtilizationPercent}%`;
+      utilEl.style.color = data.peakUtilizationPercent < 70 ? '#047857' : (data.peakUtilizationPercent <= 85 ? '#d97706' : '#dc2626');
+    }
+    if (headroomEl) headroomEl.textContent = `${data.headroomMbps} Mbps`;
+    if (statusBadge) {
+      statusBadge.textContent = data.congestionStatus;
+      statusBadge.className = `role-badge ${data.congestionStatus === 'Healthy Bandwidth Headroom' ? 'role-primary' : (data.congestionStatus === 'Moderate Congestion' ? 'role-standby' : 'role-other')}`;
+    }
+
+    if (p10El) p10El.textContent = `${data.projected10DemandMbps} Mbps`;
+    if (p25El) p25El.textContent = `${data.projected25DemandMbps} Mbps`;
+    if (p50El) p50El.textContent = `${data.projected50DemandMbps} Mbps`;
+    if (upgradeEl) {
+      upgradeEl.textContent = data.recommendedUpgradeMbps > 0 ? `+${data.recommendedUpgradeMbps} Mbps` : 'None required';
+      upgradeEl.style.color = data.recommendedUpgradeMbps > 0 ? '#dc2626' : '#047857';
+    }
+  }
+
+  const ratioBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#shapingRatioGroup .chart-range-btn')
+    : [];
+
+  ratioBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = parseInt(btn.dataset?.shapingRatio || btn.getAttribute?.('data-shaping-ratio') || '8', 10);
+      activeRatio = r;
+      ratioBtns.forEach(b => {
+        const isActive = b === btn;
+        if (b.classList?.toggle) b.classList.toggle('is-active', isActive);
+        if (b.setAttribute) b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      renderModalContent();
+    });
+  });
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', () => {
+      renderModalContent();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    });
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateBandwidthShapingMetrics(state, referenceDate, { oversubscriptionRatio: activeRatio });
+      const text = generateBandwidthShapingReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Bandwidth shaping briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -2933,6 +3188,7 @@ export {
   renderCashflowProjectionSvg,
   renderUpstreamGatewaySvg,
   renderAcquisitionRoiSvg,
+  renderBandwidthShapingSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

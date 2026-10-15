@@ -48,6 +48,10 @@ import {
   renderAcquisitionRoiSvg,
   resolveCustomerAcquisitionChannel,
   ACQUISITION_CHANNELS,
+  calculateBandwidthShapingMetrics,
+  generateBandwidthShapingReport,
+  setupBandwidthShapingModal,
+  renderBandwidthShapingSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -3022,6 +3026,193 @@ test('setupAcquisitionRoiModal wires modal open, close, preset multipliers, and 
     await copyHandler();
     assert.ok(copiedText.includes('SHAHDARA ISP - ACQUISITION CHANNEL ROI & PAYBACK BRIEFING'));
     assert.equal(toastMessage, 'Acquisition ROI briefing copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateBandwidthShapingMetrics calculates peak demand, diurnal profile, and headroom', () => {
+  const state = createInitialState();
+  const res = calculateBandwidthShapingMetrics(state, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.ok(res.activeSubscribersCount > 0);
+  assert.ok(res.totalProvisionedBandwidthMbps > 0);
+  assert.ok(res.upstreamCapacityMbps > 0);
+  assert.ok(res.peakDemandMbps > 0);
+  assert.ok(res.peakUtilizationPercent >= 0);
+  assert.equal(res.hourlyProfile.length, 24);
+
+  const peakPoint = res.hourlyProfile[20];
+  assert.equal(peakPoint.isPeakHour, true);
+  assert.equal(peakPoint.label, '20:00');
+  assert.ok(peakPoint.demandMbps > 0);
+
+  assert.ok(['Healthy Bandwidth Headroom', 'Moderate Congestion', 'Critical Saturation Risk', 'Idle Network'].includes(res.congestionStatus));
+});
+
+test('calculateBandwidthShapingMetrics handles ratio variations and expansion upgrades', () => {
+  const cust1 = { id: 'c1', name: 'User 1', packageSpeed: '50 Mbps', serviceStatus: 'active' };
+  const cust2 = { id: 'c2', name: 'User 2', packageSpeed: '100 Mbps', serviceStatus: 'active' };
+
+  const state = { customers: [cust1, cust2] };
+
+  const res8 = calculateBandwidthShapingMetrics(state, new Date(), { oversubscriptionRatio: 8, upstreamCapacityMbps: 20 });
+  const res4 = calculateBandwidthShapingMetrics(state, new Date(), { oversubscriptionRatio: 4, upstreamCapacityMbps: 20 });
+
+  assert.equal(res8.totalProvisionedBandwidthMbps, 150);
+  assert.ok(res4.peakDemandMbps > res8.peakDemandMbps);
+
+  assert.ok(res8.projected25DemandMbps > res8.peakDemandMbps);
+});
+
+test('calculateBandwidthShapingMetrics handles empty network', () => {
+  const emptyState = { customers: [] };
+  const res = calculateBandwidthShapingMetrics(emptyState);
+
+  assert.equal(res.activeSubscribersCount, 0);
+  assert.equal(res.totalProvisionedBandwidthMbps, 0);
+  assert.equal(res.peakDemandMbps, 0);
+  assert.equal(res.peakUtilizationPercent, 0);
+  assert.equal(res.congestionStatus, 'Idle Network');
+});
+
+test('renderBandwidthShapingSvg renders accessible SVG with 24h diurnal curve and empty fallback', () => {
+  const emptyState = { customers: [] };
+  const emptyMetrics = calculateBandwidthShapingMetrics(emptyState);
+  const emptySvg = renderBandwidthShapingSvg(emptyMetrics);
+
+  assert.ok(emptySvg.includes('<svg'));
+  assert.ok(emptySvg.includes('No active bandwidth demand detected'));
+
+  const populatedState = createInitialState();
+  const popMetrics = calculateBandwidthShapingMetrics(populatedState);
+  const svg = renderBandwidthShapingSvg(popMetrics);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('UPSTREAM CEILING'));
+  assert.ok(svg.includes('Peak Surge:'));
+  assert.ok(svg.includes('diurnal-bar-group'));
+});
+
+test('generateBandwidthShapingReport generates plain-text summary', () => {
+  const state = createInitialState();
+  const metrics = calculateBandwidthShapingMetrics(state);
+  const report = generateBandwidthShapingReport(metrics, new Date('2026-10-15T12:00:00+05:00'));
+
+  assert.ok(report.includes('SHAHDARA ISP - PEAK TRAFFIC & SHAPING BRIEFING'));
+  assert.ok(report.includes('BANDWIDTH CAPACITY & CONCURRENCY SUMMARY'));
+  assert.ok(report.includes('UTILIZATION & CONGESTION STATUS'));
+  assert.ok(report.includes('SUBSCRIBER EXPANSION FORECAST'));
+});
+
+test('setupBandwidthShapingModal wires modal open, close, ratio toggling, and clipboard copy', async () => {
+  const state = createInitialState();
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  const ratioHandlers = [];
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') openHandler = handler; }
+  };
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') closeHandler = handler; }
+  };
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') copyHandler = handler; }
+  };
+
+  const mockProvEl = { textContent: '' };
+  const mockPeakEl = { textContent: '' };
+  const mockUtilEl = { textContent: '', style: {} };
+  const mockHeadroomEl = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockP10El = { textContent: '' };
+  const mockP25El = { textContent: '' };
+  const mockP50El = { textContent: '' };
+  const mockUpgradeEl = { textContent: '', style: {} };
+
+  const mockRatioBtns = [
+    {
+      dataset: { shapingRatio: '6' },
+      classList: { toggle: () => {} },
+      setAttribute: () => {},
+      addEventListener: (evt, handler) => { if (evt === 'click') ratioHandlers.push(handler); }
+    },
+    {
+      dataset: { shapingRatio: '10' },
+      classList: { toggle: () => {} },
+      setAttribute: () => {},
+      addEventListener: (evt, handler) => { if (evt === 'click') ratioHandlers.push(handler); }
+    }
+  ];
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardShapingModal') return mockModal;
+      if (id === 'dashboardOpenShapingModalBtn') return mockOpenBtn;
+      if (id === 'dashboardShapingModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyShapingReportBtn') return mockCopyBtn;
+      if (id === 'shapingProvisionedVal') return mockProvEl;
+      if (id === 'shapingPeakDemandVal') return mockPeakEl;
+      if (id === 'shapingUtilVal') return mockUtilEl;
+      if (id === 'shapingHeadroomVal') return mockHeadroomEl;
+      if (id === 'shapingStatusBadge') return mockStatusBadge;
+      if (id === 'shapingProj10Val') return mockP10El;
+      if (id === 'shapingProj25Val') return mockP25El;
+      if (id === 'shapingProj50Val') return mockP50El;
+      if (id === 'shapingUpgradeRecVal') return mockUpgradeEl;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('#shapingRatioGroup')) return mockRatioBtns;
+      return [];
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  try {
+    setupBandwidthShapingModal(state, {
+      referenceDate: new Date('2026-10-15T12:00:00+05:00'),
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockProvEl.textContent.includes('Mbps'));
+    assert.ok(mockPeakEl.textContent.includes('Mbps'));
+    assert.ok(mockUtilEl.textContent.includes('%'));
+
+    // Trigger ratio 6
+    ratioHandlers[0]();
+    assert.ok(mockPeakEl.textContent.includes('Mbps'));
+
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - PEAK TRAFFIC & SHAPING BRIEFING'));
+    assert.equal(toastMessage, 'Bandwidth shaping briefing copied to clipboard!');
 
     closeHandler();
     assert.equal(modalOpened, false);

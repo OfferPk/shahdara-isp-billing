@@ -429,6 +429,16 @@
             </div>
             <div id="dashboardAcquisitionChart" class="chart-svg-container" role="img" aria-label="Subscriber Acquisition ROI and Payback Velocity Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-shaping">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Peak Traffic &amp; Bandwidth Shaping</h4>
+                <p class="chart-subtitle">Diurnal 24h utilization, contention ratios, and growth forecast</p>
+              </div>
+              <button id="dashboardOpenShapingModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Shaping Forecast</button>
+            </div>
+            <div id="dashboardShapingChart" class="chart-svg-container" role="img" aria-label="Peak Traffic Bandwidth Utilization and Diurnal Traffic Curve"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -955,6 +965,105 @@
 
           <div class="sim-modal-footer">
             <button id="dashboardCopyAcquisitionReportBtn" class="primary-button" type="button">📋 Copy Acquisition Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardShapingModal" class="dashboard-modal shaping-modal" aria-labelledby="dashboardShapingModalTitle">
+        <div class="dashboard-modal-card shaping-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">NETWORK TRAFFIC &amp; CONCURRENCY CAPACITY</p>
+              <h3 id="dashboardShapingModalTitle">Peak Traffic Bandwidth &amp; Dynamic Subscriber Shaping</h3>
+            </div>
+            <button id="dashboardShapingModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Model evening peak hour concurrency (19:00 - 23:00 PKT), oversubscription contention ratios, link headroom, and subscriber expansion forecasting.</p>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Provisioned Bandwidth</span>
+              <strong id="shapingProvisionedVal" class="ltv-kpi-val">0 Mbps</strong>
+              <span class="ltv-kpi-sub">Aggregate access speeds</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Peak Concurrent Demand</span>
+              <strong id="shapingPeakDemandVal" class="ltv-kpi-val" style="color: #d97706;">0 Mbps</strong>
+              <span class="ltv-kpi-sub">Evening rush hour</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Link Utilization</span>
+              <strong id="shapingUtilVal" class="ltv-kpi-val">0%</strong>
+              <span class="ltv-kpi-sub">Wholesale capacity load</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Remaining Headroom</span>
+              <strong id="shapingHeadroomVal" class="ltv-kpi-val" style="color: #047857;">0 Mbps</strong>
+              <span class="ltv-kpi-sub">Buffer before saturation</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Congestion Status</span>
+              <span id="shapingStatusBadge" class="role-badge role-primary" style="margin-top: 6px;">Evaluating</span>
+              <span class="ltv-kpi-sub">Link stability tier</span>
+            </div>
+          </div>
+
+          <div class="sim-controls-card" style="margin-top: 14px; margin-bottom: 14px;">
+            <div class="sim-control-header">
+              <div>
+                <strong>Oversubscription Contention Ratio</strong>
+                <p class="sim-control-desc">Select GPON residential aggregation multiplier to evaluate peak concurrency stress.</p>
+              </div>
+              <div id="shapingRatioGroup" class="chart-range-group" role="group" aria-label="Oversubscription ratio presets">
+                <button type="button" class="chart-range-btn" data-shaping-ratio="6">1:6 (Low)</button>
+                <button type="button" class="chart-range-btn is-active" data-shaping-ratio="8">1:8 (Standard)</button>
+                <button type="button" class="chart-range-btn" data-shaping-ratio="10">1:10 (Aggressive)</button>
+                <button type="button" class="chart-range-btn" data-shaping-ratio="12">1:12 (High Contention)</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-container ltv-table-container">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Growth Scenario</th>
+                  <th>Subscribers Projection</th>
+                  <th>Peak Bandwidth Demand</th>
+                  <th>Recommended Upgrade</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Current Baseline</strong></td>
+                  <td>Active subscriber base</td>
+                  <td>Peak evening load</td>
+                  <td>Link operational</td>
+                </tr>
+                <tr>
+                  <td><strong>+10% Expansion</strong></td>
+                  <td>Near-term expansion</td>
+                  <td id="shapingProj10Val">0 Mbps</td>
+                  <td>Headroom adequate</td>
+                </tr>
+                <tr>
+                  <td><strong>+25% Expansion</strong></td>
+                  <td>Quarterly expansion</td>
+                  <td id="shapingProj25Val">0 Mbps</td>
+                  <td id="shapingUpgradeRecVal">None required</td>
+                </tr>
+                <tr>
+                  <td><strong>+50% Expansion</strong></td>
+                  <td>Annual growth milestone</td>
+                  <td id="shapingProj50Val">0 Mbps</td>
+                  <td>Evaluate carrier links</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="dashboardCopyShapingReportBtn" class="primary-button" type="button">📋 Copy Shaping Briefing</button>
           </div>
         </div>
       </dialog>

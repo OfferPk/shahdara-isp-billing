@@ -1,0 +1,351 @@
+/* ==========================================================================
+   DASHBOARD STYLES (agent1 - shahdara-dashboard)
+   Quick-action tiles, KPI enhancements, responsive grid, and theme support.
+   ========================================================================== */
+
+/* Quick Actions Region */
+.dashboard-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  margin: 14px 0 16px;
+}
+
+.quick-action-tile {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 2px 8px rgba(22, 52, 43, 0.04);
+  font-family: inherit;
+  color: inherit;
+  min-height: 58px;
+}
+
+.quick-action-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--green, #0e5b4d);
+  box-shadow: 0 6px 16px rgba(14, 91, 77, 0.09);
+}
+
+.quick-action-tile:active {
+  transform: translateY(0);
+}
+
+.quick-action-tile:focus-visible {
+  outline: 3px solid rgba(14, 91, 77, 0.35);
+  outline-offset: 2px;
+}
+
+.quick-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(14, 91, 77, 0.08);
+  color: var(--green, #0e5b4d);
+  flex-shrink: 0;
+}
+
+.quick-action-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.quick-action-label {
+  font: 700 12.5px/1.3 Manrope, system-ui, sans-serif;
+  color: var(--ink, #16342b);
+}
+
+.quick-action-sub {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--muted, #60756c);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* KPI Card Specific Themes and Badges */
+.summary-active-customers {
+  background: linear-gradient(155deg, rgba(14, 91, 77, 0.04), #ffffff);
+  border-color: rgba(14, 91, 77, 0.2);
+}
+
+.summary-bill-status {
+  background: linear-gradient(155deg, rgba(37, 99, 235, 0.04), #ffffff);
+  border-color: rgba(37, 99, 235, 0.18);
+}
+
+.summary-month-revenue {
+  background: linear-gradient(155deg, rgba(16, 185, 129, 0.04), #ffffff);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.summary-month-collection {
+  background: linear-gradient(155deg, rgba(5, 150, 105, 0.05), #ffffff);
+  border-color: rgba(5, 150, 105, 0.22);
+}
+
+.summary-new-connections {
+  background: linear-gradient(155deg, rgba(217, 119, 6, 0.04), #ffffff);
+  border-color: rgba(217, 119, 6, 0.2);
+}
+
+/* Dark Theme Support */
+[data-theme="dark"] .quick-action-tile {
+  background: #15221e;
+  border-color: #243831;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] .quick-action-tile:hover {
+  background: #1a2c26;
+  border-color: #4da686;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .quick-action-icon {
+  background: rgba(77, 166, 134, 0.15);
+  color: #4da686;
+}
+
+[data-theme="dark"] .quick-action-label {
+  color: #ecf3ef;
+}
+
+[data-theme="dark"] .quick-action-sub {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .summary-active-customers,
+[data-theme="dark"] .summary-bill-status,
+[data-theme="dark"] .summary-month-revenue,
+[data-theme="dark"] .summary-month-collection,
+[data-theme="dark"] .summary-new-connections {
+  background: #15221e;
+  border-color: #243831;
+}
+
+/* Responsive adjustments */
+@media (max-width: 800px) {
+  .dashboard-quick-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .quick-action-tile {
+    padding: 10px 12px;
+    min-height: 54px;
+    gap: 9px;
+  }
+}
+
+@media (max-width: 620px) {
+  .dashboard-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .quick-action-tile {
+    padding: 9px 10px;
+    min-height: 50px;
+    gap: 8px;
+  }
+  .quick-action-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+  .quick-action-icon svg {
+    width: 17px;
+    height: 17px;
+  }
+  .quick-action-label {
+    font-size: 11.5px;
+  }
+  .quick-action-sub {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Dashboard Charts Region (agent1 - shahdara-dashboard)
+   Pure SVG visual analytics, donut settlement, and area dues breakdown.
+   ========================================================================== */
+
+.dashboard-charts-region {
+  margin: 22px 0 16px;
+  padding: 20px 22px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgba(22, 52, 43, 0.04);
+}
+
+.dashboard-charts-header {
+  margin-bottom: 18px;
+}
+
+.dashboard-charts-header h3 {
+  font: 700 17px/1.3 Manrope, system-ui, sans-serif;
+  letter-spacing: -0.3px;
+  color: var(--ink, #182e2a);
+  margin: 3px 0 2px;
+}
+
+.dashboard-charts-sub {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted, #71817c);
+  margin: 0;
+}
+
+.dashboard-charts-grid {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1.2fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.dashboard-chart-card {
+  background: #fafcfb;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 14px;
+  padding: 16px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chart-card-header {
+  margin-bottom: 12px;
+}
+
+.chart-title {
+  font: 700 13px/1.3 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+  margin: 0 0 3px;
+}
+
+.chart-subtitle {
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--muted, #71817c);
+  margin: 0;
+}
+
+.chart-svg-container {
+  width: 100%;
+  margin: auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 190px;
+}
+
+.chart-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.bar-billed,
+.bar-collected {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  cursor: pointer;
+}
+
+.bar-billed:hover,
+.bar-collected:hover {
+  opacity: 0.85;
+}
+
+.chart-month-group:focus-visible rect,
+.chart-area-row:focus-visible rect {
+  stroke: var(--ink, #182e2a);
+  stroke-width: 2;
+  outline: none;
+}
+
+/* Dark Theme Support for Charts */
+[data-theme="dark"] .dashboard-charts-region {
+  background: #14221d;
+  border-color: #243831;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .dashboard-charts-header h3 {
+  color: #edf5f1;
+}
+
+[data-theme="dark"] .dashboard-charts-sub {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .dashboard-chart-card {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .chart-title {
+  color: #edf5f1;
+}
+
+[data-theme="dark"] .chart-subtitle {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .chart-svg text {
+  fill: #c6ddd4 !important;
+}
+
+[data-theme="dark"] .chart-svg text[fill="#10b981"],
+[data-theme="dark"] .chart-svg text[fill="#3b82f6"],
+[data-theme="dark"] .chart-svg text[fill="#ef4444"] {
+  fill: inherit;
+}
+
+[data-theme="dark"] .chart-svg line {
+  stroke: #253d35 !important;
+}
+
+[data-theme="dark"] .chart-svg circle[stroke="var(--line, #e2ece7)"] {
+  stroke: #253d35 !important;
+}
+
+/* Responsive adjustments for charts */
+@media (max-width: 1100px) {
+  .dashboard-charts-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .chart-card-trend {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 680px) {
+  .dashboard-charts-region {
+    padding: 14px 12px;
+    margin: 14px 0 10px;
+    border-radius: 12px;
+  }
+  .dashboard-charts-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .dashboard-chart-card {
+    padding: 12px 10px 10px;
+  }
+  .chart-title {
+    font-size: 12px;
+  }
+}

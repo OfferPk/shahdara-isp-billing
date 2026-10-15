@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -1939,6 +1939,92 @@ export function renderCashflowProjectionSvg(projectionData) {
   </svg>`;
 }
 
+/**
+ * Renders an accessible pure SVG chart displaying upstream wholesale transit gateways,
+ * latency indicators, bandwidth allocation, and multi-ISP failover status.
+ */
+export function renderUpstreamGatewaySvg(gatewayData) {
+  const width = 560;
+  const height = 240;
+
+  if (!gatewayData || gatewayData.gateways.length === 0 || gatewayData.totalBandwidthCapacityMbps === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Upstream ISP Transit: No gateways assigned">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-10 -14 C-10 -20 10 -20 10 -14 C10 -10 -10 -10 -10 -6 C-10 0 10 0 10 -6" stroke="#0e5b4d" stroke-width="2" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No upstream ISP provider assigned</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Assign ISP providers on subscriber profiles to track upstream wholesale gateways and failover routes</text>
+      </g>
+    </svg>`;
+  }
+
+  const gateways = gatewayData.gateways.slice(0, 4);
+  const maxCapacity = Math.max(...gateways.map(g => g.allocatedBandwidthMbps), 1);
+
+  const topPad = 38;
+  const rowHeight = 36;
+  const labelX = 140;
+  const barX = 150;
+  const barMaxW = 230;
+
+  const rows = gateways.map((g, idx) => {
+    const y = topPad + idx * rowHeight;
+    const barW = Math.max(Math.round((g.allocatedBandwidthMbps / maxCapacity) * barMaxW), 10);
+    const meterColor = g.latencyMs < 20 ? '#10b981' : (g.latencyMs < 30 ? '#3b82f6' : (g.latencyMs < 40 ? '#f59e0b' : '#ef4444'));
+
+    return `
+      <g class="upstream-gateway-row" transform="translate(0, ${y})">
+        <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="700" fill="var(--ink, #182e2a)">
+          ${escapeXml(g.provider)}
+          <tspan font-weight="400" font-size="9.5" fill="var(--muted, #71817c)"> (${g.activeSubscribers} subs)</tspan>
+        </text>
+
+        <!-- Background bar -->
+        <rect x="${barX}" y="4" width="${barMaxW}" height="16" rx="4" fill="rgba(0, 0, 0, 0.05)" />
+
+        <!-- Bandwidth / capacity fill -->
+        <rect x="${barX}" y="4" width="${barW}" height="16" rx="4" fill="${meterColor}">
+          <title>${escapeXml(g.provider)}: ${g.allocatedBandwidthMbps} Mbps, ${g.latencyMs}ms latency (±${g.jitterMs}ms), SLA ${g.slaPercent}%</title>
+        </rect>
+
+        <text x="${barX + barW + 8}" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
+          ${g.allocatedBandwidthMbps}M <tspan font-weight="400" fill="var(--muted, #71817c)">· ${g.latencyMs}ms</tspan>
+        </text>
+
+        <!-- Failover role pill -->
+        <rect x="${width - 105}" y="3" width="75" height="18" rx="9" fill="${g.failoverRole === 'Primary Active' ? 'rgba(16, 185, 129, 0.15)' : (g.failoverRole === 'Secondary Standby' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(100, 116, 139, 0.12)')}" />
+        <text x="${width - 67}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="${g.failoverRole === 'Primary Active' ? '#047857' : (g.failoverRole === 'Secondary Standby' ? '#2563eb' : '#64748b')}">
+          ${g.failoverRole === 'Primary Active' ? 'PRIMARY' : (g.failoverRole === 'Secondary Standby' ? 'STANDBY' : 'READY')}
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  const footerY = height - 12;
+
+  return `<svg class="chart-svg upstream-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Upstream ISP Transit &amp; Multi-Homed Failover Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
+        Primary Gateway: <tspan font-weight="700" fill="var(--ink, #182e2a)">${escapeXml(gatewayData.primaryGateway)}</tspan>
+      </text>
+      <text x="${width - 240}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
+        Redundancy: <tspan font-weight="700" fill="${gatewayData.failoverRedundancyStatus === 'Multi-Homed Redundant' ? '#047857' : '#d97706'}">${escapeXml(gatewayData.failoverRedundancyStatus)}</tspan>
+      </text>
+    </g>
+
+    ${rows}
+
+    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Total Capacity: <tspan font-weight="700" fill="var(--ink, #182e2a)">${gatewayData.totalBandwidthCapacityMbps} Mbps</tspan> · Wholesale Cost: <tspan font-weight="700" fill="#dc2626">${formatPKR(gatewayData.totalWholesaleCost)}</tspan> · Active Links: <tspan font-weight="700" fill="#047857">${gatewayData.configuredGatewaysCount}</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
 
 
 /**
@@ -2393,6 +2479,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   });
 
   setupProjectionScenarioModal(state, { referenceDate, onToast: options.onToast });
+
+  const upstreamEl = document.getElementById('dashboardUpstreamChart');
+  if (upstreamEl) {
+    const upstreamData = calculateUpstreamGatewayMetrics(state, referenceDate);
+    upstreamEl.innerHTML = renderUpstreamGatewaySvg(upstreamData);
+  }
+
+  setupUpstreamGatewayModal(state, { referenceDate, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

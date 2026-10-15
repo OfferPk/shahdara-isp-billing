@@ -391,6 +391,16 @@
             </div>
             <div id="dashboardProjectionChart" class="chart-svg-container" role="img" aria-label="Forward cashflow projection and churn scenario chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-upstream">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Upstream ISP Transit &amp; Failover</h4>
+                <p class="chart-subtitle">Wholesale link latency, bandwidth capacity, and multi-homed routing</p>
+              </div>
+              <button id="dashboardOpenUpstreamModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Upstream Routes</button>
+            </div>
+            <div id="dashboardUpstreamChart" class="chart-svg-container" role="img" aria-label="Upstream ISP Transit and Multi-Homed Failover Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -784,6 +794,60 @@
 
           <div class="sim-modal-footer">
             <button id="dashboardCopyProjectionReportBtn" class="primary-button" type="button">📋 Copy Forecast Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardUpstreamModal" class="dashboard-modal upstream-modal" aria-labelledby="dashboardUpstreamModalTitle">
+        <div class="dashboard-modal-card upstream-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">UPSTREAM TRANSIT &amp; WHOLESALE GATEWAYS</p>
+              <h3 id="dashboardUpstreamModalTitle">Upstream ISP Routes &amp; Latency Failover</h3>
+            </div>
+            <button id="dashboardUpstreamModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Multi-ISP gateway routing analysis, carrier latency benchmarks, wholesale transit capacity, and failover redundancy.</p>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Primary Gateway</span>
+              <strong id="upstreamPrimaryVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Gateway Latency</span>
+              <strong id="upstreamLatencyVal" class="ltv-kpi-val text-success">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Total Allocated Capacity</span>
+              <strong id="upstreamCapacityVal" class="ltv-kpi-val">—</strong>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Redundancy Status</span>
+              <strong id="upstreamRedundancyBadge" class="sim-delta-badge badge-stable">Evaluating...</strong>
+            </div>
+          </div>
+
+          <div class="dashboard-modal-table-wrap">
+            <table class="dashboard-modal-table">
+              <thead>
+                <tr>
+                  <th>Provider Gateway</th>
+                  <th>Subscribers</th>
+                  <th>Capacity</th>
+                  <th>Latency (Jitter)</th>
+                  <th>Wholesale Cost</th>
+                  <th>Failover Role</th>
+                </tr>
+              </thead>
+              <tbody id="dashboardUpstreamTableBody">
+                <tr><td colspan="6" class="empty-cell">Evaluating upstream ISP gateways...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer">
+            <button id="dashboardCopyUpstreamReportBtn" class="primary-button" type="button">📋 Copy Upstream Briefing</button>
           </div>
         </div>
       </dialog>

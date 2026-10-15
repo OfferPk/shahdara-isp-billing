@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -63,6 +63,7 @@ let navDrawer = null;
 let mobileBreadcrumbs = null;
 let tabSlider = null;
 let customerEnrollmentWizard = null;
+let mobileActionSheetController = null;
 let profileEditMode = false;
 let selectedProfileTab = 'billing';
 let selectedReportFilter = 'all';
@@ -490,6 +491,7 @@ function switchView(view, { pushHistory = true } = {}) {
     { id: view, label: view.charAt(0).toUpperCase() + view.slice(1) }
   ]);
   if (view !== 'customers') appShell.classList.remove('show-detail');
+  if (view !== 'customers') mobileActionSheetController?.clearContext();
   if (pushHistory && typeof window !== 'undefined' && window.location) {
     const targetHash = '#' + view;
     if (window.location.hash !== targetHash) {
@@ -911,6 +913,12 @@ function selectCustomer(id, { pushHistory = true } = {}) {
     id: `customer-${id}`,
     label: currentCust ? currentCust.name : 'Customer Detail',
     data: { customerId: id }
+  });
+  mobileActionSheetController?.setContext({
+    customerId: id,
+    customerName: currentCust ? currentCust.name : 'Customer Detail',
+    balance: currentCust ? currentCust.balance : 0,
+    phone: currentCust ? currentCust.phone : ''
   });
   profileEditMode = false;
   activateProfileTab('billing');
@@ -1565,9 +1573,26 @@ setupKeyboardShortcuts({
   },
   onToast: toast
 });
-setupMobileActionSheet({
-  onAction: action => {
-    if (action === 'add-payment') {
+mobileActionSheetController = setupMobileActionSheet({
+  onAction: (action, context) => {
+    if (action === 'customer-payment') {
+      if (context && context.customerId) {
+        selectCustomer(context.customerId);
+      }
+      const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment');
+      if (btn) btn.click();
+    } else if (action === 'customer-whatsapp') {
+      if (context && context.customerId) {
+        selectCustomer(context.customerId);
+      }
+      $('#detailWhatsAppReminder')?.click();
+    } else if (action === 'customer-receipt') {
+      if (context && context.customerId) {
+        selectCustomer(context.customerId);
+      }
+      const pdfBtn = $('#downloadInvoicePdfBtn') || $('#printInvoiceBtn');
+      if (pdfBtn) pdfBtn.click();
+    } else if (action === 'add-payment') {
       const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment');
       if (btn) btn.click();
     } else if (action === 'add-customer') {
@@ -1714,6 +1739,15 @@ setupOfflineSyncBanner({
         console.error('Failed to reload state after offline sync:', err);
       }
     }
+  },
+  onToast: (msg) => toast(msg)
+});
+
+// Start Offline Payment Receipt & Transaction Auto-Retry Engine with Exponential Backoff
+startOfflineQueueAutoRetryEngine({
+  storage: localStorage,
+  onQueueUpdated: () => {
+    queueModalController?.render();
   },
   onToast: (msg) => toast(msg)
 });

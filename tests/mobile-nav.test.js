@@ -2368,3 +2368,324 @@ test('setupCustomerEnrollmentWizard controls stepper progression, validation, sw
   }
 });
 
+test('calculateRetryDelay computes exponential backoff with ceiling and decorrelated jitter', async () => {
+  const { calculateRetryDelay } = await import('../nav.js');
+
+  // Base test with zero jitter
+  const d1 = calculateRetryDelay(1, { baseDelayMs: 1000, maxDelayMs: 30000, jitterFactor: 0 });
+  assert.equal(d1, 1000);
+
+  const d2 = calculateRetryDelay(2, { baseDelayMs: 1000, maxDelayMs: 30000, jitterFactor: 0 });
+  assert.equal(d2, 2000);
+
+  const d3 = calculateRetryDelay(3, { baseDelayMs: 1000, maxDelayMs: 30000, jitterFactor: 0 });
+  assert.equal(d3, 4000);
+
+  const dCap = calculateRetryDelay(10, { baseDelayMs: 1000, maxDelayMs: 16000, jitterFactor: 0 });
+  assert.equal(dCap, 16000);
+
+  // Deterministic jitter testing with custom randomFn
+  // randomFn = 1.0 -> max positive jitter (+25% of 2000 = 2500)
+  const dJitterHigh = calculateRetryDelay(2, { baseDelayMs: 1000, maxDelayMs: 30000, jitterFactor: 0.25, randomFn: () => 1.0 });
+  assert.equal(dJitterHigh, 2500);
+
+  // randomFn = 0.0 -> max negative jitter (-25% of 2000 = 1500)
+  const dJitterLow = calculateRetryDelay(2, { baseDelayMs: 1000, maxDelayMs: 30000, jitterFactor: 0.25, randomFn: () => 0.0 });
+  assert.equal(dJitterLow, 1500);
+
+  // Fallback on invalid attempt defaults safely to base delay
+  const dInvalid = calculateRetryDelay(-5, { baseDelayMs: 1000 });
+  assert.ok(dInvalid >= 1000);
+});
+
+test('retryOfflineQueueItem handles backoff, error logging, and dead-letter queue transitions', async () => {
+  const { addOfflineSyncItem, getOfflineSyncQueue, retryOfflineQueueItem } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const initial = addOfflineSyncItem({ action: 'record_payment', summary: 'Payment #101' }, mockStorage);
+  const itemId = initial[0].id;
+
+  // First retry fails -> transitions to status 'retrying' with attempt 1
+  const failOutcome1 = await retryOfflineQueueItem(itemId, {
+    storage: mockStorage,
+    maxAttempts: 3,
+    retryHandler: () => { throw new Error('Offline timeout'); },
+    randomFn: () => 0.5
+  });
+
+  assert.equal(failOutcome1.success, false);
+  assert.equal(failOutcome1.status, 'retrying');
+  assert.equal(failOutcome1.item.retryCount, 1);
+  assert.ok(failOutcome1.item.nextRetryAt);
+  assert.equal(failOutcome1.error, 'Offline timeout');
+  assert.equal(failOutcome1.item.retryHistory.length, 1);
+
+  // Second retry fails -> remains 'retrying' with attempt 2
+  const failOutcome2 = await retryOfflineQueueItem(itemId, {
+    storage: mockStorage,
+    maxAttempts: 3,
+    retryHandler: () => false
+  });
+
+  assert.equal(failOutcome2.success, false);
+  assert.equal(failOutcome2.status, 'retrying');
+  assert.equal(failOutcome2.item.retryCount, 2);
+  assert.equal(failOutcome2.item.retryHistory.length, 2);
+
+  // Third retry fails -> reaches maxAttempts (3) -> transitions to 'dead_letter'
+  const deadOutcome = await retryOfflineQueueItem(itemId, {
+    storage: mockStorage,
+    maxAttempts: 3,
+    retryHandler: () => { throw new Error('Permanent network rejection'); }
+  });
+
+  assert.equal(deadOutcome.success, false);
+  assert.equal(deadOutcome.status, 'dead_letter');
+  assert.equal(deadOutcome.item.retryCount, 3);
+  assert.equal(deadOutcome.item.nextRetryAt, null);
+  assert.equal(deadOutcome.error, 'Permanent network rejection');
+
+  // New item succeeds on first attempt
+  const item2List = addOfflineSyncItem({ action: 'add_customer', summary: 'Customer #202' }, mockStorage);
+  const item2Id = item2List[item2List.length - 1].id;
+
+  const successOutcome = await retryOfflineQueueItem(item2Id, {
+    storage: mockStorage,
+    retryHandler: () => true
+  });
+
+  assert.equal(successOutcome.success, true);
+  assert.equal(successOutcome.status, 'synced');
+  assert.equal(successOutcome.item.retryCount, 1);
+  assert.ok(successOutcome.item.syncedAt);
+});
+
+test('processEligibleOfflineRetries respects connectivity and scheduled retry intervals', async () => {
+  const { addOfflineSyncItem, updateOfflineSyncItem, processEligibleOfflineRetries, getOfflineSyncQueue } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const queue = addOfflineSyncItem({ action: 'receipt_1', summary: 'Due now' }, mockStorage);
+  const id1 = queue[0].id;
+
+  const queue2 = addOfflineSyncItem({ action: 'receipt_2', summary: 'Due in future' }, mockStorage);
+  const id2 = queue2[1].id;
+  updateOfflineSyncItem(id2, { status: 'retrying', nextRetryAt: new Date(Date.now() + 60000).toISOString() }, mockStorage);
+
+  const queue3 = addOfflineSyncItem({ action: 'receipt_3', summary: 'Already dead' }, mockStorage);
+  const id3 = queue3[2].id;
+  updateOfflineSyncItem(id3, { status: 'dead_letter' }, mockStorage);
+
+  // When offline, skips processing
+  const offlineRes = await processEligibleOfflineRetries({
+    storage: mockStorage,
+    isOnlineCheck: () => false
+  });
+  assert.equal(offlineRes.skippedOffline, true);
+  assert.equal(offlineRes.attempted, 0);
+
+  // When online, only item 1 is eligible (item 2 is future, item 3 is dead letter)
+  const onlineRes = await processEligibleOfflineRetries({
+    storage: mockStorage,
+    isOnlineCheck: () => true,
+    retryHandler: (it) => it.id === id1,
+    now: Date.now()
+  });
+
+  assert.equal(onlineRes.attempted, 1);
+  assert.equal(onlineRes.succeeded, 1);
+  assert.equal(onlineRes.failed, 0);
+});
+
+test('startOfflineQueueAutoRetryEngine controls background timer lifecycle', async () => {
+  const { startOfflineQueueAutoRetryEngine } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const engine = startOfflineQueueAutoRetryEngine({
+    storage: mockStorage,
+    pollIntervalMs: 100000,
+    isOnlineCheck: () => true
+  });
+
+  assert.equal(engine.isRunning(), true);
+  engine.stop();
+  assert.equal(engine.isRunning(), false);
+  engine.start();
+  assert.equal(engine.isRunning(), true);
+  engine.stop();
+});
+
+test('setupMobileActionSheet supports customer contextual metadata and bottom nav swipe-up trigger', async () => {
+  const { setupMobileActionSheet } = await import('../nav.js');
+  const listeners = new Map();
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      contains: (c) => s.has(c),
+      toggle: (c, force) => {
+        if (force === undefined) {
+          if (s.has(c)) { s.delete(c); return false; }
+          s.add(c); return true;
+        }
+        if (force) s.add(c);
+        else s.delete(c);
+        return force;
+      }
+    };
+  };
+
+  const makeBtn = (id) => ({
+    id,
+    dataset: {},
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); },
+    addEventListener(ev, fn) { listeners.set(`${id}:${ev}`, fn); },
+    focus() {}
+  });
+
+  const toggleBtn = makeBtn('mobileActionSheetToggle');
+  const closeBtn = makeBtn('mobileActionSheetClose');
+  const clearContextBtn = makeBtn('actionSheetClearContextBtn');
+  const backdrop = {
+    id: 'mobileActionSheetBackdrop',
+    hidden: true,
+    classList: classListSet(),
+    dataset: {},
+    setAttribute: () => {},
+    addEventListener: (ev, fn) => listeners.set(`backdrop:${ev}`, fn)
+  };
+
+  const contextBanner = { id: 'actionSheetContextBanner', hidden: true };
+  const contextName = { id: 'actionSheetCustomerName', textContent: '' };
+  const contextMeta = { id: 'actionSheetCustomerMeta', textContent: '' };
+  const heading = { id: 'mobileActionSheetHeading', textContent: 'Quick Actions' };
+
+  const contextualBtn = {
+    hidden: true,
+    classList: classListSet(),
+    attributes: new Map([['data-sheet-action', 'customer-payment']]),
+    getAttribute(k) { return this.attributes.get(k); },
+    addEventListener(ev, fn) { listeners.set('act:customer-payment', fn); }
+  };
+  contextualBtn.classList.add('contextual-action');
+
+  const sheet = {
+    id: 'mobileActionSheet',
+    hidden: true,
+    classList: classListSet(),
+    dataset: {},
+    setAttribute: () => {},
+    addEventListener: (ev, fn) => listeners.set(`sheet:${ev}`, fn),
+    querySelectorAll(sel) {
+      if (sel === '.contextual-action') return [contextualBtn];
+      if (sel === '[data-sheet-action]') return [contextualBtn];
+      return [];
+    },
+    querySelector() { return contextualBtn; }
+  };
+
+  const bottomNav = {
+    classList: classListSet(),
+    dataset: {},
+    addEventListener(ev, fn) { listeners.set(`bottomNav:${ev}`, fn); }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'mobileActionSheetToggle') return toggleBtn;
+      if (id === 'mobileActionSheet') return sheet;
+      if (id === 'mobileActionSheetBackdrop') return backdrop;
+      if (id === 'mobileActionSheetClose') return closeBtn;
+      if (id === 'actionSheetContextBanner') return contextBanner;
+      if (id === 'actionSheetCustomerName') return contextName;
+      if (id === 'actionSheetCustomerMeta') return contextMeta;
+      if (id === 'actionSheetClearContextBtn') return clearContextBtn;
+      if (id === 'mobileActionSheetHeading') return heading;
+      return null;
+    },
+    querySelector(sel) {
+      if (sel === '.mobile-bottom-nav') return bottomNav;
+      return null;
+    }
+  };
+
+  try {
+    let handledAction = null;
+    let handledContext = null;
+
+    const controller = setupMobileActionSheet({
+      onAction: (act, ctx) => {
+        handledAction = act;
+        handledContext = ctx;
+      }
+    });
+
+    // Verify context setting
+    controller.setContext({
+      customerId: 'cust-99',
+      customerName: 'Muhammad Babar',
+      balance: 1500,
+      phone: '0301-9876543'
+    });
+
+    assert.equal(contextBanner.hidden, false);
+    assert.equal(contextName.textContent, 'Muhammad Babar');
+    assert.ok(contextMeta.textContent.includes('1,500'));
+    assert.equal(heading.textContent, 'Customer Actions');
+    assert.equal(contextualBtn.hidden, false);
+
+    // Opening sheet and clicking contextual action passes customer context
+    controller.open();
+    assert.equal(sheet.hidden, false);
+
+    const actionFn = listeners.get('act:customer-payment');
+    assert.ok(typeof actionFn === 'function');
+    actionFn();
+
+    assert.equal(handledAction, 'customer-payment');
+    assert.equal(handledContext.customerId, 'cust-99');
+    assert.equal(handledContext.customerName, 'Muhammad Babar');
+
+    // Clearing context resets UI
+    controller.clearContext();
+    assert.equal(contextBanner.hidden, true);
+    assert.equal(heading.textContent, 'Quick Actions');
+    assert.equal(contextualBtn.hidden, true);
+
+    // Test swipe up gesture on bottom navigation bar
+    const navTouchStart = listeners.get('bottomNav:touchstart');
+    const navTouchEnd = listeners.get('bottomNav:touchend');
+    assert.ok(typeof navTouchStart === 'function');
+    assert.ok(typeof navTouchEnd === 'function');
+
+    // Simulate swipe up (deltaY = -60)
+    navTouchStart({ touches: [{ clientX: 100, clientY: 400 }] });
+    navTouchEnd({ changedTouches: [{ clientX: 105, clientY: 340 }] });
+    assert.equal(sheet.hidden, false);
+    assert.ok(sheet.classList.contains('is-open'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+

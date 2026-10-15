@@ -1401,10 +1401,14 @@ test('setupOfflineSyncBanner responds to online/offline state, retry, and dismis
   globalThis.window = {
     addEventListener: (ev, fn) => listeners.set(`win:${ev}`, fn)
   };
-  const origOnlineDesc = Object.getOwnPropertyDescriptor(globalThis.navigator, 'onLine');
-  try {
-    Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true, writable: true });
-  } catch {}
+  const origOnlineDesc = origNav ? Object.getOwnPropertyDescriptor(origNav, 'onLine') : null;
+  if (!origNav) {
+    globalThis.navigator = { onLine: false };
+  } else {
+    try {
+      Object.defineProperty(globalThis.navigator, 'onLine', { value: false, configurable: true, writable: true });
+    } catch {}
+  }
 
   try {
     let syncedRes = null;
@@ -1426,9 +1430,13 @@ test('setupOfflineSyncBanner responds to online/offline state, retry, and dismis
     assert.ok(text.textContent.includes('1 pending action'));
 
     // Go online
-    try {
-      Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true, writable: true });
-    } catch {}
+    if (!origNav) {
+      globalThis.navigator.onLine = true;
+    } else {
+      try {
+        Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true, writable: true });
+      } catch {}
+    }
     listeners.get('win:online')();
     // Trigger immediate sync
     bannerCtrl.syncNow();
@@ -1443,7 +1451,9 @@ test('setupOfflineSyncBanner responds to online/offline state, retry, and dismis
   } finally {
     globalThis.document = origDoc;
     globalThis.window = origWindow;
-    if (origOnlineDesc) {
+    if (!origNav) {
+      delete globalThis.navigator;
+    } else if (origOnlineDesc) {
       try { Object.defineProperty(globalThis.navigator, 'onLine', origOnlineDesc); } catch {}
     }
   }

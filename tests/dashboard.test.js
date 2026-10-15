@@ -705,7 +705,7 @@ test('setupCustomerHealthActions wires click handler to health filter buttons', 
   }
 });
 
-test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print, and whatsapp', () => {
+test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print, and whatsapp', async () => {
   let modalOpened = false;
   let printCalled = false;
   let windowOpenUrl = null;
@@ -744,7 +744,6 @@ test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print,
 
   const originalDocument = globalThis.document;
   const originalWindow = globalThis.window;
-  const originalClipboardDesc = Object.getOwnPropertyDescriptor(globalThis.navigator, 'clipboard');
 
   globalThis.document = {
     getElementById: (id) => {
@@ -766,19 +765,15 @@ test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print,
     open: (url) => { windowOpenUrl = url; }
   };
 
-  Object.defineProperty(globalThis.navigator, 'clipboard', {
-    value: {
-      writeText: async (t) => { copiedText = t; }
-    },
-    configurable: true
-  });
-
   try {
     const state = createInitialState(['Briefing Cust']);
     let toastMessage = null;
 
     setupDashboardBriefingModal(state, new Date('2026-10-15'), {
-      onToast: (msg) => { toastMessage = msg; }
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
     });
 
     // Test open tile click
@@ -795,24 +790,16 @@ test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print,
     assert.ok(windowOpenUrl.startsWith('https://api.whatsapp.com/send?text='));
 
     // Test copy button click
-    fakeCopyBtn.onClick();
-    // wait a tick for async clipboard
-    return Promise.resolve().then(() => {
-      assert.ok(copiedText !== null);
-      assert.ok(copiedText.includes('SHAHDARA ISP'));
-      assert.equal(toastMessage, 'Briefing text copied to clipboard!');
+    await fakeCopyBtn.onClick();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP'));
+    assert.equal(toastMessage, 'Briefing text copied to clipboard!');
 
-      // Test close button
-      fakeCloseBtn.onClick();
-      assert.equal(modalOpened, false);
-    });
+    // Test close button
+    fakeCloseBtn.onClick();
+    assert.equal(modalOpened, false);
   } finally {
     globalThis.document = originalDocument;
     globalThis.window = originalWindow;
-    if (originalClipboardDesc) {
-      Object.defineProperty(globalThis.navigator, 'clipboard', originalClipboardDesc);
-    } else {
-      delete globalThis.navigator.clipboard;
-    }
   }
 });

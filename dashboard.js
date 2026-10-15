@@ -373,7 +373,7 @@ export function generateDashboardBriefingHtml(state, referenceDate = new Date())
 /**
  * Wires the Executive Briefing Modal dialog with slip preview, print, copy, and WhatsApp sharing.
  */
-export function setupDashboardBriefingModal(state, referenceDate = new Date(), { onToast } = {}) {
+export function setupDashboardBriefingModal(state, referenceDate = new Date(), { onToast, clipboard } = {}) {
   const modal = document.getElementById('dashboardBriefingModal');
   const slipContainer = document.getElementById('dashboardBriefingSlipContent');
   const closeBtn = document.getElementById('dashboardBriefingModalCloseBtn');
@@ -436,9 +436,10 @@ export function setupDashboardBriefingModal(state, referenceDate = new Date(), {
       copyBtn.addEventListener('click', async () => {
         const text = generateDashboardBriefingText(state, referenceDate);
         let copied = false;
-        if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+        if (clip && typeof clip.writeText === 'function') {
           try {
-            await navigator.clipboard.writeText(text);
+            await clip.writeText(text);
             copied = true;
           } catch {
             copied = false;
@@ -484,10 +485,10 @@ export function setupDashboardBriefingModal(state, referenceDate = new Date(), {
 /**
  * Wires executive briefing button to generate text, copy to clipboard, or open briefing modal.
  */
-export function setupDashboardBriefingButton(state, referenceDate = new Date(), { onToast } = {}) {
+export function setupDashboardBriefingButton(state, referenceDate = new Date(), { onToast, clipboard } = {}) {
   const modal = document.getElementById('dashboardBriefingModal');
   if (modal) {
-    setupDashboardBriefingModal(state, referenceDate, { onToast });
+    setupDashboardBriefingModal(state, referenceDate, { onToast, clipboard });
     return;
   }
   const btn = document.getElementById('quickActionExecutiveBriefing');
@@ -500,9 +501,10 @@ export function setupDashboardBriefingButton(state, referenceDate = new Date(), 
   btn.addEventListener('click', async () => {
     const text = generateDashboardBriefingText(state, referenceDate);
     let copied = false;
-    if (typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+    if (clip && typeof clip.writeText === 'function') {
       try {
-        await navigator.clipboard.writeText(text);
+        await clip.writeText(text);
         copied = true;
       } catch {
         copied = false;

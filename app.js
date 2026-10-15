@@ -19,7 +19,7 @@ import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLi
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupAreaDrilldownModal } from './dashboard.js?v=1.10.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop } from './nav.js?v=1.10.0';
 import { validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary } from './form-validation.js?v=1.10.0';
 
@@ -267,9 +267,10 @@ function renderDashboard() {
       if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
     },
     onBriefing: () => {
-      setupDashboardBriefingButton(state, referenceDate, { onToast: toast });
+      setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
     }
   });
+  setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
   setupDashboardBriefingButton(state, referenceDate, { onToast: toast });
   setupAreaDrilldownModal(state, referenceDate, {
     onFilterRoster: (areaName) => {
@@ -278,6 +279,30 @@ function renderDashboard() {
       if (searchInput) {
         searchInput.value = areaName;
         searchInput.dispatchEvent(new Event('input'));
+      }
+    }
+  });
+  setupCustomerHealthActions(state, referenceDate, {
+    onFilterHealth: (category, healthData) => {
+      switchView('customers');
+      if (category === 'offline') {
+        const offlineBtn = document.querySelector('[data-customer-service-filter="offline"]');
+        if (offlineBtn) offlineBtn.click();
+      } else if (category === 'goodStanding') {
+        const paidBtn = document.querySelector('[data-customer-billing-filter="paid"]');
+        if (paidBtn) paidBtn.click();
+      } else if (category === 'watchlist') {
+        const pendingBtn = document.querySelector('[data-customer-billing-filter="pending"]');
+        if (pendingBtn) pendingBtn.click();
+      } else if (category === 'delinquent') {
+        const searchInput = $('#customerSearch');
+        if (searchInput && healthData.delinquent?.customerIds?.length) {
+          const cust = state.customers.find(c => c.id === healthData.delinquent.customerIds[0]);
+          if (cust) {
+            searchInput.value = cust.name;
+            searchInput.dispatchEvent(new Event('input'));
+          }
+        }
       }
     }
   });

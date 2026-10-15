@@ -4,9 +4,13 @@ import { createInitialState, addCustomer, saveBillMonth, addPayment } from '../c
 import {
   calculateDashboardKpis,
   calculateCollectionVelocity,
+  calculateCustomerHealthBreakdown,
   setupDashboardQuickActions,
   generateDashboardBriefingText,
+  generateDashboardBriefingHtml,
   setupDashboardBriefingButton,
+  setupDashboardBriefingModal,
+  setupCustomerHealthActions,
   setupAreaDrilldownModal
 } from '../dashboard.js';
 import {
@@ -18,6 +22,7 @@ import {
   renderBillStatusDonutSvg,
   renderAreaDuesSvg,
   renderPackageDistributionSvg,
+  renderCustomerHealthSvg,
   renderDashboardCharts,
   setTrendChartDuration,
   getTrendChartDuration,
@@ -524,4 +529,277 @@ test('calculateCollectionVelocity handles zero collections gracefully', () => {
   assert.equal(velocity.projectedMonthEnd, 0);
   assert.equal(velocity.currentRate, null);
   assert.equal(velocity.projectedRate, null);
+});
+
+test('calculateCustomerHealthBreakdown accurately categorizes Good Standing, Watchlist, Delinquent, and Offline', () => {
+  let state = createInitialState(['Good Cust', 'Watch Cust', 'Delinquent Cust', 'Offline Cust', 'Archived Cust']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer 0: Good Standing (paid in full, 0 balance)
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '1000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '1000', date: '2026-10-05', method: 'Cash' }, refDate);
+
+  // Customer 1: Watchlist (1 pending bill)
+  state.customers[1].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '1200', status: 'pending' }, refDate);
+
+  // Customer 2: Delinquent (2 overdue bills)
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-09', dueAmount: '1500', status: 'pending' }, refDate);
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '1500', status: 'pending' }, refDate);
+
+  // Customer 3: Offline (serviceStatus === 'offline')
+  state.customers[3].serviceStatus = 'offline';
+  state = saveBillMonth(state, state.customers[3].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+
+  // Customer 4: Archived (should be excluded)
+  state.customers[4].archived = true;
+
+  const health = calculateCustomerHealthBreakdown(state, refDate);
+
+  assert.equal(health.totalTracked, 4);
+  assert.equal(health.goodStanding.count, 1);
+  assert.equal(health.goodStanding.percent, 25);
+  assert.equal(health.goodStanding.totalDue, 0);
+
+  assert.equal(health.watchlist.count, 1);
+  assert.equal(health.watchlist.percent, 25);
+  assert.equal(health.watchlist.totalDue, 1200);
+
+  assert.equal(health.delinquent.count, 1);
+  assert.equal(health.delinquent.percent, 25);
+  assert.equal(health.delinquent.totalDue, 3000);
+
+  assert.equal(health.offline.count, 1);
+  assert.equal(health.offline.percent, 25);
+  assert.equal(health.offline.totalDue, 2000);
+});
+
+test('calculateCustomerHealthBreakdown handles empty state gracefully', () => {
+  const emptyState = { customers: [] };
+  const health = calculateCustomerHealthBreakdown(emptyState, new Date('2026-10-15'));
+
+  assert.equal(health.totalTracked, 0);
+  assert.equal(health.goodStanding.count, 0);
+  assert.equal(health.goodStanding.percent, 0);
+  assert.equal(health.watchlist.count, 0);
+  assert.equal(health.delinquent.count, 0);
+  assert.equal(health.offline.count, 0);
+});
+
+test('generateDashboardBriefingHtml produces semantic printable slip markup with health matrix', () => {
+  let state = createInitialState(['Briefing Cust 1', 'Briefing Cust 2']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].area = 'Main Bazaar';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+
+  const html = generateDashboardBriefingHtml(state, refDate);
+
+  assert.ok(html.includes('EXECUTIVE LEDGER BRIEFING'));
+  assert.ok(html.includes('SHAHDARA ISP OPERATIONS'));
+  assert.ok(html.includes('SUBSCRIBER HEALTH MATRIX'));
+  assert.ok(html.includes('MONTHLY FINANCIAL PERFORMANCE'));
+  assert.ok(html.includes('Good Standing:'));
+  assert.ok(html.includes('Watchlist (1 Due):'));
+  assert.ok(html.includes('Main Bazaar'));
+  assert.ok(html.includes('Authorized Signature:'));
+});
+
+test('renderCustomerHealthSvg renders accessible SVG progress bar and metric cells', () => {
+  const healthData = {
+    totalTracked: 10,
+    goodStanding: { category: 'goodStanding', label: 'Good Standing', count: 6, percent: 60, totalDue: 0 },
+    watchlist: { category: 'watchlist', label: 'Watchlist', count: 2, percent: 20, totalDue: 2400 },
+    delinquent: { category: 'delinquent', label: 'Delinquent', count: 1, percent: 10, totalDue: 3000 },
+    offline: { category: 'offline', label: 'Offline', count: 1, percent: 10, totalDue: 1500 }
+  };
+
+  const svg = renderCustomerHealthSvg(healthData);
+
+  assert.ok(svg.includes('chart-health-svg'));
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('aria-label="Customer Health and Delinquency Distribution Chart'));
+  assert.ok(svg.includes('fill="#10b981"'));
+  assert.ok(svg.includes('fill="#f59e0b"'));
+  assert.ok(svg.includes('fill="#ef4444"'));
+  assert.ok(svg.includes('fill="#64748b"'));
+  assert.ok(svg.includes('Good Standing'));
+  assert.ok(svg.includes('Watchlist'));
+  assert.ok(svg.includes('Delinquent'));
+  assert.ok(svg.includes('Offline'));
+  assert.ok(svg.includes('Total 10 tracked unarchived customer accounts'));
+});
+
+test('renderCustomerHealthSvg renders empty state when zero customers exist', () => {
+  const emptyHealth = { totalTracked: 0 };
+  const svg = renderCustomerHealthSvg(emptyHealth);
+
+  assert.ok(svg.includes('chart-health-svg'));
+  assert.ok(svg.includes('No customer accounts found'));
+  assert.ok(svg.includes('Add customers to see health standing distribution'));
+});
+
+test('renderMonthlyTrendSvg renders milestone target line and legend badge when targetRevenue is specified', () => {
+  const trends = [
+    { month: '2026-08', monthLabel: "Aug '26", billed: 10000, collected: 8500 },
+    { month: '2026-09', monthLabel: "Sep '26", billed: 12000, collected: 11000 },
+    { month: '2026-10', monthLabel: "Oct '26", billed: 15000, collected: 12500 }
+  ];
+
+  const svgWithTarget = renderMonthlyTrendSvg(trends, { targetRevenue: 14000 });
+
+  assert.ok(svgWithTarget.includes('chart-target-line'));
+  assert.ok(svgWithTarget.includes('chart-target-label'));
+  assert.ok(svgWithTarget.includes('Target:'));
+  assert.ok(svgWithTarget.includes('Target Milestone'));
+
+  const svgWithoutTarget = renderMonthlyTrendSvg(trends);
+  assert.ok(!svgWithoutTarget.includes('chart-target-line'));
+  assert.ok(!svgWithoutTarget.includes('Target Milestone'));
+});
+
+test('setupCustomerHealthActions wires click handler to health filter buttons', () => {
+  const listeners = [];
+  const fakeGoodBtn = {
+    getAttribute: (attr) => (attr === 'data-filter-health' ? 'goodStanding' : null),
+    dataset: {},
+    addEventListener: (evt, fn) => listeners.push({ btn: 'good', fn })
+  };
+  const fakeOfflineBtn = {
+    getAttribute: (attr) => (attr === 'data-filter-health' ? 'offline' : null),
+    dataset: {},
+    addEventListener: (evt, fn) => listeners.push({ btn: 'offline', fn })
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    querySelectorAll: (sel) => (sel === '[data-filter-health]' ? [fakeGoodBtn, fakeOfflineBtn] : [])
+  };
+
+  try {
+    let capturedCategory = null;
+    let capturedData = null;
+    const state = createInitialState(['Alice']);
+
+    setupCustomerHealthActions(state, new Date('2026-10-15'), {
+      onFilterHealth: (cat, data) => {
+        capturedCategory = cat;
+        capturedData = data;
+      }
+    });
+
+    assert.equal(listeners.length, 2);
+    // Trigger good button click
+    listeners[0].fn();
+    assert.equal(capturedCategory, 'goodStanding');
+    assert.ok(capturedData !== null);
+    assert.equal(capturedData.totalTracked, 1);
+
+    // Trigger offline button click
+    listeners[1].fn();
+    assert.equal(capturedCategory, 'offline');
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('setupDashboardBriefingModal wires modal open, slip rendering, copy, print, and whatsapp', async () => {
+  let modalOpened = false;
+  let printCalled = false;
+  let windowOpenUrl = null;
+  let copiedText = null;
+  let slipHtml = null;
+
+  const fakeModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    dataset: {},
+    addEventListener: () => {}
+  };
+  const fakeSlip = {
+    set innerHTML(val) { slipHtml = val; }
+  };
+  const fakeOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakeOpenBtn.onClick = fn; }
+  };
+  const fakeCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakeCloseBtn.onClick = fn; }
+  };
+  const fakePrintBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakePrintBtn.onClick = fn; }
+  };
+  const fakeCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakeCopyBtn.onClick = fn; }
+  };
+  const fakeWhatsappBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { fakeWhatsappBtn.onClick = fn; }
+  };
+
+  const originalDocument = globalThis.document;
+  const originalWindow = globalThis.window;
+
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardBriefingModal': return fakeModal;
+        case 'dashboardBriefingSlipContent': return fakeSlip;
+        case 'quickActionExecutiveBriefing': return fakeOpenBtn;
+        case 'dashboardBriefingModalCloseBtn': return fakeCloseBtn;
+        case 'dashboardBriefingPrintBtn': return fakePrintBtn;
+        case 'dashboardBriefingCopyBtn': return fakeCopyBtn;
+        case 'dashboardBriefingWhatsappBtn': return fakeWhatsappBtn;
+        default: return null;
+      }
+    }
+  };
+
+  globalThis.window = {
+    print: () => { printCalled = true; },
+    open: (url) => { windowOpenUrl = url; }
+  };
+
+  try {
+    const state = createInitialState(['Briefing Cust']);
+    let toastMessage = null;
+
+    setupDashboardBriefingModal(state, new Date('2026-10-15'), {
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Test open tile click
+    fakeOpenBtn.onClick();
+    assert.equal(modalOpened, true);
+    assert.ok(slipHtml.includes('EXECUTIVE LEDGER BRIEFING'));
+
+    // Test print button click
+    fakePrintBtn.onClick();
+    assert.equal(printCalled, true);
+
+    // Test whatsapp button click
+    fakeWhatsappBtn.onClick();
+    assert.ok(windowOpenUrl.startsWith('https://api.whatsapp.com/send?text='));
+
+    // Test copy button click
+    await fakeCopyBtn.onClick();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP'));
+    assert.equal(toastMessage, 'Briefing text copied to clipboard!');
+
+    // Test close button
+    fakeCloseBtn.onClick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    globalThis.window = originalWindow;
+  }
 });

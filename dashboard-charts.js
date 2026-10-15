@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR } from './core.js';
-import { calculateDashboardKpis } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -205,13 +205,14 @@ export function calculatePackageDistribution(state) {
 
 /**
  * Generates an accessible, theme-aware pure SVG bar chart comparing billed revenue to cash collections.
+ * Optionally displays a milestone target revenue marker line.
  */
-export function renderMonthlyTrendSvg(trends) {
+export function renderMonthlyTrendSvg(trends, { targetRevenue = null } = {}) {
   const maxVal = Math.max(...trends.flatMap(t => [t.billed, t.collected]), 0);
   const width = 560;
   const height = 240;
 
-  if (maxVal === 0) {
+  if (maxVal === 0 && (!targetRevenue || targetRevenue <= 0)) {
     return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Monthly Revenue and Collections Trend: No data recorded yet">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 12})" text-anchor="middle">
@@ -227,7 +228,8 @@ export function renderMonthlyTrendSvg(trends) {
   const plotY = 38;
   const plotW = 466;
   const plotH = 152;
-  const yCeil = Math.ceil((maxVal * 1.15) / 1000) * 1000 || 1000;
+  const effectiveMax = Math.max(maxVal, Number(targetRevenue) || 0);
+  const yCeil = Math.ceil((effectiveMax * 1.15) / 1000) * 1000 || 1000;
 
   // Grid lines (4 steps)
   const gridSteps = 4;
@@ -239,6 +241,17 @@ export function renderMonthlyTrendSvg(trends) {
     gridLinesSvg += `
       <line x1="${plotX}" y1="${yPos}" x2="${plotX + plotW}" y2="${yPos}" stroke="var(--line, #e2ece7)" stroke-width="1" stroke-dasharray="${s > 0 ? '4 3' : 'none'}" />
       <text x="${plotX - 8}" y="${yPos + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">${label}</text>
+    `;
+  }
+
+  // Milestone Target line
+  let targetSvg = '';
+  if (targetRevenue && Number(targetRevenue) > 0) {
+    const targetVal = Number(targetRevenue);
+    const targetY = plotY + plotH - (targetVal / yCeil) * plotH;
+    targetSvg = `
+      <line class="chart-target-line" x1="${plotX}" y1="${targetY}" x2="${plotX + plotW}" y2="${targetY}" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5 3" />
+      <text class="chart-target-label" x="${plotX + plotW}" y="${targetY - 5}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="700" fill="#6366f1">Target: ${formatPKR(targetVal)}</text>
     `;
   }
 
@@ -277,12 +290,17 @@ export function renderMonthlyTrendSvg(trends) {
       <text x="14" y="9" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--ink, #182e2a)">Billed Revenue</text>
       <rect x="115" y="0" width="10" height="10" rx="2" fill="#10b981" />
       <text x="129" y="9" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--ink, #182e2a)">Collected Cash</text>
+      ${targetRevenue && Number(targetRevenue) > 0 ? `
+        <line x1="230" y1="5" x2="245" y2="5" stroke="#6366f1" stroke-width="2" stroke-dasharray="3 2" />
+        <text x="250" y="9" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--ink, #182e2a)">Target Milestone</text>
+      ` : ''}
     </g>
   `;
 
   return `<svg class="chart-svg chart-trend-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Monthly Revenue and Collections Trend Bar Chart">
     ${legendSvg}
     ${gridLinesSvg}
+    ${targetSvg}
     ${barsSvg}
   </svg>`;
 }
@@ -472,6 +490,93 @@ export function renderPackageDistributionSvg(packageData) {
   </svg>`;
 }
 
+/**
+ * Generates an accessible, theme-aware pure SVG chart for Customer Account Health & Delinquency Matrix.
+ */
+export function renderCustomerHealthSvg(healthData) {
+  const { totalTracked = 0, goodStanding = {}, watchlist = {}, delinquent = {}, offline = {} } = healthData || {};
+  const width = 460;
+  const height = 210;
+
+  if (totalTracked === 0) {
+    return `<svg class="chart-svg chart-health-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Health Matrix: No customer accounts">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, ${height / 2 - 8})" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-10 -14 L-4 -8 L10 -20" stroke="#0e5b4d" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+        <text y="22" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No customer accounts found</text>
+        <text y="40" class="chart-empty-sub" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Add customers to see health standing distribution</text>
+      </g>
+    </svg>`;
+  }
+
+  const plotX = 30;
+  const plotY = 24;
+  const barW = 400;
+  const barH = 22;
+
+  const categories = [
+    { key: 'goodStanding', label: 'Good Standing', count: goodStanding.count || 0, percent: goodStanding.percent || 0, totalDue: 0, color: '#10b981' },
+    { key: 'watchlist', label: 'Watchlist', count: watchlist.count || 0, percent: watchlist.percent || 0, totalDue: watchlist.totalDue || 0, color: '#f59e0b' },
+    { key: 'delinquent', label: 'Delinquent', count: delinquent.count || 0, percent: delinquent.percent || 0, totalDue: delinquent.totalDue || 0, color: '#ef4444' },
+    { key: 'offline', label: 'Offline', count: offline.count || 0, percent: offline.percent || 0, totalDue: offline.totalDue || 0, color: '#64748b' }
+  ];
+
+  let currentX = plotX;
+  let segmentsSvg = '';
+
+  categories.forEach((cat, idx) => {
+    if (cat.count === 0) return;
+    const isFirst = idx === 0 || currentX === plotX;
+    const isLast = idx === categories.length - 1 || (currentX + (cat.count / totalTracked) * barW >= plotX + barW - 1);
+    const segW = Math.max(6, (cat.count / totalTracked) * barW);
+
+    segmentsSvg += `
+      <rect x="${currentX}" y="${plotY}" width="${segW}" height="${barH}" fill="${cat.color}" rx="${isFirst || isLast ? 4 : 0}">
+        <title>${cat.label}: ${cat.count} customers (${cat.percent}%) · Due: ${formatPKR(cat.totalDue)}</title>
+      </rect>
+    `;
+    currentX += segW;
+  });
+
+  // Metric cards grid below the bar (2 rows of 2 columns)
+  const gridStartX = 30;
+  const colW = 195;
+  const rowH = 56;
+  const row1Y = 64;
+  const row2Y = 126;
+
+  const cardsSvg = categories.map((cat, idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const x = gridStartX + col * (colW + 10);
+    const y = row === 0 ? row1Y : row2Y;
+
+    const subText = cat.key === 'goodStanding'
+      ? 'Zero balance · up to date'
+      : `${formatPKR(cat.totalDue)} total dues`;
+
+    return `
+      <g class="health-card-cell" transform="translate(${x}, ${y})" tabindex="0" role="graphics-symbol" aria-label="${cat.label}: ${cat.count} (${cat.percent}%), ${subText}">
+        <rect width="${colW}" height="${rowH - 6}" rx="6" fill="var(--surface-sunken, #f0f5f2)" stroke="var(--line, #e2ece7)" stroke-width="1" />
+        <circle cx="16" cy="18" r="6" fill="${cat.color}" />
+        <text x="30" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="11.5" font-weight="700" fill="var(--ink, #182e2a)">${cat.label}</text>
+        <text x="${colW - 12}" y="22" text-anchor="end" font-family="Manrope, system-ui, sans-serif" font-size="13" font-weight="800" fill="${cat.color}">${cat.count} <tspan font-size="10" font-weight="600" fill="var(--muted, #71817c)">(${cat.percent}%)</tspan></text>
+        <text x="30" y="38" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${subText}</text>
+      </g>
+    `;
+  }).join('');
+
+  return `<svg class="chart-svg chart-health-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Health and Delinquency Distribution Chart: ${goodStanding.count || 0} in good standing, ${watchlist.count || 0} in watchlist, ${delinquent.count || 0} delinquent, ${offline.count || 0} offline out of ${totalTracked} total subscribers">
+    <g class="health-bar-container">
+      <rect x="${plotX}" y="${plotY}" width="${barW}" height="${barH}" rx="4" fill="var(--line, #e2ece7)" />
+      ${segmentsSvg}
+    </g>
+    ${cardsSvg}
+    <text x="${width / 2}" y="${height - 6}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">Total ${totalTracked} tracked unarchived customer accounts</text>
+  </svg>`;
+}
+
 export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
   if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
   const group = document.getElementById('dashboardTrendRangeGroup');
@@ -499,7 +604,9 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   const trendEl = document.getElementById('dashboardTrendChart');
   if (trendEl) {
     const trends = calculateMonthlyTrends(state, referenceDate, trendMonths);
-    trendEl.innerHTML = renderMonthlyTrendSvg(trends);
+    const kpis = calculateDashboardKpis(state, referenceDate);
+    const targetRevenue = options.targetRevenue ?? (kpis.currentMonthBilled > 0 ? kpis.currentMonthBilled : null);
+    trendEl.innerHTML = renderMonthlyTrendSvg(trends, { targetRevenue });
   }
 
   // update range buttons active state
@@ -534,6 +641,12 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   if (pkgEl) {
     const pkgData = calculatePackageDistribution(state);
     pkgEl.innerHTML = renderPackageDistributionSvg(pkgData);
+  }
+
+  const healthEl = document.getElementById('dashboardHealthChart');
+  if (healthEl) {
+    const healthData = calculateCustomerHealthBreakdown(state, referenceDate);
+    healthEl.innerHTML = renderCustomerHealthSvg(healthData);
   }
 
   setupDashboardChartsEvents(state, referenceDate);

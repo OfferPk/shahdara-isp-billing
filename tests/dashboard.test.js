@@ -34,6 +34,12 @@ import {
   generateIncidentBriefingReport,
   setupIncidentImpactModal,
   renderIncidentImpactSvg,
+  calculateCashflowProjections,
+  generateProjectionBriefingText,
+  setupProjectionScenarioModal,
+  renderCashflowProjectionSvg,
+  setProjectionScenario,
+  getProjectionScenario,
   setLtvMetric,
   getLtvMetric,
   setSeasonalMetric,
@@ -2356,6 +2362,255 @@ test('setupIncidentImpactModal wires dialog controls, tables, roster filter, and
     await copyHandler();
     assert.ok(copiedText.includes('SHAHDARA ISP - NETWORK INCIDENT & OUTAGE MATRIX'));
     assert.equal(toastMessage, 'Incident operations report copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateCashflowProjections computes baseline, optimistic, and conservative forward curves', () => {
+  let state = createInitialState(['User A', 'User B', 'User C', 'User D']);
+  for (let i = 0; i < 4; i++) {
+    state.customers[i].serviceStatus = 'active';
+    state.customers[i].monthlySellingAmount = 2000;
+  }
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Baseline
+  const baseline = calculateCashflowProjections(state, refDate, { scenario: 'baseline' });
+  assert.equal(baseline.scenario, 'baseline');
+  assert.equal(baseline.baseSubscribers, 4);
+  assert.equal(baseline.arpu, 2000);
+  assert.equal(baseline.monthlyForecasts.length, 6);
+  assert.ok(baseline.totalProjectedCashflow > 0);
+  assert.ok(baseline.totalProjectedBilled > 0);
+  assert.ok(baseline.monthlyForecasts[0].month.includes('2026-11'));
+  assert.ok(baseline.monthlyForecasts[5].month.includes('2027-04'));
+
+  // Optimistic
+  const optimistic = calculateCashflowProjections(state, refDate, { scenario: 'optimistic' });
+  assert.equal(optimistic.scenario, 'optimistic');
+  assert.equal(optimistic.monthlyChurnRate, 1.0);
+  assert.equal(optimistic.monthlyNetAdds, 5);
+  assert.equal(optimistic.trajectoryStatus, 'Expansion');
+  assert.ok(optimistic.endingSubscribers > baseline.endingSubscribers);
+  assert.ok(optimistic.totalProjectedCashflow > baseline.totalProjectedCashflow);
+
+  // Conservative
+  const conservative = calculateCashflowProjections(state, refDate, { scenario: 'conservative' });
+  assert.equal(conservative.scenario, 'conservative');
+  assert.equal(conservative.monthlyChurnRate, 6.0);
+  assert.equal(conservative.monthlyNetAdds, 0);
+  assert.equal(conservative.trajectoryStatus, 'Contraction Risk');
+  assert.ok(conservative.endingSubscribers < baseline.endingSubscribers);
+  assert.ok(conservative.totalProjectedCashflow < baseline.totalProjectedCashflow);
+});
+
+test('calculateCashflowProjections respects custom parameter overrides and handles empty state', () => {
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const emptyState = createInitialState([]);
+  const emptyRes = calculateCashflowProjections(emptyState, refDate);
+  assert.equal(emptyRes.baseSubscribers, 0);
+  assert.equal(emptyRes.totalProjectedBilled, 0);
+  assert.equal(emptyRes.totalProjectedCashflow, 0);
+
+  let state = createInitialState(['Sub 1', 'Sub 2']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].monthlySellingAmount = 1800;
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].monthlySellingAmount = 1800;
+
+  const customRes = calculateCashflowProjections(state, refDate, {
+    horizonMonths: 4,
+    customRecoveryRate: 95,
+    customMonthlyChurnRate: 0,
+    customMonthlyNetAdds: 3
+  });
+
+  assert.equal(customRes.horizonMonths, 4);
+  assert.equal(customRes.recoveryRate, 95);
+  assert.equal(customRes.monthlyChurnRate, 0);
+  assert.equal(customRes.monthlyNetAdds, 3);
+  assert.equal(customRes.monthlyForecasts.length, 4);
+  assert.equal(customRes.endingSubscribers, 2 + (3 * 4)); // 14
+  assert.equal(customRes.trajectoryStatus, 'Expansion');
+});
+
+test('generateProjectionBriefingText formats executive forward cashflow report accurately', () => {
+  let state = createInitialState(['Sub A', 'Sub B']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].monthlySellingAmount = 1500;
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].monthlySellingAmount = 1500;
+
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const data = calculateCashflowProjections(state, refDate, { scenario: 'baseline' });
+  const text = generateProjectionBriefingText(data, refDate);
+
+  assert.ok(text.includes('SHAHDARA ISP - FORWARD CASHFLOW & CHURN FORECAST'));
+  assert.ok(text.includes('SCENARIO CONFIGURATION: BASELINE'));
+  assert.ok(text.includes('Cumulative Projected Cash:'));
+  assert.ok(text.includes('MONTH-BY-MONTH FORWARD TRAJECTORY'));
+  assert.ok(text.includes('2026-11'));
+});
+
+test('renderCashflowProjectionSvg renders clean SVG and handles empty state', () => {
+  const emptySvg = renderCashflowProjectionSvg(null);
+  assert.ok(emptySvg.includes('No active subscriber recurring revenue'));
+
+  let state = createInitialState(['Sub Alpha']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].monthlySellingAmount = 2500;
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const data = calculateCashflowProjections(state, refDate, { scenario: 'baseline' });
+
+  const svg = renderCashflowProjectionSvg(data);
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('Forward Cashflow Projections &amp; Scenario Modeler Chart'));
+  assert.ok(svg.includes('Projected Cash'));
+  assert.ok(svg.includes('Gross Billed'));
+  assert.ok(svg.includes('polyline'));
+  assert.ok(svg.includes('6-Mo Cash:'));
+});
+
+test('setProjectionScenario and getProjectionScenario validate and persist scenario state', () => {
+  setProjectionScenario('optimistic');
+  assert.equal(getProjectionScenario(), 'optimistic');
+
+  setProjectionScenario('conservative');
+  assert.equal(getProjectionScenario(), 'conservative');
+
+  setProjectionScenario('invalid-mode');
+  assert.equal(getProjectionScenario(), 'conservative');
+
+  setProjectionScenario('baseline');
+  assert.equal(getProjectionScenario(), 'baseline');
+});
+
+test('setupProjectionScenarioModal wires up dialog, presets, custom inputs, and clipboard export', async () => {
+  let state = createInitialState(['Sub Alpha', 'Sub Beta']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].monthlySellingAmount = 2000;
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].monthlySellingAmount = 2000;
+
+  let openHandler = null;
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+  let closeHandler = null;
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+  let copyHandler = null;
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+
+  const presetHandlers = {};
+  const mockPresetBtns = ['baseline', 'optimistic', 'conservative'].map(s => ({
+    dataset: {},
+    getAttribute: (attr) => attr === 'data-projection-preset' ? s : null,
+    classList: { toggle: () => {} },
+    setAttribute: () => {},
+    addEventListener: (evt, fn) => { if (evt === 'click') presetHandlers[s] = fn; }
+  }));
+
+  const inputHandlers = {};
+  const mockRecoveryInput = {
+    dataset: {},
+    value: '85',
+    addEventListener: (evt, fn) => { if (evt === 'input') inputHandlers.recovery = fn; }
+  };
+  const mockChurnInput = {
+    dataset: {},
+    value: '2.5',
+    addEventListener: (evt, fn) => { if (evt === 'input') inputHandlers.churn = fn; }
+  };
+  const mockNetAddsInput = {
+    dataset: {},
+    value: '2',
+    addEventListener: (evt, fn) => { if (evt === 'input') inputHandlers.netAdds = fn; }
+  };
+
+  const mockTotalCashflowVal = { textContent: '' };
+  const mockMonthlyRunRateVal = { textContent: '' };
+  const mockChurnDragVal = { textContent: '' };
+  const mockEndingBaseVal = { textContent: '' };
+  const mockTrajectoryBadge = { textContent: '', className: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  let modalOpened = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {},
+    querySelectorAll: (sel) => sel === '[data-projection-preset]' ? mockPresetBtns : []
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardProjectionModal') return mockModal;
+      if (id === 'dashboardOpenProjectionModalBtn') return mockOpenBtn;
+      if (id === 'dashboardProjectionModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyProjectionReportBtn') return mockCopyBtn;
+      if (id === 'projectionRecoveryInput') return mockRecoveryInput;
+      if (id === 'projectionChurnInput') return mockChurnInput;
+      if (id === 'projectionNetAddsInput') return mockNetAddsInput;
+      if (id === 'projectionTotalCashflowVal') return mockTotalCashflowVal;
+      if (id === 'projectionMonthlyRunRateVal') return mockMonthlyRunRateVal;
+      if (id === 'projectionChurnDragVal') return mockChurnDragVal;
+      if (id === 'projectionEndingBaseVal') return mockEndingBaseVal;
+      if (id === 'projectionTrajectoryBadge') return mockTrajectoryBadge;
+      if (id === 'dashboardProjectionTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  try {
+    setupProjectionScenarioModal(state, {
+      referenceDate: new Date('2026-10-15T12:00:00+05:00'),
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockTotalCashflowVal.textContent.includes('PKR'));
+    assert.ok(mockTableBody.innerHTML.includes('2026-11'));
+
+    // Trigger optimistic preset
+    assert.ok(presetHandlers.optimistic !== undefined);
+    presetHandlers.optimistic();
+    assert.equal(mockRecoveryInput.value, 93);
+    assert.equal(mockChurnInput.value, 1.0);
+    assert.equal(mockNetAddsInput.value, 5);
+    assert.equal(mockTrajectoryBadge.textContent, 'Expansion');
+
+    // Trigger custom net adds input
+    mockNetAddsInput.value = '10';
+    assert.ok(inputHandlers.netAdds !== undefined);
+    inputHandlers.netAdds();
+    assert.ok(mockEndingBaseVal.textContent.includes('+'));
+
+    // Test copy briefing
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - FORWARD CASHFLOW & CHURN FORECAST'));
+    assert.equal(toastMessage, 'Cashflow forecast report copied to clipboard!');
 
     closeHandler();
     assert.equal(modalOpened, false);

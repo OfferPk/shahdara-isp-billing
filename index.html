@@ -12,10 +12,57 @@
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css?v=1.10.0">
   <link rel="stylesheet" href="./dashboard.css?v=1.10.0">
+  <link rel="stylesheet" href="./nav.css?v=1.10.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
+  <div id="navDrawerBackdrop" class="nav-drawer-backdrop" aria-hidden="true"></div>
+  <aside id="navDrawer" class="nav-drawer" role="dialog" aria-modal="true" aria-label="Main Navigation Menu" aria-hidden="true">
+    <div class="nav-drawer-header">
+      <div class="nav-drawer-brand">
+        <div class="brand-mark" aria-hidden="true">S</div>
+        <div>
+          <h2 class="nav-drawer-title">Shahdara ISP</h2>
+          <p class="nav-drawer-subtitle">Offline billing ledger</p>
+        </div>
+      </div>
+      <button id="navDrawerClose" class="nav-drawer-close" type="button" aria-label="Close navigation menu">✕</button>
+    </div>
+    <nav class="nav-drawer-body" aria-label="Drawer navigation">
+      <div>
+        <p class="nav-drawer-group-title">Ledger &amp; Collections</p>
+        <ul class="nav-drawer-list">
+          <li class="nav-drawer-item"><button type="button" data-nav-target="customers" aria-current="page"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Customers</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="transactions"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span><span>Transactions</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="reports"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span>Monthly Report</span></button></li>
+        </ul>
+      </div>
+      <div>
+        <p class="nav-drawer-group-title">Operations</p>
+        <ul class="nav-drawer-list">
+          <li class="nav-drawer-item"><button type="button" data-nav-target="analytics"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>Area Analytics</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="inventory"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span><span>Inventory</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="expenses"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span>Expenses</span></button></li>
+        </ul>
+      </div>
+      <div>
+        <p class="nav-drawer-group-title">Assistant &amp; Tools</p>
+        <ul class="nav-drawer-list">
+          <li class="nav-drawer-item"><button type="button" data-nav-target="assistant"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Owner Assistant</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="alerts"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Smart Alerts</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="recovery"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg></span><span>Dues Recovery</span></button></li>
+        </ul>
+      </div>
+    </nav>
+    <div class="nav-drawer-footer">
+      <span class="nav-drawer-status"><span class="nav-drawer-status-dot" aria-hidden="true"></span>Local Ledger</span>
+      <button id="navDrawerBackupButton" class="secondary-button" type="button" style="min-height:36px;padding:0 10px;font-size:11px">Backup</button>
+    </div>
+  </aside>
   <header class="topbar">
+    <button id="navDrawerToggle" class="nav-drawer-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navDrawer">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
     <div class="brand-mark" aria-hidden="true">S</div>
     <div class="brand-copy"><h1>Shahdara ISP Billing</h1><p>Customer ledger</p></div>
     <div class="topbar-actions">

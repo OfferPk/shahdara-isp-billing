@@ -20,6 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, setupDashboardQuickActions, renderDashboardCharts } from './dashboard.js?v=1.10.0';
+import { setupNavigationDrawer } from './nav.js?v=1.10.0';
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -47,6 +48,7 @@ state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
 if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
 if (storageAvailable) { try { persistState(state, localStorage); } catch { storageAvailable = false; } }
 let selectedCustomerId = null;
+let navDrawer = null;
 let profileEditMode = false;
 let selectedProfileTab = 'billing';
 let selectedReportFilter = 'all';
@@ -374,6 +376,7 @@ function switchView(view, { pushHistory = true } = {}) {
   }
   const mobileView = view === 'transactions' ? 'collection' : view === 'reports' ? 'reports' : view === 'customers' ? 'customers' : 'more';
   document.querySelectorAll('[data-mobile-nav]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileNav === mobileView ? 'page' : 'false'));
+  navDrawer?.updateActive(view);
   if (view !== 'customers') appShell.classList.remove('show-detail');
   if (pushHistory && typeof window !== 'undefined' && window.location) {
     const targetHash = '#' + view;
@@ -1264,6 +1267,38 @@ function initTheme() {
   applyTheme(getTheme());
 }
 initTheme();
+
+navDrawer = setupNavigationDrawer({
+  onNavigate: target => {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+      switchView(target);
+      if (target === 'transactions') renderTransactions();
+      else if (target === 'reports') renderMonthlyReport();
+      else if (target === 'analytics') renderAnalytics();
+      else if (target === 'inventory') renderInventory();
+      else if (target === 'expenses') renderExpenses();
+      else if (target === 'customers') renderCustomers();
+    } else if (target === 'assistant') {
+      const input = $('#ownerCommandInput');
+      if (input) {
+        input.focus();
+        input.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else if (target === 'alerts') {
+      const alertBtn = $('[data-mobile-more="alerts"]');
+      if (alertBtn) alertBtn.click();
+    } else if (target === 'recovery') {
+      const recBtn = $('[data-mobile-more="recovery"]');
+      if (recBtn) recBtn.click();
+    }
+  },
+  onBackup: () => {
+    const toggle = $('#backupControlsToggle');
+    if (toggle) toggle.click();
+    const panel = $('#backupControls');
+    if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
+  }
+});
 
 document.addEventListener('click', event => {
   const menu = $('#mobileMoreMenu');

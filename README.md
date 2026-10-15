@@ -1,8 +1,18 @@
 # Shahdara ISP Billing
 
-**Business Health Score, duplicate-customer safeguards, automatic local backups & mobile analytics · web build 1.9.0**
+**Modern UI Redesign, Dark/Light Theme System, Interactive Dashboard Cards, Business Health Score & Mobile Analytics · web build 1.10.0**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). This release does not publish a native APK: Android web assets sync, but native compilation cannot run on this computer without an Android SDK.
+
+## Web release 1.10.0 — Modern UI Redesign & Rich Theming System
+
+- **Dark / Light Theme Toggle**: Seamless one-click theme switcher in the sticky header with sun/moon SVG icons. Persists preference locally in browser (`shahdara_theme`) and automatically respects OS `prefers-color-scheme` by default. Fully adapts all cards, tables, charts, dialogs, badges, inputs and scrollbars with no flashing.
+- **Rich Interactive Dashboard Cards**: Redesigned KPI cards with hover micro-elevation, category accent lines, and tabular numbers for current due, total due, today's collection, expenses, net cash profit, customer profiles, total collections, and prepaid credit.
+- **Modern Responsive Shell**: Polished sticky header with glassmorphism backdrop blur, segmented navigation tabs for widescreen/tablet, and an ergonomic mobile bottom navigation bar with quick access to Home, Customers, Collection, Reports, and More.
+- **Enhanced Accessibility & Shortcuts**: Press `/` or `Ctrl+K` (`Cmd+K`) from anywhere to immediately focus global customer & ledger search. Click outside the mobile more menu to close it smoothly. All touch targets on mobile meet or exceed 44px.
+- **Automated CI/CD**: Added `.github/workflows/ci.yml` (automated tests and build verification on push and PRs) and `.github/workflows/pages.yml` (automatic static site publishing to `gh-pages` branch on push to `main`).
+- **Data Integrity Guarantee**: Zero changes to saved data schema or keys; the 74 starter customer names, local backup/restore, WhatsApp receipts, payroll rules, inventory and expense ledgers remain 100% operational. Offline service worker cache bumped to `v36`.
+
 
 ## Privacy, starter data and backups
 

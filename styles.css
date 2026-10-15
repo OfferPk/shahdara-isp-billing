@@ -2350,3 +2350,425 @@ html, body {
     background: #fff !important;
   }
 }
+
+/* ==========================================================================
+   CUSTOMER ACCOUNT STATEMENT & THERMAL SLIP STYLES (agent3 - shahdara-forms-qa)
+   ========================================================================== */
+
+.statement-modal {
+  max-width: 900px;
+  width: 95vw;
+  max-height: 92vh;
+  padding: 0;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  color: var(--text, #172420);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.statement-modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.statement-modal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--surface-alt, #f7fbf9);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+}
+
+.statement-modal-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text, #172420);
+}
+
+.statement-modal-controls select {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid var(--line, #d0e0d8);
+  border-radius: 6px;
+  background: var(--surface, #ffffff);
+  color: var(--text, #172420);
+}
+
+.statement-modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.statement-preview-container {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+  padding: 24px;
+  background: #ffffff;
+}
+
+.customer-account-statement {
+  max-width: 820px;
+  margin: 0 auto;
+  color: #172420;
+  font-family: inherit;
+}
+
+.statement-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 2px solid var(--primary, #0e5b4d);
+  margin-bottom: 16px;
+}
+
+.statement-brand-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--primary, #0e5b4d);
+}
+
+.statement-brand-sub {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.statement-doc-type {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e2ece7;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.statement-meta-badge {
+  text-align: right;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.statement-info-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.info-label {
+  color: #64748b;
+  font-weight: 500;
+  display: inline-block;
+  min-width: 130px;
+}
+
+.statement-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.statement-summary-card {
+  padding: 12px 16px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  border-left: 4px solid #64748b;
+  display: flex;
+  flex-direction: column;
+}
+
+.statement-summary-card.summary-card-balance {
+  border-left-color: #0e5b4d;
+}
+
+.statement-summary-card.balance-overdue {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.statement-summary-card.balance-cleared {
+  border-left-color: #10b981;
+  background: #ecfdf5;
+}
+
+.summary-card-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.summary-card-val {
+  font-size: 18px;
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.statement-table-wrap {
+  overflow-x: auto;
+  margin-bottom: 24px;
+}
+
+.statement-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.statement-table th {
+  background: #f1f5f9;
+  color: #334155;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 700;
+  border-bottom: 2px solid #cbd5e1;
+}
+
+.statement-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #1e293b;
+}
+
+.statement-table .num-col,
+.statement-table .col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.statement-table .charge-num {
+  color: #b91c1c;
+}
+
+.statement-table .credit-num {
+  color: #047857;
+  font-weight: 600;
+}
+
+.statement-table .balance-num.is-due {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.statement-table .balance-num.is-settled {
+  color: #047857;
+  font-weight: 700;
+}
+
+.opening-balance-row td {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+}
+
+.statement-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.statement-sign-block {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 40px;
+  padding: 0 20px;
+}
+
+.statement-sig-item {
+  text-align: center;
+  width: 200px;
+}
+
+.statement-sig-item .sig-line {
+  border-top: 1px solid #94a3b8;
+  margin-bottom: 6px;
+}
+
+/* Thermal POS 80mm Print Mode */
+.thermal-receipt-button {
+  font-size: 11px;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.thermal-receipt-button:hover {
+  background: #e2e8f0;
+}
+
+/* Dark Theme Overrides for Statement Modal */
+[data-theme="dark"] .statement-modal {
+  background: #101c18;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-modal-controls {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .statement-modal-controls label,
+[data-theme="dark"] .statement-modal-controls select {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-modal-controls select {
+  background: #192e27;
+  border-color: #355348;
+}
+
+[data-theme="dark"] .statement-preview-container {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .customer-account-statement {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-info-box {
+  background: #192e27;
+  border-color: #2a473d;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .info-label {
+  color: #9cb1a7;
+}
+
+[data-theme="dark"] .statement-summary-card {
+  background: #182c25;
+}
+
+[data-theme="dark"] .statement-table th {
+  background: #192e27;
+  border-color: #2a473d;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-table td {
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .opening-balance-row td {
+  background: #192e27;
+  color: #a8beaf;
+}
+
+[data-theme="dark"] .statement-footer {
+  border-color: #253d35;
+  color: #9cb1a7;
+}
+
+/* Print Rules for Statement & Thermal Receipt */
+@media print {
+  body.printing-statement * {
+    visibility: hidden !important;
+  }
+  body.printing-statement #accountStatementModal,
+  body.printing-statement #accountStatementModal * {
+    visibility: visible !important;
+  }
+  body.printing-statement #accountStatementModal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  body.printing-statement .statement-modal-controls,
+  body.printing-statement .modal-heading button {
+    display: none !important;
+  }
+  body.printing-statement .statement-preview-container {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  body.printing-thermal #receiptPrintArea {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    background: #fff !important;
+  }
+  body.printing-thermal .receipt-sheet.thermal-receipt {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    color: #000 !important;
+  }
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-head {
+    text-align: center !important;
+    border-bottom: 1px dashed #000 !important;
+    padding-bottom: 4px !important;
+    margin-bottom: 6px !important;
+  }
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-fields {
+    border-bottom: 1px dashed #000 !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 6px !important;
+  }
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-field {
+    display: flex !important;
+    justify-content: space-between !important;
+    font-size: 11px !important;
+  }
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-reminder,
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-terms {
+    font-size: 9px !important;
+    text-align: center !important;
+    border-top: 1px dashed #000 !important;
+    padding-top: 4px !important;
+    margin-top: 4px !important;
+  }
+}
+

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
-  saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml
+  saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv
 } from '../form-validation.js';
 
 
@@ -305,3 +306,255 @@ test('app.js wires Phase 12 draft autosave, CSV exports, and batch receipt sheet
   assert.match(app, /#batchReceiptPrintBtn/);
   assert.match(app, /renderBatchReceipts/);
 });
+
+test('maskPakistanPhone formats local 03xx numbers and preserves international format', () => {
+  assert.equal(maskPakistanPhone('03001234567'), '0300-1234567');
+  assert.equal(maskPakistanPhone('03219876543'), '0321-9876543');
+  assert.equal(maskPakistanPhone('0300-1234567'), '0300-1234567');
+  assert.equal(maskPakistanPhone('+92 300 1234567'), '+92 300 1234567');
+  assert.equal(maskPakistanPhone('923001234567'), '+92 300 1234567');
+  assert.equal(maskPakistanPhone('0300'), '0300');
+  assert.equal(maskPakistanPhone('03'), '03');
+  assert.equal(maskPakistanPhone(''), '');
+  assert.equal(maskPakistanPhone(null), '');
+});
+
+test('wirePhoneInputMask attaches input listener and applies mask', () => {
+  const listeners = new Map();
+  const fakeInput = {
+    value: '03001234567',
+    dataset: {},
+    addEventListener(ev, fn) { listeners.set(ev, fn); }
+  };
+
+  wirePhoneInputMask(fakeInput);
+  assert.equal(fakeInput.dataset.masked, 'true');
+
+  const onInput = listeners.get('input');
+  assert.ok(typeof onInput === 'function');
+  fakeInput.value = '03217654321';
+  onInput();
+  assert.equal(fakeInput.value, '0321-7654321');
+
+  // Second call does not double-wire
+  let callCount = 0;
+  fakeInput.addEventListener = () => { callCount++; };
+  wirePhoneInputMask(fakeInput);
+  assert.equal(callCount, 0);
+});
+
+test('formatCustomerStatement calculates chronological ledger and running balance', () => {
+  const sampleCustomer = {
+    id: 'cust-001',
+    customerNumber: 42,
+    name: 'Muhammad Aslam',
+    phone: '0300-1234567',
+    area: 'Farooq Ganj',
+    packageSpeed: '15 Mbps',
+    serviceStatus: 'active',
+    bills: [
+      {
+        id: 'bill-2026-01',
+        month: '2026-01',
+        dueAmount: 2000,
+        dueDate: '2026-01-05',
+        payments: [
+          { id: 'p1', date: '2026-01-08', amount: 2000, method: 'Cash' }
+        ]
+      },
+      {
+        id: 'bill-2026-02',
+        month: '2026-02',
+        dueAmount: 2200,
+        dueDate: '2026-02-05',
+        payments: [
+          { id: 'p2', date: '2026-02-10', amount: 1500, method: 'EasyPaisa', reference: 'EP-9988' }
+        ]
+      },
+      {
+        id: 'bill-2026-03',
+        month: '2026-03',
+        dueAmount: 2200,
+        dueDate: '2026-03-05',
+        payments: []
+      }
+    ]
+  };
+
+  const fullStatement = formatCustomerStatement(sampleCustomer, { range: 'all' });
+  assert.equal(fullStatement.customer.name, 'Muhammad Aslam');
+  assert.equal(fullStatement.customer.customerNumber, 42);
+  assert.equal(fullStatement.openingBalance, 0);
+  assert.equal(fullStatement.totalBilled, 6400); // 2000 + 2200 + 2200
+  assert.equal(fullStatement.totalPaid, 3500); // 2000 + 1500
+  assert.equal(fullStatement.currentBalance, 2900); // 6400 - 3500
+  assert.equal(fullStatement.events.length, 5); // 3 bills + 2 payments
+
+  // Check sequence of events and running balances
+  assert.equal(fullStatement.events[0].type, 'bill');
+  assert.equal(fullStatement.events[0].charge, 2000);
+  assert.equal(fullStatement.events[0].runningBalance, 2000);
+
+  assert.equal(fullStatement.events[1].type, 'payment');
+  assert.equal(fullStatement.events[1].credit, 2000);
+  assert.equal(fullStatement.events[1].runningBalance, 0);
+
+  assert.equal(fullStatement.events[2].type, 'bill');
+  assert.equal(fullStatement.events[2].charge, 2200);
+  assert.equal(fullStatement.events[2].runningBalance, 2200);
+
+  assert.equal(fullStatement.events[3].type, 'payment');
+  assert.equal(fullStatement.events[3].credit, 1500);
+  assert.equal(fullStatement.events[3].runningBalance, 700);
+
+  assert.equal(fullStatement.events[4].type, 'bill');
+  assert.equal(fullStatement.events[4].charge, 2200);
+  assert.equal(fullStatement.events[4].runningBalance, 2900);
+});
+
+test('formatCustomerStatement handles range filtering and calculates correct opening balance', () => {
+  const customer = {
+    id: 'c10',
+    customerNumber: 10,
+    name: 'Tariq',
+    bills: [
+      { id: 'b1', month: '2025-10', dueAmount: 1000, dueDate: '2025-10-05', payments: [{ id: 'p1', date: '2025-10-06', amount: 500, method: 'Cash' }] }, // net +500
+      { id: 'b2', month: '2025-11', dueAmount: 1000, dueDate: '2025-11-05', payments: [{ id: 'p2', date: '2025-11-06', amount: 1000, method: 'Cash' }] }, // net 0
+      { id: 'b3', month: '2026-03', dueAmount: 1200, dueDate: '2026-03-05', payments: [] } // net +1200
+    ]
+  };
+
+  const refDate = new Date('2026-03-15T00:00:00Z');
+  const statement3m = formatCustomerStatement(customer, { range: '3m', referenceDate: refDate });
+  assert.equal(statement3m.openingBalance, 500); // 2025 bills net to +500
+  assert.equal(statement3m.totalBilled, 1200);
+  assert.equal(statement3m.currentBalance, 1700);
+
+  // Null customer handling
+  const emptyRes = formatCustomerStatement(null);
+  assert.equal(emptyRes.customer, null);
+  assert.equal(emptyRes.currentBalance, 0);
+});
+
+test('generateCustomerStatementHtml produces complete printable statement markup', () => {
+  const statementData = {
+    customer: { id: 'c1', customerNumber: 99, name: 'Shahid Khan', phone: '0300-1112233', area: 'Kot Mohalla', package: '20 Mbps', serviceStatus: 'active' },
+    range: 'all',
+    openingBalance: 0,
+    totalBilled: 5000,
+    totalPaid: 4000,
+    currentBalance: 1000,
+    events: [
+      { date: '2026-02-05', type: 'bill', description: 'Monthly Bill (2026-02)', month: '2026-02', charge: 5000, credit: 0, runningBalance: 5000 },
+      { date: '2026-02-08', type: 'payment', description: 'Payment Received · Cash', month: '2026-02', charge: 0, credit: 4000, runningBalance: 1000 }
+    ]
+  };
+
+  const html = generateCustomerStatementHtml(statementData);
+  assert.match(html, /SHAHDARA FIBER NET/);
+  assert.match(html, /CUSTOMER ACCOUNT STATEMENT/);
+  assert.match(html, /#99/);
+  assert.match(html, /Shahid Khan/);
+  assert.match(html, /Kot Mohalla/);
+  assert.match(html, /Total Billed Charges/);
+  assert.match(html, /PKR 5,000/);
+  assert.match(html, /Total Payments Received/);
+  assert.match(html, /PKR 4,000/);
+  assert.match(html, /Ending Net Balance/);
+  assert.match(html, /PKR 1,000/);
+  assert.match(html, /ISP Authorized Representative/);
+  assert.match(html, /Customer Signature/);
+
+  // Empty statement
+  assert.match(generateCustomerStatementHtml(null), /statement-empty/);
+});
+
+test('downloadCustomerStatementCsv generates RFC 4180 CSV with UTF-8 BOM and triggers download', () => {
+  const statementData = {
+    customer: { id: 'c1', customerNumber: 7, name: 'Bilal Ahmad' },
+    range: 'all',
+    events: [
+      { date: '2026-01-05', type: 'bill', month: '2026-01', description: 'Monthly Bill', method: 'Billed', charge: 2500, credit: 0, runningBalance: 2500 },
+      { date: '2026-01-10', type: 'payment', month: '2026-01', description: 'Payment Received', method: 'Cash', charge: 0, credit: 2500, runningBalance: 0 }
+    ]
+  };
+
+  let downloadedFilename = '';
+  let downloadedContent = '';
+
+  const fakeLink = {
+    setAttribute(k, v) {
+      if (k === 'download') downloadedFilename = v;
+      if (k === 'href') downloadedContent = v;
+    },
+    style: {},
+    click() {}
+  };
+
+  const origBlob = globalThis.Blob;
+  const origURL = globalThis.URL;
+
+  try {
+    globalThis.Blob = class {
+      constructor(chunks) { this.content = chunks.join(''); }
+    };
+    globalThis.URL = {
+      createObjectURL: (blob) => `blob:${blob.content}`,
+      revokeObjectURL: () => {}
+    };
+
+    const fakeDoc = {
+      createElement: () => fakeLink,
+      body: { appendChild: () => {}, removeChild: () => {} }
+    };
+
+    const res = downloadCustomerStatementCsv(statementData, fakeDoc);
+    assert.equal(res, true);
+    assert.match(downloadedFilename, /^statement_Bilal_Ahmad_all_\d{4}-\d{2}-\d{2}\.csv$/);
+    assert.match(downloadedContent, /Date,Type,Month,Description/);
+    assert.match(downloadedContent, /2500/);
+
+    // False when no statement
+    assert.equal(downloadCustomerStatementCsv(null, fakeDoc), false);
+  } finally {
+    globalThis.Blob = origBlob;
+    globalThis.URL = origURL;
+  }
+});
+
+test('index.html and styles.css provide accessible customer account statement and thermal receipt support', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+
+  assert.match(indexHtml, /id="openAccountStatementBtn"/);
+  assert.match(indexHtml, /id="accountStatementModal"/);
+  assert.match(indexHtml, /id="statementRangeSelect"/);
+  assert.match(indexHtml, /id="printStatementBtn"/);
+  assert.match(indexHtml, /id="downloadStatementCsvBtn"/);
+  assert.match(indexHtml, /id="statementPreviewContainer"/);
+
+  assert.match(stylesCss, /\.statement-modal/);
+  assert.match(stylesCss, /\.customer-account-statement/);
+  assert.match(stylesCss, /\.thermal-receipt-button/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.statement-modal/);
+  assert.match(stylesCss, /body\.printing-statement/);
+  assert.match(stylesCss, /body\.printing-thermal/);
+  assert.match(stylesCss, /\.thermal-receipt/);
+});
+
+test('app.js integrates customer statement modal, thermal receipt printing, and phone input masking', () => {
+  const appJs = read('app.js');
+  assert.match(appJs, /formatCustomerStatement/);
+  assert.match(appJs, /generateCustomerStatementHtml/);
+  assert.match(appJs, /downloadCustomerStatementCsv/);
+  assert.match(appJs, /renderAccountStatement/);
+  assert.match(appJs, /#openAccountStatementBtn/);
+  assert.match(appJs, /#accountStatementModal/);
+  assert.match(appJs, /#statementRangeSelect/);
+  assert.match(appJs, /#printStatementBtn/);
+  assert.match(appJs, /#downloadStatementCsvBtn/);
+  assert.match(appJs, /isThermal/);
+  assert.match(appJs, /data-print-thermal-receipt/);
+  assert.match(appJs, /wirePhoneInputMask/);
+});
+

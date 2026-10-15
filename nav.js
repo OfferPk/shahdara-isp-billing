@@ -1882,4 +1882,343 @@ export function setupOfflineQueueModal({
   };
 }
 
+/**
+ * Interactive Mobile Breadcrumbs Trail Navigation Bar (agent2 - shahdara-mobile-nav)
+ * Provides progressive drilldown hierarchy and history navigation with accessible keyboard support.
+ */
+export function setupMobileBreadcrumbs({
+  containerId = 'mobileBreadcrumbBar',
+  listId = 'breadcrumbList',
+  backBtnId = 'breadcrumbBackBtn',
+  initialCrumbs = [{ id: 'home', label: 'Home' }],
+  hideOnSingle = true,
+  maxItems = 5,
+  onNavigate = null
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      pushCrumb: () => {},
+      pushBreadcrumb: () => {},
+      popCrumb: () => null,
+      popBreadcrumb: () => null,
+      resetBreadcrumbs: () => {},
+      setBreadcrumbs: () => {},
+      setBreadcrumbTrail: () => {},
+      getBreadcrumbTrail: () => [],
+      render: () => {},
+      destroy: () => {}
+    };
+  }
+
+  const container = document.getElementById(containerId);
+  const list = document.getElementById(listId);
+  const backBtn = document.getElementById(backBtnId);
+
+  let trail = Array.isArray(initialCrumbs) && initialCrumbs.length > 0
+    ? initialCrumbs.map(c => ({ ...c }))
+    : [{ id: 'home', label: 'Home' }];
+
+  function render() {
+    if (container) {
+      if (hideOnSingle && trail.length <= 1) {
+        container.hidden = true;
+      } else {
+        container.hidden = false;
+      }
+    }
+
+    if (backBtn) {
+      backBtn.hidden = trail.length <= 1;
+      const prevCrumb = trail.length > 1 ? trail[trail.length - 2] : null;
+      if (prevCrumb) {
+        backBtn.setAttribute('aria-label', `Back to ${prevCrumb.label || prevCrumb.id}`);
+        backBtn.title = `Back to ${prevCrumb.label || prevCrumb.id}`;
+      } else {
+        backBtn.setAttribute('aria-label', 'Go back');
+        if (backBtn.removeAttribute) backBtn.removeAttribute('title');
+      }
+    }
+
+    if (!list) return;
+    list.innerHTML = '';
+
+    trail.forEach((crumb, idx) => {
+      const isLast = idx === trail.length - 1;
+      const li = document.createElement('li');
+      li.className = 'breadcrumb-item' + (isLast ? ' breadcrumb-current' : '');
+
+      if (isLast) {
+        li.setAttribute('aria-current', 'page');
+        const span = document.createElement('span');
+        span.className = 'breadcrumb-current-label';
+        span.textContent = crumb.label || crumb.id;
+        li.appendChild(span);
+      } else {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'breadcrumb-link';
+        btn.setAttribute('data-breadcrumb-idx', String(idx));
+        btn.setAttribute('data-breadcrumb-id', crumb.id);
+        btn.textContent = crumb.label || crumb.id;
+        btn.addEventListener('click', () => {
+          navigateToIndex(idx);
+        });
+        li.appendChild(btn);
+
+        const sep = document.createElement('span');
+        sep.className = 'breadcrumb-separator';
+        sep.setAttribute('aria-hidden', 'true');
+        sep.textContent = '/';
+        li.appendChild(sep);
+      }
+
+      list.appendChild(li);
+    });
+  }
+
+  function navigateToIndex(index) {
+    if (index < 0 || index >= trail.length - 1) return;
+    triggerHaptic('selection');
+    const targetCrumb = trail[index];
+    trail = trail.slice(0, index + 1);
+    render();
+    if (typeof onNavigate === 'function') {
+      onNavigate(targetCrumb.id, targetCrumb.data, targetCrumb);
+    }
+  }
+
+  function pushCrumb({ id, label, icon = null, data = null } = {}) {
+    if (!id) return;
+    const existingIdx = trail.findIndex(c => c.id === id);
+    if (existingIdx !== -1) {
+      trail = trail.slice(0, existingIdx + 1);
+      trail[existingIdx] = { id, label: label || trail[existingIdx].label, icon, data };
+    } else {
+      trail.push({ id, label: label || id, icon, data });
+      if (trail.length > maxItems) {
+        trail = [trail[0], ...trail.slice(trail.length - (maxItems - 1))];
+      }
+    }
+    render();
+  }
+
+  function popCrumb() {
+    if (trail.length <= 1) return null;
+    triggerHaptic('light');
+    const popped = trail.pop();
+    const current = trail[trail.length - 1];
+    render();
+    if (typeof onNavigate === 'function' && current) {
+      onNavigate(current.id, current.data, current);
+    }
+    return popped;
+  }
+
+  function resetBreadcrumbs(initial = [{ id: 'home', label: 'Home' }]) {
+    trail = Array.isArray(initial) && initial.length > 0 ? initial.map(c => ({ ...c })) : [{ id: 'home', label: 'Home' }];
+    render();
+  }
+
+  function setBreadcrumbs(items) {
+    if (Array.isArray(items) && items.length > 0) {
+      trail = items.map(c => ({ ...c }));
+    } else {
+      trail = [{ id: 'home', label: 'Home' }];
+    }
+    render();
+  }
+
+  function handleBackClick() {
+    popCrumb();
+  }
+
+  if (backBtn && !backBtn.dataset?.wiredBreadcrumb) {
+    if (backBtn.dataset) backBtn.dataset.wiredBreadcrumb = 'true';
+    backBtn.addEventListener('click', handleBackClick);
+  }
+
+  function handleKeydown(e) {
+    if (!list) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      const focusables = Array.from(list.querySelectorAll('button.breadcrumb-link'));
+      if (!focusables.length) return;
+      const currentIdx = focusables.indexOf(document.activeElement);
+      if (currentIdx !== -1) {
+        e.preventDefault();
+        const nextIdx = e.key === 'ArrowRight'
+          ? (currentIdx + 1) % focusables.length
+          : (currentIdx - 1 + focusables.length) % focusables.length;
+        focusables[nextIdx]?.focus();
+      }
+    }
+  }
+
+  if (list && !list.dataset?.wiredKeyboard) {
+    if (list.dataset) list.dataset.wiredKeyboard = 'true';
+    list.addEventListener('keydown', handleKeydown);
+  }
+
+  render();
+
+  function updateCurrentCrumb({ label, data } = {}) {
+    if (!trail.length) return;
+    const current = trail[trail.length - 1];
+    if (label !== undefined) current.label = label;
+    if (data !== undefined) current.data = data;
+    render();
+  }
+
+  return {
+    pushCrumb,
+    pushBreadcrumb: pushCrumb,
+    popCrumb,
+    popBreadcrumb: popCrumb,
+    updateCurrentCrumb,
+    resetBreadcrumbs,
+    setBreadcrumbs,
+    setBreadcrumbTrail: setBreadcrumbs,
+    getBreadcrumbTrail: () => [...trail],
+    render,
+    destroy: () => {
+      if (backBtn) backBtn.removeEventListener('click', handleBackClick);
+      if (list) list.removeEventListener('keydown', handleKeydown);
+    }
+  };
+}
+
+/**
+ * Tab Slider Highlight Indicator (agent2 - shahdara-mobile-nav)
+ * Creates and dynamically positions a smooth sliding background highlight pill behind active tabs.
+ */
+export function setupTabSliderIndicator({
+  containerSelector = '.mobile-bottom-nav',
+  indicatorClass = 'nav-slider-indicator',
+  activeAttr = 'aria-current',
+  activeVal = 'page'
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      updateSlider: () => {},
+      destroy: () => {},
+      getIndicator: () => null
+    };
+  }
+
+  const container = typeof containerSelector === 'string'
+    ? document.querySelector(containerSelector)
+    : containerSelector;
+
+  if (!container) {
+    return {
+      updateSlider: () => {},
+      destroy: () => {},
+      getIndicator: () => null
+    };
+  }
+
+  let indicator = container.querySelector(`.${indicatorClass}`);
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.className = indicatorClass;
+    indicator.setAttribute('aria-hidden', 'true');
+    container.insertBefore(indicator, container.firstChild);
+  }
+
+  function getActiveTab(target) {
+    if (target && target.nodeType === 1) return target;
+    if (typeof target === 'string') {
+      const found = container.querySelector(
+        `[data-nav-target="${target}"], [data-mobile-nav="${target}"], [id="${target}"]`
+      );
+      if (found) return found;
+    }
+    return container.querySelector(
+      `[${activeAttr}="${activeVal}"], .is-active, [aria-selected="true"]`
+    );
+  }
+
+  function updateSlider(target) {
+    const tab = getActiveTab(target);
+    if (!tab) {
+      if (indicator.style) {
+        indicator.style.opacity = '0';
+      }
+      return;
+    }
+
+    const cRect = container.getBoundingClientRect ? container.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+    const tRect = tab.getBoundingClientRect ? tab.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+
+    const offsetLeft = tRect.left - cRect.left + (container.scrollLeft || 0);
+    const offsetTop = tRect.top - cRect.top + (container.scrollTop || 0);
+    const width = tRect.width;
+    const height = tRect.height;
+
+    if (indicator.style) {
+      indicator.style.opacity = '1';
+      indicator.style.transform = `translate3d(${offsetLeft}px, ${offsetTop}px, 0)`;
+      indicator.style.width = `${width}px`;
+      indicator.style.height = `${height}px`;
+    }
+
+    if (container.style && container.style.setProperty) {
+      container.style.setProperty('--slider-x', `${offsetLeft}px`);
+      container.style.setProperty('--slider-y', `${offsetTop}px`);
+      container.style.setProperty('--slider-w', `${width}px`);
+      container.style.setProperty('--slider-h', `${height}px`);
+    }
+  }
+
+  let resizeTimer = null;
+  function handleResize() {
+    if (typeof window !== 'undefined' && typeof window.clearTimeout === 'function') {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        updateSlider();
+      }, 60);
+    } else {
+      updateSlider();
+    }
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('resize', handleResize, { passive: true });
+  }
+
+  function handleContainerClick(e) {
+    if (!e || !e.target || typeof e.target.closest !== 'function') return;
+    const btn = e.target.closest('button, [role="tab"]');
+    if (btn && (!container.contains || container.contains(btn))) {
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => updateSlider(btn));
+      } else {
+        updateSlider(btn);
+      }
+    }
+  }
+
+  if (container.addEventListener) {
+    container.addEventListener('click', handleContainerClick);
+  }
+
+  updateSlider();
+
+  return {
+    updateSlider,
+    destroy: () => {
+      if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+        window.removeEventListener('resize', handleResize);
+      }
+      if (container && container.removeEventListener) {
+        container.removeEventListener('click', handleContainerClick);
+      }
+      if (indicator && indicator.parentNode && typeof indicator.parentNode.removeChild === 'function') {
+        indicator.parentNode.removeChild(indicator);
+      }
+    },
+    getIndicator: () => indicator
+  };
+}
+
+
 

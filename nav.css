@@ -1973,3 +1973,176 @@ kbd {
   background: rgba(217, 119, 6, 0.2);
   color: #fde68a;
 }
+
+/* ==========================================================================
+   MOBILE INTERACTIVE BREADCRUMBS & ACTIVE TAB SLIDER INDICATOR
+   ========================================================================== */
+
+.mobile-breadcrumb-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface, #ffffff);
+  border-bottom: 1px solid var(--line, #e2ece7);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  font-size: 13px;
+  min-height: 44px;
+  position: relative;
+  z-index: 10;
+}
+
+.mobile-breadcrumb-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.breadcrumb-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface-sunken, #f0f5f2);
+  color: var(--ink, #182e2a);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  touch-action: manipulation;
+}
+
+.breadcrumb-back-btn:hover {
+  background: var(--mint, #e6f3ee);
+  border-color: var(--green, #0e5b4d);
+  color: var(--green, #0e5b4d);
+}
+
+.breadcrumb-back-btn:active {
+  transform: scale(0.96);
+}
+
+.breadcrumb-back-btn:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 2px;
+}
+
+.breadcrumb-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.breadcrumb-link {
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--muted, #60756c);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  touch-action: manipulation;
+}
+
+.breadcrumb-link:hover {
+  color: var(--green, #0e5b4d);
+  background: var(--mint, #e6f3ee);
+}
+
+.breadcrumb-link:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 2px;
+}
+
+.breadcrumb-separator {
+  color: var(--muted, #60756c);
+  opacity: 0.6;
+  font-size: 12px;
+  user-select: none;
+}
+
+.breadcrumb-current-label {
+  font-weight: 700;
+  color: var(--ink, #182e2a);
+  padding: 4px 6px;
+}
+
+/* Sliding Tab Indicator */
+.nav-slider-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  background: var(--mint, #e6f3ee);
+  border-radius: 10px;
+  z-index: 0;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 0.15s ease;
+  will-change: transform, width, height;
+}
+
+.view-nav,
+.mobile-bottom-nav {
+  position: relative;
+}
+
+.view-nav-button,
+.mobile-bottom-nav button {
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="dark"] .mobile-breadcrumb-bar {
+  background: #152722;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .breadcrumb-back-btn {
+  background: #192e27;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .breadcrumb-link {
+  color: #9ab3a8;
+}
+
+[data-theme="dark"] .breadcrumb-link:hover {
+  color: #5eead4;
+  background: rgba(94, 234, 212, 0.12);
+}
+
+[data-theme="dark"] .breadcrumb-current-label {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .nav-slider-indicator {
+  background: rgba(94, 234, 212, 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-slider-indicator,
+  .breadcrumb-back-btn,
+  .breadcrumb-link {
+    transition: none !important;
+  }
+}
+

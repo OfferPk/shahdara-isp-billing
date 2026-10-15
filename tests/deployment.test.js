@@ -19,6 +19,7 @@ const ownerUi = read('owner-ui.js');
 test('web shell assets share the package version and worker updates before app startup', () => {
   assert.match(index, new RegExp(`href="\\./styles\\.css\\?v=${version.replaceAll('.', '\\.') }"`));
   assert.match(index, new RegExp(`href="\\./dashboard\\.css\\?v=${version.replaceAll('.', '\\.') }"`));
+  assert.match(index, new RegExp(`href="\\./nav\\.css\\?v=${version.replaceAll('.', '\\.') }"`));
   assert.match(index, new RegExp(`src="\\./app\\.js\\?v=${version.replaceAll('.', '\\.') }"`));
   assert.match(app, new RegExp(`from '\\./core\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
   assert.match(app, new RegExp(`from '\\./phase3\\.js\\?v=${version.replaceAll('.', '\\.') }'`));
@@ -31,6 +32,7 @@ test('web shell assets share the package version and worker updates before app s
   assert.ok(app.includes(`from './backup-store.js?v=${version}'`));
   assert.ok(app.includes(`from './duplicate-detection.js?v=${version}'`));
   assert.ok(app.includes(`from './dashboard.js?v=${version}'`));
+  assert.ok(app.includes(`from './nav.js?v=${version}'`));
   const register = index.indexOf(`navigator.serviceWorker.register('./sw.js?v=${version}'`);
   const appModule = index.indexOf(`type="module" src="./app.js?v=${version}"`);
   assert.ok(register >= 0 && register < index.indexOf('<body>'), 'service worker registration belongs in the HTML head');

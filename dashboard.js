@@ -1,4 +1,4 @@
-import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions } from './core.js';
+import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions, summarizeCustomerTenure } from './core.js';
 import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
 
 function escapeXml(str) {
@@ -1204,6 +1204,348 @@ export function setupAreaHeatmapEvents(state, referenceDate = new Date(), { onFi
   }
 }
 
+/**
+ * Calculates Customer Lifetime Value (LTV) and groups subscribers into tenure cohorts
+ * (< 3m, 3-6m, 6-12m, 12-24m, 24m+) with retention rates, average LTV, portfolio multiplier,
+ * and top accounts leaderboard.
+ */
+export function calculateCustomerLtvCohorts(state, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const refYear = ref.getFullYear();
+  const refMonth = ref.getMonth() + 1;
+
+  const cohortDefs = [
+    { key: '0-3', label: '< 3 Months', minMonths: 1, maxMonths: 2 },
+    { key: '3-6', label: '3 - 6 Months', minMonths: 3, maxMonths: 5 },
+    { key: '6-12', label: '6 - 12 Months', minMonths: 6, maxMonths: 11 },
+    { key: '12-24', label: '1 - 2 Years', minMonths: 12, maxMonths: 23 },
+    { key: '24+', label: '2+ Years', minMonths: 24, maxMonths: 9999 }
+  ];
+
+  const cohorts = cohortDefs.map(def => ({
+    key: def.key,
+    label: def.label,
+    customerCount: 0,
+    activeCount: 0,
+    offlineCount: 0,
+    archivedCount: 0,
+    totalLtv: 0,
+    averageLtv: 0,
+    averageTenureMonths: 0,
+    retentionRate: 0,
+    churnRate: 0,
+    customerIds: []
+  }));
+
+  const cohortMap = new Map(cohorts.map(c => [c.key, c]));
+
+  let totalTrackedCustomers = 0;
+  let overallTotalLtv = 0;
+  let totalTenureMonthsSum = 0;
+  const customerLtvList = [];
+  const packageLtvMap = new Map();
+
+  for (const customer of (state?.customers ?? [])) {
+    totalTrackedCustomers++;
+
+    let customerTotalLtvCents = 0;
+    for (const bill of (customer.bills ?? [])) {
+      for (const p of (bill.payments ?? [])) {
+        const amt = Number(p.amount) || 0;
+        if (amt > 0) {
+          customerTotalLtvCents += Math.round(amt * 100);
+        }
+      }
+    }
+    const customerTotalLtv = Math.round(customerTotalLtvCents / 100);
+    overallTotalLtv += customerTotalLtv;
+
+    let tenureMonths = 1;
+    let tenureSummary = null;
+    try {
+      tenureSummary = summarizeCustomerTenure(customer, ref);
+    } catch {
+      tenureSummary = null;
+    }
+
+    if (tenureSummary?.serviceMonths && tenureSummary.serviceMonths > 0) {
+      tenureMonths = tenureSummary.serviceMonths;
+    } else {
+      let startDateStr = customer.connectionDate || customer.addedOn;
+      if (!startDateStr) {
+        const billMonths = (customer.bills ?? []).map(b => b.month).filter(Boolean).sort();
+        if (billMonths.length > 0) {
+          startDateStr = billMonths[0] + '-01';
+        }
+      }
+      if (startDateStr) {
+        const sYear = Number(String(startDateStr).slice(0, 4));
+        const sMonth = Number(String(startDateStr).slice(5, 7));
+        if (Number.isFinite(sYear) && Number.isFinite(sMonth) && sMonth >= 1 && sMonth <= 12) {
+          const diff = (refYear - sYear) * 12 + (refMonth - sMonth) + 1;
+          tenureMonths = Math.max(1, diff);
+        }
+      }
+    }
+
+    totalTenureMonthsSum += tenureMonths;
+
+    const isArchived = Boolean(customer.archived);
+    const serviceStatus = isArchived ? 'archived' : (customer.serviceStatus || 'not-set');
+    const isActive = !isArchived && serviceStatus === 'active';
+    const isOffline = !isArchived && serviceStatus === 'offline';
+
+    let matchedCohort = cohorts[cohorts.length - 1];
+    for (const def of cohortDefs) {
+      if (tenureMonths >= def.minMonths && tenureMonths <= def.maxMonths) {
+        matchedCohort = cohortMap.get(def.key);
+        break;
+      }
+    }
+
+    matchedCohort.customerCount++;
+    matchedCohort.customerIds.push(customer.id);
+    matchedCohort.totalLtv += customerTotalLtv;
+    matchedCohort.averageTenureMonths += tenureMonths;
+
+    if (isActive) matchedCohort.activeCount++;
+    else if (isOffline) matchedCohort.offlineCount++;
+    if (isArchived) matchedCohort.archivedCount++;
+
+    const pkgName = customer.packageSpeed || customer.package || 'Standard';
+    customerLtvList.push({
+      id: customer.id,
+      customerNumber: customer.customerNumber,
+      name: customer.name,
+      area: customer.area || 'Unassigned',
+      package: pkgName,
+      totalLtv: customerTotalLtv,
+      tenureMonths,
+      serviceStatus,
+      isArchived
+    });
+
+    if (!packageLtvMap.has(pkgName)) {
+      packageLtvMap.set(pkgName, { package: pkgName, customerCount: 0, totalLtv: 0, averageLtv: 0 });
+    }
+    const pkgEntry = packageLtvMap.get(pkgName);
+    pkgEntry.customerCount++;
+    pkgEntry.totalLtv += customerTotalLtv;
+  }
+
+  for (const c of cohorts) {
+    if (c.customerCount > 0) {
+      c.averageLtv = Math.round(c.totalLtv / c.customerCount);
+      c.averageTenureMonths = Number((c.averageTenureMonths / c.customerCount).toFixed(1));
+      c.retentionRate = Math.round((c.activeCount / c.customerCount) * 100);
+      c.churnRate = Math.round((c.archivedCount / c.customerCount) * 100);
+    }
+  }
+
+  const packageLtvList = Array.from(packageLtvMap.values()).map(p => ({
+    ...p,
+    averageLtv: p.customerCount > 0 ? Math.round(p.totalLtv / p.customerCount) : 0
+  })).sort((a, b) => b.totalLtv - a.totalLtv);
+
+  const topLtvCustomers = [...customerLtvList].sort((a, b) => b.totalLtv - a.totalLtv).slice(0, 5);
+
+  const overallAverageLtv = totalTrackedCustomers > 0 ? Math.round(overallTotalLtv / totalTrackedCustomers) : 0;
+  const overallAverageTenure = totalTrackedCustomers > 0 ? Number((totalTenureMonthsSum / totalTrackedCustomers).toFixed(1)) : 0;
+
+  let currentMonthArpu = 0;
+  try {
+    const kpis = calculateDashboardKpis(state, ref);
+    currentMonthArpu = kpis?.averageRevenuePerUser || 0;
+  } catch {
+    currentMonthArpu = 0;
+  }
+  const ltvMultiplier = currentMonthArpu > 0 ? Number((overallAverageLtv / currentMonthArpu).toFixed(1)) : 0;
+
+  return {
+    totalTrackedCustomers,
+    overallTotalLtv,
+    overallAverageLtv,
+    overallAverageTenure,
+    currentMonthArpu,
+    ltvMultiplier,
+    cohorts,
+    topLtvCustomers,
+    packageLtvList
+  };
+}
+
+/**
+ * Formats an executive briefing plain-text breakdown of customer lifetime value and tenure dynamics.
+ */
+export function generateLtvBriefingReport(ltvData, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+  const lines = [
+    `=========================================`,
+    `SHAHDARA ISP - CUSTOMER LTV & COHORT REPORT`,
+    `Generated: ${dateStr} PKT`,
+    `=========================================`,
+    `[ PORTFOLIO LIFETIME VALUE METRICS ]`,
+    `  Total Customers Tracked: ${ltvData.totalTrackedCustomers}`,
+    `  Total Lifetime Revenue: ${formatPKR(ltvData.overallTotalLtv)}`,
+    `  Average Customer LTV: ${formatPKR(ltvData.overallAverageLtv)}`,
+    `  Average Customer Tenure: ${ltvData.overallAverageTenure} months`,
+    `  Current Monthly ARPU: ${formatPKR(ltvData.currentMonthArpu)}`,
+    `  LTV / ARPU Multiplier: ${ltvData.ltvMultiplier}x`,
+    ``,
+    `[ TENURE COHORT BREAKDOWN ]`
+  ];
+
+  for (const c of (ltvData.cohorts ?? [])) {
+    lines.push(`  ${c.label} (${c.customerCount} subs, ${c.retentionRate}% active):`);
+    lines.push(`    Total LTV: ${formatPKR(c.totalLtv)} | Avg LTV: ${formatPKR(c.averageLtv)} | Avg Tenure: ${c.averageTenureMonths}m`);
+  }
+
+  if ((ltvData.topLtvCustomers ?? []).length > 0) {
+    lines.push(``);
+    lines.push(`[ TOP LIFETIME VALUE SUBSCRIBERS ]`);
+    for (const cust of ltvData.topLtvCustomers) {
+      lines.push(`  #${cust.customerNumber} ${cust.name} (${cust.area}): ${formatPKR(cust.totalLtv)} (${cust.tenureMonths}m tenure, ${cust.package})`);
+    }
+  }
+
+  lines.push(`=========================================`);
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Customer Lifetime Value (LTV) Cohorts Modal dialog.
+ */
+export function setupLtvCohortModal(state, { referenceDate = new Date(), onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardLtvModal');
+  const openBtn = document.getElementById('dashboardOpenLtvModalBtn');
+  const closeBtn = document.getElementById('dashboardLtvModalCloseBtn');
+  const cohortTableBody = document.getElementById('dashboardLtvCohortTableBody');
+  const topAccountsTableBody = document.getElementById('dashboardLtvTopAccountsTableBody');
+  const copyBtn = document.getElementById('dashboardCopyLtvReportBtn');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const ltvData = calculateCustomerLtvCohorts(state, referenceDate);
+
+    const avgEl = document.getElementById('dashboardLtvAvgVal');
+    const totalEl = document.getElementById('dashboardLtvTotalVal');
+    const tenureEl = document.getElementById('dashboardLtvTenureVal');
+    const multiEl = document.getElementById('dashboardLtvMultiplierVal');
+
+    if (avgEl) avgEl.textContent = formatPKR(ltvData.overallAverageLtv);
+    if (totalEl) totalEl.textContent = formatPKR(ltvData.overallTotalLtv);
+    if (tenureEl) tenureEl.textContent = `${ltvData.overallAverageTenure} mos`;
+    if (multiEl) multiEl.textContent = `${ltvData.ltvMultiplier}x`;
+
+    if (cohortTableBody) {
+      if (ltvData.cohorts.length === 0) {
+        cohortTableBody.innerHTML = '<tr><td colspan="6" class="empty-cell">No subscriber cohort data available.</td></tr>';
+      } else {
+        cohortTableBody.innerHTML = ltvData.cohorts.map(c => `
+          <tr>
+            <td><strong>${escapeXml(c.label)}</strong></td>
+            <td>${c.customerCount} <span class="cust-sub-meta">(${c.activeCount} active, ${c.offlineCount} off)</span></td>
+            <td>
+              <span class="status-pill ${c.retentionRate >= 80 ? 'status-good' : (c.retentionRate >= 50 ? 'status-watchlist' : 'status-delinquent')}">
+                ${c.retentionRate}%
+              </span>
+            </td>
+            <td>${formatPKR(c.totalLtv)}</td>
+            <td><strong class="text-success">${formatPKR(c.averageLtv)}</strong></td>
+            <td>${c.averageTenureMonths} mos</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    if (topAccountsTableBody) {
+      if (ltvData.topLtvCustomers.length === 0) {
+        topAccountsTableBody.innerHTML = '<tr><td colspan="5" class="empty-cell">No customer payment history found.</td></tr>';
+      } else {
+        topAccountsTableBody.innerHTML = ltvData.topLtvCustomers.map(cust => `
+          <tr>
+            <td>
+              <strong>${escapeXml(cust.name)}</strong>
+              <div class="cust-sub-meta">#${cust.customerNumber} · ${escapeXml(cust.serviceStatus)}</div>
+            </td>
+            <td>
+              <div>${escapeXml(cust.area)}</div>
+              <div class="cust-sub-meta">${escapeXml(cust.package)}</div>
+            </td>
+            <td>${cust.tenureMonths} mos</td>
+            <td><strong class="text-success">${formatPKR(cust.totalLtv)}</strong></td>
+            <td>
+              <button type="button" class="action-btn-sm" data-filter-customer="${escapeXml(cust.name)}">
+                View Roster
+              </button>
+            </td>
+          </tr>
+        `).join('');
+
+        topAccountsTableBody.querySelectorAll('[data-filter-customer]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const name = btn.getAttribute('data-filter-customer');
+            if (modal.close) modal.close();
+            else modal.removeAttribute('open');
+            if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(name);
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const ltvData = calculateCustomerLtvCohorts(state, referenceDate);
+      const text = generateLtvBriefingReport(ltvData, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Customer LTV cohort report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -1225,6 +1567,9 @@ export {
   renderPackageMarginSvg,
   generateMarginSimulationReportText,
   setupMarginSimulatorModal,
+  renderCustomerLtvCohortsSvg,
+  setLtvMetric,
+  getLtvMetric,
   setSeasonalMetric,
   getSeasonalMetric,
   setMarginSimulatorCostPerMbps,
@@ -1240,4 +1585,5 @@ export {
   PKG_PALETTE,
   METHOD_COLORS
 } from './dashboard-charts.js';
+
 

@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -80,6 +80,18 @@ export function setMarginSimulatorCostPerMbps(cost) {
 
 export function getMarginSimulatorCostPerMbps() {
   return currentMarginCostPerMbps;
+}
+
+let currentLtvMetric = 'averageLtv';
+
+export function setLtvMetric(metric) {
+  if (['averageLtv', 'totalLtv'].includes(metric)) {
+    currentLtvMetric = metric;
+  }
+}
+
+export function getLtvMetric() {
+  return currentLtvMetric;
 }
 
 function escapeXml(str) {
@@ -1608,6 +1620,98 @@ export function renderPackageMarginSvg(marginData, options = {}) {
 }
 
 /**
+ * Renders an accessible pure SVG chart displaying Customer Lifetime Value (LTV)
+ * and retention progression across subscriber tenure cohorts.
+ */
+export function renderCustomerLtvCohortsSvg(ltvData, { metric = currentLtvMetric } = {}) {
+  const width = 560;
+  const height = 240;
+
+  if (!ltvData || ltvData.totalTrackedCustomers === 0 || ltvData.overallTotalLtv === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Lifetime Value Cohorts: No payment data">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-8 4 L-2 -2 L4 4 L10 -4" stroke="#0e5b4d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No customer payment history recorded</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">LTV cohort analytics will display once customer receipts are registered</text>
+      </g>
+    </svg>`;
+  }
+
+  const isAvg = metric === 'averageLtv';
+  const cohorts = ltvData.cohorts ?? [];
+  const maxVal = Math.max(...cohorts.map(c => isAvg ? c.averageLtv : c.totalLtv), 1);
+
+  const topPad = 38;
+  const rowHeight = 32;
+  const labelX = 140;
+  const barX = 150;
+  const barMaxW = 230;
+
+  const rows = cohorts.map((c, idx) => {
+    const y = topPad + idx * rowHeight;
+    const val = isAvg ? c.averageLtv : c.totalLtv;
+    const barW = Math.max(Math.round((val / maxVal) * barMaxW), val > 0 ? 6 : 0);
+
+    const retColor = c.retentionRate >= 80 ? '#10b981' : (c.retentionRate >= 50 ? '#f59e0b' : '#ef4444');
+
+    return `
+      <g class="ltv-cohort-row" transform="translate(0, ${y})">
+        <text x="${labelX}" y="15" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">
+          ${escapeXml(c.label)} <tspan font-weight="400" font-size="10" fill="var(--muted, #71817c)">(${c.customerCount})</tspan>
+        </text>
+
+        <rect x="${barX}" y="4" width="${barMaxW}" height="16" rx="4" fill="rgba(14, 91, 77, 0.06)" />
+
+        <rect x="${barX}" y="4" width="${barW}" height="16" rx="4" fill="url(#ltvBarGrad)">
+          <title>${escapeXml(c.label)}: ${isAvg ? 'Avg LTV' : 'Total Revenue'} ${formatPKR(val)} · ${c.retentionRate}% Active (${c.activeCount}/${c.customerCount})</title>
+        </rect>
+
+        <text x="${barX + barW + 8}" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+          ${formatPKR(val)}
+        </text>
+
+        <rect x="${width - 80}" y="3" width="48" height="18" rx="9" fill="${retColor}" fill-opacity="0.15" />
+        <text x="${width - 56}" y="15" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="${retColor}">
+          ${c.retentionRate}% ret
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  const footerY = height - 14;
+
+  return `<svg class="chart-svg ltv-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Lifetime Value Cohorts Chart">
+    <defs>
+      <linearGradient id="ltvBarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#0e5b4d" />
+        <stop offset="100%" stop-color="#10b981" />
+      </linearGradient>
+    </defs>
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
+      <text x="0" y="0" font-weight="600" fill="var(--muted, #71817c)">
+        Mode: <tspan fill="var(--ink, #182e2a)">${isAvg ? 'Average Customer LTV' : 'Total Cohort Revenue'}</tspan>
+      </text>
+      <text x="${width - 240}" y="0" text-anchor="end" font-weight="600" fill="var(--muted, #71817c)">
+        Multiplier: <tspan font-weight="700" fill="#0e5b4d">${ltvData.ltvMultiplier}x ARPU</tspan>
+      </text>
+    </g>
+
+    ${rows}
+
+    <g transform="translate(${width / 2}, ${footerY})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Avg LTV: <tspan font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(ltvData.overallAverageLtv)}</tspan> · Avg Tenure: <tspan font-weight="700" fill="var(--ink, #182e2a)">${ltvData.overallAverageTenure} mos</tspan> · Total Portfolio Value: <tspan font-weight="700" fill="#047857">${formatPKR(ltvData.overallTotalLtv)}</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+
+/**
  * Generates an executive plain-text report of the margin simulation.
  */
 export function generateMarginSimulationReportText(simResult) {
@@ -1866,6 +1970,21 @@ export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
       }
     });
   }
+
+  const ltvGroup = document.getElementById('dashboardLtvMetricGroup');
+  if (ltvGroup && !ltvGroup.dataset?.wired) {
+    if (ltvGroup.dataset) ltvGroup.dataset.wired = 'true';
+    else if (ltvGroup.setAttribute) ltvGroup.setAttribute('data-wired', 'true');
+    ltvGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest?.('.chart-range-btn');
+      if (!btn) return;
+      const m = btn.dataset?.ltvMetric || btn.getAttribute?.('data-ltv-metric');
+      if (['averageLtv', 'totalLtv'].includes(m)) {
+        setLtvMetric(m);
+        renderDashboardCharts(state, referenceDate);
+      }
+    });
+  }
 }
 
 /**
@@ -1986,5 +2105,24 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupMarginSimulatorModal(state, { referenceDate, onToast: options.onToast });
 
+  const ltvEl = document.getElementById('dashboardLtvChart');
+  if (ltvEl) {
+    const ltvData = calculateCustomerLtvCohorts(state, referenceDate);
+    ltvEl.innerHTML = renderCustomerLtvCohortsSvg(ltvData, { metric: currentLtvMetric });
+  }
+
+  const ltvBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#dashboardLtvMetricGroup .chart-range-btn')
+    : [];
+  ltvBtns.forEach(btn => {
+    const m = btn.dataset?.ltvMetric || btn.getAttribute?.('data-ltv-metric');
+    const isActive = m === currentLtvMetric;
+    if (btn.classList?.toggle) btn.classList.toggle('is-active', isActive);
+    if (btn.setAttribute) btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
+
+  setupLtvCohortModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
+

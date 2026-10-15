@@ -26,6 +26,12 @@ import {
   renderPackageMarginSvg,
   generateMarginSimulationReportText,
   setupMarginSimulatorModal,
+  calculateCustomerLtvCohorts,
+  generateLtvBriefingReport,
+  setupLtvCohortModal,
+  renderCustomerLtvCohortsSvg,
+  setLtvMetric,
+  getLtvMetric,
   setSeasonalMetric,
   getSeasonalMetric,
   setMarginSimulatorCostPerMbps,
@@ -1814,5 +1820,284 @@ test('setupMarginSimulatorModal wires interactive dialog controls and clipboard'
     globalThis.document = originalDocument;
   }
 });
+
+test('calculateCustomerLtvCohorts handles empty customer roster gracefully', () => {
+  const state = { customers: [] };
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  const res = calculateCustomerLtvCohorts(state, refDate);
+
+  assert.equal(res.totalTrackedCustomers, 0);
+  assert.equal(res.overallTotalLtv, 0);
+  assert.equal(res.overallAverageLtv, 0);
+  assert.equal(res.overallAverageTenure, 0);
+  assert.equal(res.ltvMultiplier, 0);
+  assert.equal(res.cohorts.length, 5);
+  assert.equal(res.topLtvCustomers.length, 0);
+  assert.equal(res.packageLtvList.length, 0);
+});
+
+test('calculateCustomerLtvCohorts groups subscribers by tenure and calculates LTV and retention', () => {
+  let state = createInitialState(['Customer New', 'Customer Mid', 'Customer Loyal', 'Customer Veteran']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer 0: New (< 3m: connected 2026-09-01 -> 2 months tenure)
+  state.customers[0].connectionDate = '2026-09-01';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].packageSpeed = '10 Mbps';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-09', dueAmount: '1500', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-09', { amount: '1500', date: '2026-09-05', method: 'Cash' }, refDate);
+
+  // Customer 1: Mid (3-6m: connectionDate 2026-06-01 -> 5 months tenure)
+  state.customers[1].connectionDate = '2026-06-01';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].packageSpeed = '15 Mbps';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-06', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-06', { amount: '2000', date: '2026-06-05', method: 'Cash' }, refDate);
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-07', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-07', { amount: '2000', date: '2026-07-05', method: 'Cash' }, refDate);
+
+  // Customer 2: Loyal (12-24m: addedOn 2025-08-01 -> 15 months tenure)
+  state.customers[2].addedOn = '2025-08-01';
+  state.customers[2].serviceStatus = 'active';
+  state.customers[2].packageSpeed = '20 Mbps';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-08', dueAmount: '2500', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[2].id, '2026-08', { amount: '2500', date: '2026-08-05', method: 'Cash' }, refDate);
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-09', dueAmount: '2500', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[2].id, '2026-09', { amount: '2500', date: '2026-09-05', method: 'Cash' }, refDate);
+
+  // Customer 3: Veteran (24+m: connectionDate 2024-01-01 -> 34 months tenure)
+  state.customers[3].connectionDate = '2024-01-01';
+  state.customers[3].serviceStatus = 'active';
+  state.customers[3].packageSpeed = '20 Mbps';
+  state = saveBillMonth(state, state.customers[3].id, { month: '2026-09', dueAmount: '3000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[3].id, '2026-09', { amount: '3000', date: '2026-09-05', method: 'Cash' }, refDate);
+  state = saveBillMonth(state, state.customers[3].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[3].id, '2026-10', { amount: '3000', date: '2026-10-05', method: 'Cash' }, refDate);
+
+  const res = calculateCustomerLtvCohorts(state, refDate);
+
+  assert.equal(res.totalTrackedCustomers, 4);
+  assert.equal(res.overallTotalLtv, 1500 + 4000 + 5000 + 6000); // 16,500
+  assert.equal(res.overallAverageLtv, Math.round(16500 / 4)); // 4125
+
+  // Cohort < 3m
+  const cNew = res.cohorts.find(c => c.key === '0-3');
+  assert.equal(cNew.customerCount, 1);
+  assert.equal(cNew.totalLtv, 1500);
+  assert.equal(cNew.averageLtv, 1500);
+  assert.equal(cNew.activeCount, 1);
+  assert.equal(cNew.retentionRate, 100);
+
+  // Cohort 3-6m
+  const cMid = res.cohorts.find(c => c.key === '3-6');
+  assert.equal(cMid.customerCount, 1);
+  assert.equal(cMid.totalLtv, 4000);
+  assert.equal(cMid.offlineCount, 1);
+  assert.equal(cMid.retentionRate, 0);
+
+  // Cohort 1-2y
+  const cLoyal = res.cohorts.find(c => c.key === '12-24');
+  assert.equal(cLoyal.customerCount, 1);
+  assert.equal(cLoyal.totalLtv, 5000);
+  assert.equal(cLoyal.activeCount, 1);
+  assert.equal(cLoyal.retentionRate, 100);
+
+  // Cohort 2+y
+  const cVet = res.cohorts.find(c => c.key === '24+');
+  assert.equal(cVet.customerCount, 1);
+  assert.equal(cVet.totalLtv, 6000);
+
+  // Top LTV accounts leaderboard
+  assert.equal(res.topLtvCustomers[0].name, 'Customer Veteran');
+  assert.equal(res.topLtvCustomers[0].totalLtv, 6000);
+  assert.equal(res.topLtvCustomers[1].name, 'Customer Loyal');
+  assert.equal(res.topLtvCustomers[1].totalLtv, 5000);
+
+  // Package LTV
+  const pkg20 = res.packageLtvList.find(p => p.package === '20 Mbps');
+  assert.ok(pkg20);
+  assert.equal(pkg20.customerCount, 2);
+  assert.equal(pkg20.totalLtv, 11000);
+  assert.equal(pkg20.averageLtv, 5500);
+});
+
+test('renderCustomerLtvCohortsSvg renders empty state when no data exists', () => {
+  const emptySvg = renderCustomerLtvCohortsSvg({ totalTrackedCustomers: 0, overallTotalLtv: 0 });
+  assert.ok(emptySvg.includes('No customer payment history recorded'));
+  assert.ok(emptySvg.includes('aria-label="Customer Lifetime Value Cohorts: No payment data"'));
+});
+
+test('renderCustomerLtvCohortsSvg renders bars, mode, and footer stats when data is present', () => {
+  const mockData = {
+    totalTrackedCustomers: 10,
+    overallTotalLtv: 50000,
+    overallAverageLtv: 5000,
+    overallAverageTenure: 8.5,
+    ltvMultiplier: 3.2,
+    cohorts: [
+      { key: '0-3', label: '< 3 Months', customerCount: 3, activeCount: 3, totalLtv: 6000, averageLtv: 2000, retentionRate: 100 },
+      { key: '3-6', label: '3 - 6 Months', customerCount: 2, activeCount: 1, totalLtv: 8000, averageLtv: 4000, retentionRate: 50 },
+      { key: '6-12', label: '6 - 12 Months', customerCount: 5, activeCount: 4, totalLtv: 36000, averageLtv: 7200, retentionRate: 80 }
+    ]
+  };
+
+  const svgAvg = renderCustomerLtvCohortsSvg(mockData, { metric: 'averageLtv' });
+  assert.ok(svgAvg.includes('Average Customer LTV'));
+  assert.ok(svgAvg.includes('3.2x ARPU'));
+  assert.ok(svgAvg.includes('&lt; 3 Months'));
+  assert.ok(svgAvg.includes('100% ret'));
+  assert.ok(svgAvg.includes('50% ret'));
+  assert.ok(svgAvg.includes('Total Portfolio Value'));
+
+  const svgTotal = renderCustomerLtvCohortsSvg(mockData, { metric: 'totalLtv' });
+  assert.ok(svgTotal.includes('Total Cohort Revenue'));
+});
+
+test('generateLtvBriefingReport generates formatted text report with metrics and accounts', () => {
+  const mockData = {
+    totalTrackedCustomers: 25,
+    overallTotalLtv: 125000,
+    overallAverageLtv: 5000,
+    overallAverageTenure: 11.2,
+    currentMonthArpu: 1500,
+    ltvMultiplier: 3.3,
+    cohorts: [
+      { label: '< 3 Months', customerCount: 5, retentionRate: 100, totalLtv: 10000, averageLtv: 2000, averageTenureMonths: 1.8 }
+    ],
+    topLtvCustomers: [
+      { customerNumber: 12, name: 'Haji Aslam', area: 'Main Bazaar', totalLtv: 25000, tenureMonths: 24, package: '20 Mbps' }
+    ]
+  };
+
+  const report = generateLtvBriefingReport(mockData, new Date('2026-10-15T12:00:00+05:00'));
+  assert.ok(report.includes('SHAHDARA ISP - CUSTOMER LTV & COHORT REPORT'));
+  assert.ok(report.includes('Total Lifetime Revenue: PKR 125,000'));
+  assert.ok(report.includes('LTV / ARPU Multiplier: 3.3x'));
+  assert.ok(report.includes('< 3 Months (5 subs, 100% active):'));
+  assert.ok(report.includes('#12 Haji Aslam (Main Bazaar): PKR 25,000'));
+});
+
+test('setLtvMetric and getLtvMetric validate allowed metric options', () => {
+  setLtvMetric('totalLtv');
+  assert.equal(getLtvMetric(), 'totalLtv');
+
+  setLtvMetric('averageLtv');
+  assert.equal(getLtvMetric(), 'averageLtv');
+
+  setLtvMetric('invalidMetric');
+  assert.equal(getLtvMetric(), 'averageLtv'); // maintains previous valid state
+});
+
+test('setupLtvCohortModal correctly initializes, populates tables, filters customer roster, and copies report', async () => {
+  let state = createInitialState(['Subscriber One', 'Subscriber Two']);
+  state.customers[0].connectionDate = '2026-08-01';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].packageSpeed = '15 Mbps';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-08', dueAmount: '2000', status: 'pending' });
+  state = addPayment(state, state.customers[0].id, '2026-08', { amount: '2000', date: '2026-08-10', method: 'Cash' });
+
+  let openHandler = null;
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+  let closeHandler = null;
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+  let copyHandler = null;
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+
+  const mockAvgVal = { textContent: '' };
+  const mockTotalVal = { textContent: '' };
+  const mockTenureVal = { textContent: '' };
+  const mockMultiVal = { textContent: '' };
+
+  const rosterListeners = [];
+  const mockCohortTable = { innerHTML: '' };
+  const mockTopAccountsTable = {
+    _html: '',
+    get innerHTML() { return this._html; },
+    set innerHTML(val) {
+      this._html = val;
+    },
+    querySelectorAll: (sel) => {
+      if (sel === '[data-filter-customer]') {
+        return [{
+          getAttribute: (attr) => attr === 'data-filter-customer' ? 'Subscriber One' : null,
+          addEventListener: (evt, fn) => { if (evt === 'click') rosterListeners.push(fn); }
+        }];
+      }
+      return [];
+    }
+  };
+
+  let modalOpened = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardLtvModal') return mockModal;
+      if (id === 'dashboardOpenLtvModalBtn') return mockOpenBtn;
+      if (id === 'dashboardLtvModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardLtvCohortTableBody') return mockCohortTable;
+      if (id === 'dashboardLtvTopAccountsTableBody') return mockTopAccountsTable;
+      if (id === 'dashboardCopyLtvReportBtn') return mockCopyBtn;
+      if (id === 'dashboardLtvAvgVal') return mockAvgVal;
+      if (id === 'dashboardLtvTotalVal') return mockTotalVal;
+      if (id === 'dashboardLtvTenureVal') return mockTenureVal;
+      if (id === 'dashboardLtvMultiplierVal') return mockMultiVal;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+  let filteredCustomer = null;
+
+  try {
+    setupLtvCohortModal(state, {
+      referenceDate: new Date('2026-10-15T12:00:00+05:00'),
+      onFilterCustomer: (name) => { filteredCustomer = name; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockTotalVal.textContent.includes('2,000'));
+    assert.ok(mockCohortTable.innerHTML.includes('3 - 6 Months'));
+    assert.ok(mockTopAccountsTable.innerHTML.includes('Subscriber One'));
+
+    assert.equal(rosterListeners.length, 1);
+    rosterListeners[0]();
+    assert.equal(filteredCustomer, 'Subscriber One');
+    assert.equal(modalOpened, false); // modal closes on customer select
+
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - CUSTOMER LTV & COHORT REPORT'));
+    assert.equal(toastMessage, 'Customer LTV cohort report copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 
 

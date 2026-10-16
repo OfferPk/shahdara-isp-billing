@@ -6060,3 +6060,267 @@ test('DOM and styling: index.html, styles.css, and app.js wire Customer ONU DDMI
   assert.match(freshApp, /customerDdmiCertModalController/);
   assert.match(freshApp, /openDdmiCertBtn/);
 });
+
+/* ==========================================================================
+   OPTICAL FIBER CHROMATIC & PMD DISPERSION QA TEST SUITE
+   ========================================================================== */
+
+test('Dispersion catalogs: fiber standards and bitrate profiles are complete and physically accurate', async () => {
+  const { FIBER_DISPERSION_PROFILES, BITRATE_DISPERSION_STANDARDS, DISPERSION_SEVERITY_LEVELS } = await import('../form-validation.js');
+
+  assert.ok(FIBER_DISPERSION_PROFILES.G652D);
+  assert.ok(FIBER_DISPERSION_PROFILES.G655);
+  assert.ok(FIBER_DISPERSION_PROFILES.G657A1);
+  assert.ok(FIBER_DISPERSION_PROFILES.G657A2);
+  assert.ok(FIBER_DISPERSION_PROFILES.LEGACY_AERIAL_1998);
+
+  const g652 = FIBER_DISPERSION_PROFILES.G652D;
+  assert.equal(g652.zeroDispersionWavelengthNm, 1312);
+  assert.equal(g652.nominalPmdCoef, 0.10);
+
+  assert.ok(BITRATE_DISPERSION_STANDARDS.RATE_1G);
+  assert.ok(BITRATE_DISPERSION_STANDARDS.RATE_2_5G);
+  assert.ok(BITRATE_DISPERSION_STANDARDS.RATE_10G);
+  assert.ok(BITRATE_DISPERSION_STANDARDS.RATE_25G);
+  assert.ok(BITRATE_DISPERSION_STANDARDS.RATE_100G);
+
+  assert.ok(DISPERSION_SEVERITY_LEVELS.OPTIMAL);
+  assert.ok(DISPERSION_SEVERITY_LEVELS.MARGINAL);
+  assert.ok(DISPERSION_SEVERITY_LEVELS.EXCEEDED);
+});
+
+test('calculateChromaticDispersionCoefficient computes physical dispersion curve D(lambda)', async () => {
+  const { FIBER_DISPERSION_PROFILES, calculateChromaticDispersionCoefficient } = await import('../form-validation.js');
+
+  const g652 = FIBER_DISPERSION_PROFILES.G652D;
+
+  // At zero dispersion wavelength 1312 nm: should be exactly ~0 ps/(nm*km)
+  const dZero = calculateChromaticDispersionCoefficient(1312, g652);
+  assert.ok(Math.abs(dZero) < 0.1);
+
+  // At 1550 nm on standard SMF: standard value is ~17 ps/(nm*km)
+  const d1550 = calculateChromaticDispersionCoefficient(1550, g652);
+  assert.ok(d1550 >= 16.5 && d1550 <= 17.5);
+
+  // At 1310 nm: slightly negative dispersion (-0.1 to -0.3 ps/(nm*km))
+  const d1310 = calculateChromaticDispersionCoefficient(1310, g652);
+  assert.ok(d1310 < 0);
+  assert.ok(d1310 > -1.0);
+});
+
+test('evaluateLinkDispersion evaluates CD, PMD DGD, and bit rate penalties', async () => {
+  const { evaluateLinkDispersion } = await import('../form-validation.js');
+
+  // 1. Nominal 12.5 km link at 1550 nm for 10G XGS-PON
+  const res10G = evaluateLinkDispersion({
+    spanLengthKm: 12.5,
+    operatingWavelengthNm: 1550,
+    fiberProfileId: 'G652D',
+    targetBitrateId: 'RATE_10G'
+  });
+
+  assert.equal(res10G.cdPassed, true);
+  assert.equal(res10G.pmdPassed, true);
+  assert.equal(res10G.overallPass, true);
+  assert.ok(res10G.totalCdPsPerNm > 200 && res10G.totalCdPsPerNm < 225);
+  assert.ok(res10G.meanDgdPs > 0.3 && res10G.meanDgdPs < 0.4);
+  assert.equal(res10G.verdict.id, 'OPTIMAL');
+
+  // 2. Long 50 km feeder span at 25G-PON (25G limit is only 120 ps/nm)
+  const res25GExceeded = evaluateLinkDispersion({
+    spanLengthKm: 50.0,
+    operatingWavelengthNm: 1550,
+    fiberProfileId: 'G652D',
+    targetBitrateId: 'RATE_25G'
+  });
+
+  assert.equal(res25GExceeded.cdPassed, false);
+  assert.equal(res25GExceeded.overallPass, false);
+  assert.equal(res25GExceeded.verdict.id, 'EXCEEDED');
+  assert.ok(res25GExceeded.warnings.some(w => w.includes('Chromatic Dispersion')));
+});
+
+test('buildDispersionCertRecord creates sequential structured inspection records', async () => {
+  const { buildDispersionCertRecord } = await import('../form-validation.js');
+
+  const record = buildDispersionCertRecord({
+    feederRouteName: 'Saeed Park to Kot Mohibbu Sub-Ring',
+    spanLengthKm: 8.4,
+    operatingWavelengthNm: 1577,
+    fiberProfileId: 'G657A1',
+    targetBitrateId: 'RATE_10G',
+    inspectedBy: 'Saad QA Tech'
+  });
+
+  assert.ok(record.id.startsWith('DSP-'));
+  assert.equal(record.feederRouteName, 'Saeed Park to Kot Mohibbu Sub-Ring');
+  assert.equal(record.spanLengthKm, 8.4);
+  assert.equal(record.operatingWavelengthNm, 1577);
+  assert.equal(record.overallPass, true);
+  assert.ok(record.totalCdPsPerNm > 0);
+  assert.ok(record.meanDgdPs > 0);
+});
+
+test('formatDispersionCertWhatsApp outputs bilingual NOC summary', async () => {
+  const { buildDispersionCertRecord, formatDispersionCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildDispersionCertRecord({
+    feederRouteName: 'Shahdara to Farrukhabad Trunk',
+    originPop: 'Shahdara OLT',
+    destinationNode: 'Farrukhabad FAT Hub',
+    spanLengthKm: 14.0,
+    operatingWavelengthNm: 1550
+  });
+
+  const text = formatDispersionCertWhatsApp(record);
+  assert.match(text, /SHAHDARA ISP/);
+  assert.match(text, /ڈسپریشن/);
+  assert.match(text, /Shahdara to Farrukhabad Trunk/);
+  assert.match(text, /14 km/);
+  assert.match(text, /1550 nm/);
+  assert.match(text, /PASSED/);
+});
+
+test('generateDispersionCertHtml produces standard A4 certificate and thermal slip', async () => {
+  const { buildDispersionCertRecord, generateDispersionCertHtml } = await import('../form-validation.js');
+
+  const record = buildDispersionCertRecord({
+    feederRouteName: 'Jia Musa Overhead Feeder',
+    spanLengthKm: 6.2,
+    operatingWavelengthNm: 1550
+  });
+
+  const a4 = generateDispersionCertHtml(record, 'standard');
+  assert.match(a4, /dispersion-a4-certificate/);
+  assert.match(a4, /SHAHDARA FIBER BROADBAND SERVICES/);
+  assert.match(a4, /Jia Musa Overhead Feeder/);
+
+  const thermal = generateDispersionCertHtml(record, 'thermal');
+  assert.match(thermal, /dispersion-thermal-slip/);
+  assert.match(thermal, /OPTICAL DISPERSION QA SLIP/);
+});
+
+test('generateDispersionCertsCsv produces RFC-4180 CSV with BOM', async () => {
+  const { buildDispersionCertRecord, generateDispersionCertsCsv } = await import('../form-validation.js');
+
+  const r1 = buildDispersionCertRecord({ feederRouteName: 'Route 1, Shahdara' });
+  const r2 = buildDispersionCertRecord({ feederRouteName: 'Route 2' });
+
+  const csv = generateDispersionCertsCsv([r1, r2]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /Certificate ID,Date \/ Time/);
+  assert.match(csv, /"Route 1, Shahdara"/);
+  assert.match(csv, /Route 2/);
+});
+
+test('renderDispersionAnalysisSvg renders pure vector spectral curve and KPI ribbon', async () => {
+  const { buildDispersionCertRecord, renderDispersionAnalysisSvg } = await import('../form-validation.js');
+
+  const record = buildDispersionCertRecord({
+    feederRouteName: 'Baradari Road Trunk',
+    spanLengthKm: 10.0,
+    operatingWavelengthNm: 1550
+  });
+
+  const svg = renderDispersionAnalysisSvg(record);
+  assert.match(svg, /<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.match(svg, /dispersion-analysis-svg/);
+  assert.match(svg, /CHROMATIC DISPERSION SPECTRAL CURVE/);
+  assert.match(svg, /polyline/);
+  assert.match(svg, /TOTAL CHROMATIC DISPERSION/);
+  assert.match(svg, /MAXWELLIAN PEAK DGD/);
+});
+
+test('storage operations: saveDispersionCert, getSavedDispersionCerts, and clearDispersionCerts', async () => {
+  const { buildDispersionCertRecord, saveDispersionCert, getSavedDispersionCerts, clearDispersionCerts } = await import('../form-validation.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  assert.deepEqual(getSavedDispersionCerts(mockStorage), []);
+
+  const r1 = buildDispersionCertRecord({ feederRouteName: 'Span A' });
+  const r2 = buildDispersionCertRecord({ feederRouteName: 'Span B' });
+
+  saveDispersionCert(r1, mockStorage);
+  saveDispersionCert(r2, mockStorage);
+
+  const list = getSavedDispersionCerts(mockStorage);
+  assert.equal(list.length, 2);
+  assert.equal(list[0].feederRouteName, 'Span B'); // newest first
+  assert.equal(list[1].feederRouteName, 'Span A');
+
+  clearDispersionCerts(mockStorage);
+  assert.deepEqual(getSavedDispersionCerts(mockStorage), []);
+});
+
+test('setupDispersionCertModal operates safely in headless and mock environments', async () => {
+  const { setupDispersionCertModal } = await import('../form-validation.js');
+
+  const controller = setupDispersionCertModal({
+    document: null,
+    storage: null
+  });
+
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.getCurrentReading, 'function');
+  assert.equal(typeof controller.setReading, 'function');
+
+  controller.open();
+  controller.setReading({ spanLengthKm: 15.0 });
+  controller.close();
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Fiber Feeder Dispersion QA Modal', () => {
+  const freshIndex = read('index.html');
+  const freshStyles = read('styles.css');
+  const freshApp = read('app.js');
+
+  // Trigger button in index.html
+  assert.match(freshIndex, /id="openDispersionCertBtn"/);
+  assert.match(freshIndex, /data-open-dispersion-cert/);
+
+  // Modal dialog & inputs in index.html
+  assert.match(freshIndex, /<dialog id="dispersionCertModal"/);
+  assert.match(freshIndex, /id="dispersionCertModalCloseBtn"/);
+  assert.match(freshIndex, /id="dispersionSvgContainer"/);
+  assert.match(freshIndex, /id="dispersionCdReadout"/);
+  assert.match(freshIndex, /id="dispersionDgdReadout"/);
+  assert.match(freshIndex, /id="dispersionBitrateReadout"/);
+  assert.match(freshIndex, /id="dispersionVerdictBadge"/);
+  assert.match(freshIndex, /id="dispersionWarningsContainer"/);
+  assert.match(freshIndex, /id="dispersionRouteInput"/);
+  assert.match(freshIndex, /id="dispersionOriginInput"/);
+  assert.match(freshIndex, /id="dispersionDestInput"/);
+  assert.match(freshIndex, /id="dispersionFiberProfileSelect"/);
+  assert.match(freshIndex, /id="dispersionWlSelect"/);
+  assert.match(freshIndex, /id="dispersionTargetBitrateSelect"/);
+  assert.match(freshIndex, /id="dispersionSpanSlider"/);
+  assert.match(freshIndex, /id="dispersionSpanVal"/);
+  assert.match(freshIndex, /id="dispersionPmdSlider"/);
+  assert.match(freshIndex, /id="dispersionPmdVal"/);
+  assert.match(freshIndex, /id="dispersionNotesInput"/);
+  assert.match(freshIndex, /id="dispersionRecordCertBtn"/);
+  assert.match(freshIndex, /id="dispersionCopyReportBtn"/);
+  assert.match(freshIndex, /id="dispersionPrintA4Btn"/);
+  assert.match(freshIndex, /id="dispersionPrintThermalBtn"/);
+  assert.match(freshIndex, /id="dispersionExportCsvBtn"/);
+  assert.match(freshIndex, /id="dispersionClearHistoryBtn"/);
+  assert.match(freshIndex, /id="dispersionHistoryTableBody"/);
+
+  // Styles
+  assert.match(freshStyles, /\.dispersion-cert-modal-card/);
+  assert.match(freshStyles, /\.dispersion-analysis-svg/);
+  assert.match(freshStyles, /\[data-theme="dark"\] \.dispersion-cert-modal-card/);
+
+  // App.js
+  assert.match(freshApp, /setupDispersionCertModal/);
+  assert.match(freshApp, /customerDispersionModalController/);
+  assert.match(freshApp, /openDispersionCertBtn/);
+});
+

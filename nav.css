@@ -4361,6 +4361,99 @@ kbd {
   color: #e6edea;
 }
 
+/* Aerial Fiber Pole Catenary Sag & Weather Hazard Styles */
+.aerial-alerts-modal {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.aerial-alerts-modal-card {
+  max-width: 960px;
+}
+
+.aerial-top-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.aerial-presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.weather-preset-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  background: var(--bg-soft, #f1f5f3);
+  color: var(--ink, #182e2a);
+  border: 1px solid var(--border, #cbd5e1);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.weather-preset-btn:hover {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+  border-color: var(--primary, #0e5b4d);
+}
+
+.aerial-sliders-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.aerial-slider-item {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aerial-catenary-chart-card,
+.aerial-catenary-chart-wrap {
+  width: 100%;
+  margin: 14px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.aerial-sectors-table-card {
+  margin-top: 12px;
+}
+
+.aerial-catenary-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+[data-theme="dark"] .aerial-alerts-modal,
+[data-theme="dark"] .aerial-alerts-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
+[data-theme="dark"] .weather-preset-btn {
+  background: #182923;
+  color: #e6edea;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .weather-preset-btn:hover {
+  background: #10b981;
+  color: #ffffff;
+}
+
 
 
 

@@ -6104,3 +6104,19 @@ export {
   generateOrlWhatsAppReport,
   setupMobileOrlModal
 } from './nav-optical-return-loss.js';
+
+export {
+  FIBER_CLEAVER_STORAGE_KEY,
+  CLEAVER_MODELS,
+  CLEAVE_DEFECT_TYPES,
+  CLEAVE_ANGLE_SPEC,
+  calculateCleaverPositionDynamics,
+  calculateCleaverAuditMetrics,
+  renderCleaverDialSvg,
+  generateCleaverAuditReport,
+  generateCleaverWhatsAppDispatch,
+  loadCleaverAuditLog,
+  saveCleaverAuditLog,
+  clearCleaverAuditLog,
+  setupMobileCleaverModal
+} from './nav-fiber-cleaver.js';

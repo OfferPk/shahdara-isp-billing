@@ -41,7 +41,8 @@ import {
   setupOpticalAcceptanceModal,
   setupDropSafetyInspectionModal,
   setupEthernetCertModal,
-  setupOrlCertModal
+  setupOrlCertModal,
+  setupDdmiCertModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3337,6 +3338,7 @@ export let customerOpticalAcceptanceModalController;
 export let customerDropSafetyModalController;
 export let customerEthernetCertModalController;
 export let customerOrlCertModalController;
+export let customerDdmiCertModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3546,6 +3548,26 @@ if (typeof document !== 'undefined') {
     openOrlCertBtn.addEventListener('click', () => {
       const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
       customerOrlCertModalController?.open(cust);
+    });
+  }
+
+  customerDdmiCertModalController = setupDdmiCertModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openDdmiCertBtn = $('#openDdmiCertBtn');
+  if (openDdmiCertBtn) {
+    openDdmiCertBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      if (cust && customerDdmiCertModalController) {
+        customerDdmiCertModalController.setReading({
+          customerName: cust.name || 'Muhammad Aslam',
+          customerId: cust.id || 'CUST-001',
+          area: cust.area || 'Shahdara Town'
+        });
+      }
+      customerDdmiCertModalController?.open();
     });
   }
 }

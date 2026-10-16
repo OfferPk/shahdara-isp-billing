@@ -5593,3 +5593,43 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* =========================================================================
+   ONU Digital Diagnostic Monitoring Interface (DDMI) SFF-8472 Telemetry QA
+   ========================================================================= */
+
+.ddmi-cert-modal-card {
+  max-width: 920px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.ddmi-telemetry-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+  width: 100%;
+  max-width: 640px;
+  display: block;
+  margin: 0 auto;
+}
+
+[data-theme="dark"] .ddmi-cert-modal-card {
+  background: #14241e;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+@media print {
+  .ddmi-cert-modal,
+  .ddmi-cert-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+

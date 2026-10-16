@@ -2085,6 +2085,34 @@
   border-color: #243c33;
 }
 
+/* OSC Telemetry & Transponder Loopback Diagnostics Styles */
+.chart-card-osc {
+  background: var(--surface, #ffffff);
+}
+
+.osc-modal-card {
+  max-width: 960px;
+}
+
+.osc-compact-svg,
+.osc-expanded-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-osc {
+  background: #172535;
+  border-color: #1e3a5f;
+}
+
+[data-theme="dark"] .osc-modal-card {
+  background: #0f1c2e;
+  border-color: #1e3a5f;
+}
+
+
 
 
 .signal-tag {

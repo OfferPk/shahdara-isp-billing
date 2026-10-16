@@ -619,7 +619,18 @@
             </div>
             <div id="dashboardDwdmChart" class="chart-svg-container" role="img" aria-label="DWDM Optical Channel Transponder OSNR Budget Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-osc">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Optical Supervisory Channel (OSC) &amp; Loopback Matrix</h4>
+                <p class="chart-subtitle">ITU-T G.692/G.709 1510/1610nm telemetry, optical power margin, and remote loopback testing</p>
+              </div>
+              <button id="dashboardOpenOscModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OSC Diagnostics</button>
+            </div>
+            <div id="dashboardOscChart" class="chart-svg-container" role="img" aria-label="Optical Supervisory Channel Telemetry and Transponder Loopback Chart"></div>
+          </article>
         </div>
+
 
 
       </section>
@@ -2668,7 +2679,95 @@
           </div>
         </div>
       </dialog>
+
+      <dialog id="dashboardOscModal" class="dashboard-modal osc-modal" aria-labelledby="dashboardOscModalTitle">
+        <div class="dashboard-modal-card osc-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">OPTICAL TRANSPORT · SUPERVISORY TELEMETRY</p>
+              <h3 id="dashboardOscModalTitle">Optical Supervisory Channel (OSC) &amp; Transponder Loopback Diagnostics</h3>
+            </div>
+            <button id="dashboardOscModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Out-of-band 1510nm/1610nm supervisory telemetry, optical power attenuation, receiver sensitivity floor, and diagnostic remote loopbacks.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="oscLinkSelect">Supervisory Optical Link:</label>
+              <select id="oscLinkSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="oscLoopbackModeSelect">Diagnostic Loopback Mode:</label>
+              <select id="oscLoopbackModeSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="oscFiberLossSlider">Fiber Loss Delta (dB/km): <span id="oscFiberLossVal" class="sim-val-pill">+0.00 dB/km</span></label>
+              <input type="range" id="oscFiberLossSlider" min="-0.05" max="0.30" step="0.01" value="0.00" class="otdr-slider">
+            </div>
+            <div class="otdr-control-item">
+              <label for="oscSpliceLossSlider">Splice Degradation (dB): <span id="oscSpliceLossVal" class="sim-val-pill">+0.00 dB</span></label>
+              <input type="range" id="oscSpliceLossSlider" min="0.0" max="6.0" step="0.2" value="0.0" class="otdr-slider">
+            </div>
+            <div class="otdr-control-item" style="align-self: flex-end;">
+              <button id="oscResetSimBtn" class="secondary-button" type="button">Reset Telemetry</button>
+            </div>
+          </div>
+
+          <div class="otdr-kpi-summary-grid">
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">MONITORED LINK</span>
+              <span id="oscKpiLinkName" class="ltv-kpi-val" style="font-size: 1.05rem;">OSC-1510 Core</span>
+              <span class="ltv-kpi-sub">ITU-T Supervisory Carrier</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">OPTICAL RX POWER</span>
+              <span id="oscKpiRxPower" class="ltv-kpi-val" style="color: #0284c7;">-18.5 dBm</span>
+              <span class="ltv-kpi-sub">At photodetector stage</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">OPTICAL LINK MARGIN</span>
+              <span id="oscKpiMargin" class="ltv-kpi-val" style="color: #10b981;">+19.5 dB</span>
+              <span class="ltv-kpi-sub">Above sensitivity floor</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">OPTICAL HEALTH TIER</span>
+              <span id="oscStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="oscKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="oscModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="OSC Telemetry and Remote Loopback Schematic Diagram"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Shahdara Optical Supervisory Channel Fleet Register</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-register-table">
+              <thead>
+                <tr>
+                  <th>Supervisory Link</th>
+                  <th>Span (km)</th>
+                  <th>Wavelength</th>
+                  <th>Rx Power</th>
+                  <th>Link Margin</th>
+                  <th>BER</th>
+                  <th>Status</th>
+                  <th>Loopback</th>
+                  <th>Revenue Exposure</th>
+                </tr>
+              </thead>
+              <tbody id="oscLinksTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="oscFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopyOscReportBtn" class="primary-button" type="button">📋 Copy OSC Telemetry Briefing</button>
+          </div>
+        </div>
+      </dialog>
     </section>
+
 
 
 

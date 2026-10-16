@@ -45,7 +45,8 @@ import {
   setupDdmiCertModal,
   setupDispersionCertModal,
   setupBendLossCertModal,
-  setupBidirectionalOtdrModal
+  setupBidirectionalOtdrModal,
+  setupOtdrDeadzoneModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3377,6 +3378,7 @@ export let customerDdmiCertModalController;
 export let customerDispersionModalController;
 export let customerBendLossModalController;
 export let customerBidirectionalOtdrModalController;
+export let customerOtdrDeadzoneModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3666,6 +3668,27 @@ if (typeof document !== 'undefined') {
         });
       }
       customerBidirectionalOtdrModalController?.open(cust);
+    });
+  }
+
+  customerOtdrDeadzoneModalController = setupOtdrDeadzoneModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openOtdrDeadzoneBtn = $('#openOtdrDeadzoneBtn');
+  if (openOtdrDeadzoneBtn) {
+    openOtdrDeadzoneBtn.addEventListener('click', () => {
+      const modal = $('#otdrDeadzoneModal');
+      if (modal) {
+        if (typeof modal.showModal === 'function') {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
+        customerOtdrDeadzoneModalController?.recalculate();
+        customerOtdrDeadzoneModalController?.renderHistory();
+      }
     });
   }
 }

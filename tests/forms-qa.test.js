@@ -7259,3 +7259,321 @@ test('index.html and styles.css include bidirectional OTDR modal elements and st
   assert.ok(css.includes('.bidirectional-otdr-svg'));
   assert.ok(css.includes('.bidirectional-otdr-svg-wrap'));
 });
+
+test('calculatePulseWidthDeadZones computes spatial length and dead zones per IEC 61746-1', async () => {
+  const { calculatePulseWidthDeadZones, SPEED_OF_LIGHT_VACUUM_MPS } = await import('../form-validation.js');
+
+  const p3 = calculatePulseWidthDeadZones(3, 1550);
+  assert.equal(p3.pulseWidthNs, 3);
+  assert.equal(p3.eventDeadZoneM, 0.5);
+  assert.equal(p3.attenuationDeadZoneM, 2.0);
+  assert.equal(p3.dynamicRangeDb, 18.0);
+  assert.ok(p3.spatialLengthM > 0.3 && p3.spatialLengthM < 0.35);
+
+  const p10 = calculatePulseWidthDeadZones(10, 1550);
+  assert.equal(p10.pulseWidthNs, 10);
+  assert.equal(p10.eventDeadZoneM, 1.2);
+  assert.equal(p10.attenuationDeadZoneM, 3.8);
+  assert.equal(p10.dynamicRangeDb, 26.0);
+
+  const p100 = calculatePulseWidthDeadZones(100, 1550);
+  assert.equal(p100.eventDeadZoneM, 6.0);
+  assert.equal(p100.attenuationDeadZoneM, 18.0);
+  assert.equal(p100.dynamicRangeDb, 36.0);
+
+  const p1000 = calculatePulseWidthDeadZones(1000, 1550);
+  assert.equal(p1000.eventDeadZoneM, 50.0);
+  assert.equal(p1000.attenuationDeadZoneM, 140.0);
+  assert.equal(p1000.dynamicRangeDb, 43.0);
+});
+
+test('evaluateOtdrDeadzoneCalibration verifies launch box, tail box, and event resolution', async () => {
+  const { evaluateOtdrDeadzoneCalibration, OTDR_SPAN_PRESETS } = await import('../form-validation.js');
+
+  const preset = OTDR_SPAN_PRESETS[0];
+  const result = evaluateOtdrDeadzoneCalibration({
+    spanName: preset.name,
+    spanLengthKm: preset.spanLengthKm,
+    pulseWidthId: '10ns',
+    launchBoxLengthM: 500,
+    tailBoxLengthM: 300,
+    events: preset.events
+  });
+
+  assert.equal(result.launchBox.adequacy, 'VERIFIED_PASS');
+  assert.equal(result.tailBox.adequacy, 'VERIFIED_PASS');
+  assert.equal(result.maskedEventCount, 0);
+  assert.equal(result.overallVerdict, 'CERTIFIED_CALIBRATION_PASS');
+  assert.ok(result.totalMeasuredLinkLossDb > 1.0);
+  assert.ok(result.dynamicRangeMarginDb > 10.0);
+
+  // Test missing launch cable
+  const noLaunch = evaluateOtdrDeadzoneCalibration({
+    spanLengthKm: 5.0,
+    pulseWidthId: '10ns',
+    launchBoxLengthM: 0,
+    tailBoxLengthM: 300
+  });
+  assert.equal(noLaunch.launchBox.adequacy, 'FAIL_NO_LAUNCH_CABLE');
+  assert.equal(noLaunch.overallVerdict, 'FAIL_CALIBRATION_REJECT');
+
+  // Test short launch cable
+  const shortLaunch = evaluateOtdrDeadzoneCalibration({
+    spanLengthKm: 5.0,
+    pulseWidthId: '100ns', // ADZ = 18m, minRequired = 27m, but minimum floor is 100m
+    launchBoxLengthM: 60,
+    tailBoxLengthM: 300
+  });
+  assert.equal(shortLaunch.launchBox.adequacy, 'MARGINAL_SHORT_CABLE');
+  assert.equal(shortLaunch.overallVerdict, 'CONDITIONAL_PASS');
+
+  // Test missing tail cable
+  const noTail = evaluateOtdrDeadzoneCalibration({
+    spanLengthKm: 5.0,
+    pulseWidthId: '10ns',
+    launchBoxLengthM: 500,
+    tailBoxLengthM: 0
+  });
+  assert.equal(noTail.tailBox.adequacy, 'FAIL_NO_TAIL_CABLE');
+  assert.equal(noTail.overallVerdict, 'CONDITIONAL_PASS');
+
+  // Test closely-spaced events masking
+  const maskedEventsResult = evaluateOtdrDeadzoneCalibration({
+    spanLengthKm: 5.0,
+    pulseWidthId: '100ns', // EDZ = 6.0 meters
+    launchBoxLengthM: 1000,
+    tailBoxLengthM: 500,
+    events: [
+      { id: 'E1', distanceM: 1000, label: 'Splice A', lossDb: 0.05, type: 'SPLICE' },
+      { id: 'E2', distanceM: 1003, label: 'Splice B (3m away, within 6m EDZ)', lossDb: 0.06, type: 'SPLICE' }
+    ]
+  });
+  assert.equal(maskedEventsResult.maskedEventCount, 2);
+  assert.equal(maskedEventsResult.events[0].isMaskedByDeadZone, true);
+  assert.equal(maskedEventsResult.events[1].isMaskedByDeadZone, true);
+  assert.equal(maskedEventsResult.overallVerdict, 'CONDITIONAL_PASS');
+});
+
+test('renderOtdrDeadzoneSvg produces vector SVG trace with zones and HUD ribbon', async () => {
+  const { evaluateOtdrDeadzoneCalibration, renderOtdrDeadzoneSvg } = await import('../form-validation.js');
+
+  const analysis = evaluateOtdrDeadzoneCalibration({
+    spanLengthKm: 6.2,
+    pulseWidthId: '10ns',
+    launchBoxLengthM: 500,
+    tailBoxLengthM: 300
+  });
+
+  const svg = renderOtdrDeadzoneSvg(analysis, { width: 800, height: 340 });
+  assert.ok(svg.includes('<svg viewBox="0 0 800 340"'));
+  assert.ok(svg.includes('Launch Fiber Box'));
+  assert.ok(svg.includes('Optical Fiber Link Span Under Test'));
+  assert.ok(svg.includes('Receive Tail Box'));
+  assert.ok(svg.includes('class="otdr-deadzone-trace-svg"'));
+  assert.ok(svg.includes('ADZ: 3.8m'));
+  assert.ok(svg.includes('Demarcation'));
+});
+
+test('generateOtdrDeadzoneCertHtml outputs valid A4 and thermal printable layouts', async () => {
+  const { evaluateOtdrDeadzoneCalibration, generateOtdrDeadzoneCertHtml } = await import('../form-validation.js');
+
+  const analysis = evaluateOtdrDeadzoneCalibration({
+    spanName: 'Baradari Central OLT to Jia Musa Ring FAT-04',
+    spanLengthKm: 6.2,
+    pulseWidthId: '10ns'
+  });
+
+  const a4Html = generateOtdrDeadzoneCertHtml(analysis, 'a4');
+  assert.ok(a4Html.includes('Shahdara ISP Metrology &amp; Optical QA Laboratory'));
+  assert.ok(a4Html.includes('IEC 61746-1 &amp; ITU-T G.650.1'));
+  assert.ok(a4Html.includes(analysis.certId));
+  assert.ok(a4Html.includes('Launch Box (Near-End)'));
+  assert.ok(a4Html.includes('Lead Metrology Engineer'));
+
+  const thermalHtml = generateOtdrDeadzoneCertHtml(analysis, 'thermal');
+  assert.ok(thermalHtml.includes('SHAHDARA ISP METROLOGY'));
+  assert.ok(thermalHtml.includes('OTDR DEAD ZONE CALIBRATION'));
+  assert.ok(thermalHtml.includes(analysis.certId));
+  assert.ok(thermalHtml.includes('PULSE WIDTH:'));
+});
+
+test('formatOtdrDeadzoneCertWhatsApp outputs bilingual Urdu and English dispatch text', async () => {
+  const { evaluateOtdrDeadzoneCalibration, formatOtdrDeadzoneCertWhatsApp } = await import('../form-validation.js');
+
+  const analysis = evaluateOtdrDeadzoneCalibration({
+    spanName: 'Baradari Central OLT to Jia Musa',
+    spanLengthKm: 6.2,
+    pulseWidthId: '10ns'
+  });
+
+  const wa = formatOtdrDeadzoneCertWhatsApp(analysis);
+  assert.ok(wa.includes('SHAHDARA ISP - OTDR DEAD ZONE QA CALIBRATION'));
+  assert.ok(wa.includes('او ٹی ڈی آر ڈیڈ زون و پلس کیلیبریشن'));
+  assert.ok(wa.includes(analysis.certId));
+  assert.ok(wa.includes('Event Dead Zone (EDZ):'));
+  assert.ok(wa.includes('Attenuation Dead Zone (ADZ):'));
+  assert.ok(wa.includes('Launch Box:'));
+});
+
+test('generateOtdrDeadzoneCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { evaluateOtdrDeadzoneCalibration, generateOtdrDeadzoneCertsCsv } = await import('../form-validation.js');
+
+  const analysis1 = evaluateOtdrDeadzoneCalibration({ spanName: 'Span Alpha', spanLengthKm: 4.5 });
+  const analysis2 = evaluateOtdrDeadzoneCalibration({ spanName: 'Span Beta', spanLengthKm: 8.2 });
+
+  const csv = generateOtdrDeadzoneCertsCsv([analysis1, analysis2]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('"Certificate ID","Timestamp","Span Name"'));
+  assert.ok(csv.includes('"Span Alpha"'));
+  assert.ok(csv.includes('"Span Beta"'));
+});
+
+test('localStorage helpers correctly save, retrieve, update, and calculate metrics', async () => {
+  const {
+    saveOtdrDeadzoneCert,
+    getSavedOtdrDeadzoneCerts,
+    updateOtdrDeadzoneCertStatus,
+    clearOtdrDeadzoneCerts,
+    calculateOtdrDeadzoneMetrics,
+    evaluateOtdrDeadzoneCalibration
+  } = await import('../form-validation.js');
+
+  const mockStore = {};
+  const mockStorage = {
+    getItem: (k) => mockStore[k] || null,
+    setItem: (k, v) => { mockStore[k] = String(v); },
+    removeItem: (k) => { delete mockStore[k]; }
+  };
+
+  const cert1 = evaluateOtdrDeadzoneCalibration({ certId: 'DZC-202610-0001', spanLengthKm: 5.0 });
+  const cert2 = evaluateOtdrDeadzoneCalibration({ certId: 'DZC-202610-0002', spanLengthKm: 10.0 });
+
+  assert.equal(saveOtdrDeadzoneCert(cert1, mockStorage), true);
+  assert.equal(saveOtdrDeadzoneCert(cert2, mockStorage), true);
+
+  const saved = getSavedOtdrDeadzoneCerts(mockStorage);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].certId, 'DZC-202610-0002');
+
+  const okUpdate = updateOtdrDeadzoneCertStatus('DZC-202610-0001', 'CONDITIONAL_PASS', mockStorage);
+  assert.equal(okUpdate, true);
+
+  const updatedSaved = getSavedOtdrDeadzoneCerts(mockStorage);
+  const updatedItem = updatedSaved.find(c => c.certId === 'DZC-202610-0001');
+  assert.equal(updatedItem.overallVerdict, 'CONDITIONAL_PASS');
+
+  const metrics = calculateOtdrDeadzoneMetrics(updatedSaved);
+  assert.equal(metrics.total, 2);
+  assert.equal(metrics.conditional, 1);
+  assert.equal(metrics.certified, 1);
+  assert.equal(metrics.passRate, 50.0);
+
+  assert.equal(clearOtdrDeadzoneCerts(mockStorage), true);
+  assert.equal(getSavedOtdrDeadzoneCerts(mockStorage).length, 0);
+});
+
+test('index.html and styles.css include OTDR Dead Zone QA modal elements and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="openOtdrDeadzoneBtn"'));
+  assert.ok(html.includes('data-open-otdr-deadzone'));
+  assert.ok(html.includes('id="otdrDeadzoneModal"'));
+  assert.ok(html.includes('id="otdrDeadzoneSvgContainer"'));
+  assert.ok(html.includes('id="otdrDeadzoneHudRibbon"'));
+  assert.ok(html.includes('id="otdrDeadzonePresetSelect"'));
+  assert.ok(html.includes('id="otdrDeadzonePulseSelect"'));
+  assert.ok(html.includes('id="otdrDeadzoneWlSelect"'));
+  assert.ok(html.includes('id="saveOtdrDeadzoneCertBtn"'));
+  assert.ok(html.includes('id="printOtdrDeadzoneA4Btn"'));
+
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.otdr-deadzone-modal-card'));
+  assert.ok(css.includes('.otdr-deadzone-trace-svg'));
+  assert.ok(css.includes('.otdr-deadzone-svg-wrap'));
+});
+
+test('setupOtdrDeadzoneModal binds DOM elements, recalculates, and saves certificates', async () => {
+  const { setupOtdrDeadzoneModal, OTDR_DEADZONE_CERT_STORAGE_KEY } = await import('../form-validation.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      innerHTML: '',
+      open: false,
+      addEventListener(evt, fn) {
+        if (!listeners[evt]) listeners[evt] = [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      querySelectorAll() { return []; }
+    };
+  }
+
+  const elements = {
+    otdrDeadzoneModal: createMockEl('otdrDeadzoneModal'),
+    openOtdrDeadzoneBtn: createMockEl('openOtdrDeadzoneBtn'),
+    closeOtdrDeadzoneBtn: createMockEl('closeOtdrDeadzoneBtn'),
+    otdrDeadzonePresetSelect: createMockEl('otdrDeadzonePresetSelect'),
+    otdrDeadzonePulseSelect: createMockEl('otdrDeadzonePulseSelect'),
+    otdrDeadzoneWlSelect: createMockEl('otdrDeadzoneWlSelect'),
+    otdrDeadzoneLaunchInput: createMockEl('otdrDeadzoneLaunchInput'),
+    otdrDeadzoneTailInput: createMockEl('otdrDeadzoneTailInput'),
+    otdrDeadzoneSvgContainer: createMockEl('otdrDeadzoneSvgContainer'),
+    otdrDeadzoneHudRibbon: createMockEl('otdrDeadzoneHudRibbon'),
+    saveOtdrDeadzoneCertBtn: createMockEl('saveOtdrDeadzoneCertBtn'),
+    printOtdrDeadzoneA4Btn: createMockEl('printOtdrDeadzoneA4Btn'),
+    printThermalBtn: createMockEl('printOtdrDeadzoneThermalBtn'),
+    whatsappOtdrDeadzoneBtn: createMockEl('whatsappOtdrDeadzoneBtn'),
+    exportCsvBtn: createMockEl('exportOtdrDeadzoneCsvBtn'),
+    otdrDeadzoneHistoryTbody: createMockEl('otdrDeadzoneHistoryTbody')
+  };
+
+  elements.otdrDeadzonePresetSelect.value = 'SPAN_BARADARI_JIA_MUSA';
+  elements.otdrDeadzonePulseSelect.value = '10ns';
+  elements.otdrDeadzoneWlSelect.value = '1550';
+  elements.otdrDeadzoneLaunchInput.value = '500';
+  elements.otdrDeadzoneTailInput.value = '300';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toastLog = [];
+  const controller = setupOtdrDeadzoneModal({
+    storage: mockStorage,
+    doc: mockDoc,
+    onToast: (msg) => toastLog.push(msg)
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.otdrDeadzoneModal.open, true);
+  assert.ok(elements.otdrDeadzoneSvgContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.otdrDeadzoneHudRibbon.innerHTML.includes('Event Dead Zone'));
+
+  elements.saveOtdrDeadzoneCertBtn.click();
+  assert.ok(toastLog.some(msg => msg.includes('saved successfully')));
+  assert.ok(store[OTDR_DEADZONE_CERT_STORAGE_KEY]);
+
+  controller.close();
+  assert.equal(elements.otdrDeadzoneModal.open, false);
+});

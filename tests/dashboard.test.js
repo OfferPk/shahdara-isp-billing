@@ -284,8 +284,28 @@ import {
   calculateQinqMetrics,
   renderQinqTrunkSvg,
   generateQinqReport,
-  setupQinqModal
+  setupQinqModal,
+  SHAHDARA_SYNCE_NODES,
+  SYNCE_CONSTANTS,
+  getSyncESelectedNode,
+  setSyncESelectedNode,
+  getSyncEHoldoverHours,
+  setSyncEHoldoverHours,
+  getSyncEJitterSurgeUs,
+  setSyncEJitterSurgeUs,
+  getSyncEGnssLossInjected,
+  setSyncEGnssLossInjected,
+  getSyncESelectedProfile,
+  setSyncESelectedProfile,
+  resetSyncESimState,
+  calculateOscillatorHoldoverDrift,
+  calculateNodeSyncMetrics,
+  calculateSyncEMetrics,
+  renderSyncEClockSvg,
+  generateSyncEReport,
+  setupSyncEModal
 } from '../dashboard.js';
+
 
 
 
@@ -8940,3 +8960,323 @@ test('setupQinqModal hooks all UI elements, controls, and callbacks properly', a
     resetQinqSimState();
   }
 });
+
+test('calculateOscillatorHoldoverDrift handles zero hours and calculates drift correctly for oscillator types', () => {
+  assert.equal(calculateOscillatorHoldoverDrift('RUBIDIUM', 0), 0.0);
+  assert.equal(calculateOscillatorHoldoverDrift('RUBIDIUM', -2), 0.0);
+
+  const rubidium12h = calculateOscillatorHoldoverDrift('RUBIDIUM', 12);
+  const ocxo12h = calculateOscillatorHoldoverDrift('OCXO', 12);
+  const tcxo12h = calculateOscillatorHoldoverDrift('TCXO', 12);
+
+  assert.ok(rubidium12h > 0);
+  assert.ok(ocxo12h > rubidium12h);
+  assert.ok(tcxo12h > ocxo12h);
+});
+
+test('calculateNodeSyncMetrics calculates baseline phase error, jitter, MTIE, and lock status', () => {
+  const gmNode = SHAHDARA_SYNCE_NODES.find(n => n.id === 'synce-node-gm-central');
+  assert.ok(gmNode);
+
+  const gmMetrics = calculateNodeSyncMetrics(gmNode, {
+    selectedNodeId: gmNode.id,
+    holdoverHours: 0,
+    jitterSurgeUs: 0,
+    gnssLossInjected: false
+  });
+
+  assert.equal(gmMetrics.effectivePhaseErrorNs, 0.0);
+  assert.equal(gmMetrics.syncState, 'LOCKED_GNSS');
+  assert.equal(gmMetrics.effectiveSsm, 'PRC');
+  assert.equal(gmMetrics.badgeClass, 'badge-success');
+  assert.ok(gmMetrics.mtieNs > 0);
+
+  const bcNode = SHAHDARA_SYNCE_NODES.find(n => n.id === 'synce-node-bc-core');
+  assert.ok(bcNode);
+  const bcMetrics = calculateNodeSyncMetrics(bcNode, {
+    selectedNodeId: bcNode.id,
+    holdoverHours: 0,
+    jitterSurgeUs: 0
+  });
+
+  assert.equal(bcMetrics.effectivePhaseErrorNs, 18.0);
+  assert.equal(bcMetrics.syncState, 'LOCKED');
+  assert.equal(bcMetrics.effectiveSsm, 'SSU_A');
+  assert.equal(bcMetrics.slaPacketSlipRiskPct, 0.0);
+});
+
+test('calculateNodeSyncMetrics simulates GNSS loss, holdover aging, and out-of-spec phase slips', () => {
+  const gmNode = SHAHDARA_SYNCE_NODES.find(n => n.id === 'synce-node-gm-central');
+  
+  // Inject GNSS signal loss (switches to Rubidium holdover SSU-A)
+  const gmHoldover = calculateNodeSyncMetrics(gmNode, {
+    selectedNodeId: gmNode.id,
+    gnssLossInjected: true,
+    holdoverHours: 4.0
+  });
+
+  assert.equal(gmHoldover.syncState, 'HOLDOVER');
+  assert.equal(gmHoldover.effectiveSsm, 'SSU_A');
+  assert.equal(gmHoldover.badgeClass, 'badge-warning');
+  assert.ok(gmHoldover.holdoverDriftNs > 0);
+
+  // Severe holdover (> 24 hours) causes OUT_OF_SPEC
+  const gmExpired = calculateNodeSyncMetrics(gmNode, {
+    selectedNodeId: gmNode.id,
+    gnssLossInjected: true,
+    holdoverHours: 36.0
+  });
+
+  assert.equal(gmExpired.syncState, 'OUT_OF_SPEC');
+  assert.equal(gmExpired.badgeClass, 'badge-danger');
+  assert.ok(gmExpired.slaPacketSlipRiskPct > 0);
+
+  // Severe jitter surge on slave node causes out-of-spec condition
+  const slaveNode = SHAHDARA_SYNCE_NODES.find(n => n.id === 'synce-node-sc-begumkot');
+  const slaveDegraded = calculateNodeSyncMetrics(slaveNode, {
+    selectedNodeId: slaveNode.id,
+    jitterSurgeUs: 5.0
+  });
+
+  assert.equal(slaveDegraded.syncState, 'OUT_OF_SPEC');
+  assert.equal(slaveDegraded.effectiveSsm, 'DNU');
+  assert.ok(slaveDegraded.slaPacketSlipRiskPct > 0);
+});
+
+test('calculateSyncEMetrics computes fleet health index and correlates subscriber revenue exposure', () => {
+  let state = createInitialState(['Sync Cust A', 'Sync Cust B']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[1].area = 'Begum Kot';
+  state.customers[1].serviceStatus = 'active';
+
+  const metrics = calculateSyncEMetrics(state, {
+    selectedNodeId: 'synce-node-gm-central'
+  });
+
+  assert.equal(metrics.totalNodes, SHAHDARA_SYNCE_NODES.length);
+  assert.ok(metrics.healthIndex > 50);
+  assert.ok(metrics.nodes.length === SHAHDARA_SYNCE_NODES.length);
+  assert.equal(metrics.selectedNode.id, 'synce-node-gm-central');
+
+  const begumNode = metrics.nodes.find(n => n.id === 'synce-node-sc-begumkot');
+  assert.ok(begumNode);
+  assert.equal(begumNode.matchedCustomersCount, 1);
+});
+
+test('renderSyncEClockSvg renders accessible SVG for both compact dial and full modal waveform', () => {
+  let state = createInitialState(['Clock User']);
+  const metrics = calculateSyncEMetrics(state);
+
+  const compactSvg = renderSyncEClockSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('synce-compact-svg'));
+  assert.ok(compactSvg.includes('Phase Offset (ITU-T G.8275.1)'));
+  assert.ok(compactSvg.includes('SSM QUALITY'));
+  assert.ok(compactSvg.includes('PDV PACKET JITTER'));
+
+  const modalSvg = renderSyncEClockSvg(metrics, { compact: false });
+  assert.ok(modalSvg.includes('synce-modal-svg'));
+  assert.ok(modalSvg.includes('CARRIER ETHERNET CLOCK TOPOLOGY TREE'));
+  assert.ok(modalSvg.includes('PHASE OFFSET JITTER &amp; HOLDOVER ENVELOPE'));
+  assert.ok(modalSvg.includes('T-GM'));
+
+  const emptySvg = renderSyncEClockSvg(null);
+  assert.ok(emptySvg.includes('No clock telemetry recorded'));
+});
+
+test('generateSyncEReport generates complete executive audit text', () => {
+  let state = createInitialState(['Timing Cust']);
+  const metrics = calculateSyncEMetrics(state);
+
+  const report = generateSyncEReport(metrics);
+  assert.ok(report.includes('SHAHDARA ISP — SYNCHRONOUS ETHERNET & PTP CLOCK AUDIT BRIEFING'));
+  assert.ok(report.includes('ACTIVE MONITORED NODE'));
+  assert.ok(report.includes('SHAHDARA ISP NETWORK CLOCK REGISTER'));
+  assert.ok(report.includes('FLEET SYNCHRONIZATION SUMMARY'));
+});
+
+test('setupSyncEModal wires interactive DOM controls, inputs, and events', async () => {
+  let state = createInitialState(['Clock Tech']);
+  state.customers[0].area = 'Shahdara Town';
+
+  let modalOpened = false;
+  let filterAreaTarget = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+  const mockOpenBtn = { addEventListener: (evt, fn) => { mockOpenBtn.onclick = fn; }, onclick: null };
+  const mockCloseBtn = { addEventListener: (evt, fn) => { mockCloseBtn.onclick = fn; }, onclick: null };
+
+  const mockNodeSelect = { options: [], value: 'synce-node-gm-central', appendChild: (opt) => mockNodeSelect.options.push(opt), addEventListener: (evt, fn) => { mockNodeSelect.onchange = fn; } };
+  const mockGnssLossSelect = { options: [], value: 'normal', appendChild: (opt) => mockGnssLossSelect.options.push(opt), addEventListener: (evt, fn) => { mockGnssLossSelect.onchange = fn; } };
+  const mockProfileSelect = { options: [], value: SYNCE_CONSTANTS.PTP_PROFILES.G8275_1, appendChild: (opt) => mockProfileSelect.options.push(opt), addEventListener: (evt, fn) => { mockProfileSelect.onchange = fn; } };
+  const mockHoldoverSlider = { value: '0.0', addEventListener: (evt, fn) => { mockHoldoverSlider.oninput = fn; } };
+  const mockHoldoverVal = { textContent: '' };
+  const mockJitterSlider = { value: '0.0', addEventListener: (evt, fn) => { mockJitterSlider.oninput = fn; } };
+  const mockJitterVal = { textContent: '' };
+  const mockResetBtn = { addEventListener: (evt, fn) => { mockResetBtn.onclick = fn; }, onclick: null };
+
+  const mockKpiNodeName = { textContent: '' };
+  const mockKpiPhaseError = { textContent: '', style: {} };
+  const mockKpiJitter = { textContent: '', style: {} };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = {
+    innerHTML: '',
+    querySelectorAll: () => []
+  };
+
+  const mockFilterAreaBtn = { addEventListener: (evt, fn) => { mockFilterAreaBtn.onclick = fn; }, onclick: null };
+  const mockCopyReportBtn = { addEventListener: (evt, fn) => { mockCopyReportBtn.onclick = fn; }, onclick: null };
+
+  const elementsMap = {
+    'dashboardSyncEModal': mockModal,
+    'dashboardOpenSyncEModalBtn': mockOpenBtn,
+    'dashboardSyncEModalCloseBtn': mockCloseBtn,
+    'synceNodeSelect': mockNodeSelect,
+    'synceGnssLossSelect': mockGnssLossSelect,
+    'synceProfileSelect': mockProfileSelect,
+    'synceHoldoverSlider': mockHoldoverSlider,
+    'synceHoldoverVal': mockHoldoverVal,
+    'synceJitterSlider': mockJitterSlider,
+    'synceJitterVal': mockJitterVal,
+    'synceResetSimBtn': mockResetBtn,
+    'synceKpiNodeName': mockKpiNodeName,
+    'synceKpiPhaseError': mockKpiPhaseError,
+    'synceKpiJitter': mockKpiJitter,
+    'synceStatusBadge': mockStatusBadge,
+    'synceKpiRevenueRisk': mockKpiRevenueRisk,
+    'synceModalChartWrap': mockChartWrap,
+    'synceNodesTableBody': mockTableBody,
+    'synceFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopySyncEReportBtn': mockCopyReportBtn
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementsMap[id] || null,
+    createElement: () => ({ value: '', textContent: '' })
+  };
+
+
+  try {
+    setupSyncEModal(state, {
+      onFilterArea: (a) => { filterAreaTarget = a; },
+      onToast: (m) => { toastMsg = m; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+
+    // Open modal
+    assert.ok(mockOpenBtn.onclick !== null);
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiNodeName.textContent.includes('T-GM-01'));
+    assert.ok(mockChartWrap.innerHTML.includes('synce-modal-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('T-GM-01'));
+
+    // Change node
+    mockNodeSelect.value = 'synce-node-bc-core';
+    mockNodeSelect.onchange();
+    assert.equal(getSyncESelectedNode(), 'synce-node-bc-core');
+
+    // Change GNSS loss
+    mockGnssLossSelect.value = 'lost';
+    mockGnssLossSelect.onchange();
+    assert.equal(getSyncEGnssLossInjected(), true);
+
+    // Change holdover slider
+    mockHoldoverSlider.value = '8.0';
+    mockHoldoverSlider.oninput();
+    assert.equal(getSyncEHoldoverHours(), 8.0);
+    assert.equal(mockHoldoverVal.textContent, '8.0 hrs');
+
+    // Change jitter slider
+    mockJitterSlider.value = '2.5';
+    mockJitterSlider.oninput();
+    assert.equal(getSyncEJitterSurgeUs(), 2.5);
+    assert.equal(mockJitterVal.textContent, '+2.5 µs');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getSyncESelectedNode(), 'synce-node-gm-central');
+    assert.equal(getSyncEGnssLossInjected(), false);
+    assert.equal(getSyncEHoldoverHours(), 0.0);
+    assert.equal(getSyncEJitterSurgeUs(), 0.0);
+    assert.equal(toastMsg, 'Clock synchronization state reset to baseline.');
+
+    // Filter area button
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaTarget, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report button
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('SYNCHRONOUS ETHERNET & PTP CLOCK AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'SyncE audit report copied to clipboard!');
+
+    // Close button
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetSyncESimState();
+  }
+
+});
+
+test('SyncE state getters, setters, and boundary clamping work reliably', () => {
+  resetSyncESimState();
+  assert.equal(getSyncESelectedNode(), 'synce-node-gm-central');
+
+  setSyncESelectedNode('synce-node-bc-vandala');
+  assert.equal(getSyncESelectedNode(), 'synce-node-bc-vandala');
+  setSyncESelectedNode('invalid-node-id');
+  assert.equal(getSyncESelectedNode(), 'synce-node-bc-vandala');
+
+  setSyncEHoldoverHours(15.5);
+  assert.equal(getSyncEHoldoverHours(), 15.5);
+  setSyncEHoldoverHours(100.0); // Clamped to 72.0
+  assert.equal(getSyncEHoldoverHours(), 72.0);
+  setSyncEHoldoverHours(-10.0); // Clamped to 0.0
+  assert.equal(getSyncEHoldoverHours(), 0.0);
+
+  setSyncEJitterSurgeUs(3.2);
+  assert.equal(getSyncEJitterSurgeUs(), 3.2);
+  setSyncEJitterSurgeUs(20.0); // Clamped to 10.0
+  assert.equal(getSyncEJitterSurgeUs(), 10.0);
+  setSyncEJitterSurgeUs(-5.0); // Clamped to 0.0
+  assert.equal(getSyncEJitterSurgeUs(), 0.0);
+
+  setSyncEGnssLossInjected(true);
+  assert.equal(getSyncEGnssLossInjected(), true);
+  setSyncEGnssLossInjected(false);
+  assert.equal(getSyncEGnssLossInjected(), false);
+
+  setSyncESelectedProfile(SYNCE_CONSTANTS.PTP_PROFILES.G8265_1);
+  assert.equal(getSyncESelectedProfile(), SYNCE_CONSTANTS.PTP_PROFILES.G8265_1);
+  setSyncESelectedProfile('invalid-profile');
+  assert.equal(getSyncESelectedProfile(), SYNCE_CONSTANTS.PTP_PROFILES.G8265_1);
+
+  resetSyncESimState();
+  assert.equal(getSyncESelectedNode(), 'synce-node-gm-central');
+  assert.equal(getSyncEHoldoverHours(), 0.0);
+  assert.equal(getSyncEJitterSurgeUs(), 0.0);
+  assert.equal(getSyncEGnssLossInjected(), false);
+  assert.equal(getSyncESelectedProfile(), SYNCE_CONSTANTS.PTP_PROFILES.G8275_1);
+});
+

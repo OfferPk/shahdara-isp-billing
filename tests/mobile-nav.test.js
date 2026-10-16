@@ -6659,6 +6659,399 @@ test('setupMobileOpticalBudgetModal interacts cleanly with DOM events and modal 
   }
 });
 
+/* ========================================================================= */
+/* Field Technician FAT / FDT Port Allocation Matrix Suite Tests             */
+/* ========================================================================= */
 
+test('DEFAULT_SHAHDARA_FAT_ENCLOSURES contains canonical Shahdara OSP nodes', async () => {
+  const { DEFAULT_SHAHDARA_FAT_ENCLOSURES } = await import('../nav.js');
 
+  assert.ok(Array.isArray(DEFAULT_SHAHDARA_FAT_ENCLOSURES));
+  assert.equal(DEFAULT_SHAHDARA_FAT_ENCLOSURES.length, 5);
 
+  const baradari = DEFAULT_SHAHDARA_FAT_ENCLOSURES.find(e => e.id === 'FAT-BAR-01');
+  assert.ok(baradari);
+  assert.equal(baradari.totalPorts, 16);
+  assert.equal(baradari.ports.length, 16);
+  assert.equal(baradari.area, 'Baradari Road');
+  assert.ok(baradari.feederCore.includes('Green'));
+
+  const vandala = DEFAULT_SHAHDARA_FAT_ENCLOSURES.find(e => e.id === 'FAT-VAN-04');
+  assert.ok(vandala);
+  assert.equal(vandala.totalPorts, 8);
+  assert.equal(vandala.ports.length, 8);
+});
+
+test('calculateFatCapacitySummary computes correct port counts and saturation labels', async () => {
+  const { calculateFatCapacitySummary } = await import('../nav.js');
+
+  // Test with standard 16-port FAT
+  const testEnc = {
+    id: 'FAT-TEST-01',
+    totalPorts: 16,
+    ports: [
+      { portNumber: 1, status: 'ACTIVE' },
+      { portNumber: 2, status: 'ACTIVE' },
+      { portNumber: 3, status: 'ACTIVE' },
+      { portNumber: 4, status: 'ACTIVE' },
+      { portNumber: 5, status: 'ACTIVE' },
+      { portNumber: 6, status: 'ACTIVE' },
+      { portNumber: 7, status: 'ACTIVE' },
+      { portNumber: 8, status: 'ACTIVE' },
+      { portNumber: 9, status: 'ACTIVE' },
+      { portNumber: 10, status: 'ACTIVE' },
+      { portNumber: 11, status: 'RESERVED' },
+      { portNumber: 12, status: 'FAULTY' },
+      { portNumber: 13, status: 'SPARE' },
+      { portNumber: 14, status: 'SPARE' },
+      { portNumber: 15, status: 'SPARE' },
+      { portNumber: 16, status: 'SPARE' }
+    ]
+  };
+
+  const cap = calculateFatCapacitySummary(testEnc);
+  assert.equal(cap.totalPorts, 16);
+  assert.equal(cap.activePorts, 10);
+  assert.equal(cap.reservedPorts, 1);
+  assert.equal(cap.faultyPorts, 1);
+  assert.equal(cap.sparePorts, 4);
+  assert.equal(cap.occupiedPorts, 11);
+  assert.equal(cap.utilizationPercent, 68.8);
+  assert.equal(cap.saturationStatus, 'NORMAL');
+
+  // Test with high saturation (>= 70% and < 90%)
+  testEnc.ports[12].status = 'ACTIVE';
+  const capHigh = calculateFatCapacitySummary(testEnc);
+  assert.equal(capHigh.occupiedPorts, 12);
+  assert.equal(capHigh.utilizationPercent, 75);
+  assert.equal(capHigh.saturationStatus, 'HIGH');
+
+  // Test with critical full (>= 90%)
+  testEnc.ports[13].status = 'ACTIVE';
+  testEnc.ports[14].status = 'ACTIVE';
+  testEnc.ports[15].status = 'RESERVED';
+  const capCrit = calculateFatCapacitySummary(testEnc);
+  assert.equal(capCrit.occupiedPorts, 15);
+  assert.equal(capCrit.utilizationPercent, 93.8);
+  assert.equal(capCrit.saturationStatus, 'CRITICAL_FULL');
+
+  // Test empty/invalid
+  const capEmpty = calculateFatCapacitySummary(null);
+  assert.equal(capEmpty.totalPorts, 0);
+  assert.equal(capEmpty.utilizationPercent, 0);
+});
+
+test('evaluatePortOpticalHealth classifies signal levels according to ITU-T standards', async () => {
+  const { evaluatePortOpticalHealth } = await import('../nav.js');
+
+  assert.equal(evaluatePortOpticalHealth(0).id, 'NO_LIGHT');
+  assert.equal(evaluatePortOpticalHealth(NaN).id, 'NO_LIGHT');
+  assert.equal(evaluatePortOpticalHealth(-5.0).id, 'OVERLOAD');
+  assert.equal(evaluatePortOpticalHealth(-18.5).id, 'OPTIMAL');
+  assert.equal(evaluatePortOpticalHealth(-24.0).id, 'OPTIMAL');
+  assert.equal(evaluatePortOpticalHealth(-14.0).id, 'OPTIMAL');
+  assert.equal(evaluatePortOpticalHealth(-10.0).id, 'ACCEPTABLE');
+  assert.equal(evaluatePortOpticalHealth(-26.5).id, 'ACCEPTABLE');
+  assert.equal(evaluatePortOpticalHealth(-27.5).id, 'MARGINAL');
+  assert.equal(evaluatePortOpticalHealth(-28.4).id, 'MARGINAL');
+  assert.equal(evaluatePortOpticalHealth(-29.0).id, 'CRITICAL_LOW');
+  assert.equal(evaluatePortOpticalHealth(-34.5).id, 'CRITICAL_LOW');
+});
+
+test('evaluateDropCableSpan assesses FTTH pole-to-home distance safely', async () => {
+  const { evaluateDropCableSpan } = await import('../nav.js');
+
+  const spanShort = evaluateDropCableSpan(80);
+  assert.equal(spanShort.label, 'Optimal Drop Span (≤ 150m)');
+
+  const spanStd = evaluateDropCableSpan(200);
+  assert.equal(spanStd.label, 'Standard Pole Span (151 - 250m)');
+
+  const spanLong = evaluateDropCableSpan(320);
+  assert.equal(spanLong.label, 'Extended Span Warning (> 250m)');
+});
+
+test('getFatAllocationsStore and saveFatAllocationsStore manage local persistence', async () => {
+  const { getFatAllocationsStore, saveFatAllocationsStore, FDT_ALLOCATIONS_STORAGE_KEY } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  // Initially empty - should seed defaults
+  const initial = getFatAllocationsStore(mockStorage);
+  assert.ok(Array.isArray(initial));
+  assert.equal(initial.length, 5);
+  assert.ok(store[FDT_ALLOCATIONS_STORAGE_KEY]);
+
+  // Modify and save
+  initial[0].area = 'Updated Baradari Sector A';
+  saveFatAllocationsStore(initial, mockStorage);
+
+  const reloaded = getFatAllocationsStore(mockStorage);
+  assert.equal(reloaded[0].area, 'Updated Baradari Sector A');
+});
+
+test('updatePortAllocation modifies port fields and sets timestamp', async () => {
+  const { updatePortAllocation, getFatAllocationsStore } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  // Seed store
+  getFatAllocationsStore(mockStorage);
+
+  const updatedEnc = updatePortAllocation('FAT-BAR-01', 9, {
+    status: 'ACTIVE',
+    customerName: 'Khurram Shehzad',
+    subscriberId: 'CUST-2099',
+    address: 'House 77, Baradari Main',
+    dropLengthMeters: 110,
+    rxPowerDbm: -18.7,
+    connectorPolish: 'SC_APC',
+    notes: 'Newly spliced drop'
+  }, mockStorage);
+
+  assert.ok(updatedEnc);
+  const p9 = updatedEnc.ports.find(p => p.portNumber === 9);
+  assert.equal(p9.status, 'ACTIVE');
+  assert.equal(p9.customerName, 'Khurram Shehzad');
+  assert.equal(p9.subscriberId, 'CUST-2099');
+  assert.equal(p9.dropLengthMeters, 110);
+  assert.equal(p9.rxPowerDbm, -18.7);
+  assert.ok(p9.updatedAt);
+
+  // Non-existent enclosure returns null
+  assert.equal(updatePortAllocation('NON_EXISTENT', 1, {}, mockStorage), null);
+  // Non-existent port returns null
+  assert.equal(updatePortAllocation('FAT-BAR-01', 999, {}, mockStorage), null);
+});
+
+test('resetPortToSpare clears customer allocation back to spare', async () => {
+  const { resetPortToSpare, getFatAllocationsStore } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  getFatAllocationsStore(mockStorage);
+
+  const enc = resetPortToSpare('FAT-BAR-01', 1, mockStorage);
+  const p1 = enc.ports.find(p => p.portNumber === 1);
+  assert.equal(p1.status, 'SPARE');
+  assert.equal(p1.customerName, '');
+  assert.equal(p1.subscriberId, '');
+  assert.equal(p1.dropLengthMeters, 0);
+  assert.equal(p1.rxPowerDbm, 0);
+});
+
+test('resetFatStoreToDefault resets all enclosures back to factory seeds', async () => {
+  const { resetFatStoreToDefault, updatePortAllocation, getFatAllocationsStore } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  getFatAllocationsStore(mockStorage);
+  updatePortAllocation('FAT-BAR-01', 1, { customerName: 'Custom Edited Customer' }, mockStorage);
+
+  const resetList = resetFatStoreToDefault(mockStorage);
+  const p1 = resetList.find(e => e.id === 'FAT-BAR-01').ports.find(p => p.portNumber === 1);
+  assert.equal(p1.customerName, 'Muhammad Rizwan');
+});
+
+test('renderMobileFdtMatrixSvg outputs valid vector elements and port nodes', async () => {
+  const { renderMobileFdtMatrixSvg, DEFAULT_SHAHDARA_FAT_ENCLOSURES } = await import('../nav.js');
+
+  const baradari = DEFAULT_SHAHDARA_FAT_ENCLOSURES[0];
+  const svg = renderMobileFdtMatrixSvg(baradari, 2);
+
+  assert.ok(svg.includes('<svg viewBox="0 0 720 380"'));
+  assert.ok(svg.includes('FAT-BAR-01'));
+  assert.ok(svg.includes('INBOUND FEEDER'));
+  assert.ok(svg.includes('1:16 PLC Cassette'));
+  assert.ok(svg.includes('data-port="1"'));
+  assert.ok(svg.includes('data-port="2"'));
+  assert.ok(svg.includes('data-port="16"'));
+  assert.ok(svg.includes('is-selected')); // Port 2 is selected
+
+  // Check 8-port enclosure
+  const vandala = DEFAULT_SHAHDARA_FAT_ENCLOSURES[1];
+  const svg8 = renderMobileFdtMatrixSvg(vandala, 1);
+  assert.ok(svg8.includes('FAT-VAN-04'));
+  assert.ok(svg8.includes('1:8 PLC Cassette'));
+
+  // Null enclosure test
+  const emptySvg = renderMobileFdtMatrixSvg(null);
+  assert.ok(emptySvg.includes('No Enclosure Selected'));
+});
+
+test('generateFdtAllocationWhatsAppReport formats field lineman dispatch message', async () => {
+  const { generateFdtAllocationWhatsAppReport, DEFAULT_SHAHDARA_FAT_ENCLOSURES } = await import('../nav.js');
+
+  const baradari = DEFAULT_SHAHDARA_FAT_ENCLOSURES[0];
+  const report = generateFdtAllocationWhatsAppReport(baradari, 1);
+
+  assert.ok(report.includes('SHAHDARA FIBER NET - FAT PORT DISPATCH REPORT'));
+  assert.ok(report.includes('FAT-BAR-01'));
+  assert.ok(report.includes('Port #1'));
+  assert.ok(report.includes('Muhammad Rizwan'));
+  assert.ok(report.includes('CUST-1042'));
+  assert.ok(report.includes('85 meters'));
+  assert.ok(report.includes('-18.6 dBm'));
+  assert.ok(report.includes('ENCLOSURE CAPACITY STATUS'));
+
+  // Faulty port test
+  const faultyReport = generateFdtAllocationWhatsAppReport(baradari, 8);
+  assert.ok(faultyReport.includes('INSPECT CONNECTOR FERRULE'));
+});
+
+test('setupMobileFdtAllocationModal wires DOM controls and handles interactions', async () => {
+  const { setupMobileFdtAllocationModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const listeners = new Map();
+  function makeMockElement(id) {
+    const el = {
+      id,
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      children: [],
+      dataset: {},
+      selected: false,
+      appendChild(c) { this.children.push(c); },
+      addEventListener(ev, fn) { listeners.set(`${id}:${ev}`, fn); },
+      dispatchEvent(e) {
+        const fn = listeners.get(`${id}:${e.type}`);
+        if (fn) fn(e);
+      },
+      querySelectorAll: (sel) => []
+    };
+    return el;
+  }
+
+  const modal = makeMockElement('mobileFdtAllocationModal');
+  modal.showModal = () => { modal.open = true; };
+  modal.close = () => { modal.open = false; };
+  modal.setAttribute = (k, v) => { modal[k] = v; };
+  modal.removeAttribute = (k) => { delete modal[k]; };
+
+  const closeBtn = makeMockElement('mobileFdtAllocationCloseBtn');
+  const encSelect = makeMockElement('fdtEnclosureSelect');
+  const svgContainer = makeMockElement('fdtEnclosureSvgContainer');
+  const metricsBar = makeMockElement('fdtMetricsBar');
+  const formSection = makeMockElement('fdtPortEditForm');
+  const portNumSpan = makeMockElement('fdtEditPortNumber');
+  const portStatusSelect = makeMockElement('fdtEditStatus');
+  const custNameInput = makeMockElement('fdtEditCustomerName');
+  const custIdInput = makeMockElement('fdtEditSubscriberId');
+  const custAddressInput = makeMockElement('fdtEditAddress');
+  const dropLengthInput = makeMockElement('fdtEditDropLength');
+  const rxPowerInput = makeMockElement('fdtEditRxPower');
+  const polishSelect = makeMockElement('fdtEditPolish');
+  const notesInput = makeMockElement('fdtEditNotes');
+  const savePortBtn = makeMockElement('fdtSavePortBtn');
+  const resetSpareBtn = makeMockElement('fdtResetSpareBtn');
+  const whatsappBtn = makeMockElement('fdtWhatsappReportBtn');
+  const resetStoreBtn = makeMockElement('fdtResetDefaultStoreBtn');
+  const triggerBtn = makeMockElement('triggerBtn');
+
+  const elements = {
+    mobileFdtAllocationModal: modal,
+    mobileFdtAllocationCloseBtn: closeBtn,
+    fdtEnclosureSelect: encSelect,
+    fdtEnclosureSvgContainer: svgContainer,
+    fdtMetricsBar: metricsBar,
+    fdtPortEditForm: formSection,
+    fdtEditPortNumber: portNumSpan,
+    fdtEditStatus: portStatusSelect,
+    fdtEditCustomerName: custNameInput,
+    fdtEditSubscriberId: custIdInput,
+    fdtEditAddress: custAddressInput,
+    fdtEditDropLength: dropLengthInput,
+    fdtEditRxPower: rxPowerInput,
+    fdtEditPolish: polishSelect,
+    fdtEditNotes: notesInput,
+    fdtSavePortBtn: savePortBtn,
+    fdtResetSpareBtn: resetSpareBtn,
+    fdtWhatsappReportBtn: whatsappBtn,
+    fdtResetDefaultStoreBtn: resetStoreBtn
+  };
+
+  let toastMessage = '';
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-fdt-allocation]') return [triggerBtn];
+      return [];
+    },
+    createElement: (tag) => makeMockElement(tag)
+  };
+
+  try {
+    const controller = setupMobileFdtAllocationModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.updateView, 'function');
+    assert.equal(typeof controller.selectPort, 'function');
+    assert.equal(typeof controller.getEnclosures, 'function');
+
+    // Trigger button opens modal
+    const triggerFn = listeners.get('triggerBtn:click');
+    if (triggerFn) triggerFn();
+    assert.ok(modal.open);
+
+    // Close button closes modal
+    const closeFn = listeners.get('mobileFdtAllocationCloseBtn:click');
+    if (closeFn) closeFn();
+    assert.equal(modal.open, false);
+
+    // Select port 3
+    controller.selectPort(3);
+    assert.equal(portNumSpan.textContent, 'Port #3');
+    assert.equal(custNameInput.value, 'Usman Ghani');
+
+    // Save modified port
+    custNameInput.value = 'Usman Ghani (Fiber Upgraded)';
+    const saveFn = listeners.get('fdtSavePortBtn:click');
+    if (saveFn) saveFn();
+    assert.ok(toastMessage.includes('Port #3 allocation saved'));
+
+    // Reset port to spare
+    const resetSpareFn = listeners.get('fdtResetSpareBtn:click');
+    if (resetSpareFn) resetSpareFn();
+    assert.ok(toastMessage.includes('reset to SPARE'));
+    assert.equal(portStatusSelect.value, 'SPARE');
+
+    // Reset all to default
+    const resetDefaultFn = listeners.get('fdtResetDefaultStoreBtn:click');
+    if (resetDefaultFn) resetDefaultFn();
+    assert.ok(toastMessage.includes('reset to default'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

@@ -67,6 +67,11 @@ import {
   generateCpeAssetBriefing,
   setupCpeAssetModal,
   renderCpeAssetLifecycleSvg,
+  SHAHDARA_POWER_HUBS,
+  calculatePowerBackupMetrics,
+  generatePowerBriefingReport,
+  setupPowerBackupModal,
+  renderPowerBackupSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -3969,6 +3974,233 @@ test('setupCpeAssetModal wires dialog open, populate, filter, copy, and close ac
     await copyHandler();
     assert.ok(copiedText.includes('SHAHDARA ISP - CPE & ONU ASSET LIFECYCLE AUDIT'));
     assert.equal(toastMessage, 'CPE asset audit briefing copied to clipboard!');
+
+    // Close modal
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculatePowerBackupMetrics handles empty and populated states, matching areas and evaluating runway', () => {
+  // Empty state
+  const emptyRes = calculatePowerBackupMetrics(null);
+  assert.equal(emptyRes.totalHubsMonitored, 4);
+  assert.equal(emptyRes.totalActiveSubscribers, 0);
+  assert.equal(emptyRes.totalSubscribersProtected, 0);
+  assert.ok(emptyRes.totalBatteryCapacityKwh > 0);
+  assert.ok(emptyRes.totalFuelReservesLiters > 0);
+  assert.ok(emptyRes.combinedFleetRunwayHours > 0);
+  assert.ok(Array.isArray(emptyRes.hubs));
+  assert.equal(emptyRes.hubs.length, 4);
+
+  // Populated state
+  let state = createInitialState(['User Vandala', 'User Begum Kot', 'User Saeed Park', 'User Jia Musa', 'User Unassigned']);
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[1].area = 'Begum Kot';
+  state.customers[1].serviceStatus = 'active';
+  state.customers[2].area = 'Saeed Park';
+  state.customers[2].serviceStatus = 'offline';
+  state.customers[3].area = 'Jia Musa';
+  state.customers[3].serviceStatus = 'active';
+  state.customers[4].area = 'Unknown Area';
+  state.customers[4].serviceStatus = 'active';
+
+  const metrics = calculatePowerBackupMetrics(state, { fuelCostPerLiter: 290 });
+  assert.equal(metrics.totalSubscribersProtected, 5);
+  assert.equal(metrics.totalActiveSubscribers, 4);
+  assert.equal(metrics.fuelCostPerLiter, 290);
+
+  // Vandala gets 2 subscribers (Vandala Road + fallback unknown area)
+  const vandalaHub = metrics.hubs.find(h => h.id === 'hub-vandala-core');
+  assert.ok(vandalaHub);
+  assert.equal(vandalaHub.totalSubscribers, 2);
+  assert.equal(vandalaHub.activeSubscribers, 2);
+  assert.ok(vandalaHub.batteryRunwayHours > 0);
+  assert.ok(vandalaHub.generatorRunwayHours > 0);
+  assert.equal(vandalaHub.totalOutageRunwayHours, Number((vandalaHub.batteryRunwayHours + vandalaHub.generatorRunwayHours).toFixed(1)));
+
+  // Begum Kot hub is on inverter battery
+  const begumHub = metrics.hubs.find(h => h.id === 'hub-begum-kot');
+  assert.ok(begumHub);
+  assert.equal(begumHub.powerSource, 'Inverter Battery');
+  assert.ok(metrics.activeOutagesCount >= 1);
+  assert.equal(begumHub.totalSubscribers, 1);
+  assert.equal(begumHub.activeSubscribers, 1);
+});
+
+test('calculatePowerBackupMetrics respects hubsOverride and handles critical battery/fuel levels', () => {
+  const customHubs = [
+    {
+      id: 'custom-critical-hub',
+      name: 'Critical Substation',
+      role: 'Emergency Hub',
+      primaryAreas: ['Sector A'],
+      powerSource: 'Inverter Battery',
+      batteryVoltage: 44.1,
+      batteryCapacityAh: 50,
+      batteryType: 'Lead Acid',
+      batteryHealthSoH: 70,
+      batteryLevelPercent: 20, // Critical < 35%
+      inverterLoadWatts: 500,
+      generatorModel: 'Small Portable',
+      generatorFuelLiters: 3, // Critical <= 5L
+      generatorCapacityLiters: 15,
+      generatorFuelBurnRate: 1.5
+    }
+  ];
+
+  const metrics = calculatePowerBackupMetrics({}, { hubsOverride: customHubs });
+  assert.equal(metrics.totalHubsMonitored, 1);
+  assert.equal(metrics.criticalHubsCount, 1);
+  assert.equal(metrics.activeOutagesCount, 1);
+  assert.equal(metrics.gridResilienceStatus, 'Critical Power Disruption');
+  assert.equal(metrics.gridResilienceBadgeClass, 'badge-contraction');
+  assert.equal(metrics.hubs[0].statusTier, 'Critical Discharge');
+});
+
+test('generatePowerBriefingReport formats briefing lines with telemetry and recommendations', () => {
+  const emptyReport = generatePowerBriefingReport({ hubs: [] });
+  assert.ok(emptyReport.includes('SHAHDARA ISP - POWER OUTAGE & OLT BATTERY HEALTH BRIEFING'));
+  assert.ok(emptyReport.includes('No distribution hubs configured'));
+
+  const metrics = calculatePowerBackupMetrics({});
+  const report = generatePowerBriefingReport(metrics, new Date('2026-10-16T12:00:00+05:00'));
+  assert.ok(report.includes('Date: 2026-10-16'));
+  assert.ok(report.includes('Fleet Telecom Battery Capacity'));
+  assert.ok(report.includes('Diesel / Petrol Fuel Reserves'));
+  assert.ok(report.includes('Combined Outage Runway'));
+  assert.ok(report.includes('POP TELEMETRY & RUNWAY AUDIT'));
+  assert.ok(report.includes('Shahdara Core NOC (Vandala Road)'));
+  assert.ok(report.includes('EMERGENCY FUEL CONSUMPTION ESTIMATE'));
+});
+
+test('renderPowerBackupSvg produces valid SVG graphics and handles empty state', () => {
+  const emptySvg = renderPowerBackupSvg(null);
+  assert.ok(emptySvg.includes('No distribution hub power telemetry recorded'));
+
+  const metrics = calculatePowerBackupMetrics({});
+  const svg = renderPowerBackupSvg(metrics);
+
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('Power Outage and OLT Battery Health Chart'));
+  assert.ok(svg.includes('Distribution POP Power &amp; Telecom Battery Telemetry'));
+  assert.ok(svg.includes('BATT:'));
+  assert.ok(svg.includes('GEN:'));
+  assert.ok(svg.includes('Total Runway Pill') || svg.includes('Total'));
+});
+
+test('setupPowerBackupModal wires dialog open, populate, filter, copy, and close actions', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  let filterAreaCalledWith = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') openHandler = cb; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') closeHandler = cb; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') copyHandler = cb; }
+  };
+
+  const mockEnergyEl = { textContent: '' };
+  const mockBattRunwayEl = { textContent: '' };
+  const mockFuelReservesEl = { textContent: '' };
+  const mockFuelRunwayEl = { textContent: '' };
+  const mockCombinedRunwayEl = { textContent: '' };
+  const mockStatusBadgeEl = { textContent: '', className: '' };
+  const mockOutagesCountEl = { textContent: '' };
+  let filterClickHandler = null;
+  const mockTableBody = {
+    innerHTML: '',
+    querySelectorAll: (sel) => {
+      if (sel.includes('[data-power-filter-area]')) {
+        return [{
+          getAttribute: () => 'Vandala Road',
+          addEventListener: (evt, cb) => {
+            if (evt === 'click') filterClickHandler = cb;
+          }
+        }];
+      }
+      return [];
+    }
+  };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardPowerModal') return mockModal;
+      if (id === 'dashboardOpenPowerModalBtn') return mockOpenBtn;
+      if (id === 'dashboardPowerModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyPowerReportBtn') return mockCopyBtn;
+      if (id === 'powerTotalEnergyVal') return mockEnergyEl;
+      if (id === 'powerTotalRunwayVal') return mockBattRunwayEl;
+      if (id === 'powerFuelReservesVal') return mockFuelReservesEl;
+      if (id === 'powerFuelRunwayVal') return mockFuelRunwayEl;
+      if (id === 'powerCombinedRunwayVal') return mockCombinedRunwayEl;
+      if (id === 'powerStatusBadge') return mockStatusBadgeEl;
+      if (id === 'powerOutagesCountVal') return mockOutagesCountEl;
+      if (id === 'powerHubsTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  let state = createInitialState(['User Vandala']);
+  state.customers[0].area = 'Vandala Road';
+
+  try {
+    setupPowerBackupModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockEnergyEl.textContent.includes('kWh'));
+    assert.ok(mockFuelReservesEl.textContent.includes('Liters'));
+    assert.ok(mockCombinedRunwayEl.textContent.includes('Hours'));
+    assert.ok(mockTableBody.innerHTML.includes('Shahdara Core NOC (Vandala Road)'));
+
+    // Trigger area filter button
+    assert.ok(filterClickHandler !== null);
+    filterClickHandler();
+    assert.equal(filterAreaCalledWith, 'Vandala Road');
+    assert.equal(modalOpened, false);
+
+    // Trigger copy report
+    assert.ok(copyHandler !== null);
+    await copyHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP - POWER OUTAGE & OLT BATTERY HEALTH BRIEFING'));
+    assert.equal(toastMessage, 'Power backup audit briefing copied to clipboard!');
 
     // Close modal
     closeHandler();

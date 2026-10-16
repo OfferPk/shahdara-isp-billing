@@ -2402,3 +2402,307 @@ test('DOM & CSS integration for service contract modal', () => {
   assert.match(freshStyles, /\[data-theme="dark"\]\s+\.agreement-modal/);
 });
 
+test('validateDisputeClaim validates subscriber, category, positive amount, and reason length', async () => {
+  const { validateDisputeClaim } = await import('../form-validation.js');
+
+  const valid = validateDisputeClaim({
+    customerId: 'cust-12',
+    category: 'unrecorded_payment',
+    disputedAmount: 1500,
+    reason: 'Paid cash to technician Umair on Friday, not credited',
+    filedBy: 'Muhammad Ali'
+  });
+  assert.equal(valid.isValid, true);
+  assert.deepEqual(valid.errors, {});
+
+  const noCust = validateDisputeClaim({
+    customerId: '',
+    category: 'rate_mismatch',
+    disputedAmount: 500,
+    reason: 'Downgraded speed not reflected',
+    filedBy: 'Admin'
+  });
+  assert.equal(noCust.isValid, false);
+  assert.match(noCust.errors.customerId, /Valid subscriber account/);
+
+  const badCat = validateDisputeClaim({
+    customerId: 'cust-1',
+    category: 'invalid_category_xyz',
+    disputedAmount: 500,
+    reason: 'Wrong package',
+    filedBy: 'Admin'
+  });
+  assert.equal(badCat.isValid, false);
+  assert.match(badCat.errors.category, /valid dispute category/);
+
+  const zeroAmt = validateDisputeClaim({
+    customerId: 'cust-1',
+    category: 'other',
+    disputedAmount: 0,
+    reason: 'General inquiry reason',
+    filedBy: 'Admin'
+  });
+  assert.equal(zeroAmt.isValid, false);
+  assert.match(zeroAmt.errors.disputedAmount, /greater than zero/);
+
+  const shortReason = validateDisputeClaim({
+    customerId: 'cust-1',
+    category: 'other',
+    disputedAmount: 100,
+    reason: 'bad',
+    filedBy: 'Admin'
+  });
+  assert.equal(shortReason.isValid, false);
+  assert.match(shortReason.errors.reason, /at least 5 characters/);
+
+  const shortFiler = validateDisputeClaim({
+    customerId: 'cust-1',
+    category: 'other',
+    disputedAmount: 100,
+    reason: 'Detailed reason here',
+    filedBy: 'A'
+  });
+  assert.equal(shortFiler.isValid, false);
+  assert.match(shortFiler.errors.filedBy, /min 2 characters/);
+});
+
+test('assessDisputeClaim computes current balance, approved credit, and plausibility recommendation', async () => {
+  const { assessDisputeClaim } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'cust-10',
+    bills: [
+      { month: '2026-09', dueAmount: 1500, status: 'unpaid' },
+      { month: '2026-10', dueAmount: 2000, status: 'unpaid' }
+    ]
+  };
+
+  const assessment = assessDisputeClaim({
+    category: 'unrecorded_payment',
+    disputedAmount: 1500,
+    approvedAmount: 1500
+  }, customer);
+
+  assert.equal(assessment.currentBalance, 3500);
+  assert.equal(assessment.disputedAmount, 1500);
+  assert.equal(assessment.approvedAmount, 1500);
+  assert.equal(assessment.netProjectedBalance, 2000);
+  assert.equal(assessment.isPlausible, true);
+  assert.match(assessment.recommendation, /matches or is within outstanding arrears/);
+
+  const excessAssessment = assessDisputeClaim({
+    category: 'unrecorded_payment',
+    disputedAmount: 5000
+  }, customer);
+
+  assert.equal(excessAssessment.isPlausible, false);
+  assert.match(excessAssessment.recommendation, /exceeds total outstanding balance/);
+});
+
+test('buildDisputeClaimRecord, getSavedDisputeClaims, and updateDisputeClaimStatus manage dispute lifecycle', async () => {
+  const { buildDisputeClaimRecord, getSavedDisputeClaims, saveDisputeClaim, updateDisputeClaimStatus } = await import('../form-validation.js');
+
+  const memoryStore = new Map();
+  const mockStorage = {
+    getItem: (k) => memoryStore.get(k) || null,
+    setItem: (k, v) => memoryStore.set(k, String(v)),
+    removeItem: (k) => memoryStore.delete(k)
+  };
+
+  const customer = {
+    id: 'c-45',
+    customerNumber: 45,
+    name: 'Hamza Tariq',
+    phone: '03001234567',
+    area: 'Main Bazar',
+    bills: [{ dueAmount: 2500, status: 'unpaid' }]
+  };
+
+  const claim = buildDisputeClaimRecord({
+    customer,
+    category: 'unrecorded_payment',
+    disputedAmount: 1000,
+    reason: 'Paid cash to technician on 10th Oct',
+    filedBy: 'Hamza Tariq',
+    status: 'SUBMITTED',
+    evidenceRef: 'Cash receipt #1042',
+    existingClaimsCount: 0
+  });
+
+  assert.match(claim.ticketNumber, /^DSP-\d{6}-0001$/);
+  assert.equal(claim.customerName, 'Hamza Tariq');
+  assert.equal(claim.disputedAmount, 1000);
+  assert.equal(claim.previousBalance, 2500);
+  assert.equal(claim.status, 'SUBMITTED');
+
+  saveDisputeClaim(claim, mockStorage);
+  const saved = getSavedDisputeClaims(mockStorage, 'c-45');
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].ticketNumber, claim.ticketNumber);
+
+  const updated = updateDisputeClaimStatus(claim.ticketNumber, {
+    status: 'APPROVED_FULL',
+    resolvedBy: 'Saad Manager',
+    resolutionNotes: 'Verified against technician cash log'
+  }, mockStorage);
+
+  assert.equal(updated.status, 'APPROVED_FULL');
+  assert.equal(updated.approvedAmount, 1000);
+  assert.equal(updated.projectedBalance, 1500);
+  assert.equal(updated.resolvedBy, 'Saad Manager');
+
+  const reloaded = getSavedDisputeClaims(mockStorage, 'c-45');
+  assert.equal(reloaded[0].status, 'APPROVED_FULL');
+  assert.equal(reloaded[0].projectedBalance, 1500);
+});
+
+test('formatDisputeClaimWhatsApp formats bilingual WhatsApp dispatch text', async () => {
+  const { formatDisputeClaimWhatsApp } = await import('../form-validation.js');
+
+  const claim = {
+    ticketNumber: 'DSP-202610-0005',
+    customerName: 'Zahid Khan',
+    customerNumber: 22,
+    categoryLabel: 'Package Tariff / Rate Discrepancy',
+    categoryLabelUrdu: 'پیکج ریٹ و ٹیرف فرق',
+    disputedAmount: 500,
+    approvedAmount: 500,
+    projectedBalance: 1200,
+    status: 'APPROVED_FULL',
+    reason: 'Charged 15 Mbps speed package instead of 10 Mbps',
+    evidenceRef: 'Speed test screenshot',
+    resolutionNotes: 'Approved 500 PKR tariff difference credit',
+    resolvedBy: 'Accounts Lead'
+  };
+
+  const text = formatDisputeClaimWhatsApp(claim);
+  assert.match(text, /DSP-202610-0005/);
+  assert.match(text, /Zahid Khan/);
+  assert.match(text, /#22/);
+  assert.match(text, /Package Tariff \/ Rate Discrepancy/);
+  assert.match(text, /500/);
+  assert.match(text, /APPROVED IN FULL/);
+  assert.match(text, /1,200/);
+  assert.match(text, /Charged 15 Mbps speed package/);
+  assert.match(text, /Accounts Lead/);
+});
+
+test('generateDisputeClaimsCsv outputs RFC-4180 compliant CSV', async () => {
+  const { generateDisputeClaimsCsv } = await import('../form-validation.js');
+
+  const claims = [
+    {
+      ticketNumber: 'DSP-202610-0001',
+      createdAt: '2026-10-16T10:00:00Z',
+      customerNumber: 12,
+      customerName: 'Bilal Ahmad',
+      customerPhone: '03211112233',
+      customerArea: 'Chowk',
+      categoryLabel: 'Unrecorded Cash / Direct Payment',
+      disputedAmount: 1500,
+      approvedAmount: 1500,
+      projectedBalance: 0,
+      status: 'APPROVED_FULL',
+      filedBy: 'Customer',
+      resolvedBy: 'Manager',
+      evidenceRef: 'TID 9988',
+      reason: 'Direct payment not recorded'
+    }
+  ];
+
+  const csv = generateDisputeClaimsCsv(claims);
+  assert.match(csv, /Ticket_No,Date,Customer_No,Customer_Name/);
+  assert.match(csv, /DSP-202610-0001,2026-10-16,12,Bilal Ahmad/);
+  assert.match(csv, /1500,1500,0/);
+  assert.match(csv, /APPROVED_FULL/);
+});
+
+test('generateDisputeClaimHtml generates printable settlement sheets and 80mm slips', async () => {
+  const { generateDisputeClaimHtml } = await import('../form-validation.js');
+
+  const claim = {
+    ticketNumber: 'DSP-202610-0008',
+    customerName: 'Asim Riaz',
+    customerNumber: 55,
+    customerPhone: '03009988776',
+    customerArea: 'Kot Mohibbu',
+    categoryLabel: 'Prolonged Service Outage / Fiber Cut',
+    categoryLabelUrdu: 'طویل سروس تعطل و خرابی',
+    disputedAmount: 400,
+    approvedAmount: 400,
+    previousBalance: 2000,
+    projectedBalance: 1600,
+    status: 'APPROVED_FULL',
+    reason: '4 days fiber cut during GT Road drain excavation',
+    evidenceRef: 'Area outage ticket #OT-44',
+    resolutionNotes: 'Pro-rated downtime credit approved',
+    resolvedBy: 'Network Director'
+  };
+
+  const slipHtml = generateDisputeClaimHtml(claim, { format: 'slip' });
+  assert.match(slipHtml, /dispute-thermal-slip/);
+  assert.match(slipHtml, /DSP-202610-0008/);
+  assert.match(slipHtml, /Asim Riaz/);
+  assert.match(slipHtml, /PKR 400/);
+  assert.match(slipHtml, /PKR 1,600/);
+
+  const a4Html = generateDisputeClaimHtml(claim, { format: 'a4' });
+  assert.match(a4Html, /dispute-formal-sheet/);
+  assert.match(a4Html, /FORMAL BILLING DISPUTE SETTLEMENT VOUCHER/);
+  assert.match(a4Html, /درخواست برائے تصفیہ متنازعہ واجبات/);
+  assert.match(a4Html, /DSP-202610-0008/);
+  assert.match(a4Html, /Asim Riaz/);
+  assert.match(a4Html, /Kot Mohibbu/);
+  assert.match(a4Html, /Network Director/);
+});
+
+test('DOM & CSS integration for Customer Billing Dispute Settlement Modal', () => {
+  const freshIndex = read('index.html');
+  const freshApp = read('app.js');
+  const freshStyles = read('styles.css');
+
+  // index.html
+  assert.match(freshIndex, /id="openDisputeClaimBtn"/);
+  assert.match(freshIndex, /id="customerDisputeModal"/);
+  assert.match(freshIndex, /id="closeDisputeModalBtn"/);
+  assert.match(freshIndex, /id="disputeCustName"/);
+  assert.match(freshIndex, /id="disputeCustPhone"/);
+  assert.match(freshIndex, /id="disputeCustBalance"/);
+  assert.match(freshIndex, /id="disputeCategorySelect"/);
+  assert.match(freshIndex, /id="disputeBillMonthSelect"/);
+  assert.match(freshIndex, /id="disputeAmountInput"/);
+  assert.match(freshIndex, /id="disputeClaimedDateInput"/);
+  assert.match(freshIndex, /id="disputeEvidenceInput"/);
+  assert.match(freshIndex, /id="disputeReasonInput"/);
+  assert.match(freshIndex, /id="disputeStatusSelect"/);
+  assert.match(freshIndex, /id="disputeApprovedAmountInput"/);
+  assert.match(freshIndex, /id="disputeFiledByInput"/);
+  assert.match(freshIndex, /id="disputeResolvedByInput"/);
+  assert.match(freshIndex, /id="disputeResolutionNotesInput"/);
+  assert.match(freshIndex, /id="disputePreviewTicket"/);
+  assert.match(freshIndex, /id="disputePreviewCredit"/);
+  assert.match(freshIndex, /id="disputePreviewNetBal"/);
+  assert.match(freshIndex, /id="disputePreviewRecommendation"/);
+  assert.match(freshIndex, /id="submitDisputeClaimBtn"/);
+  assert.match(freshIndex, /id="printDisputeA4Btn"/);
+  assert.match(freshIndex, /id="printDisputeSlipBtn"/);
+  assert.match(freshIndex, /id="whatsappDisputeBtn"/);
+  assert.match(freshIndex, /id="exportDisputeCsvBtn"/);
+  assert.match(freshIndex, /id="disputeHistoryTableBody"/);
+
+  // app.js
+  assert.match(freshApp, /setupDisputeClaimModal/);
+  assert.match(freshApp, /customerDisputeModalController/);
+  assert.match(freshApp, /#openDisputeClaimBtn/);
+
+  // styles.css
+  assert.match(freshStyles, /\.dispute-modal-card/);
+  assert.match(freshStyles, /\.dispute-customer-ribbon/);
+  assert.match(freshStyles, /\.dispute-grid/);
+  assert.match(freshStyles, /\.dispute-col/);
+  assert.match(freshStyles, /\.dispute-preview-box/);
+  assert.match(freshStyles, /\.dispute-history-section/);
+  assert.match(freshStyles, /\[data-theme="dark"\]\s+\.dispute-modal/);
+});
+
+

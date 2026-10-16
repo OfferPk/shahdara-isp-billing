@@ -8787,3 +8787,433 @@ test('setupFusionArcQaModal initializes controller and binds DOM mock elements',
     globalThis.document = origDoc;
   }
 });
+
+// ============================================================================
+// Optical Fiber Coating Stripping Mechanical Force & Cladding Scratch QA Suite
+// Standards: IEC 60793-1-32, Telcordia GR-20-CORE Issue 4, TIA-455-178-B
+// ============================================================================
+
+test('STRIPPER_TOOLS, FIBER_COATING_TYPES, STRIP_QA_VERDICTS, and STRIP_FORCE_PRESETS contain accurate metrology parameters', async () => {
+  const { STRIPPER_TOOLS, FIBER_COATING_TYPES, STRIP_QA_VERDICTS, STRIP_FORCE_PRESETS } = await import('../form-validation.js');
+
+  assert.ok(STRIPPER_TOOLS['MILLER_CFS3']);
+  assert.ok(STRIPPER_TOOLS['FUJIKURA_RS03']);
+  assert.ok(STRIPPER_TOOLS['SUMITOMO_JR6']);
+  assert.ok(STRIPPER_TOOLS['PROSKIT_8PK326']);
+  assert.ok(STRIPPER_TOOLS['LOCAL_ECONOMY_TOOL']);
+
+  assert.equal(STRIPPER_TOOLS['MILLER_CFS3'].targetNotchUm, 140.0);
+  assert.equal(STRIPPER_TOOLS['FUJIKURA_RS03'].type, 'Thermal Heated Blade Stripper');
+
+  assert.ok(FIBER_COATING_TYPES['DUAL_ACRYLATE_250']);
+  assert.ok(FIBER_COATING_TYPES['BEND_INSENSITIVE_250']);
+  assert.ok(FIBER_COATING_TYPES['COMPACT_COATING_200']);
+  assert.ok(FIBER_COATING_TYPES['TIGHT_BUFFER_900']);
+
+  assert.equal(FIBER_COATING_TYPES['DUAL_ACRYLATE_250'].telcordiaMinForceN, 1.3);
+  assert.equal(FIBER_COATING_TYPES['DUAL_ACRYLATE_250'].telcordiaMaxForceN, 8.9);
+
+  assert.ok(STRIP_QA_VERDICTS['GRADE_A_PRISTINE'].isCompliant);
+  assert.ok(STRIP_QA_VERDICTS['COMMERCIAL_PASS'].isCompliant);
+  assert.ok(!STRIP_QA_VERDICTS['FAILED_HIGH_FORCE_GOUGE'].isCompliant);
+  assert.ok(!STRIP_QA_VERDICTS['FAILED_LOW_ADHESION_DELAMINATION'].isCompliant);
+
+  assert.ok(STRIP_FORCE_PRESETS.PRESET_MILLER_CFS3_STANDARD_PASS);
+  assert.ok(STRIP_FORCE_PRESETS.PRESET_FUJIKURA_RS03_THERMAL_PERFECT);
+  assert.ok(STRIP_FORCE_PRESETS.PRESET_DULL_BLADE_CLADDING_GOUGE);
+  assert.ok(STRIP_FORCE_PRESETS.PRESET_WEATHERED_DROP_CABLE_HARDENED);
+  assert.ok(STRIP_FORCE_PRESETS.PRESET_DEFECTIVE_LOOSE_JACKET_DELAMINATION);
+});
+
+test('calculateGriffithFractureStrength evaluates breaking strength degradation from micro-scratches accurately', async () => {
+  const { calculateGriffithFractureStrength } = await import('../form-validation.js');
+
+  // Case 1: Pristine surface (depth 0nm)
+  const res0 = calculateGriffithFractureStrength(0);
+  assert.equal(res0.flawDepthNm, 0);
+  assert.equal(res0.breakingStressMpa, 4800.0);
+  assert.equal(res0.breakingStressGpa, 4.80);
+  assert.equal(res0.strengthRetentionPercent, 100.0);
+  assert.equal(res0.severity, 'PRISTINE_NO_FLAWS');
+
+  // Case 2: Shallow micro-scuff (50nm depth)
+  // sigma_f = 0.75 / (1.12 * sqrt(50e-9)) = 0.75 / (1.12 * 2.236e-4) = 0.75 / 2.504e-4 ~ 2994.8 MPa
+  const resShallow = calculateGriffithFractureStrength(50);
+  assert.ok(resShallow.breakingStressMpa > 2900 && resShallow.breakingStressMpa < 3100);
+  assert.equal(resShallow.severity, 'MODERATE_FLAW');
+
+  // Case 3: Deep cladding gouge (450nm depth)
+  // sigma_f = 0.75 / (1.12 * sqrt(450e-9)) = 0.75 / (1.12 * 6.708e-4) = 0.75 / 7.513e-4 ~ 998.2 MPa
+  const resDeep = calculateGriffithFractureStrength(450);
+  assert.ok(resDeep.breakingStressMpa < 1200);
+  assert.ok(resDeep.breakingStressGpa < 1.20);
+  assert.ok(resDeep.strengthRetentionPercent < 25.0);
+});
+
+test('evaluateStripForceQa correctly classifies Grade A, Commercial Pass, and Failures', async () => {
+  const { evaluateStripForceQa } = await import('../form-validation.js');
+
+  // Grade A Pass
+  const resA = evaluateStripForceQa({
+    toolId: 'MILLER_CFS3',
+    coatingTypeId: 'DUAL_ACRYLATE_250',
+    measuredNotchUm: 140.0,
+    peakForceN: 3.2,
+    residueScore: 5,
+    hasVisibleScratches: false
+  });
+
+  assert.equal(resA.verdict.id, 'GRADE_A_PRISTINE');
+  assert.ok(resA.isApproved);
+  assert.equal(resA.radialClearanceUm, 7.5); // (140 - 125) / 2 = 7.5
+  assert.equal(resA.notchStatus, 'OPTIMAL_CLEARANCE');
+
+  // Commercial Pass (near bounds, force 6.5 N)
+  const resComm = evaluateStripForceQa({
+    toolId: 'PROSKIT_8PK326',
+    coatingTypeId: 'DUAL_ACRYLATE_250',
+    measuredNotchUm: 138.0,
+    peakForceN: 6.5,
+    residueScore: 3,
+    hasVisibleScratches: false
+  });
+
+  assert.equal(resComm.verdict.id, 'COMMERCIAL_PASS');
+  assert.ok(resComm.isApproved);
+
+  // Failure: Low force / delamination (force 0.8 N < 1.3 N min)
+  const resDelam = evaluateStripForceQa({
+    toolId: 'MILLER_CFS3',
+    coatingTypeId: 'DUAL_ACRYLATE_250',
+    peakForceN: 0.8,
+    residueScore: 4
+  });
+
+  assert.equal(resDelam.verdict.id, 'FAILED_LOW_ADHESION_DELAMINATION');
+  assert.ok(!resDelam.isApproved);
+
+  // Failure: High force / weathered (force 11.2 N > 8.9 N max)
+  const resHighForce = evaluateStripForceQa({
+    toolId: 'PROSKIT_8PK326',
+    coatingTypeId: 'DUAL_ACRYLATE_250',
+    peakForceN: 11.2
+  });
+
+  assert.equal(resHighForce.verdict.id, 'FAILED_HIGH_FORCE_GOUGE');
+  assert.ok(!resHighForce.isApproved);
+});
+
+test('evaluateStripForceQa detects narrow blade notch collision hazards and gouges', async () => {
+  const { evaluateStripForceQa } = await import('../form-validation.js');
+
+  const resCollision = evaluateStripForceQa({
+    toolId: 'LOCAL_ECONOMY_TOOL',
+    coatingTypeId: 'DUAL_ACRYLATE_250',
+    measuredNotchUm: 126.0,
+    peakForceN: 5.5,
+    hasVisibleScratches: true,
+    estimatedFlawDepthNm: 350
+  });
+
+  assert.equal(resCollision.notchStatus, 'COLLISION_HAZARD');
+  assert.equal(resCollision.radialClearanceUm, 0.5); // (126 - 125) / 2 = 0.5
+  assert.equal(resCollision.verdict.id, 'FAILED_HIGH_FORCE_GOUGE');
+  assert.ok(!resCollision.isApproved);
+});
+
+test('renderStripForceAnalysisSvg renders clean vector SVG markup with force gauges and callouts', async () => {
+  const { evaluateStripForceQa, renderStripForceAnalysisSvg } = await import('../form-validation.js');
+
+  const evaluation = evaluateStripForceQa({
+    toolId: 'MILLER_CFS3',
+    coatingTypeId: 'DUAL_ACRYLATE_250',
+    measuredNotchUm: 140.0,
+    peakForceN: 3.5,
+    stripLengthMm: 35.0,
+    residueScore: 5
+  });
+
+  const svg = renderStripForceAnalysisSvg(evaluation, { width: 760, height: 360 });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('OPTICAL FIBER STRIPPING TRANSITION'));
+  assert.ok(svg.includes('250µm Jacket'));
+  assert.ok(svg.includes('125µm Bare Glass'));
+  assert.ok(svg.includes('TELCORDIA GR-20 PEAK STRIPPING FORCE'));
+  assert.ok(svg.includes('V-Notch (140µm)'));
+  assert.ok(svg.includes('GRIFFITH BREAKING STRENGTH'));
+
+  // Test empty fallback
+  const emptySvg = renderStripForceAnalysisSvg(null);
+  assert.ok(emptySvg.includes('No Strip Force QA Data'));
+});
+
+test('buildStripForceRecord and generateStripForceCertId construct immutable structured records', async () => {
+  const { buildStripForceRecord, generateStripForceCertId } = await import('../form-validation.js');
+
+  const id = generateStripForceCertId('2026-10-17T04:00:00Z');
+  assert.match(id, /^STR-202610-\d{4}$/);
+
+  const record = buildStripForceRecord({
+    customer: { id: 'cust-50', name: 'Nawazish Ali', phone: '03005544332', mohalla: 'Kot Mohibbu' },
+    toolId: 'MILLER_CFS3',
+    stripperSerialNumber: 'CFS3-99881',
+    measuredNotchUm: 140.0,
+    peakForceN: 3.2,
+    technicianName: 'Farhan Splicing Tech',
+    notes: 'Clean stripped fiber for mechanical splice.'
+  });
+
+  assert.ok(record.id.startsWith('STR-'));
+  assert.equal(record.customerName, 'Nawazish Ali');
+  assert.equal(record.technicianName, 'Farhan Splicing Tech');
+  assert.equal(record.status, 'ACTIVE_CERTIFIED');
+  assert.equal(record.evaluation.stripperSerialNumber, 'CFS3-99881');
+});
+
+test('generateStripForceCertHtml produces formal A4 and 80mm thermal receipt slips', async () => {
+  const { buildStripForceRecord, generateStripForceCertHtml } = await import('../form-validation.js');
+
+  const record = buildStripForceRecord({
+    customer: { id: 'cust-15', name: 'Sheikh Tanveer', phone: '03001122334', mohalla: 'Jia Musa' },
+    toolId: 'MILLER_CFS3',
+    peakForceN: 3.4,
+    location: 'Jia Musa Commercial Ring FAT-01'
+  });
+
+  // Standard A4
+  const a4Html = generateStripForceCertHtml(record, { format: 'standard' });
+  assert.ok(a4Html.includes('strip-force-qa-sheet'));
+  assert.ok(a4Html.includes('Shahdara ISP Network Operations'));
+  assert.ok(a4Html.includes('شاہدرہ آپٹیکل فائبر کوٹنگ اسٹرپنگ فورس و گلاس کوالٹی سرٹیفکیٹ'));
+  assert.ok(a4Html.includes('Sheikh Tanveer'));
+  assert.ok(a4Html.includes('Jia Musa Commercial Ring FAT-01'));
+  assert.ok(a4Html.includes('Peak Stripping Force (F_peak)'));
+
+  // Thermal 80mm
+  const thermalHtml = generateStripForceCertHtml(record, { format: 'thermal' });
+  assert.ok(thermalHtml.includes('strip-force-thermal-slip'));
+  assert.ok(thermalHtml.includes('FIBER STRIP FORCE QA SLIP'));
+  assert.ok(thermalHtml.includes('PEAK STRIP FORCE:'));
+});
+
+test('formatStripForceCertWhatsApp formats bilingual Urdu/English technician dispatch text', async () => {
+  const { buildStripForceRecord, formatStripForceCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildStripForceRecord({
+    customer: { id: 'cust-30', name: 'Haji Rafiq', phone: '03219988776', mohalla: 'Vandala Road' },
+    toolId: 'MILLER_CFS3',
+    stripperSerialNumber: 'CFS3-11092',
+    location: 'Vandala Road FAT Joint #03',
+    peakForceN: 3.2,
+    measuredNotchUm: 140.0
+  });
+
+  const waText = formatStripForceCertWhatsApp(record);
+  assert.ok(waText.includes('SHAHDARA ISP · FIBER STRIP FORCE QA CERTIFICATE'));
+  assert.ok(waText.includes('آپٹیکل فائبر کوٹنگ اسٹرپنگ فورس و کوالٹی رپورٹ'));
+  assert.ok(waText.includes('CFS3-11092'));
+  assert.ok(waText.includes('Vandala Road FAT Joint #03'));
+  assert.ok(waText.includes('پیک اسٹرپ فورس (Peak Force): *3.2 N*'));
+  assert.ok(waText.includes('✅'));
+
+  // Null input handles gracefully
+  assert.equal(formatStripForceCertWhatsApp(null), '');
+});
+
+test('generateStripForceCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { buildStripForceRecord, generateStripForceCertsCsv } = await import('../form-validation.js');
+
+  const r1 = buildStripForceRecord({
+    customer: { id: 'c1', name: 'Zia Ul Haq', mohalla: 'Baradari' },
+    toolId: 'MILLER_CFS3',
+    stripperSerialNumber: 'CFS3-44120',
+    peakForceN: 3.2,
+    notes: 'Pristine 0 residue.'
+  });
+
+  const r2 = buildStripForceRecord({
+    customer: { id: 'c2', name: 'Khalid Mehmood', mohalla: 'Begum Kot' },
+    toolId: 'LOCAL_ECONOMY_TOOL',
+    stripperSerialNumber: 'GEN-8812',
+    peakForceN: 7.9,
+    hasVisibleScratches: true,
+    estimatedFlawDepthNm: 350,
+    notes: 'Blade gouged cladding, blade dull.'
+  });
+
+  const csv = generateStripForceCertsCsv([r1, r2]);
+  assert.ok(csv.startsWith('\uFEFF')); // UTF-8 BOM
+  assert.ok(csv.includes('Certificate_ID,Created_At,Customer_Name'));
+  assert.ok(csv.includes('Zia Ul Haq'));
+  assert.ok(csv.includes('Khalid Mehmood'));
+  assert.ok(csv.includes('CFS3-44120'));
+  assert.ok(csv.includes('"Blade gouged cladding, blade dull."'));
+});
+
+test('LocalStorage persistence methods and calculateStripForceMetrics aggregate audit data', async () => {
+  const {
+    STRIP_FORCE_QA_STORAGE_KEY,
+    getSavedStripForceCerts,
+    saveStripForceCert,
+    updateStripForceCertStatus,
+    clearStripForceCerts,
+    calculateStripForceMetrics,
+    buildStripForceRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedStripForceCerts(mockStorage), []);
+
+  const r1 = buildStripForceRecord({
+    id: 'STR-202610-1001',
+    toolId: 'MILLER_CFS3',
+    peakForceN: 3.2,
+    hasVisibleScratches: false
+  });
+
+  const r2 = buildStripForceRecord({
+    id: 'STR-202610-1002',
+    toolId: 'LOCAL_ECONOMY_TOOL',
+    peakForceN: 8.5,
+    hasVisibleScratches: true,
+    estimatedFlawDepthNm: 400
+  });
+
+  saveStripForceCert(r1, mockStorage);
+  saveStripForceCert(r2, mockStorage);
+
+  const list = getSavedStripForceCerts(mockStorage);
+  assert.equal(list.length, 2);
+
+  // Update status
+  updateStripForceCertStatus('STR-202610-1002', 'RESOLVED_REPLACED_TOOL', mockStorage);
+  const updatedList = getSavedStripForceCerts(mockStorage);
+  const updatedItem = updatedList.find(r => r.id === 'STR-202610-1002');
+  assert.equal(updatedItem.status, 'RESOLVED_REPLACED_TOOL');
+
+  // Metrics calculation
+  const metrics = calculateStripForceMetrics(updatedList);
+  assert.equal(metrics.totalInspections, 2);
+  assert.equal(metrics.gradeACount, 1);
+  assert.equal(metrics.rejectedCount, 1);
+  assert.equal(metrics.scratchedCount, 1);
+  assert.equal(metrics.complianceRatePercent, 50.0);
+
+  // Clear
+  clearStripForceCerts(mockStorage);
+  assert.deepEqual(getSavedStripForceCerts(mockStorage), []);
+});
+
+test('setupStripForceQaModal initializes controller and binds DOM mock elements', async () => {
+  const { setupStripForceQaModal } = await import('../form-validation.js');
+
+  function createMockEl(id) {
+    return {
+      id,
+      value: '',
+      innerHTML: '',
+      open: false,
+      listeners: {},
+      addEventListener(event, fn) {
+        if (!this.listeners[event]) this.listeners[event] = [];
+        this.listeners[event].push(fn);
+      },
+      dispatchEvent(event) {
+        const fns = this.listeners[event.type] || [];
+        fns.forEach(fn => fn(event));
+      },
+      click() {
+        this.dispatchEvent({ type: 'click' });
+      },
+      close() { this.open = false; },
+      showModal() { this.open = true; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      querySelectorAll() { return []; }
+    };
+  }
+
+  const elements = {
+    stripForceQaModal: createMockEl('stripForceQaModal'),
+    closeStripForceQaBtn: createMockEl('closeStripForceQaBtn'),
+    stripForcePresetSelect: createMockEl('stripForcePresetSelect'),
+    stripForceToolSelect: createMockEl('stripForceToolSelect'),
+    stripForceCoatingSelect: createMockEl('stripForceCoatingSelect'),
+    stripForceSerialInput: createMockEl('stripForceSerialInput'),
+    stripForceLocationInput: createMockEl('stripForceLocationInput'),
+    stripForceTechnicianInput: createMockEl('stripForceTechnicianInput'),
+    stripForcePeakForceInput: createMockEl('stripForcePeakForceInput'),
+    stripForceNotchInput: createMockEl('stripForceNotchInput'),
+    stripForceLengthInput: createMockEl('stripForceLengthInput'),
+    stripForceResidueSelect: createMockEl('stripForceResidueSelect'),
+    stripForceScratchSelect: createMockEl('stripForceScratchSelect'),
+    stripForceFlawDepthInput: createMockEl('stripForceFlawDepthInput'),
+    stripForceNotesInput: createMockEl('stripForceNotesInput'),
+    stripForceSvgContainer: createMockEl('stripForceSvgContainer'),
+    stripForceHudRibbon: createMockEl('stripForceHudRibbon'),
+    stripForceHistoryTable: createMockEl('stripForceHistoryTable'),
+    stripForceHistoryTbody: createMockEl('stripForceHistoryTbody'),
+    stripForceSearchInput: createMockEl('stripForceSearchInput'),
+    stripForceStatusFilterSelect: createMockEl('stripForceStatusFilterSelect'),
+    saveStripForceCertBtn: createMockEl('saveStripForceCertBtn'),
+    printStripForceStandardBtn: createMockEl('printStripForceStandardBtn'),
+    printStripForceThermalBtn: createMockEl('printStripForceThermalBtn'),
+    whatsAppStripForceBtn: createMockEl('whatsAppStripForceBtn'),
+    exportStripForceCsvBtn: createMockEl('exportStripForceCsvBtn')
+  };
+
+  elements.stripForceToolSelect.value = 'MILLER_CFS3';
+  elements.stripForceCoatingSelect.value = 'DUAL_ACRYLATE_250';
+  elements.stripForcePeakForceInput.value = '3.2';
+  elements.stripForceNotchInput.value = '140.0';
+  elements.stripForceLengthInput.value = '35';
+  elements.stripForceResidueSelect.value = '5';
+  elements.stripForceScratchSelect.value = 'NO';
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toastLog = [];
+  try {
+    const controller = setupStripForceQaModal({
+      storage: mockStorage,
+      onToast: (msg) => toastLog.push(msg)
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.recalculate, 'function');
+    assert.equal(typeof controller.populateCustomer, 'function');
+    assert.equal(typeof controller.renderHistory, 'function');
+
+    assert.ok(elements.stripForceSvgContainer.innerHTML.includes('<svg'));
+    assert.ok(elements.stripForceHudRibbon.innerHTML.includes('Peak Stripping Force'));
+
+    // Save action
+    elements.saveStripForceCertBtn.click();
+    assert.ok(toastLog.some(msg => msg.includes('saved successfully')));
+
+    // Close button
+    elements.closeStripForceQaBtn.click();
+    assert.equal(elements.stripForceQaModal.open, false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

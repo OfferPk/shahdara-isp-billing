@@ -215,8 +215,29 @@ import {
   calculateIptvMulticastMetrics,
   renderIptvMulticastSvg,
   generateIptvMulticastReport,
-  setupIptvMulticastModal
+  setupIptvMulticastModal,
+  SHAHDARA_DNS_RESOLVERS,
+  UPSTREAM_FORWARDERS,
+  DNS_CONSTANTS,
+  getDnsSelectedResolver,
+  setDnsSelectedResolver,
+  getDnsCacheHitRatio,
+  setDnsCacheHitRatio,
+  getDnsUpstreamForwarder,
+  setDnsUpstreamForwarder,
+  getDnssecMode,
+  setDnssecMode,
+  getDnsClockDriftMs,
+  setDnsClockDriftMs,
+  resetDnsSimState,
+  calculateDnsLatency,
+  calculateDnssecValidation,
+  calculateDnsMetrics,
+  renderDnsDiagnosticsSvg,
+  generateDnsDiagnosticReport,
+  setupDnsDiagnosticsModal
 } from '../dashboard.js';
+
 import {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -7663,5 +7684,353 @@ test('setupIptvMulticastModal wires DOM controls, checkboxes, sliders, and callb
     assert.equal(modalOpened, false);
   } finally {
     globalThis.document = originalDocument;
+  }
+});
+
+test('SHAHDARA_DNS_RESOLVERS, UPSTREAM_FORWARDERS, and DNS_CONSTANTS have valid topologies and parameters', () => {
+  assert.ok(Array.isArray(SHAHDARA_DNS_RESOLVERS));
+  assert.ok(SHAHDARA_DNS_RESOLVERS.length >= 6);
+
+  for (const r of SHAHDARA_DNS_RESOLVERS) {
+    assert.ok(r.id && typeof r.id === 'string');
+    assert.ok(r.name && typeof r.name === 'string');
+    assert.ok(r.ip && typeof r.ip === 'string');
+    assert.ok(r.software && typeof r.software === 'string');
+    assert.ok(r.primaryArea && typeof r.primaryArea === 'string');
+    assert.ok(Array.isArray(r.aliasAreas));
+    assert.ok(r.memoryCacheMb > 0);
+    assert.ok(r.baseCacheHitRatioPct >= 70 && r.baseCacheHitRatioPct <= 95);
+    assert.ok(r.qpsCapacity >= 10000);
+    assert.ok(r.currentQps > 0 && r.currentQps <= r.qpsCapacity);
+  }
+
+  assert.ok(Array.isArray(UPSTREAM_FORWARDERS));
+  assert.ok(UPSTREAM_FORWARDERS.length >= 5);
+  for (const f of UPSTREAM_FORWARDERS) {
+    assert.ok(f.id && typeof f.id === 'string');
+    assert.ok(f.name && typeof f.name === 'string');
+    assert.ok(f.primaryIp && typeof f.primaryIp === 'string');
+    assert.ok(f.rttMs > 0 && f.rttMs < 50);
+    assert.ok(f.reliabilityPct > 99);
+  }
+
+  assert.ok(DNS_CONSTANTS.CACHE_HIT_LATENCY_MS > 0);
+  assert.ok(DNS_CONSTANTS.LOCAL_AUTH_LATENCY_MS > DNS_CONSTANTS.CACHE_HIT_LATENCY_MS);
+  assert.ok(DNS_CONSTANTS.ITERATIVE_ROOT_LATENCY_MS > 50);
+});
+
+test('Edge DNS simulation state getters, setters, clamping, and reset work reliably', () => {
+  resetDnsSimState();
+  assert.equal(getDnsSelectedResolver(), 'dns-shd-01');
+  assert.equal(getDnsCacheHitRatio(), null);
+  assert.equal(getDnsUpstreamForwarder(), null);
+  assert.equal(getDnssecMode(), 'strict');
+  assert.equal(getDnsClockDriftMs(), null);
+
+  // Set selected resolver
+  setDnsSelectedResolver('dns-bar-02');
+  assert.equal(getDnsSelectedResolver(), 'dns-bar-02');
+  setDnsSelectedResolver('non-existent');
+  assert.equal(getDnsSelectedResolver(), 'dns-bar-02');
+
+  // Set cache hit ratio
+  setDnsCacheHitRatio(92.4);
+  assert.equal(getDnsCacheHitRatio(), 92.4);
+  setDnsCacheHitRatio(150); // Clamped to 99
+  assert.equal(getDnsCacheHitRatio(), 99);
+  setDnsCacheHitRatio(10); // Clamped to 40
+  assert.equal(getDnsCacheHitRatio(), 40);
+  setDnsCacheHitRatio(null);
+  assert.equal(getDnsCacheHitRatio(), null);
+
+  // Set upstream forwarder
+  setDnsUpstreamForwarder('goog-8888');
+  assert.equal(getDnsUpstreamForwarder(), 'goog-8888');
+  setDnsUpstreamForwarder('invalid-fwd');
+  assert.equal(getDnsUpstreamForwarder(), 'goog-8888');
+  setDnsUpstreamForwarder(null);
+  assert.equal(getDnsUpstreamForwarder(), null);
+
+  // Set DNSSEC mode
+  setDnssecMode('permissive');
+  assert.equal(getDnssecMode(), 'permissive');
+  setDnssecMode('disabled');
+  assert.equal(getDnssecMode(), 'disabled');
+  setDnssecMode('invalid');
+  assert.equal(getDnssecMode(), 'disabled');
+  setDnssecMode('strict');
+  assert.equal(getDnssecMode(), 'strict');
+
+  // Set clock drift
+  setDnsClockDriftMs(150000);
+  assert.equal(getDnsClockDriftMs(), 150000);
+  setDnsClockDriftMs(null);
+  assert.equal(getDnsClockDriftMs(), null);
+
+  // Reset
+  setDnsSelectedResolver('dns-van-03');
+  setDnsCacheHitRatio(90);
+  setDnssecMode('disabled');
+  resetDnsSimState();
+  assert.equal(getDnsSelectedResolver(), 'dns-shd-01');
+  assert.equal(getDnsCacheHitRatio(), null);
+  assert.equal(getDnssecMode(), 'strict');
+});
+
+test('calculateDnsLatency calculates weighted response latency across cache, local auth, forwarder, and iterative root', () => {
+  const result = calculateDnsLatency(90, 10.0);
+  assert.ok(result.weightedLatencyMs > 0);
+  assert.equal(result.hitRatioPct, 90);
+  assert.equal(result.authRatioPct, 4);
+  // High hit ratio should result in low weighted latency (< 5ms)
+  assert.ok(result.weightedLatencyMs < 6.0);
+
+  // Low hit ratio (50%) with high forwarder RTT (30ms) increases latency
+  const lowHit = calculateDnsLatency(50, 30.0);
+  assert.ok(lowHit.weightedLatencyMs > result.weightedLatencyMs);
+  assert.ok(lowHit.weightedLatencyMs > 10.0);
+});
+
+test('calculateDnssecValidation properly models strict vs permissive vs disabled modes and clock drift impact', () => {
+  // Normal clock drift (under 60s) in strict mode
+  const normal = calculateDnssecValidation('strict', 250);
+  assert.equal(normal.mode, 'strict');
+  assert.equal(normal.clockInSync, true);
+  assert.equal(normal.status, 'SECURE & OPTIMAL');
+  assert.equal(normal.statusBadge, 'badge-success');
+  assert.ok(normal.secureRatePct >= 99);
+  assert.ok(normal.servfailRatePct <= 1.0);
+
+  // Severe clock drift (240s = 240,000ms) exceeding 120s tolerance
+  const drifted = calculateDnssecValidation('strict', 240000);
+  assert.equal(drifted.clockInSync, false);
+  assert.ok(drifted.bogusRatePct > 10.0);
+  assert.equal(drifted.status, 'CRITICAL BOGUS FAILURES');
+  assert.equal(drifted.statusBadge, 'badge-danger');
+  assert.equal(drifted.servfailRatePct, drifted.bogusRatePct);
+
+  // Permissive mode logs but does not drop with high SERVFAIL
+  const permissive = calculateDnssecValidation('permissive', 240000);
+  assert.equal(permissive.mode, 'permissive');
+  assert.equal(permissive.status, 'PERMISSIVE (LOG ONLY)');
+  assert.equal(permissive.statusBadge, 'badge-warning');
+  assert.equal(permissive.servfailRatePct, 0.05);
+
+  // Disabled mode
+  const disabled = calculateDnssecValidation('disabled', 0);
+  assert.equal(disabled.mode, 'disabled');
+  assert.equal(disabled.status, 'DNSSEC DISABLED');
+  assert.equal(disabled.statusBadge, 'badge-danger');
+});
+
+test('calculateDnsMetrics aggregates subscribers, revenues, and risk metrics correctly', () => {
+  let state = createInitialState(['Sub 1', 'Sub 2', 'Sub 3']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].status = 'Active';
+  state.customers[0].packagePrice = 2500;
+  state.customers[0].bills = [{ month: '2026-10', dueAmount: 2500 }];
+
+  state.customers[1].area = 'Baradari Road';
+  state.customers[1].status = 'Active';
+  state.customers[1].packagePrice = 3000;
+  state.customers[1].bills = [{ month: '2026-10', dueAmount: 1500 }];
+
+  state.customers[2].area = 'Vandala Road';
+  state.customers[2].status = 'Offline';
+  state.customers[2].packagePrice = 2000;
+  state.customers[2].bills = [{ month: '2026-10', dueAmount: 2000 }];
+
+  const metrics = calculateDnsMetrics(state);
+  assert.ok(Array.isArray(metrics.resolvers));
+  assert.equal(metrics.resolvers.length, SHAHDARA_DNS_RESOLVERS.length);
+  assert.ok(metrics.selectedResolver);
+  assert.ok(metrics.totalQps > 0);
+  assert.ok(metrics.networkAvgLatencyMs > 0);
+  assert.ok(metrics.networkAvgCacheHitPct > 0);
+
+  const shd = metrics.resolvers.find(r => r.id === 'dns-shd-01');
+  assert.ok(shd);
+  assert.equal(shd.linkedSubscribers, 1);
+  assert.equal(shd.activeSubscribers, 1);
+  assert.equal(shd.duesAtRisk, 2500);
+  assert.equal(shd.monthlyRevenue, 2500);
+
+  const bar = metrics.resolvers.find(r => r.id === 'dns-bar-02');
+  assert.ok(bar);
+  assert.equal(bar.linkedSubscribers, 1);
+  assert.equal(bar.duesAtRisk, 1500);
+});
+
+test('renderDnsDiagnosticsSvg renders compact and detailed SVG views cleanly', () => {
+  let state = createInitialState(['Sub 1']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateDnsMetrics(state);
+
+  const compactSvg = renderDnsDiagnosticsSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="dns-compact-svg"'));
+  assert.ok(compactSvg.includes('CACHE HIT RATIO'));
+  assert.ok(compactSvg.includes('RECURSIVE LATENCY'));
+  assert.ok(compactSvg.includes('DNSSEC INTEGRITY'));
+
+  const expandedSvg = renderDnsDiagnosticsSvg(metrics, { compact: false });
+  assert.ok(expandedSvg.includes('<svg class="dns-expanded-svg"'));
+  assert.ok(expandedSvg.includes('Recursive Query Latency'));
+  assert.ok(expandedSvg.includes('DNSSEC Cryptographic Chain'));
+  assert.ok(expandedSvg.includes('ROOT (.)'));
+  assert.ok(expandedSvg.includes('TLD (.pk / .com)'));
+  assert.ok(expandedSvg.includes('ZONE DNSKEY'));
+});
+
+test('generateDnsDiagnosticReport formats clear executive NOC report', () => {
+  let state = createInitialState(['Shahdara User']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateDnsMetrics(state);
+
+  const report = generateDnsDiagnosticReport(metrics, { referenceDate: '2026-10-16T12:00:00Z' });
+  assert.ok(report.includes('SHAHDARA EDGE DNS RESOLVERS & DNSSEC VALIDATION AUDIT BRIEFING'));
+  assert.ok(report.includes('Total Active Resolvers:'));
+  assert.ok(report.includes('RECURSIVE QUERY RESPONSE LATENCY BREAKDOWN'));
+  assert.ok(report.includes('DNSSEC CRYPTOGRAPHIC VALIDATION & INTEGRITY'));
+  assert.ok(report.includes('SUBSCRIBER QoE & BUSINESS IMPACT'));
+});
+
+test('setupDnsDiagnosticsModal attaches event handlers and handles interactions seamlessly', async () => {
+  let state = createInitialState(['Shahdara Client']);
+  state.customers[0].area = 'Shahdara Town';
+
+  const originalDocument = globalThis.document;
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockResolverSelect = { options: [], value: 'dns-shd-01', innerHTML: '', onchange: null };
+  const mockForwarderSelect = { options: [], value: 'cf-1111', innerHTML: '', onchange: null };
+  const mockCacheSlider = { value: '88.5', oninput: null };
+  const mockCacheVal = { textContent: '' };
+  const mockDnssecSelect = { value: 'strict', onchange: null };
+  const mockDriftSlider = { value: '0', oninput: null };
+  const mockDriftVal = { textContent: '' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiNodeName = { textContent: '' };
+  const mockKpiLatency = { textContent: '' };
+  const mockKpiDnssec = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const elementsMap = {
+    'dashboardDnsModal': mockModal,
+    'dashboardOpenDnsModalBtn': mockOpenBtn,
+    'dashboardDnsModalCloseBtn': mockCloseBtn,
+    'dnsResolverSelect': mockResolverSelect,
+    'dnsForwarderSelect': mockForwarderSelect,
+    'dnsCacheSlider': mockCacheSlider,
+    'dnsCacheVal': mockCacheVal,
+    'dnssecModeSelect': mockDnssecSelect,
+    'dnsClockDriftSlider': mockDriftSlider,
+    'dnsClockDriftVal': mockDriftVal,
+    'dnsResetSimBtn': mockResetBtn,
+    'dnsKpiNodeName': mockKpiNodeName,
+    'dnsKpiLatency': mockKpiLatency,
+    'dnsKpiDnssec': mockKpiDnssec,
+    'dnsStatusBadge': mockStatusBadge,
+    'dnsKpiRevenueRisk': mockKpiRevenueRisk,
+    'dnsModalChartWrap': mockChartWrap,
+    'dnsResolversTableBody': mockTableBody,
+    'dnsFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyDnsReportBtn': mockCopyReportBtn
+  };
+
+  globalThis.document = {
+    getElementById: (id) => elementsMap[id] || null
+  };
+
+  try {
+    setupDnsDiagnosticsModal(state, {
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+
+    // Verify open button hooked
+    assert.ok(mockOpenBtn.onclick !== null);
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiNodeName.textContent.includes('10.42.1.2'));
+    assert.ok(mockChartWrap.innerHTML.includes('dns-expanded-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Shahdara Town'));
+
+    // Change resolver
+    assert.ok(mockResolverSelect.onchange !== null);
+    mockResolverSelect.onchange({ target: { value: 'dns-bar-02' } });
+    assert.equal(getDnsSelectedResolver(), 'dns-bar-02');
+    assert.ok(mockKpiNodeName.textContent.includes('10.42.2.2'));
+
+    // Change forwarder
+    assert.ok(mockForwarderSelect.onchange !== null);
+    mockForwarderSelect.onchange({ target: { value: 'goog-8888' } });
+    assert.equal(getDnsUpstreamForwarder(), 'goog-8888');
+
+    // Change cache slider
+    assert.ok(mockCacheSlider.oninput !== null);
+    mockCacheSlider.oninput({ target: { value: '95' } });
+    assert.equal(getDnsCacheHitRatio(), 95);
+    assert.equal(mockCacheVal.textContent, '95%');
+
+    // Change DNSSEC mode
+    assert.ok(mockDnssecSelect.onchange !== null);
+    mockDnssecSelect.onchange({ target: { value: 'permissive' } });
+    assert.equal(getDnssecMode(), 'permissive');
+
+    // Change clock drift slider
+    assert.ok(mockDriftSlider.oninput !== null);
+    mockDriftSlider.oninput({ target: { value: '150000' } });
+    assert.equal(getDnsClockDriftMs(), 150000);
+    assert.equal(mockDriftVal.textContent, '+150000 ms');
+
+    // Reset simulation
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getDnsSelectedResolver(), 'dns-shd-01');
+    assert.equal(getDnsCacheHitRatio(), null);
+    assert.equal(getDnssecMode(), 'strict');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(toastMessage.includes('DNS Diagnostic Briefing'));
+
+    // Close modal
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetDnsSimState();
   }
 });

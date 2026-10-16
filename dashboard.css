@@ -2031,6 +2031,34 @@
   border-color: #243c33;
 }
 
+/* Edge DNS Resolvers & DNSSEC Validation Matrix Styles */
+.chart-card-dns {
+  background: var(--surface, #ffffff);
+}
+
+.dns-modal-card {
+  max-width: 960px;
+}
+
+.dns-compact-svg,
+.dns-expanded-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-dns {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .dns-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
+
 .signal-tag {
   display: inline-block;
   padding: 2px 6px;

@@ -5522,5 +5522,37 @@ html, body {
   }
 }
 
+/* =========================================================================
+   Subscriber LAN Ethernet Cabling & Gigabit Link Speed QA Certificate
+   ========================================================================= */
 
+.ethernet-cert-modal-card {
+  max-width: 900px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
 
+.rj45-wiremap-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+}
+
+[data-theme="dark"] .ethernet-cert-modal-card {
+  background: #14241e;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+@media print {
+  .ethernet-cert-modal,
+  .ethernet-cert-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

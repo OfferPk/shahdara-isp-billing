@@ -4454,6 +4454,25 @@ kbd {
   color: #ffffff;
 }
 
+/* Mobile OTDR Trace Modal & Graph Styles */
+.otdr-trace-modal,
+.otdr-trace-modal-card {
+  max-width: 880px;
+}
+
+.otdr-trace-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+
+[data-theme="dark"] .otdr-trace-modal,
+[data-theme="dark"] .otdr-trace-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
 
 
 

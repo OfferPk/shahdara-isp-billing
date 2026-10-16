@@ -257,7 +257,13 @@ export function updateNavigationBadges(state, options = {}) {
   }
   setBadges('optical-map', opticalAlertCount, 'optical nodes requiring attention', opticalAlertCount > 0);
 
-  setBadges('more', (queueCount + conflictsCount + opticalAlertCount), 'offline queued, conflicts & optical alerts', (queueCount + conflictsCount + opticalAlertCount) > 0);
+  let otdrAlertCount = 0;
+  if (typeof options.otdrAlertCount === 'number') {
+    otdrAlertCount = options.otdrAlertCount;
+  }
+  setBadges('otdr-trace', otdrAlertCount, 'optical fiber trace faults', otdrAlertCount > 0);
+
+  setBadges('more', (queueCount + conflictsCount + opticalAlertCount + otdrAlertCount), 'offline queued, conflicts, optical alerts & trace faults', (queueCount + conflictsCount + opticalAlertCount + otdrAlertCount) > 0);
 
   return {
     totalCustomers,
@@ -268,6 +274,7 @@ export function updateNavigationBadges(state, options = {}) {
     queueCount,
     conflictsCount,
     opticalAlertCount,
+    otdrAlertCount,
     fieldRoutePendingCount: overdueCount,
     workOrdersCount: pendingWorkOrders
   };
@@ -5834,6 +5841,28 @@ export {
   generateAerialHazardWorkOrder,
   setupAerialAlertsModal
 } from './nav-aerial-alerts.js';
+
+export {
+  OTDR_TRACE_STORAGE_KEY,
+  SHAHDARA_OTDR_CORRIDORS,
+  OTDR_THRESHOLDS,
+  getOtdrSelectedCorridor,
+  setOtdrSelectedCorridor,
+  getOtdrSelectedWavelength,
+  setOtdrSelectedWavelength,
+  getOtdrSelectedPulseWidth,
+  setOtdrSelectedPulseWidth,
+  resetOtdrMobileState,
+  getOtdrMobileTracesStore,
+  saveOtdrMobileTracesStore,
+  recordOtdrEventResolution,
+  clearOtdrMobileTracesStore,
+  calculateOtdrTracePhysics,
+  calculateOtdrMobileSummary,
+  renderMobileOtdrTraceSvg,
+  generateOtdrDispatchOrder,
+  setupMobileOtdrTraceModal
+} from './nav-otdr-trace.js';
 
 
 

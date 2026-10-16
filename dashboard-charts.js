@@ -11,6 +11,8 @@ import { calculateFusionSplicerMetrics, setupFusionSplicerModal, renderFusionSpl
 import { calculateBgpPeeringMetrics, setupBgpRoutingModal, renderBgpRoutingConvergenceSvg } from './dashboard-bgp.js';
 import { calculateIptvMulticastMetrics, setupIptvMulticastModal, renderIptvMulticastSvg } from './dashboard-iptv.js';
 import { calculateDnsMetrics, setupDnsDiagnosticsModal, renderDnsDiagnosticsSvg } from './dashboard-dns.js';
+import { calculateDwdmMetrics, setupDwdmModal, renderDwdmBudgetSvg } from './dashboard-dwdm.js';
+
 
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -3336,8 +3338,15 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupDnsDiagnosticsModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const dwdmEl = document.getElementById('dashboardDwdmChart');
+  if (dwdmEl) {
+    const dwdmData = calculateDwdmMetrics(state, { referenceDate });
+    dwdmEl.innerHTML = renderDwdmBudgetSvg(dwdmData, { compact: true });
+  }
+
+  setupDwdmModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg };
-
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg };

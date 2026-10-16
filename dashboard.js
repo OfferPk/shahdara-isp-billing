@@ -5384,3 +5384,22 @@ export {
   generateDnsDiagnosticReport,
   setupDnsDiagnosticsModal
 } from './dashboard-dns.js';
+
+export {
+  SHAHDARA_DWDM_CHANNELS,
+  DWDM_CONSTANTS,
+  getDwdmSelectedChannel,
+  setDwdmSelectedChannel,
+  getDwdmFiberLossCoeff,
+  setDwdmFiberLossCoeff,
+  getDwdmEdfaNoiseFigure,
+  setDwdmEdfaNoiseFigure,
+  getDwdmSpanCount,
+  setDwdmSpanCount,
+  resetDwdmSimState,
+  calculateOsnrBudget,
+  calculateDwdmMetrics,
+  renderDwdmBudgetSvg,
+  generateDwdmReport,
+  setupDwdmModal
+} from './dashboard-dwdm.js';

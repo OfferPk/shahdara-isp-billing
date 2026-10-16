@@ -4873,5 +4873,226 @@ kbd {
   color: #e6edea;
 }
 
+/* Field Technician FAT / FDT Port Allocation Matrix Modal */
+.fdt-allocation-modal {
+  width: min(94vw, 860px);
+  max-height: 90vh;
+  border-radius: 16px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  padding: 0;
+  overflow: hidden;
+}
 
+.fdt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
 
+.fdt-selector-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fdt-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+
+.fdt-select {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #cbd5e1);
+  background: var(--input-bg, #ffffff);
+  color: var(--text, #1e293b);
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.fdt-metrics-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fdt-metric-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--mint, #f1f5f9);
+  border: 1px solid var(--line, #e2e8f0);
+  font-size: 11.5px;
+  color: var(--text-muted, #64748b);
+}
+
+.fdt-metric-pill strong {
+  color: var(--text, #0f172a);
+}
+
+.fdt-metric-pill.pill-active strong { color: #10b981; }
+.fdt-metric-pill.pill-reserved strong { color: #f59e0b; }
+.fdt-metric-pill.pill-faulty strong { color: #ef4444; }
+.fdt-metric-pill.pill-spare strong { color: #64748b; }
+.fdt-metric-pill.pill-util strong { color: #0284c7; }
+
+.fdt-svg-container {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #334155;
+  background: #0f172a;
+}
+
+.fdt-enclosure-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.fdt-port-edit-section {
+  border-top: 1px solid var(--line, #e2e8f0);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fdt-edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.fdt-edit-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text, #0f172a);
+}
+
+.fdt-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.fdt-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fdt-form-group label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.fdt-form-group input,
+.fdt-form-group select {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  font-size: 12.5px;
+  background: var(--input-bg, #ffffff);
+  color: var(--text, #0f172a);
+}
+
+.fdt-actions-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.fdt-actions-row .btn-primary {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fdt-actions-row .btn-secondary {
+  background: transparent;
+  border: 1px solid var(--line, #cbd5e1);
+  color: var(--text, #334155);
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fdt-actions-row .btn-whatsapp {
+  background: #25d366;
+  color: #ffffff;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Dark mode styling */
+[data-theme="dark"] .fdt-allocation-modal {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .fdt-select {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .fdt-metric-pill {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .fdt-metric-pill strong {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .fdt-port-edit-section {
+  border-top-color: #334155;
+}
+
+[data-theme="dark"] .fdt-edit-header h3 {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .fdt-form-group input,
+[data-theme="dark"] .fdt-form-group select {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .fdt-actions-row .btn-secondary {
+  border-color: #475569;
+  color: #cbd5e1;
+}

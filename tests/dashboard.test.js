@@ -83,7 +83,18 @@ import {
   setSeasonalMetric,
   getSeasonalMetric,
   setMarginSimulatorCostPerMbps,
-  getMarginSimulatorCostPerMbps
+  getMarginSimulatorCostPerMbps,
+  SHAHDARA_FIBER_ROUTES,
+  calculateOtdrFaultMetrics,
+  generateOtdrReport,
+  setupOtdrModal,
+  getOtdrSelectedRoute,
+  setOtdrSelectedRoute,
+  getOtdrWavelength,
+  setOtdrWavelength,
+  getOtdrSimulatedDistance,
+  setOtdrSimulatedDistance,
+  renderOtdrTraceSvg
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -4406,6 +4417,339 @@ test('setupRouteDensityModal wires modal open, populate, filter, copy, and close
     assert.equal(toastMessage, 'Route density briefing copied to clipboard!');
 
     // Close modal
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateOtdrFaultMetrics handles empty state and returns monitored routes', () => {
+  const result = calculateOtdrFaultMetrics();
+  assert.equal(result.totalRoutesMonitored, 5);
+  assert.ok(result.totalFiberDistanceKm > 10);
+  assert.equal(result.wavelength, 1310);
+  assert.equal(result.selectedRoute.id, 'saeed-park-feeder');
+  assert.equal(result.routesWithBreaks, 0);
+  assert.equal(result.fleetStatus, 'ALL FIBER ROUTES NORMAL');
+  assert.equal(result.selectedRoute.totalSubscribers, 0);
+  assert.equal(result.selectedRoute.hasFault, false);
+});
+
+test('calculateOtdrFaultMetrics detects critical fiber break when offline cluster exists', () => {
+  let state = createInitialState(['Sub 1', 'Sub 2', 'Sub 3', 'Sub 4']);
+  // Put 4 subscribers in Saeed Park, 3 of them offline
+  state.customers[0].area = 'Saeed Park';
+  state.customers[0].manualStatus = 'Offline';
+  state.customers[0].packagePrice = 2000;
+
+  state.customers[1].area = 'Saeed Park';
+  state.customers[1].manualStatus = 'Offline';
+  state.customers[1].packagePrice = 2500;
+
+  state.customers[2].area = 'Saeed Park';
+  state.customers[2].manualStatus = 'Offline';
+  state.customers[2].packagePrice = 1800;
+
+  state.customers[3].area = 'Saeed Park';
+  state.customers[3].manualStatus = 'Active';
+  state.customers[3].packagePrice = 2000;
+
+  const result = calculateOtdrFaultMetrics(state, { routeId: 'saeed-park-feeder' });
+  const route = result.selectedRoute;
+
+  assert.equal(route.totalSubscribers, 4);
+  assert.equal(route.offlineSubscribers, 3);
+  assert.equal(route.activeSubscribers, 1);
+  assert.equal(route.offlinePercent, 75);
+  assert.equal(route.atRiskRevenuePkr, 6300);
+  assert.equal(route.hasFault, true);
+  assert.equal(route.faultSeverity, 'critical');
+  assert.equal(route.faultDistanceMeters, 1420);
+  assert.ok(route.faultStatusLabel.includes('CRITICAL FIBER BREAK'));
+  assert.ok(route.faultLandmark.includes('Jamia Masjid'));
+  assert.equal(result.routesWithBreaks, 1);
+  assert.ok(result.fleetStatus.includes('1 CRITICAL FIBER CUT'));
+
+  // Ensure break event was injected into events array
+  const faultEvent = route.events.find(e => e.isFault);
+  assert.ok(faultEvent);
+  assert.equal(faultEvent.distanceMeters, 1420);
+  assert.equal(faultEvent.lossDb, 35.0);
+  assert.equal(faultEvent.powerLevelDbm, -38.0);
+
+  // Subsequent events should be marked unreachable
+  const unreachableEvents = route.events.filter(e => e.unreachable);
+  assert.ok(unreachableEvents.length > 0);
+});
+
+test('calculateOtdrFaultMetrics detects macrobend when single subscriber offline', () => {
+  let state = createInitialState(['Sub 1', 'Sub 2']);
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].manualStatus = 'Offline';
+  state.customers[1].area = 'Vandala Road';
+  state.customers[1].manualStatus = 'Active';
+
+  const result1310 = calculateOtdrFaultMetrics(state, { routeId: 'wandala-trunk', wavelength: 1310 });
+  const route1310 = result1310.selectedRoute;
+  assert.equal(route1310.hasFault, true);
+  assert.equal(route1310.faultSeverity, 'warning');
+  assert.ok(route1310.faultType.includes('Macrobend'));
+
+  const bendEv1310 = route1310.events.find(e => e.isFault);
+  assert.ok(bendEv1310);
+  assert.equal(bendEv1310.lossDb, 1.4);
+
+  // At 1550nm, macrobend loss should be significantly higher
+  const result1550 = calculateOtdrFaultMetrics(state, { routeId: 'wandala-trunk', wavelength: 1550 });
+  const bendEv1550 = result1550.selectedRoute.events.find(e => e.isFault);
+  assert.ok(bendEv1550);
+  assert.equal(bendEv1550.lossDb, 4.8);
+  assert.equal(result1550.selectedRoute.attenuationRateDbPerKm, '0.20');
+});
+
+test('calculateOtdrFaultMetrics handles manual distance simulation override and getters/setters', () => {
+  let state = createInitialState(['Sub 1']);
+  state.customers[0].area = 'Saeed Park';
+
+  setOtdrSelectedRoute('wandala-trunk');
+  assert.equal(getOtdrSelectedRoute(), 'wandala-trunk');
+
+  setOtdrWavelength(1550);
+  assert.equal(getOtdrWavelength(), 1550);
+
+  setOtdrSimulatedDistance(980);
+  assert.equal(getOtdrSimulatedDistance(), 980);
+
+  const simResult = calculateOtdrFaultMetrics(state);
+  assert.equal(simResult.selectedRoute.id, 'wandala-trunk');
+  assert.equal(simResult.selectedRoute.hasFault, true);
+  assert.equal(simResult.selectedRoute.faultDistanceMeters, 980);
+  assert.ok(simResult.selectedRoute.faultType.includes('Simulated'));
+
+  // Reset simulation
+  setOtdrSimulatedDistance(null);
+  assert.equal(getOtdrSimulatedDistance(), null);
+  setOtdrSelectedRoute('saeed-park-feeder');
+  setOtdrWavelength(1310);
+});
+
+test('generateOtdrReport formats operational field advisory with landmarks and action steps', () => {
+  const emptyReport = generateOtdrReport();
+  assert.ok(emptyReport.includes('SHAHDARA ISP - OTDR FIBER FAULT DISPATCH ADVISORY'));
+  assert.ok(emptyReport.includes('Saeed Park Feeder'));
+  assert.ok(emptyReport.includes('FIELD SPLICING ACTION PROTOCOL'));
+  assert.ok(emptyReport.includes('Fujikura fusion splicer'));
+
+  let state = createInitialState(['Sub 1', 'Sub 2']);
+  state.customers[0].area = 'Saeed Park';
+  state.customers[0].manualStatus = 'Offline';
+  state.customers[0].packagePrice = 2500;
+  state.customers[1].area = 'Saeed Park';
+  state.customers[1].manualStatus = 'Offline';
+  state.customers[1].packagePrice = 2500;
+
+  const data = calculateOtdrFaultMetrics(state, { routeId: 'saeed-park-feeder' });
+  const refDate = new Date('2026-10-16T10:00:00+05:00');
+  const report = generateOtdrReport(data, refDate);
+
+  assert.ok(report.includes('2026-10-16'));
+  assert.ok(report.includes('⚡ FAULT DISTANCE FROM OLT: 1420 meters'));
+  assert.ok(report.includes('Jamia Masjid'));
+  assert.ok(report.includes('OFFLINE SUBSCRIBERS AT RISK: 2 accounts'));
+  assert.ok(report.includes('REVENUE AT RISK:'));
+  assert.ok(report.includes('5,000'));
+  assert.ok(report.includes('Shahdara Splicing Crew 1'));
+});
+
+test('renderOtdrTraceSvg renders technical SVG with grid, Rayleigh slope, and fault overlay', () => {
+  const fallbackSvg = renderOtdrTraceSvg(null);
+  assert.ok(fallbackSvg.includes('role="img"'));
+  assert.ok(fallbackSvg.includes('No OTDR fiber telemetry available'));
+
+  let state = createInitialState(['Sub 1', 'Sub 2']);
+  state.customers[0].area = 'Saeed Park';
+  state.customers[0].manualStatus = 'Offline';
+  state.customers[1].area = 'Saeed Park';
+  state.customers[1].manualStatus = 'Offline';
+
+  const data = calculateOtdrFaultMetrics(state, { routeId: 'saeed-park-feeder' });
+  const svg = renderOtdrTraceSvg(data, { width: 640, height: 260 });
+
+  assert.ok(svg.includes('viewBox="0 0 640 260"'));
+  assert.ok(svg.includes('otdr-trace-svg'));
+  assert.ok(svg.includes('Saeed Park Feeder'));
+  assert.ok(svg.includes('Rayleigh Noise Floor'));
+  assert.ok(svg.includes('FIBER CUT DETECTED'));
+  assert.ok(svg.includes('otdr-fault-marker'));
+  assert.ok(svg.includes('1420m'));
+});
+
+test('setupOtdrModal wires route select, wavelength, slider, filter area, copy report, and modal open/close', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let routeChangeHandler = null;
+  let wavelengthChangeHandler = null;
+  let sliderInputHandler = null;
+  let resetClickHandler = null;
+  let copyHandler = null;
+  let filterClickHandler = null;
+
+  let filterAreaCalledWith = null;
+  let copiedText = null;
+  let toastMessage = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') openHandler = h; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') closeHandler = h; }
+  };
+
+  const mockRouteSelect = {
+    children: [],
+    innerHTML: '',
+    value: 'wandala-trunk',
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'change') routeChangeHandler = h; }
+  };
+
+  const mockWavelengthSelect = {
+    value: '1550',
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'change') wavelengthChangeHandler = h; }
+  };
+
+  const mockSlider = {
+    value: '1850',
+    max: '3800',
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'input') sliderInputHandler = h; }
+  };
+
+  const mockSliderVal = { textContent: '' };
+  const mockResetBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') resetClickHandler = h; }
+  };
+
+  const mockChartContainer = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = {
+    textContent: '',
+    dataset: {},
+    setAttribute: (name, val) => { mockFilterAreaBtn[name] = val; },
+    getAttribute: (name) => mockFilterAreaBtn[name],
+    addEventListener: (evt, h) => { if (evt === 'click') filterClickHandler = h; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') copyHandler = h; }
+  };
+
+  const mockRouteNameEl = { textContent: '' };
+  const mockBreakDistEl = { textContent: '' };
+  const mockAffectedSubsEl = { textContent: '' };
+  const mockAtRiskRevEl = { textContent: '' };
+  const mockOpticalMarginEl = { textContent: '' };
+  const mockStatusBadgeEl = { textContent: '', className: '' };
+
+  try {
+    globalThis.document = {
+      getElementById: (id) => {
+        switch (id) {
+          case 'dashboardOtdrModal': return mockModal;
+          case 'dashboardOpenOtdrModalBtn': return mockOpenBtn;
+          case 'dashboardOtdrModalCloseBtn': return mockCloseBtn;
+          case 'otdrRouteSelect': return mockRouteSelect;
+          case 'otdrWavelengthSelect': return mockWavelengthSelect;
+          case 'otdrDistanceSlider': return mockSlider;
+          case 'otdrDistanceSliderVal': return mockSliderVal;
+          case 'otdrResetSimBtn': return mockResetBtn;
+          case 'otdrModalTraceChart': return mockChartContainer;
+          case 'otdrEventsTableBody': return mockTableBody;
+          case 'dashboardCopyOtdrReportBtn': return mockCopyBtn;
+          case 'otdrFilterAreaBtn': return mockFilterAreaBtn;
+          case 'otdrKpiRouteName': return mockRouteNameEl;
+          case 'otdrKpiBreakDist': return mockBreakDistEl;
+          case 'otdrKpiAffectedSubs': return mockAffectedSubsEl;
+          case 'otdrKpiAtRiskRev': return mockAtRiskRevEl;
+          case 'otdrKpiOpticalMargin': return mockOpticalMarginEl;
+          case 'otdrStatusBadge': return mockStatusBadgeEl;
+          default: return null;
+        }
+      }
+    };
+
+    let state = createInitialState(['Customer 1', 'Customer 2']);
+    state.customers[0].area = 'Vandala Road';
+    state.customers[0].manualStatus = 'Offline';
+    state.customers[1].area = 'Vandala Road';
+    state.customers[1].manualStatus = 'Offline';
+
+    setupOtdrModal(state, {
+      referenceDate: new Date('2026-10-16T10:00:00+05:00'),
+      onFilterArea: (a) => { filterAreaCalledWith = a; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: { writeText: async (t) => { copiedText = t; } }
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Verify view populated
+    assert.ok(mockRouteSelect.innerHTML.includes('Saeed Park'));
+    assert.ok(mockChartContainer.innerHTML.includes('otdr-trace-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Launch Connector'));
+
+    // Test wavelength change
+    assert.ok(wavelengthChangeHandler !== null);
+    mockWavelengthSelect.value = '1550';
+    wavelengthChangeHandler();
+    assert.equal(getOtdrWavelength(), 1550);
+
+    // Test slider change
+    assert.ok(sliderInputHandler !== null);
+    mockSlider.value = '1250';
+    sliderInputHandler();
+    assert.equal(getOtdrSimulatedDistance(), 1250);
+    assert.equal(mockSliderVal.textContent, '1250 m');
+
+    // Test reset button
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getOtdrSimulatedDistance(), null);
+
+    // Test filter area action
+    assert.ok(filterClickHandler !== null);
+    filterClickHandler();
+    assert.equal(filterAreaCalledWith, 'Saeed Park');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyHandler !== null);
+    await copyHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP - OTDR FIBER FAULT DISPATCH ADVISORY'));
+    assert.equal(toastMessage, 'OTDR dispatch briefing copied to clipboard!');
+
+    // Test close button
+    assert.ok(closeHandler !== null);
     closeHandler();
     assert.equal(modalOpened, false);
   } finally {

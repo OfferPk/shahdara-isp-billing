@@ -4520,6 +4520,160 @@ html, body {
   color: #e6edea;
 }
 
+/* ==========================================================================
+   Customer Billing Dispute & Settlement Modal (.dispute-modal) (agent3)
+   ========================================================================== */
+.dispute-modal-card {
+  max-width: 860px;
+  width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.dispute-customer-ribbon {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  background: #f0f7f4;
+  border: 1px solid #cce3d8;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ink, #1f2d28);
+}
+
+.ribbon-col {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ribbon-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted, #5b7068);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.dispute-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.dispute-col {
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface, #fff);
+}
+
+.dispute-col-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green, #0e5b4d);
+  border-bottom: 1px solid var(--line, #e2ece7);
+  padding-bottom: 6px;
+}
+
+.dispute-preview-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.dispute-preview-rec-item {
+  grid-column: 1 / -1;
+}
+
+.dispute-rec-text {
+  font-size: 12px;
+  color: #334155;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.dispute-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.dispute-history-section {
+  border-top: 1px solid var(--line, #e2ece7);
+  padding-top: 14px;
+  margin-top: 8px;
+}
+
+.dispute-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.dispute-history-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #1f2d28);
+}
+
+/* Dark mode for dispute modal */
+[data-theme="dark"] .dispute-modal,
+[data-theme="dark"] .dispute-modal-card {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .dispute-customer-ribbon {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .dispute-col {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .dispute-col-title {
+  border-color: #253d35;
+  color: #34d399;
+}
+
+[data-theme="dark"] .dispute-preview-box {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .dispute-rec-text {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .dispute-history-section {
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .dispute-history-header h4 {
+  color: #e6edea;
+}
+
+
 
 
 

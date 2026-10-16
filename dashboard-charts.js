@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2680,6 +2680,108 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
 }
 
 /**
+ * Renders an offline SVG chart displaying CPE / ONU equipment asset lifecycle distribution,
+ * active field deployment, dormant capital at risk, and spares runway.
+ */
+export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
+  const width = 560;
+  const height = 240;
+
+  if (!cpeData || cpeData.totalCpeFleet === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Premises Equipment CPE and ONU Asset Lifecycle: No equipment tracked">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-10 4 L10 4 M-6 -4 L6 -4 M-2 -12 L2 -12" stroke="#0e5b4d" stroke-width="2" stroke-linecap="round" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No customer premises equipment tracked</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Customer ONU and router asset deployments appear here</text>
+      </g>
+    </svg>`;
+  }
+
+  const leftPad = 24;
+  const rightPad = 24;
+  const plotWidth = width - leftPad - rightPad;
+
+  let statusColor = '#047857';
+  if (cpeData.fleetHealthStatus.includes('High')) statusColor = '#ef4444';
+  else if (cpeData.fleetHealthStatus.includes('Moderate')) statusColor = '#d97706';
+
+  const total = cpeData.totalCpeFleet;
+  const activeW = Math.round((cpeData.activeDeployedCount / total) * plotWidth);
+  const dormantW = Math.round((cpeData.dormantFieldCount / total) * plotWidth);
+  const warehouseW = Math.round((cpeData.warehouseStock / total) * plotWidth);
+  const damagedW = Math.max(0, plotWidth - activeW - dormantW - warehouseW);
+
+  const barY = 46;
+  const barH = 26;
+
+  const cardW = 160;
+  const cardH = 68;
+  const cardY = 94;
+  const cardGap = (plotWidth - cardW * 3) / 2;
+
+  const activeCardX = leftPad;
+  const dormantCardX = leftPad + cardW + cardGap;
+  const sparesCardX = leftPad + (cardW + cardGap) * 2;
+
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Premises Equipment CPE and ONU Asset Lifecycle Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${leftPad}, 22)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+        CPE &amp; ONU Asset Fleet
+      </text>
+      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Fleet: <tspan font-weight="700" fill="var(--ink, #182e2a)">${cpeData.totalCpeFleet} Units</tspan> · Book: <tspan font-weight="700" fill="#047857">${formatPKR(cpeData.totalFleetValuePkr)}</tspan> · Active: <tspan font-weight="700" fill="#0e5b4d">${cpeData.activeUtilizationPercent}%</tspan>
+      </text>
+    </g>
+
+    <!-- Horizontal Fleet Distribution Stack -->
+    <rect x="${leftPad}" y="${barY}" width="${plotWidth}" height="${barH}" rx="6" fill="var(--bg-soft, #f1f5f3)" />
+    ${activeW > 0 ? `<rect x="${leftPad}" y="${barY}" width="${activeW}" height="${barH}" rx="${dormantW === 0 && warehouseW === 0 ? 6 : 0}" fill="#0e5b4d" />` : ''}
+    ${dormantW > 0 ? `<rect x="${leftPad + activeW}" y="${barY}" width="${dormantW}" height="${barH}" fill="#f59e0b" />` : ''}
+    ${warehouseW > 0 ? `<rect x="${leftPad + activeW + dormantW}" y="${barY}" width="${warehouseW}" height="${barH}" fill="#0284c7" />` : ''}
+    ${damagedW > 0 ? `<rect x="${leftPad + activeW + dormantW + warehouseW}" y="${barY}" width="${damagedW}" height="${barH}" rx="6" fill="#ef4444" />` : ''}
+
+    <!-- Stat Tiles -->
+    <!-- Active Card -->
+    <g transform="translate(${activeCardX}, ${cardY})">
+      <rect width="${cardW}" height="${cardH}" rx="8" fill="var(--bg-soft, #f8faf9)" stroke="var(--line, #e2ece7)" />
+      <circle cx="16" cy="18" r="5" fill="#0e5b4d" />
+      <text x="28" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">Active Deployed</text>
+      <text x="16" y="44" font-family="'DM Sans', system-ui, sans-serif" font-size="14" font-weight="800" fill="#0e5b4d">${cpeData.activeDeployedCount} Units</text>
+      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Value: ${formatPKR(cpeData.activeFleetValuePkr)}</text>
+    </g>
+
+    <!-- Dormant Card -->
+    <g transform="translate(${dormantCardX}, ${cardY})">
+      <rect width="${cardW}" height="${cardH}" rx="8" fill="var(--bg-soft, #f8faf9)" stroke="var(--line, #e2ece7)" />
+      <circle cx="16" cy="18" r="5" fill="#f59e0b" />
+      <text x="28" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">Dormant in Field</text>
+      <text x="16" y="44" font-family="'DM Sans', system-ui, sans-serif" font-size="14" font-weight="800" fill="#b45309">${cpeData.dormantFieldCount} Units</text>
+      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">At Risk: ${formatPKR(cpeData.dormantCapitalAtRiskPkr)}</text>
+    </g>
+
+    <!-- Spares Card -->
+    <g transform="translate(${sparesCardX}, ${cardY})">
+      <rect width="${cardW}" height="${cardH}" rx="8" fill="var(--bg-soft, #f8faf9)" stroke="var(--line, #e2ece7)" />
+      <circle cx="16" cy="18" r="5" fill="#0284c7" />
+      <text x="28" y="21" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">Warehouse Spares</text>
+      <text x="16" y="44" font-family="'DM Sans', system-ui, sans-serif" font-size="14" font-weight="800" fill="#0369a1">${cpeData.warehouseStock} Tested</text>
+      <text x="16" y="58" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">Runway: ${cpeData.sparesRunwayWeeks} weeks</text>
+    </g>
+
+    <!-- Bottom Footer -->
+    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Fleet Health: <tspan font-weight="700" fill="${statusColor}">${escapeXml(cpeData.fleetHealthStatus)}</tspan> · Retrieval Candidates: <tspan font-weight="700" fill="var(--ink, #182e2a)">${cpeData.retrievalCandidates.length}</tspan> · Spares Inventory: <tspan font-weight="700" fill="#0284c7">${formatPKR(cpeData.warehouseValuePkr)}</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+/**
  * Orchestrates dashboard charts rendering into their DOM containers.
  */
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
@@ -2880,6 +2982,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupDelinquencyPipelineModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  const cpeEl = document.getElementById('dashboardCpeChart');
+  if (cpeEl) {
+    const cpeData = calculateCpeAssetMetrics(state, { referenceDate });
+    cpeEl.innerHTML = renderCpeAssetLifecycleSvg(cpeData);
+  }
+
+  setupCpeAssetModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

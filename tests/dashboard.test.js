@@ -130,7 +130,19 @@ import {
   setMicrowaveRainRate,
   getMicrowaveFrequencyOverride,
   setMicrowaveFrequencyOverride,
-  renderMicrowaveLinkSvg
+  renderMicrowaveLinkSvg,
+  SHAHDARA_SPLICE_CLOSURES,
+  calculateBendAttenuation,
+  calculateSpliceClosureMetrics,
+  generateSpliceClosureReport,
+  setupSpliceClosureModal,
+  getSpliceSelectedClosure,
+  setSpliceSelectedClosure,
+  getSpliceBendRadius,
+  setSpliceBendRadius,
+  getSpliceAddedTrays,
+  setSpliceAddedTrays,
+  renderSpliceClosureSvg
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -5653,7 +5665,315 @@ test('setupMicrowaveModal wires modal controls, sliders, frequency override, and
   }
 });
 
+test('calculateBendAttenuation accurately calculates macro-bend attenuation differential for G.652.D and G.657.A1', () => {
+  // G.652.D standard single-mode with compliant radius (30mm)
+  const g652Compliant = calculateBendAttenuation({
+    fiberStandardKey: 'g652d',
+    bendRadiusMm: 30,
+    trayUtilizationPct: 70
+  });
+  assert.equal(g652Compliant.criticalRadiusMm, 30);
+  assert.equal(g652Compliant.isBendInsensitive, false);
+  assert.ok(g652Compliant.totalLoss1550Db < 0.1);
+  assert.equal(g652Compliant.crowdPenaltyDb, 0);
 
+  // G.652.D with acute bend radius (18mm) - significant macro-bending
+  const g652Acute = calculateBendAttenuation({
+    fiberStandardKey: 'g652d',
+    bendRadiusMm: 18,
+    trayUtilizationPct: 95
+  });
+  assert.ok(g652Acute.bendLoss1550Db > 1.0);
+  assert.ok(g652Acute.totalLoss1550Db > g652Acute.totalLoss1310Db);
+  assert.ok(g652Acute.differentialDeltaDb > 0.5);
+  assert.ok(g652Acute.crowdPenaltyDb > 0); // utilization > 80%
 
+  // G.657.A1 bend-insensitive fiber with 20mm radius (compliant since critical is 15mm)
+  const g657Compliant = calculateBendAttenuation({
+    fiberStandardKey: 'g657a1',
+    bendRadiusMm: 20,
+    trayUtilizationPct: 75
+  });
+  assert.equal(g657Compliant.criticalRadiusMm, 15);
+  assert.equal(g657Compliant.isBendInsensitive, true);
+  assert.ok(g657Compliant.totalLoss1550Db < 0.08);
 
+  // G.657.A1 below critical radius (10mm)
+  const g657Acute = calculateBendAttenuation({
+    fiberStandardKey: 'g657a1',
+    bendRadiusMm: 10,
+    trayUtilizationPct: 75
+  });
+  assert.ok(g657Acute.bendLoss1550Db > 0.2);
+});
 
+test('calculateSpliceClosureMetrics aggregates fleet capacity, identifies overcrowded trays and links area subscribers', () => {
+  let state = createInitialState(['User MB 1', 'User MB 2', 'User BD 1']);
+  state.customers[0].area = 'Main Bazaar';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].bills = [{ month: '2026-10', amount: 2500 }];
+
+  state.customers[1].area = 'Main Bazaar';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].bills = [{ month: '2026-10', amount: 3000 }];
+
+  state.customers[2].area = 'Baradari Road';
+  state.customers[2].serviceStatus = 'active';
+  state.customers[2].bills = [{ month: '2026-10', amount: 1800 }];
+
+  const res = calculateSpliceClosureMetrics(state, {
+    closureId: 'fosc-mb-02',
+    referenceDate: '2026-10-15'
+  });
+
+  assert.equal(res.selectedClosure.id, 'fosc-mb-02');
+  assert.equal(res.evaluation.installedCapacity, 96);
+  assert.equal(res.evaluation.trayUtilizationPct, 94.8); // 91 / 96
+  assert.equal(res.evaluation.statusTier, 'CRITICAL');
+  assert.equal(res.evaluation.areaCustomersCount, 2);
+  assert.equal(res.evaluation.activeSubscribers, 1);
+  assert.equal(res.evaluation.offlineSubscribers, 1);
+  assert.equal(res.evaluation.monthlyRevenue, 5500);
+  assert.equal(res.evaluation.revenueAtRisk, 5500); // 100% at risk for critical
+
+  // Fleet checks
+  assert.equal(res.fleet.totalClosures, SHAHDARA_SPLICE_CLOSURES.length);
+  assert.ok(res.fleet.totalSplices > 300);
+  assert.ok(res.fleet.totalCapacity > 400);
+  assert.ok(res.fleet.criticalCount >= 1);
+  assert.ok(res.fleet.optimalCount >= 1);
+});
+
+test('calculateSpliceClosureMetrics supports bend radius simulation and added expansion trays', () => {
+  const state = createInitialState([]);
+
+  // Simulation with added trays on fosc-mb-02
+  const resWithTrays = calculateSpliceClosureMetrics(state, {
+    closureId: 'fosc-mb-02',
+    addedTrays: 1, // fosc-mb-02 maxTrays is 4, traysInstalled is 4, so it stays capped at 4
+    bendRadiusOverride: 35
+  });
+
+  assert.equal(resWithTrays.evaluation.radius, 35);
+  // With 35mm radius on G.652.D, bend loss is minimized
+  assert.ok(resWithTrays.evaluation.optLoss.bendLoss1550Db < 0.05);
+
+  // Simulation on fosc-bd-01 (maxTrays is 6, traysInstalled is 4, so +1 tray expands capacity to 5*24 = 120)
+  const resExpand = calculateSpliceClosureMetrics(state, {
+    closureId: 'fosc-bd-01',
+    addedTrays: 1
+  });
+  assert.equal(resExpand.evaluation.installedTrays, 5);
+  assert.equal(resExpand.evaluation.installedCapacity, 120);
+  assert.equal(resExpand.evaluation.freeTraySlots, 1);
+  assert.ok(resExpand.evaluation.spareSleeves >= 38);
+});
+
+test('renderSpliceClosureSvg generates accessible, theme-aware pure SVG with trays and wavelength loss', () => {
+  const state = createInitialState([]);
+  const metrics = calculateSpliceClosureMetrics(state, { closureId: 'fosc-mb-02' });
+
+  const svg = renderSpliceClosureSvg(metrics);
+  assert.ok(svg.includes('<svg class="chart-svg splice-closure-svg"'));
+  assert.ok(svg.includes('splice-tray-row'));
+  assert.ok(svg.includes('Tray 1'));
+  assert.ok(svg.includes('Tray Bend Radius:'));
+  assert.ok(svg.includes('1310 nm (Upstream)'));
+  assert.ok(svg.includes('1550 nm (Downstream / High Bend Drag)'));
+  assert.ok(svg.includes('Loss (1550 - 1310):'));
+
+  // Test empty state fallback
+  const emptySvg = renderSpliceClosureSvg(null);
+  assert.ok(emptySvg.includes('No splice closure metrics available'));
+});
+
+test('generateSpliceClosureReport produces structured field engineering briefing with actionable recommendations', () => {
+  const state = createInitialState(['Cust 1']);
+  state.customers[0].area = 'Main Bazaar';
+  state.customers[0].bills = [{ month: '2026-10', amount: 2000 }];
+
+  const metrics = calculateSpliceClosureMetrics(state, { closureId: 'fosc-mb-02', referenceDate: '2026-10-16' });
+  const report = generateSpliceClosureReport(metrics, '2026-10-16');
+
+  assert.ok(report.includes('SHAHDARA FTTH AERIAL SPLICE CLOSURE & MICRO-BEND LOSS AUDIT REPORT'));
+  assert.ok(report.includes('TARGET CLOSURE & PHYSICAL SPECIFICATION:'));
+  assert.ok(report.includes('[fosc-mb-02] Main Bazaar Commercial Hub Inline Enclosure'));
+  assert.ok(report.includes('SPLICE TRAY CAPACITY & FILL METRICS:'));
+  assert.ok(report.includes('OPTICAL MICRO-BEND & MACRO-BEND ATTENUATION (dB):'));
+  assert.ok(report.includes('CUSTOMER ROSTER & REVENUE EXPOSURE:'));
+  assert.ok(report.includes('SHAHDARA CLOSURE FLEET OVERVIEW:'));
+  assert.ok(report.includes('RECOMMENDED FIELD REMEDIATION ACTIONS:'));
+});
+
+test('setupSpliceClosureModal wires open, close, select change, slider input, add tray, reset, filter, and copy actions', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let toastMessage = null;
+  let copiedText = null;
+  let filterAreaCalledWith = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: (attr) => { if (attr === 'open') modalOpened = true; },
+    removeAttribute: (attr) => { if (attr === 'open') modalOpened = false; },
+    addEventListener: () => {},
+    dataset: {}
+  };
+
+  let openClickHandler = null;
+  const mockOpenBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') openClickHandler = fn; },
+    dataset: {}
+  };
+
+  let closeClickHandler = null;
+  const mockCloseBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') closeClickHandler = fn; },
+    dataset: {}
+  };
+
+  let selectChangeHandler = null;
+  const mockSelect = {
+    value: 'fosc-mb-02',
+    children: [],
+    appendChild: function(c) { this.children.push(c); },
+    addEventListener: (type, fn) => { if (type === 'change') selectChangeHandler = fn; },
+    dataset: {}
+  };
+
+  let sliderInputHandler = null;
+  const mockSlider = {
+    value: '22',
+    addEventListener: (type, fn) => { if (type === 'input') sliderInputHandler = fn; },
+    dataset: {}
+  };
+
+  const mockBendVal = { textContent: '22 mm' };
+
+  let addTrayClickHandler = null;
+  const mockAddTrayBtn = {
+    textContent: '+ Add Expansion Tray',
+    addEventListener: (type, fn) => { if (type === 'click') addTrayClickHandler = fn; },
+    dataset: {}
+  };
+
+  let resetClickHandler = null;
+  const mockResetBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') resetClickHandler = fn; },
+    dataset: {}
+  };
+
+  let filterAreaClickHandler = null;
+  const mockFilterAreaBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') filterAreaClickHandler = fn; },
+    dataset: {}
+  };
+
+  let copyClickHandler = null;
+  const mockCopyBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') copyClickHandler = fn; },
+    dataset: {}
+  };
+
+  const mockKpiName = { textContent: '' };
+  const mockKpiTray = { textContent: '' };
+  const mockKpiLoss = { textContent: '' };
+  const mockKpiBadge = { textContent: '', className: '' };
+  const mockKpiRisk = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = {
+    innerHTML: '',
+    querySelectorAll: () => []
+  };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardSpliceModal': return mockModal;
+        case 'dashboardOpenSpliceModalBtn': return mockOpenBtn;
+        case 'dashboardSpliceModalCloseBtn': return mockCloseBtn;
+        case 'spliceClosureSelect': return mockSelect;
+        case 'spliceBendSlider': return mockSlider;
+        case 'spliceBendVal': return mockBendVal;
+        case 'spliceAddTrayBtn': return mockAddTrayBtn;
+        case 'spliceResetSimBtn': return mockResetBtn;
+        case 'spliceFilterAreaBtn': return mockFilterAreaBtn;
+        case 'dashboardCopySpliceReportBtn': return mockCopyBtn;
+        case 'spliceKpiClosureName': return mockKpiName;
+        case 'spliceKpiTrayCapacity': return mockKpiTray;
+        case 'spliceKpiOpticalLoss': return mockKpiLoss;
+        case 'spliceStatusBadge': return mockKpiBadge;
+        case 'spliceKpiRevenueRisk': return mockKpiRisk;
+        case 'spliceModalChartWrap': return mockChartWrap;
+        case 'spliceClosuresTableBody': return mockTableBody;
+        default: return null;
+      }
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '', selected: false })
+  };
+
+  const state = createInitialState([]);
+
+  try {
+    setupSpliceClosureModal(state, {
+      referenceDate: '2026-10-16',
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Check options populated
+    assert.equal(mockSelect.children.length, SHAHDARA_SPLICE_CLOSURES.length);
+
+    // Test open
+    assert.ok(openClickHandler !== null);
+    openClickHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiName.textContent.includes('Main Bazaar'));
+    assert.ok(mockChartWrap.innerHTML.includes('splice-closure-svg'));
+
+    // Test slider input
+    assert.ok(sliderInputHandler !== null);
+    mockSlider.value = '35';
+    sliderInputHandler();
+    assert.equal(getSpliceBendRadius(), 35);
+    assert.equal(mockBendVal.textContent, '35 mm');
+
+    // Test add tray simulation
+    assert.ok(addTrayClickHandler !== null);
+    addTrayClickHandler();
+    assert.equal(getSpliceAddedTrays(), 1);
+    assert.equal(mockAddTrayBtn.textContent, '+1 Trays Added');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getSpliceBendRadius(), null);
+    assert.equal(getSpliceAddedTrays(), 0);
+    assert.equal(mockAddTrayBtn.textContent, '+ Add Expansion Tray');
+
+    // Test filter area action
+    assert.ok(filterAreaClickHandler !== null);
+    filterAreaClickHandler();
+    assert.equal(filterAreaCalledWith, 'Main Bazaar');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyClickHandler !== null);
+    await copyClickHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA FTTH AERIAL SPLICE CLOSURE & MICRO-BEND LOSS AUDIT REPORT'));
+    assert.equal(toastMessage, 'Splice closure audit report copied to clipboard!');
+
+    // Test close
+    assert.ok(closeClickHandler !== null);
+    closeClickHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});

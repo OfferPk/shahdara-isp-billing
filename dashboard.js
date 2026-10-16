@@ -5259,6 +5259,17 @@ export {
   renderMicrowaveLinkSvg
 } from './dashboard-microwave.js';
 
-
-
-
+export {
+  SHAHDARA_SPLICE_CLOSURES,
+  calculateBendAttenuation,
+  calculateSpliceClosureMetrics,
+  generateSpliceClosureReport,
+  setupSpliceClosureModal,
+  getSpliceSelectedClosure,
+  setSpliceSelectedClosure,
+  getSpliceBendRadius,
+  setSpliceBendRadius,
+  getSpliceAddedTrays,
+  setSpliceAddedTrays,
+  renderSpliceClosureSvg
+} from './dashboard-splice.js';

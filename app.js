@@ -43,7 +43,8 @@ import {
   setupEthernetCertModal,
   setupOrlCertModal,
   setupDdmiCertModal,
-  setupDispersionCertModal
+  setupDispersionCertModal,
+  setupBendLossCertModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3345,6 +3346,7 @@ export let customerEthernetCertModalController;
 export let customerOrlCertModalController;
 export let customerDdmiCertModalController;
 export let customerDispersionModalController;
+export let customerBendLossModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3593,6 +3595,27 @@ if (typeof document !== 'undefined') {
         });
       }
       customerDispersionModalController?.open();
+    });
+  }
+
+  customerBendLossModalController = setupBendLossCertModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
+  });
+
+  const openBendLossCertBtn = $('#openBendLossCertBtn');
+  if (openBendLossCertBtn) {
+    openBendLossCertBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      if (cust && customerBendLossModalController) {
+        customerBendLossModalController.setReading({
+          fiberType: 'G657A2',
+          radiusMm: 15.0,
+          turnsCount: 2
+        });
+      }
+      customerBendLossModalController?.open(cust);
     });
   }
 }

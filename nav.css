@@ -5463,3 +5463,42 @@ kbd {
   border-color: #334155;
   color: #f8fafc;
 }
+
+/* ==========================================================================
+   Field Technician Fiber Splitter Tree & Cascaded PON Topology Analyzer
+   ========================================================================== */
+.splitter-tree-modal {
+  padding: 0;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 16px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 680px;
+  width: min(680px, calc(100vw - 24px));
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.splitter-tree-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.splitter-tree-svg-wrap {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #090d16;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Dark mode styling for splitter tree */
+[data-theme="dark"] .splitter-tree-modal {
+  background: #0f172a;
+  border-color: #334155;
+}

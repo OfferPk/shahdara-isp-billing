@@ -12758,3 +12758,300 @@ test('MPLS-TE simulation state getters, setters, and boundary constraints work c
   assert.equal(getMplsTeCongestionPct(), 0);
   assert.equal(getMplsTeLinkCutInjected(), false);
 });
+
+// ============================================================================
+// Carrier Ethernet E-Line / E-LAN (MEF 6.2 / 10.3 / RFC 4115 trTCM) Tests
+// ============================================================================
+
+test('MEF_ETHERNET_CONSTANTS and SHAHDARA_MEF_SERVICES contain valid specifications', async () => {
+  const { MEF_ETHERNET_CONSTANTS, SHAHDARA_MEF_SERVICES } = await import('../dashboard.js');
+
+  assert.ok(MEF_ETHERNET_CONSTANTS.DEFAULT_SERVICE_ID);
+  assert.equal(MEF_ETHERNET_CONSTANTS.STATUS.OPTIMAL, 'Optimal');
+  assert.equal(MEF_ETHERNET_CONSTANTS.STATUS.CRITICAL, 'Critical');
+
+  assert.ok(Array.isArray(SHAHDARA_MEF_SERVICES));
+  assert.equal(SHAHDARA_MEF_SERVICES.length, 5);
+
+  const bankService = SHAHDARA_MEF_SERVICES.find(s => s.id === 'mef-eline-nbp-bank-101');
+  assert.ok(bankService);
+  assert.equal(bankService.cirMbps, 100);
+  assert.equal(bankService.eirMbps, 20);
+  assert.ok(bankService.availabilitySlaPct >= 99.9);
+});
+
+test('calculateMefEthernetDynamics computes correct 3-color policing rates and SLA verdicts', async () => {
+  const { calculateMefEthernetDynamics } = await import('../dashboard.js');
+
+  // Case 1: Conforming traffic (offered 80 Mbps <= CIR 100 Mbps)
+  const conforming = calculateMefEthernetDynamics({
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 80
+  });
+  assert.equal(conforming.greenMbps, 80);
+  assert.equal(conforming.yellowMbps, 0);
+  assert.equal(conforming.redDropMbps, 0);
+  assert.equal(conforming.dropPct, 0);
+  assert.equal(conforming.status, 'Optimal');
+  assert.equal(conforming.slaVerdict, 'SLA_COMPLIANT_CONFORMING');
+
+  // Case 2: Excess traffic (offered 115 Mbps, CIR 100, EIR 20)
+  const excess = calculateMefEthernetDynamics({
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 115
+  });
+  assert.equal(excess.greenMbps, 100);
+  assert.equal(excess.yellowMbps, 15);
+  assert.equal(excess.redDropMbps, 0);
+  assert.equal(excess.status, 'Congested');
+  assert.equal(excess.slaVerdict, 'YELLOW_BEST_EFFORT_FORWARD');
+
+  // Case 3: Violating traffic (offered 150 Mbps, CIR 100, EIR 20 -> 30 Mbps Red drop)
+  const violating = calculateMefEthernetDynamics({
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 150
+  });
+  assert.equal(violating.greenMbps, 100);
+  assert.equal(violating.yellowMbps, 20);
+  assert.equal(violating.redDropMbps, 30);
+  assert.equal(violating.dropPct, 20);
+  assert.ok(violating.status === 'Degraded' || violating.status === 'Critical');
+
+  // Case 4: Coupling flag spillover (CF=1)
+  const coupled = calculateMefEthernetDynamics({
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 110,
+    couplingFlag: true
+  });
+  assert.equal(coupled.couplingFlag, true);
+  assert.equal(coupled.greenMbps, 100);
+  assert.equal(coupled.yellowMbps, 10);
+});
+
+test('calculateMefEthernetMetrics correlates linked customers and revenue exposure', async () => {
+  const { calculateMefEthernetMetrics } = await import('../dashboard.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', area: 'Shahdara Town', packagePrice: 3500, balance: 1500, archived: false },
+      { id: 'c2', area: 'Shahdara Town', packagePrice: 4500, balance: 0, archived: false },
+      { id: 'c3', area: 'Begum Kot', packagePrice: 5000, balance: 2000, archived: false },
+      { id: 'c4', area: 'Unrelated Area', packagePrice: 2000, balance: 500, archived: false },
+      { id: 'c5', area: 'Shahdara Town', packagePrice: 3000, balance: 0, archived: true } // archived excluded
+    ]
+  };
+
+  const metrics = calculateMefEthernetMetrics(mockState, {
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 150 // Red drop = 30 Mbps = 20%
+  });
+
+  assert.equal(metrics.linkedCustomerCount, 3); // c1, c2, c3
+  assert.equal(metrics.monthlyRevenuePkr, 13000); // 3500 + 4500 + 5000
+  assert.equal(metrics.totalDuesPkr, 3500); // 1500 + 2000
+  assert.equal(metrics.revenueAtRiskPkr, 2600); // 20% of 13000
+});
+
+test('renderMefCarrierEthernetSvg generates valid compact and full SVG markup', async () => {
+  const { calculateMefEthernetDynamics, renderMefCarrierEthernetSvg } = await import('../dashboard.js');
+
+  const dynamics = calculateMefEthernetDynamics({
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 110
+  });
+
+  const compactSvg = renderMefCarrierEthernetSvg(dynamics, { compact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('mef-compact-svg'));
+  assert.ok(compactSvg.includes('CIR (GREEN)'));
+  assert.ok(compactSvg.includes('EIR (YELLOW)'));
+
+  const fullSvg = renderMefCarrierEthernetSvg(dynamics, { compact: false });
+  assert.ok(fullSvg.includes('<svg'));
+  assert.ok(fullSvg.includes('mef-full-svg'));
+  assert.ok(fullSvg.includes('COMMITTED BUCKET (Tc)'));
+  assert.ok(fullSvg.includes('EXCESS BUCKET (Te)'));
+  assert.ok(fullSvg.includes('MEF 23.1 COS SLA PERFORMANCE'));
+});
+
+test('generateMefEthernetReport formats structured engineering briefing', async () => {
+  const { calculateMefEthernetMetrics, generateMefEthernetReport } = await import('../dashboard.js');
+
+  const metrics = calculateMefEthernetMetrics({}, {
+    serviceId: 'mef-eline-nbp-bank-101',
+    cirMbps: 100,
+    eirMbps: 20,
+    offeredMbps: 95
+  });
+
+  const report = generateMefEthernetReport(metrics, { referenceDate: '2026-10-17' });
+  assert.ok(report.includes('SHAHDARA METRO CARRIER ETHERNET'));
+  assert.ok(report.includes('MEF 6.2 (Services)'));
+  assert.ok(report.includes('NBP National Bank'));
+  assert.ok(report.includes('CIR:'));
+  assert.ok(report.includes('SLA PERFORMANCE GUARANTEES:'));
+});
+
+test('exportMefEthernetJson and exportMefEthernetCsv generate valid structured payloads', async () => {
+  const { calculateMefEthernetMetrics, exportMefEthernetJson, exportMefEthernetCsv } = await import('../dashboard.js');
+
+  const metrics = calculateMefEthernetMetrics({}, {
+    serviceId: 'mef-elan-commercial-202',
+    cirMbps: 50,
+    eirMbps: 200,
+    offeredMbps: 180
+  });
+
+  const jsonStr = exportMefEthernetJson(metrics, { timestamp: '2026-10-17T03:30:00Z' });
+  const parsed = JSON.parse(jsonStr);
+  assert.strictEqual(parsed.standard, 'MEF 6.2 / MEF 10.3 / RFC 4115');
+  assert.strictEqual(parsed.service.id, 'mef-elan-commercial-202');
+  assert.strictEqual(parsed.bandwidthProfile.cirMbps, 50);
+  assert.strictEqual(parsed.policingResults.offeredMbps, 180);
+  assert.strictEqual(parsed.slaMetrics.verdict, 'YELLOW_BEST_EFFORT_FORWARD');
+
+  const csvStr = exportMefEthernetCsv(metrics);
+  assert.ok(csvStr.includes('Service_ID,Service_Name,Service_Type'));
+  assert.ok(csvStr.includes('"mef-elan-commercial-202"'));
+  assert.ok(csvStr.includes('50,256,200,128,180'));
+});
+
+test('setupMefEthernetModal binds DOM elements, recalculates, handles resets and report copy', async () => {
+  const { setupMefEthernetModal } = await import('../dashboard.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      addEventListener(evt, fn) {
+        if (!listeners[evt]) listeners[evt] = [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      input() {
+        if (listeners['input']) listeners['input'].forEach(fn => fn({ type: 'input' }));
+      },
+      change() {
+        if (listeners['change']) listeners['change'].forEach(fn => fn({ type: 'change' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; }
+    };
+  }
+
+  const elements = {
+    dashboardMefEthernetModal: createMockEl('dashboardMefEthernetModal'),
+    dashboardOpenMefEthernetModalBtn: createMockEl('dashboardOpenMefEthernetModalBtn'),
+    dashboardMefEthernetModalCloseBtn: createMockEl('dashboardMefEthernetModalCloseBtn'),
+    mefEthernetServiceSelect: createMockEl('mefEthernetServiceSelect'),
+    mefEthernetOfferedSlider: createMockEl('mefEthernetOfferedSlider'),
+    mefEthernetOfferedLabel: createMockEl('mefEthernetOfferedLabel'),
+    mefEthernetCirInput: createMockEl('mefEthernetCirInput'),
+    mefEthernetEirInput: createMockEl('mefEthernetEirInput'),
+    mefEthernetCbsInput: createMockEl('mefEthernetCbsInput'),
+    mefEthernetEbsInput: createMockEl('mefEthernetEbsInput'),
+    mefEthernetCouplingCheck: createMockEl('mefEthernetCouplingCheck'),
+    mefEthernetColorModeSelect: createMockEl('mefEthernetColorModeSelect'),
+    mefEthernetResetBtn: createMockEl('mefEthernetResetBtn'),
+    mefEthernetStatCir: createMockEl('mefEthernetStatCir'),
+    mefEthernetStatConforming: createMockEl('mefEthernetStatConforming'),
+    mefEthernetStatYellow: createMockEl('mefEthernetStatYellow'),
+    mefEthernetStatRedDrop: createMockEl('mefEthernetStatRedDrop'),
+    mefEthernetStatCompliance: createMockEl('mefEthernetStatCompliance'),
+    mefEthernetStatRevenue: createMockEl('mefEthernetStatRevenue'),
+    mefEthernetModalDiagramContainer: createMockEl('mefEthernetModalDiagramContainer'),
+    mefEthernetFilterAreaBtn: createMockEl('mefEthernetFilterAreaBtn'),
+    mefEthernetExportJsonBtn: createMockEl('mefEthernetExportJsonBtn'),
+    mefEthernetExportCsvBtn: createMockEl('mefEthernetExportCsvBtn'),
+    mefEthernetCopyReportBtn: createMockEl('mefEthernetCopyReportBtn')
+  };
+
+  elements.mefEthernetServiceSelect.value = 'mef-eline-nbp-bank-101';
+  elements.mefEthernetOfferedSlider.value = '95';
+  elements.mefEthernetCirInput.value = '100';
+  elements.mefEthernetEirInput.value = '20';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupMefEthernetModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardMefEthernetModal.open, true);
+  assert.ok(elements.mefEthernetModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Test offered rate adjustment
+  elements.mefEthernetOfferedSlider.value = '140';
+  elements.mefEthernetOfferedSlider.input();
+  assert.ok(elements.mefEthernetStatRedDrop.textContent.includes('20 Mbps'));
+
+  // Test reset
+  elements.mefEthernetResetBtn.click();
+  assert.ok(toastMsg.includes('reset to default'));
+
+  // Test export buttons
+  elements.mefEthernetExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON exported') || toastMsg.includes('Clipboard'));
+  elements.mefEthernetExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV exported') || toastMsg.includes('Clipboard'));
+
+  // Test filter area
+  elements.mefEthernetFilterAreaBtn.click();
+  assert.equal(filterArea, 'Shahdara Town');
+
+  controller.close();
+  assert.equal(elements.dashboardMefEthernetModal.open, false);
+});
+
+test('index.html and dashboard.css contain Carrier Ethernet MEF markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-mef-ethernet'));
+  assert.ok(html.includes('id="dashboardMefEthernetChart"'));
+  assert.ok(html.includes('id="dashboardOpenMefEthernetModalBtn"'));
+  assert.ok(html.includes('id="dashboardMefEthernetModal"'));
+  assert.ok(html.includes('id="mefEthernetServiceSelect"'));
+  assert.ok(html.includes('id="mefEthernetOfferedSlider"'));
+  assert.ok(html.includes('id="mefEthernetModalDiagramContainer"'));
+  assert.ok(html.includes('id="mefEthernetExportJsonBtn"'));
+  assert.ok(html.includes('id="mefEthernetExportCsvBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-mef-ethernet'));
+  assert.ok(css.includes('.mef-ethernet-modal-card'));
+  assert.ok(css.includes('.mef-ethernet-svg'));
+});

@@ -451,9 +451,19 @@ body.drawer-open {
   color: #34d399;
 }
 
+.bottom-nav-badge.badge-alert {
+  background: #dc2626;
+  color: #ffffff;
+}
+
 [data-theme="dark"] .bottom-nav-badge {
   background: #10b981;
   color: #0b1814;
+}
+
+[data-theme="dark"] .bottom-nav-badge.badge-alert {
+  background: #f87171;
+  color: #1a0505;
 }
 
 [data-theme="dark"] .scroll-top-button {
@@ -2794,4 +2804,145 @@ kbd {
     transition: none !important;
   }
 }
+
+/* ==========================================================================
+   FIELD TECHNICIAN CONNECTIVITY DIAGNOSTICS SUITE
+   ========================================================================== */
+
+.diagnostics-modal-card {
+  max-width: 780px;
+  width: 100%;
+}
+
+.diag-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .diag-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.diag-panel {
+  background: var(--bg-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.diag-panel-title {
+  font: 800 13px/1.3 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.diag-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.diag-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.diag-input,
+.diag-select {
+  padding: 8px 10px;
+  border: 1px solid var(--line, #c8dad2);
+  border-radius: 8px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font: 600 13px Manrope, system-ui, sans-serif;
+}
+
+.diag-results-box {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #d4e3dc);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diag-metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.diag-metric-label {
+  color: var(--muted, #60756c);
+}
+
+.diag-metric-value {
+  font-weight: 800;
+  color: var(--ink, #182e2a);
+}
+
+.diag-advice-banner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  background: rgba(14, 91, 77, 0.08);
+  border: 1px solid rgba(14, 91, 77, 0.2);
+  color: var(--ink, #182e2a);
+}
+
+[data-theme="dark"] .diag-panel {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .diag-panel-title {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .diag-field label {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .diag-input,
+[data-theme="dark"] .diag-select {
+  background: #192e27;
+  color: #e6edea;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .diag-results-box {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .diag-metric-label {
+  color: #8fa59c;
+}
+
+[data-theme="dark"] .diag-metric-value {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .diag-advice-banner {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(94, 234, 212, 0.2);
+  color: #d1fae5;
+}
+
 

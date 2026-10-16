@@ -56,6 +56,7 @@
           <li class="nav-drawer-item"><button type="button" data-nav-target="assistant"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span>Owner Assistant</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="alerts"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></span><span>Smart Alerts</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="recovery"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg></span><span>Dues Recovery</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-open-field-diagnostics><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.93 4.93a10 10 0 0 1 14.14 0"/><path d="M7.76 7.76a6 6 0 0 1 8.48 0"/><circle cx="12" cy="12" r="2"/></svg></span><span>Field Diagnostics</span></button></li>
         </ul>
       </div>
     </nav>
@@ -1195,7 +1196,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -1669,6 +1670,10 @@
         <span class="sheet-action-icon" aria-hidden="true">📱</span>
         <span class="sheet-action-label">Field Wizard</span>
       </button>
+      <button type="button" class="sheet-action-tile" data-sheet-action="field-diagnostics" data-open-field-diagnostics>
+        <span class="sheet-action-icon" aria-hidden="true">📡</span>
+        <span class="sheet-action-label">Diagnostics</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -1721,6 +1726,10 @@
       <button type="button" class="speed-dial-action" data-speed-action="field-enrollment" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">📱</span>
         <span class="speed-action-label">Field Wizard</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="field-diagnostics" data-open-field-diagnostics role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">📡</span>
+        <span class="speed-action-label">Field Diagnostics</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -2074,6 +2083,108 @@
         <button id="wizardBackBtn" class="secondary-button wizard-nav-btn" type="button" disabled>← Back</button>
         <span id="wizardStepIndicator" class="wizard-step-indicator">Step 1 of 4</span>
         <button id="wizardNextBtn" class="primary-button wizard-nav-btn" type="button">Next: Location →</button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="fieldDiagnosticsModal" class="modal diagnostics-modal" aria-labelledby="fieldDiagnosticsModalTitle">
+    <section class="modal-card diagnostics-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FIELD OPS · ON-SITE DIAGNOSTICS</p>
+          <h2 id="fieldDiagnosticsModalTitle">Connectivity &amp; Optical Link Diagnostics</h2>
+        </div>
+        <button id="fieldDiagnosticsCloseBtn" class="close-button" type="button" aria-label="Close field diagnostics">×</button>
+      </div>
+      <p class="section-intro">Field tool for line workers and technicians to test optical attenuation link budgets, bandwidth throttle floors, and gateway ping response.</p>
+
+      <div class="diag-grid">
+        <!-- Panel 1: Optical Link Budget Calculator -->
+        <div class="diag-panel">
+          <h3 class="diag-panel-title">
+            <span>1. Optical Link Budget (GPON)</span>
+            <span id="diagStatusBadge" class="role-badge role-primary">Auditing</span>
+          </h3>
+          <div class="diag-field">
+            <label for="diagDistanceInput">Distance from Central OLT (km)</label>
+            <input id="diagDistanceInput" class="diag-input" type="number" step="0.1" min="0.1" max="25" value="2.0">
+          </div>
+          <div class="diag-field">
+            <label for="diagSplitterSelect">PON Optical Splitter Ratio</label>
+            <select id="diagSplitterSelect" class="diag-select">
+              <option value="1:2">1:2 PLC Splitter (~3.7 dB loss)</option>
+              <option value="1:4">1:4 PLC Splitter (~7.2 dB loss)</option>
+              <option value="1:8" selected>1:8 Standard Splitter (~10.5 dB loss)</option>
+              <option value="1:16">1:16 High-Density Splitter (~13.8 dB loss)</option>
+              <option value="1:32">1:32 Cascaded Splitter (~17.1 dB loss)</option>
+            </select>
+          </div>
+          <div class="diag-results-box">
+            <div class="diag-metric-row">
+              <span class="diag-metric-label">Estimated Rx Power (ONU):</span>
+              <strong id="diagRxPowerVal" class="diag-metric-value">-21.7 dBm</strong>
+            </div>
+            <div class="diag-metric-row">
+              <span class="diag-metric-label">Link Power Margin:</span>
+              <strong id="diagLinkMarginVal" class="diag-metric-value" style="color: #047857;">+6.3 dB</strong>
+            </div>
+            <div class="diag-metric-row">
+              <span class="diag-metric-label">Sensitivity Floor:</span>
+              <span class="diag-metric-value">-28.0 dBm</span>
+            </div>
+          </div>
+          <div id="diagAdviceText" class="diag-advice-banner">
+            Optimal GPON optical link. Clean reception well within ONU sensitivity specs.
+          </div>
+        </div>
+
+        <!-- Panel 2: Bandwidth Throttle & Latency Ping -->
+        <div class="diag-panel">
+          <h3 class="diag-panel-title">
+            <span>2. Bandwidth &amp; Latency Verification</span>
+            <button id="runPingTestBtn" class="action-btn-sm" type="button">⚡ Ping Gateway</button>
+          </h3>
+          <div class="diag-field">
+            <label for="diagSpeedSelect">Subscribed Package Speed</label>
+            <select id="diagSpeedSelect" class="diag-select">
+              <option value="3">3 Mbps Starter</option>
+              <option value="5">5 Mbps Standard</option>
+              <option value="10">10 Mbps Fast</option>
+              <option value="15" selected>15 Mbps Turbo</option>
+              <option value="25">25 Mbps Ultra</option>
+              <option value="50">50 Mbps Fiber Max</option>
+            </select>
+          </div>
+          <div class="diag-field">
+            <label for="diagContentionSelect">Oversubscription Contention Ratio</label>
+            <select id="diagContentionSelect" class="diag-select">
+              <option value="4">1:4 (Dedicated / VIP)</option>
+              <option value="8" selected>1:8 (Standard Residential)</option>
+              <option value="12">1:12 (Economy Shared)</option>
+            </select>
+          </div>
+          <div class="diag-results-box">
+            <div class="diag-metric-row">
+              <span class="diag-metric-label">Max Theoretical Download:</span>
+              <strong id="diagMaxSpeedVal" class="diag-metric-value">1.88 MB/s</strong>
+            </div>
+            <div class="diag-metric-row">
+              <span class="diag-metric-label">Peak Hour CIR Floor:</span>
+              <strong id="diagCirFloorVal" class="diag-metric-value" style="color: #0e5b4d;">1.88 Mbps</strong>
+            </div>
+            <div class="diag-metric-row">
+              <span class="diag-metric-label">Gateway Ping Latency:</span>
+              <span><strong id="diagPingVal" class="diag-metric-value">12 ms</strong> <span id="diagPingBadge" class="role-badge role-primary" style="margin-left: 4px;">Ultra-Low</span></span>
+            </div>
+          </div>
+          <div class="diag-advice-banner" style="background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.2);">
+            Capacity verified for 3x simultaneous 1080p full-HD video streams without packet buffering.
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-form-actions" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
+        <button id="copyFieldDiagnosticReportBtn" class="primary-button" type="button">📋 Copy Diagnostic Report</button>
       </div>
     </section>
   </dialog>

@@ -2296,6 +2296,31 @@
   border-color: #1b3d54;
 }
 
+.chart-card-raman {
+  background: var(--surface, #ffffff);
+}
+
+.raman-modal-card {
+  max-width: 960px;
+}
+
+.raman-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-raman {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .raman-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
 
 
 

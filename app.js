@@ -51,7 +51,8 @@ import {
   setupOtdrDeadzoneModal,
   setupSplitterQaModal,
   setupFerruleGeometryModal,
-  setupFusionArcQaModal
+  setupFusionArcQaModal,
+  setupStripForceQaModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3417,6 +3418,7 @@ export let customerOtdrDeadzoneModalController;
 export let customerSplitterQaModalController;
 export let customerFerruleGeometryModalController;
 export let customerFusionArcQaModalController;
+export let customerStripForceQaModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3790,6 +3792,30 @@ if (typeof document !== 'undefined') {
           if (c) customerFusionArcQaModalController?.populateCustomer(c);
         }
         customerFusionArcQaModalController?.recalculate();
+      }
+    });
+  }
+
+  customerStripForceQaModalController = setupStripForceQaModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openStripForceQaBtn = $('#openStripForceQaBtn');
+  if (openStripForceQaBtn) {
+    openStripForceQaBtn.addEventListener('click', () => {
+      const modal = $('#stripForceQaModal');
+      if (modal) {
+        if (typeof modal.showModal === 'function') {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) customerStripForceQaModalController?.populateCustomer(c);
+        }
+        customerStripForceQaModalController?.recalculate();
       }
     });
   }

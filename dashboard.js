@@ -5631,3 +5631,25 @@ export {
   generateEvpnReport,
   setupEvpnModal
 } from './dashboard-evpn.js';
+
+export {
+  KERR_CONSTANTS,
+  FIBER_PROFILES,
+  SHAHDARA_KERR_LINKS,
+  getKerrSelectedLink,
+  setKerrSelectedLink,
+  getKerrSelectedFiberType,
+  setKerrSelectedFiberType,
+  getKerrLaunchPowerDbm,
+  setKerrLaunchPowerDbm,
+  getKerrChannelCount,
+  setKerrChannelCount,
+  getKerrGridSpacingGhz,
+  setKerrGridSpacingGhz,
+  resetKerrSimState,
+  calculateKerrDynamics,
+  calculateKerrMetrics,
+  renderKerrDiagramSvg,
+  generateKerrReport,
+  setupKerrModal
+} from './dashboard-kerr.js';

@@ -446,8 +446,28 @@ import {
   calculateEvpnMetrics,
   renderEvpnDiagramSvg,
   generateEvpnReport,
-  setupEvpnModal
+  setupEvpnModal,
+  KERR_CONSTANTS,
+  FIBER_PROFILES,
+  SHAHDARA_KERR_LINKS,
+  getKerrSelectedLink,
+  setKerrSelectedLink,
+  getKerrSelectedFiberType,
+  setKerrSelectedFiberType,
+  getKerrLaunchPowerDbm,
+  setKerrLaunchPowerDbm,
+  getKerrChannelCount,
+  setKerrChannelCount,
+  getKerrGridSpacingGhz,
+  setKerrGridSpacingGhz,
+  resetKerrSimState,
+  calculateKerrDynamics,
+  calculateKerrMetrics,
+  renderKerrDiagramSvg,
+  generateKerrReport,
+  setupKerrModal
 } from '../dashboard.js';
+
 
 
 
@@ -12062,4 +12082,358 @@ test('EVPN simulation state getters, setters, and boundary constraints work corr
   assert.equal(getEvpnArpSuppression(), true);
   assert.equal(getEvpnTrafficSurgePct(), 0);
   assert.equal(getEvpnUnderlayMtu(), 9100);
+});
+
+test('calculateKerrDynamics computes accurate SPM, XPM, and FWM metrics across fiber types', () => {
+  // Standard SSMF G.652.D Link
+  const ssmf = calculateKerrDynamics({
+    lengthKm: 28.5,
+    fiberKey: 'SSMF_G652D',
+    launchPowerDbm: 3.0,
+    channels: 16,
+    gridGhz: 100
+  });
+
+  assert.equal(ssmf.fiberKey, 'SSMF_G652D');
+  assert.ok(ssmf.leffKm > 15.0 && ssmf.leffKm < 28.5, 'Effective length must be less than physical length');
+  assert.ok(ssmf.gammaKm > 1.2 && ssmf.gammaKm < 1.4, 'SSMF gamma should be ~1.31 W^-1*km^-1');
+  assert.ok(ssmf.phiSpmRad > 0.01 && ssmf.phiSpmRad < 0.6, 'SPM phase shift within normal bounds');
+  assert.ok(ssmf.spmThresholdDbm > ssmf.launchPowerDbm, 'Launch power should be below SPM threshold');
+  assert.ok(ssmf.spmThresholdMarginDb > 0, 'Positive SPM safety margin');
+  assert.ok(ssmf.fwmCrosstalkDbc < -30.0, 'SSMF dispersion D=17 suppresses FWM crosstalk below -30 dBc');
+  assert.equal(ssmf.status, KERR_CONSTANTS.STATUS.OPTIMAL);
+
+
+  // NZDSF G.655 Link (low dispersion D=4.5, smaller Aeff=55)
+  const nzdsf = calculateKerrDynamics({
+    lengthKm: 22.0,
+    fiberKey: 'NZDSF_G655',
+    launchPowerDbm: 1.0,
+    channels: 8,
+    gridGhz: 50
+  });
+
+  assert.ok(nzdsf.gammaKm > 1.8, 'NZDSF should have higher gamma due to lower Aeff');
+  assert.ok(nzdsf.etaFwm > ssmf.etaFwm, 'NZDSF has higher FWM phase matching efficiency than SSMF');
+
+  // ULL G.654.E Link (large Aeff=125, ultra low loss)
+  const ull = calculateKerrDynamics({
+    lengthKm: 45.0,
+    fiberKey: 'ULL_G654E',
+    launchPowerDbm: 5.0,
+    channels: 32,
+    gridGhz: 100
+  });
+
+  assert.ok(ull.gammaKm < 1.0, 'ULL fiber has lower gamma due to 125 um^2 effective area');
+  assert.ok(ull.spmThresholdDbm > ssmf.spmThresholdDbm, 'ULL fiber handles higher optical power threshold');
+
+  // DSF G.653 Link (zero-dispersion C-band collapse)
+  const dsf = calculateKerrDynamics({
+    lengthKm: 25.0,
+    fiberKey: 'DSF_G653',
+    launchPowerDbm: 4.0,
+    channels: 16,
+    gridGhz: 50
+  });
+
+  assert.ok(dsf.fwmCrosstalkDbc >= -24.0, 'Near-zero dispersion causes severe FWM crosstalk');
+  assert.equal(dsf.status, KERR_CONSTANTS.STATUS.CRITICAL);
+  assert.ok(dsf.statusReason.includes('Four-Wave Mixing'));
+
+  // SPM Critical Launch Power Test (+17.5 dBm launch)
+  const spmCrit = calculateKerrDynamics({
+    lengthKm: 30.0,
+    fiberKey: 'SSMF_G652D',
+    launchPowerDbm: 17.5,
+    channels: 16,
+    gridGhz: 100
+  });
+
+  assert.ok(spmCrit.phiSpmRad >= 1.0, 'Excessive launch power causes Phi_SPM >= 1.0 rad');
+  assert.equal(spmCrit.status, KERR_CONSTANTS.STATUS.CRITICAL);
+  assert.ok(spmCrit.statusReason.includes('SPM'));
+
+  // Grid Spacing Impact (50 GHz vs 200 GHz)
+  const grid50 = calculateKerrDynamics({ channels: 16, gridGhz: 50 });
+  const grid200 = calculateKerrDynamics({ channels: 16, gridGhz: 200 });
+  assert.ok(grid50.fwmCrosstalkDbc > grid200.fwmCrosstalkDbc, '50 GHz grid has significantly higher FWM mixing than 200 GHz');
+
+  // Fallback defaults for missing/invalid params
+  const defaults = calculateKerrDynamics();
+  assert.equal(defaults.fiberKey, KERR_CONSTANTS.DEFAULT_FIBER_KEY);
+  assert.equal(defaults.gridGhz, KERR_CONSTANTS.DEFAULT_GRID_SPACING_GHZ);
+});
+
+test('calculateKerrMetrics correlates physical dynamics with subscriber revenue and area segmentation', () => {
+  let state = createInitialState(['Sub 1', 'Sub 2', 'Sub 3', 'Sub 4']);
+  state.customers[0].area = 'Ravi Siphon';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].bills = [{ month: '2026-10', dueAmount: '3500' }];
+
+  state.customers[1].area = 'Shahdara Town';
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].bills = [{ month: '2026-10', dueAmount: '2500' }];
+
+  state.customers[2].area = 'Kot Abdul Malik';
+  state.customers[2].serviceStatus = 'offline';
+  state.customers[2].bills = [{ month: '2026-10', dueAmount: '2000' }];
+
+  state.customers[3].area = 'Unrelated Area';
+  state.customers[3].serviceStatus = 'active';
+  state.customers[3].bills = [{ month: '2026-10', dueAmount: '4000' }];
+
+  // Target core link (Ravi Siphon primary, Shahdara Town & Kot Abdul Malik secondary)
+  const metrics = calculateKerrMetrics(state, {
+    linkId: 'kerr-link-shahdara-core',
+    launchPowerDbm: 3.0
+  });
+
+  assert.equal(metrics.link.id, 'kerr-link-shahdara-core');
+  assert.equal(metrics.totalLinkedSubscribers, 3);
+  assert.equal(metrics.activeLinkedSubscribers, 2);
+  assert.equal(metrics.monthlyRecurringRevenuePkr, 6000); // 3500 + 2500
+  assert.equal(metrics.revenueAtRiskPkr, 0); // Optimal status -> 0 at risk
+
+  // Test Warning status risk scaling
+  const warningMetrics = calculateKerrMetrics(state, {
+    linkId: 'kerr-link-shahdara-core',
+    fiberKey: 'NZDSF_G655',
+    launchPowerDbm: 2.5,
+    channels: 16,
+    gridGhz: 50
+  });
+
+  assert.equal(warningMetrics.dynamics.status, KERR_CONSTANTS.STATUS.WARNING);
+  assert.equal(warningMetrics.revenueAtRiskPkr, Math.round(6000 * 0.35));
+
+  // Test Critical status risk scaling
+  const criticalMetrics = calculateKerrMetrics(state, {
+    linkId: 'kerr-link-shahdara-core',
+    fiberKey: 'DSF_G653',
+    launchPowerDbm: 4.0,
+    channels: 16,
+    gridGhz: 50
+  });
+
+  assert.equal(criticalMetrics.dynamics.status, KERR_CONSTANTS.STATUS.CRITICAL);
+  assert.equal(criticalMetrics.revenueAtRiskPkr, 6000); // 100% at risk
+});
+
+
+test('renderKerrDiagramSvg and generateKerrReport output valid diagrams and briefing texts', () => {
+  const metrics = calculateKerrMetrics({}, {
+    linkId: 'kerr-link-shahdara-core',
+    launchPowerDbm: 3.0,
+    channels: 16,
+    gridGhz: 100
+  });
+
+  // Standard Diagram SVG
+  const svg = renderKerrDiagramSvg(metrics, { compact: false });
+  assert.ok(svg.includes('<svg'), 'Must produce an SVG tag');
+  assert.ok(svg.includes('kerr-diagram-svg'), 'Must have class kerr-diagram-svg');
+  assert.ok(svg.includes('CH1'), 'Must include channel peak markers');
+  assert.ok(svg.includes('SPM Threshold'), 'Must render SPM threshold marker');
+  assert.ok(svg.includes('OPTIMAL'), 'Must display status badge');
+
+  // Compact Diagram SVG
+  const compactSvg = renderKerrDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('viewBox="0 0 720 300"'), 'Compact SVG uses 720x300 viewBox');
+
+  // Engineering Briefing Report
+  const report = generateKerrReport(metrics);
+  assert.ok(report.includes('SHAHDARA METRO OPTICAL TRANSPORT - KERR NONLINEARITY BRIEFING'));
+  assert.ok(report.includes('Self-Phase Modulation (SPM)'));
+  assert.ok(report.includes('Cross-Phase Modulation (XPM)'));
+  assert.ok(report.includes('Four-Wave Mixing (FWM)'));
+  assert.ok(report.includes('RECOMMENDED ENGINEERING REMEDIATION'));
+});
+
+test('setupKerrModal wires interactive controls, slider updates, reset, filtering and report copy', async () => {
+  let state = createInitialState(['Shahdara Client']);
+  state.customers[0].area = 'Ravi Siphon';
+  state.customers[0].serviceStatus = 'active';
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  };
+
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+  const mockLinkSelect = { value: 'kerr-link-shahdara-core', onchange: null };
+  const mockFiberSelect = { value: 'SSMF_G652D', onchange: null };
+  const mockPowerSlider = { value: '3.0', oninput: null };
+  const mockPowerLabel = { textContent: '' };
+  const mockChannelSlider = { value: '16', oninput: null };
+  const mockChannelLabel = { textContent: '' };
+  const mockGridSelect = { value: '100', onchange: null };
+  const mockResetBtn = { onclick: null };
+
+  const mockStatSpm = { textContent: '', style: {} };
+  const mockStatXpm = { textContent: '', style: {} };
+  const mockStatFwm = { textContent: '', style: {} };
+  const mockStatPenalty = { textContent: '', style: {} };
+  const mockStatMargin = { textContent: '', style: {} };
+  const mockStatRevenue = { textContent: '', style: {} };
+
+  const mockDiagramContainer = { innerHTML: '' };
+  const mockDashboardChart = { innerHTML: '' };
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: id => {
+      switch (id) {
+        case 'dashboardKerrModal': return mockModal;
+        case 'dashboardOpenKerrModalBtn': return mockOpenBtn;
+        case 'dashboardKerrModalCloseBtn': return mockCloseBtn;
+        case 'kerrLinkSelect': return mockLinkSelect;
+        case 'kerrFiberSelect': return mockFiberSelect;
+        case 'kerrPowerSlider': return mockPowerSlider;
+        case 'kerrPowerValueLabel': return mockPowerLabel;
+        case 'kerrChannelSlider': return mockChannelSlider;
+        case 'kerrChannelValueLabel': return mockChannelLabel;
+        case 'kerrGridSelect': return mockGridSelect;
+        case 'kerrResetSimBtn': return mockResetBtn;
+        case 'kerrStatSpm': return mockStatSpm;
+        case 'kerrStatXpm': return mockStatXpm;
+        case 'kerrStatFwm': return mockStatFwm;
+        case 'kerrStatPenalty': return mockStatPenalty;
+        case 'kerrStatMargin': return mockStatMargin;
+        case 'kerrStatRevenue': return mockStatRevenue;
+        case 'kerrModalDiagramContainer': return mockDiagramContainer;
+        case 'dashboardKerrChart': return mockDashboardChart;
+        case 'kerrFilterAreaBtn': return mockFilterAreaBtn;
+        case 'kerrCopyReportBtn': return mockCopyReportBtn;
+        default: return null;
+      }
+    }
+  };
+
+  let filterAreaInvoked = null;
+  let toastMessage = null;
+  let copiedClipboardText = null;
+
+  try {
+    setupKerrModal(state, {
+      onFilterArea: area => { filterAreaInvoked = area; },
+      onToast: msg => { toastMessage = msg; },
+      clipboard: {
+        writeText: async txt => { copiedClipboardText = txt; }
+      }
+    });
+
+    // Test initial rendering
+    assert.ok(mockStatSpm.textContent.includes('rad'));
+    assert.ok(mockDiagramContainer.innerHTML.includes('<svg'));
+    assert.ok(mockDashboardChart.innerHTML.includes('<svg'));
+
+    // Test power slider interaction
+    mockPowerSlider.value = '7.0';
+    mockPowerSlider.oninput();
+    assert.equal(getKerrLaunchPowerDbm(), 7.0);
+    assert.ok(mockPowerLabel.textContent.includes('+7.0 dBm'));
+
+    // Test channel slider interaction
+    mockChannelSlider.value = '24';
+    mockChannelSlider.oninput();
+    assert.equal(getKerrChannelCount(), 24);
+    assert.ok(mockChannelLabel.textContent.includes('24 Channels'));
+
+    // Test fiber select interaction
+    mockFiberSelect.value = 'NZDSF_G655';
+    mockFiberSelect.onchange();
+    assert.equal(getKerrSelectedFiberType(), 'NZDSF_G655');
+
+    // Test grid select interaction
+    mockGridSelect.value = '50';
+    mockGridSelect.onchange();
+    assert.equal(getKerrGridSpacingGhz(), 50);
+
+    // Test link select interaction
+    mockLinkSelect.value = 'kerr-link-kot-abdul-malik';
+    mockLinkSelect.onchange();
+    assert.equal(getKerrSelectedLink(), 'kerr-link-kot-abdul-malik');
+
+    // Test reset button
+    mockResetBtn.onclick();
+    assert.equal(getKerrSelectedLink(), KERR_CONSTANTS.DEFAULT_LINK_ID);
+
+    // Test filter area action
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaInvoked, 'Ravi Siphon');
+    assert.ok(toastMessage.includes('Ravi Siphon'));
+
+    // Test copy report action
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedClipboardText.includes('KERR NONLINEARITY BRIEFING'));
+    assert.ok(toastMessage.includes('copied to clipboard'));
+
+    // Test open and close modal
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    mockCloseBtn.onclick();
+    assert.equal(modalClosed, true);
+
+  } finally {
+    globalThis.document = originalDocument;
+    resetKerrSimState();
+  }
+});
+
+test('Kerr simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetKerrSimState();
+  assert.equal(getKerrSelectedLink(), 'kerr-link-shahdara-core');
+
+  // Link selection
+  setKerrSelectedLink('kerr-link-vandala-express');
+  assert.equal(getKerrSelectedLink(), 'kerr-link-vandala-express');
+  setKerrSelectedLink('invalid-link-id');
+  assert.equal(getKerrSelectedLink(), 'kerr-link-vandala-express');
+
+  // Fiber profile selection
+  setKerrSelectedFiberType('ULL_G654E');
+  assert.equal(getKerrSelectedFiberType(), 'ULL_G654E');
+  setKerrSelectedFiberType('INVALID_FIBER');
+  assert.equal(getKerrSelectedFiberType(), 'ULL_G654E');
+
+  // Launch power clamping [-5.0, 12.0]
+  setKerrLaunchPowerDbm(4.5);
+  assert.equal(getKerrLaunchPowerDbm(), 4.5);
+  setKerrLaunchPowerDbm(20.0); // out of range -> unchanged
+  assert.equal(getKerrLaunchPowerDbm(), 4.5);
+  setKerrLaunchPowerDbm(-10.0); // out of range -> unchanged
+  assert.equal(getKerrLaunchPowerDbm(), 4.5);
+
+  // Channel count clamping [1, 48]
+  setKerrChannelCount(32);
+  assert.equal(getKerrChannelCount(), 32);
+  setKerrChannelCount(64); // out of range -> unchanged
+  assert.equal(getKerrChannelCount(), 32);
+  setKerrChannelCount(0); // out of range -> unchanged
+  assert.equal(getKerrChannelCount(), 32);
+
+  // Grid spacing restriction [50, 100, 200]
+  setKerrGridSpacingGhz(50);
+  assert.equal(getKerrGridSpacingGhz(), 50);
+  setKerrGridSpacingGhz(75); // invalid -> unchanged
+  assert.equal(getKerrGridSpacingGhz(), 50);
+  setKerrGridSpacingGhz(200);
+  assert.equal(getKerrGridSpacingGhz(), 200);
+
+  // Reset to default
+  resetKerrSimState();
+  assert.equal(getKerrSelectedLink(), 'kerr-link-shahdara-core');
+  assert.equal(getKerrSelectedFiberType(), 'SSMF_G652D');
+  assert.equal(getKerrLaunchPowerDbm(), 3.0);
+  assert.equal(getKerrChannelCount(), 16);
+  assert.equal(getKerrGridSpacingGhz(), 100);
 });

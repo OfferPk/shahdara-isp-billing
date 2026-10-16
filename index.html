@@ -738,7 +738,18 @@
             </div>
             <div id="dashboardEvpnChart" class="chart-svg-container" role="img" aria-label="Carrier MP-BGP EVPN VXLAN Overlay Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-kerr">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Optical Fiber Nonlinear Kerr Effects &amp; Threshold Matrix</h4>
+                <p class="chart-subtitle">ITU-T G.652/G.655 DWDM C-band Self-Phase (SPM), Cross-Phase (XPM) &amp; Four-Wave Mixing (FWM) estimator</p>
+              </div>
+              <button id="dashboardOpenKerrModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Kerr Diagnostics</button>
+            </div>
+            <div id="dashboardKerrChart" class="chart-svg-container" role="img" aria-label="Optical Fiber Kerr Nonlinear Effects and Spectral Intermodulation Chart"></div>
+          </article>
         </div>
+
 
 
 
@@ -3750,6 +3761,95 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="evpnFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="evpnCopyReportBtn" class="primary-button" type="button">📋 Copy EVPN Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardKerrModal" class="dashboard-modal kerr-modal" aria-labelledby="dashboardKerrModalTitle">
+        <div class="dashboard-modal-card kerr-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <span class="eyebrow">METRO OPTICAL TRANSPORT NONLINEAR PROPAGATION MATRIX</span>
+              <h3 id="dashboardKerrModalTitle">Optical Fiber Nonlinear Kerr Effects &amp; Threshold Matrix</h3>
+            </div>
+            <button id="dashboardKerrModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">Calculates optical power thresholds for Self-Phase Modulation (SPM), Cross-Phase Modulation (XPM), and Four-Wave Mixing (FWM) intermodulation across Shahdara regional DWDM fiber spans.</p>
+
+          <div class="sim-controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="kerrLinkSelect">Target Metro Fiber Span:</label>
+              <select id="kerrLinkSelect" class="form-select">
+                <option value="kerr-link-shahdara-core">Shahdara NOC -> Ravi Siphon Core Ring (28.5 km)</option>
+                <option value="kerr-link-kot-abdul-malik">Shahdara Hub -> Kot Abdul Malik Sub-Ring (22.0 km)</option>
+                <option value="kerr-link-vandala-express">Shahdara Exchange -> Vandala Road Trunk (14.8 km)</option>
+                <option value="kerr-link-baradari-metro">Baradari Feeder -> Lahore Ring Interconnect (36.2 km)</option>
+                <option value="kerr-link-sheikhupura-gateway">Shahdara Gateway -> Sheikhupura IXP (45.0 km)</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="kerrFiberSelect">Optical Fiber Type:</label>
+              <select id="kerrFiberSelect" class="form-select">
+                <option value="SSMF_G652D">G.652.D Standard Single-Mode (SSMF - 80 um²)</option>
+                <option value="NZDSF_G655">G.655 Non-Zero Dispersion-Shifted (55 um²)</option>
+                <option value="ULL_G654E">G.654.E Ultra-Low Loss Large Effective Area (125 um²)</option>
+                <option value="DSF_G653">G.653 Dispersion-Shifted Legacy (50 um²)</option>
+                <option value="BIF_G657A2">G.657.A2 Bend-Insensitive Trunk (78 um²)</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="kerrPowerSlider">Channel Launch Power: <span id="kerrPowerValueLabel" class="sim-val-pill">+3.0 dBm</span></label>
+              <input type="range" id="kerrPowerSlider" min="-5" max="12" step="0.5" value="3.0" class="otdr-slider">
+            </div>
+            <div class="sim-control-group">
+              <label for="kerrChannelSlider">Active DWDM Channels: <span id="kerrChannelValueLabel" class="sim-val-pill">16 Channels</span></label>
+              <input type="range" id="kerrChannelSlider" min="1" max="48" step="1" value="16" class="otdr-slider">
+            </div>
+            <div class="sim-control-group">
+              <label for="kerrGridSelect">Channel Grid Spacing:</label>
+              <select id="kerrGridSelect" class="form-select">
+                <option value="50">50 GHz (0.4 nm - ITU-T Dense Grid)</option>
+                <option value="100" selected>100 GHz (0.8 nm - ITU-T Standard Grid)</option>
+                <option value="200">200 GHz (1.6 nm - ITU-T Coarse Grid)</option>
+              </select>
+            </div>
+            <div class="sim-control-group" style="display: flex; align-items: flex-end;">
+              <button id="kerrResetSimBtn" class="secondary-button" type="button">Reset Simulation</button>
+            </div>
+          </div>
+
+          <div class="ltv-kpis-summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">SPM PHASE SHIFT (Φspm)</span>
+              <span id="kerrStatSpm" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.28 rad</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">XPM JITTER (Φxpm)</span>
+              <span id="kerrStatXpm" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">0.34 rad</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">FWM CROSSTALK RATIO</span>
+              <span id="kerrStatFwm" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">-41.2 dBc</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">NONLINEAR OSNR PENALTY</span>
+              <span id="kerrStatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.31 dB</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">SPM THRESHOLD MARGIN</span>
+              <span id="kerrStatMargin" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">+5.5 dB</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">REVENUE AT RISK</span>
+              <span id="kerrStatRevenue" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">PKR 0</span>
+            </div>
+          </div>
+
+          <div id="kerrModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Optical Kerr Spectrum and Intermodulation Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="kerrFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="kerrCopyReportBtn" class="primary-button" type="button">📋 Copy Optical Kerr Briefing</button>
           </div>
         </div>
       </dialog>

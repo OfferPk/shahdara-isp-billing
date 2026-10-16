@@ -5487,4 +5487,26 @@ export {
   setupRoadmModal
 } from './dashboard-roadm.js';
 
+export {
+  MICRO_OTDR_CONSTANTS,
+  SHAHDARA_MICRO_OTDR_PORTS,
+  getMicroOtdrPortId,
+  setMicroOtdrPortId,
+  getMicroOtdrWavelength,
+  setMicroOtdrWavelength,
+  getMicroOtdrPulseWidth,
+  setMicroOtdrPulseWidth,
+  getMicroOtdrFaultPreset,
+  setMicroOtdrFaultPreset,
+  getMicroOtdrThresholdDbm,
+  setMicroOtdrThresholdDbm,
+  resetMicroOtdrSimState,
+  calculateFiberPropagationDelay,
+  calculateEventSignatures,
+  calculateMicroOtdrMetrics,
+  renderMicroOtdrTraceSvg,
+  generateMicroOtdrReport,
+  setupMicroOtdrModal
+} from './dashboard-micro-otdr.js';
+
 

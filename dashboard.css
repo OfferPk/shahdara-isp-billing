@@ -2191,6 +2191,31 @@
   border-color: #1b3d54;
 }
 
+.chart-card-micro-otdr {
+  background: var(--surface, #ffffff);
+}
+
+.micro-otdr-modal-card {
+  max-width: 960px;
+}
+
+.micro-otdr-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-micro-otdr {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .micro-otdr-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
 
 
 

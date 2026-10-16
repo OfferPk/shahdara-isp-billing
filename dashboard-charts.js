@@ -14,6 +14,8 @@ import { calculateDnsMetrics, setupDnsDiagnosticsModal, renderDnsDiagnosticsSvg 
 import { calculateDwdmMetrics, setupDwdmModal, renderDwdmBudgetSvg } from './dashboard-dwdm.js';
 import { calculateOscMetrics, setupOscModal, renderOscTelemetrySvg } from './dashboard-osc.js';
 import { calculateQinqMetrics, setupQinqModal, renderQinqTrunkSvg } from './dashboard-qinq.js';
+import { calculateSyncEMetrics, setupSyncEModal, renderSyncEClockSvg } from './dashboard-synce.js';
+
 
 
 
@@ -3366,7 +3368,16 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupQinqModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const synceEl = document.getElementById('dashboardSyncEChart');
+  if (synceEl) {
+    const syncData = calculateSyncEMetrics(state, { referenceDate });
+    synceEl.innerHTML = renderSyncEClockSvg(syncData, { compact: true });
+  }
+
+  setupSyncEModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg };
+

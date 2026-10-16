@@ -5442,3 +5442,26 @@ export {
   generateQinqReport,
   setupQinqModal
 } from './dashboard-qinq.js';
+
+export {
+  SHAHDARA_SYNCE_NODES,
+  SYNCE_CONSTANTS,
+  getSyncESelectedNode,
+  setSyncESelectedNode,
+  getSyncEHoldoverHours,
+  setSyncEHoldoverHours,
+  getSyncEJitterSurgeUs,
+  setSyncEJitterSurgeUs,
+  getSyncEGnssLossInjected,
+  setSyncEGnssLossInjected,
+  getSyncESelectedProfile,
+  setSyncESelectedProfile,
+  resetSyncESimState,
+  calculateOscillatorHoldoverDrift,
+  calculateNodeSyncMetrics,
+  calculateSyncEMetrics,
+  renderSyncEClockSvg,
+  generateSyncEReport,
+  setupSyncEModal
+} from './dashboard-synce.js';
+

@@ -5225,3 +5225,96 @@ export function setupDisputeClaimModal({
   };
 }
 
+/**
+ * Computes aggregated executive metrics and statistics across dispute claims.
+ * @param {Array<Object>} claims
+ * @returns {Object}
+ */
+export function exportDisputeClaimsSummaryStats(claims = []) {
+  const safeList = Array.isArray(claims) ? claims : [];
+  let totalDisputedAmount = 0;
+  let totalApprovedAmount = 0;
+  let pendingCount = 0;
+  let approvedCount = 0;
+  let rejectedCount = 0;
+  const categoryBreakdown = {};
+  const statusCounts = {
+    SUBMITTED: 0,
+    UNDER_INVESTIGATION: 0,
+    APPROVED_FULL: 0,
+    APPROVED_PARTIAL: 0,
+    REJECTED: 0
+  };
+
+  safeList.forEach(c => {
+    const disputed = Number(c.disputedAmount) || 0;
+    const approved = Number(c.approvedAmount) || 0;
+    totalDisputedAmount += disputed;
+    totalApprovedAmount += approved;
+
+    const cat = c.category || 'other';
+    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
+
+    const status = c.status || 'SUBMITTED';
+    if (Object.prototype.hasOwnProperty.call(statusCounts, status)) {
+      statusCounts[status]++;
+    } else {
+      statusCounts[status] = 1;
+    }
+
+    if (status === 'SUBMITTED' || status === 'UNDER_INVESTIGATION') {
+      pendingCount++;
+    } else if (status === 'APPROVED_FULL' || status === 'APPROVED_PARTIAL') {
+      approvedCount++;
+    } else if (status === 'REJECTED') {
+      rejectedCount++;
+    }
+  });
+
+  const recoveryRate = totalDisputedAmount > 0
+    ? Math.round((totalApprovedAmount / totalDisputedAmount) * 1000) / 10
+    : 0;
+
+  return {
+    totalClaims: safeList.length,
+    totalDisputedAmount,
+    totalApprovedAmount,
+    pendingCount,
+    approvedCount,
+    rejectedCount,
+    statusCounts,
+    categoryBreakdown,
+    recoveryRate
+  };
+}
+
+/**
+ * Filters dispute claims according to criteria (status, category, text search).
+ * @param {Array<Object>} claims
+ * @param {Object} [filters]
+ * @returns {Array<Object>}
+ */
+export function filterDisputeClaims(claims = [], { status = 'all', category = 'all', search = '' } = {}) {
+  const safeList = Array.isArray(claims) ? claims : [];
+  const normalizedSearch = String(search || '').trim().toLowerCase();
+
+  return safeList.filter(claim => {
+    if (status && status !== 'all' && claim.status !== status) {
+      return false;
+    }
+    if (category && category !== 'all' && claim.category !== category) {
+      return false;
+    }
+    if (normalizedSearch) {
+      const matchTicket = String(claim.ticketNumber || '').toLowerCase().includes(normalizedSearch);
+      const matchName = String(claim.customerName || '').toLowerCase().includes(normalizedSearch);
+      const matchPhone = String(claim.customerPhone || '').toLowerCase().includes(normalizedSearch);
+      const matchReason = String(claim.reason || '').toLowerCase().includes(normalizedSearch);
+      if (!matchTicket && !matchName && !matchPhone && !matchReason) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+

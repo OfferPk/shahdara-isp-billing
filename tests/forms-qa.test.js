@@ -2705,4 +2705,63 @@ test('DOM & CSS integration for Customer Billing Dispute Settlement Modal', () =
   assert.match(freshStyles, /\[data-theme="dark"\]\s+\.dispute-modal/);
 });
 
+test('exportDisputeClaimsSummaryStats aggregates claims, status counts, categories, and recovery rate', async () => {
+  const { exportDisputeClaimsSummaryStats } = await import('../form-validation.js');
+
+  const claims = [
+    { ticketNumber: 'DSP-01', disputedAmount: 1000, approvedAmount: 1000, category: 'unrecorded_payment', status: 'APPROVED_FULL' },
+    { ticketNumber: 'DSP-02', disputedAmount: 1500, approvedAmount: 500, category: 'speed_issue', status: 'APPROVED_PARTIAL' },
+    { ticketNumber: 'DSP-03', disputedAmount: 2000, approvedAmount: 0, category: 'unrecorded_payment', status: 'UNDER_INVESTIGATION' },
+    { ticketNumber: 'DSP-04', disputedAmount: 500, approvedAmount: 0, category: 'other', status: 'REJECTED' }
+  ];
+
+  const stats = exportDisputeClaimsSummaryStats(claims);
+  assert.equal(stats.totalClaims, 4);
+  assert.equal(stats.totalDisputedAmount, 5000);
+  assert.equal(stats.totalApprovedAmount, 1500);
+  assert.equal(stats.pendingCount, 1);
+  assert.equal(stats.approvedCount, 2);
+  assert.equal(stats.rejectedCount, 1);
+  assert.equal(stats.categoryBreakdown.unrecorded_payment, 2);
+  assert.equal(stats.categoryBreakdown.speed_issue, 1);
+  assert.equal(stats.recoveryRate, 30.0); // 1500 / 5000 * 100 = 30%
+
+  // Fallback for empty list
+  const emptyStats = exportDisputeClaimsSummaryStats([]);
+  assert.equal(emptyStats.totalClaims, 0);
+  assert.equal(emptyStats.totalDisputedAmount, 0);
+  assert.equal(emptyStats.recoveryRate, 0);
+});
+
+test('filterDisputeClaims filters claims by status, category, and keyword search', async () => {
+  const { filterDisputeClaims } = await import('../form-validation.js');
+
+  const claims = [
+    { ticketNumber: 'DSP-202610-001', customerName: 'Zahid Khan', customerPhone: '03001112233', category: 'unrecorded_payment', status: 'APPROVED_FULL', reason: 'Direct bank transfer slip' },
+    { ticketNumber: 'DSP-202610-002', customerName: 'Hamza Farooq', customerPhone: '03214445566', category: 'speed_issue', status: 'UNDER_INVESTIGATION', reason: 'High packet loss on fiber line' },
+    { ticketNumber: 'DSP-202610-003', customerName: 'Rashid Minhas', customerPhone: '03337778899', category: 'unrecorded_payment', status: 'SUBMITTED', reason: 'Cash collected by Umair' }
+  ];
+
+  const all = filterDisputeClaims(claims);
+  assert.equal(all.length, 3);
+
+  const byStatus = filterDisputeClaims(claims, { status: 'APPROVED_FULL' });
+  assert.equal(byStatus.length, 1);
+  assert.equal(byStatus[0].ticketNumber, 'DSP-202610-001');
+
+  const byCat = filterDisputeClaims(claims, { category: 'unrecorded_payment' });
+  assert.equal(byCat.length, 2);
+
+  const bySearchTicket = filterDisputeClaims(claims, { search: '002' });
+  assert.equal(bySearchTicket.length, 1);
+  assert.equal(bySearchTicket[0].customerName, 'Hamza Farooq');
+
+  const bySearchReason = filterDisputeClaims(claims, { search: 'fiber line' });
+  assert.equal(bySearchReason.length, 1);
+  assert.equal(bySearchReason[0].customerName, 'Hamza Farooq');
+
+  const noMatch = filterDisputeClaims(claims, { search: 'nonexistent query' });
+  assert.equal(noMatch.length, 0);
+});
+
 

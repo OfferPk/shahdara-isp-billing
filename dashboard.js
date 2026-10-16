@@ -4823,6 +4823,331 @@ export function setupPowerBackupModal(state, { referenceDate = new Date(), onFil
   }
 }
 
+/**
+ * Calculates field collection route density, stop clustering yield, and collector crew pacing.
+ */
+export function calculateRouteDensityMetrics(state, options = {}) {
+  const referenceDate = options.referenceDate instanceof Date && !isNaN(options.referenceDate)
+    ? options.referenceDate
+    : new Date(options.referenceDate || Date.now());
+
+  const allocations = state ? calculatePaymentAllocations(state) : { forMonth: () => null };
+  const customers = Array.isArray(state?.customers) ? state.customers.filter(c => !c.archived) : [];
+
+  const areaMap = new Map();
+
+  let totalDelinquentAccounts = 0;
+  let totalUncollectedDues = 0;
+
+  for (const c of customers) {
+    let customerDueCents = 0;
+    let oldestUnpaidBill = null;
+
+    for (const bill of (c.bills ?? [])) {
+      const alloc = allocations.forMonth?.(c.id, bill.month);
+      const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(bill.dueAmount || bill.amount || 0) * 100);
+      if (balanceDueCents > 0) {
+        customerDueCents += balanceDueCents;
+        if (!oldestUnpaidBill) oldestUnpaidBill = bill;
+      }
+    }
+
+    const totalOverdue = Math.round(customerDueCents / 100);
+    if (totalOverdue <= 0) continue;
+
+    totalDelinquentAccounts++;
+    totalUncollectedDues += totalOverdue;
+
+    const areaName = String(c.area || 'Unassigned').trim();
+    if (!areaMap.has(areaName)) {
+      areaMap.set(areaName, {
+        areaName,
+        overdueCount: 0,
+        totalOverdueAmount: 0,
+        subscribers: []
+      });
+    }
+
+    const item = areaMap.get(areaName);
+    item.overdueCount++;
+    item.totalOverdueAmount += totalOverdue;
+    item.subscribers.push({
+      id: c.id,
+      name: c.name || 'Unnamed',
+      phone: c.phone || '',
+      area: areaName,
+      package: c.packageSpeed || 'Unassigned',
+      balanceDue: totalOverdue,
+      oldestMonth: oldestUnpaidBill?.month || '',
+      serviceStatus: c.serviceStatus || 'not-set'
+    });
+  }
+
+  let totalRecommendedCollectors = 0;
+
+  const areas = Array.from(areaMap.values()).map(a => {
+    const avgTicket = a.overdueCount > 0 ? Math.round(a.totalOverdueAmount / a.overdueCount) : 0;
+
+    let densityRating = 'Moderate Route';
+    let travelDifficulty = 1.4;
+    if (a.overdueCount >= 8) {
+      densityRating = 'Dense Cluster';
+      travelDifficulty = 1.0;
+    } else if (a.overdueCount <= 3) {
+      densityRating = 'Dispersed / Remote';
+      travelDifficulty = 2.0;
+    }
+
+    // Route yield efficiency score = (Dues / 1000) * (Stops / travelDifficulty)
+    const routeEfficiencyScore = Math.round((a.totalOverdueAmount / 1000) * (a.overdueCount / travelDifficulty));
+
+    let priorityTier = 'Standard Field Route';
+    let priorityBadgeClass = 'badge-stable';
+    if (routeEfficiencyScore >= 50 || a.totalOverdueAmount >= 15000) {
+      priorityTier = 'High Yield Hotspot';
+      priorityBadgeClass = 'badge-expansion';
+    } else if (routeEfficiencyScore >= 20 || a.overdueCount >= 8) {
+      priorityTier = 'Quick Win Cluster';
+      priorityBadgeClass = 'badge-expansion';
+    } else if (a.overdueCount <= 2 && a.totalOverdueAmount < 3000) {
+      priorityTier = 'Low Priority Dispersed';
+      priorityBadgeClass = 'badge-contraction';
+    }
+
+    const collectors = a.overdueCount >= 15 ? 2 : (a.overdueCount > 0 ? 1 : 0);
+    totalRecommendedCollectors += collectors;
+
+    const dailyStops = collectors * 15;
+    const estimatedRouteDays = dailyStops > 0 ? Number((a.overdueCount / dailyStops).toFixed(1)) : 0;
+
+    a.subscribers.sort((x, y) => y.balanceDue - x.balanceDue);
+
+    return {
+      areaName: a.areaName,
+      overdueCount: a.overdueCount,
+      totalOverdueAmount: a.totalOverdueAmount,
+      avgTicketPerStop: avgTicket,
+      densityRating,
+      travelDifficulty,
+      routeEfficiencyScore,
+      priorityTier,
+      priorityBadgeClass,
+      recommendedCollectors: collectors,
+      dailyStopsTarget: dailyStops,
+      estimatedRouteDays,
+      subscribers: a.subscribers
+    };
+  });
+
+  // Sort areas descending by route efficiency score, then total overdue amount
+  areas.sort((a, b) => b.routeEfficiencyScore - a.routeEfficiencyScore || b.totalOverdueAmount - a.totalOverdueAmount);
+
+  const totalAreasTargeted = areas.length;
+  const avgFleetStopYieldPkr = totalDelinquentAccounts > 0
+    ? Math.round(totalUncollectedDues / totalDelinquentAccounts)
+    : 0;
+
+  const dailyFleetRecoveryTargetPkr = Math.round(totalUncollectedDues / 20); // 20 working day recovery cycle
+
+  let fleetRoutingStatus = 'Optimal Route Density';
+  let fleetRoutingBadgeClass = 'badge-expansion';
+  if (totalDelinquentAccounts === 0) {
+    fleetRoutingStatus = 'Zero Overdue Stops (Roster Clean)';
+    fleetRoutingBadgeClass = 'badge-expansion';
+  } else if (areas.some(a => a.priorityTier === 'High Yield Hotspot')) {
+    fleetRoutingStatus = 'Urgent High-Yield Dispatch Needed';
+    fleetRoutingBadgeClass = 'badge-contraction';
+  } else if (areas.length > 5) {
+    fleetRoutingStatus = 'Active Multi-Sector Recovery';
+    fleetRoutingBadgeClass = 'badge-stable';
+  }
+
+  return {
+    totalDelinquentAccounts,
+    totalUncollectedDues,
+    totalAreasTargeted,
+    avgFleetStopYieldPkr,
+    totalRecommendedCollectors,
+    dailyFleetRecoveryTargetPkr,
+    fleetRoutingStatus,
+    fleetRoutingBadgeClass,
+    areas
+  };
+}
+
+/**
+ * Generates plain-text route density and collector dispatch briefing report.
+ */
+export function generateRouteDensityReport(metrics, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+
+  const lines = [
+    '================================================================',
+    'SHAHDARA ISP - FIELD ROUTE DENSITY & COLLECTOR PACING AUDIT',
+    '================================================================',
+    `Date: ${dateStr} | Logistics: Door-to-Door Dues Recovery Dispatch`,
+    '',
+    `Total Delinquent Stops: ${metrics.totalDelinquentAccounts} Accounts across ${metrics.totalAreasTargeted} Sectors`,
+    `Total Uncollected Target: ${formatPKR(metrics.totalUncollectedDues)} (Avg Stop Yield: ${formatPKR(metrics.avgFleetStopYieldPkr)})`,
+    `Recommended Field Fleet: ${metrics.totalRecommendedCollectors} Collectors (Daily Fleet Target: ${formatPKR(metrics.dailyFleetRecoveryTargetPkr)})`,
+    `Fleet Dispatch Status: ${metrics.fleetRoutingStatus}`,
+    '',
+    '----------------------------------------------------------------',
+    'SECTOR ROUTE PACING MATRIX:',
+    '----------------------------------------------------------------'
+  ];
+
+  if (!metrics.areas || metrics.areas.length === 0) {
+    lines.push('No delinquent collection stops recorded.');
+  } else {
+    for (const a of metrics.areas) {
+      lines.push(
+        `• ${a.areaName}: ${a.overdueCount} stops | ${formatPKR(a.totalOverdueAmount)} (~${formatPKR(a.avgTicketPerStop)}/stop) | ` +
+        `${a.densityRating} · ${a.priorityTier} [Fleet: ${a.recommendedCollectors} crew ~${a.estimatedRouteDays} days]`
+      );
+    }
+  }
+
+  lines.push('');
+  lines.push('----------------------------------------------------------------');
+  lines.push('COLLECTOR DISPATCH ADVISORY:');
+  lines.push('----------------------------------------------------------------');
+  lines.push('Route Sequence: Prioritize High Yield Hotspots in morning (09:00 - 13:00) before customer shop openings.');
+  lines.push('Standard Pacing: 15 verified household visits per field collector per workday.');
+  lines.push('================================================================');
+
+  return lines.join('\n');
+}
+
+/**
+ * Sets up the Area Collection Route Density modal dialog and clipboard reporting.
+ */
+export function setupRouteDensityModal(state, { referenceDate = new Date(), onFilterArea, onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardRouteDensityModal');
+  const openBtn = document.getElementById('dashboardOpenRouteDensityModalBtn');
+  const closeBtn = document.getElementById('dashboardRouteDensityModalCloseBtn');
+  const tableBody = document.getElementById('routeDensityTableBody');
+  const copyBtn = document.getElementById('dashboardCopyRouteDensityReportBtn');
+
+  const stopsEl = document.getElementById('routeDensityTotalStopsVal');
+  const duesEl = document.getElementById('routeDensityTotalDuesVal');
+  const crewEl = document.getElementById('routeDensityFleetCrewVal');
+  const statusBadgeEl = document.getElementById('routeDensityStatusBadge');
+  const dailyTargetEl = document.getElementById('routeDensityDailyTargetVal');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const data = calculateRouteDensityMetrics(state, { referenceDate });
+
+    if (stopsEl) stopsEl.textContent = `${data.totalDelinquentAccounts} Stops`;
+    if (duesEl) duesEl.textContent = formatPKR(data.totalUncollectedDues);
+    if (crewEl) crewEl.textContent = `${data.totalRecommendedCollectors} Collectors`;
+    if (dailyTargetEl) dailyTargetEl.textContent = `${formatPKR(data.dailyFleetRecoveryTargetPkr)} / day target`;
+
+    if (statusBadgeEl) {
+      statusBadgeEl.textContent = data.fleetRoutingStatus;
+      statusBadgeEl.className = `sim-delta-badge ${data.fleetRoutingBadgeClass}`;
+    }
+
+    if (tableBody) {
+      if (!data.areas || data.areas.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="empty-cell">No uncollected field stops pending</td></tr>';
+      } else {
+        tableBody.innerHTML = data.areas.map(a => `
+          <tr>
+            <td>
+              <strong>${escapeXml(a.areaName)}</strong>
+              <div class="text-muted" style="font-size: 11px;">Yield Score: ${a.routeEfficiencyScore}</div>
+            </td>
+            <td><strong>${a.overdueCount}</strong> stops</td>
+            <td><strong>${formatPKR(a.totalOverdueAmount)}</strong></td>
+            <td>${formatPKR(a.avgTicketPerStop)}</td>
+            <td>
+              <span class="signal-tag">${escapeXml(a.densityRating)}</span>
+            </td>
+            <td>
+              <span class="sim-delta-badge ${a.priorityBadgeClass}" style="font-size: 11px;">
+                ${escapeXml(a.priorityTier)}
+              </span>
+            </td>
+            <td>
+              <div>${a.recommendedCollectors} Crew (~${a.estimatedRouteDays}d)</div>
+            </td>
+            <td>
+              <button class="small-action-btn" type="button" data-route-filter-area="${escapeXml(a.areaName)}">Dispatch Area</button>
+            </td>
+          </tr>
+        `).join('');
+
+        const areaBtns = tableBody.querySelectorAll('[data-route-filter-area]');
+        areaBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const area = btn.getAttribute('data-route-filter-area');
+            if (typeof onFilterArea === 'function' && area) {
+              onFilterArea(area);
+              if (modal.close) modal.close();
+              else modal.removeAttribute('open');
+            } else if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(area);
+              if (modal.close) modal.close();
+              else modal.removeAttribute('open');
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateRouteDensityMetrics(state, { referenceDate });
+      const text = generateRouteDensityReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Route density briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -4854,6 +5179,7 @@ export {
   renderDelinquencyPipelineSvg,
   renderCpeAssetLifecycleSvg,
   renderPowerBackupSvg,
+  renderRouteDensityMatrixSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

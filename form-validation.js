@@ -12100,3 +12100,24 @@ export {
   setupDispersionCertModal
 } from './qa-dispersion-inspection.js';
 
+export {
+  BEND_LOSS_STORAGE_KEY,
+  FIBER_BEND_STANDARDS,
+  WAVELENGTH_BEND_MULTIPLIERS,
+  ROUTING_CHECKLIST_ITEMS,
+  BEND_VERDICTS,
+  calculateMacroBendLoss,
+  buildBendLossCertRecord,
+  validateBendLossCertInput,
+  getSavedBendLossCerts,
+  saveBendLossCert,
+  clearBendLossCerts,
+  renderBendLossAnalysisSvg,
+  formatBendLossCertWhatsApp,
+  generateBendLossCertHtml,
+  generateBendLossCertsCsv,
+  calculateRecommendedSlackLoopDimensions,
+  setupBendLossCertModal
+} from './qa-bend-loss-inspection.js';
+
+

@@ -29,7 +29,8 @@ import {
   buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
   generateStandaloneInvoiceDocument, downloadHtmlFile,
   reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
-  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal
+  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
+  setupAdjustmentVoucherModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3133,6 +3134,35 @@ if (typeof document !== 'undefined') {
         if (dailyCashRegisterModal.close) dailyCashRegisterModal.close();
         else dailyCashRegisterModal.removeAttribute('open');
       }
+    });
+  }
+}
+
+// Setup Customer Ledger Adjustment & Outage Voucher Modal Controller
+export let customerAdjustmentModalController;
+if (typeof document !== 'undefined') {
+  customerAdjustmentModalController = setupAdjustmentVoucherModal({
+    modalId: 'customerAdjustmentModal',
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    onVoucherIssued: () => {
+      if (selectedCustomerId) {
+        renderCustomerDetail();
+        renderCustomers();
+      }
+    }
+  });
+
+  const openAdjustmentBtn = $('#openAdjustmentModalBtn');
+  if (openAdjustmentBtn) {
+    openAdjustmentBtn.addEventListener('click', () => {
+      if (!selectedCustomerId) {
+        toast('Please select a customer first.');
+        return;
+      }
+      const cust = state.customers.find(c => c.id === selectedCustomerId);
+      if (!cust) return;
+      customerAdjustmentModalController?.open(cust);
     });
   }
 }

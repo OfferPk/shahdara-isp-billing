@@ -7,7 +7,9 @@ import {
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
-  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal
+  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
+  ADJUSTMENT_VOUCHERS_KEY, ADJUSTMENT_CATEGORIES, calculateOutageCredit, validateAdjustmentVoucher, buildAdjustmentVoucherData, formatAdjustmentVoucherWhatsApp,
+  generateAdjustmentLedgerCsv, generateAdjustmentVoucherHtml, getSavedAdjustmentVouchers, saveAdjustmentVoucher, setupAdjustmentVoucherModal
 } from '../form-validation.js';
 
 
@@ -1601,7 +1603,402 @@ test('DOM & CSS integration for daily cash register modal', () => {
   assert.match(freshStyles, /body\.printing-register/);
 });
 
+/* ==========================================================================
+   CUSTOMER ACCOUNT ADJUSTMENT & OUTAGE VOUCHER TEST SUITE
+   ========================================================================== */
 
+test('calculateOutageCredit prorates monthly rate based on downtime days and hours', () => {
+  // 1500 PKR monthly package with 30 days month: 50 PKR/day, 2.083 PKR/hour
+  // 3 days downtime
+  const creditDays = calculateOutageCredit(1500, { days: 3, hours: 0, daysInMonth: 30 });
+  assert.equal(creditDays, 150);
 
+  // 12 hours downtime
+  const creditHours = calculateOutageCredit(1500, { days: 0, hours: 12, daysInMonth: 30 });
+  assert.equal(creditHours, 25);
 
+  // Combined 2 days and 6 hours downtime
+  // (2 * 50) + (6 * 2.0833) = 100 + 12.5 = 112.5 -> rounds to 113
+  const creditCombined = calculateOutageCredit(1500, { days: 2, hours: 6, daysInMonth: 30 });
+  assert.equal(creditCombined, 113);
 
+  // Boundary cases: 0 days, 0 hours, 0 rate, clamped to monthly rate
+  assert.equal(calculateOutageCredit(0, { days: 5 }), 0);
+  assert.equal(calculateOutageCredit(1500, { days: 0, hours: 0 }), 0);
+  assert.equal(calculateOutageCredit(1500, { days: 40 }), 1500); // cannot exceed full monthly rate
+});
+
+test('validateAdjustmentVoucher enforces required fields, positive amounts, and length constraints', () => {
+  // Valid voucher
+  const validRes = validateAdjustmentVoucher({
+    customerId: 'cust-123',
+    amount: 500,
+    category: 'downtime_credit',
+    reason: 'Main feeder fiber cut repaired',
+    authorizedBy: 'Saad (Director)'
+  });
+  assert.equal(validRes.valid, true);
+  assert.deepEqual(validRes.errors, {});
+
+  // Missing customer
+  const noCust = validateAdjustmentVoucher({
+    customerId: '',
+    amount: 500,
+    category: 'downtime_credit',
+    reason: 'Valid reason here',
+    authorizedBy: 'Saad'
+  });
+  assert.equal(noCust.valid, false);
+  assert.match(noCust.errors.customerId, /Customer is required/);
+
+  // Invalid amounts
+  assert.equal(validateAdjustmentVoucher({ customerId: 'c1', amount: 0, category: 'custom', reason: 'Valid reason', authorizedBy: 'Saad' }).valid, false);
+  assert.equal(validateAdjustmentVoucher({ customerId: 'c1', amount: -200, category: 'custom', reason: 'Valid reason', authorizedBy: 'Saad' }).valid, false);
+  assert.equal(validateAdjustmentVoucher({ customerId: 'c1', amount: 150000, category: 'custom', reason: 'Valid reason', authorizedBy: 'Saad' }).valid, false);
+  assert.equal(validateAdjustmentVoucher({ customerId: 'c1', amount: 'abc', category: 'custom', reason: 'Valid reason', authorizedBy: 'Saad' }).valid, false);
+
+  // Short reason (< 5 characters)
+  const shortReason = validateAdjustmentVoucher({
+    customerId: 'c1',
+    amount: 300,
+    category: 'custom',
+    reason: 'Fix',
+    authorizedBy: 'Saad'
+  });
+  assert.equal(shortReason.valid, false);
+  assert.match(shortReason.errors.reason, /at least 5 characters/);
+
+  // Short authorizer (< 2 characters)
+  const shortAuth = validateAdjustmentVoucher({
+    customerId: 'c1',
+    amount: 300,
+    category: 'custom',
+    reason: 'Legitimate reason note',
+    authorizedBy: 'S'
+  });
+  assert.equal(shortAuth.valid, false);
+  assert.match(shortAuth.errors.authorizedBy, /at least 2 characters/);
+});
+
+test('buildAdjustmentVoucherData constructs complete immutable voucher record with projected balance', () => {
+  const mockCustomer = {
+    id: 'cust-99',
+    customerNumber: 42,
+    name: 'Raja Tariq',
+    phone: '03001234567',
+    mohalla: 'Main Bazaar',
+    bills: [
+      { id: 'b1', month: '2026-09', dueAmount: 1500, payments: [{ amount: 1500 }] }, // balance 0
+      { id: 'b2', month: '2026-10', dueAmount: 2000, payments: [{ amount: 500 }] }   // balance 1500
+    ]
+  };
+
+  const voucher = buildAdjustmentVoucherData({
+    customer: mockCustomer,
+    category: 'downtime_credit',
+    amount: 400,
+    reason: '3 days outage during road widening work',
+    authorizedBy: 'Umair (Network Ops)',
+    date: '2026-10-16',
+    outageDetails: { days: 3, hours: 0, monthlyRate: 2000, calculatedCredit: 400 },
+    existingVouchersCount: 3
+  });
+
+  assert.equal(voucher.voucherNumber, 'ADJ-202610-0004');
+  assert.equal(voucher.customerId, 'cust-99');
+  assert.equal(voucher.customerNumber, 42);
+  assert.equal(voucher.customerName, 'Raja Tariq');
+  assert.equal(voucher.category, 'downtime_credit');
+  assert.equal(voucher.categoryLabel, 'Fiber Cut / Outage Downtime Credit');
+  assert.equal(voucher.categoryLabelUrdu, 'انٹرنیٹ خرابی کٹوتی');
+  assert.equal(voucher.amount, 400);
+  assert.equal(voucher.previousBalance, 1500);
+  assert.equal(voucher.projectedBalance, 1100);
+  assert.equal(voucher.date, '2026-10-16');
+  assert.equal(voucher.outageDetails.days, 3);
+  assert.equal(voucher.outageDetails.calculatedCredit, 400);
+});
+
+test('formatAdjustmentVoucherWhatsApp formats bilingual notification text', () => {
+  const voucher = {
+    voucherNumber: 'ADJ-202610-0001',
+    customerName: 'Muhammad Ali',
+    customerNumber: 15,
+    date: '2026-10-16',
+    categoryLabel: 'Fiber Cut / Outage Downtime Credit',
+    categoryLabelUrdu: 'انٹرنیٹ خرابی کٹوتی',
+    amount: 350,
+    projectedBalance: 1150,
+    reason: 'Shahdara Town transmission fiber snapped',
+    authorizedBy: 'Network Lead',
+    outageDetails: { days: 2, hours: 4 }
+  };
+
+  const text = formatAdjustmentVoucherWhatsApp(voucher);
+  assert.match(text, /ADJ-202610-0001/);
+  assert.match(text, /Muhammad Ali/);
+  assert.match(text, /#15/);
+  assert.match(text, /350/);
+  assert.match(text, /انٹرنیٹ خرابی کٹوتی/);
+  assert.match(text, /2 days, 4 hours outage/);
+  assert.match(text, /1,150/);
+  assert.match(text, /Network Lead/);
+});
+
+test('generateAdjustmentLedgerCsv produces RFC-4180 compliant CSV', () => {
+  const vouchers = [
+    {
+      voucherNumber: 'ADJ-202610-0001',
+      date: '2026-10-15',
+      customerNumber: 10,
+      customerName: 'Ali Khan',
+      categoryLabel: 'Fiber Cut / Outage Downtime Credit',
+      amount: 500,
+      previousBalance: 2000,
+      projectedBalance: 1500,
+      reason: 'Splitter burn',
+      authorizedBy: 'Manager',
+      createdAt: '2026-10-15T12:00:00Z'
+    }
+  ];
+
+  const csv = generateAdjustmentLedgerCsv(vouchers);
+  assert.match(csv, /Voucher_No,Date,Customer_No,Customer_Name/);
+  assert.match(csv, /ADJ-202610-0001,2026-10-15,10,Ali Khan/);
+  assert.match(csv, /500,2000,1500/);
+});
+
+test('generateAdjustmentVoucherHtml generates printable voucher slips and sheets', () => {
+  const voucher = {
+    voucherNumber: 'ADJ-202610-0002',
+    date: '2026-10-16',
+    customerNumber: 8,
+    customerName: 'Zahid Hussain',
+    customerPhone: '03017654321',
+    customerArea: 'Jia Musa',
+    categoryLabel: 'Billing Dispute / Overcharge Settlement',
+    categoryLabelUrdu: 'بل تنازعہ حل',
+    amount: 250,
+    previousBalance: 1000,
+    projectedBalance: 750,
+    reason: 'Speed package downgrade credit',
+    authorizedBy: 'Saad Accounting'
+  };
+
+  const slipHtml = generateAdjustmentVoucherHtml(voucher, { format: 'slip' });
+  assert.match(slipHtml, /adj-thermal-slip/);
+  assert.match(slipHtml, /ADJ-202610-0002/);
+  assert.match(slipHtml, /Zahid Hussain/);
+  assert.match(slipHtml, /Jia Musa/);
+  assert.match(slipHtml, /بل تنازعہ حل/);
+  assert.match(slipHtml, /PKR 250/);
+  assert.match(slipHtml, /Saad Accounting/);
+
+  const sheetHtml = generateAdjustmentVoucherHtml(voucher, { format: 'sheet' });
+  assert.match(sheetHtml, /adj-formal-sheet/);
+});
+
+test('getSavedAdjustmentVouchers and saveAdjustmentVoucher persist and filter by customer in storage', () => {
+  const mockStorage = {
+    data: {},
+    getItem(k) { return this.data[k] || null; },
+    setItem(k, v) { this.data[k] = String(v); }
+  };
+
+  assert.deepEqual(getSavedAdjustmentVouchers(mockStorage), []);
+
+  const v1 = { id: '1', customerId: 'c1', voucherNumber: 'ADJ-001', amount: 200 };
+  const v2 = { id: '2', customerId: 'c2', voucherNumber: 'ADJ-002', amount: 300 };
+
+  saveAdjustmentVoucher(mockStorage, v1);
+  saveAdjustmentVoucher(mockStorage, v2);
+
+  const all = getSavedAdjustmentVouchers(mockStorage);
+  assert.equal(all.length, 2);
+
+  const forC1 = getSavedAdjustmentVouchers(mockStorage, 'c1');
+  assert.equal(forC1.length, 1);
+  assert.equal(forC1[0].voucherNumber, 'ADJ-001');
+
+  const forC2 = getSavedAdjustmentVouchers(mockStorage, 'c2');
+  assert.equal(forC2.length, 1);
+  assert.equal(forC2[0].voucherNumber, 'ADJ-002');
+});
+
+test('setupAdjustmentVoucherModal controller binds DOM events, handles calculation and issuance', () => {
+  const mockStorage = {
+    data: {},
+    getItem(k) { return this.data[k] || null; },
+    setItem(k, v) { this.data[k] = String(v); }
+  };
+
+  const toasts = [];
+  const issuedVouchers = [];
+
+  const elements = {};
+  const createElement = (id, tag = 'div') => {
+    const el = {
+      id,
+      tagName: tag.toUpperCase(),
+      value: '',
+      textContent: '',
+      hidden: false,
+      dataset: {},
+      listeners: {},
+      addEventListener(evt, fn) {
+        if (!this.listeners[evt]) this.listeners[evt] = [];
+        this.listeners[evt].push(fn);
+      },
+      dispatchEvent(evt) {
+        const fns = this.listeners[evt.type] || [];
+        fns.forEach(fn => fn(evt));
+      },
+      setAttribute(k, v) { this[k] = v; },
+      removeAttribute(k) { delete this[k]; },
+      showModal() { this.open = true; },
+      close() { this.open = false; }
+    };
+    elements[id] = el;
+    return el;
+  };
+
+  createElement('customerAdjustmentModal', 'dialog');
+  createElement('closeAdjustmentModalBtn', 'button');
+  createElement('closeAdjustmentModalSecondaryBtn', 'button');
+  createElement('openAdjustmentModalBtn', 'button');
+  createElement('adjCustomerName', 'strong');
+  createElement('adjCustomerMeta', 'span');
+  createElement('adjCurrentBalance', 'strong');
+  createElement('adjProjectedBalance', 'strong');
+  createElement('adjToggleCalculatorBtn', 'button');
+  createElement('adjCalculatorBody', 'div');
+  createElement('adjToggleCalcIcon', 'span');
+  createElement('adjOutageDays', 'input');
+  createElement('adjOutageHours', 'input');
+  createElement('adjMonthlyRateDisplay', 'input');
+  createElement('adjCalcCreditPkr', 'strong');
+  createElement('adjApplyCalcBtn', 'button');
+  createElement('customerAdjustmentForm', 'form');
+  createElement('adjCategorySelect', 'select');
+  createElement('adjAmountInput', 'input');
+  createElement('adjDateInput', 'input');
+  createElement('adjAuthorizedByInput', 'input');
+  createElement('adjReasonInput', 'textarea');
+  createElement('adjAmountError', 'span');
+  elements.adjAmountError.hidden = true;
+  createElement('adjAuthError', 'span');
+  elements.adjAuthError.hidden = true;
+  createElement('adjReasonError', 'span');
+  elements.adjReasonError.hidden = true;
+  createElement('adjPreviewVoucherNum', 'span');
+  createElement('adjPreviewAmount', 'strong');
+  createElement('adjPreviewCategory', 'span');
+  createElement('adjPreviewNewBal', 'span');
+  createElement('submitAdjustmentVoucherBtn', 'button');
+  createElement('printAdjustmentSlipBtn', 'button');
+  createElement('sendAdjustmentWhatsAppBtn', 'button');
+  createElement('adjHistoryTableBody', 'tbody');
+  createElement('adjHistoryCountBadge', 'span');
+
+  const oldDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) { return elements[id] || null; }
+  };
+
+  try {
+    const controller = setupAdjustmentVoucherModal({
+      modalId: 'customerAdjustmentModal',
+      storage: mockStorage,
+      onToast: (msg) => toasts.push(msg),
+      onVoucherIssued: (v) => issuedVouchers.push(v)
+    });
+
+    const mockCustomer = {
+      id: 'cust-55',
+      customerNumber: 55,
+      name: 'Chaudhry Bilal',
+      phone: '03009876543',
+      mohalla: 'Shahdara Mor',
+      monthlySellingAmount: 1800,
+      bills: [
+        { id: 'b1', month: '2026-10', dueAmount: 1800, payments: [] }
+      ]
+    };
+
+    controller.open(mockCustomer);
+    assert.equal(elements.customerAdjustmentModal.open, true);
+    assert.match(elements.adjCustomerName.textContent, /Chaudhry Bilal/);
+    assert.equal(elements.adjCurrentBalance.textContent, 'PKR 1,800');
+
+    // Test Outage Calculator Toggle & Input
+    elements.adjCalculatorBody.hidden = true;
+    elements.adjToggleCalculatorBtn.dispatchEvent({ type: 'click' });
+    assert.equal(elements.adjCalculatorBody.hidden, false);
+
+    elements.adjOutageDays.value = '2'; // 2 days of 1800/30 = 120 PKR
+    elements.adjOutageDays.dispatchEvent({ type: 'input' });
+    assert.equal(elements.adjCalcCreditPkr.textContent, 'PKR 120');
+
+    // Apply calculated credit to voucher form
+    elements.adjApplyCalcBtn.dispatchEvent({ type: 'click' });
+    assert.equal(elements.adjAmountInput.value, '120');
+    assert.match(elements.adjReasonInput.value, /Outage compensation/);
+
+    // Issue voucher
+    elements.adjAuthorizedByInput.value = 'Saad (Director)';
+    elements.submitAdjustmentVoucherBtn.dispatchEvent({ type: 'click' });
+
+    assert.equal(issuedVouchers.length, 1);
+    assert.equal(issuedVouchers[0].amount, 120);
+    assert.equal(issuedVouchers[0].customerName, 'Chaudhry Bilal');
+    assert.match(toasts.at(-1), /issued successfully/);
+
+    // Verify voucher saved in storage
+    const saved = getSavedAdjustmentVouchers(mockStorage, 'cust-55');
+    assert.equal(saved.length, 1);
+
+    controller.close();
+    assert.equal(elements.customerAdjustmentModal.open, false);
+  } finally {
+    globalThis.document = oldDoc;
+  }
+});
+
+test('DOM & CSS integration for customer adjustment voucher modal', () => {
+  const freshIndex = read('index.html');
+  const freshApp = read('app.js');
+  const freshStyles = read('styles.css');
+
+  // index.html
+  assert.match(freshIndex, /id="customerAdjustmentModal"/);
+  assert.match(freshIndex, /id="openAdjustmentModalBtn"/);
+  assert.match(freshIndex, /id="closeAdjustmentModalBtn"/);
+  assert.match(freshIndex, /id="adjCustomerName"/);
+  assert.match(freshIndex, /id="adjCurrentBalance"/);
+  assert.match(freshIndex, /id="adjProjectedBalance"/);
+  assert.match(freshIndex, /id="adjToggleCalculatorBtn"/);
+  assert.match(freshIndex, /id="adjOutageDays"/);
+  assert.match(freshIndex, /id="adjOutageHours"/);
+  assert.match(freshIndex, /id="adjApplyCalcBtn"/);
+  assert.match(freshIndex, /id="customerAdjustmentForm"/);
+  assert.match(freshIndex, /id="adjCategorySelect"/);
+  assert.match(freshIndex, /id="adjAmountInput"/);
+  assert.match(freshIndex, /id="adjReasonInput"/);
+  assert.match(freshIndex, /id="submitAdjustmentVoucherBtn"/);
+  assert.match(freshIndex, /id="printAdjustmentSlipBtn"/);
+  assert.match(freshIndex, /id="sendAdjustmentWhatsAppBtn"/);
+  assert.match(freshIndex, /id="adjHistoryTableBody"/);
+
+  // app.js
+  assert.match(freshApp, /setupAdjustmentVoucherModal/);
+  assert.match(freshApp, /customerAdjustmentModalController/);
+  assert.match(freshApp, /#openAdjustmentModalBtn/);
+
+  // styles.css
+  assert.match(freshStyles, /\.adjustment-modal/);
+  assert.match(freshStyles, /\.adjustment-customer-strip/);
+  assert.match(freshStyles, /\.adjustment-calculator-fieldset/);
+  assert.match(freshStyles, /\.adj-preview-card/);
+  assert.match(freshStyles, /\.adj-history-section/);
+  assert.match(freshStyles, /\[data-theme="dark"\]\s+\.adjustment-modal/);
+});

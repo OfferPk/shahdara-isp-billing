@@ -12,6 +12,8 @@ import { calculateBgpPeeringMetrics, setupBgpRoutingModal, renderBgpRoutingConve
 import { calculateIptvMulticastMetrics, setupIptvMulticastModal, renderIptvMulticastSvg } from './dashboard-iptv.js';
 import { calculateDnsMetrics, setupDnsDiagnosticsModal, renderDnsDiagnosticsSvg } from './dashboard-dns.js';
 import { calculateDwdmMetrics, setupDwdmModal, renderDwdmBudgetSvg } from './dashboard-dwdm.js';
+import { calculateOscMetrics, setupOscModal, renderOscTelemetrySvg } from './dashboard-osc.js';
+
 
 
 
@@ -3346,7 +3348,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupDwdmModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const oscEl = document.getElementById('dashboardOscChart');
+  if (oscEl) {
+    const oscData = calculateOscMetrics(state, { referenceDate });
+    oscEl.innerHTML = renderOscTelemetrySvg(oscData, { compact: true });
+  }
+
+  setupOscModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
-
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg };

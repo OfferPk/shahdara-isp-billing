@@ -4375,3 +4375,248 @@ test('DOM and styling: index.html, styles.css, and app.js wire Plan Migration & 
   assert.match(appJs, /customerPlanMigrationModalController/);
   assert.match(appJs, /openPlanMigrationBtn/);
 });
+
+test('evaluateOpticalRxPower classifies ITU-T G.984 GPON Class B+ receiver power correctly', async () => {
+  const { evaluateOpticalRxPower } = await import('../form-validation.js');
+
+  // Invalid input
+  const invalid = evaluateOpticalRxPower('not-a-number');
+  assert.equal(invalid.status, 'INVALID');
+  assert.equal(invalid.badgeClass, 'badge-danger');
+
+  // Saturation overload (> -8.0 dBm)
+  const saturated = evaluateOpticalRxPower(-6.5);
+  assert.equal(saturated.status, 'CRITICAL_SATURATION');
+  assert.equal(saturated.badgeClass, 'badge-danger');
+  assert.match(saturated.advice, /attenuator/i);
+
+  // High optical power (-10 dBm)
+  const high = evaluateOpticalRxPower(-10.2);
+  assert.equal(high.status, 'HIGH_POWER');
+  assert.equal(high.badgeClass, 'badge-warning');
+
+  // Optimal pristine signal (-12.0 to -22.5 dBm)
+  const optimal = evaluateOpticalRxPower(-19.4);
+  assert.equal(optimal.status, 'PASS_OPTIMAL');
+  assert.equal(optimal.badgeClass, 'badge-success');
+  assert.equal(optimal.headroomDb, 7.6);
+  assert.match(optimal.label, /Pristine/i);
+
+  // Conditional pass (-22.6 to -26.9 dBm)
+  const marginal = evaluateOpticalRxPower(-24.8);
+  assert.equal(marginal.status, 'CONDITIONAL_PASS');
+  assert.equal(marginal.badgeClass, 'badge-warning');
+  assert.equal(marginal.headroomDb, 2.2);
+  assert.match(marginal.advice, /clean/i);
+
+  // Excessive attenuation fail (< -27.0 dBm)
+  const failed = evaluateOpticalRxPower(-28.6);
+  assert.equal(failed.status, 'FAILED_ATTENUATION');
+  assert.equal(failed.badgeClass, 'badge-danger');
+  assert.equal(failed.headroomDb, -1.6);
+  assert.match(failed.advice, /REJECTED/);
+});
+
+test('calculateOpticalLossBudget computes theoretical budget vs measured actual attenuation', async () => {
+  const { calculateOpticalLossBudget } = await import('../form-validation.js');
+
+  const budget = calculateOpticalLossBudget({
+    txPowerDbm: 2.5,
+    rxPowerDbm: -19.5,
+    wavelengthNm: 1490,
+    distanceMeters: 1000,
+    splitRatio: '1:16',
+    spliceCount: 4,
+    adapterCount: 2
+  });
+
+  // Fiber loss: 1km * 0.22 = 0.22 dB
+  assert.equal(budget.fiberLoss, 0.22);
+  // 1:16 split loss: 13.8 dB
+  assert.equal(budget.splitterLoss, 13.8);
+  // Splice loss: 4 * 0.05 = 0.2 dB
+  assert.equal(budget.spliceLoss, 0.2);
+  // Adapter loss: 2 * 0.25 = 0.5 dB
+  assert.equal(budget.adapterLoss, 0.5);
+  // Theoretical total: 0.22 + 13.8 + 0.2 + 0.5 = 14.72 dB
+  assert.equal(budget.theoreticalLoss, 14.72);
+  // Actual measured: 2.5 - (-19.5) = 22 dB
+  assert.equal(budget.actualLoss, 22);
+  // Excess loss: 22 - 14.72 = 7.28 dB
+  assert.equal(budget.excessLoss, 7.28);
+  assert.equal(budget.evaluation.status, 'PASS_OPTIMAL');
+});
+
+test('optical acceptance persistence and validation manage records in localStorage', async () => {
+  const {
+    getSavedOpticalCertificates,
+    saveOpticalCertificate,
+    clearOpticalCertificates,
+    validateOpticalCertificate,
+    buildOpticalCertificateRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  // Initially empty
+  assert.deepEqual(getSavedOpticalCertificates(mockStorage), []);
+
+  // Validation
+  const invalid = validateOpticalCertificate({});
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.customerId);
+  assert.ok(invalid.errors.rxPowerDbm);
+  assert.ok(invalid.errors.inspector);
+
+  const validForm = {
+    customerId: 'cust-101',
+    customerName: 'Muhammad Hamza',
+    area: 'Baradari Road',
+    rxPowerDbm: -18.7,
+    txPowerDbm: 3.0,
+    wavelengthNm: 1490,
+    distanceMeters: 450,
+    splitRatio: '1:8',
+    spliceCount: 2,
+    inspector: 'Tariq Mehmood',
+    notes: 'Brand new fiber drop installation'
+  };
+
+  const validation = validateOpticalCertificate(validForm);
+  assert.equal(validation.isValid, true);
+
+  const customer = { id: 'cust-101', name: 'Muhammad Hamza', customerNumber: '2024-001', area: 'Baradari Road' };
+  const record = buildOpticalCertificateRecord(customer, validForm, { now: '2026-10-16T10:00:00Z', sequence: 4521 });
+
+  assert.equal(record.id, 'OPT-202610-4521');
+  assert.equal(record.customer.name, 'Muhammad Hamza');
+  assert.equal(record.telemetry.rxPowerDbm, -18.7);
+  assert.equal(record.telemetry.status, 'PASS_OPTIMAL');
+
+  // Save to storage
+  const saved = saveOpticalCertificate(record, mockStorage);
+  assert.equal(saved, true);
+  const loaded = getSavedOpticalCertificates(mockStorage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'OPT-202610-4521');
+
+  // Clear storage
+  clearOpticalCertificates(mockStorage);
+  assert.deepEqual(getSavedOpticalCertificates(mockStorage), []);
+});
+
+test('formatOpticalAcceptanceWhatsApp generates clean bilingual commissioning dispatch', async () => {
+  const { formatOpticalAcceptanceWhatsApp, buildOpticalCertificateRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'cust-55', name: 'Usman Ali', customerNumber: '99', area: 'Wandala Road', package: '25 Mbps' };
+  const cert = buildOpticalCertificateRecord(customer, {
+    rxPowerDbm: -20.1,
+    txPowerDbm: 2.5,
+    ontSerial: 'ZTE-F660-8812',
+    oltPort: 'PON-03',
+    inspector: 'Saad QA Crew',
+    notes: 'Verified OK'
+  }, { now: '2026-10-16T12:00:00Z', sequence: 1001 });
+
+  const msg = formatOpticalAcceptanceWhatsApp(cert);
+  assert.match(msg, /OPTICAL ACCEPTANCE CERTIFICATE/);
+  assert.match(msg, /OPT-202610-1001/);
+  assert.match(msg, /Usman Ali/);
+  assert.match(msg, /ZTE-F660-8812/);
+  assert.match(msg, /-20.1 dBm/);
+  assert.match(msg, /PRISTINE GPON CLASS B\+ LINK/i);
+  assert.match(msg, /Saad QA Crew/);
+});
+
+test('generateOpticalCertificateHtml produces valid formal A4 and 80mm POS slip views', async () => {
+  const { generateOpticalCertificateHtml, buildOpticalCertificateRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'cust-12', name: 'Rashid Khan', customerNumber: '42', area: 'Kot Mohibbu' };
+  const cert = buildOpticalCertificateRecord(customer, {
+    rxPowerDbm: -21.4,
+    txPowerDbm: 2.8,
+    inspector: 'Inspector Bilal'
+  }, { now: '2026-10-16T12:00:00Z', sequence: 2002 });
+
+  const a4Html = generateOpticalCertificateHtml(cert, { mode: 'a4' });
+  assert.match(a4Html, /optical-a4-certificate/);
+  assert.match(a4Html, /OPT-202610-2002/);
+  assert.match(a4Html, /Rashid Khan/);
+  assert.match(a4Html, /Optical Link Attenuation/);
+  assert.match(a4Html, /Inspector Bilal/);
+
+  const thermalHtml = generateOpticalCertificateHtml(cert, { mode: 'thermal' });
+  assert.match(thermalHtml, /optical-thermal-slip/);
+  assert.match(thermalHtml, /OPT-202610-2002/);
+  assert.match(thermalHtml, /Rashid Khan/);
+  assert.match(thermalHtml, /-21.4 dBm/);
+});
+
+test('generateOpticalCertificatesCsv formats RFC-4180 CSV with headers and UTF-8 BOM', async () => {
+  const { generateOpticalCertificatesCsv, buildOpticalCertificateRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'cust-1', name: 'Tahir, "CEO" Shahdara', area: 'GT Road' };
+  const cert = buildOpticalCertificateRecord(customer, {
+    rxPowerDbm: -19.0,
+    inspector: 'Crew A',
+    notes: 'Line with, comma and "quotes"'
+  }, { sequence: 3003 });
+
+  const csv = generateOpticalCertificatesCsv([cert]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /Certificate ID,Date,Customer ID/);
+  assert.match(csv, /"Tahir, ""CEO"" Shahdara"/);
+  assert.match(csv, /"Line with, comma and ""quotes"""/);
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Optical QA Acceptance completely', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /id="openOpticalAcceptanceBtn"/);
+  assert.match(indexHtml, /data-open-optical-acceptance/);
+  assert.match(indexHtml, /<dialog id="opticalAcceptanceModal" class="modal optical-acceptance-modal"/);
+  assert.match(indexHtml, /id="opticalAcceptanceCloseBtn"/);
+  assert.match(indexHtml, /id="optKpiTotalCertificates"/);
+  assert.match(indexHtml, /id="optKpiAverageRx"/);
+  assert.match(indexHtml, /id="optKpiPassRate"/);
+  assert.match(indexHtml, /id="optKpiAttenuationAlerts"/);
+  assert.match(indexHtml, /id="optCustomerName"/);
+  assert.match(indexHtml, /id="optCustomerMeta"/);
+  assert.match(indexHtml, /id="optOntSerialInput"/);
+  assert.match(indexHtml, /id="optOltPortInput"/);
+  assert.match(indexHtml, /id="optWavelengthSelect"/);
+  assert.match(indexHtml, /id="optRxPowerInput"/);
+  assert.match(indexHtml, /id="optRxPowerSlider"/);
+  assert.match(indexHtml, /id="optTxPowerInput"/);
+  assert.match(indexHtml, /id="optDistanceInput"/);
+  assert.match(indexHtml, /id="optSplitRatioSelect"/);
+  assert.match(indexHtml, /id="optSpliceCountInput"/);
+  assert.match(indexHtml, /id="optStatusBadge"/);
+  assert.match(indexHtml, /id="optLossBudgetBox"/);
+  assert.match(indexHtml, /id="opticalAcceptanceSubmitBtn"/);
+  assert.match(indexHtml, /id="opticalAcceptanceCopyWhatsAppBtn"/);
+  assert.match(indexHtml, /id="opticalAcceptancePrintA4Btn"/);
+  assert.match(indexHtml, /id="opticalAcceptancePrintThermalBtn"/);
+  assert.match(indexHtml, /id="optFilterStatusSelect"/);
+  assert.match(indexHtml, /id="optSearchInput"/);
+  assert.match(indexHtml, /id="optHistoryTableBody"/);
+  assert.match(indexHtml, /id="opticalAcceptanceExportCsvBtn"/);
+
+  // styles.css checks
+  assert.match(stylesCss, /\.optical-acceptance-modal/);
+  assert.match(stylesCss, /\.optical-acceptance-modal-card/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.optical-acceptance-modal-card/);
+
+  // app.js checks
+  assert.match(appJs, /setupOpticalAcceptanceModal/);
+  assert.match(appJs, /customerOpticalAcceptanceModalController/);
+  assert.match(appJs, /openOpticalAcceptanceBtn/);
+});

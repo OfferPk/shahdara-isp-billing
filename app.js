@@ -36,7 +36,8 @@ import {
   setupKycComplianceModal,
   setupEquipmentRetrievalModal,
   setupSpliceInspectionModal,
-  setupPlanMigrationModal
+  setupPlanMigrationModal,
+  setupOpticalAcceptanceModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3242,6 +3243,7 @@ export let customerKycComplianceModalController;
 export let customerEquipmentRetrievalModalController;
 export let customerSpliceInspectionModalController;
 export let customerPlanMigrationModalController;
+export let customerOpticalAcceptanceModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3395,6 +3397,20 @@ if (typeof document !== 'undefined') {
     openPlanMigrationBtn.addEventListener('click', () => {
       const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
       customerPlanMigrationModalController?.open(cust);
+    });
+  }
+
+  customerOpticalAcceptanceModalController = setupOpticalAcceptanceModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openOpticalAcceptanceBtn = $('#openOpticalAcceptanceBtn');
+  if (openOpticalAcceptanceBtn) {
+    openOpticalAcceptanceBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      customerOpticalAcceptanceModalController?.open(cust);
     });
   }
 }

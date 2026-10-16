@@ -8919,3 +8919,972 @@ export function setupPlanMigrationModal(options = {}) {
     }
   };
 }
+
+// =========================================================================
+// Subscriber ONT Optical Power Calibration & Rx/Tx Decibel QA Acceptance Certificate
+// =========================================================================
+
+export const OPTICAL_ACCEPTANCE_KEY = 'shahdara_optical_acceptance_v1';
+
+export const STANDARD_SPLIT_RATIOS = {
+  '1:2': 3.5,
+  '1:4': 7.2,
+  '1:8': 10.5,
+  '1:16': 13.8,
+  '1:32': 17.1,
+  '1:64': 20.5
+};
+
+export const STANDARD_WAVELENGTHS = [1310, 1490, 1550];
+
+/**
+ * Evaluates ONT Received Optical Power (Rx dBm) against ITU-T G.984 GPON Class B+ standards.
+ */
+export function evaluateOpticalRxPower(rxDbm, options = {}) {
+  const val = Number(rxDbm);
+  if (isNaN(val)) {
+    return {
+      status: 'INVALID',
+      label: 'Invalid Measurement',
+      badgeClass: 'badge-danger',
+      headroomDb: 0,
+      advice: 'Please enter a valid numeric Rx power reading in dBm.'
+    };
+  }
+
+  // Thresholds for Class B+ Optical Receiver (-8 dBm to -27 dBm)
+  if (val > -8.0) {
+    return {
+      status: 'CRITICAL_SATURATION',
+      label: 'Photodiode Saturation Overload',
+      badgeClass: 'badge-danger',
+      headroomDb: Math.round((val - (-8.0)) * 100) / 100,
+      advice: 'DANGER: Received signal exceeds -8 dBm. Risk of optical detector burnout. Install 5dB/10dB fixed optical attenuator immediately.'
+    };
+  } else if (val >= -12.0 && val <= -8.0) {
+    return {
+      status: 'HIGH_POWER',
+      label: 'High Optical Power (Acceptable)',
+      badgeClass: 'badge-warning',
+      headroomDb: Math.round((val - (-8.0)) * 100) / 100,
+      advice: 'Signal is on the higher boundary. Monitor customer ONT receiver temperature.'
+    };
+  } else if (val >= -22.5 && val < -12.0) {
+    return {
+      status: 'PASS_OPTIMAL',
+      label: 'Pristine GPON Class B+ Link',
+      badgeClass: 'badge-success',
+      headroomDb: Math.round((val - (-27.0)) * 100) / 100,
+      advice: 'Optimal optical transmission. Negligible bit error rate and lowest latency.'
+    };
+  } else if (val >= -26.9 && val < -22.5) {
+    return {
+      status: 'CONDITIONAL_PASS',
+      label: 'Conditional Pass (Marginal Headroom)',
+      badgeClass: 'badge-warning',
+      headroomDb: Math.round((val - (-27.0)) * 100) / 100,
+      advice: 'Acceptable but close to sensitivity floor. Inspect drop cable bends and clean SC/APC optical end-faces with isopropanol.'
+    };
+  } else {
+    // val < -27.0 dBm
+    return {
+      status: 'FAILED_ATTENUATION',
+      label: 'Excessive Link Attenuation (Fail)',
+      badgeClass: 'badge-danger',
+      headroomDb: Math.round((val - (-27.0)) * 100) / 100,
+      advice: 'REJECTED: Signal is below -27 dBm sensitivity limit. Will cause packet loss and flapping. Check for fiber micro-bending, dirty patchcord, or bad fusion splice.'
+    };
+  }
+}
+
+/**
+ * Calculates theoretical optical link budget vs measured insertion loss.
+ */
+export function calculateOpticalLossBudget({
+  txPowerDbm = 2.5,
+  rxPowerDbm = -19.5,
+  wavelengthNm = 1490,
+  distanceMeters = 800,
+  splitRatio = '1:16',
+  spliceCount = 3,
+  adapterCount = 2
+} = {}) {
+  const tx = Number(txPowerDbm) || 2.5;
+  const rx = Number(rxPowerDbm) || -19.5;
+  const distKm = Math.max(0, (Number(distanceMeters) || 0) / 1000);
+  const splices = Math.max(0, Number(spliceCount) || 0);
+  const adapters = Math.max(0, Number(adapterCount) || 0);
+
+  // Fiber attenuation rate (dB/km)
+  const fiberLossPerKm = Number(wavelengthNm) === 1310 ? 0.35 : 0.22;
+  const fiberLoss = Math.round(distKm * fiberLossPerKm * 100) / 100;
+
+  // Splitter insertion loss
+  const splitterLoss = STANDARD_SPLIT_RATIOS[splitRatio] ?? 13.8;
+
+  // Mechanical / fusion splice loss (0.05 dB per splice)
+  const spliceLoss = Math.round(splices * 0.05 * 100) / 100;
+
+  // Connector / adapter loss (0.25 dB per mate)
+  const adapterLoss = Math.round(adapters * 0.25 * 100) / 100;
+
+  // Total theoretical loss
+  const theoreticalLoss = Math.round((fiberLoss + splitterLoss + spliceLoss + adapterLoss) * 100) / 100;
+
+  // Actual measured loss = Tx - Rx
+  const actualLoss = Math.round((tx - rx) * 100) / 100;
+
+  // Excess loss delta
+  const excessLoss = Math.round((actualLoss - theoreticalLoss) * 100) / 100;
+
+  const evaluation = evaluateOpticalRxPower(rx);
+
+  return {
+    txPowerDbm: tx,
+    rxPowerDbm: rx,
+    wavelengthNm,
+    distanceMeters: Math.round(distKm * 1000),
+    fiberLoss,
+    splitterLoss,
+    spliceLoss,
+    adapterLoss,
+    theoreticalLoss,
+    actualLoss,
+    excessLoss,
+    evaluation
+  };
+}
+
+/**
+ * Loads persistent optical certificates from localStorage.
+ */
+export function getSavedOpticalCertificates(storage) {
+  const s = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!s) return [];
+  try {
+    const raw = s.getItem(OPTICAL_ACCEPTANCE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves an optical certificate to localStorage.
+ */
+export function saveOpticalCertificate(record, storage) {
+  const s = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!s || !record) return false;
+  try {
+    const existing = getSavedOpticalCertificates(s);
+    const updated = [record, ...existing.filter(r => r.id !== record.id)];
+    s.setItem(OPTICAL_ACCEPTANCE_KEY, JSON.stringify(updated));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clears saved optical certificates from localStorage.
+ */
+export function clearOpticalCertificates(storage) {
+  const s = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!s) return false;
+  try {
+    s.removeItem(OPTICAL_ACCEPTANCE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validates optical acceptance form fields.
+ */
+export function validateOpticalCertificate(formData) {
+  const errors = {};
+  if (!formData.customerId || !String(formData.customerId).trim()) {
+    errors.customerId = 'Valid subscriber account is required.';
+  }
+  const rx = Number(formData.rxPowerDbm);
+  if (formData.rxPowerDbm === undefined || formData.rxPowerDbm === null || formData.rxPowerDbm === '' || isNaN(rx)) {
+    errors.rxPowerDbm = 'Valid Rx Optical Power (dBm) reading is required.';
+  } else if (rx < -45 || rx > 10) {
+    errors.rxPowerDbm = 'Rx Power must be between -45 dBm and +10 dBm.';
+  }
+
+  const tx = Number(formData.txPowerDbm);
+  if (formData.txPowerDbm !== undefined && formData.txPowerDbm !== null && formData.txPowerDbm !== '') {
+    if (isNaN(tx) || tx < -10 || tx > 20) {
+      errors.txPowerDbm = 'Tx Power must be between -10 dBm and +20 dBm.';
+    }
+  }
+
+  if (!formData.inspector || String(formData.inspector).trim().length < 2) {
+    errors.inspector = 'Inspector or Field Lineman name is required (min 2 chars).';
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+/**
+ * Builds a sequential optical certificate record (OPT-YYYYMM-XXXX).
+ */
+export function buildOpticalCertificateRecord(customer, formData, options = {}) {
+  const now = options.now ? new Date(options.now) : new Date();
+  const yearMonth = now.toISOString().slice(0, 7).replace('-', '');
+  const seq = String(options.sequence || Math.floor(1000 + Math.random() * 9000)).padStart(4, '0');
+  const certId = `OPT-${yearMonth}-${seq}`;
+
+  const budget = calculateOpticalLossBudget({
+    txPowerDbm: formData.txPowerDbm ?? 2.5,
+    rxPowerDbm: formData.rxPowerDbm,
+    wavelengthNm: formData.wavelengthNm ?? 1490,
+    distanceMeters: formData.distanceMeters ?? 650,
+    splitRatio: formData.splitRatio ?? '1:16',
+    spliceCount: formData.spliceCount ?? 3,
+    adapterCount: formData.adapterCount ?? 2
+  });
+
+  return {
+    id: certId,
+    createdAt: now.toISOString(),
+    customer: {
+      id: customer?.id || formData.customerId,
+      name: customer?.name || formData.customerName || 'Subscriber',
+      customerNumber: customer?.customerNumber || '',
+      area: customer?.area || formData.area || 'Shahdara Town',
+      phone: customer?.phone || formData.phone || '',
+      package: customer?.package || customer?.currentPlan || 'Broadband'
+    },
+    telemetry: {
+      ontSerial: formData.ontSerial || 'HG8245H-GPON-01',
+      oltPort: formData.oltPort || 'OLT-01 / PON-02',
+      powerMeterSerial: formData.powerMeterSerial || 'OPM-GW-8902',
+      wavelengthNm: Number(formData.wavelengthNm) || 1490,
+      txPowerDbm: budget.txPowerDbm,
+      rxPowerDbm: budget.rxPowerDbm,
+      distanceMeters: budget.distanceMeters,
+      splitRatio: formData.splitRatio || '1:16',
+      spliceCount: Number(formData.spliceCount) || 3,
+      adapterCount: Number(formData.adapterCount) || 2,
+      connectorCondition: formData.connectorCondition || 'Clean & Inspected',
+      theoreticalLoss: budget.theoreticalLoss,
+      actualLoss: budget.actualLoss,
+      excessLoss: budget.excessLoss,
+      status: budget.evaluation.status,
+      statusLabel: budget.evaluation.label,
+      headroomDb: budget.evaluation.headroomDb,
+      advice: budget.evaluation.advice
+    },
+    inspector: formData.inspector || 'QA Lineman Team',
+    notes: formData.notes || 'Optical link commissioned and verified under PTA standards.'
+  };
+}
+
+/**
+ * Generates formatted WhatsApp text message for optical QA acceptance.
+ */
+export function formatOpticalAcceptanceWhatsApp(cert) {
+  const t = cert.telemetry;
+  const statusEmoji = t.status === 'PASS_OPTIMAL' ? '✅' : t.status === 'CONDITIONAL_PASS' ? '⚠️' : '❌';
+  return [
+    `========================================`,
+    `📡 SHAHDARA FTTH OPTICAL ACCEPTANCE CERTIFICATE`,
+    `Voucher: ${cert.id} | Date: ${cert.createdAt.slice(0, 10)}`,
+    `========================================`,
+    ``,
+    `SUBSCRIBER DETAILS:`,
+    `- Name: ${cert.customer.name} (#${cert.customer.customerNumber || cert.customer.id})`,
+    `- Area / Sector: ${cert.customer.area}`,
+    `- Service Plan: ${cert.customer.package}`,
+    `- ONT Serial No: ${t.ontSerial}`,
+    ``,
+    `OPTICAL POWER TELEMETRY (Class B+):`,
+    `- Wavelength: ${t.wavelengthNm} nm`,
+    `- OLT Tx Power: +${t.txPowerDbm} dBm`,
+    `- Subscriber Rx Power: ${t.rxPowerDbm} dBm`,
+    `- Drop Distance: ${t.distanceMeters} meters`,
+    `- Splitter Configuration: ${t.splitRatio}`,
+    `- Theoretical Link Loss: ${t.theoreticalLoss} dB`,
+    `- Measured Total Loss: ${t.actualLoss} dB`,
+    `- Headroom to -27 dBm Floor: ${t.headroomDb} dB`,
+    ``,
+    `QA COMMISSIONING VERDICT:`,
+    `${statusEmoji} STATUS: [ ${t.statusLabel.toUpperCase()} ]`,
+    `- Technical Advice: ${t.advice}`,
+    `- Certified By: ${cert.inspector}`,
+    `- Notes: ${cert.notes}`,
+    ``,
+    `PTA Compliance Verified · Shahdara Fiber Operations`
+  ].join('\n');
+}
+
+/**
+ * Generates printable HTML for formal A4 certificate or 80mm thermal slip.
+ */
+export function generateOpticalCertificateHtml(cert, options = {}) {
+  const mode = options.mode || 'a4';
+  const t = cert.telemetry;
+  const statusColor = t.status === 'PASS_OPTIMAL' ? '#059669' : t.status === 'CONDITIONAL_PASS' ? '#d97706' : '#dc2626';
+
+  if (mode === 'thermal') {
+    return `
+      <div class="thermal-slip-wrapper optical-thermal-slip" style="font-family: monospace; width: 280px; padding: 10px; font-size: 11px; line-height: 1.4;">
+        <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px;">
+          <h2 style="margin: 0; font-size: 14px;">SHAHDARA FTTH</h2>
+          <p style="margin: 2px 0; font-size: 10px;">Optical QA Acceptance Slip</p>
+          <p style="margin: 2px 0; font-size: 9px;">Cert: ${cert.id}</p>
+          <p style="margin: 2px 0; font-size: 9px;">${cert.createdAt.slice(0, 10)} PKT</p>
+        </div>
+
+        <div style="margin-bottom: 6px;">
+          <strong>Sub:</strong> ${cert.customer.name} (#${cert.customer.customerNumber || cert.customer.id})<br>
+          <strong>Area:</strong> ${cert.customer.area}<br>
+          <strong>ONT S/N:</strong> ${t.ontSerial}<br>
+          <strong>Port:</strong> ${t.oltPort}
+        </div>
+
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin-bottom: 6px;">
+          <table style="width: 100%; font-size: 10px;">
+            <tr><td>Rx Power:</td><td style="text-align: right; font-weight: bold;">${t.rxPowerDbm} dBm</td></tr>
+            <tr><td>OLT Tx Power:</td><td style="text-align: right;">+${t.txPowerDbm} dBm</td></tr>
+            <tr><td>Drop Length:</td><td style="text-align: right;">${t.distanceMeters} m</td></tr>
+            <tr><td>Split Ratio:</td><td style="text-align: right;">${t.splitRatio}</td></tr>
+            <tr><td>Actual Loss:</td><td style="text-align: right;">${t.actualLoss} dB</td></tr>
+            <tr><td>Loss Budget:</td><td style="text-align: right;">${t.theoreticalLoss} dB</td></tr>
+          </table>
+        </div>
+
+        <div style="text-align: center; margin-bottom: 8px;">
+          <div style="display: inline-block; padding: 3px 8px; border: 1px solid ${statusColor}; color: ${statusColor}; font-weight: bold; border-radius: 4px;">
+            ${t.statusLabel}
+          </div>
+          <p style="margin: 4px 0 0; font-size: 9px;">Headroom: ${t.headroomDb} dB</p>
+        </div>
+
+        <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 9px;">
+          Inspector: ${cert.inspector}<br>
+          Signature: __________________
+        </div>
+      </div>
+    `;
+  }
+
+  // Formal A4 Certificate
+  return `
+    <div class="a4-voucher-page optical-a4-certificate" style="max-width: 780px; margin: 0 auto; padding: 24px; font-family: system-ui, -apple-system, sans-serif; color: #1e293b; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f766e; padding-bottom: 14px; margin-bottom: 18px;">
+        <div>
+          <h1 style="margin: 0; font-size: 20px; color: #0f766e; text-transform: uppercase; letter-spacing: 0.5px;">Shahdara Fiber Optic Network Operations</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">Outside Plant Engineering &amp; Optical Power Meter QA Acceptance Certificate</p>
+        </div>
+        <div style="text-align: right;">
+          <span style="display: inline-block; padding: 4px 10px; background: #f0fdfa; border: 1px solid #0f766e; color: #0f766e; font-weight: 700; border-radius: 4px; font-size: 13px;">${cert.id}</span>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">Date: ${cert.createdAt.slice(0, 10)} PKT</p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
+          <h3 style="margin: 0 0 8px; font-size: 13px; color: #0f766e; text-transform: uppercase;">1. Subscriber Installation Profile</h3>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Subscriber Name:</strong> ${cert.customer.name}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Account Number:</strong> #${cert.customer.customerNumber || cert.customer.id}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Area / Mohalla:</strong> ${cert.customer.area}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Service Plan:</strong> ${cert.customer.package}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Phone Contact:</strong> ${cert.customer.phone || 'Not recorded'}</p>
+        </div>
+
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
+          <h3 style="margin: 0 0 8px; font-size: 13px; color: #0f766e; text-transform: uppercase;">2. Optical Hardware &amp; Splice Node</h3>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>ONT Equipment Serial:</strong> ${t.ontSerial}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>OLT Feeder / PON Port:</strong> ${t.oltPort}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>OPM Meter Serial:</strong> ${t.powerMeterSerial}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Connector End-Face:</strong> ${t.connectorCondition}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Drop Cable Length:</strong> ${t.distanceMeters} meters</p>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 18px;">
+        <h3 style="margin: 0 0 8px; font-size: 13px; color: #0f766e; text-transform: uppercase;">3. Optical Link Attenuation &amp; Loss Budget Analysis</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="background: #e2e8f0; color: #334155;">
+              <th style="padding: 6px 10px; text-align: left; border: 1px solid #cbd5e1;">Parameter</th>
+              <th style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">Design Target</th>
+              <th style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">Measured / Actual</th>
+              <th style="padding: 6px 10px; text-align: left; border: 1px solid #cbd5e1;">Headroom / Variance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Received Optical Power (Rx)</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">-15.0 to -22.5 dBm</td>
+              <td style="padding: 6px 10px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1; color: ${statusColor};">${t.rxPowerDbm} dBm</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${t.headroomDb} dB above sensitivity floor</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">OLT Transmit Power (Tx)</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">+1.5 to +5.0 dBm</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">+${t.txPowerDbm} dBm</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Nominal Class B+ transmitter</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Splitter Insertion Loss (${t.splitRatio})</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${t.splitterLoss} dB</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${t.splitterLoss} dB</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">PLC fused planar splitter</td>
+            </tr>
+            <tr>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Total Link Loss Budget</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${t.theoreticalLoss} dB</td>
+              <td style="padding: 6px 10px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1;">${t.actualLoss} dB</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${t.excessLoss >= 0 ? '+' : ''}${t.excessLoss} dB delta from theoretical</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="background: #f1f5f9; border-left: 4px solid ${statusColor}; padding: 12px; border-radius: 4px; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <strong style="font-size: 14px; color: ${statusColor};">COMMISSIONING VERDICT: ${t.statusLabel.toUpperCase()}</strong>
+          <span style="font-size: 11px; background: #fff; padding: 2px 8px; border-radius: 3px; border: 1px solid #cbd5e1;">Wavelength: ${t.wavelengthNm}nm</span>
+        </div>
+        <p style="margin: 6px 0 0; font-size: 12px; color: #475569;">${t.advice}</p>
+        <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;"><strong>Field Notes:</strong> ${cert.notes}</p>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 36px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
+        <div style="text-align: center; width: 200px;">
+          <div style="border-bottom: 1px solid #000; height: 32px; margin-bottom: 4px;"></div>
+          <span style="font-size: 11px; font-weight: bold;">Field Technician / Lineman</span><br>
+          <span style="font-size: 10px; color: #64748b;">${cert.inspector}</span>
+        </div>
+        <div style="text-align: center; width: 200px;">
+          <div style="border-bottom: 1px solid #000; height: 32px; margin-bottom: 4px;"></div>
+          <span style="font-size: 11px; font-weight: bold;">QA Audit Supervisor</span><br>
+          <span style="font-size: 10px; color: #64748b;">Outside Plant Engineering</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Generates RFC-4180 compliant CSV export of optical certificates.
+ */
+export function generateOpticalCertificatesCsv(records) {
+  const headers = [
+    'Certificate ID',
+    'Date',
+    'Customer ID',
+    'Subscriber Name',
+    'Area',
+    'Service Plan',
+    'ONT Serial',
+    'OLT Port',
+    'Wavelength (nm)',
+    'Tx Power (dBm)',
+    'Rx Power (dBm)',
+    'Drop Distance (m)',
+    'Split Ratio',
+    'Total Loss (dB)',
+    'Status',
+    'Inspector',
+    'Notes'
+  ];
+
+  const escape = (val) => {
+    const s = String(val ?? '');
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+
+  const rows = (records || []).map(r => [
+    r.id,
+    r.createdAt ? r.createdAt.slice(0, 10) : '',
+    r.customer?.id || '',
+    r.customer?.name || '',
+    r.customer?.area || '',
+    r.customer?.package || '',
+    r.telemetry?.ontSerial || '',
+    r.telemetry?.oltPort || '',
+    r.telemetry?.wavelengthNm || '',
+    r.telemetry?.txPowerDbm || '',
+    r.telemetry?.rxPowerDbm || '',
+    r.telemetry?.distanceMeters || '',
+    r.telemetry?.splitRatio || '',
+    r.telemetry?.actualLoss || '',
+    r.telemetry?.status || '',
+    r.inspector || '',
+    r.notes || ''
+  ].map(escape).join(','));
+
+  return '\uFEFF' + [headers.map(escape).join(','), ...rows].join('\r\n');
+}
+
+/**
+ * Interactive Modal Controller for Optical QA Acceptance & Calibration Suite.
+ */
+export function setupOpticalAcceptanceModal({
+  getState,
+  storage,
+  onToast
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      open: () => {},
+      close: () => {},
+      setCustomer: () => {},
+      recalculate: () => {}
+    };
+  }
+
+  const modal = document.getElementById('opticalAcceptanceModal');
+  const closeBtn = document.getElementById('opticalAcceptanceCloseBtn');
+  const openBtns = document.querySelectorAll('[data-open-optical-acceptance], #openOpticalAcceptanceBtn');
+
+  // Input elements
+  const ontSerialInput = document.getElementById('optOntSerialInput');
+  const oltPortInput = document.getElementById('optOltPortInput');
+  const wavelengthSelect = document.getElementById('optWavelengthSelect');
+  const txPowerInput = document.getElementById('optTxPowerInput');
+  const rxPowerInput = document.getElementById('optRxPowerInput');
+  const rxPowerSlider = document.getElementById('optRxPowerSlider');
+  const distanceInput = document.getElementById('optDistanceInput');
+  const splitRatioSelect = document.getElementById('optSplitRatioSelect');
+  const spliceCountInput = document.getElementById('optSpliceCountInput');
+  const inspectorInput = document.getElementById('optInspectorInput');
+  const notesInput = document.getElementById('optNotesInput');
+
+  // Preview elements
+  const customerNameEl = document.getElementById('optCustomerName');
+  const customerMetaEl = document.getElementById('optCustomerMeta');
+  const kpiTotalCertificates = document.getElementById('optKpiTotalCertificates');
+  const kpiAverageRx = document.getElementById('optKpiAverageRx');
+  const kpiPassRate = document.getElementById('optKpiPassRate');
+  const kpiAttenuationAlerts = document.getElementById('optKpiAttenuationAlerts');
+  const statusBadgeEl = document.getElementById('optStatusBadge');
+  const lossBudgetBoxEl = document.getElementById('optLossBudgetBox');
+
+  // Buttons
+  const submitBtn = document.getElementById('opticalAcceptanceSubmitBtn');
+  const copyWhatsAppBtn = document.getElementById('opticalAcceptanceCopyWhatsAppBtn');
+  const printA4Btn = document.getElementById('opticalAcceptancePrintA4Btn');
+  const printThermalBtn = document.getElementById('opticalAcceptancePrintThermalBtn');
+  const exportCsvBtn = document.getElementById('opticalAcceptanceExportCsvBtn');
+
+  // Table & filters
+  const historyTableBody = document.getElementById('optHistoryTableBody');
+  const filterStatusSelect = document.getElementById('optFilterStatusSelect');
+  const searchInput = document.getElementById('optSearchInput');
+
+  let activeCustomer = null;
+  let currentEvaluation = null;
+
+  function recalculateLivePreview() {
+    const rx = Number(rxPowerInput?.value ?? -19.5);
+    const tx = Number(txPowerInput?.value ?? 2.5);
+    const wave = Number(wavelengthSelect?.value ?? 1490);
+    const dist = Number(distanceInput?.value ?? 650);
+    const split = splitRatioSelect?.value ?? '1:16';
+    const splices = Number(spliceCountInput?.value ?? 3);
+
+    const budget = calculateOpticalLossBudget({
+      txPowerDbm: tx,
+      rxPowerDbm: rx,
+      wavelengthNm: wave,
+      distanceMeters: dist,
+      splitRatio: split,
+      spliceCount: splices,
+      adapterCount: 2
+    });
+
+    currentEvaluation = budget;
+
+    if (statusBadgeEl) {
+      statusBadgeEl.textContent = budget.evaluation.label;
+      statusBadgeEl.className = `sim-delta-badge ${budget.evaluation.badgeClass}`;
+    }
+
+    if (lossBudgetBoxEl) {
+      const isPass = budget.evaluation.status === 'PASS_OPTIMAL';
+      const color = isPass ? '#059669' : budget.evaluation.status === 'CONDITIONAL_PASS' ? '#d97706' : '#dc2626';
+      lossBudgetBoxEl.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <span><strong>Measured Total Loss:</strong> ${budget.actualLoss} dB</span>
+          <span><strong>Design Budget:</strong> ${budget.theoreticalLoss} dB</span>
+          <span style="color: ${color}; font-weight: bold;">Delta: ${budget.excessLoss >= 0 ? '+' : ''}${budget.excessLoss} dB</span>
+        </div>
+        <p style="margin: 0; font-size: 11px; color: ${color};">${budget.evaluation.advice}</p>
+      `;
+    }
+  }
+
+  function setCustomerContext(customer) {
+    activeCustomer = customer;
+    if (customerNameEl) customerNameEl.textContent = customer?.name || 'Select a Subscriber';
+    if (customerMetaEl) {
+      customerMetaEl.textContent = customer
+        ? `#${customer.customerNumber || customer.id} · ${customer.area || 'Shahdara Town'} · ${customer.package || customer.currentPlan || '15 Mbps'}`
+        : 'Choose a customer to bind optical test';
+    }
+    recalculateLivePreview();
+    renderList();
+    renderKpis();
+  }
+
+  function renderKpis() {
+    const records = getSavedOpticalCertificates(storage);
+    const total = records.length;
+    let avgRx = 'N/A';
+    let passRate = '100%';
+    let attenuationAlerts = 0;
+
+    if (total > 0) {
+      const rxSum = records.reduce((acc, r) => acc + (Number(r.telemetry?.rxPowerDbm) || 0), 0);
+      avgRx = `${(rxSum / total).toFixed(1)} dBm`;
+      const passed = records.filter(r => r.telemetry?.status === 'PASS_OPTIMAL' || r.telemetry?.status === 'CONDITIONAL_PASS').length;
+      passRate = `${Math.round((passed / total) * 100)}%`;
+      attenuationAlerts = records.filter(r => r.telemetry?.status === 'FAILED_ATTENUATION' || r.telemetry?.status === 'CRITICAL_SATURATION').length;
+    }
+
+    if (kpiTotalCertificates) kpiTotalCertificates.textContent = String(total);
+    if (kpiAverageRx) kpiAverageRx.textContent = avgRx;
+    if (kpiPassRate) kpiPassRate.textContent = passRate;
+    if (kpiAttenuationAlerts) kpiAttenuationAlerts.textContent = String(attenuationAlerts);
+  }
+
+  function renderList() {
+    if (!historyTableBody) return;
+    const records = getSavedOpticalCertificates(storage);
+    const filter = filterStatusSelect?.value || 'ALL';
+    const query = (searchInput?.value || '').trim().toLowerCase();
+
+    const filtered = records.filter(r => {
+      if (filter !== 'ALL' && r.telemetry?.status !== filter) return false;
+      if (query) {
+        const text = `${r.id} ${r.customer?.name} ${r.customer?.area} ${r.telemetry?.ontSerial} ${r.inspector}`.toLowerCase();
+        if (!text.includes(query)) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      historyTableBody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 18px; color: var(--muted, #64748b);">No optical acceptance certificates match criteria.</td></tr>`;
+      return;
+    }
+
+    historyTableBody.innerHTML = filtered.map(r => {
+      const t = r.telemetry;
+      const badgeCls = t.status === 'PASS_OPTIMAL' ? 'badge-success' : t.status === 'CONDITIONAL_PASS' ? 'badge-warning' : 'badge-danger';
+      return `
+        <tr>
+          <td><strong>${r.id}</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">${r.createdAt ? r.createdAt.slice(0, 10) : ''}</span></td>
+          <td><strong>${r.customer?.name || 'N/A'}</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">${r.customer?.area || ''}</span></td>
+          <td>${t.ontSerial}<br><span style="font-size: 10px; color: var(--muted, #64748b);">${t.oltPort}</span></td>
+          <td><strong>${t.rxPowerDbm} dBm</strong><br><span style="font-size: 10px; color: var(--muted, #64748b);">Tx: +${t.txPowerDbm} dBm</span></td>
+          <td>${t.actualLoss} dB<br><span style="font-size: 10px; color: var(--muted, #64748b);">Target: ${t.theoreticalLoss} dB</span></td>
+          <td><span class="sim-delta-badge ${badgeCls}">${t.statusLabel}</span></td>
+          <td class="text-center">
+            <button type="button" class="action-link-btn" data-opt-action="whatsapp" data-opt-id="${r.id}" title="Send WhatsApp">💬</button>
+            <button type="button" class="action-link-btn" data-opt-action="a4" data-opt-id="${r.id}" title="Print A4">🖨️</button>
+            <button type="button" class="action-link-btn" data-opt-action="thermal" data-opt-id="${r.id}" title="Print 80mm">🧾</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // Wire action links
+    historyTableBody.querySelectorAll('[data-opt-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.optAction;
+        const certId = btn.dataset.optId;
+        const cert = records.find(c => c.id === certId);
+        if (!cert) return;
+
+        if (action === 'whatsapp') {
+          const text = formatOpticalAcceptanceWhatsApp(cert);
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text);
+            if (typeof onToast === 'function') onToast(`WhatsApp certificate ${cert.id} copied!`);
+          }
+        } else if (action === 'a4') {
+          const html = generateOpticalCertificateHtml(cert, { mode: 'a4' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<html><head><title>${cert.id}</title></head><body>${html}</body></html>`);
+            win.document.close();
+            win.print();
+          }
+        } else if (action === 'thermal') {
+          const html = generateOpticalCertificateHtml(cert, { mode: 'thermal' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<html><head><title>${cert.id}</title></head><body>${html}</body></html>`);
+            win.document.close();
+            win.print();
+          }
+        }
+      });
+    });
+  }
+
+  // Reactive inputs
+  [rxPowerInput, txPowerInput, distanceInput, splitRatioSelect, spliceCountInput, wavelengthSelect].forEach(input => {
+    if (input && !input.dataset?.wiredOpt) {
+      input.dataset.wiredOpt = 'true';
+      input.addEventListener('input', () => {
+        if (input === rxPowerInput && rxPowerSlider) rxPowerSlider.value = rxPowerInput.value;
+        recalculateLivePreview();
+      });
+      input.addEventListener('change', recalculateLivePreview);
+    }
+  });
+
+  if (rxPowerSlider && !rxPowerSlider.dataset?.wiredOpt) {
+    rxPowerSlider.dataset.wiredOpt = 'true';
+    rxPowerSlider.addEventListener('input', () => {
+      if (rxPowerInput) rxPowerInput.value = rxPowerSlider.value;
+      recalculateLivePreview();
+    });
+  }
+
+  if (filterStatusSelect && !filterStatusSelect.dataset?.wiredOpt) {
+    filterStatusSelect.dataset.wiredOpt = 'true';
+    filterStatusSelect.addEventListener('change', renderList);
+  }
+
+  if (searchInput && !searchInput.dataset?.wiredOpt) {
+    searchInput.dataset.wiredOpt = 'true';
+    searchInput.addEventListener('input', renderList);
+  }
+
+  // Submit button
+  if (submitBtn && !submitBtn.dataset?.wiredOpt) {
+    submitBtn.dataset.wiredOpt = 'true';
+    submitBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || null;
+      if (!cust) {
+        if (typeof onToast === 'function') onToast('Select an active subscriber first.');
+        return;
+      }
+
+      const formData = {
+        customerId: cust.id,
+        customerName: cust.name,
+        area: cust.area,
+        phone: cust.phone,
+        package: cust.package || cust.currentPlan,
+        ontSerial: ontSerialInput?.value || 'HG8245H-GPON-01',
+        oltPort: oltPortInput?.value || 'OLT-01 / PON-02',
+        wavelengthNm: Number(wavelengthSelect?.value) || 1490,
+        txPowerDbm: Number(txPowerInput?.value) || 2.5,
+        rxPowerDbm: Number(rxPowerInput?.value) || -19.5,
+        distanceMeters: Number(distanceInput?.value) || 650,
+        splitRatio: splitRatioSelect?.value || '1:16',
+        spliceCount: Number(spliceCountInput?.value) || 3,
+        inspector: inspectorInput?.value || 'Field QA Lineman',
+        notes: notesInput?.value || 'Commissioned under ITU-T G.984 Class B+ specs.'
+      };
+
+      const validation = validateOpticalCertificate(formData);
+      if (!validation.isValid) {
+        const firstErr = Object.values(validation.errors)[0];
+        if (typeof onToast === 'function') onToast(firstErr || 'Invalid form input.');
+        return;
+      }
+
+      const record = buildOpticalCertificateRecord(cust, formData);
+      saveOpticalCertificate(record, storage);
+      renderList();
+      renderKpis();
+      if (typeof onToast === 'function') onToast(`Issued Certificate: ${record.id} (${record.telemetry.statusLabel})`);
+    });
+  }
+
+  // Copy WhatsApp button
+  if (copyWhatsAppBtn && !copyWhatsAppBtn.dataset?.wiredOpt) {
+    copyWhatsAppBtn.dataset.wiredOpt = 'true';
+    copyWhatsAppBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || null;
+      if (!cust) return;
+
+      const formData = {
+        customerId: cust.id,
+        customerName: cust.name,
+        area: cust.area,
+        phone: cust.phone,
+        package: cust.package,
+        ontSerial: ontSerialInput?.value || 'HG8245H-GPON-01',
+        oltPort: oltPortInput?.value || 'OLT-01 / PON-02',
+        wavelengthNm: Number(wavelengthSelect?.value) || 1490,
+        txPowerDbm: Number(txPowerInput?.value) || 2.5,
+        rxPowerDbm: Number(rxPowerInput?.value) || -19.5,
+        distanceMeters: Number(distanceInput?.value) || 650,
+        splitRatio: splitRatioSelect?.value || '1:16',
+        spliceCount: Number(spliceCountInput?.value) || 3,
+        inspector: inspectorInput?.value || 'Field QA Lineman',
+        notes: notesInput?.value || ''
+      };
+
+      const record = buildOpticalCertificateRecord(cust, formData);
+      const text = formatOpticalAcceptanceWhatsApp(record);
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text);
+        if (typeof onToast === 'function') onToast('WhatsApp optical certificate copied to clipboard!');
+      }
+    });
+  }
+
+  // Print A4 button
+  if (printA4Btn && !printA4Btn.dataset?.wiredOpt) {
+    printA4Btn.dataset.wiredOpt = 'true';
+    printA4Btn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || null;
+      if (!cust) return;
+
+      const formData = {
+        customerId: cust.id,
+        customerName: cust.name,
+        area: cust.area,
+        phone: cust.phone,
+        package: cust.package,
+        ontSerial: ontSerialInput?.value || 'HG8245H-GPON-01',
+        oltPort: oltPortInput?.value || 'OLT-01 / PON-02',
+        wavelengthNm: Number(wavelengthSelect?.value) || 1490,
+        txPowerDbm: Number(txPowerInput?.value) || 2.5,
+        rxPowerDbm: Number(rxPowerInput?.value) || -19.5,
+        distanceMeters: Number(distanceInput?.value) || 650,
+        splitRatio: splitRatioSelect?.value || '1:16',
+        spliceCount: Number(spliceCountInput?.value) || 3,
+        inspector: inspectorInput?.value || 'Field QA Lineman',
+        notes: notesInput?.value || ''
+      };
+
+      const record = buildOpticalCertificateRecord(cust, formData);
+      const html = generateOpticalCertificateHtml(record, { mode: 'a4' });
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`<html><head><title>${record.id}</title></head><body>${html}</body></html>`);
+        win.document.close();
+        win.print();
+      }
+    });
+  }
+
+  // Print 80mm POS slip button
+  if (printThermalBtn && !printThermalBtn.dataset?.wiredOpt) {
+    printThermalBtn.dataset.wiredOpt = 'true';
+    printThermalBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || null;
+      if (!cust) return;
+
+      const formData = {
+        customerId: cust.id,
+        customerName: cust.name,
+        area: cust.area,
+        phone: cust.phone,
+        package: cust.package,
+        ontSerial: ontSerialInput?.value || 'HG8245H-GPON-01',
+        oltPort: oltPortInput?.value || 'OLT-01 / PON-02',
+        wavelengthNm: Number(wavelengthSelect?.value) || 1490,
+        txPowerDbm: Number(txPowerInput?.value) || 2.5,
+        rxPowerDbm: Number(rxPowerInput?.value) || -19.5,
+        distanceMeters: Number(distanceInput?.value) || 650,
+        splitRatio: splitRatioSelect?.value || '1:16',
+        spliceCount: Number(spliceCountInput?.value) || 3,
+        inspector: inspectorInput?.value || 'Field QA Lineman',
+        notes: notesInput?.value || ''
+      };
+
+      const record = buildOpticalCertificateRecord(cust, formData);
+      const html = generateOpticalCertificateHtml(record, { mode: 'thermal' });
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`<html><head><title>${record.id}</title></head><body>${html}</body></html>`);
+        win.document.close();
+        win.print();
+      }
+    });
+  }
+
+  // Export CSV button
+  if (exportCsvBtn && !exportCsvBtn.dataset?.wiredOpt) {
+    exportCsvBtn.dataset.wiredOpt = 'true';
+    exportCsvBtn.addEventListener('click', () => {
+      const records = getSavedOpticalCertificates(storage);
+      const csv = generateOpticalCertificatesCsv(records);
+      const filename = `shahdara_optical_qa_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      if (typeof onToast === 'function') onToast(`Exported ${filename}`);
+    });
+  }
+
+  // Open triggers
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredOptOpen) {
+      btn.dataset.wiredOptOpen = 'true';
+      btn.addEventListener('click', () => {
+        const state = typeof getState === 'function' ? getState() : {};
+        const cust = activeCustomer || state?.customers?.[0] || null;
+        setCustomerContext(cust);
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredOpt) {
+    closeBtn.dataset.wiredOpt = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    open: (cust) => {
+      setCustomerContext(cust);
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    },
+    setCustomer: setCustomerContext,
+    recalculate: () => {
+      recalculateLivePreview();
+      renderList();
+      renderKpis();
+    }
+  };
+}

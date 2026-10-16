@@ -5556,3 +5556,40 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* =========================================================================
+   Optical Return Loss (ORL), Endface Contamination & Reflectance QA Certificate
+   ========================================================================= */
+
+.orl-cert-modal-card {
+  max-width: 900px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.ferrule-endface-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+  width: 100%;
+  max-width: 540px;
+}
+
+[data-theme="dark"] .orl-cert-modal-card {
+  background: #14241e;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+@media print {
+  .orl-cert-modal,
+  .orl-cert-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

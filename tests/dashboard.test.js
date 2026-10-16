@@ -303,8 +303,28 @@ import {
   calculateSyncEMetrics,
   renderSyncEClockSvg,
   generateSyncEReport,
-  setupSyncEModal
+  setupSyncEModal,
+  SHAHDARA_ROADM_NODES,
+  SHAHDARA_WAVELENGTH_CHANNELS,
+  ROADM_CONSTANTS,
+  getRoadmSelectedNode,
+  setRoadmSelectedNode,
+  getRoadmSelectedChannel,
+  setRoadmSelectedChannel,
+  getRoadmSpanCondition,
+  setRoadmSpanCondition,
+  getRoadmSwitchingMode,
+  setRoadmSwitchingMode,
+  getRoadmVoaAttenuationDb,
+  setRoadmVoaAttenuationDb,
+  resetRoadmSimState,
+  calculateChannelOpticalLoss,
+  calculateRoadmMetrics,
+  renderRoadmOpticalSvg,
+  generateRoadmReport,
+  setupRoadmModal
 } from '../dashboard.js';
+
 
 
 
@@ -9279,4 +9299,305 @@ test('SyncE state getters, setters, and boundary clamping work reliably', () => 
   assert.equal(getSyncEGnssLossInjected(), false);
   assert.equal(getSyncESelectedProfile(), SYNCE_CONSTANTS.PTP_PROFILES.G8275_1);
 });
+
+test('calculateChannelOpticalLoss calculates insertion loss, output power, and OSNR for express and add/drop channels', () => {
+  const node = SHAHDARA_ROADM_NODES[0];
+  const expressCh = SHAHDARA_WAVELENGTH_CHANNELS[0]; // Ch 1 Express
+  const addDropCh = SHAHDARA_WAVELENGTH_CHANNELS[1]; // Ch 2 Add/Drop
+
+  const expressMetrics = calculateChannelOpticalLoss(expressCh, node, {
+    spanCondition: ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.NORMAL,
+    switchingMode: ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION,
+    voaAttenuationDb: 0.0
+  });
+
+  assert.equal(expressMetrics.activePathType, 'EXPRESS_BYPASS');
+  assert.equal(expressMetrics.opticalLossDb, ROADM_CONSTANTS.BASE_EXPRESS_LOSS_DB);
+  assert.equal(expressMetrics.pathStatus, 'OPTIMAL');
+  assert.equal(expressMetrics.badgeClass, 'badge-success');
+  assert.ok(expressMetrics.effectiveOsnrDb > ROADM_CONSTANTS.MIN_ACCEPTABLE_OSNR_DB);
+
+  const addDropMetrics = calculateChannelOpticalLoss(addDropCh, node, {
+    spanCondition: ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.NORMAL,
+    switchingMode: ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION,
+    voaAttenuationDb: 2.0
+  });
+
+  assert.equal(addDropMetrics.activePathType, 'ADD_DROP');
+  assert.equal(addDropMetrics.opticalLossDb, ROADM_CONSTANTS.BASE_ADD_DROP_LOSS_DB + 2.0);
+  assert.equal(addDropMetrics.statusLabel, 'LOCAL ADD/DROP');
+});
+
+test('calculateChannelOpticalLoss simulates WSS protection rerouting and loopback modes', () => {
+  const node = SHAHDARA_ROADM_NODES[0];
+  const expressCh = SHAHDARA_WAVELENGTH_CHANNELS[0];
+
+  // Fiber span cut: East span cut triggers West protection rerouting (<50ms)
+  const reroutedEast = calculateChannelOpticalLoss(expressCh, node, {
+    spanCondition: ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.EAST_SPAN_CUT,
+    switchingMode: ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION
+  });
+
+  assert.equal(reroutedEast.activePathType, 'PROTECTION_WEST_REROUTE');
+  assert.equal(reroutedEast.rerouted, true);
+  assert.equal(reroutedEast.pathStatus, 'PROTECTED');
+  assert.equal(reroutedEast.badgeClass, 'badge-warning');
+  assert.equal(reroutedEast.protectionLatencyMs, node.switchingLatencyMs);
+
+  // Maintenance loopback
+  const loopback = calculateChannelOpticalLoss(expressCh, node, {
+    switchingMode: ROADM_CONSTANTS.SWITCHING_MODES.MAINTENANCE_LOOPBACK
+  });
+
+  assert.equal(loopback.activePathType, 'LOOPBACK_OSA');
+  assert.equal(loopback.pathStatus, 'MAINTENANCE');
+  assert.equal(loopback.statusLabel, 'OSA LOOPBACK');
+
+  // Excessive VOA attenuation triggers low OSNR
+  const degraded = calculateChannelOpticalLoss(expressCh, node, {
+    voaAttenuationDb: 15.0
+  });
+
+  assert.ok(degraded.effectiveOsnrDb < ROADM_CONSTANTS.MIN_ACCEPTABLE_OSNR_DB);
+  assert.equal(degraded.pathStatus, 'DEGRADED');
+  assert.equal(degraded.badgeClass, 'badge-danger');
+});
+
+test('calculateRoadmMetrics computes channel counts, fleet status, and subscriber revenue exposure', () => {
+  let state = createInitialState(['Roadm Cust 1', 'Roadm Cust 2']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[1].area = 'Baradari Road';
+  state.customers[1].serviceStatus = 'active';
+
+  const metrics = calculateRoadmMetrics(state, {
+    selectedNodeId: 'roadm-node-central',
+    selectedChannelId: 'ch-1-core-transit'
+  });
+
+  assert.equal(metrics.nodes.length, SHAHDARA_ROADM_NODES.length);
+  assert.equal(metrics.channels.length, SHAHDARA_WAVELENGTH_CHANNELS.length);
+  assert.equal(metrics.selectedNode.id, 'roadm-node-central');
+  assert.equal(metrics.selectedChannel.id, 'ch-1-core-transit');
+  assert.equal(metrics.matchedCustomersCount, 1);
+  assert.ok(metrics.expressChannelsCount > 0);
+  assert.ok(metrics.addDropChannelsCount > 0);
+  assert.equal(metrics.opticalFleetStatus, 'OPTIMAL DUAL-RING');
+});
+
+test('renderRoadmOpticalSvg renders accessible SVG in compact dial mode and modal WSS/OSA mode', () => {
+  let state = createInitialState(['Opt User']);
+  const metrics = calculateRoadmMetrics(state);
+
+  const compactSvg = renderRoadmOpticalSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('roadm-compact-svg'));
+  assert.ok(compactSvg.includes('WSS OPTICAL OSNR'));
+  assert.ok(compactSvg.includes('VOA ATTENUATION'));
+  assert.ok(compactSvg.includes('RING ROUTING STATE'));
+
+  const modalSvg = renderRoadmOpticalSvg(metrics, { compact: false });
+  assert.ok(modalSvg.includes('roadm-modal-svg'));
+  assert.ok(modalSvg.includes('LCOS FLEX-GRID WAVELENGTH SELECTIVE SWITCH'));
+  assert.ok(modalSvg.includes('OPTICAL SPECTRUM ANALYZER (OSA)'));
+  assert.ok(modalSvg.includes('ALL-OPTICAL EXPRESS BYPASS'));
+
+  const emptySvg = renderRoadmOpticalSvg(null);
+  assert.ok(emptySvg.includes('No optical ROADM telemetry recorded'));
+});
+
+test('generateRoadmReport formats comprehensive executive optical audit text', () => {
+  let state = createInitialState(['Carrier Cust']);
+  const metrics = calculateRoadmMetrics(state);
+
+  const report = generateRoadmReport(metrics);
+  assert.ok(report.includes('ROADM FLEX-GRID WSS OPTICAL ROUTING AUDIT BRIEFING'));
+  assert.ok(report.includes('AUDITED ROADM NODE'));
+  assert.ok(report.includes('ACTIVE WAVELENGTH CARRIER:'));
+  assert.ok(report.includes('C-BAND FLEX-GRID CHANNEL REGISTER'));
+  assert.ok(report.includes('SUBSCRIBER IMPACT & FINANCIAL RISK'));
+});
+
+test('setupRoadmModal wires interactive controls, dropdowns, sliders, and clipboard copy', async () => {
+  let state = createInitialState(['ROADM Tech']);
+  state.customers[0].area = 'Shahdara Town';
+
+  let modalOpened = false;
+  let filterAreaTarget = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+  const mockOpenBtn = { addEventListener: (evt, fn) => { mockOpenBtn.onclick = fn; }, onclick: null };
+  const mockCloseBtn = { addEventListener: (evt, fn) => { mockCloseBtn.onclick = fn; }, onclick: null };
+
+  const mockNodeSelect = { options: [], value: 'roadm-node-central', appendChild: (opt) => mockNodeSelect.options.push(opt), addEventListener: (evt, fn) => { mockNodeSelect.onchange = fn; } };
+  const mockChannelSelect = { options: [], value: 'ch-1-core-transit', appendChild: (opt) => mockChannelSelect.options.push(opt), addEventListener: (evt, fn) => { mockChannelSelect.onchange = fn; } };
+  const mockSpanSelect = { options: [], value: ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.NORMAL, appendChild: (opt) => mockSpanSelect.options.push(opt), addEventListener: (evt, fn) => { mockSpanSelect.onchange = fn; } };
+  const mockModeSelect = { options: [], value: ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION, appendChild: (opt) => mockModeSelect.options.push(opt), addEventListener: (evt, fn) => { mockModeSelect.onchange = fn; } };
+  const mockVoaSlider = { value: '2.0', addEventListener: (evt, fn) => { mockVoaSlider.oninput = fn; } };
+  const mockVoaVal = { textContent: '' };
+  const mockResetBtn = { addEventListener: (evt, fn) => { mockResetBtn.onclick = fn; }, onclick: null };
+
+  const mockKpiNodeName = { textContent: '' };
+  const mockKpiOutputPower = { textContent: '', style: {} };
+  const mockKpiOsnr = { textContent: '', style: {} };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = {
+    innerHTML: '',
+    querySelectorAll: () => []
+  };
+
+  const mockFilterAreaBtn = { addEventListener: (evt, fn) => { mockFilterAreaBtn.onclick = fn; }, onclick: null };
+  const mockCopyReportBtn = { addEventListener: (evt, fn) => { mockCopyReportBtn.onclick = fn; }, onclick: null };
+
+  const elementsMap = {
+    'dashboardRoadmModal': mockModal,
+    'dashboardOpenRoadmModalBtn': mockOpenBtn,
+    'dashboardRoadmModalCloseBtn': mockCloseBtn,
+    'roadmNodeSelect': mockNodeSelect,
+    'roadmChannelSelect': mockChannelSelect,
+    'roadmSpanSelect': mockSpanSelect,
+    'roadmModeSelect': mockModeSelect,
+    'roadmVoaSlider': mockVoaSlider,
+    'roadmVoaVal': mockVoaVal,
+    'roadmResetSimBtn': mockResetBtn,
+    'roadmKpiNodeName': mockKpiNodeName,
+    'roadmKpiOutputPower': mockKpiOutputPower,
+    'roadmKpiOsnr': mockKpiOsnr,
+    'roadmStatusBadge': mockStatusBadge,
+    'roadmKpiRevenueRisk': mockKpiRevenueRisk,
+    'roadmModalChartWrap': mockChartWrap,
+    'roadmChannelsTableBody': mockTableBody,
+    'roadmFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyRoadmReportBtn': mockCopyReportBtn
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementsMap[id] || null,
+    createElement: () => ({ value: '', textContent: '' })
+  };
+
+  try {
+    setupRoadmModal(state, {
+      onFilterArea: (a) => { filterAreaTarget = a; },
+      onToast: (m) => { toastMsg = m; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Open modal
+    assert.ok(mockOpenBtn.onclick !== null);
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiNodeName.textContent.includes('ROADM-01'));
+    assert.ok(mockChartWrap.innerHTML.includes('roadm-modal-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Ch 01'));
+
+    // Change node
+    mockNodeSelect.value = 'roadm-node-baradari';
+    mockNodeSelect.onchange();
+    assert.equal(getRoadmSelectedNode(), 'roadm-node-baradari');
+
+    // Change channel
+    mockChannelSelect.value = 'ch-2-upstream-peer';
+    mockChannelSelect.onchange();
+    assert.equal(getRoadmSelectedChannel(), 'ch-2-upstream-peer');
+
+    // Change span condition
+    mockSpanSelect.value = ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.EAST_SPAN_CUT;
+    mockSpanSelect.onchange();
+    assert.equal(getRoadmSpanCondition(), ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.EAST_SPAN_CUT);
+
+    // Change mode
+    mockModeSelect.value = ROADM_CONSTANTS.SWITCHING_MODES.MANUAL_OVERRIDE;
+    mockModeSelect.onchange();
+    assert.equal(getRoadmSwitchingMode(), ROADM_CONSTANTS.SWITCHING_MODES.MANUAL_OVERRIDE);
+
+    // Change VOA slider
+    mockVoaSlider.value = '4.5';
+    mockVoaSlider.oninput();
+    assert.equal(getRoadmVoaAttenuationDb(), 4.5);
+    assert.equal(mockVoaVal.textContent, '4.5 dB');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getRoadmSelectedNode(), 'roadm-node-central');
+    assert.equal(getRoadmSelectedChannel(), 'ch-1-core-transit');
+    assert.equal(getRoadmSpanCondition(), ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.NORMAL);
+    assert.equal(getRoadmSwitchingMode(), ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION);
+    assert.equal(getRoadmVoaAttenuationDb(), 2.0);
+    assert.equal(toastMsg, 'ROADM flex-grid state reset to baseline.');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaTarget, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('ROADM FLEX-GRID WSS OPTICAL ROUTING AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'ROADM audit report copied to clipboard!');
+
+    // Close button
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetRoadmSimState();
+  }
+});
+
+test('ROADM state getters, setters, and boundary clamping work reliably', () => {
+  resetRoadmSimState();
+  assert.equal(getRoadmSelectedNode(), 'roadm-node-central');
+
+  setRoadmSelectedNode('roadm-node-vandala');
+  assert.equal(getRoadmSelectedNode(), 'roadm-node-vandala');
+  setRoadmSelectedNode('invalid-node-id');
+  assert.equal(getRoadmSelectedNode(), 'roadm-node-vandala');
+
+  setRoadmSelectedChannel('ch-3-gpon-agg');
+  assert.equal(getRoadmSelectedChannel(), 'ch-3-gpon-agg');
+  setRoadmSelectedChannel('invalid-ch-id');
+  assert.equal(getRoadmSelectedChannel(), 'ch-3-gpon-agg');
+
+  setRoadmSpanCondition(ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.WEST_SPAN_CUT);
+  assert.equal(getRoadmSpanCondition(), ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.WEST_SPAN_CUT);
+  setRoadmSpanCondition('invalid-span');
+  assert.equal(getRoadmSpanCondition(), ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.WEST_SPAN_CUT);
+
+  setRoadmSwitchingMode(ROADM_CONSTANTS.SWITCHING_MODES.MAINTENANCE_LOOPBACK);
+  assert.equal(getRoadmSwitchingMode(), ROADM_CONSTANTS.SWITCHING_MODES.MAINTENANCE_LOOPBACK);
+  setRoadmSwitchingMode('invalid-mode');
+  assert.equal(getRoadmSwitchingMode(), ROADM_CONSTANTS.SWITCHING_MODES.MAINTENANCE_LOOPBACK);
+
+  setRoadmVoaAttenuationDb(5.5);
+  assert.equal(getRoadmVoaAttenuationDb(), 5.5);
+  setRoadmVoaAttenuationDb(30.0); // Clamped to 15.0
+  assert.equal(getRoadmVoaAttenuationDb(), 15.0);
+  setRoadmVoaAttenuationDb(-5.0); // Clamped to 0.0
+  assert.equal(getRoadmVoaAttenuationDb(), 0.0);
+
+  resetRoadmSimState();
+  assert.equal(getRoadmSelectedNode(), 'roadm-node-central');
+  assert.equal(getRoadmSelectedChannel(), 'ch-1-core-transit');
+  assert.equal(getRoadmSpanCondition(), ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.NORMAL);
+  assert.equal(getRoadmSwitchingMode(), ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION);
+  assert.equal(getRoadmVoaAttenuationDb(), 2.0);
+});
+
 

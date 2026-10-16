@@ -5403,3 +5403,23 @@ export {
   generateDwdmReport,
   setupDwdmModal
 } from './dashboard-dwdm.js';
+
+export {
+  SHAHDARA_OSC_LINKS,
+  OSC_CONSTANTS,
+  getOscSelectedLink,
+  setOscSelectedLink,
+  getOscFiberLossDelta,
+  setOscFiberLossDelta,
+  getOscSpliceLossDelta,
+  setOscSpliceLossDelta,
+  getOscLoopbackMode,
+  setOscLoopbackMode,
+  resetOscSimState,
+  calculateOpticalRttMicroseconds,
+  calculateOscLinkBudget,
+  calculateOscMetrics,
+  renderOscTelemetrySvg,
+  generateOscReport,
+  setupOscModal
+} from './dashboard-osc.js';

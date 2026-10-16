@@ -251,8 +251,26 @@ import {
   calculateDwdmMetrics,
   renderDwdmBudgetSvg,
   generateDwdmReport,
-  setupDwdmModal
+  setupDwdmModal,
+  SHAHDARA_OSC_LINKS,
+  OSC_CONSTANTS,
+  getOscSelectedLink,
+  setOscSelectedLink,
+  getOscFiberLossDelta,
+  setOscFiberLossDelta,
+  getOscSpliceLossDelta,
+  setOscSpliceLossDelta,
+  getOscLoopbackMode,
+  setOscLoopbackMode,
+  resetOscSimState,
+  calculateOpticalRttMicroseconds,
+  calculateOscLinkBudget,
+  calculateOscMetrics,
+  renderOscTelemetrySvg,
+  generateOscReport,
+  setupOscModal
 } from '../dashboard.js';
+
 
 
 import {
@@ -8344,5 +8362,292 @@ test('setupDwdmModal hooks all UI elements, controls, and callbacks properly', a
   } finally {
     globalThis.document = originalDocument;
     resetDwdmSimState();
+  }
+});
+
+test('calculateOpticalRttMicroseconds computes accurate round-trip time in silica fiber', () => {
+  const rtt20km = calculateOpticalRttMicroseconds(20.0);
+  // Speed in silica ~ 204,190 km/s -> 20 km one-way = ~97.94 µs -> RTT = ~195.89 µs
+  assert.ok(rtt20km > 190 && rtt20km < 200, `Expected ~196µs, got ${rtt20km}`);
+
+  const rtt0km = calculateOpticalRttMicroseconds(0);
+  assert.equal(rtt0km, 0);
+});
+
+test('calculateOscLinkBudget calculates attenuation, Rx power, link margin, and health status', () => {
+  const coreLink = SHAHDARA_OSC_LINKS.find(l => l.id === 'osc-link-1510-core');
+  assert.ok(coreLink);
+
+  const normalBudget = calculateOscLinkBudget(coreLink, {
+    fiberLossDelta: 0.0,
+    spliceLossDelta: 0.0,
+    loopbackMode: OSC_CONSTANTS.LOOPBACK_MODES.NORMAL
+  });
+
+  // Base fiber loss: 28.5 * 0.24 = 6.84 dB
+  // Base splice loss: 0.50 dB
+  // Filter loss: 2.4 dB, connector: 0.5 dB
+  // Total attenuation: 6.84 + 0.50 + 2.4 + 0.5 = 10.24 dB
+  // Tx: +3.0 dBm -> Rx: 3.0 - 10.24 = -7.24 dBm
+  // Sens: -38.0 dBm -> Margin: -7.24 - (-38.0) = +30.76 dB
+  assert.equal(normalBudget.spanLengthKm, 28.5);
+  assert.equal(normalBudget.status, 'OPTIMAL');
+  assert.equal(normalBudget.badgeClass, 'badge-success');
+  assert.ok(normalBudget.linkMarginDb > 25.0);
+  assert.equal(normalBudget.berExponent, -13);
+  assert.equal(normalBudget.loopbackActive, false);
+  assert.equal(normalBudget.loopbackMode, 'NORMAL');
+
+  // Extreme attenuation simulation (degradation)
+  const degradedBudget = calculateOscLinkBudget(coreLink, {
+    fiberLossDelta: 0.45, // 0.24 + 0.45 = 0.69 dB/km -> 28.5 * 0.69 = 19.665 dB
+    spliceLossDelta: 10.0, // +10 dB splice damage
+    loopbackMode: OSC_CONSTANTS.LOOPBACK_MODES.FACILITY
+  });
+
+  assert.ok(degradedBudget.totalAttenuationDb > 30.0);
+  assert.ok(degradedBudget.linkMarginDb < normalBudget.linkMarginDb);
+  assert.equal(degradedBudget.loopbackActive, true);
+  assert.equal(degradedBudget.loopbackMode, 'FACILITY');
+});
+
+test('calculateOscMetrics evaluates aggregate network telemetry and subscriber risk', () => {
+  let state = createInitialState(['Sub Core 1', 'Sub Core 2', 'Sub Vandala', 'Sub Unrelated']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].packagePrice = 2500;
+  state.customers[1].area = 'Railway Road';
+  state.customers[1].packagePrice = 3000;
+  state.customers[2].area = 'Vandala Road';
+  state.customers[2].packagePrice = 2000;
+  state.customers[3].area = 'NonExistentArea';
+  state.customers[3].packagePrice = 1500;
+
+  // Add bill and unpaid balance for Sub Core 1
+  state.customers[0].bills = [{
+    id: 'b-core-1',
+    customerId: state.customers[0].id,
+    serviceMonth: '2026-10',
+    amount: 2500,
+    timestamp: '2026-10-01T00:00:00Z'
+  }];
+
+
+
+  const metrics = calculateOscMetrics(state);
+  assert.equal(metrics.totalLinks, 6);
+  assert.ok(metrics.totalSpanKm > 100);
+  assert.ok(metrics.selectedLink !== null);
+  assert.ok(metrics.allLinks.length === 6);
+
+  // Link 1 (Shahdara Town + Railway Road) should match Sub Core 1 and Sub Core 2
+  const coreLinkMetrics = metrics.allLinks.find(l => l.id === 'osc-link-1510-core');
+  assert.ok(coreLinkMetrics);
+  assert.equal(coreLinkMetrics.matchingCount, 2);
+  assert.equal(coreLinkMetrics.totalBilledRevenue, 5500);
+  assert.ok(coreLinkMetrics.totalOutstandingDues >= 2500);
+});
+
+test('OSC simulation state getters, setters, and clamp limits function properly', () => {
+  resetOscSimState();
+  assert.equal(getOscSelectedLink(), 'osc-link-1510-core');
+  assert.equal(getOscFiberLossDelta(), 0.0);
+  assert.equal(getOscSpliceLossDelta(), 0.0);
+  assert.equal(getOscLoopbackMode(), 'NORMAL');
+
+  setOscSelectedLink('osc-link-1610-vandala');
+  assert.equal(getOscSelectedLink(), 'osc-link-1610-vandala');
+
+  // Ignored if invalid ID
+  setOscSelectedLink('invalid-link-id');
+  assert.equal(getOscSelectedLink(), 'osc-link-1610-vandala');
+
+  setOscFiberLossDelta(0.25);
+  assert.equal(getOscFiberLossDelta(), 0.25);
+  setOscFiberLossDelta(1.50); // should clamp to 0.50
+  assert.equal(getOscFiberLossDelta(), 0.50);
+
+  setOscSpliceLossDelta(4.5);
+  assert.equal(getOscSpliceLossDelta(), 4.5);
+  setOscSpliceLossDelta(25.0); // should clamp to 10.0
+  assert.equal(getOscSpliceLossDelta(), 10.0);
+
+  setOscLoopbackMode(OSC_CONSTANTS.LOOPBACK_MODES.PRBS31);
+  assert.equal(getOscLoopbackMode(), 'PRBS31');
+
+  resetOscSimState();
+  assert.equal(getOscSelectedLink(), 'osc-link-1510-core');
+  assert.equal(getOscFiberLossDelta(), 0.0);
+  assert.equal(getOscSpliceLossDelta(), 0.0);
+  assert.equal(getOscLoopbackMode(), 'NORMAL');
+});
+
+test('renderOscTelemetrySvg produces valid SVG markup for compact and expanded modes', () => {
+  let state = createInitialState(['Sub']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateOscMetrics(state);
+
+  const compactSvg = renderOscTelemetrySvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="osc-compact-svg"'));
+  assert.ok(compactSvg.includes('OPTICAL RX POWER'));
+  assert.ok(compactSvg.includes('OPTICAL MARGIN'));
+  assert.ok(compactSvg.includes('ESTIMATED BER'));
+  assert.ok(compactSvg.includes('OSC-1510'));
+
+  const expandedSvg = renderOscTelemetrySvg(metrics, { compact: false });
+  assert.ok(expandedSvg.includes('<svg class="osc-expanded-svg"'));
+  assert.ok(expandedSvg.includes('OPTICAL SPECTRUM ISOLATION'));
+  assert.ok(expandedSvg.includes('TRANSPONDER SCHEMATIC &amp; REMOTE LOOPBACK STATE'));
+  assert.ok(expandedSvg.includes('OPTICAL LOSS BUDGET WATERFALL'));
+  assert.ok(expandedSvg.includes('RECEIVER POWER vs SENSITIVITY FLOOR'));
+  assert.ok(expandedSvg.includes('NEAR-END NODE'));
+  assert.ok(expandedSvg.includes('FAR-END NODE'));
+});
+
+test('generateOscReport produces comprehensive plain text diagnostic brief', () => {
+  let state = createInitialState(['Core Subscriber']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateOscMetrics(state);
+
+  const report = generateOscReport(metrics, { referenceDate: '2026-10-16T12:00:00Z' });
+  assert.ok(report.includes('SHAHDARA OPTICAL SUPERVISORY CHANNEL (OSC) & LOOPBACK AUDIT BRIEFING'));
+  assert.ok(report.includes('NETWORK FLEET SUMMARY'));
+  assert.ok(report.includes('AUDITED LINK TELEMETRY DETAILS'));
+  assert.ok(report.includes('OPTICAL POWER BUDGET & ATTENUATION'));
+  assert.ok(report.includes('DIAGNOSTIC LOOPBACK & SUBSCRIBER EXPOSURE'));
+  assert.ok(report.includes('RECOMMENDED FIELD ACTIONS:'));
+});
+
+test('setupOscModal hooks all UI elements, controls, and callbacks properly', async () => {
+  let state = createInitialState(['OSC Test Client']);
+  state.customers[0].area = 'Shahdara Town';
+
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+
+  const mockLinkSelect = { options: [], value: 'osc-link-1510-core', innerHTML: '', onchange: null };
+  const mockLoopbackSelect = { options: [], value: 'NORMAL', innerHTML: '', onchange: null };
+  const mockFiberLossSlider = { value: '0.00', oninput: null };
+  const mockFiberLossVal = { textContent: '' };
+  const mockSpliceLossSlider = { value: '0.0', oninput: null };
+  const mockSpliceLossVal = { textContent: '' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiLinkName = { textContent: '' };
+  const mockKpiRxPower = { textContent: '' };
+  const mockKpiMargin = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+
+  const elementsMap = {
+    'dashboardOscModal': mockModal,
+    'dashboardOpenOscModalBtn': mockOpenBtn,
+    'dashboardOscModalCloseBtn': mockCloseBtn,
+    'oscLinkSelect': mockLinkSelect,
+    'oscLoopbackModeSelect': mockLoopbackSelect,
+    'oscFiberLossSlider': mockFiberLossSlider,
+    'oscFiberLossVal': mockFiberLossVal,
+    'oscSpliceLossSlider': mockSpliceLossSlider,
+    'oscSpliceLossVal': mockSpliceLossVal,
+    'oscResetSimBtn': mockResetBtn,
+    'oscKpiLinkName': mockKpiLinkName,
+    'oscKpiRxPower': mockKpiRxPower,
+    'oscKpiMargin': mockKpiMargin,
+    'oscStatusBadge': mockStatusBadge,
+    'oscKpiRevenueRisk': mockKpiRevenueRisk,
+    'oscModalChartWrap': mockChartWrap,
+    'oscLinksTableBody': mockTableBody,
+    'oscFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyOscReportBtn': mockCopyReportBtn
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementsMap[id] || null
+  };
+
+  try {
+    setupOscModal(state, {
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (text) => { copiedText = text; }
+      }
+    });
+
+    // Open modal
+    assert.ok(mockOpenBtn.onclick !== null);
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiLinkName.textContent.includes('OSC-1510'));
+    assert.ok(mockChartWrap.innerHTML.includes('osc-expanded-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Shahdara Town Core'));
+
+    // Change link
+    assert.ok(mockLinkSelect.onchange !== null);
+    mockLinkSelect.onchange({ target: { value: 'osc-link-1610-vandala' } });
+    assert.equal(getOscSelectedLink(), 'osc-link-1610-vandala');
+    assert.ok(mockKpiLinkName.textContent.includes('Vandala'));
+
+    // Change loopback mode
+    assert.ok(mockLoopbackSelect.onchange !== null);
+    mockLoopbackSelect.onchange({ target: { value: 'TERMINAL' } });
+    assert.equal(getOscLoopbackMode(), 'TERMINAL');
+
+    // Change fiber loss slider
+    assert.ok(mockFiberLossSlider.oninput !== null);
+    mockFiberLossSlider.oninput({ target: { value: '0.12' } });
+    assert.equal(getOscFiberLossDelta(), 0.12);
+    assert.equal(mockFiberLossVal.textContent, '+0.12 dB/km');
+
+    // Change splice loss slider
+    assert.ok(mockSpliceLossSlider.oninput !== null);
+    mockSpliceLossSlider.oninput({ target: { value: '1.4' } });
+    assert.equal(getOscSpliceLossDelta(), 1.4);
+    assert.equal(mockSpliceLossVal.textContent, '+1.40 dB');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getOscSelectedLink(), 'osc-link-1510-core');
+    assert.equal(getOscFiberLossDelta(), 0.0);
+    assert.equal(getOscSpliceLossDelta(), 0.0);
+    assert.equal(getOscLoopbackMode(), 'NORMAL');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(toastMessage.includes('OSC Telemetry Briefing'));
+    assert.ok(copiedText.includes('SHAHDARA OPTICAL SUPERVISORY CHANNEL (OSC) & LOOPBACK AUDIT BRIEFING'));
+
+    // Close modal
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetOscSimState();
   }
 });

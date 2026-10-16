@@ -760,6 +760,16 @@
             </div>
             <div id="dashboardMplsTeChart" class="chart-svg-container" role="img" aria-label="Core MPLS-TE Topology and Bandwidth Headroom Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-mef-ethernet">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier Ethernet E-Line / E-LAN Bandwidth Profiles</h4>
+                <p class="chart-subtitle">MEF 6.2/10.3 services, RFC 4115 color-aware dual token bucket policing &amp; MEF 23.1 CoS SLAs</p>
+              </div>
+              <button id="dashboardOpenMefEthernetModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MEF SLA Diagnostics</button>
+            </div>
+            <div id="dashboardMefEthernetChart" class="chart-svg-container" role="img" aria-label="Carrier Ethernet Bandwidth Profile and Token Bucket Chart"></div>
+          </article>
         </div>
 
 
@@ -3943,6 +3953,101 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="mplsTeFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="mplsTeCopyReportBtn" class="primary-button" type="button">📋 Copy MPLS-TE Briefing</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardMefEthernetModal" class="dashboard-modal mef-ethernet-modal" aria-labelledby="dashboardMefEthernetModalTitle">
+        <div class="dashboard-modal-card mef-ethernet-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <span class="eyebrow">CARRIER ETHERNET BANDWIDTH PROFILES &amp; POLICING MATRIX</span>
+              <h3 id="dashboardMefEthernetModalTitle">MEF 6.2 / 10.3 Services &amp; RFC 4115 Dual Token Bucket Conditioner</h3>
+            </div>
+            <button id="dashboardMefEthernetModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">MEF 6.2 E-Line/E-LAN services, MEF 10.3 bandwidth profiles, and RFC 2698 / RFC 4115 two-rate three-color marker (trTCM) policing with coupling flag spillover and MEF 23.1 CoS SLA evaluation.</p>
+
+          <div class="sim-controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="mefEthernetServiceSelect">Target Carrier Ethernet Service:</label>
+              <select id="mefEthernetServiceSelect" class="form-select">
+                <option value="mef-eline-nbp-bank-101" selected>NBP National Bank E-Line EVPL (100M CIR, CoS 1)</option>
+                <option value="mef-elan-commercial-202">Commercial Plaza Multi-Tenant E-LAN (500M CIR, CoS 2)</option>
+                <option value="mef-etree-hospital-303">District Hospital Telemedicine E-Tree (200M CIR, CoS 1)</option>
+                <option value="mef-eline-cellular-404">Cellular 4G/5G Macro Front-Haul EPL (1000M CIR, CoS 1)</option>
+                <option value="mef-eline-retail-burst-505">Kala Khatai Commercial Strip Burst (50M CIR, CoS 3)</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="mefEthernetOfferedSlider">Ingress Offered Rate: <span id="mefEthernetOfferedLabel" class="sim-val-pill">95 Mbps</span></label>
+              <input type="range" id="mefEthernetOfferedSlider" min="10" max="1500" step="5" value="95" class="otdr-slider">
+            </div>
+            <div class="sim-control-group">
+              <label for="mefEthernetCirInput">CIR (Mbps):</label>
+              <input type="number" id="mefEthernetCirInput" class="form-input" value="100" min="1" max="10000" step="1">
+            </div>
+            <div class="sim-control-group">
+              <label for="mefEthernetEirInput">EIR (Mbps):</label>
+              <input type="number" id="mefEthernetEirInput" class="form-input" value="20" min="0" max="10000" step="1">
+            </div>
+            <div class="sim-control-group">
+              <label for="mefEthernetCbsInput">CBS (KB):</label>
+              <input type="number" id="mefEthernetCbsInput" class="form-input" value="64" min="4" max="2048" step="4">
+            </div>
+            <div class="sim-control-group">
+              <label for="mefEthernetEbsInput">EBS (KB):</label>
+              <input type="number" id="mefEthernetEbsInput" class="form-input" value="32" min="4" max="2048" step="4">
+            </div>
+            <div class="sim-control-group">
+              <label for="mefEthernetColorModeSelect">Color Marking Mode:</label>
+              <select id="mefEthernetColorModeSelect" class="form-select">
+                <option value="color-aware" selected>Color-Aware (Inspect 802.1p/DEI)</option>
+                <option value="color-blind">Color-Blind (Uncolored Ingress)</option>
+              </select>
+            </div>
+            <div class="sim-control-group" style="display: flex; flex-direction: column; justify-content: center;">
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-top: 8px;">
+                <input type="checkbox" id="mefEthernetCouplingCheck">
+                <span>Coupling Flag (CF=1 Spillover)</span>
+              </label>
+            </div>
+            <div class="sim-control-group" style="display: flex; align-items: flex-end;">
+              <button id="mefEthernetResetBtn" class="secondary-button" type="button">Reset Baseline</button>
+            </div>
+          </div>
+
+          <div class="ltv-kpis-summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">CONTRACTED CIR</span>
+              <span id="mefEthernetStatCir" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">100 Mbps</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">CONFORMING (GREEN)</span>
+              <span id="mefEthernetStatConforming" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">95 Mbps (100%)</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">EXCESS (YELLOW)</span>
+              <span id="mefEthernetStatYellow" class="ltv-kpi-val" style="color: #f59e0b; font-size: 1.05rem;">0 Mbps (0%)</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">VIOLATING (RED DROP)</span>
+              <span id="mefEthernetStatRedDrop" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0 Mbps (0%)</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">MEF SLA VERDICT</span>
+              <span id="mefEthernetStatCompliance" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">OPTIMAL</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">REVENUE AT RISK</span>
+              <span id="mefEthernetStatRevenue" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">PKR 0</span>
+            </div>
+          </div>
+
+          <div id="mefEthernetModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Ethernet Bandwidth Profile and Token Bucket Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="mefEthernetFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="mefEthernetCopyReportBtn" class="primary-button" type="button">📋 Copy MEF SLA Report</button>
           </div>
         </div>
       </dialog>

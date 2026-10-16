@@ -4365,6 +4365,162 @@ html, body {
   color: #94a3b8;
 }
 
+/* ==========================================================================
+   Customer Service Agreement & Work Order Modal (.agreement-modal)
+   ========================================================================== */
+.agreement-modal-card {
+  max-width: 860px;
+  width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.contract-customer-ribbon {
+  background: #f0f7f4;
+  border: 1px solid #cce3d8;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--ink, #1f2d28);
+}
+
+.contract-cust-info {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ribbon-label {
+  color: var(--muted, #5b7068);
+  font-weight: 500;
+}
+
+.ribbon-sep {
+  color: #cbd5e1;
+}
+
+.contract-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.contract-col {
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--surface, #fff);
+}
+
+.contract-col-title {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--green, #0e5b4d);
+  border-bottom: 1px solid var(--line, #e2ece7);
+  padding-bottom: 6px;
+}
+
+.contract-preview-box {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.preview-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.preview-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.contract-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.contract-history-section {
+  border-top: 1px solid var(--line, #e2ece7);
+  padding-top: 14px;
+  margin-top: 8px;
+}
+
+.contract-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.contract-history-header h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #1f2d28);
+}
+
+/* Dark mode for agreement modal */
+[data-theme="dark"] .agreement-modal,
+[data-theme="dark"] .agreement-modal-card {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .contract-customer-ribbon {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .contract-col {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .contract-col-title {
+  border-color: #253d35;
+  color: #34d399;
+}
+
+[data-theme="dark"] .contract-preview-box {
+  background: #14241f;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .preview-lbl {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .contract-history-section {
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .contract-history-header h4 {
+  color: #e6edea;
+}
+
+
 
 
 

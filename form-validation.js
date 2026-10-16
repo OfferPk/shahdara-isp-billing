@@ -3014,6 +3014,22 @@ export function saveAdjustmentVoucher(storage = (typeof localStorage !== 'undefi
 }
 
 /**
+ * Helper to determine customer's monthly billing rate from profile or latest bill.
+ * @param {Object} customer
+ * @returns {number}
+ */
+export function getCustomerMonthlyRate(customer) {
+  if (!customer) return 1500;
+  if (customer.monthlySellingAmount && Number(customer.monthlySellingAmount) > 0) {
+    return Number(customer.monthlySellingAmount);
+  }
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  const latestBill = bills.find(b => Number(b.dueAmount) > 0);
+  if (latestBill) return Number(latestBill.dueAmount);
+  return 1500;
+}
+
+/**
  * Sets up and binds the Customer Adjustment & Outage Voucher Modal Controller.
  * @param {Object} options
  * @returns {Object} Controller with { open, close, refresh, getVouchers }
@@ -3483,3 +3499,924 @@ export function setupAdjustmentVoucherModal({
     getVouchers: (cid = null) => getSavedAdjustmentVouchers(storage, cid)
   };
 }
+
+export const SERVICE_CONTRACTS_KEY = 'shahdara_service_agreements';
+
+/**
+ * Validates Pakistani Computerized National Identity Card (CNIC) format.
+ * Expects 13 digits, optionally formatted as XXXXX-XXXXXXX-X.
+ * @param {string} cnic
+ * @returns {{ valid: boolean, formatted: string, raw: string, error?: string }}
+ */
+export function validatePakistanCnic(cnic) {
+  if (!cnic || typeof cnic !== 'string') {
+    return { valid: false, formatted: '', raw: '', error: 'CNIC is required.' };
+  }
+  const clean = cnic.replace(/[^0-9]/g, '');
+  if (clean.length !== 13) {
+    return {
+      valid: false,
+      formatted: cnic.trim(),
+      raw: clean,
+      error: `CNIC must contain exactly 13 digits (found ${clean.length}).`
+    };
+  }
+  const formatted = `${clean.slice(0, 5)}-${clean.slice(5, 12)}-${clean.slice(12, 13)}`;
+  return {
+    valid: true,
+    formatted,
+    raw: clean
+  };
+}
+
+/**
+ * Validates Service Contract agreement form fields.
+ * @param {Object} data
+ * @returns {{ valid: boolean, errors: Object }}
+ */
+export function validateServiceContract(data = {}) {
+  const errors = {};
+
+  if (!data.customerId) {
+    errors.customer = 'Please select a subscriber profile.';
+  }
+
+  if (data.cnic) {
+    const cnicCheck = validatePakistanCnic(data.cnic);
+    if (!cnicCheck.valid) {
+      errors.cnic = cnicCheck.error;
+    }
+  }
+
+  const monthlyRate = Number(data.monthlyRate);
+  if (isNaN(monthlyRate) || monthlyRate < 0) {
+    errors.monthlyRate = 'Monthly rate must be a valid positive amount.';
+  }
+
+  const installFee = Number(data.installationFee ?? 0);
+  if (isNaN(installFee) || installFee < 0) {
+    errors.installationFee = 'Installation fee must be 0 or a positive amount.';
+  }
+
+  const deposit = Number(data.securityDeposit ?? 0);
+  if (isNaN(deposit) || deposit < 0) {
+    errors.securityDeposit = 'Security deposit must be 0 or a positive amount.';
+  }
+
+  if (!data.packageSpeed || typeof data.packageSpeed !== 'string' || !data.packageSpeed.trim()) {
+    errors.packageSpeed = 'Subscribed package speed is required.';
+  }
+
+  if (!data.technicianName || typeof data.technicianName !== 'string' || !data.technicianName.trim()) {
+    errors.technicianName = 'Authorized technician / installer name is required.';
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+/**
+ * Builds formal Service Agreement record with unique contract number.
+ * @param {Object} params
+ * @returns {Object}
+ */
+export function buildServiceContractData({
+  customer,
+  cnic = '',
+  packageSpeed = '15 Mbps Turbo',
+  monthlyRate = 1500,
+  installationFee = 1000,
+  securityDeposit = 1500,
+  ontModel = 'Huawei HG8546M GPON',
+  ontSerial = '',
+  dropCableMeters = 75,
+  opticalPowerDbm = -21.5,
+  contractMonths = 12,
+  startDate,
+  technicianName = 'Shahdara Field Tech',
+  notes = '',
+  existingContractsCount = 0
+} = {}) {
+  const c = customer || {};
+  const cnicVal = cnic ? validatePakistanCnic(cnic).formatted : '';
+  const now = new Date();
+  const start = (startDate && !isNaN(new Date(startDate))) ? new Date(startDate) : now;
+  const startIso = start.toISOString().slice(0, 10);
+
+  let expiryIso = 'Open Month-to-Month';
+  if (contractMonths && contractMonths > 0) {
+    const expiryDate = new Date(start);
+    expiryDate.setMonth(expiryDate.getMonth() + Number(contractMonths));
+    expiryIso = expiryDate.toISOString().slice(0, 10);
+  }
+
+  const yearMonth = startIso.slice(0, 7).replace('-', '');
+  const seq = String(existingContractsCount + 1).padStart(4, '0');
+  const agreementNumber = `AGR-${yearMonth}-${seq}`;
+
+  const numMonthlyRate = Math.max(0, Number(monthlyRate) || 0);
+  const numInstallFee = Math.max(0, Number(installationFee) || 0);
+  const numDeposit = Math.max(0, Number(securityDeposit) || 0);
+  const totalInitialPayment = numMonthlyRate + numInstallFee + numDeposit;
+
+  return {
+    agreementNumber,
+    timestamp: now.toISOString(),
+    startDate: startIso,
+    expiryDate: expiryIso,
+    contractMonths: Number(contractMonths) || 0,
+    customer: {
+      id: c.id || '',
+      customerNumber: c.customerNumber || '',
+      name: c.name || 'Subscriber',
+      phone: c.phone || '',
+      area: c.area || '',
+      mohalla: c.mohalla || '',
+      address: c.address || ''
+    },
+    cnic: cnicVal,
+    packageSpeed: String(packageSpeed || 'Standard').trim(),
+    monthlyRate: numMonthlyRate,
+    installationFee: numInstallFee,
+    securityDeposit: numDeposit,
+    totalInitialPayment,
+    equipment: {
+      ontModel: String(ontModel || 'GPON ONU').trim(),
+      ontSerial: String(ontSerial || '').trim().toUpperCase(),
+      dropCableMeters: Math.max(0, Number(dropCableMeters) || 0),
+      opticalPowerDbm: Number(opticalPowerDbm) || -22.0
+    },
+    technicianName: String(technicianName || 'Field Ops').trim(),
+    notes: String(notes || '').trim(),
+    slaTerms: {
+      uptimeGuarantee: '99.0%',
+      faultResolutionHours: 24,
+      billingCycleDay: 5,
+      fairUsagePolicy: 'Unlimited High-Speed Broadband with Standard Residential SLA'
+    }
+  };
+}
+
+/**
+ * Retrieves saved service agreements from storage.
+ * @param {Object} storage
+ * @param {string} [customerId]
+ * @returns {Array<Object>}
+ */
+export function getSavedServiceContracts(storage, customerId = null) {
+  if (!storage || typeof storage.getItem !== 'function') return [];
+  try {
+    const raw = storage.getItem(SERVICE_CONTRACTS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    if (customerId) {
+      return list.filter(item => item?.customer?.id === customerId);
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Persists a new service agreement in storage.
+ * @param {Object} storage
+ * @param {Object} contract
+ * @returns {boolean}
+ */
+export function saveServiceContract(storage, contract) {
+  if (!storage || typeof storage.setItem !== 'function' || !contract) return false;
+  try {
+    const list = getSavedServiceContracts(storage);
+    list.unshift(contract);
+    storage.setItem(SERVICE_CONTRACTS_KEY, JSON.stringify(list));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Formats WhatsApp customer copy of service agreement.
+ * @param {Object} contract
+ * @returns {string}
+ */
+export function formatServiceContractWhatsApp(contract) {
+  if (!contract) return '';
+  const c = contract.customer || {};
+  const eq = contract.equipment || {};
+  const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+  const lines = [
+    `📜 *SHAHDARA BROADBAND - SERVICE AGREEMENT* 📜`,
+    `*معاہدہ انٹرنیٹ سروس و انسٹالیشن آرڈر*`,
+    `----------------------------------------`,
+    `🔢 *Agreement No:* ${contract.agreementNumber}`,
+    `📅 *Start Date:* ${contract.startDate} | *Tenure:* ${contract.contractMonths > 0 ? `${contract.contractMonths} Months (Valid till ${contract.expiryDate})` : 'Month-to-Month'}`,
+    `👤 *Subscriber:* ${c.name} (Acc #${c.customerNumber || c.id})`,
+    `📞 *Phone:* ${c.phone || '—'}`,
+    `📍 *Location:* ${c.area || ''} ${c.mohalla || ''}`,
+    contract.cnic ? `🪪 *CNIC:* ${contract.cnic}` : '',
+    `----------------------------------------`,
+    `🚀 *INTERNET TARIFF & CHARGES:*`,
+    `• Package Speed: *${contract.packageSpeed}*`,
+    `• Monthly Subscription: *PKR ${formatPkr(contract.monthlyRate)}/month*`,
+    `• One-Time Installation: PKR ${formatPkr(contract.installationFee)}`,
+    `• Refundable ONU Deposit: PKR ${formatPkr(contract.securityDeposit)}`,
+    `💰 *Initial Total Paid:* *PKR ${formatPkr(contract.totalInitialPayment)}*`,
+    `----------------------------------------`,
+    `🛠️ *EQUIPMENT & OPTICAL DETAILS:*`,
+    `• ONU / Router: ${eq.ontModel} (S/N: ${eq.ontSerial || 'Assigned'})`,
+    `• Fiber Drop Length: ${eq.dropCableMeters} meters`,
+    `• Optical Rx Power: ${eq.opticalPowerDbm} dBm (Optimal Link)`,
+    `• Installed By: ${contract.technicianName}`,
+    `----------------------------------------`,
+    `📋 *SERVICE TERMS & SLA:*`,
+    `• Monthly bill is payable by 5th of each calendar month.`,
+    `• 24-hour optical line support & fault resolution SLA.`,
+    `• Equipment remains provider property on security deposit.`,
+    `📞 *Helpline / WhatsApp:* 0300-0000000 | Shahdara Network Ops`
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+/**
+ * Generates RFC-4180 CSV export of service agreements.
+ * @param {Array<Object>} contracts
+ * @returns {string}
+ */
+export function generateServiceContractCsv(contracts = []) {
+  const headers = [
+    'Agreement_No',
+    'Date',
+    'Expiry_Date',
+    'Customer_No',
+    'Customer_Name',
+    'Phone',
+    'CNIC',
+    'Area',
+    'Package_Speed',
+    'Monthly_PKR',
+    'Install_Fee_PKR',
+    'Deposit_PKR',
+    'Total_Initial_PKR',
+    'ONT_Model',
+    'ONT_Serial',
+    'Fiber_Meters',
+    'Optical_dBm',
+    'Technician',
+    'Notes'
+  ];
+
+  const rows = (contracts || []).map(cnt => [
+    cnt.agreementNumber || '',
+    cnt.startDate || '',
+    cnt.expiryDate || '',
+    String(cnt.customer?.customerNumber || ''),
+    cnt.customer?.name || '',
+    cnt.customer?.phone || '',
+    cnt.cnic || '',
+    cnt.customer?.area || '',
+    cnt.packageSpeed || '',
+    String(cnt.monthlyRate ?? 0),
+    String(cnt.installationFee ?? 0),
+    String(cnt.securityDeposit ?? 0),
+    String(cnt.totalInitialPayment ?? 0),
+    cnt.equipment?.ontModel || '',
+    cnt.equipment?.ontSerial || '',
+    String(cnt.equipment?.dropCableMeters ?? 0),
+    String(cnt.equipment?.opticalPowerDbm ?? ''),
+    cnt.technicianName || '',
+    cnt.notes || ''
+  ]);
+
+  return generateCsvContent(headers, rows);
+}
+
+/**
+ * Generates formal printable HTML representation for Service Agreement.
+ * @param {Object} contract
+ * @param {{ format?: 'a4' | 'slip' }} [options]
+ * @returns {string}
+ */
+export function generateServiceContractHtml(contract, { format = 'a4' } = {}) {
+  if (!contract) return '';
+  const c = contract.customer || {};
+  const eq = contract.equipment || {};
+  const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+  if (format === 'slip') {
+    return `
+      <div class="contract-slip-document">
+        <div class="contract-slip-header">
+          <h3>SHAHDARA BROADBAND</h3>
+          <p class="slip-sub">Fiber Internet Work Order &amp; Agreement</p>
+          <p class="slip-urdu">معاہدہ انٹرنیٹ سروس و انسٹالیشن رسید</p>
+          <div class="slip-code">
+            <span>Agr: ${escapeHtml(contract.agreementNumber)}</span>
+            <span>Date: ${escapeHtml(contract.startDate)}</span>
+          </div>
+        </div>
+        <div class="slip-divider"></div>
+        <div class="slip-row"><span>Subscriber:</span><strong>${escapeHtml(c.name)} (#${escapeHtml(c.customerNumber || c.id)})</strong></div>
+        <div class="slip-row"><span>Phone:</span><span>${escapeHtml(c.phone || '—')}</span></div>
+        ${contract.cnic ? `<div class="slip-row"><span>CNIC:</span><span>${escapeHtml(contract.cnic)}</span></div>` : ''}
+        <div class="slip-row"><span>Location:</span><span>${escapeHtml(c.area || '')} ${escapeHtml(c.mohalla || '')}</span></div>
+        <div class="slip-divider"></div>
+        <div class="slip-row"><span>Package Speed:</span><strong>${escapeHtml(contract.packageSpeed)}</strong></div>
+        <div class="slip-row"><span>Monthly Tariff:</span><strong>PKR ${formatPkr(contract.monthlyRate)}/mo</strong></div>
+        <div class="slip-row"><span>Installation Fee:</span><span>PKR ${formatPkr(contract.installationFee)}</span></div>
+        <div class="slip-row"><span>Security Deposit:</span><span>PKR ${formatPkr(contract.securityDeposit)}</span></div>
+        <div class="slip-row highlight-bold"><span>Total Paid:</span><strong>PKR ${formatPkr(contract.totalInitialPayment)}</strong></div>
+        <div class="slip-divider"></div>
+        <div class="slip-row"><span>ONU / Router:</span><span>${escapeHtml(eq.ontModel)}</span></div>
+        <div class="slip-row"><span>Serial No:</span><span>${escapeHtml(eq.ontSerial || 'Recorded')}</span></div>
+        <div class="slip-row"><span>Fiber Cable:</span><span>${escapeHtml(eq.dropCableMeters)} meters</span></div>
+        <div class="slip-row"><span>Optical Rx:</span><span>${escapeHtml(eq.opticalPowerDbm)} dBm</span></div>
+        <div class="slip-row"><span>Technician:</span><span>${escapeHtml(contract.technicianName)}</span></div>
+        <div class="slip-divider"></div>
+        <p class="slip-terms-text">Bill due on 5th of each month. 24h SLA response. Equipment remains provider custody.</p>
+        <div class="slip-signatures">
+          <div class="slip-sig-col">
+            <div class="slip-sig-line"></div>
+            <span>Subscriber Sign</span>
+          </div>
+          <div class="slip-sig-col">
+            <div class="slip-sig-line"></div>
+            <span>Technician Sign</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Formal A4 Contract
+  return `
+    <div class="contract-a4-document">
+      <header class="contract-a4-header">
+        <div class="brand-left">
+          <h2>SHAHDARA FIBER NETWORKS &amp; BROADBAND</h2>
+          <p class="tagline">Licensed Local Internet Service Provider · Shahdara Lahore</p>
+          <p class="urdu-title">معاہدہ برائے فراہمی انٹرنیٹ سروس و سامان تنصیب</p>
+        </div>
+        <div class="meta-right">
+          <div class="doc-badge">FORMAL SERVICE AGREEMENT</div>
+          <p><strong>Agreement No:</strong> <span class="font-mono">${escapeHtml(contract.agreementNumber)}</span></p>
+          <p><strong>Effective Date:</strong> ${escapeHtml(contract.startDate)}</p>
+          <p><strong>Expiry / Renewal:</strong> ${escapeHtml(contract.expiryDate)}</p>
+        </div>
+      </header>
+
+      <div class="contract-grid-two">
+        <section class="contract-block">
+          <h4 class="block-title">1. SUBSCRIBER PARTICULARS (صارف کی تفصیلات)</h4>
+          <table class="contract-data-table">
+            <tr><td>Subscriber Name:</td><td><strong>${escapeHtml(c.name)}</strong></td></tr>
+            <tr><td>Account / ID:</td><td>#${escapeHtml(c.customerNumber || c.id)}</td></tr>
+            <tr><td>Contact Number:</td><td>${escapeHtml(c.phone || '—')}</td></tr>
+            <tr><td>National ID (CNIC):</td><td><strong>${escapeHtml(contract.cnic || 'Verified on file')}</strong></td></tr>
+            <tr><td>Installation Address:</td><td>${escapeHtml(c.address || c.mohalla || c.area || 'Shahdara')}</td></tr>
+            <tr><td>Network Zone:</td><td>${escapeHtml(c.area || 'Shahdara Central')}</td></tr>
+          </table>
+        </section>
+
+        <section class="contract-block">
+          <h4 class="block-title">2. SUBSCRIPTION TARIFF &amp; PAYMENT SCHEDULE (نرخ نامہ و ادائیگی)</h4>
+          <table class="contract-data-table">
+            <tr><td>Subscribed Package:</td><td><strong>${escapeHtml(contract.packageSpeed)}</strong></td></tr>
+            <tr><td>Monthly Subscription:</td><td class="font-bold">PKR ${formatPkr(contract.monthlyRate)} / month</td></tr>
+            <tr><td>Setup &amp; Installation:</td><td>PKR ${formatPkr(contract.installationFee)} (One-time)</td></tr>
+            <tr><td>Equipment Security Deposit:</td><td>PKR ${formatPkr(contract.securityDeposit)} (Refundable)</td></tr>
+            <tr class="highlight-row"><td>Total Paid on Sign-up:</td><td class="font-bold text-success">PKR ${formatPkr(contract.totalInitialPayment)}</td></tr>
+            <tr><td>Monthly Bill Due Date:</td><td>5th of each calendar month</td></tr>
+          </table>
+        </section>
+      </div>
+
+      <section class="contract-block" style="margin-top: 12px;">
+        <h4 class="block-title">3. HARDWARE CUSTODY &amp; OPTICAL SPECIFICATIONS (تنصیب شدہ سامان کی تفصیل)</h4>
+        <div class="hardware-specs-row">
+          <div class="spec-cell"><span>ONU / Router Model:</span><strong>${escapeHtml(eq.ontModel)}</strong></div>
+          <div class="spec-cell"><span>Hardware Serial (S/N):</span><strong class="font-mono">${escapeHtml(eq.ontSerial || 'RECORDED')}</strong></div>
+          <div class="spec-cell"><span>Drop Cable Length:</span><strong>${escapeHtml(eq.dropCableMeters)} meters</strong></div>
+          <div class="spec-cell"><span>Optical Power (Rx):</span><strong>${escapeHtml(eq.opticalPowerDbm)} dBm</strong> (Within -28dBm spec)</div>
+          <div class="spec-cell"><span>Lead Technician:</span><strong>${escapeHtml(contract.technicianName)}</strong></div>
+        </div>
+      </section>
+
+      <section class="contract-terms-section" style="margin-top: 12px;">
+        <h4 class="block-title">4. TERMS OF SERVICE &amp; SLA GUARANTEE (شرائط و ضوابط)</h4>
+        <div class="terms-bilingual-grid">
+          <div class="terms-col-en">
+            <ol>
+              <li><strong>Billing &amp; Payment:</strong> Monthly charges are due by the 5th of each month. Late dues are subject to temporary suspension.</li>
+              <li><strong>Hardware Custody:</strong> The ONU/Optical device remains provider property. In case of termination, equipment must be returned in good working condition for deposit refund.</li>
+              <li><strong>SLA &amp; Support:</strong> Shahdara ISP maintains a 99.0% network uptime target. Optical breakages and connectivity faults are attended within 24 hours of ticketing.</li>
+              <li><strong>Fair Usage &amp; Lawful Use:</strong> Connection is for residential/commercial bandwidth use only in compliance with Pakistan telecommunications laws.</li>
+            </ol>
+          </div>
+          <div class="terms-col-ur" dir="rtl">
+            <ol>
+              <li><strong>بلنگ و ادائیگی:</strong> انٹرنیٹ بل ہر ماہ کی 5 تاریخ تک ادا کرنا لازمی ہے۔ تاخیر کی صورت میں سروس معطل کی جا سکتی ہے۔</li>
+              <li><strong>سامان کی تحویل:</strong> فراہم کردہ راؤٹر/ڈیوائس کمپنی کی ملکیت ہے۔ کنکشن ختم کرنے پر سامان واپس کر کے سیکیورٹی رقم حاصل کی جا سکتی ہے۔</li>
+              <li><strong>شکایات کا ازالہ:</strong> آپٹیکل فائبر کٹنے یا خرابی کی صورت میں 24 گھنٹے کے اندر اندر سروس بحال کی جائے گی۔</li>
+              <li><strong>قانونی استعمال:</strong> انٹرنیٹ کا استعمال پاکستان ٹیلی کمیونیکیشن کے وضع کردہ قواعد کے مطابق ہونا ضروری ہے۔</li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <footer class="contract-signatures-footer" style="margin-top: 24px;">
+        <div class="sig-col">
+          <div class="sig-space"></div>
+          <p class="sig-name">${escapeHtml(c.name)}</p>
+          <p class="sig-title">Subscriber Signature / دستخط صارف</p>
+        </div>
+        <div class="sig-col">
+          <div class="sig-space"></div>
+          <p class="sig-name">${escapeHtml(contract.technicianName)}</p>
+          <p class="sig-title">Field Installation Engineer / تصدیق ٹیکنیشن</p>
+        </div>
+        <div class="sig-col">
+          <div class="sig-space stamp-box">SEAL</div>
+          <p class="sig-name">Authorized Signatory</p>
+          <p class="sig-title">Shahdara Broadband Operations</p>
+        </div>
+      </footer>
+    </div>
+  `;
+}
+
+/**
+ * Sets up Service Contract & Installation Work Order Modal Dialog Controller.
+ */
+export function setupServiceContractModal({
+  getState,
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onToast = (msg) => { if (typeof console !== 'undefined') console.log(msg); },
+  clipboard = (typeof navigator !== 'undefined' ? navigator.clipboard : null),
+  openWindow = (typeof window !== 'undefined' ? window.open : null),
+  onContractCreated
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      open: () => {},
+      close: () => {},
+      refresh: () => {},
+      getContracts: () => []
+    };
+  }
+
+  const modal = document.getElementById('customerServiceContractModal');
+  if (!modal) {
+    return {
+      open: () => {},
+      close: () => {},
+      refresh: () => {},
+      getContracts: () => []
+    };
+  }
+
+  const closeBtn = document.getElementById('closeServiceContractModalBtn');
+  const closeSecondaryBtn = document.getElementById('closeServiceContractSecondaryBtn');
+  const submitBtn = document.getElementById('submitServiceContractBtn');
+  const printA4Btn = document.getElementById('printServiceContractA4Btn');
+  const printSlipBtn = document.getElementById('printServiceContractSlipBtn');
+  const whatsappBtn = document.getElementById('whatsappServiceContractBtn');
+  const exportCsvBtn = document.getElementById('exportServiceContractCsvBtn');
+
+  // Customer header fields
+  const custNameEl = document.getElementById('contractCustName');
+  const custPhoneEl = document.getElementById('contractCustPhone');
+  const custLocationEl = document.getElementById('contractCustLocation');
+  const custPackageEl = document.getElementById('contractCustCurrentPackage');
+
+  // Inputs
+  const cnicInput = document.getElementById('contractCnicInput');
+  const packageSpeedInput = document.getElementById('contractPackageSelect');
+  const monthlyRateInput = document.getElementById('contractMonthlyRateInput');
+  const installFeeInput = document.getElementById('contractInstallFeeInput');
+  const depositInput = document.getElementById('contractDepositInput');
+  const ontModelInput = document.getElementById('contractOntModelInput');
+  const ontSerialInput = document.getElementById('contractOntSerialInput');
+  const cableMetersInput = document.getElementById('contractCableMetersInput');
+  const opticalPowerInput = document.getElementById('contractOpticalPowerInput');
+  const tenureSelect = document.getElementById('contractTenureSelect');
+  const startDateInput = document.getElementById('contractStartDateInput');
+  const techNameInput = document.getElementById('contractTechNameInput');
+  const notesInput = document.getElementById('contractNotesInput');
+
+  // Preview elements
+  const previewAgrNumber = document.getElementById('contractPreviewAgrNumber');
+  const previewExpiryDate = document.getElementById('contractPreviewExpiry');
+  const previewTotalInitial = document.getElementById('contractPreviewTotalInitial');
+  const previewOntSummary = document.getElementById('contractPreviewOntSummary');
+
+  // Errors
+  const cnicError = document.getElementById('contractCnicError');
+  const monthlyRateError = document.getElementById('contractMonthlyRateError');
+  const techError = document.getElementById('contractTechError');
+
+  // History table
+  const historyTableBody = document.getElementById('contractHistoryTableBody');
+
+  let currentCustomer = null;
+  let activeContract = null;
+
+  function maskCnicInput() {
+    if (!cnicInput) return;
+    const digits = cnicInput.value.replace(/[^0-9]/g, '').slice(0, 13);
+    let formatted = '';
+    if (digits.length <= 5) {
+      formatted = digits;
+    } else if (digits.length <= 12) {
+      formatted = `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    } else {
+      formatted = `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12, 13)}`;
+    }
+    cnicInput.value = formatted;
+  }
+
+  function recalculatePreview() {
+    const start = startDateInput?.value ? new Date(startDateInput.value) : new Date();
+    const tenure = parseInt(tenureSelect?.value || '12', 10);
+    let expiry = 'Open Month-to-Month';
+    if (tenure > 0) {
+      const exp = new Date(start);
+      exp.setMonth(exp.getMonth() + tenure);
+      expiry = exp.toISOString().slice(0, 10);
+    }
+    if (previewExpiryDate) previewExpiryDate.textContent = expiry;
+
+    const rate = Number(monthlyRateInput?.value) || 0;
+    const install = Number(installFeeInput?.value) || 0;
+    const deposit = Number(depositInput?.value) || 0;
+    const total = rate + install + deposit;
+
+    if (previewTotalInitial) {
+      previewTotalInitial.textContent = `PKR ${total.toLocaleString()}`;
+    }
+
+    if (previewOntSummary) {
+      const model = ontModelInput?.value || 'ONT Router';
+      const serial = ontSerialInput?.value ? `(S/N: ${ontSerialInput.value.trim().toUpperCase()})` : '';
+      previewOntSummary.textContent = `${model} ${serial}`.trim();
+    }
+  }
+
+  function renderHistory() {
+    if (!historyTableBody) return;
+    const cid = currentCustomer ? currentCustomer.id : null;
+    const contracts = getSavedServiceContracts(storage, cid);
+
+    if (!contracts.length) {
+      historyTableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">No service agreements issued yet.</td></tr>`;
+      return;
+    }
+
+    historyTableBody.innerHTML = contracts.map(cnt => `
+      <tr>
+        <td class="font-mono font-bold">${escapeHtml(cnt.agreementNumber)}</td>
+        <td>${escapeHtml(cnt.startDate)}</td>
+        <td>${escapeHtml(cnt.packageSpeed)}</td>
+        <td class="text-right font-mono">PKR ${Number(cnt.monthlyRate || 0).toLocaleString()}</td>
+        <td class="text-right font-mono font-bold">PKR ${Number(cnt.totalInitialPayment || 0).toLocaleString()}</td>
+        <td><span class="role-badge role-primary">${escapeHtml(cnt.contractMonths > 0 ? `${cnt.contractMonths} Mo` : 'Open')}</span></td>
+        <td class="text-center">
+          <button type="button" class="action-btn-sm" data-print-agr="${escapeHtml(cnt.agreementNumber)}" title="Print Formal A4">🖨️ A4</button>
+          <button type="button" class="action-btn-sm" data-print-slip="${escapeHtml(cnt.agreementNumber)}" title="Print Thermal Slip">🧾 Slip</button>
+        </td>
+      </tr>
+    `).join('');
+
+    const printAgrBtns = historyTableBody.querySelectorAll('[data-print-agr]');
+    printAgrBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const num = btn.getAttribute('data-print-agr');
+        const found = contracts.find(c => c.agreementNumber === num);
+        if (found) printDocument(found, 'a4');
+      });
+    });
+
+    const printSlipBtns = historyTableBody.querySelectorAll('[data-print-slip]');
+    printSlipBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const num = btn.getAttribute('data-print-slip');
+        const found = contracts.find(c => c.agreementNumber === num);
+        if (found) printDocument(found, 'slip');
+      });
+    });
+  }
+
+  function printDocument(contract, format = 'a4') {
+    if (!contract) return;
+    const html = generateServiceContractHtml(contract, { format });
+    const win = openWindow ? openWindow('', '_blank') : null;
+    if (win && win.document) {
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${format === 'slip' ? 'Work Order Slip' : 'Service Agreement'} - ${contract.agreementNumber}</title>
+          <style>
+            body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 20px; color: #111; font-size: 13px; line-height: 1.4; }
+            .contract-a4-document { max-width: 820px; margin: 0 auto; padding: 24px; border: 1px solid #ddd; background: #fff; }
+            .contract-a4-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 16px; }
+            .contract-a4-header h2 { margin: 0; color: #0e5b4d; font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
+            .tagline { margin: 2px 0; font-size: 12px; color: #666; }
+            .urdu-title { margin: 4px 0 0; font-size: 14px; font-weight: bold; color: #0f172a; direction: rtl; }
+            .meta-right { text-align: right; font-size: 12px; }
+            .doc-badge { display: inline-block; background: #0e5b4d; color: #fff; font-size: 10px; font-weight: bold; padding: 3px 8px; border-radius: 4px; margin-bottom: 6px; }
+            .contract-grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+            .contract-block { border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; background: #f8fafc; }
+            .block-title { margin: 0 0 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #0e5b4d; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+            .contract-data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            .contract-data-table td { padding: 4px 6px; border-bottom: 1px solid #f1f5f9; }
+            .contract-data-table tr.highlight-row { background: rgba(16, 185, 129, 0.1); }
+            .hardware-specs-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; font-size: 11px; }
+            .spec-cell span { display: block; color: #64748b; font-size: 10px; }
+            .terms-bilingual-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 11px; color: #334155; line-height: 1.5; }
+            .terms-bilingual-grid ol { margin: 0; padding-left: 18px; }
+            .terms-col-ur ol { padding-right: 18px; padding-left: 0; }
+            .contract-signatures-footer { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 16px; border-top: 1px solid #cbd5e1; text-align: center; font-size: 11px; }
+            .sig-col { width: 180px; }
+            .sig-space { height: 45px; border-bottom: 1px solid #000; margin-bottom: 6px; }
+            .sig-space.stamp-box { border: 1px dashed #64748b; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-weight: bold; font-size: 10px; }
+            .sig-name { font-weight: bold; margin: 0; }
+            .sig-title { margin: 2px 0 0; color: #64748b; font-size: 10px; }
+            /* Thermal Slip layout */
+            .contract-slip-document { max-width: 320px; margin: 0 auto; font-family: monospace, system-ui; font-size: 12px; color: #000; padding: 10px; }
+            .contract-slip-header { text-align: center; }
+            .contract-slip-header h3 { margin: 0; font-size: 15px; font-weight: 800; }
+            .slip-sub, .slip-urdu { margin: 2px 0; font-size: 11px; }
+            .slip-code { display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; margin-top: 4px; }
+            .slip-divider { border-top: 1px dashed #000; margin: 6px 0; }
+            .slip-row { display: flex; justify-content: space-between; margin: 2px 0; }
+            .slip-row.highlight-bold { font-weight: bold; font-size: 13px; margin: 4px 0; }
+            .slip-terms-text { font-size: 10px; margin: 6px 0; text-align: center; }
+            .slip-signatures { display: flex; justify-content: space-between; margin-top: 16px; text-align: center; font-size: 10px; }
+            .slip-sig-col { width: 120px; }
+            .slip-sig-line { border-bottom: 1px solid #000; height: 25px; margin-bottom: 4px; }
+            @media print {
+              body { margin: 0; padding: 0; }
+              .contract-a4-document { border: none; padding: 0; max-width: 100%; }
+            }
+          </style>
+        </head>
+        <body>
+          ${html}
+          <script>window.onload = function() { window.print(); };</script>
+        </body>
+        </html>
+      `);
+      win.document.close();
+    } else if (typeof window !== 'undefined' && typeof window.print === 'function') {
+      window.print();
+    }
+  }
+
+  function open(customer = null) {
+    if (customer) currentCustomer = customer;
+    else if (typeof getState === 'function') {
+      const st = getState();
+      if (st && Array.isArray(st.customers) && st.selectedCustomerId) {
+        currentCustomer = st.customers.find(c => c.id === st.selectedCustomerId) || st.customers[0];
+      } else if (st && Array.isArray(st.customers) && st.customers.length > 0) {
+        currentCustomer = st.customers[0];
+      }
+    }
+
+    if (custNameEl) custNameEl.textContent = currentCustomer?.name || 'Subscriber';
+    if (custPhoneEl) custPhoneEl.textContent = currentCustomer?.phone || 'Not set';
+    if (custLocationEl) custLocationEl.textContent = `${currentCustomer?.area || 'Shahdara'} ${currentCustomer?.mohalla ? `· ${currentCustomer.mohalla}` : ''}`;
+    if (custPackageEl) custPackageEl.textContent = currentCustomer?.packageSpeed || '15 Mbps';
+
+    if (packageSpeedInput && currentCustomer?.packageSpeed) {
+      packageSpeedInput.value = currentCustomer.packageSpeed;
+    }
+
+    const rate = getCustomerMonthlyRate(currentCustomer);
+    if (monthlyRateInput && rate > 0) {
+      monthlyRateInput.value = rate;
+    }
+
+    if (startDateInput && !startDateInput.value) {
+      startDateInput.value = new Date().toISOString().slice(0, 10);
+    }
+
+    // Auto-generate preview agreement number
+    const allContracts = getSavedServiceContracts(storage);
+    const yrMo = new Date().toISOString().slice(0, 7).replace('-', '');
+    const seq = String(allContracts.length + 1).padStart(4, '0');
+    if (previewAgrNumber) {
+      previewAgrNumber.textContent = `AGR-${yrMo}-${seq}`;
+    }
+
+    recalculatePreview();
+    renderHistory();
+
+    if (typeof modal.showModal === 'function') {
+      modal.showModal();
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  function close() {
+    if (typeof modal.close === 'function') {
+      modal.close();
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
+  // Bind input recalculations and masking
+  if (cnicInput && !cnicInput.dataset?.wiredContract) {
+    if (cnicInput.dataset) cnicInput.dataset.wiredContract = 'true';
+    cnicInput.addEventListener('input', () => {
+      maskCnicInput();
+      if (cnicError) cnicError.hidden = true;
+    });
+  }
+
+  [monthlyRateInput, installFeeInput, depositInput, tenureSelect, startDateInput, ontModelInput, ontSerialInput].forEach(inp => {
+    if (inp && !inp.dataset?.wiredContract) {
+      if (inp.dataset) inp.dataset.wiredContract = 'true';
+      inp.addEventListener('input', recalculatePreview);
+      inp.addEventListener('change', recalculatePreview);
+    }
+  });
+
+  // Issue agreement button
+  if (submitBtn && !submitBtn.dataset?.wiredContract) {
+    if (submitBtn.dataset) submitBtn.dataset.wiredContract = 'true';
+    submitBtn.addEventListener('click', () => {
+      if (!currentCustomer) {
+        onToast('Please select a subscriber first.');
+        return;
+      }
+
+      const cnicVal = cnicInput ? cnicInput.value : '';
+      const pkgVal = packageSpeedInput ? packageSpeedInput.value : '15 Mbps Turbo';
+      const rateVal = monthlyRateInput ? monthlyRateInput.value : '1500';
+      const feeVal = installFeeInput ? installFeeInput.value : '1000';
+      const depVal = depositInput ? depositInput.value : '1500';
+      const techVal = techNameInput ? techNameInput.value : 'Field Ops';
+
+      const validation = validateServiceContract({
+        customerId: currentCustomer.id,
+        cnic: cnicVal,
+        packageSpeed: pkgVal,
+        monthlyRate: rateVal,
+        installationFee: feeVal,
+        securityDeposit: depVal,
+        technicianName: techVal
+      });
+
+      if (!validation.valid) {
+        if (validation.errors.cnic && cnicError) {
+          cnicError.textContent = validation.errors.cnic;
+          cnicError.hidden = false;
+        }
+        if (validation.errors.monthlyRate && monthlyRateError) {
+          monthlyRateError.textContent = validation.errors.monthlyRate;
+          monthlyRateError.hidden = false;
+        }
+        if (validation.errors.technicianName && techError) {
+          techError.textContent = validation.errors.technicianName;
+          techError.hidden = false;
+        }
+        onToast('Please correct form validation errors.');
+        return;
+      }
+
+      const all = getSavedServiceContracts(storage);
+      const contract = buildServiceContractData({
+        customer: currentCustomer,
+        cnic: cnicVal,
+        packageSpeed: pkgVal,
+        monthlyRate: Number(rateVal),
+        installationFee: Number(feeVal),
+        securityDeposit: Number(depVal),
+        ontModel: ontModelInput ? ontModelInput.value : 'Huawei GPON ONU',
+        ontSerial: ontSerialInput ? ontSerialInput.value : '',
+        dropCableMeters: cableMetersInput ? Number(cableMetersInput.value) || 0 : 50,
+        opticalPowerDbm: opticalPowerInput ? Number(opticalPowerInput.value) || -22.0 : -22.0,
+        contractMonths: tenureSelect ? Number(tenureSelect.value) || 0 : 12,
+        startDate: startDateInput ? startDateInput.value : new Date().toISOString().slice(0, 10),
+        technicianName: techVal,
+        notes: notesInput ? notesInput.value : '',
+        existingContractsCount: all.length
+      });
+
+      saveServiceContract(storage, contract);
+      activeContract = contract;
+
+      renderHistory();
+      recalculatePreview();
+
+      if (typeof onContractCreated === 'function') {
+        onContractCreated(contract);
+      }
+
+      onToast(`Service Agreement #${contract.agreementNumber} issued successfully!`);
+    });
+  }
+
+  // Print A4
+  if (printA4Btn && !printA4Btn.dataset?.wiredContract) {
+    if (printA4Btn.dataset) printA4Btn.dataset.wiredContract = 'true';
+    printA4Btn.addEventListener('click', () => {
+      const cnt = activeContract || (currentCustomer ? getSavedServiceContracts(storage, currentCustomer.id)[0] : null);
+      if (!cnt) {
+        onToast('Issue a contract first or select one from history to print.');
+        return;
+      }
+      printDocument(cnt, 'a4');
+    });
+  }
+
+  // Print 80mm Slip
+  if (printSlipBtn && !printSlipBtn.dataset?.wiredContract) {
+    if (printSlipBtn.dataset) printSlipBtn.dataset.wiredContract = 'true';
+    printSlipBtn.addEventListener('click', () => {
+      const cnt = activeContract || (currentCustomer ? getSavedServiceContracts(storage, currentCustomer.id)[0] : null);
+      if (!cnt) {
+        onToast('Issue a contract first or select one from history to print.');
+        return;
+      }
+      printDocument(cnt, 'slip');
+    });
+  }
+
+  // WhatsApp
+  if (whatsappBtn && !whatsappBtn.dataset?.wiredContract) {
+    if (whatsappBtn.dataset) whatsappBtn.dataset.wiredContract = 'true';
+    whatsappBtn.addEventListener('click', () => {
+      const cnt = activeContract || (currentCustomer ? getSavedServiceContracts(storage, currentCustomer.id)[0] : null);
+      if (!cnt) {
+        onToast('Issue a contract first to generate WhatsApp copy.');
+        return;
+      }
+      const text = formatServiceContractWhatsApp(cnt);
+      const phone = cnt.customer?.phone || currentCustomer?.phone || '';
+      const url = formatWhatsAppUrl(phone, text);
+      if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
+  }
+
+  // Export CSV
+  if (exportCsvBtn && !exportCsvBtn.dataset?.wiredContract) {
+    if (exportCsvBtn.dataset) exportCsvBtn.dataset.wiredContract = 'true';
+    exportCsvBtn.addEventListener('click', () => {
+      const all = getSavedServiceContracts(storage);
+      if (!all.length) {
+        onToast('No service agreements found to export.');
+        return;
+      }
+      const csv = generateServiceContractCsv(all);
+      const filename = `shahdara_service_agreements_${new Date().toISOString().slice(0, 10)}.csv`;
+      downloadCsvFile(filename, csv);
+      onToast('Service agreements CSV downloaded.');
+    });
+  }
+
+  // Close triggers
+  if (closeBtn && !closeBtn.dataset?.wiredContract) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredContract = 'true';
+    closeBtn.addEventListener('click', close);
+  }
+  if (closeSecondaryBtn && !closeSecondaryBtn.dataset?.wiredContract) {
+    if (closeSecondaryBtn.dataset) closeSecondaryBtn.dataset.wiredContract = 'true';
+    closeSecondaryBtn.addEventListener('click', close);
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+  });
+
+  return {
+    open,
+    close,
+    refresh: () => {
+      recalculatePreview();
+      renderHistory();
+    },
+    getContracts: (cid = null) => getSavedServiceContracts(storage, cid)
+  };
+}
+

@@ -4673,6 +4673,208 @@ html, body {
   color: #e6edea;
 }
 
+/* ==========================================================================
+   Subscriber KYC Identity Verification & PTA Regulatory Audit Modal (.kyc-modal) (agent3)
+   ========================================================================== */
+.kyc-modal-card {
+  max-width: 920px;
+  width: 95vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.kyc-metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 14px 0 16px 0;
+}
+
+.kyc-metric-pill {
+  background: var(--surface-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.kyc-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #60756c);
+}
+
+.kyc-metric-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #12211c);
+}
+
+.kyc-controls-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  align-items: flex-end;
+}
+
+.kyc-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 180px;
+}
+
+.kyc-filter-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+}
+
+.kyc-select,
+.kyc-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #12211c);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.kyc-search-group {
+  flex: 2 1 240px;
+}
+
+.kyc-table-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+}
+
+.kyc-row-name {
+  color: var(--ink, #12211c);
+  display: block;
+}
+
+.kyc-row-user {
+  font-size: 12px;
+  color: var(--muted, #60756c);
+}
+
+.kyc-row-discrepancy {
+  font-size: 11px;
+  color: #b91c1c;
+  background: rgba(185, 28, 28, 0.08);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 3px;
+  display: inline-block;
+}
+
+.kyc-row-origin {
+  display: block;
+  font-size: 12px;
+  color: var(--ink, #12211c);
+}
+
+.kyc-row-gender {
+  font-size: 11px;
+  color: var(--muted, #60756c);
+}
+
+.kyc-actions-cell {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+}
+
+.kyc-empty-state {
+  padding: 30px 16px;
+  text-align: center;
+}
+
+.kyc-empty-title {
+  font-weight: 800;
+  font-size: 15px;
+  color: #047857;
+  margin: 0 0 6px 0;
+}
+
+.kyc-empty-sub {
+  font-size: 13px;
+  color: var(--muted, #60756c);
+  margin: 0;
+}
+
+.kyc-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .kyc-metrics-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kyc-modal-actions {
+    flex-direction: column;
+  }
+  .kyc-modal-actions button {
+    width: 100%;
+  }
+}
+
+/* Dark mode for KYC modal */
+[data-theme="dark"] .kyc-modal-card {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .kyc-metric-pill {
+  background: #192e27;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .kyc-metric-value {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .kyc-select,
+[data-theme="dark"] .kyc-input {
+  background: #192e27;
+  color: #e6edea;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .kyc-table-scroll {
+  border-color: #253d35;
+  background: #0f1c17;
+}
+
+[data-theme="dark"] .kyc-row-name,
+[data-theme="dark"] .kyc-row-origin {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .kyc-row-discrepancy {
+  background: rgba(220, 38, 38, 0.2);
+  color: #fca5a5;
+}
+
+
 
 
 

@@ -555,6 +555,16 @@
             </div>
             <div id="dashboardJettingChart" class="chart-svg-container" role="img" aria-label="Underground Duct Hydraulic Pressure and Cable Jetting Friction Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-pon-dba">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">OLT PON Port DBA &amp; Latency Queues</h4>
+                <p class="chart-subtitle">Upstream TDMA burst grants, SR-DBA vs NSR-DBA scheduling, and SLA jitter horizons</p>
+              </div>
+              <button id="dashboardOpenPonDbaModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">DBA Diagnostics</button>
+            </div>
+            <div id="dashboardPonDbaChart" class="chart-svg-container" role="img" aria-label="OLT PON Port Dynamic Bandwidth Allocation and Latency Queue Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -2082,6 +2092,94 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="jettingFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopyJettingReportBtn" class="primary-button" type="button">📋 Copy Cable Jetting Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardPonDbaModal" class="dashboard-modal pon-dba-modal" aria-labelledby="dashboardPonDbaModalTitle">
+        <div class="dashboard-modal-card pon-dba-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">OPTICAL ACCESS NETWORK · TDMA SCHEDULING</p>
+              <h3 id="dashboardPonDbaModalTitle">OLT PON Port Dynamic Bandwidth Allocation (DBA) &amp; Latency Queue Matrix</h3>
+            </div>
+            <button id="dashboardPonDbaModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Downstream TDM broadcast (1490nm/1577nm) and upstream TDMA burst scheduling (1310nm/1270nm) queue delay simulation, Status-Reporting DBA (SR-DBA) DBRu buffer turnaround vs Non-Status-Reporting (NSR-DBA), and ITU-T G.984 SLA compliance.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="ponDbaPortSelect" class="otdr-control-label">Monitored PON Corridor:</label>
+              <select id="ponDbaPortSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="ponDbaModeSelect" class="otdr-control-label">DBA Algorithm Mode:</label>
+              <select id="ponDbaModeSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="ponDbaConcurrencySlider" class="otdr-control-label">Upstream Traffic Load:</label>
+                <span id="ponDbaConcurrencyVal" class="otdr-val-pill">65%</span>
+                <label for="ponDbaCycleSlider" class="otdr-control-label" style="margin-left: 10px;">Cycle Period:</label>
+                <span id="ponDbaCycleVal" class="otdr-val-pill">1.0 ms</span>
+                <button id="ponDbaResetSimBtn" type="button" class="otdr-reset-btn">Reset</button>
+              </div>
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <input type="range" id="ponDbaConcurrencySlider" min="20" max="100" step="5" value="65" class="otdr-range-slider" style="flex: 1;" />
+                <input type="range" id="ponDbaCycleSlider" min="0.5" max="5.0" step="0.25" value="1.0" class="otdr-range-slider" style="flex: 1;" />
+              </div>
+            </div>
+          </div>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">OLT PON Port</span>
+              <span id="ponDbaKpiPortName" class="ltv-kpi-value">Shahdara Town OLT-01</span>
+              <span class="ltv-kpi-sub">Optical Feeder Span</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">One-Way Latency (RTT)</span>
+              <span id="ponDbaKpiLatency" class="ltv-kpi-value">3.4 ms (6.8 ms)</span>
+              <span class="ltv-kpi-sub">Propagation + Queueing</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">P99 Latency &amp; Jitter</span>
+              <span id="ponDbaKpiP99Jitter" class="ltv-kpi-value">P99: 7.2 ms | ±1.4 ms</span>
+              <span class="ltv-kpi-sub">Burst Variance Horizon</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">SLA Status &amp; Risk</span>
+              <span id="ponDbaStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="ponDbaKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="ponDbaModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="OLT PON DBA Burst Schedule and Latency Distribution Diagram"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Shahdara OLT PON Port Corridors Register</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-register-table">
+              <thead>
+                <tr>
+                  <th>PON Port Identifier</th>
+                  <th>Primary Sector</th>
+                  <th>DBA Mode</th>
+                  <th>One-Way Latency</th>
+                  <th>P99 Jitter</th>
+                  <th>Util (ρ)</th>
+                  <th>Drop Rate</th>
+                  <th>Health Status</th>
+                </tr>
+              </thead>
+              <tbody id="ponDbaPortsTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="ponDbaFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopyPonDbaReportBtn" class="primary-button" type="button">📋 Copy PON DBA Diagnostics Briefing</button>
           </div>
         </div>
       </dialog>

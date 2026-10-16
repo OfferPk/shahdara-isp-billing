@@ -155,7 +155,22 @@ import {
   setJettingPressure,
   getJettingFriction,
   setJettingFriction,
-  renderDuctJettingSvg
+  renderDuctJettingSvg,
+  SHAHDARA_PON_PORTS,
+  getPonDbaSelectedPort,
+  setPonDbaSelectedPort,
+  getPonDbaMode,
+  setPonDbaMode,
+  getPonDbaConcurrency,
+  setPonDbaConcurrency,
+  getPonDbaCyclePeriod,
+  setPonDbaCyclePeriod,
+  calculateOpticalPropagationDelay,
+  calculateDbaQueueDynamics,
+  calculatePonDbaMetrics,
+  renderPonDbaQueueSvg,
+  generatePonDbaReport,
+  setupPonDbaModal
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -6267,6 +6282,415 @@ test('setupDuctJettingModal wires open, close, select change, slider input, rese
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA FTTH UNDERGROUND DUCT HYDRAULIC PRESSURE & JETTING AUDIT REPORT'));
     assert.equal(toastMessage, 'Underground duct jetting audit copied to clipboard!');
+
+    // Test close
+    assert.ok(closeClickHandler !== null);
+    closeClickHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateOpticalPropagationDelay returns accurate single-trip and RTT physical delays', () => {
+  const delay1 = calculateOpticalPropagationDelay(4.8);
+  assert.ok(delay1.oneWayMs > 0.02 && delay1.oneWayMs < 0.03);
+  assert.equal(delay1.rttMs, Math.round(delay1.oneWayMs * 2 * 1000) / 1000);
+
+  const delay2 = calculateOpticalPropagationDelay(8.5);
+  assert.ok(delay2.oneWayMs > 0.04 && delay2.oneWayMs < 0.05);
+  assert.ok(delay2.rttMs > delay1.rttMs);
+
+  // Fallback on invalid or zero distance
+  const delayZero = calculateOpticalPropagationDelay(0);
+  assert.ok(delayZero.oneWayMs > 0);
+  assert.ok(delayZero.rttMs > 0);
+});
+
+test('calculateDbaQueueDynamics models SR-DBA, NSR-DBA, and Hybrid-DBA latency queueing', () => {
+  const gponPort = SHAHDARA_PON_PORTS[0]; // Shahdara Town Central
+
+  // Low concurrency baseline
+  const lowLoad = calculateDbaQueueDynamics(gponPort, {
+    dbaMode: 'SR-DBA',
+    concurrencyLoad: 30,
+    cyclePeriodMs: 1.0,
+    activeSubscriberCount: 40,
+    totalBilledRevenue: 88000
+  });
+
+  assert.equal(lowLoad.effectiveMode, 'SR-DBA');
+  assert.equal(lowLoad.status, 'OPTIMAL');
+  assert.equal(lowLoad.dropRatePct, 0);
+  assert.equal(lowLoad.atRiskRevenue, 0);
+  assert.ok(lowLoad.avgOneWayLatencyMs < gponPort.slaLatencyThresholdMs);
+  assert.ok(lowLoad.p99LatencyMs > lowLoad.avgOneWayLatencyMs);
+  assert.ok(lowLoad.jitterMs > 0);
+
+  // Compare DBA modes at moderate load
+  const srDba = calculateDbaQueueDynamics(gponPort, { dbaMode: 'SR-DBA', concurrencyLoad: 70, cyclePeriodMs: 1.0 });
+  const nsrDba = calculateDbaQueueDynamics(gponPort, { dbaMode: 'NSR-DBA', concurrencyLoad: 70, cyclePeriodMs: 1.0 });
+  const hybridDba = calculateDbaQueueDynamics(gponPort, { dbaMode: 'Hybrid-DBA', concurrencyLoad: 70, cyclePeriodMs: 1.0 });
+
+  assert.equal(srDba.effectiveMode, 'SR-DBA');
+  assert.equal(nsrDba.effectiveMode, 'NSR-DBA');
+  assert.equal(hybridDba.effectiveMode, 'Hybrid-DBA');
+  assert.ok(srDba.schedulingDelayMs > 0);
+  assert.ok(nsrDba.schedulingDelayMs > 0);
+
+  // High concurrency causing buffer overrun & SLA breach
+  const heavyLoad = calculateDbaQueueDynamics(gponPort, {
+    dbaMode: 'NSR-DBA',
+    concurrencyLoad: 98,
+    cyclePeriodMs: 2.5,
+    activeSubscriberCount: 80,
+    totalBilledRevenue: 176000
+  });
+
+  assert.equal(heavyLoad.status, 'CRITICAL');
+  assert.ok(heavyLoad.dropRatePct > 0);
+  assert.equal(heavyLoad.atRiskRevenue, 176000);
+  assert.ok(heavyLoad.avgOneWayLatencyMs > gponPort.slaLatencyThresholdMs || heavyLoad.dropRatePct >= 2.0);
+
+  // T-CONT distribution validation
+  assert.equal(lowLoad.tcontDistribution.length, 4);
+  assert.equal(lowLoad.tcontDistribution[0].type, 'T-CONT 1');
+  assert.equal(lowLoad.tcontDistribution[3].type, 'T-CONT 4');
+});
+
+test('calculatePonDbaMetrics evaluates customer correlations across Shahdara corridors', () => {
+  const state = {
+    customers: [
+      { id: 'cust-1', name: 'Zahid Khan', area: 'Shahdara Town', plan: 'Fiber 20M', planRate: 2000, status: 'Active' },
+      { id: 'cust-2', name: 'Rashid Mehmood', area: 'Baradari Road', plan: 'Fiber 30M', planRate: 2500, status: 'Active' },
+      { id: 'cust-3', name: 'Farooq Textile', area: 'Vandala Road', plan: 'Gigabit Biz', planRate: 6000, status: 'Active' },
+      { id: 'cust-4', name: 'Asif Autos', area: 'Jia Musa', plan: 'Fiber 15M', planRate: 1800, status: 'Active' }
+    ],
+    bills: []
+  };
+
+  const metrics = calculatePonDbaMetrics(state, {
+    portId: 'pon-vr-03',
+    modeOverride: 'Hybrid-DBA',
+    concurrencyOverride: 60,
+    cycleOverride: 1.5,
+    referenceDate: '2026-10-16'
+  });
+
+  assert.ok(metrics.selectedPort.id === 'pon-vr-03');
+  assert.equal(metrics.selectedDynamics.effectiveMode, 'Hybrid-DBA');
+  assert.equal(metrics.selectedDynamics.effectiveConcurrency, 60);
+  assert.equal(metrics.selectedDynamics.effectiveCycle, 1.5);
+  assert.equal(metrics.portEvaluations.length, SHAHDARA_PON_PORTS.length);
+  assert.ok(metrics.summary.totalPorts === SHAHDARA_PON_PORTS.length);
+  assert.ok(metrics.summary.totalSubscribers >= 4);
+});
+
+test('renderPonDbaQueueSvg renders valid, accessible SVG for compact and modal views', () => {
+  const dummyData = {
+    selectedPort: SHAHDARA_PON_PORTS[0],
+    selectedDynamics: {
+      status: 'OPTIMAL',
+      statusLabel: 'Optimal Latency',
+      badgeClass: 'badge-success',
+      effectiveMode: 'SR-DBA',
+      effectiveConcurrency: 65,
+      effectiveCycle: 1.0,
+      propagation: { oneWayMs: 0.023, rttMs: 0.047 },
+      utilizationPct: 62,
+      jitterMs: 1.25,
+      dropRatePct: 0.0,
+      avgOneWayLatencyMs: 4.85,
+      avgRttLatencyMs: 9.75,
+      p99LatencyMs: 8.65,
+      slaThresholdMs: 15.0,
+      atRiskRevenue: 0,
+      schedulingDelayMs: 1.55,
+      tcontDistribution: [
+        { type: 'T-CONT 1', label: 'Fixed', sharePct: 15 },
+        { type: 'T-CONT 2', label: 'Assured', sharePct: 25 },
+        { type: 'T-CONT 3', label: 'Non-Assured', sharePct: 30 },
+        { type: 'T-CONT 4', label: 'Best-Effort', sharePct: 30 }
+      ]
+    }
+  };
+
+  // Compact rendering
+  const compactSvg = renderPonDbaQueueSvg(dummyData, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="chart-svg pon-dba-svg compact-svg"'));
+  assert.ok(compactSvg.includes('Avg 1-Way Latency'));
+  assert.ok(compactSvg.includes('4.85 ms'));
+  assert.ok(compactSvg.includes('OPTIMAL'));
+
+  // Full modal rendering
+  const fullSvg = renderPonDbaQueueSvg(dummyData, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="chart-svg pon-dba-svg full-svg"'));
+  assert.ok(fullSvg.includes('125µs GPON Frame Burst Horizon'));
+  assert.ok(fullSvg.includes('T-CONT 1 (Fixed)'));
+  assert.ok(fullSvg.includes('T-CONT 4 (Best Effort)'));
+  assert.ok(fullSvg.includes('SLA Latency Cap'));
+
+  // Empty state fallback
+  const emptySvg = renderPonDbaQueueSvg(null);
+  assert.ok(emptySvg.includes('No PON DBA metrics recorded'));
+});
+
+test('generatePonDbaReport outputs complete diagnostic briefing', () => {
+  const dummyData = {
+    selectedPort: SHAHDARA_PON_PORTS[0],
+    selectedEvaluation: { billedRevenue: 85000 },
+    selectedDynamics: {
+      status: 'CRITICAL',
+      statusLabel: 'Critical Buffer Overrun',
+      effectiveMode: 'NSR-DBA',
+      effectiveCycle: 2.0,
+      effectiveConcurrency: 90,
+      activeCount: 60,
+      offeredTrafficMbps: 900,
+      utilizationPct: 88,
+      schedulingDelayMs: 2.9,
+      queueDelayMs: 8.5,
+      avgOneWayLatencyMs: 18.5,
+      avgRttLatencyMs: 37.1,
+      p99LatencyMs: 32.4,
+      jitterMs: 5.8,
+      dropRatePct: 3.4,
+      slaThresholdMs: 15.0,
+      atRiskRevenue: 85000,
+      propagation: { oneWayMs: 0.023, rttMs: 0.047 },
+      tcontDistribution: [
+        { type: 'T-CONT 1', label: 'Fixed Guaranteed (VoIP/SLA)', sharePct: 15 },
+        { type: 'T-CONT 2', label: 'Assured Dedicated', sharePct: 25 },
+        { type: 'T-CONT 3', label: 'Assured + Non-Assured', sharePct: 30 },
+        { type: 'T-CONT 4', label: 'Best-Effort Contention', sharePct: 30 }
+      ]
+    },
+    summary: {
+      totalPorts: 6,
+      optimalPortCount: 4,
+      elevatedPortCount: 1,
+      criticalPortCount: 1,
+      totalNetworkBilled: 450000,
+      totalAtRiskRevenue: 85000
+    },
+    portEvaluations: [
+      {
+        port: SHAHDARA_PON_PORTS[0],
+        dynamics: {
+          avgOneWayLatencyMs: 18.5,
+          jitterMs: 5.8,
+          utilizationPct: 88,
+          status: 'CRITICAL'
+        }
+      }
+    ]
+  };
+
+  const report = generatePonDbaReport(dummyData, '2026-10-16');
+  assert.ok(report.includes('SHAHDARA FTTH OLT PON PORT DBA & TDM LATENCY QUEUE AUDIT REPORT'));
+  assert.ok(report.includes('Shahdara Town Central OLT-01 PON-1'));
+  assert.ok(report.includes('T-CONT 1'));
+  assert.ok(report.includes('URGENT'));
+  assert.ok(report.includes('Transition from NSR-DBA to SR-DBA'));
+});
+
+test('get/set state helpers validate port, mode, concurrency, and cycle period', () => {
+  setPonDbaSelectedPort('pon-vr-03');
+  assert.equal(getPonDbaSelectedPort(), 'pon-vr-03');
+
+  setPonDbaSelectedPort('invalid-port');
+  assert.equal(getPonDbaSelectedPort(), 'pon-vr-03');
+
+  setPonDbaMode('Hybrid-DBA');
+  assert.equal(getPonDbaMode(), 'Hybrid-DBA');
+  setPonDbaMode('invalid-mode');
+  assert.equal(getPonDbaMode(), null);
+
+  setPonDbaConcurrency(85);
+  assert.equal(getPonDbaConcurrency(), 85);
+  setPonDbaConcurrency(150); // out of range
+  assert.equal(getPonDbaConcurrency(), null);
+
+  setPonDbaCyclePeriod(2.25);
+  assert.equal(getPonDbaCyclePeriod(), 2.25);
+  setPonDbaCyclePeriod(10.0); // out of range
+  assert.equal(getPonDbaCyclePeriod(), null);
+});
+
+test('setupPonDbaModal wires interactive controls, sliders, reset, filter, and clipboard dispatch', async () => {
+  setPonDbaSelectedPort('pon-st-01');
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  let openClickHandler = null;
+  let closeClickHandler = null;
+  let portChangeHandler = null;
+  let modeChangeHandler = null;
+  let concurrencyInputHandler = null;
+  let cycleInputHandler = null;
+  let resetClickHandler = null;
+  let filterAreaClickHandler = null;
+  let copyClickHandler = null;
+
+  const mockModal = {
+    dataset: {},
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openClickHandler = fn; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeClickHandler = fn; }
+  };
+
+  const mockPortSelect = {
+    options: [],
+    value: 'pon-st-01',
+    dataset: {},
+    appendChild: (opt) => mockPortSelect.options.push(opt),
+    addEventListener: (evt, fn) => { if (evt === 'change') portChangeHandler = fn; }
+  };
+
+  const mockModeSelect = {
+    options: [],
+    value: 'SR-DBA',
+    dataset: {},
+    appendChild: (opt) => mockModeSelect.options.push(opt),
+    addEventListener: (evt, fn) => { if (evt === 'change') modeChangeHandler = fn; }
+  };
+
+  const mockConcurrencySlider = {
+    value: '65',
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'input') concurrencyInputHandler = fn; }
+  };
+  const mockConcurrencyVal = { textContent: '' };
+
+  const mockCycleSlider = {
+    value: '1.0',
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'input') cycleInputHandler = fn; }
+  };
+  const mockCycleVal = { textContent: '' };
+
+  const mockResetBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') resetClickHandler = fn; }
+  };
+
+  const mockFilterAreaBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') filterAreaClickHandler = fn; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyClickHandler = fn; }
+  };
+
+  const mockKpiPortName = { textContent: '' };
+  const mockKpiLatency = { textContent: '' };
+  const mockKpiP99Jitter = { textContent: '' };
+  const mockKpiStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardPonDbaModal': return mockModal;
+        case 'dashboardOpenPonDbaModalBtn': return mockOpenBtn;
+        case 'dashboardPonDbaModalCloseBtn': return mockCloseBtn;
+        case 'ponDbaPortSelect': return mockPortSelect;
+        case 'ponDbaModeSelect': return mockModeSelect;
+        case 'ponDbaConcurrencySlider': return mockConcurrencySlider;
+        case 'ponDbaConcurrencyVal': return mockConcurrencyVal;
+        case 'ponDbaCycleSlider': return mockCycleSlider;
+        case 'ponDbaCycleVal': return mockCycleVal;
+        case 'ponDbaResetSimBtn': return mockResetBtn;
+        case 'ponDbaFilterAreaBtn': return mockFilterAreaBtn;
+        case 'dashboardCopyPonDbaReportBtn': return mockCopyBtn;
+        case 'ponDbaKpiPortName': return mockKpiPortName;
+        case 'ponDbaKpiLatency': return mockKpiLatency;
+        case 'ponDbaKpiP99Jitter': return mockKpiP99Jitter;
+        case 'ponDbaStatusBadge': return mockKpiStatusBadge;
+        case 'ponDbaKpiRevenueRisk': return mockKpiRevenueRisk;
+        case 'ponDbaModalChartWrap': return mockChartWrap;
+        case 'ponDbaPortsTableBody': return mockTableBody;
+        default: return null;
+      }
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '', selected: false })
+  };
+
+  const state = createInitialState([]);
+
+  try {
+    setupPonDbaModal(state, {
+      referenceDate: '2026-10-16',
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Check options populated
+    assert.equal(mockPortSelect.options.length, SHAHDARA_PON_PORTS.length);
+    assert.equal(mockModeSelect.options.length, 3);
+
+    // Test open
+    assert.ok(openClickHandler !== null);
+    openClickHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiPortName.textContent.includes('Shahdara Town'));
+    assert.ok(mockChartWrap.innerHTML.includes('pon-dba-svg'));
+
+    // Test concurrency slider input
+    assert.ok(concurrencyInputHandler !== null);
+    mockConcurrencySlider.value = '80';
+    concurrencyInputHandler();
+    assert.equal(getPonDbaConcurrency(), 80);
+    assert.equal(mockConcurrencyVal.textContent, '80%');
+
+    // Test cycle slider input
+    assert.ok(cycleInputHandler !== null);
+    mockCycleSlider.value = '2.5';
+    cycleInputHandler();
+    assert.equal(getPonDbaCyclePeriod(), 2.5);
+    assert.equal(mockCycleVal.textContent, '2.5 ms');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getPonDbaConcurrency(), null);
+    assert.equal(getPonDbaCyclePeriod(), null);
+
+    // Test filter area action
+    assert.ok(filterAreaClickHandler !== null);
+    filterAreaClickHandler();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyClickHandler !== null);
+    await copyClickHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA FTTH OLT PON PORT DBA & TDM LATENCY QUEUE AUDIT REPORT'));
+    assert.equal(toastMessage, 'PON DBA latency diagnostics briefing copied to clipboard!');
 
     // Test close
     assert.ok(closeClickHandler !== null);

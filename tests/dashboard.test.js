@@ -94,7 +94,18 @@ import {
   setOtdrWavelength,
   getOtdrSimulatedDistance,
   setOtdrSimulatedDistance,
-  renderOtdrTraceSvg
+  renderOtdrTraceSvg,
+  SHAHDARA_SOLAR_HUBS,
+  calculateSolarInverterMetrics,
+  generateSolarReport,
+  setupSolarModal,
+  getSolarSelectedHub,
+  setSolarSelectedHub,
+  getSolarMode,
+  setSolarMode,
+  getSolarIrradiance,
+  setSolarIrradiance,
+  renderSolarInverterSvg
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -4749,6 +4760,274 @@ test('setupOtdrModal wires route select, wavelength, slider, filter area, copy r
     assert.equal(toastMessage, 'OTDR dispatch briefing copied to clipboard!');
 
     // Test close button
+    assert.ok(closeHandler !== null);
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateSolarInverterMetrics handles empty state and defaults to station-main-hub', () => {
+  const result = calculateSolarInverterMetrics();
+  assert.equal(result.hubs.length, 5);
+  assert.equal(result.selectedHub.id, 'station-main-hub');
+  assert.ok(result.totalFleetSolarWp >= 30000);
+  assert.equal(result.selectedMode, 'SBU');
+  assert.ok(result.selectedHub.hourlyData.length >= 14);
+});
+
+test('calculateSolarInverterMetrics calculates solar irradiance, diurnal curve and cost savings', () => {
+  let state = createInitialState(['User 1', 'User 2', 'User 3']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].manualStatus = 'Active';
+
+  // 12:30 PKT (Peak sun)
+  const peakDate = new Date('2026-10-16T12:30:00+05:00');
+  const peakResult = calculateSolarInverterMetrics(state, { referenceDate: peakDate, hubId: 'station-main-hub' });
+  const hub = peakResult.selectedHub;
+
+  assert.ok(hub.currentPvW > 5000); // 12kWp array produces over 5kW during peak sun
+  assert.equal(hub.batteryState, 'CHARGING');
+  assert.ok(hub.dailySolarKwh > 20);
+  assert.ok(hub.dailySavedPkr > 1000);
+  assert.ok(hub.monthlySavedPkr > 30000);
+
+  // Night time (22:00 PKT)
+  const nightDate = new Date('2026-10-16T22:00:00+05:00');
+  const nightResult = calculateSolarInverterMetrics(state, { referenceDate: nightDate, hubId: 'station-main-hub' });
+  assert.equal(nightResult.selectedHub.currentPvW, 0);
+});
+
+test('calculateSolarInverterMetrics detects LESCO load shedding during offline clusters or Island mode', () => {
+  let state = createInitialState(['Sub 1', 'Sub 2', 'Sub 3', 'Sub 4']);
+  // Put 4 subscribers in Wandala Road, 2 offline (50%)
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].manualStatus = 'Offline';
+  state.customers[1].area = 'Vandala Road';
+  state.customers[1].manualStatus = 'Offline';
+  state.customers[2].area = 'Vandala Road';
+  state.customers[2].manualStatus = 'Active';
+  state.customers[3].area = 'Vandala Road';
+  state.customers[3].manualStatus = 'Active';
+
+  const result = calculateSolarInverterMetrics(state, { hubId: 'wandala-sub-station' });
+  const hub = result.selectedHub;
+
+  assert.equal(hub.isGridDown, true);
+  assert.ok(hub.gridStatusLabel.includes('LOAD SHEDDING ACTIVE'));
+  assert.equal(hub.inverterOperationMode, 'Island Backup');
+  assert.ok(hub.autonomyHours > 0);
+});
+
+test('calculateSolarInverterMetrics handles simulation overrides and getters/setters', () => {
+  setSolarSelectedHub('saeed-park-optical-pop');
+  assert.equal(getSolarSelectedHub(), 'saeed-park-optical-pop');
+
+  setSolarMode('Island');
+  assert.equal(getSolarMode(), 'Island');
+
+  setSolarIrradiance(95);
+  assert.equal(getSolarIrradiance(), 95);
+
+  const result = calculateSolarInverterMetrics();
+  assert.equal(result.selectedHub.id, 'saeed-park-optical-pop');
+  assert.equal(result.selectedMode, 'Island');
+  assert.equal(result.irradiancePercent, 95);
+  assert.equal(result.selectedHub.isGridDown, true);
+
+  // Reset
+  setSolarIrradiance(null);
+  assert.equal(getSolarIrradiance(), null);
+  setSolarMode('SBU');
+  setSolarSelectedHub('station-main-hub');
+});
+
+test('generateSolarReport formats operational briefing with hourly breakdown', () => {
+  const report = generateSolarReport();
+  assert.ok(report.includes('SHAHDARA ISP - SOLAR INVERTER & GRID RESILIENCE AUDIT'));
+  assert.ok(report.includes('Shahdara Station Central POP'));
+  assert.ok(report.includes('LOAD SHEDDING OPERATING PROTOCOL'));
+  assert.ok(report.includes('HOURLY SOLAR GENERATION CURVE'));
+  assert.ok(report.includes('LESCO Grid Cost Avoided'));
+});
+
+test('renderSolarInverterSvg renders technical SVG with solar curve and battery autonomy', () => {
+  const fallbackSvg = renderSolarInverterSvg(null);
+  assert.ok(fallbackSvg.includes('role="img"'));
+  assert.ok(fallbackSvg.includes('No solar inverter telemetry available'));
+
+  const data = calculateSolarInverterMetrics();
+  const svg = renderSolarInverterSvg(data, { width: 640, height: 260 });
+
+  assert.ok(svg.includes('viewBox="0 0 640 260"'));
+  assert.ok(svg.includes('solar-inverter-svg'));
+  assert.ok(svg.includes('Shahdara Station Central POP'));
+  assert.ok(svg.includes('Solar Generation Curve'));
+  assert.ok(svg.includes('Equipment AC Load'));
+  assert.ok(svg.includes('Battery Autonomy'));
+});
+
+test('setupSolarModal wires hub select, mode, irradiance slider, filter area, copy report, and modal open/close', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let hubChangeHandler = null;
+  let modeChangeHandler = null;
+  let sliderInputHandler = null;
+  let resetClickHandler = null;
+  let copyHandler = null;
+  let filterClickHandler = null;
+
+  let filterAreaCalledWith = null;
+  let copiedText = null;
+  let toastMessage = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') openHandler = h; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') closeHandler = h; }
+  };
+
+  const mockHubSelect = {
+    children: [],
+    innerHTML: '',
+    value: 'wandala-sub-station',
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'change') hubChangeHandler = h; }
+  };
+
+  const mockModeSelect = {
+    value: 'Island',
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'change') modeChangeHandler = h; }
+  };
+
+  const mockSlider = {
+    value: '80',
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'input') sliderInputHandler = h; }
+  };
+
+  const mockSliderVal = { textContent: '' };
+  const mockResetBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') resetClickHandler = h; }
+  };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = {
+    textContent: '',
+    dataset: {},
+    setAttribute: (name, val) => { mockFilterAreaBtn[name] = val; },
+    getAttribute: (name) => mockFilterAreaBtn[name],
+    addEventListener: (evt, h) => { if (evt === 'click') filterClickHandler = h; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, h) => { if (evt === 'click') copyHandler = h; }
+  };
+
+  const mockHubNameEl = { textContent: '' };
+  const mockPvOutputEl = { textContent: '' };
+  const mockBatterySocEl = { textContent: '' };
+  const mockGridStatusEl = { textContent: '' };
+  const mockSavingsEl = { textContent: '' };
+  const mockStatusBadgeEl = { textContent: '', className: '' };
+
+  try {
+    globalThis.document = {
+      getElementById: (id) => {
+        switch (id) {
+          case 'dashboardSolarModal': return mockModal;
+          case 'dashboardOpenSolarModalBtn': return mockOpenBtn;
+          case 'dashboardSolarModalCloseBtn': return mockCloseBtn;
+          case 'solarHubSelect': return mockHubSelect;
+          case 'solarModeSelect': return mockModeSelect;
+          case 'solarIrradianceSlider': return mockSlider;
+          case 'solarIrradianceVal': return mockSliderVal;
+          case 'solarResetSimBtn': return mockResetBtn;
+          case 'solarModalChartWrap': return mockChartWrap;
+          case 'solarHubsTableBody': return mockTableBody;
+          case 'dashboardCopySolarReportBtn': return mockCopyBtn;
+          case 'solarFilterAreaBtn': return mockFilterAreaBtn;
+          case 'solarKpiHubName': return mockHubNameEl;
+          case 'solarKpiPvOutput': return mockPvOutputEl;
+          case 'solarKpiBatterySoc': return mockBatterySocEl;
+          case 'solarKpiGridStatus': return mockGridStatusEl;
+          case 'solarKpiSavings': return mockSavingsEl;
+          case 'solarStatusBadge': return mockStatusBadgeEl;
+          default: return null;
+        }
+      }
+    };
+
+    let state = createInitialState(['Customer 1']);
+    state.customers[0].area = 'Shahdara Town';
+
+    setupSolarModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onFilterArea: (a) => { filterAreaCalledWith = a; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: { writeText: async (t) => { copiedText = t; } }
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Verify populated
+    assert.ok(mockHubSelect.innerHTML.includes('Shahdara Station'));
+    assert.ok(mockChartWrap.innerHTML.includes('solar-inverter-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Inverex'));
+
+    // Test mode change
+    assert.ok(modeChangeHandler !== null);
+    mockModeSelect.value = 'Island';
+    modeChangeHandler();
+    assert.equal(getSolarMode(), 'Island');
+
+    // Test slider change
+    assert.ok(sliderInputHandler !== null);
+    mockSlider.value = '75';
+    sliderInputHandler();
+    assert.equal(getSolarIrradiance(), 75);
+    assert.equal(mockSliderVal.textContent, '75%');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getSolarIrradiance(), null);
+
+    // Test filter area action
+    assert.ok(filterClickHandler !== null);
+    filterClickHandler();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyHandler !== null);
+    await copyHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP - SOLAR INVERTER & GRID RESILIENCE AUDIT'));
+    assert.equal(toastMessage, 'Solar power audit briefing copied to clipboard!');
+
+    // Test close
     assert.ok(closeHandler !== null);
     closeHandler();
     assert.equal(modalOpened, false);

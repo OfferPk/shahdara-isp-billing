@@ -502,6 +502,16 @@
             </div>
             <div id="dashboardOtdrChart" class="chart-svg-container" role="img" aria-label="OTDR Fiber Fault Locator and Break Distance Estimator Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-solar">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Solar Hybrid Inverter &amp; Grid Load Shedding</h4>
+                <p class="chart-subtitle">Photovoltaic generation, POP battery SoC autonomy, and LESCO blackout resilience</p>
+              </div>
+              <button id="dashboardOpenSolarModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Inverter Diagnostics</button>
+            </div>
+            <div id="dashboardSolarChart" class="chart-svg-container" role="img" aria-label="Solar Hybrid Inverter and Grid Load Shedding Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -1603,6 +1613,93 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="otdrFilterAreaBtn" class="secondary-button" type="button">Inspect Route Subscribers</button>
             <button id="dashboardCopyOtdrReportBtn" class="primary-button" type="button">📋 Copy OTDR Dispatch Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardSolarModal" class="dashboard-modal solar-modal" aria-labelledby="dashboardSolarModalTitle">
+        <div class="dashboard-modal-card solar-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">POP HYBRID POWER &amp; GRID RESILIENCE</p>
+              <h3 id="dashboardSolarModalTitle">Solar Hybrid Inverter &amp; Grid Load Shedding Monitor</h3>
+            </div>
+            <button id="dashboardSolarModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Real-time solar photovoltaic harvest, inverter operating mode (SBU/SUB/Island), battery bank state of charge autonomy, and LESCO grid blackout resilience across Shahdara POP hubs.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="solarHubSelect" class="otdr-control-label">Monitored Solar Hub:</label>
+              <select id="solarHubSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="solarModeSelect" class="otdr-control-label">Inverter Operating Mode:</label>
+              <select id="solarModeSelect" class="otdr-select">
+                <option value="SBU" selected>SBU (Solar-Battery-Utility)</option>
+                <option value="SUB">SUB (Solar-Utility-Battery Assist)</option>
+                <option value="Island">Island (Off-Grid Blackout Mode)</option>
+              </select>
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="solarIrradianceSlider" class="otdr-control-label">Solar Irradiance:</label>
+                <span id="solarIrradianceVal" class="otdr-val-pill">Auto (Diurnal)</span>
+                <button id="solarResetSimBtn" type="button" class="otdr-reset-btn">Reset</button>
+              </div>
+              <input type="range" id="solarIrradianceSlider" min="0" max="100" step="5" class="otdr-range-slider" />
+            </div>
+          </div>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">POP Station &amp; Solar Array</span>
+              <span id="solarKpiHubName" class="ltv-kpi-value">Station Central (12 kWp)</span>
+              <span class="ltv-kpi-sub">Hybrid Pure Sine Wave</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Current Solar PV Output</span>
+              <span id="solarKpiPvOutput" class="ltv-kpi-value">0 W (0.0 kW)</span>
+              <span class="ltv-kpi-sub">Photovoltaic Generation</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Battery Bank SoC &amp; Autonomy</span>
+              <span id="solarKpiBatterySoc" class="ltv-kpi-value">88% (Idle ~8.5h)</span>
+              <span class="ltv-kpi-sub">48V LiFePO4 Reserve</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Utility Grid &amp; Cost Savings</span>
+              <span id="solarStatusBadge" class="sim-delta-badge badge-success">Grid Online</span>
+              <span id="solarKpiSavings" class="ltv-kpi-sub">PKR 0 / mo saved</span>
+            </div>
+          </div>
+
+          <div id="solarModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="Solar Inverter Modal Chart Display"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Shahdara POP Solar Inverter Fleet Register</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-table">
+              <thead>
+                <tr>
+                  <th>POP Hub</th>
+                  <th>Inverter Model</th>
+                  <th>Solar Array</th>
+                  <th>Current PV</th>
+                  <th>AC Load</th>
+                  <th>Battery SoC</th>
+                  <th>Grid Status</th>
+                  <th>Daily Saved</th>
+                </tr>
+              </thead>
+              <tbody id="solarHubsTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="solarFilterAreaBtn" class="secondary-button" type="button">Inspect Hub Subscribers</button>
+            <button id="dashboardCopySolarReportBtn" class="primary-button" type="button">📋 Copy Solar Audit Briefing</button>
           </div>
         </div>
       </dialog>

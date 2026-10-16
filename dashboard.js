@@ -5214,6 +5214,20 @@ export {
   renderOtdrTraceSvg
 } from './dashboard-otdr.js';
 
+export {
+  SHAHDARA_SOLAR_HUBS,
+  calculateSolarInverterMetrics,
+  generateSolarReport,
+  setupSolarModal,
+  getSolarSelectedHub,
+  setSolarSelectedHub,
+  getSolarMode,
+  setSolarMode,
+  getSolarIrradiance,
+  setSolarIrradiance,
+  renderSolarInverterSvg
+} from './dashboard-solar.js';
+
 
 
 

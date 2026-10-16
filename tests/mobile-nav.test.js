@@ -5315,3 +5315,327 @@ test('setupMobileOpmTestingModal wires modal triggers, selects, inputs, and acti
     globalThis.document = origDoc;
   }
 });
+
+test('nav-vfl-tracer TIA-598-D color code resolution, cable sizes, and fault modes', async () => {
+  const {
+    TIA_598_COLOR_CODES,
+    VFL_CABLE_TYPES,
+    VFL_LASER_MODES,
+    VFL_POWER_LEVELS,
+    VFL_FAULT_CONDITIONS,
+    SHAHDARA_OSP_CABINETS,
+    resolveFiberCoreFromNumber,
+    resolveCoreNumberFromTubeAndFiber
+  } = await import('../nav-vfl-tracer.js');
+
+  // Verify 12 color codes
+  assert.equal(TIA_598_COLOR_CODES.length, 12);
+  assert.equal(TIA_598_COLOR_CODES[0].name, 'Blue');
+  assert.equal(TIA_598_COLOR_CODES[1].name, 'Orange');
+  assert.equal(TIA_598_COLOR_CODES[2].name, 'Green');
+  assert.equal(TIA_598_COLOR_CODES[3].name, 'Brown');
+  assert.equal(TIA_598_COLOR_CODES[4].name, 'Slate');
+  assert.equal(TIA_598_COLOR_CODES[5].name, 'White');
+  assert.equal(TIA_598_COLOR_CODES[6].name, 'Red');
+  assert.equal(TIA_598_COLOR_CODES[7].name, 'Black');
+  assert.equal(TIA_598_COLOR_CODES[8].name, 'Yellow');
+  assert.equal(TIA_598_COLOR_CODES[9].name, 'Violet');
+  assert.equal(TIA_598_COLOR_CODES[10].name, 'Rose');
+  assert.equal(TIA_598_COLOR_CODES[11].name, 'Aqua');
+
+  // Resolve Core #1 (48-Core cable) -> Tube 1 (Blue), Fiber 1 (Blue)
+  const core1 = resolveFiberCoreFromNumber(1, 48);
+  assert.equal(core1.coreNumber, 1);
+  assert.equal(core1.tubeNumber, 1);
+  assert.equal(core1.tubeColor.name, 'Blue');
+  assert.equal(core1.fiberNumberInTube, 1);
+  assert.equal(core1.fiberColor.name, 'Blue');
+
+  // Resolve Core #12 -> Tube 1 (Blue), Fiber 12 (Aqua)
+  const core12 = resolveFiberCoreFromNumber(12, 48);
+  assert.equal(core12.tubeNumber, 1);
+  assert.equal(core12.tubeColor.name, 'Blue');
+  assert.equal(core12.fiberNumberInTube, 12);
+  assert.equal(core12.fiberColor.name, 'Aqua');
+
+  // Resolve Core #13 -> Tube 2 (Orange), Fiber 1 (Blue)
+  const core13 = resolveFiberCoreFromNumber(13, 48);
+  assert.equal(core13.tubeNumber, 2);
+  assert.equal(core13.tubeColor.name, 'Orange');
+  assert.equal(core13.fiberNumberInTube, 1);
+  assert.equal(core13.fiberColor.name, 'Blue');
+
+  // Resolve Core #27 -> Tube 3 (Green), Fiber 3 (Green)
+  const core27 = resolveFiberCoreFromNumber(27, 48);
+  assert.equal(core27.tubeNumber, 3);
+  assert.equal(core27.tubeColor.name, 'Green');
+  assert.equal(core27.fiberNumberInTube, 3);
+  assert.equal(core27.fiberColor.name, 'Green');
+
+  // Reverse resolution: Tube 3, Fiber 3 -> Core 27
+  assert.equal(resolveCoreNumberFromTubeAndFiber(3, 3), 27);
+  assert.equal(resolveCoreNumberFromTubeAndFiber(1, 1), 1);
+  assert.equal(resolveCoreNumberFromTubeAndFiber(4, 12), 48);
+
+  // Boundary clamping
+  const clampedLow = resolveFiberCoreFromNumber(0, 48);
+  assert.equal(clampedLow.coreNumber, 1);
+  const clampedHigh = resolveFiberCoreFromNumber(100, 48);
+  assert.equal(clampedHigh.coreNumber, 48);
+
+  // Cable types and cabinets
+  assert.equal(VFL_CABLE_TYPES.length, 5);
+  assert.equal(SHAHDARA_OSP_CABINETS.length, 6);
+  assert.equal(VFL_FAULT_CONDITIONS.CONTINUITY_OK.id, 'CONTINUITY_OK');
+  assert.equal(VFL_FAULT_CONDITIONS.FIBER_BREAK.id, 'FIBER_BREAK');
+  assert.equal(VFL_FAULT_CONDITIONS.MACROBEND.id, 'MACROBEND');
+});
+
+test('nav-vfl-tracer storage, report generation, and laser SVG visualizer', async () => {
+  const {
+    getVflTestLogsStore,
+    saveVflTestLogsStore,
+    recordVflTestLog,
+    clearVflTestLogsStore,
+    generateVflFieldReport,
+    renderMobileVflLaserSvg,
+    VFL_FAULT_CONDITIONS
+  } = await import('../nav-vfl-tracer.js');
+
+  const testStore = { _data: {} };
+  const mockStorage = {
+    getItem(k) { return testStore._data[k] || null; },
+    setItem(k, v) { testStore._data[k] = String(v); },
+    removeItem(k) { delete testStore._data[k]; }
+  };
+
+  // Initially empty
+  assert.deepEqual(getVflTestLogsStore(mockStorage), []);
+
+  // Record a test log
+  const log = recordVflTestLog({
+    coreNumber: 5,
+    totalCores: 48,
+    tubeNumber: 1,
+    tubeColorName: 'Blue',
+    fiberNumberInTube: 5,
+    fiberColorName: 'Slate',
+    laserMode: 'CW',
+    powerMw: 10,
+    faultCondition: 'CONTINUITY_OK',
+    cabinetId: 'cab-sh-01',
+    cabinetName: 'FDH-01 (Shahdara Chowk Main Hub)',
+    linemanNotes: 'Core verified to subscriber ONT'
+  }, mockStorage);
+
+  assert.equal(log.coreNumber, 5);
+  assert.equal(log.fiberColorName, 'Slate');
+  const storedLogs = getVflTestLogsStore(mockStorage);
+  assert.equal(storedLogs.length, 1);
+  assert.equal(storedLogs[0].coreNumber, 5);
+
+  // Generate WhatsApp field report
+  const testReading = {
+    coreNumber: 5,
+    totalCores: 48,
+    tubeNumber: 1,
+    tubeColor: { name: 'Blue', urduName: 'نیلا' },
+    fiberNumberInTube: 5,
+    fiberColor: { name: 'Slate', urduName: 'سلیٹی' },
+    laserMode: 'CW',
+    powerMw: 10,
+    faultCondition: VFL_FAULT_CONDITIONS.CONTINUITY_OK,
+    cabinetName: 'FDH-01 (Shahdara Chowk Main Hub)',
+    linemanNotes: 'Pristine red beam at drop terminal'
+  };
+
+  const report = generateVflFieldReport(testReading);
+  assert.ok(report.includes('SHAHDARA ISP - VFL'));
+  assert.ok(report.includes('Core #5'));
+  assert.ok(report.includes('48-core cable'));
+  assert.ok(report.includes('Blue'));
+  assert.ok(report.includes('Slate'));
+  assert.ok(report.includes('Pristine red beam'));
+
+  // SVG rendering
+  const svg = renderMobileVflLaserSvg(testReading, { compact: false });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('650nm VISIBLE RED LASER EMISSION'));
+  assert.ok(svg.includes('CORE #5'));
+  assert.ok(svg.includes('TUBE #1'));
+
+  // Clear logs
+  clearVflTestLogsStore(mockStorage);
+  assert.deepEqual(getVflTestLogsStore(mockStorage), []);
+});
+
+test('mobile VFL tracer UI elements are wired in index.html, nav.css, and app.js', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // Trigger buttons
+  assert.match(indexHtml, /id="navVflTracerBtn"/);
+  assert.match(indexHtml, /data-nav-badge="vfl-tracer"/);
+  assert.match(indexHtml, /id="mobileMoreVflTracerBtn"/);
+  assert.match(indexHtml, /id="actionSheetVflTracerBtn"/);
+  assert.match(indexHtml, /id="speedDialVflTracerBtn"/);
+
+  // Modal dialog & inputs
+  assert.match(indexHtml, /<dialog id="mobileVflModal"/);
+  assert.match(indexHtml, /id="vflCableTypeSelect"/);
+  assert.match(indexHtml, /id="vflCabinetSelect"/);
+  assert.match(indexHtml, /id="vflTubeSelect"/);
+  assert.match(indexHtml, /id="vflFiberSelect"/);
+  assert.match(indexHtml, /id="vflCoreNumberSlider"/);
+  assert.match(indexHtml, /id="vflCoreNumberInput"/);
+  assert.match(indexHtml, /id="vflLaserModeSelect"/);
+  assert.match(indexHtml, /id="vflPowerLevelSelect"/);
+  assert.match(indexHtml, /id="vflFaultConditionSelect"/);
+  assert.match(indexHtml, /id="vflLaserSvgContainer"/);
+  assert.match(indexHtml, /id="vflRecordLogBtn"/);
+  assert.match(indexHtml, /id="vflCopyReportBtn"/);
+  assert.match(indexHtml, /id="vflFilterAreaBtn"/);
+  assert.match(indexHtml, /id="vflClearLogsBtn"/);
+
+  // Styles
+  assert.match(navCss, /\.vfl-modal/);
+  assert.match(navCss, /\.vfl-laser-svg/);
+  assert.match(navCss, /\.vfl-log-item/);
+
+  // App.js
+  assert.match(appJs, /setupMobileVflModal/);
+  assert.match(appJs, /mobileVflModalController/);
+  assert.match(appJs, /action === 'vfl-tracer'/);
+});
+
+test('setupMobileVflModal wires modal triggers, selects, inputs, and action buttons', async () => {
+  const { setupMobileVflModal } = await import('../nav-vfl-tracer.js');
+
+  let modalOpened = false;
+  let closeHandler = null;
+  let openHandler = null;
+  let cableChangeHandler = null;
+  let tubeChangeHandler = null;
+  let fiberChangeHandler = null;
+  let sliderInputHandler = null;
+  let modeChangeHandler = null;
+  let powerChangeHandler = null;
+  let faultChangeHandler = null;
+  let logClickHandler = null;
+  let clearClickHandler = null;
+  let copyClickHandler = null;
+  let filterClickHandler = null;
+
+  let toastMsg = null;
+  let filteredArea = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  const mockTriggerBtn = {
+    set onclick(fn) { openHandler = fn; }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'mobileVflModal': return mockModal;
+        case 'mobileVflModalCloseBtn': return { set onclick(fn) { closeHandler = fn; } };
+        case 'vflCableTypeSelect': return { value: '48-core', set onchange(fn) { cableChangeHandler = fn; } };
+        case 'vflCabinetSelect': return { value: 'cab-sh-01', set onchange(fn) {} };
+        case 'vflTubeSelect': return { value: '1', set onchange(fn) { tubeChangeHandler = fn; } };
+        case 'vflFiberSelect': return { value: '1', set onchange(fn) { fiberChangeHandler = fn; } };
+        case 'vflCoreNumberSlider': return { value: '1', set oninput(fn) { sliderInputHandler = fn; } };
+        case 'vflCoreNumberInput': return { value: '1', oninput: null };
+        case 'vflLaserModeSelect': return { value: 'CW', set onchange(fn) { modeChangeHandler = fn; } };
+        case 'vflPowerLevelSelect': return { value: '10', set onchange(fn) { powerChangeHandler = fn; } };
+        case 'vflFaultConditionSelect': return { value: 'CONTINUITY_OK', set onchange(fn) { faultChangeHandler = fn; } };
+        case 'vflNotesInput': return { value: 'Splice tray inspection' };
+        case 'vflLaserSvgContainer': return { innerHTML: '' };
+        case 'vflKpiCorePill': return { textContent: '' };
+        case 'vflKpiTubeBadge': return { textContent: '', style: {} };
+        case 'vflKpiFiberBadge': return { textContent: '', style: {} };
+        case 'vflKpiFaultBadge': return { textContent: '', className: '' };
+        case 'vflRecordLogBtn': return { set onclick(fn) { logClickHandler = fn; } };
+        case 'vflClearLogsBtn': return { set onclick(fn) { clearClickHandler = fn; } };
+        case 'vflCopyReportBtn': return { set onclick(fn) { copyClickHandler = fn; } };
+        case 'vflFilterAreaBtn': return { set onclick(fn) { filterClickHandler = fn; } };
+        case 'vflLogsList': return { innerHTML: '' };
+        default: return null;
+      }
+    },
+    querySelectorAll: (selector) => {
+      if (selector === '[data-open-vfl-tracer]') {
+        return [mockTriggerBtn];
+      }
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupMobileVflModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMsg = msg; },
+      onFilterArea: (area) => { filteredArea = area; },
+      clipboard: {
+        writeText: async (text) => { copiedText = text; }
+      }
+    });
+
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.getCurrentReading, 'function');
+
+    // Trigger button opens modal
+    assert.equal(typeof openHandler, 'function');
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Close button closes modal
+    assert.equal(typeof closeHandler, 'function');
+    closeHandler();
+    assert.equal(modalOpened, false);
+
+    // Slider input changes reading
+    assert.equal(typeof sliderInputHandler, 'function');
+    sliderInputHandler({ target: { value: '7' } });
+    assert.equal(controller.getCurrentReading().coreNumber, 7);
+    assert.equal(controller.getCurrentReading().fiberColor.name, 'Red');
+
+    // Logging test reading
+    assert.equal(typeof logClickHandler, 'function');
+    logClickHandler();
+    assert.ok(toastMsg.includes('Core #7'));
+
+    // Copying report
+    assert.equal(typeof copyClickHandler, 'function');
+    await copyClickHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - VFL'));
+
+    // Filter area
+    assert.equal(typeof filterClickHandler, 'function');
+    filterClickHandler();
+    assert.equal(filteredArea, 'Shahdara Town');
+
+    // Clear logs
+    assert.equal(typeof clearClickHandler, 'function');
+    clearClickHandler();
+    assert.equal(toastMsg, 'Cleared VFL test logs');
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

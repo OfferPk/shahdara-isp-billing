@@ -235,8 +235,25 @@ import {
   calculateDnsMetrics,
   renderDnsDiagnosticsSvg,
   generateDnsDiagnosticReport,
-  setupDnsDiagnosticsModal
+  setupDnsDiagnosticsModal,
+  SHAHDARA_DWDM_CHANNELS,
+  DWDM_CONSTANTS,
+  getDwdmSelectedChannel,
+  setDwdmSelectedChannel,
+  getDwdmFiberLossCoeff,
+  setDwdmFiberLossCoeff,
+  getDwdmEdfaNoiseFigure,
+  setDwdmEdfaNoiseFigure,
+  getDwdmSpanCount,
+  setDwdmSpanCount,
+  resetDwdmSimState,
+  calculateOsnrBudget,
+  calculateDwdmMetrics,
+  renderDwdmBudgetSvg,
+  generateDwdmReport,
+  setupDwdmModal
 } from '../dashboard.js';
+
 
 import {
   calculateMonthlyTrends,
@@ -8032,5 +8049,300 @@ test('setupDnsDiagnosticsModal attaches event handlers and handles interactions 
   } finally {
     globalThis.document = originalDocument;
     resetDnsSimState();
+  }
+});
+
+test('SHAHDARA_DWDM_CHANNELS and DWDM_CONSTANTS have valid optical parameters and channel definitions', () => {
+  assert.ok(Array.isArray(SHAHDARA_DWDM_CHANNELS));
+  assert.ok(SHAHDARA_DWDM_CHANNELS.length >= 6);
+
+  for (const ch of SHAHDARA_DWDM_CHANNELS) {
+    assert.ok(ch.id && typeof ch.id === 'string');
+    assert.ok(ch.channelNumber >= 20 && ch.channelNumber <= 60);
+    assert.ok(ch.wavelengthNm >= 1520 && ch.wavelengthNm <= 1570);
+    assert.ok(ch.frequencyThz >= 190.0 && ch.frequencyThz <= 196.0);
+    assert.ok(ch.transponderModel && typeof ch.transponderModel === 'string');
+    assert.ok(ch.primaryArea && typeof ch.primaryArea === 'string');
+    assert.ok(Array.isArray(ch.aliasAreas));
+    assert.ok(ch.bitrateGbps >= 100);
+    assert.ok(ch.spanLengthKm > 0);
+    assert.ok(ch.baseFiberLossDbPerKm >= 0.18 && ch.baseFiberLossDbPerKm <= 0.35);
+    assert.ok(ch.baseEdfaNfDb >= 4.0 && ch.baseEdfaNfDb <= 7.0);
+    assert.ok(ch.baseSpansCount >= 1);
+    assert.ok(ch.sdFecThresholdDb >= 11.0 && ch.sdFecThresholdDb <= 16.0);
+  }
+
+  assert.ok(DWDM_CONSTANTS.STANDARD_CHROMATIC_DISPERSION_PS_PER_NM_KM > 15.0);
+  assert.ok(DWDM_CONSTANTS.OPTIMAL_MARGIN_MIN_DB >= 3.0);
+  assert.ok(DWDM_CONSTANTS.MARGINAL_MARGIN_MIN_DB >= 1.0);
+});
+
+test('DWDM simulation state getters, setters, clamping, and reset work as intended', () => {
+  resetDwdmSimState();
+  assert.equal(getDwdmSelectedChannel(), 'dwdm-ch-21');
+  assert.equal(getDwdmFiberLossCoeff(), null);
+  assert.equal(getDwdmEdfaNoiseFigure(), null);
+  assert.equal(getDwdmSpanCount(), null);
+
+  // Set selected channel
+  setDwdmSelectedChannel('dwdm-ch-28');
+  assert.equal(getDwdmSelectedChannel(), 'dwdm-ch-28');
+  setDwdmSelectedChannel('invalid-id');
+  assert.equal(getDwdmSelectedChannel(), 'dwdm-ch-28');
+
+  // Set fiber loss coefficient
+  setDwdmFiberLossCoeff(0.28);
+  assert.equal(getDwdmFiberLossCoeff(), 0.28);
+  setDwdmFiberLossCoeff(0.99); // Clamped to 0.45
+  assert.equal(getDwdmFiberLossCoeff(), 0.45);
+  setDwdmFiberLossCoeff(0.05); // Clamped to 0.18
+  assert.equal(getDwdmFiberLossCoeff(), 0.18);
+  setDwdmFiberLossCoeff(null);
+  assert.equal(getDwdmFiberLossCoeff(), null);
+
+  // Set EDFA noise figure
+  setDwdmEdfaNoiseFigure(6.2);
+  assert.equal(getDwdmEdfaNoiseFigure(), 6.2);
+  setDwdmEdfaNoiseFigure(15.0); // Clamped to 9.5
+  assert.equal(getDwdmEdfaNoiseFigure(), 9.5);
+  setDwdmEdfaNoiseFigure(1.0); // Clamped to 3.5
+  assert.equal(getDwdmEdfaNoiseFigure(), 3.5);
+  setDwdmEdfaNoiseFigure(null);
+  assert.equal(getDwdmEdfaNoiseFigure(), null);
+
+  // Set span count
+  setDwdmSpanCount(4);
+  assert.equal(getDwdmSpanCount(), 4);
+  setDwdmSpanCount(12); // Clamped to 6
+  assert.equal(getDwdmSpanCount(), 6);
+  setDwdmSpanCount(0); // Clamped to 1
+  assert.equal(getDwdmSpanCount(), 1);
+  setDwdmSpanCount(null);
+  assert.equal(getDwdmSpanCount(), null);
+
+  // Reset
+  setDwdmSelectedChannel('dwdm-ch-42');
+  setDwdmFiberLossCoeff(0.30);
+  resetDwdmSimState();
+  assert.equal(getDwdmSelectedChannel(), 'dwdm-ch-21');
+  assert.equal(getDwdmFiberLossCoeff(), null);
+});
+
+test('calculateOsnrBudget computes accurate single and multi-span OSNR and SD-FEC margin', () => {
+  // Typical single-span link: Launch +2 dBm, Span loss 6.5 dB, NF 5.2 dB, 1 span, FEC limit 12.8 dB
+  const single = calculateOsnrBudget(2.0, 6.5, 5.2, 1, { sdFecThresholdDb: 12.8 });
+  assert.equal(single.singleSpanOsnrDb, 48.3);
+  assert.equal(single.accumulatedOsnrDb, 48.3);
+  assert.ok(single.fecMarginDb > 30);
+  assert.equal(single.healthTier, 'OPTIMAL');
+  assert.equal(single.healthClass, 'badge-success');
+
+  // Multi-span link: 4 spans with cascaded noise
+  const multi = calculateOsnrBudget(2.0, 6.5, 5.2, 4, { sdFecThresholdDb: 12.8 });
+  // 10*log10(4) = ~6.02 dB degradation
+  assert.ok(multi.accumulatedOsnrDb < single.accumulatedOsnrDb);
+  assert.equal(Math.round(single.accumulatedOsnrDb - multi.accumulatedOsnrDb), 6);
+
+  // Severe loss / low margin condition
+  const degraded = calculateOsnrBudget(0.0, 32.0, 9.0, 4, { sdFecThresholdDb: 12.8 });
+  assert.ok(degraded.fecMarginDb < 2.0);
+  assert.ok(degraded.healthTier.includes('CRITICAL') || degraded.healthTier.includes('MARGINAL'));
+});
+
+test('calculateDwdmMetrics aggregates subscribers, chromatic dispersion, and portfolio exposure', () => {
+  let state = createInitialState(['Trans Sub 1', 'Trans Sub 2']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].status = 'Active';
+  state.customers[0].packagePrice = 3000;
+  state.customers[0].bills = [{ month: '2026-10', dueAmount: 3000 }];
+
+  state.customers[1].area = 'Baradari Road';
+  state.customers[1].status = 'Active';
+  state.customers[1].packagePrice = 4000;
+  state.customers[1].bills = [{ month: '2026-10', dueAmount: 2000 }];
+
+  const metrics = calculateDwdmMetrics(state);
+  assert.ok(Array.isArray(metrics.channels));
+  assert.equal(metrics.channels.length, SHAHDARA_DWDM_CHANNELS.length);
+  assert.ok(metrics.selectedChannel);
+  assert.ok(metrics.totalBandwidthGbps >= 800);
+  assert.ok(metrics.networkAvgOsnrDb > 0);
+  assert.ok(metrics.networkAvgMarginDb > 0);
+
+  const ch21 = metrics.channels.find(c => c.id === 'dwdm-ch-21');
+  assert.ok(ch21);
+  assert.equal(ch21.linkedSubscribers, 1);
+  assert.equal(ch21.activeSubscribers, 1);
+  assert.equal(ch21.duesAtRisk, 3000);
+  assert.equal(ch21.monthlyRevenue, 3000);
+  assert.ok(ch21.accumulatedCdPsPerNm > 0);
+  assert.ok(ch21.cdCompensationPct > 0 && ch21.cdCompensationPct <= 100);
+});
+
+test('renderDwdmBudgetSvg renders compact gauge and expanded waterfall views', () => {
+  let state = createInitialState(['Sub']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateDwdmMetrics(state);
+
+  const compactSvg = renderDwdmBudgetSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="dwdm-compact-svg"'));
+  assert.ok(compactSvg.includes('SD-FEC MARGIN'));
+  assert.ok(compactSvg.includes('ACCUMULATED OSNR'));
+  assert.ok(compactSvg.includes('ITU GRID CHANNEL'));
+
+  const expandedSvg = renderDwdmBudgetSvg(metrics, { compact: false });
+  assert.ok(expandedSvg.includes('<svg class="dwdm-expanded-svg"'));
+  assert.ok(expandedSvg.includes('Optical Link Budget &amp; Cascaded EDFA ASE Waterfall'));
+  assert.ok(expandedSvg.includes('Coherent DSP &amp; Chromatic Dispersion Compensation'));
+  assert.ok(expandedSvg.includes('FEC Limit'));
+});
+
+test('generateDwdmReport produces comprehensive plain text diagnostic brief', () => {
+  let state = createInitialState(['Shahdara Trunk User']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateDwdmMetrics(state);
+
+  const report = generateDwdmReport(metrics, { referenceDate: '2026-10-16T12:00:00Z' });
+  assert.ok(report.includes('SHAHDARA DWDM OPTICAL CHANNEL TRANSPONDER OSNR AUDIT BRIEFING'));
+  assert.ok(report.includes('Total Active DWDM Channels:'));
+  assert.ok(report.includes('OPTICAL SIGNAL-TO-NOISE RATIO (OSNR) & LINK BUDGET'));
+  assert.ok(report.includes('CHROMATIC DISPERSION (CD) & DSP COMPENSATION'));
+  assert.ok(report.includes('SUBSCRIBER QoE & AGGREGATE REVENUE EXPOSURE'));
+});
+
+test('setupDwdmModal hooks all UI elements, controls, and callbacks properly', async () => {
+  let state = createInitialState(['DWDM Client']);
+  state.customers[0].area = 'Shahdara Town';
+
+  const originalDocument = globalThis.document;
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockChannelSelect = { options: [], value: 'dwdm-ch-21', innerHTML: '', onchange: null };
+  const mockLossSlider = { value: '0.22', oninput: null };
+  const mockLossVal = { textContent: '' };
+  const mockNfSlider = { value: '5.2', oninput: null };
+  const mockNfVal = { textContent: '' };
+  const mockSpansSlider = { value: '2', oninput: null };
+  const mockSpansVal = { textContent: '' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiChannelName = { textContent: '' };
+  const mockKpiOsnr = { textContent: '' };
+  const mockKpiMargin = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const elementsMap = {
+    'dashboardDwdmModal': mockModal,
+    'dashboardOpenDwdmModalBtn': mockOpenBtn,
+    'dashboardDwdmModalCloseBtn': mockCloseBtn,
+    'dwdmChannelSelect': mockChannelSelect,
+    'dwdmFiberLossSlider': mockLossSlider,
+    'dwdmFiberLossVal': mockLossVal,
+    'dwdmEdfaNfSlider': mockNfSlider,
+    'dwdmEdfaNfVal': mockNfVal,
+    'dwdmSpansSlider': mockSpansSlider,
+    'dwdmSpansVal': mockSpansVal,
+    'dwdmResetSimBtn': mockResetBtn,
+    'dwdmKpiChannelName': mockKpiChannelName,
+    'dwdmKpiOsnr': mockKpiOsnr,
+    'dwdmKpiMargin': mockKpiMargin,
+    'dwdmStatusBadge': mockStatusBadge,
+    'dwdmKpiRevenueRisk': mockKpiRevenueRisk,
+    'dwdmModalChartWrap': mockChartWrap,
+    'dwdmChannelsTableBody': mockTableBody,
+    'dwdmFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyDwdmReportBtn': mockCopyReportBtn
+  };
+
+  globalThis.document = {
+    getElementById: (id) => elementsMap[id] || null
+  };
+
+  try {
+    setupDwdmModal(state, {
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Test open
+    assert.ok(mockOpenBtn.onclick !== null);
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiChannelName.textContent.includes('Ch 21'));
+    assert.ok(mockChartWrap.innerHTML.includes('dwdm-expanded-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Shahdara Town'));
+
+    // Change channel
+    assert.ok(mockChannelSelect.onchange !== null);
+    mockChannelSelect.onchange({ target: { value: 'dwdm-ch-28' } });
+    assert.equal(getDwdmSelectedChannel(), 'dwdm-ch-28');
+    assert.ok(mockKpiChannelName.textContent.includes('Ch 28'));
+
+    // Change loss slider
+    assert.ok(mockLossSlider.oninput !== null);
+    mockLossSlider.oninput({ target: { value: '0.28' } });
+    assert.equal(getDwdmFiberLossCoeff(), 0.28);
+    assert.equal(mockLossVal.textContent, '0.28 dB/km');
+
+    // Change NF slider
+    assert.ok(mockNfSlider.oninput !== null);
+    mockNfSlider.oninput({ target: { value: '6.5' } });
+    assert.equal(getDwdmEdfaNoiseFigure(), 6.5);
+    assert.equal(mockNfVal.textContent, '6.5 dB');
+
+    // Change spans slider
+    assert.ok(mockSpansSlider.oninput !== null);
+    mockSpansSlider.oninput({ target: { value: '4' } });
+    assert.equal(getDwdmSpanCount(), 4);
+    assert.equal(mockSpansVal.textContent, '4 spans');
+
+    // Reset simulation
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getDwdmSelectedChannel(), 'dwdm-ch-21');
+    assert.equal(getDwdmFiberLossCoeff(), null);
+    assert.equal(getDwdmEdfaNoiseFigure(), null);
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(toastMessage.includes('DWDM OSNR Diagnostic Briefing'));
+    assert.ok(copiedText.includes('SHAHDARA DWDM OPTICAL CHANNEL TRANSPONDER OSNR AUDIT BRIEFING'));
+
+    // Close modal
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetDwdmSimState();
   }
 });

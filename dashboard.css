@@ -2058,6 +2058,34 @@
   border-color: #243c33;
 }
 
+/* DWDM Optical Channels & OSNR Budget Matrix Styles */
+.chart-card-dwdm {
+  background: var(--surface, #ffffff);
+}
+
+.dwdm-modal-card {
+  max-width: 960px;
+}
+
+.dwdm-compact-svg,
+.dwdm-expanded-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-dwdm {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .dwdm-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
+
 
 .signal-tag {
   display: inline-block;

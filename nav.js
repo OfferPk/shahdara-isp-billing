@@ -6019,3 +6019,21 @@ export {
   generateOntDiagnosticsWhatsAppReport,
   setupMobileOntDiagnosticsModal
 } from './nav-ont-diagnostics.js';
+
+export {
+  FIBER_PROBE_STORAGE_KEY,
+  CONNECTOR_TYPES,
+  IEC_ZONES,
+  INSPECTION_PRESETS,
+  CLEANING_METHODS,
+  evaluateDefectZone,
+  evaluateIec61300Criteria,
+  remediateConnectorCleaning,
+  getFiberProbeStore,
+  saveFiberProbeStore,
+  recordFiberProbeAudit,
+  clearFiberProbeStore,
+  renderMobileFiberProbeSvg,
+  generateFiberProbeWhatsAppReport,
+  setupMobileFiberProbeModal
+} from './nav-fiber-probe.js';

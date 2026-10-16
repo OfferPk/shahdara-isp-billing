@@ -5212,3 +5212,254 @@ kbd {
   border-color: #334155;
   color: #f8fafc;
 }
+
+/* ==========================================================================
+   Field Technician Optical Fiber Inspection Probe Scope (IEC 61300-3-35)
+   ========================================================================== */
+.fiber-probe-modal {
+  padding: 0;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 16px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 680px;
+  width: min(680px, calc(100vw - 24px));
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.probe-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.probe-svg-wrap {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #030712;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.probe-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.probe-zone-badge {
+  background: var(--mint, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.probe-zone-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.probe-status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.status-pass {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+}
+
+.status-fail {
+  background: rgba(239, 68, 68, 0.15);
+  color: #dc2626;
+}
+
+.probe-summary-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  background: var(--mint, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+.probe-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.metric-label {
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  font-weight: 600;
+}
+
+.metric-val {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink, #0f172a);
+}
+
+.text-pass {
+  color: #10b981 !important;
+}
+
+.text-fail {
+  color: #ef4444 !important;
+}
+
+.probe-remediation-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: #166534;
+  line-height: 1.4;
+}
+
+.remediation-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.probe-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.probe-meta-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.probe-meta-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+}
+
+.probe-meta-group input {
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 6px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #0f172a);
+}
+
+.probe-cleaning-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-clean {
+  background: #0284c7;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-clean:hover {
+  background: #0369a1;
+}
+
+.probe-history-section {
+  border-top: 1px solid var(--line, #e2e8f0);
+  padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.probe-history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.probe-history-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--mint, #f8fafc);
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* Dark mode styling for fiber probe */
+[data-theme="dark"] .fiber-probe-modal {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .probe-zone-badge,
+[data-theme="dark"] .probe-summary-strip {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .metric-val {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .probe-remediation-box {
+  background: #064e3b;
+  border-color: #047857;
+  color: #a7f3d0;
+}
+
+[data-theme="dark"] .probe-meta-group input {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .probe-history-section {
+  border-top-color: #334155;
+}
+
+[data-theme="dark"] .probe-history-card {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}

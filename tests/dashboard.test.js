@@ -119,7 +119,18 @@ import {
   setAerialTemperature,
   getAerialCableType,
   setAerialCableType,
-  renderAerialTensionSvg
+  renderAerialTensionSvg,
+  SHAHDARA_MICROWAVE_LINKS,
+  calculateMicrowaveLinkBudget,
+  generateMicrowaveBriefingReport,
+  setupMicrowaveModal,
+  getMicrowaveSelectedLink,
+  setMicrowaveSelectedLink,
+  getMicrowaveRainRate,
+  setMicrowaveRainRate,
+  getMicrowaveFrequencyOverride,
+  setMicrowaveFrequencyOverride,
+  renderMicrowaveLinkSvg
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -5355,6 +5366,283 @@ test('setupAerialTensionModal wires modal controls, sliders, sector selection, a
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA ISP OSP ENGINEERING BRIEFING: AERIAL POLE TENSION'));
     assert.equal(toastMessage, 'Aerial pole tension audit copied to clipboard!');
+
+    // Test close
+    assert.ok(closeHandler !== null);
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateMicrowaveLinkBudget calculates clear-sky FSPL, RSL, and fade margin correctly', () => {
+  const state = createInitialState([]);
+  const data = calculateMicrowaveLinkBudget(state, {
+    linkId: 'station-to-vandala',
+    rainRate: 0,
+    frequencyGhz: 24.0
+  });
+
+  assert.equal(data.link.id, 'station-to-vandala');
+  assert.equal(data.inputs.rainRateMmH, 0);
+  assert.ok(data.budget.fsplDb > 100); // 3.8 km at 24 GHz FSPL ~ 131 dB
+  assert.equal(data.budget.totalRainAttenuationDb, 0);
+  // With 20 dBm Tx + 33 + 33 dBi antenna - 2 dB cable - 131.6 dB FSPL - 0.7 dB gas ~ -48 dBm
+  assert.ok(data.budget.clearSkyRslDbm > -65 && data.budget.clearSkyRslDbm < -40);
+  assert.ok(data.budget.actualFadeMarginDb > 15);
+  assert.equal(data.risk.statusTier, 'optimal');
+  assert.equal(data.budget.modulationEfficiencyPercent, 100);
+  assert.equal(data.budget.effectiveThroughputMbps, 1024);
+  assert.ok(data.fleetSummary.length >= 5);
+});
+
+test('calculateMicrowaveLinkBudget models severe monsoon rain fade and modulation degradation', () => {
+  const state = createInitialState([]);
+  // High monsoon downpour 80 mm/h on 24 GHz link
+  const data = calculateMicrowaveLinkBudget(state, {
+    linkId: 'station-to-vandala',
+    rainRate: 80,
+    frequencyGhz: 24.0
+  });
+
+  assert.ok(data.budget.totalRainAttenuationDb > 15); // Severe rain fade at 24GHz
+  assert.ok(data.budget.actualRslDbm < data.budget.clearSkyRslDbm);
+  // Fade margin should drop significantly
+  assert.ok(data.budget.actualFadeMarginDb < data.budget.clearSkyFadeMarginDb);
+  assert.ok(data.risk.statusTier === 'warning' || data.risk.statusTier === 'critical');
+  assert.ok(data.budget.effectiveThroughputMbps < 1024);
+});
+
+test('calculateMicrowaveLinkBudget detects complete outage when rain attenuation breaches disconnect threshold', () => {
+  const state = createInitialState([]);
+  // Extreme cloudburst (140 mm/h) on 60 GHz V-Band (high oxygen and severe rain fade)
+  const data = calculateMicrowaveLinkBudget(state, {
+    linkId: 'jia-musa-micro-pop',
+    rainRate: 140,
+    frequencyGhz: 60.0
+  });
+
+  assert.equal(data.risk.statusTier, 'critical');
+  assert.ok(data.risk.statusLabel.includes('OUTAGE') || data.risk.statusLabel.includes('DEGRADATION'));
+  assert.ok(data.budget.actualRslDbm <= data.link.sensitivityThresholdDbm);
+});
+
+test('calculateMicrowaveLinkBudget aggregates linked subscribers and monthly revenue at risk from ledger', () => {
+  let state = createInitialState(['Subscriber One', 'Subscriber Two']);
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].monthlyRate = 2200;
+
+  state.customers[1].area = 'Zia Town';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].monthlyRate = 1800;
+
+  const data = calculateMicrowaveLinkBudget(state, {
+    linkId: 'station-to-vandala'
+  });
+
+  assert.equal(data.ledger.totalAreaCustomers, 2);
+  assert.equal(data.ledger.activeSubscribers, 1);
+  assert.equal(data.ledger.offlineSubscribers, 1);
+  assert.equal(data.ledger.totalMonthlyBilledPkr, 4000);
+  assert.ok(data.ledger.revenueAtRiskPkr > 0);
+});
+
+test('renderMicrowaveLinkSvg produces clean SVG markup with towers, Fresnel beam, and RSSI metrics', () => {
+  const state = createInitialState([]);
+  const data = calculateMicrowaveLinkBudget(state, { linkId: 'station-to-vandala', rainRate: 25 });
+  const svg = renderMicrowaveLinkSvg(data);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('class="microwave-svg"'));
+  assert.ok(svg.includes('Tx Tower'));
+  assert.ok(svg.includes('Rx Tower'));
+  assert.ok(svg.includes('Fresnel R1:'));
+  assert.ok(svg.includes('PRECIPITATION:'));
+  assert.ok(svg.includes('dBm'));
+
+  // Test empty/null state
+  const emptySvg = renderMicrowaveLinkSvg(null);
+  assert.ok(emptySvg.includes('chart-empty-state'));
+});
+
+test('generateMicrowaveBriefingReport formats comprehensive executive RF audit briefing', () => {
+  const state = createInitialState(['User Alpha']);
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].monthlyRate = 2500;
+
+  const data = calculateMicrowaveLinkBudget(state, { linkId: 'station-to-vandala' });
+  const report = generateMicrowaveBriefingReport(data, new Date('2026-10-16T12:00:00+05:00'));
+
+  assert.ok(report.includes('SHAHDARA ISP RF ENGINEERING BRIEFING: MICROWAVE RAIN FADE AUDIT'));
+  assert.ok(report.includes('1. MONITORED PT-TO-PT BACKHAUL:'));
+  assert.ok(report.includes('2. RF LINK BUDGET & ITU-R P.838 ATTENUATION'));
+  assert.ok(report.includes('3. SUBSCRIBER & REVENUE IMPACT'));
+  assert.ok(report.includes('4. SHAHDARA WIRELESS FLEET LINK BUDGET REGISTER'));
+  assert.ok(report.includes('5. RECOMMENDED MONSOON MITIGATION ACTIONS'));
+
+  assert.equal(generateMicrowaveBriefingReport(null), 'No microwave link budget data available.');
+});
+
+test('setupMicrowaveModal wires modal controls, sliders, frequency override, and clipboard export', async () => {
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockModal = {
+    dataset: {},
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  let openHandler = null;
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+
+  let closeHandler = null;
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+
+  let copyHandler = null;
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+
+  let filterAreaHandler = null;
+  const mockFilterAreaBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') filterAreaHandler = fn; }
+  };
+
+  let linkChangeHandler = null;
+  const mockLinkSelect = {
+    dataset: {},
+    children: [],
+    innerHTML: '',
+    value: 'station-to-vandala',
+    addEventListener: (evt, fn) => { if (evt === 'change') linkChangeHandler = fn; }
+  };
+
+  let freqChangeHandler = null;
+  const mockFreqSelect = {
+    dataset: {},
+    value: 'default',
+    addEventListener: (evt, fn) => { if (evt === 'change') freqChangeHandler = fn; }
+  };
+
+  let rainInputHandler = null;
+  const mockRainSlider = {
+    dataset: {},
+    value: '15',
+    addEventListener: (evt, fn) => { if (evt === 'input') rainInputHandler = fn; }
+  };
+  const mockRainVal = { textContent: '' };
+
+  let resetClickHandler = null;
+  const mockResetBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') resetClickHandler = fn; }
+  };
+
+  const mockLinkNameEl = { textContent: '' };
+  const mockRslMarginEl = { textContent: '' };
+  const mockRainFadeEl = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockRevenueRiskEl = { textContent: '' };
+  const mockModalChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardMicrowaveModal') return mockModal;
+      if (id === 'dashboardOpenMicrowaveModalBtn') return mockOpenBtn;
+      if (id === 'dashboardMicrowaveModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyMicrowaveReportBtn') return mockCopyBtn;
+      if (id === 'microwaveFilterAreaBtn') return mockFilterAreaBtn;
+      if (id === 'microwaveLinkSelect') return mockLinkSelect;
+      if (id === 'microwaveFreqSelect') return mockFreqSelect;
+      if (id === 'microwaveRainSlider') return mockRainSlider;
+      if (id === 'microwaveRainVal') return mockRainVal;
+      if (id === 'microwaveResetSimBtn') return mockResetBtn;
+      if (id === 'microwaveKpiLinkName') return mockLinkNameEl;
+      if (id === 'microwaveKpiRslMargin') return mockRslMarginEl;
+      if (id === 'microwaveKpiRainFade') return mockRainFadeEl;
+      if (id === 'microwaveStatusBadge') return mockStatusBadge;
+      if (id === 'microwaveKpiRevenueRisk') return mockRevenueRiskEl;
+      if (id === 'microwaveModalChartWrap') return mockModalChartWrap;
+      if (id === 'microwaveLinksTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  let state = createInitialState(['Customer 1']);
+  state.customers[0].area = 'Vandala Road';
+
+  try {
+    setupMicrowaveModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onFilterArea: (a) => { filterAreaCalledWith = a; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: { writeText: async (t) => { copiedText = t; } }
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Verify UI populated
+    assert.ok(mockLinkSelect.innerHTML.includes('Central Station POP'));
+    assert.ok(mockModalChartWrap.innerHTML.includes('microwave-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Central Station POP to Vandala'));
+
+    // Test link change
+    assert.ok(linkChangeHandler !== null);
+    mockLinkSelect.value = 'station-to-saeed-park';
+    linkChangeHandler();
+    assert.equal(getMicrowaveSelectedLink(), 'station-to-saeed-park');
+
+    // Test rain slider
+    assert.ok(rainInputHandler !== null);
+    mockRainSlider.value = '45';
+    rainInputHandler();
+    assert.equal(getMicrowaveRainRate(), 45);
+    assert.equal(mockRainVal.textContent, '45 mm/h');
+
+    // Test frequency change
+    assert.ok(freqChangeHandler !== null);
+    mockFreqSelect.value = '11.0';
+    freqChangeHandler();
+    assert.equal(getMicrowaveFrequencyOverride(), 11.0);
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getMicrowaveRainRate(), 15);
+    assert.equal(getMicrowaveFrequencyOverride(), null);
+
+    // Test filter area action
+    assert.ok(filterAreaHandler !== null);
+    filterAreaHandler();
+    assert.ok(filterAreaCalledWith !== null);
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyHandler !== null);
+    await copyHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP RF ENGINEERING BRIEFING: MICROWAVE RAIN FADE'));
+    assert.equal(toastMessage, 'Microwave rain fade briefing copied to clipboard!');
 
     // Test close
     assert.ok(closeHandler !== null);

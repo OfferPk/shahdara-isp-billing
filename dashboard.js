@@ -5608,3 +5608,26 @@ export {
   generatePmdReport,
   setupPmdModal
 } from './dashboard-pmd.js';
+
+export {
+  EVPN_CONSTANTS,
+  SHAHDARA_EVPN_VNIS,
+  getEvpnSelectedVni,
+  setEvpnSelectedVni,
+  getEvpnSelectedIrbMode,
+  setEvpnSelectedIrbMode,
+  getEvpnSelectedReplication,
+  setEvpnSelectedReplication,
+  getEvpnArpSuppression,
+  setEvpnArpSuppression,
+  getEvpnTrafficSurgePct,
+  setEvpnTrafficSurgePct,
+  getEvpnUnderlayMtu,
+  setEvpnUnderlayMtu,
+  resetEvpnSimState,
+  calculateEvpnDynamics,
+  calculateEvpnMetrics,
+  renderEvpnDiagramSvg,
+  generateEvpnReport,
+  setupEvpnModal
+} from './dashboard-evpn.js';

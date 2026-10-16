@@ -2371,6 +2371,32 @@
   border-color: #1b3d54;
 }
 
+.chart-card-evpn {
+  background: var(--surface, #ffffff);
+}
+
+.evpn-modal-card {
+  max-width: 980px;
+}
+
+.evpn-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-evpn {
+  background: #0f172a;
+  border-color: #1e3a5f;
+}
+
+[data-theme="dark"] .evpn-modal-card {
+  background: #0b1329;
+  border-color: #1e3a5f;
+}
+
+
 
 
 

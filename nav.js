@@ -5864,6 +5864,24 @@ export {
   setupMobileOtdrTraceModal
 } from './nav-otdr-trace.js';
 
+export {
+  GPS_BREADCRUMBS_STORAGE_KEY,
+  SHAHDARA_FIELD_NODES,
+  haversineDistanceMeters,
+  calculateBearingDegrees,
+  evaluateNodeGeofence,
+  findNearestFieldNode,
+  getGpsBreadcrumbsStore,
+  saveGpsBreadcrumbsStore,
+  clearGpsBreadcrumbsStore,
+  recordGpsBreadcrumb,
+  calculateBreadcrumbMetrics,
+  generateTechnicianLocationShare,
+  renderMobileGpsBreadcrumbsSvg,
+  setupMobileGpsBreadcrumbsModal
+} from './nav-gps-tracking.js';
+
+
 
 
 

@@ -64,6 +64,7 @@
           <li class="nav-drawer-item"><button type="button" data-open-van-transfer><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><span>Van Stock Transfer</span><span id="navBadgeVanTransfer" class="nav-drawer-badge" data-nav-badge="van-transfer" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navAerialAlertsBtn" data-open-aerial-alerts><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H7M19 12H5M16 19H8"/></svg></span><span>Aerial Sag Hazards</span><span id="navBadgeAerialAlerts" class="nav-drawer-badge" data-nav-badge="aerial-alerts" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navOtdrTraceBtn" data-open-otdr-trace><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span><span>OTDR Fiber Trace</span><span id="navBadgeOtdrTrace" class="nav-drawer-badge" data-nav-badge="otdr-trace" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navGpsBreadcrumbsBtn" data-open-gps-breadcrumbs><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/><circle cx="12" cy="12" r="8" stroke-dasharray="2,2"/></svg></span><span>Tech GPS Radar</span><span id="navBadgeGpsBreadcrumbs" class="nav-drawer-badge" data-nav-badge="gps-breadcrumbs" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -2476,7 +2477,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -2982,6 +2983,10 @@
         <span class="sheet-action-icon" aria-hidden="true">📈</span>
         <span class="sheet-action-label">OTDR Trace</span>
       </button>
+      <button type="button" id="actionSheetGpsBreadcrumbsBtn" class="sheet-action-tile" data-sheet-action="gps-breadcrumbs" data-open-gps-breadcrumbs>
+        <span class="sheet-action-icon" aria-hidden="true">📍</span>
+        <span class="sheet-action-label">Tech GPS Radar</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -3066,6 +3071,10 @@
       <button type="button" id="speedDialOtdrTraceBtn" class="speed-dial-action" data-speed-action="otdr-trace" data-open-otdr-trace role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">📈</span>
         <span class="speed-action-label">OTDR Trace</span>
+      </button>
+      <button type="button" id="speedDialGpsBreadcrumbsBtn" class="speed-dial-action" data-speed-action="gps-breadcrumbs" data-open-gps-breadcrumbs role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">📍</span>
+        <span class="speed-action-label">Tech GPS Radar</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -4197,6 +4206,62 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="mobileGpsBreadcrumbsModal" class="modal gps-breadcrumbs-modal" aria-labelledby="mobileGpsBreadcrumbsModalTitle">
+    <section class="modal-card gps-breadcrumbs-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FIELD CREW TELEMETRY · GPS RADAR</p>
+          <h2 id="mobileGpsBreadcrumbsModalTitle">Technician GPS Breadcrumbs &amp; Node Geofence</h2>
+        </div>
+        <button id="closeMobileGpsBreadcrumbsModal" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+      </div>
+
+      <!-- KPI Summary Ribbon -->
+      <div class="van-stock-kpi-ribbon">
+        <div class="van-kpi-card">
+          <span class="van-kpi-label">TOTAL FIXES</span>
+          <span id="gpsStatFixes" class="van-kpi-value">0</span>
+        </div>
+        <div class="van-kpi-card">
+          <span class="van-kpi-label">DISTANCE COVERED</span>
+          <span id="gpsStatDistance" class="van-kpi-value">0 km (0m)</span>
+        </div>
+        <div class="van-kpi-card">
+          <span class="van-kpi-label">AVG PATROL SPEED</span>
+          <span id="gpsStatSpeed" class="van-kpi-value">0 km/h</span>
+        </div>
+        <div class="van-kpi-card">
+          <span class="van-kpi-label">GEOFENCE STATUS</span>
+          <span id="gpsStatGeofence" class="van-kpi-value">Outside</span>
+        </div>
+      </div>
+
+      <!-- Live Nearest Node Card -->
+      <div class="otdr-trace-config-card" style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; color: var(--muted, #64748b); font-weight: 600;">Nearest Outside Plant Hub</span>
+          <h3 id="gpsNearestNodeName" style="margin: 2px 0 0; font-size: 15px; color: var(--text, #f8fafc);">Shahdara Central ODF</h3>
+        </div>
+        <div>
+          <span id="gpsNearestNodeDist" style="display: inline-block; padding: 4px 10px; border-radius: 999px; background: rgba(14, 165, 233, 0.15); color: #38bdf8; font-weight: 600; font-size: 13px;">No fixes recorded</span>
+        </div>
+      </div>
+
+      <!-- SVG Map / Radar View -->
+      <div id="gpsModalSvgContainer" class="otdr-trace-chart-card" style="padding: 10px; background: #0b1120; border-radius: 8px; margin-bottom: 12px;">
+        <!-- Dynamically rendered SVG -->
+      </div>
+
+      <!-- Action Controls -->
+      <div class="modal-form-actions" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+        <button id="btnGpsMockPing" class="secondary-button" type="button">📍 Add Simulated Step</button>
+        <button id="btnGpsRealFix" class="primary-button" type="button">📡 Real Device GPS Fix</button>
+        <button id="btnGpsShareLocation" class="secondary-button" type="button" style="background: #059669; color: #ffffff; border-color: #059669;">💬 Share WhatsApp Fix</button>
+        <button id="btnGpsClearTrail" class="text-button danger" type="button">Clear Trail</button>
       </div>
     </section>
   </dialog>

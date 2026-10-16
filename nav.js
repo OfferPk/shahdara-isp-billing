@@ -5903,3 +5903,22 @@ export {
   evaluateReturnLossSafety,
   setupMobileOpmTestingModal
 } from './nav-opm-testing.js';
+
+export {
+  VFL_TEST_LOGS_STORAGE_KEY,
+  TIA_598_COLOR_CODES,
+  VFL_CABLE_TYPES,
+  VFL_LASER_MODES,
+  VFL_POWER_LEVELS,
+  VFL_FAULT_CONDITIONS,
+  SHAHDARA_OSP_CABINETS,
+  resolveFiberCoreFromNumber,
+  resolveCoreNumberFromTubeAndFiber,
+  getVflTestLogsStore,
+  saveVflTestLogsStore,
+  recordVflTestLog,
+  clearVflTestLogsStore,
+  generateVflFieldReport,
+  renderMobileVflLaserSvg,
+  setupMobileVflModal
+} from './nav-vfl-tracer.js';

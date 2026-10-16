@@ -4542,3 +4542,45 @@ kbd {
   background: #14221d;
   border-color: #243c33;
 }
+
+/* ==========================================================================
+   FIELD TECHNICIAN VISUAL FAULT LOCATOR (VFL) & TIA-598-D FIBER TRACER
+   ========================================================================== */
+
+.vfl-modal {
+  max-width: 720px;
+  width: 95vw;
+}
+
+.vfl-modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.vfl-laser-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+}
+
+.vfl-compact-svg {
+  width: 100%;
+  max-width: 440px;
+}
+
+.vfl-expanded-svg {
+  width: 100%;
+  max-width: 600px;
+}
+
+.vfl-log-item {
+  transition: background-color 0.15s ease;
+}
+
+.vfl-log-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .vfl-modal,
+[data-theme="dark"] .vfl-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}

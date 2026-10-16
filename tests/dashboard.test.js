@@ -359,7 +359,26 @@ import {
   calculateMclagMetrics,
   renderMclagDiagramSvg,
   generateMclagReport,
-  setupMclagModal
+  setupMclagModal,
+  FLOWSPEC_CONSTANTS,
+  SHAHDARA_FLOWSPEC_GATEWAYS,
+  SHAHDARA_FLOWSPEC_RULES,
+  getFlowspecSelectedGateway,
+  setFlowspecSelectedGateway,
+  getFlowspecSelectedRule,
+  setFlowspecSelectedRule,
+  getFlowspecAttackVector,
+  setFlowspecAttackVector,
+  getFlowspecAttackVolumeGbps,
+  setFlowspecAttackVolumeGbps,
+  getFlowspecScrubCapacityGbps,
+  setFlowspecScrubCapacityGbps,
+  resetFlowspecSimState,
+  calculateFlowspecMitigation,
+  calculateFlowspecMetrics,
+  renderFlowspecDiagramSvg,
+  generateFlowspecReport,
+  setupFlowspecModal
 } from '../dashboard.js';
 
 
@@ -10375,6 +10394,358 @@ test('MC-LAG state getters, setters, and boundary clamping work reliably', () =>
   assert.equal(getMclagFailureScenario(), 'NORMAL');
   assert.equal(getMclagTrafficLoadGbps(), 120);
   assert.equal(getMclagIccpIntervalMs(), 100);
+});
+
+test('calculateFlowspecMitigation calculates attack suppression, wire-speed TCAM policing, and link saturation', () => {
+  const gw100G = SHAHDARA_FLOWSPEC_GATEWAYS.find(g => g.id === 'gw-01');
+  const dropRule = SHAHDARA_FLOWSPEC_RULES.find(r => r.id === 'fs-rule-01'); // DROP DNS_AMP
+  const rateLimitRule = SHAHDARA_FLOWSPEC_RULES.find(r => r.id === 'fs-rule-02'); // RATE_LIMIT_10M NTP_MONLIST
+  const scrubRule = SHAHDARA_FLOWSPEC_RULES.find(r => r.id === 'fs-rule-03'); // SCRUB_REDIRECT SYN_FLOOD
+
+  // 1. Clean Baseline (no attack)
+  const baseline = calculateFlowspecMitigation(gw100G, dropRule, 'BASELINE_CLEAN', 0, 60);
+  assert.equal(baseline.safeAttackVol, 0);
+  assert.equal(baseline.droppedBandwidthGbps, 0);
+  assert.equal(baseline.passedAttackBandwidthGbps, 0);
+  assert.equal(baseline.mitigationEffectivenessPercent, 100);
+  assert.equal(baseline.falsePositiveDropPercent, 0);
+  assert.equal(baseline.status, FLOWSPEC_CONSTANTS.STATUS.OPTIMAL);
+
+  // 2. Volumetric DNS Amplification Attack (45 Gbps) with DROP rule
+  const dropResult = calculateFlowspecMitigation(gw100G, dropRule, 'DNS_AMP', 45, 60);
+  assert.equal(dropResult.safeAttackVol, 45);
+  assert.ok(dropResult.droppedBandwidthGbps >= 44.5); // ~99.5% dropped
+  assert.ok(dropResult.passedAttackBandwidthGbps <= 0.5);
+  assert.ok(dropResult.mitigationEffectivenessPercent >= 99);
+  assert.equal(dropResult.falsePositiveDropPercent, 0.08);
+  assert.ok(dropResult.tcamUsedEntries > 0);
+  assert.ok(dropResult.edgeCpuLoadPercent < 80);
+  assert.equal(dropResult.status, FLOWSPEC_CONSTANTS.STATUS.OPTIMAL);
+
+  // 3. Rate-Limit 10Mbps Ingress Policer on NTP Monlist
+  const rlResult = calculateFlowspecMitigation(gw100G, rateLimitRule, 'NTP_MONLIST', 20, 60);
+  assert.equal(rlResult.safeAttackVol, 20);
+  assert.ok(rlResult.droppedBandwidthGbps >= 19.9);
+  assert.ok(rlResult.passedAttackBandwidthGbps <= 0.02);
+  assert.equal(rlResult.falsePositiveDropPercent, 0.12);
+
+  // 4. Scrubbing VRF Redirection with 60 Gbps scrubbing capacity on 40 Gbps SYN flood
+  const scrubResult = calculateFlowspecMitigation(gw100G, scrubRule, 'SYN_FLOOD', 40, 60);
+  assert.equal(scrubResult.scrubbedBandwidthGbps, 40);
+  assert.ok(scrubResult.droppedBandwidthGbps >= 39);
+  assert.equal(scrubResult.falsePositiveDropPercent, 0.02);
+  assert.ok(scrubResult.responseLatencyMs > gw100G.baseLatencyMs); // redirection latency
+
+  // 5. Massive 140 Gbps unmitigated overflow on 40G link -> CRITICAL
+  const gw40G = SHAHDARA_FLOWSPEC_GATEWAYS.find(g => g.id === 'gw-02');
+  const criticalResult = calculateFlowspecMitigation(gw40G, null, 'UDP_FRAG', 140, 30);
+  assert.equal(criticalResult.passedAttackBandwidthGbps, 140);
+  assert.equal(criticalResult.status, FLOWSPEC_CONSTANTS.STATUS.CRITICAL);
+  assert.ok(criticalResult.edgeCpuLoadPercent >= 80);
+});
+
+test('calculateFlowspecMetrics correlates edge border gateway with subscriber roster and sector revenue at risk', () => {
+  let state = createInitialState(['Sub Shahdara 1', 'Sub Shahdara 2', 'Sub Baradari']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer 0: Shahdara Town, Active, 2500 PKR bill
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2500', status: 'pending' }, refDate);
+
+  // Customer 1: Old Town (alias for Shahdara Town), Active, 3500 PKR bill, 1500 paid
+  state.customers[1].area = 'Old Town';
+  state.customers[1].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '3500', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '1500', date: '2026-10-05', method: 'Cash' }, refDate);
+
+  // Customer 2: Baradari Road (belongs to GW-02)
+  state.customers[2].area = 'Baradari Road';
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '4000', status: 'pending' }, refDate);
+
+  // Test GW-01 (Nayatel - Shahdara Town / Old Town)
+  const metrics = calculateFlowspecMetrics(state, {
+    gatewayId: 'gw-01',
+    ruleId: 'fs-rule-01',
+    vector: 'DNS_AMP',
+    attackVolumeGbps: 45,
+    scrubCapacityGbps: 60
+  });
+
+  assert.equal(metrics.gateway.id, 'gw-01');
+  assert.equal(metrics.gateway.name, 'Nayatel 100G Border Gateway (AS23945)');
+  assert.equal(metrics.rule.id, 'fs-rule-01');
+  assert.equal(metrics.subscriberCorrelation.totalSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.activeSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.offlineSubscribers, 0);
+  assert.equal(metrics.subscriberCorrelation.sectorMonthlyRevenue, 6000); // 2500 + 3500
+  assert.equal(metrics.subscriberCorrelation.sectorTotalDues, 4500); // 2500 + 2000
+
+  // Under normal optimal mitigation, revenue at risk is 0
+  assert.equal(metrics.subscriberCorrelation.revenueAtRisk, 0);
+
+  // Test empty state handling
+  const emptyMetrics = calculateFlowspecMetrics({ customers: [] }, { gatewayId: 'gw-03' });
+  assert.equal(emptyMetrics.gateway.id, 'gw-03');
+  assert.equal(emptyMetrics.subscriberCorrelation.totalSubscribers, 0);
+  assert.equal(emptyMetrics.subscriberCorrelation.sectorMonthlyRevenue, 0);
+  assert.equal(emptyMetrics.subscriberCorrelation.revenueAtRisk, 0);
+});
+
+test('renderFlowspecDiagramSvg produces accessible and valid SVG with visual network topology and meters', () => {
+  const state = createInitialState(['Test Customer']);
+  const metrics = calculateFlowspecMetrics(state, {
+    gatewayId: 'gw-01',
+    ruleId: 'fs-rule-01',
+    vector: 'DNS_AMP',
+    attackVolumeGbps: 45,
+    scrubCapacityGbps: 60
+  });
+
+  // 1. Full modal SVG
+  const fullSvg = renderFlowspecDiagramSvg(metrics, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="flowspec-svg"'));
+  assert.ok(fullSvg.includes('viewBox="0 0 860 380"'));
+  assert.ok(fullSvg.includes('role="img"'));
+  assert.ok(fullSvg.includes('BGP FLOWSPEC RFC 5575 / 8955 EDGE MITIGATION ENGINE'));
+  assert.ok(fullSvg.includes('UPSTREAM'));
+  assert.ok(fullSvg.includes('FLOWSPEC CONTROLLER'));
+  assert.ok(fullSvg.includes('Nayatel 100G Border Gateway'));
+  assert.ok(fullSvg.includes('NULL0 / SCRUB'));
+  assert.ok(fullSvg.includes('SHAHDARA'));
+  assert.ok(fullSvg.includes('TCAM Entries:'));
+  assert.ok(fullSvg.includes('Edge CPU:'));
+  assert.ok(fullSvg.includes('Link Saturation:'));
+  assert.ok(fullSvg.includes('Mitigation Efficiency:'));
+
+  // 2. Compact card SVG
+  const compactSvg = renderFlowspecDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="flowspec-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 540 280"'));
+
+  // 3. Fallback on null/undefined
+  const fallbackSvg = renderFlowspecDiagramSvg(null);
+  assert.ok(fallbackSvg.includes('No BGP Flowspec metrics available.'));
+});
+
+test('generateFlowspecReport formats comprehensive NOC security audit report', () => {
+  const state = createInitialState(['NOC Customer']);
+  const metrics = calculateFlowspecMetrics(state, {
+    gatewayId: 'gw-01',
+    ruleId: 'fs-rule-01',
+    vector: 'DNS_AMP',
+    attackVolumeGbps: 45,
+    scrubCapacityGbps: 60
+  });
+
+  const report = generateFlowspecReport(metrics);
+  assert.ok(report.includes('BGP FLOWSPEC (RFC 5575 / 8955) NOC SECURITY AUDIT BRIEFING'));
+  assert.ok(report.includes('Border Gateway: Nayatel 100G Border Gateway (AS23945)'));
+  assert.ok(report.includes('Core Link Bandwidth: 100 Gbps'));
+  assert.ok(report.includes('Attack Classification: DNS Port 53 UDP Amplification Reflection'));
+  assert.ok(report.includes('Offered Attack Ingress: 45 Gbps'));
+  assert.ok(report.includes('Active Flowspec Rule: FS-RULE-01: Discard UDP 53 DNS Amplification'));
+  assert.ok(report.includes('Mitigation Status: OPTIMAL'));
+  assert.ok(report.includes('Mitigation Effectiveness:'));
+  assert.ok(report.includes('NORMAL CARRIER OPERATION'));
+
+  // Empty metrics check
+  const emptyReport = generateFlowspecReport(null);
+  assert.equal(emptyReport, 'No BGP Flowspec data recorded.');
+});
+
+test('setupFlowspecModal binds DOM events, handles input updates, resets state, filters area, and copies report', async () => {
+  let modalOpened = false;
+  let filterAreaTarget = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; }
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+  const mockGwSelect = { value: 'gw-01', innerHTML: '', onchange: null };
+  const mockVectorSelect = { value: 'DNS_AMP', innerHTML: '', onchange: null };
+  const mockRuleSelect = { value: 'fs-rule-01', innerHTML: '', onchange: null };
+  const mockAttackSlider = { value: '45', oninput: null };
+  const mockAttackValPill = { textContent: '' };
+  const mockScrubSlider = { value: '60', oninput: null };
+  const mockScrubValPill = { textContent: '' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiGatewayName = { textContent: '' };
+  const mockKpiMitigationState = { textContent: '', style: {} };
+  const mockKpiEffectiveness = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockRulesTableBody = { innerHTML: '' };
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementMap = {
+    'dashboardFlowspecModal': mockModal,
+    'dashboardOpenFlowspecModalBtn': mockOpenBtn,
+    'dashboardFlowspecModalCloseBtn': mockCloseBtn,
+    'flowspecGwSelect': mockGwSelect,
+    'flowspecVectorSelect': mockVectorSelect,
+    'flowspecRuleSelect': mockRuleSelect,
+    'flowspecAttackSlider': mockAttackSlider,
+    'flowspecAttackVal': mockAttackValPill,
+    'flowspecScrubSlider': mockScrubSlider,
+    'flowspecScrubVal': mockScrubValPill,
+    'flowspecResetBtn': mockResetBtn,
+    'flowspecKpiGatewayName': mockKpiGatewayName,
+    'flowspecKpiMitigationState': mockKpiMitigationState,
+    'flowspecKpiEffectiveness': mockKpiEffectiveness,
+    'flowspecStatusBadge': mockStatusBadge,
+    'flowspecKpiRevenueRisk': mockKpiRevenueRisk,
+    'flowspecModalChartWrap': mockChartWrap,
+    'flowspecRulesTableBody': mockRulesTableBody,
+    'flowspecFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyFlowspecReportBtn': mockCopyReportBtn,
+    'dashboardFlowspecChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementMap[id] || null
+  };
+
+  try {
+    const state = createInitialState(['DOM Test User']);
+    setupFlowspecModal(state, {
+      onFilterArea: (area) => { filterAreaTarget = area; },
+      onToast: (msg) => { toastMsg = msg; },
+      clipboard: {
+        writeText: async (txt) => { copiedText = txt; }
+      }
+    });
+
+    // Check initial render of card chart
+    assert.ok(mockCardChart.innerHTML.includes('flowspec-svg'));
+
+    // Open modal
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiGatewayName.textContent.includes('Nayatel 100G'));
+    assert.ok(mockChartWrap.innerHTML.includes('flowspec-svg'));
+    assert.ok(mockRulesTableBody.innerHTML.includes('FS-RULE-01'));
+
+    // Change gateway to GW-02 (PTCL)
+    mockGwSelect.value = 'gw-02';
+    mockGwSelect.onchange({ target: { value: 'gw-02' } });
+    assert.equal(getFlowspecSelectedGateway(), 'gw-02');
+    assert.equal(getFlowspecAttackVector(), 'SYN_FLOOD');
+
+    // Change vector to NTP_MONLIST
+    mockVectorSelect.value = 'NTP_MONLIST';
+    mockVectorSelect.onchange({ target: { value: 'NTP_MONLIST' } });
+    assert.equal(getFlowspecAttackVector(), 'NTP_MONLIST');
+    assert.equal(getFlowspecSelectedRule(), 'fs-rule-02');
+
+    // Change rule to fs-rule-04
+    mockRuleSelect.value = 'fs-rule-04';
+    mockRuleSelect.onchange({ target: { value: 'fs-rule-04' } });
+    assert.equal(getFlowspecSelectedRule(), 'fs-rule-04');
+
+    // Change attack volume slider
+    mockAttackSlider.value = '80';
+    mockAttackSlider.oninput({ target: { value: '80' } });
+    assert.equal(getFlowspecAttackVolumeGbps(), 80);
+    assert.equal(mockAttackValPill.textContent, '80 Gbps');
+
+    // Change scrubbing capacity slider
+    mockScrubSlider.value = '90';
+    mockScrubSlider.oninput({ target: { value: '90' } });
+    assert.equal(getFlowspecScrubCapacityGbps(), 90);
+    assert.equal(mockScrubValPill.textContent, '90 Gbps');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getFlowspecSelectedGateway(), 'gw-01');
+    assert.equal(getFlowspecAttackVector(), 'DNS_AMP');
+    assert.equal(getFlowspecSelectedRule(), 'fs-rule-01');
+    assert.equal(getFlowspecAttackVolumeGbps(), 45);
+    assert.equal(getFlowspecScrubCapacityGbps(), 60);
+    assert.equal(toastMsg, 'BGP Flowspec simulation reset to baseline parameters.');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaTarget, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('BGP FLOWSPEC (RFC 5575 / 8955) NOC SECURITY AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'BGP Flowspec NOC briefing copied to clipboard!');
+
+    // Close button
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetFlowspecSimState();
+  }
+});
+
+test('Flowspec simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetFlowspecSimState();
+  assert.equal(getFlowspecSelectedGateway(), 'gw-01');
+
+  // Gateway selection & auto-configuration
+  setFlowspecSelectedGateway('gw-03');
+  assert.equal(getFlowspecSelectedGateway(), 'gw-03');
+  assert.equal(getFlowspecAttackVector(), 'NTP_MONLIST');
+  assert.equal(getFlowspecSelectedRule(), 'fs-rule-02');
+  setFlowspecSelectedGateway('invalid-gw');
+  assert.equal(getFlowspecSelectedGateway(), 'gw-03');
+
+  // Threat vector selection
+  setFlowspecAttackVector('ICMP_SWEEP');
+  assert.equal(getFlowspecAttackVector(), 'ICMP_SWEEP');
+  assert.equal(getFlowspecSelectedRule(), 'fs-rule-05');
+  setFlowspecAttackVector('invalid-vector');
+  assert.equal(getFlowspecAttackVector(), 'ICMP_SWEEP');
+
+  // Rule selection
+  setFlowspecSelectedRule('fs-rule-03');
+  assert.equal(getFlowspecSelectedRule(), 'fs-rule-03');
+  setFlowspecSelectedRule('invalid-rule');
+  assert.equal(getFlowspecSelectedRule(), 'fs-rule-03');
+
+  // Attack volume clamping [0, 150]
+  setFlowspecAttackVolumeGbps(75);
+  assert.equal(getFlowspecAttackVolumeGbps(), 75);
+  setFlowspecAttackVolumeGbps(300); // clamped to 150
+  assert.equal(getFlowspecAttackVolumeGbps(), 150);
+  setFlowspecAttackVolumeGbps(-20); // clamped to 0
+  assert.equal(getFlowspecAttackVolumeGbps(), 0);
+
+  // Scrubbing capacity clamping [10, 100]
+  setFlowspecScrubCapacityGbps(50);
+  assert.equal(getFlowspecScrubCapacityGbps(), 50);
+  setFlowspecScrubCapacityGbps(250); // clamped to 100
+  assert.equal(getFlowspecScrubCapacityGbps(), 100);
+  setFlowspecScrubCapacityGbps(2); // clamped to 10
+  assert.equal(getFlowspecScrubCapacityGbps(), 10);
+
+  // Reset
+  resetFlowspecSimState();
+  assert.equal(getFlowspecSelectedGateway(), 'gw-01');
+  assert.equal(getFlowspecAttackVector(), 'DNS_AMP');
+  assert.equal(getFlowspecSelectedRule(), 'fs-rule-01');
+  assert.equal(getFlowspecAttackVolumeGbps(), 45);
+  assert.equal(getFlowspecScrubCapacityGbps(), 60);
 });
 
 

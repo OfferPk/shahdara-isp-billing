@@ -7055,3 +7055,349 @@ test('setupMobileFdtAllocationModal wires DOM controls and handles interactions'
     globalThis.document = origDoc;
   }
 });
+
+/* ========================================================================= */
+/* Field Technician GPON ONU / ONT Optical BOSA Diagnostics Suite Tests     */
+/* ========================================================================= */
+
+test('ONT_MODELS and ONT_PRESETS contain expected GPON terminal configurations', async () => {
+  const { ONT_MODELS, ONT_PRESETS } = await import('../nav.js');
+
+  assert.ok(Array.isArray(ONT_MODELS));
+  assert.ok(ONT_MODELS.length >= 4);
+  assert.ok(ONT_MODELS.some(m => m.id === 'HUAWEI_HG8245H'));
+  assert.ok(ONT_MODELS.some(m => m.id === 'ZTE_F660'));
+
+  assert.ok(Array.isArray(ONT_PRESETS));
+  assert.equal(ONT_PRESETS.length, 5);
+  const healthy = ONT_PRESETS.find(p => p.id === 'PRESET_HEALTHY');
+  assert.ok(healthy);
+  assert.equal(healthy.rxPowerDbm, -18.5);
+  assert.equal(healthy.laserBiasMa, 14.5);
+});
+
+test('evaluateOntRxPower, Tx, Bias, Temp, and Voltage evaluate thresholds accurately', async () => {
+  const {
+    evaluateOntRxPower,
+    evaluateOntTxPower,
+    evaluateOntLaserBias,
+    evaluateOntTemperature,
+    evaluateOntVoltage
+  } = await import('../nav.js');
+
+  // Rx tests
+  assert.equal(evaluateOntRxPower(0).id, 'LOS');
+  assert.equal(evaluateOntRxPower(-38).id, 'LOS');
+  assert.equal(evaluateOntRxPower(-5.0).id, 'OVERLOAD');
+  assert.equal(evaluateOntRxPower(-18.5).id, 'OPTIMAL');
+  assert.equal(evaluateOntRxPower(-25.5).id, 'ACCEPTABLE');
+  assert.equal(evaluateOntRxPower(-27.8).id, 'MARGINAL');
+  assert.equal(evaluateOntRxPower(-30.0).id, 'CRITICAL_LOW');
+
+  // Tx tests
+  assert.equal(evaluateOntTxPower(2.5).id, 'OPTIMAL');
+  assert.equal(evaluateOntTxPower(4.2).id, 'ACCEPTABLE');
+  assert.equal(evaluateOntTxPower(0.2).id, 'WEAK_TX');
+  assert.equal(evaluateOntTxPower(6.5).id, 'HIGH_TX');
+
+  // Bias tests
+  assert.equal(evaluateOntLaserBias(15).id, 'OPTIMAL');
+  assert.equal(evaluateOntLaserBias(29).id, 'ACCEPTABLE');
+  assert.equal(evaluateOntLaserBias(38).id, 'AGING_WARNING');
+  assert.equal(evaluateOntLaserBias(52).id, 'CRITICAL_BURNOUT');
+
+  // Temperature tests
+  assert.equal(evaluateOntTemperature(35).id, 'OPTIMAL');
+  assert.equal(evaluateOntTemperature(55).id, 'ACCEPTABLE');
+  assert.equal(evaluateOntTemperature(65).id, 'WARM_WARNING');
+  assert.equal(evaluateOntTemperature(78).id, 'THERMAL_SHUTDOWN');
+
+  // Voltage tests
+  assert.equal(evaluateOntVoltage(3.3).id, 'OPTIMAL');
+  assert.equal(evaluateOntVoltage(3.15).id, 'ACCEPTABLE');
+  assert.equal(evaluateOntVoltage(2.9).id, 'UNDERVOLTAGE');
+  assert.equal(evaluateOntVoltage(3.6).id, 'OVERVOLTAGE');
+});
+
+test('diagnoseOntHealth computes score and classifies root cause', async () => {
+  const { diagnoseOntHealth } = await import('../nav.js');
+
+  // Healthy scenario
+  const healthy = diagnoseOntHealth({
+    rxPowerDbm: -18.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 15.0,
+    temperatureC: 38.0,
+    supplyVoltageV: 3.3
+  });
+  assert.ok(healthy.compositeScore >= 95);
+  assert.equal(healthy.statusGrade, 'EXCELLENT');
+  assert.equal(healthy.diagnosisCategory, 'HEALTHY_NORMAL');
+  assert.equal(healthy.faultCount, 0);
+
+  // Weak Rx scenario
+  const weakRx = diagnoseOntHealth({
+    rxPowerDbm: -29.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 15.0,
+    temperatureC: 38.0,
+    supplyVoltageV: 3.3
+  });
+  assert.equal(weakRx.diagnosisCategory, 'WEAK_RX_SIGNAL');
+  assert.ok(weakRx.recommendation.includes('Inspect drop cable'));
+
+  // Laser aging scenario
+  const laserAging = diagnoseOntHealth({
+    rxPowerDbm: -18.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 48.0,
+    temperatureC: 38.0,
+    supplyVoltageV: 3.3
+  });
+  assert.equal(laserAging.diagnosisCategory, 'LASER_AGING_BURNOUT');
+  assert.ok(laserAging.recommendation.includes('laser diode is aging'));
+
+  // Overheating scenario
+  const overheating = diagnoseOntHealth({
+    rxPowerDbm: -18.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 15.0,
+    temperatureC: 72.0,
+    supplyVoltageV: 3.3
+  });
+  assert.equal(overheating.diagnosisCategory, 'THERMAL_THROTTLING');
+
+  // Undervoltage scenario
+  const badAdapter = diagnoseOntHealth({
+    rxPowerDbm: -18.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 15.0,
+    temperatureC: 38.0,
+    supplyVoltageV: 2.9
+  });
+  assert.equal(badAdapter.diagnosisCategory, 'POWER_SUPPLY_FAULT');
+
+  // Multiple faults scenario
+  const multiFault = diagnoseOntHealth({
+    rxPowerDbm: -32.0,
+    txPowerDbm: 0.1,
+    laserBiasMa: 50.0,
+    temperatureC: 75.0,
+    supplyVoltageV: 2.8
+  });
+  assert.equal(multiFault.diagnosisCategory, 'MULTIPLE_FAULTS');
+  assert.ok(multiFault.compositeScore < 50);
+});
+
+test('ONT diagnostic storage operations persist and clear logs', async () => {
+  const {
+    getOntDiagnosticsStore,
+    saveOntDiagnosticsStore,
+    recordOntDiagnosticLog,
+    clearOntDiagnosticsStore,
+    ONT_DIAGNOSTICS_STORAGE_KEY
+  } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  assert.deepEqual(getOntDiagnosticsStore(mockStorage), []);
+
+  const saved = recordOntDiagnosticLog({
+    customerName: 'Muhammad Rizwan',
+    ontModel: 'Huawei HG8245H',
+    serialNumber: 'HWTC-48590210',
+    rxPowerDbm: -18.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 14.5,
+    temperatureC: 38.0,
+    supplyVoltageV: 3.31,
+    compositeScore: 98,
+    statusGrade: 'EXCELLENT',
+    diagnosisCategory: 'HEALTHY_NORMAL',
+    primaryFault: 'None'
+  }, mockStorage);
+
+  assert.ok(saved.id.startsWith('ONT-DIAG-'));
+  assert.equal(saved.customerName, 'Muhammad Rizwan');
+
+  const retrieved = getOntDiagnosticsStore(mockStorage);
+  assert.equal(retrieved.length, 1);
+  assert.equal(retrieved[0].serialNumber, 'HWTC-48590210');
+
+  clearOntDiagnosticsStore(mockStorage);
+  assert.deepEqual(getOntDiagnosticsStore(mockStorage), []);
+});
+
+test('renderMobileOntDiagnosticsSvg renders SVG with dials and LEDs', async () => {
+  const { renderMobileOntDiagnosticsSvg } = await import('../nav.js');
+
+  const svg = renderMobileOntDiagnosticsSvg({
+    rxPowerDbm: -19.2,
+    txPowerDbm: 2.1,
+    laserBiasMa: 16.0,
+    temperatureC: 40.0,
+    supplyVoltageV: 3.32
+  });
+
+  assert.ok(svg.includes('<svg viewBox="0 0 720 360"'));
+  assert.ok(svg.includes('POWER'));
+  assert.ok(svg.includes('PON'));
+  assert.ok(svg.includes('LOS'));
+  assert.ok(svg.includes('Rx 1490nm'));
+  assert.ok(svg.includes('Tx 1310nm'));
+  assert.ok(svg.includes('Laser Bias'));
+  assert.ok(svg.includes('-19.2 dBm'));
+});
+
+test('generateOntDiagnosticsWhatsAppReport formats field lineman report', async () => {
+  const { generateOntDiagnosticsWhatsAppReport } = await import('../nav.js');
+
+  const report = generateOntDiagnosticsWhatsAppReport({
+    rxPowerDbm: -18.5,
+    txPowerDbm: 2.4,
+    laserBiasMa: 14.5,
+    temperatureC: 38.0,
+    supplyVoltageV: 3.31
+  }, {
+    customerName: 'Tariq Mehmood',
+    ontModel: 'Huawei HG8245H',
+    serialNumber: 'HWTC-12345678'
+  });
+
+  assert.ok(report.includes('SHAHDARA FIBER NET - ONT BOSA DIAGNOSTICS REPORT'));
+  assert.ok(report.includes('*Customer:* Tariq Mehmood'));
+  assert.ok(report.includes('Huawei HG8245H'));
+  assert.ok(report.includes('*Laser Bias Current:* 14.5 mA'));
+  assert.ok(report.includes('LINEMAN FIELD ACTION'));
+});
+
+test('setupMobileOntDiagnosticsModal wires DOM controls and manages preset switching', async () => {
+  const { setupMobileOntDiagnosticsModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const listeners = new Map();
+  function makeMockElement(id) {
+    const el = {
+      id,
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      children: [],
+      dataset: {},
+      appendChild(c) { this.children.push(c); },
+      addEventListener(ev, fn) { listeners.set(`${id}:${ev}`, fn); },
+      dispatchEvent(e) {
+        const fn = listeners.get(`${id}:${e.type}`);
+        if (fn) fn(e);
+      }
+    };
+    return el;
+  }
+
+  const modal = makeMockElement('mobileOntDiagnosticsModal');
+  modal.showModal = () => { modal.open = true; };
+  modal.close = () => { modal.open = false; };
+  modal.setAttribute = (k, v) => { modal[k] = v; };
+  modal.removeAttribute = (k) => { delete modal[k]; };
+
+  const closeBtn = makeMockElement('mobileOntDiagnosticsCloseBtn');
+  const presetSelect = makeMockElement('ontDiagPresetSelect');
+  const svgContainer = makeMockElement('ontDiagSvgContainer');
+  const historyList = makeMockElement('ontDiagHistoryList');
+  const custNameInput = makeMockElement('ontDiagCustName');
+  const ontModelSelect = makeMockElement('ontDiagModelSelect');
+  const ontSerialInput = makeMockElement('ontDiagSerialInput');
+  const rxPowerInput = makeMockElement('ontDiagRxPower');
+  const txPowerInput = makeMockElement('ontDiagTxPower');
+  const laserBiasInput = makeMockElement('ontDiagLaserBias');
+  const tempInput = makeMockElement('ontDiagTemp');
+  const voltInput = makeMockElement('ontDiagVoltage');
+  const saveRecordBtn = makeMockElement('ontDiagSaveBtn');
+  const whatsappBtn = makeMockElement('ontDiagWhatsappBtn');
+  const clearHistoryBtn = makeMockElement('ontDiagClearHistoryBtn');
+  const triggerBtn = makeMockElement('triggerBtn');
+
+  const elements = {
+    mobileOntDiagnosticsModal: modal,
+    mobileOntDiagnosticsCloseBtn: closeBtn,
+    ontDiagPresetSelect: presetSelect,
+    ontDiagSvgContainer: svgContainer,
+    ontDiagHistoryList: historyList,
+    ontDiagCustName: custNameInput,
+    ontDiagModelSelect: ontModelSelect,
+    ontDiagSerialInput: ontSerialInput,
+    ontDiagRxPower: rxPowerInput,
+    ontDiagTxPower: txPowerInput,
+    ontDiagLaserBias: laserBiasInput,
+    ontDiagTemp: tempInput,
+    ontDiagVoltage: voltInput,
+    ontDiagSaveBtn: saveRecordBtn,
+    ontDiagWhatsappBtn: whatsappBtn,
+    ontDiagClearHistoryBtn: clearHistoryBtn
+  };
+
+  let toastMessage = '';
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-ont-diagnostics]') return [triggerBtn];
+      return [];
+    },
+    createElement: (tag) => makeMockElement(tag)
+  };
+
+  try {
+    const controller = setupMobileOntDiagnosticsModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.updateView, 'function');
+    assert.equal(typeof controller.applyPreset, 'function');
+
+    // Trigger opens modal
+    const triggerFn = listeners.get('triggerBtn:click');
+    if (triggerFn) triggerFn();
+    assert.ok(modal.open);
+
+    // Close button closes modal
+    const closeFn = listeners.get('mobileOntDiagnosticsCloseBtn:click');
+    if (closeFn) closeFn();
+    assert.equal(modal.open, false);
+
+    // Apply preset
+    controller.applyPreset('PRESET_WEAK_RX');
+    assert.equal(rxPowerInput.value, -28.2);
+
+    // Save diagnostic log
+    custNameInput.value = 'Shahid Mehmood';
+    ontSerialInput.value = 'ZTE-9812401';
+    const saveFn = listeners.get('ontDiagSaveBtn:click');
+    if (saveFn) saveFn();
+    assert.ok(toastMessage.includes('ONT diagnostic log saved'));
+
+    const history = controller.getHistory();
+    assert.equal(history.length, 1);
+    assert.equal(history[0].customerName, 'Shahid Mehmood');
+
+    // Clear history
+    const clearFn = listeners.get('ontDiagClearHistoryBtn:click');
+    if (clearFn) clearFn();
+    assert.ok(toastMessage.includes('cleared'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

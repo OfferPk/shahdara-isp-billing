@@ -71,6 +71,7 @@
           <li class="nav-drawer-item"><button type="button" id="navWifiSurveyBtn" data-open-wifi-survey><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></span><span>Wi-Fi Survey</span><span id="navBadgeWifiSurvey" class="nav-drawer-badge" data-nav-badge="wifi-survey" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navOpticalBudgetBtn" data-open-optical-budget><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="17" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="3"/></svg></span><span>Optical Link Budget</span><span id="navBadgeOpticalBudget" class="nav-drawer-badge" data-nav-badge="optical-budget" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navFdtAllocationBtn" data-open-fdt-allocation><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></span><span>FAT Port Matrix</span><span id="navBadgeFdtAllocation" class="nav-drawer-badge" data-nav-badge="fdt-allocation" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navOntDiagnosticsBtn" data-open-ont-diagnostics><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="6" cy="12" r="1.5"/><circle cx="10" cy="12" r="1.5"/><circle cx="14" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></span><span>ONT Diagnostics</span><span id="navBadgeOntDiagnostics" class="nav-drawer-badge" data-nav-badge="ont-diagnostics" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -3481,7 +3482,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -4015,6 +4016,10 @@
         <span class="sheet-action-icon" aria-hidden="true">🗄️</span>
         <span class="sheet-action-label">FAT Matrix</span>
       </button>
+      <button type="button" id="actionSheetOntDiagnosticsBtn" class="sheet-action-tile" data-sheet-action="ont-diagnostics" data-open-ont-diagnostics>
+        <span class="sheet-action-icon" aria-hidden="true">📟</span>
+        <span class="sheet-action-label">ONT Diag</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -4127,6 +4132,10 @@
       <button type="button" id="speedDialFdtAllocationBtn" class="speed-dial-action" data-speed-action="fdt-allocation" data-open-fdt-allocation role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">🗄️</span>
         <span class="speed-action-label">FAT Matrix</span>
+      </button>
+      <button type="button" id="speedDialOntDiagnosticsBtn" class="speed-dial-action" data-speed-action="ont-diagnostics" data-open-ont-diagnostics role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">📟</span>
+        <span class="speed-action-label">ONT Diag</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -6175,6 +6184,101 @@
           <button id="fdtResetDefaultStoreBtn" type="button" class="btn-secondary" style="margin-left:auto">⚠️ Reset All to Default</button>
         </div>
       </section>
+    </section>
+  </dialog>
+
+  <!-- Mobile Field GPON ONU / ONT Optical BOSA Diagnostics Modal -->
+  <dialog id="mobileOntDiagnosticsModal" class="modal ont-diagnostics-modal" aria-labelledby="ontDiagnosticsModalTitle">
+    <section class="ont-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">ITU-T G.984 / SFF-8472 OPTICAL TRANSCEIVER DOM</p>
+          <h2 id="ontDiagnosticsModalTitle">GPON ONU / ONT Optical Diagnostics</h2>
+        </div>
+        <button id="mobileOntDiagnosticsCloseBtn" class="close-button" type="button" aria-label="Close ONT diagnostics modal">×</button>
+      </div>
+
+      <!-- Preset Selector -->
+      <div class="fdt-selector-row">
+        <div class="fdt-selector-group">
+          <label for="ontDiagPresetSelect" style="font-size:12px;font-weight:700">Diagnostic Preset:</label>
+          <select id="ontDiagPresetSelect" class="fdt-select" aria-label="Select Telemetry Preset">
+            <option value="PRESET_HEALTHY" selected>Optimal Link (Standard Home Active)</option>
+            <option value="PRESET_WEAK_RX">Weak Optical Rx (Drop Cable Macrobend)</option>
+            <option value="PRESET_AGING_LASER">Laser Diode Aging (High Bias Current)</option>
+            <option value="PRESET_OVERHEATING">Thermal Throttling (Shahdara Summer Attic)</option>
+            <option value="PRESET_BAD_ADAPTER">Faulty DC Power Adapter (Undervoltage)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- SVG Hardware & LCD Diagnostic Monitor -->
+      <div id="ontDiagSvgContainer" class="ont-svg-wrap" role="img" aria-label="Interactive GPON ONT Optical Hardware Monitor">
+        <!-- Pure SVG rendered here -->
+      </div>
+
+      <!-- Telemetry Parameters Input Grid -->
+      <section class="ont-form-grid" aria-label="ONT Telemetry Parameters">
+        <div class="ont-form-group">
+          <label for="ontDiagCustName">Customer Name</label>
+          <input id="ontDiagCustName" type="text" placeholder="e.g. Tariq Mehmood" value="Tariq Mehmood" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagModelSelect">ONT Device Model</label>
+          <select id="ontDiagModelSelect" class="fdt-select">
+            <option value="Huawei EchoLife HG8245H" selected>Huawei EchoLife HG8245H (GPON)</option>
+            <option value="ZTE ZXHN F660">ZTE ZXHN F660 (GPON)</option>
+            <option value="FiberHome AN5506-04-B">FiberHome AN5506-04-B</option>
+            <option value="V-SOL V2801SG">V-SOL V2801SG Bridge ONT</option>
+          </select>
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagSerialInput">ONT Serial Number</label>
+          <input id="ontDiagSerialInput" type="text" placeholder="e.g. HWTC-48590210" value="HWTC-48590210" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagRxPower">Rx Optical Power (dBm)</label>
+          <input id="ontDiagRxPower" type="number" step="0.1" min="-40" max="5" value="-18.5" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagTxPower">Tx Optical Power (dBm)</label>
+          <input id="ontDiagTxPower" type="number" step="0.1" min="-10" max="10" value="2.4" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagLaserBias">Laser Bias Current (mA)</label>
+          <input id="ontDiagLaserBias" type="number" step="0.1" min="0" max="100" value="14.5" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagTemp">Transceiver Temp (°C)</label>
+          <input id="ontDiagTemp" type="number" step="0.5" min="0" max="100" value="38.0" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="ontDiagVoltage">Supply Voltage (Vcc)</label>
+          <input id="ontDiagVoltage" type="number" step="0.01" min="1" max="5" value="3.31" />
+        </div>
+      </section>
+
+      <!-- Action Buttons -->
+      <div class="fdt-actions-row">
+        <button id="ontDiagSaveBtn" type="button" class="btn-primary">💾 Save Diagnostic Log</button>
+        <button id="ontDiagWhatsappBtn" type="button" class="btn-whatsapp">💬 WhatsApp Lineman Report</button>
+        <button id="ontDiagClearHistoryBtn" type="button" class="btn-secondary" style="margin-left:auto">🗑️ Clear History</button>
+      </div>
+
+      <!-- Recent Diagnostics History -->
+      <div class="ont-history-section">
+        <h3 style="margin:0;font-size:13px;font-weight:700">Recent ONT Inspection Logs</h3>
+        <ul id="ontDiagHistoryList" class="ont-history-list" role="feed" aria-label="Recent ONT diagnostics">
+          <!-- Dynamically populated entries -->
+        </ul>
+      </div>
     </section>
   </dialog>
 

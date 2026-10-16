@@ -4459,3 +4459,308 @@ test('aerial alerts UI components and controllers are properly wired across inde
   assert.match(appJs, /setupAerialAlertsModal/);
   assert.match(appJs, /aerialAlertsModalController/);
 });
+
+import {
+  SHAHDARA_OTDR_CORRIDORS,
+  OTDR_THRESHOLDS,
+  getOtdrSelectedCorridor,
+  setOtdrSelectedCorridor,
+  getOtdrSelectedWavelength,
+  setOtdrSelectedWavelength,
+  getOtdrSelectedPulseWidth,
+  setOtdrSelectedPulseWidth,
+  resetOtdrMobileState,
+  getOtdrMobileTracesStore,
+  saveOtdrMobileTracesStore,
+  recordOtdrEventResolution,
+  clearOtdrMobileTracesStore,
+  calculateOtdrTracePhysics,
+  calculateOtdrMobileSummary,
+  renderMobileOtdrTraceSvg,
+  generateOtdrDispatchOrder,
+  setupMobileOtdrTraceModal
+} from '../nav.js';
+
+test('calculateOtdrTracePhysics correctly computes cumulative fiber loss, event markers, and break geolocation', () => {
+  const corridor = SHAHDARA_OTDR_CORRIDORS[0]; // Central Ring
+  clearOtdrMobileTracesStore();
+
+  const eval1310 = calculateOtdrTracePhysics(corridor, { wavelength: 1310 });
+  assert.equal(eval1310.wavelength, 1310);
+  assert.equal(eval1310.alphaDbPerKm, OTDR_THRESHOLDS.ATTENUATION_COEFF_1310_DB_PER_KM);
+  assert.equal(eval1310.hasCriticalBreak, true);
+  assert.equal(eval1310.criticalBreakDistance, 4150);
+  assert.ok(eval1310.criticalBreakLandmark.includes('Railway Phatak'));
+  assert.equal(eval1310.corridorHealth, 'Critical Break');
+  assert.equal(eval1310.corridorClass, 'badge-danger');
+
+  // Verify events list
+  assert.equal(eval1310.events.length, 5);
+  assert.equal(eval1310.events[0].type, 'Launch');
+  assert.equal(eval1310.events[4].status, 'Fiber Break');
+
+  // Test 1550nm wavelength has lower Rayleigh attenuation coefficient
+  const eval1550 = calculateOtdrTracePhysics(corridor, { wavelength: 1550 });
+  assert.equal(eval1550.alphaDbPerKm, OTDR_THRESHOLDS.ATTENUATION_COEFF_1550_DB_PER_KM);
+  assert.ok(eval1550.cumulativeLossDb < eval1310.cumulativeLossDb);
+
+  // Test corridor without breaks (Baradari)
+  const baradari = SHAHDARA_OTDR_CORRIDORS[1];
+  const evalBaradari = calculateOtdrTracePhysics(baradari, { wavelength: 1550 });
+  assert.equal(evalBaradari.hasCriticalBreak, false);
+  assert.equal(evalBaradari.criticalBreakDistance, null);
+});
+
+test('OTDR mobile trace storage records technician resolution and clears breaks', () => {
+  const mockStorage = {
+    data: {},
+    getItem(k) { return this.data[k] || null; },
+    setItem(k, v) { this.data[k] = String(v); },
+    removeItem(k) { delete this.data[k]; }
+  };
+  clearOtdrMobileTracesStore(mockStorage);
+  const corridor = SHAHDARA_OTDR_CORRIDORS[0];
+
+  // Verify initial state has critical break
+  const initialEval = calculateOtdrTracePhysics(corridor, { storage: mockStorage });
+  assert.equal(initialEval.hasCriticalBreak, true);
+
+  // Record resolution for event 5 (the break)
+  const res = recordOtdrEventResolution(corridor.id, 'ev-5', 'Ali Raza Lineman', 0.05, 'Re-spliced on site', mockStorage);
+  assert.equal(res.corridorId, corridor.id);
+  assert.equal(res.eventId, 'ev-5');
+  assert.equal(res.resolvedLossDb, 0.05);
+
+  // Store verification
+  const store = getOtdrMobileTracesStore(mockStorage);
+  assert.ok(store[`${corridor.id}_ev-5`]);
+
+  // Physics calculation should now reflect resolved event and no critical break
+  const resolvedEval = calculateOtdrTracePhysics(corridor, { storage: mockStorage });
+  assert.equal(resolvedEval.hasCriticalBreak, false);
+  const ev5 = resolvedEval.events.find(e => e.id === 'ev-5');
+  assert.equal(ev5.status, 'Resolved');
+  assert.equal(ev5.effectiveLoss, 0.05);
+
+  clearOtdrMobileTracesStore(mockStorage);
+  assert.deepEqual(getOtdrMobileTracesStore(mockStorage), {});
+});
+
+test('calculateOtdrMobileSummary computes totals, dues at risk, and badge counter', () => {
+  clearOtdrMobileTracesStore();
+  resetOtdrMobileState();
+
+  const state = {
+    customers: [
+      { id: 'c1', area: 'Shahdara Town', isArchived: false },
+      { id: 'c2', area: 'Baradari Road', isArchived: false }
+    ],
+    bills: [
+      { customerId: 'c1', balance: 3500 },
+      { customerId: 'c2', balance: 1500 }
+    ]
+  };
+
+  const summary = calculateOtdrMobileSummary(state);
+  assert.equal(summary.totalCorridors, SHAHDARA_OTDR_CORRIDORS.length);
+  assert.ok(summary.activeBreaksCount >= 1);
+  assert.ok(summary.badgeCount >= summary.activeBreaksCount);
+  assert.ok(summary.totalDuesAtRisk >= 3500);
+
+  // Simulation state getters & setters
+  setOtdrSelectedCorridor('otdr-br-02');
+  assert.equal(getOtdrSelectedCorridor(), 'otdr-br-02');
+
+  setOtdrSelectedWavelength(1625);
+  assert.equal(getOtdrSelectedWavelength(), 1625);
+
+  setOtdrSelectedPulseWidth(50);
+  assert.equal(getOtdrSelectedPulseWidth(), 50);
+
+  resetOtdrMobileState();
+  assert.equal(getOtdrSelectedCorridor(), SHAHDARA_OTDR_CORRIDORS[0].id);
+});
+
+test('renderMobileOtdrTraceSvg produces responsive SVG vector chart', () => {
+  const corridor = SHAHDARA_OTDR_CORRIDORS[0];
+  const evalData = calculateOtdrTracePhysics(corridor);
+
+  const svg = renderMobileOtdrTraceSvg(evalData);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('otdr-trace-svg'));
+  assert.ok(svg.includes('OTDR-CR01'));
+  assert.ok(svg.includes('E1'));
+  assert.ok(svg.includes('BREAK AT 4150m'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateOtdrDispatchOrder creates WhatsApp formatted field dispatch text', () => {
+  const corridor = SHAHDARA_OTDR_CORRIDORS[0];
+  const evalData = calculateOtdrTracePhysics(corridor);
+
+  const order = generateOtdrDispatchOrder(corridor, evalData);
+  assert.ok(order.includes('SHAHDARA FTTH OTDR FIELD SPLICING DISPATCH WORK ORDER'));
+  assert.ok(order.includes('OTDR-CR01'));
+  assert.ok(order.includes('CRITICAL BREAK DETECTED:'));
+  assert.ok(order.includes('4150 meters'));
+  assert.ok(order.includes('Usman Ghani & Bilal Team'));
+});
+
+test('setupMobileOtdrTraceModal wires controls, buttons, triggers, and callbacks', async () => {
+  clearOtdrMobileTracesStore();
+  resetOtdrMobileState();
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let corridorChangeHandler = null;
+  let wlChangeHandler = null;
+  let pulseChangeHandler = null;
+  let resetHandler = null;
+  let dispatchHandler = null;
+  let resolveHandler = null;
+  let filterAreaHandler = null;
+
+  let filteredArea = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockCorridorSelect = {
+    options: [],
+    value: '',
+    appendChild: function(opt) { this.options.push(opt); },
+    onchange: null
+  };
+
+  const mockWlSelect = { value: '1310', onchange: null };
+  const mockPulseSelect = { value: '30', onchange: null };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+  const mockKpiCode = { textContent: '' };
+  const mockKpiLoss = { textContent: '' };
+  const mockKpiBreak = { textContent: '' };
+  const mockKpiStatus = { textContent: '', className: '' };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'mobileOtdrTraceModal': return mockModal;
+        case 'mobileOtdrTraceModalCloseBtn': return { set onclick(fn) { closeHandler = fn; } };
+        case 'otdrCorridorSelect': return mockCorridorSelect;
+        case 'otdrWlSelect': return mockWlSelect;
+        case 'otdrPulseSelect': return mockPulseSelect;
+        case 'otdrResetBtn': return { set onclick(fn) { resetHandler = fn; } };
+        case 'otdrTraceChartWrap': return mockChartWrap;
+        case 'otdrEventsTableBody': return mockTableBody;
+        case 'otdrDispatchBtn': return { set onclick(fn) { dispatchHandler = fn; } };
+        case 'otdrResolveBtn': return { set onclick(fn) { resolveHandler = fn; } };
+        case 'otdrFilterAreaBtn': return { set onclick(fn) { filterAreaHandler = fn; } };
+        case 'otdrKpiCorridorCode': return mockKpiCode;
+        case 'otdrKpiTotalLoss': return mockKpiLoss;
+        case 'otdrKpiBreakDistance': return mockKpiBreak;
+        case 'otdrStatusBadge': return mockKpiStatus;
+        default: return null;
+      }
+    },
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-otdr-trace]') {
+        return [{ set onclick(fn) { openHandler = fn; } }];
+      }
+      return [];
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '' })
+  };
+
+  try {
+    setupMobileOtdrTraceModal({
+      state: {},
+      onFilterArea: (a) => { filteredArea = a; },
+      onToast: (m) => { toastMsg = m; },
+      clipboard: { writeText: async (t) => { copiedText = t; } }
+    });
+
+    assert.equal(mockCorridorSelect.options.length, SHAHDARA_OTDR_CORRIDORS.length);
+
+    // Open
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+    assert.equal(mockKpiCode.textContent, 'OTDR-CR01');
+    assert.ok(mockChartWrap.innerHTML.includes('otdr-trace-svg'));
+
+    // Wavelength change
+    assert.ok(mockWlSelect.onchange !== null);
+    mockWlSelect.value = '1550';
+    mockWlSelect.onchange();
+    assert.equal(getOtdrSelectedWavelength(), 1550);
+
+    // Pulse width change
+    assert.ok(mockPulseSelect.onchange !== null);
+    mockPulseSelect.value = '100';
+    mockPulseSelect.onchange();
+    assert.equal(getOtdrSelectedPulseWidth(), 100);
+
+    // Reset
+    assert.ok(resetHandler !== null);
+    resetHandler();
+    assert.equal(getOtdrSelectedWavelength(), SHAHDARA_OTDR_CORRIDORS[0].baseWavelength);
+
+    // Resolve event
+    assert.ok(resolveHandler !== null);
+    resolveHandler();
+    assert.ok(toastMsg.includes('marked resolved'));
+
+    // Copy dispatch order
+    assert.ok(dispatchHandler !== null);
+    await dispatchHandler();
+    assert.ok(copiedText.includes('SHAHDARA FTTH OTDR FIELD SPLICING DISPATCH WORK ORDER'));
+
+    // Filter area
+    assert.ok(filterAreaHandler !== null);
+    filterAreaHandler();
+    assert.equal(filteredArea, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Close
+    assert.ok(closeHandler !== null);
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('mobile OTDR trace UI elements are wired in index.html, nav.css, and app.js', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // Trigger buttons
+  assert.match(indexHtml, /id="navOtdrTraceBtn"/);
+  assert.match(indexHtml, /data-nav-badge="otdr-trace"/);
+  assert.match(indexHtml, /id="mobileMoreOtdrTraceBtn"/);
+  assert.match(indexHtml, /id="actionSheetOtdrTraceBtn"/);
+  assert.match(indexHtml, /id="speedDialOtdrTraceBtn"/);
+
+  // Modal dialog
+  assert.match(indexHtml, /<dialog id="mobileOtdrTraceModal"/);
+  assert.match(indexHtml, /id="otdrCorridorSelect"/);
+  assert.match(indexHtml, /id="otdrTraceChartWrap"/);
+  assert.match(indexHtml, /id="otdrDispatchBtn"/);
+
+  // Styles
+  assert.match(navCss, /\.otdr-trace-modal/);
+  assert.match(navCss, /\.otdr-trace-svg/);
+
+  // App.js
+  assert.match(appJs, /setupMobileOtdrTraceModal/);
+  assert.match(appJs, /mobileOtdrTraceModalController/);
+});

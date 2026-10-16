@@ -3772,3 +3772,224 @@ test('index.html, nav.css, and app.js wire Mobile Offline Sync Conflict Resolver
   assert.match(appJs, /setupSyncConflictModal/);
   assert.match(appJs, /syncConflictModalController/);
 });
+
+test('calculateOpticalSignalMapMetrics calculates optical attenuation, power levels, and classifies node status', async () => {
+  const { calculateOpticalSignalMapMetrics, SHAHDARA_OPTICAL_NODES } = await import('../nav.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', name: 'Zahid', area: 'Vandala Road', serviceStatus: 'active', monthlyRate: 2000 },
+      { id: 'c2', name: 'Farhan', area: 'Saeed Park', serviceStatus: 'active', monthlyRate: 1500 },
+      { id: 'c3', name: 'Tariq', area: 'Jia Musa', serviceStatus: 'offline', monthlyRate: 1800 },
+      { id: 'c4', name: 'Bilal', area: 'Shahdara Town', serviceStatus: 'active', monthlyRate: 2500 }
+    ]
+  };
+
+  const metrics = calculateOpticalSignalMapMetrics(mockState);
+  assert.ok(metrics);
+  assert.equal(metrics.totalNodes, SHAHDARA_OPTICAL_NODES.length);
+  assert.equal(metrics.nodes.length, 6);
+  assert.ok(metrics.averageLossDb > 0);
+  assert.ok(metrics.averageRxDbm < 0);
+
+  const wandalaNode = metrics.nodes.find(n => n.id === 'fdh-wandala-01');
+  assert.ok(wandalaNode);
+  assert.equal(wandalaNode.code, 'FDH-WND-01');
+  assert.equal(wandalaNode.totalConnectedCustomers, 1);
+  assert.equal(wandalaNode.activeSubscribers, 1);
+  assert.ok(wandalaNode.measuredLossDb > 0);
+  assert.ok(wandalaNode.measuredRxDbm < 0);
+  assert.ok(['optimal', 'warning', 'critical'].includes(wandalaNode.statusTier));
+
+  // Verify status counts match
+  const sumCounts = metrics.optimalNodesCount + metrics.warningNodesCount + metrics.criticalNodesCount;
+  assert.equal(sumCounts, metrics.totalNodes);
+});
+
+test('recordOpticalMeasurement stores and retrieves measurements in storage', async () => {
+  const { recordOpticalMeasurement, getOpticalMeasurements, clearOpticalMeasurements } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  clearOpticalMeasurements(mockStorage);
+  assert.deepEqual(getOpticalMeasurements(mockStorage), {});
+
+  recordOpticalMeasurement('fdh-wandala-01', -21.4, mockStorage);
+  let saved = getOpticalMeasurements(mockStorage);
+  assert.ok(saved['fdh-wandala-01']);
+  assert.equal(saved['fdh-wandala-01'].rxDbm, -21.4);
+
+  recordOpticalMeasurement('fdh-saeedpark-02', -25.8, mockStorage);
+  saved = getOpticalMeasurements(mockStorage);
+  assert.equal(saved['fdh-saeedpark-02'].rxDbm, -25.8);
+
+  clearOpticalMeasurements(mockStorage);
+  assert.deepEqual(getOpticalMeasurements(mockStorage), {});
+});
+
+test('renderOpticalSignalMapSvg produces valid SVG topology diagram with nodes and links', async () => {
+  const { calculateOpticalSignalMapMetrics, renderOpticalSignalMapSvg } = await import('../nav.js');
+
+  const mockState = { customers: [] };
+  const metrics = calculateOpticalSignalMapMetrics(mockState);
+
+  const svg = renderOpticalSignalMapSvg(metrics, 'fdh-wandala-01');
+  assert.match(svg, /<svg viewBox="0 0 660 320"/);
+  assert.match(svg, /Central OLT/);
+  assert.match(svg, /fdh-wandala-01/);
+  assert.match(svg, /FDH-WND-01/);
+  assert.match(svg, /FAT-BK-06/);
+});
+
+test('generateOpticalSignalMapReport generates markdown WhatsApp dispatch report', async () => {
+  const { calculateOpticalSignalMapMetrics, generateOpticalSignalMapReport } = await import('../nav.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', name: 'Zahid', area: 'Vandala Road', serviceStatus: 'active', monthlyRate: 2000 }
+    ]
+  };
+  const metrics = calculateOpticalSignalMapMetrics(mockState);
+  const report = generateOpticalSignalMapReport(metrics);
+
+  assert.match(report, /SHAHDARA ISP OSP FIELD BRIEFING: OPTICAL SIGNAL LOSS MAP & SPLITTER HEALTH/);
+  assert.match(report, /FDH-01 Wandala Chowk Optical Hub/);
+  assert.match(report, /dBm/);
+  assert.match(report, /PRIORITY FIELD DISPATCH ACTIONS/);
+});
+
+test('setupOpticalSignalMapModal wires interactive modal controls and reading logging', async () => {
+  const { setupOpticalSignalMapModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const modalEl = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  };
+
+  const kpiTotalNodes = { textContent: '' };
+  const kpiAvgLoss = { textContent: '' };
+  const kpiCriticalNodes = { textContent: '' };
+  const kpiRevenueRisk = { textContent: '' };
+  const svgContainer = { innerHTML: '', addEventListener: () => {}, querySelectorAll: () => [] };
+  const inspectorPanel = {};
+  const inspectorTitle = { textContent: '' };
+  const inspectorSpecs = { textContent: '' };
+  const inspectorRx = { textContent: '' };
+  const inspectorLoss = { textContent: '' };
+  const inspectorStatusBadge = { textContent: '', className: '' };
+  const inspectorCustomersList = { innerHTML: '', querySelectorAll: () => [] };
+  const simReadingInput = { value: '', dataset: {} };
+  const simReadingBtn = { addEventListener: () => {}, dataset: {} };
+  const resetReadingsBtn = { addEventListener: () => {}, dataset: {} };
+  const searchInput = { value: '', addEventListener: () => {}, dataset: {} };
+  const copyReportBtn = { addEventListener: () => {}, dataset: {} };
+  const closeBtn = { addEventListener: () => {}, dataset: {} };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'opticalSignalMapModal') return modalEl;
+      if (id === 'opticalSignalMapCloseBtn') return closeBtn;
+      if (id === 'opticalSignalMapCopyReportBtn') return copyReportBtn;
+      if (id === 'opticalSignalMapSearchInput') return searchInput;
+      if (id === 'opticalSignalMapSvgContainer') return svgContainer;
+      if (id === 'opticalKpiTotalNodes') return kpiTotalNodes;
+      if (id === 'opticalKpiAvgLoss') return kpiAvgLoss;
+      if (id === 'opticalKpiCriticalNodes') return kpiCriticalNodes;
+      if (id === 'opticalKpiRevenueRisk') return kpiRevenueRisk;
+      if (id === 'opticalNodeInspectorPanel') return inspectorPanel;
+      if (id === 'opticalInspectorTitle') return inspectorTitle;
+      if (id === 'opticalInspectorSpecs') return inspectorSpecs;
+      if (id === 'opticalInspectorRx') return inspectorRx;
+      if (id === 'opticalInspectorLoss') return inspectorLoss;
+      if (id === 'opticalInspectorStatusBadge') return inspectorStatusBadge;
+      if (id === 'opticalInspectorCustomersList') return inspectorCustomersList;
+      if (id === 'opticalSimReadingInput') return simReadingInput;
+      if (id === 'opticalSimReadingBtn') return simReadingBtn;
+      if (id === 'opticalResetReadingsBtn') return resetReadingsBtn;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('[data-open-optical-map]')) return [];
+      if (sel === '[data-optical-filter]') return [];
+      if (sel.includes('[data-nav-badge=')) return [];
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupOpticalSignalMapModal({
+      getState: () => ({ customers: [] }),
+      storage: mockStorage
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.recalculate, 'function');
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.setState, 'function');
+
+    controller.open();
+    assert.equal(modalOpened, true);
+
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, nav.css, and app.js wire Optical Signal Map completely', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /<dialog id="opticalSignalMapModal" class="modal optical-map-modal"/);
+  assert.match(indexHtml, /id="opticalSignalMapCloseBtn"/);
+  assert.match(indexHtml, /id="opticalKpiTotalNodes"/);
+  assert.match(indexHtml, /id="opticalKpiAvgLoss"/);
+  assert.match(indexHtml, /id="opticalKpiCriticalNodes"/);
+  assert.match(indexHtml, /id="opticalKpiRevenueRisk"/);
+  assert.match(indexHtml, /id="opticalSignalMapSearchInput"/);
+  assert.match(indexHtml, /id="opticalSignalMapSvgContainer"/);
+  assert.match(indexHtml, /id="opticalNodeInspectorPanel"/);
+  assert.match(indexHtml, /id="opticalSimReadingInput"/);
+  assert.match(indexHtml, /id="opticalSimReadingBtn"/);
+  assert.match(indexHtml, /id="opticalResetReadingsBtn"/);
+  assert.match(indexHtml, /id="opticalInspectorCustomersList"/);
+  assert.match(indexHtml, /id="opticalSignalMapCopyReportBtn"/);
+
+  assert.match(indexHtml, /data-open-optical-map/);
+  assert.match(indexHtml, /data-mobile-more="optical-map"/);
+  assert.match(indexHtml, /data-sheet-action="optical-map"/);
+  assert.match(indexHtml, /data-speed-action="optical-map"/);
+
+  // nav.css checks
+  assert.match(navCss, /\.optical-map-modal-card/);
+  assert.match(navCss, /\.optical-map-canvas-wrap/);
+  assert.match(navCss, /\.optical-map-svg/);
+  assert.match(navCss, /\.optical-inspector-panel/);
+  assert.match(navCss, /\.optical-inspector-stat-pill/);
+  assert.match(navCss, /\.optical-inspector-sim-box/);
+  assert.match(navCss, /\.optical-customers-roster/);
+
+  // app.js checks
+  assert.match(appJs, /setupOpticalSignalMapModal/);
+  assert.match(appJs, /opticalSignalMapModalController/);
+});

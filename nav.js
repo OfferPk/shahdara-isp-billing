@@ -116,6 +116,17 @@ export function setupNavigationDrawer({
     }
   });
 
+  // Wire drawer optical map button if present
+  const opticalDrawerBtns = drawer.querySelectorAll('[data-open-optical-map]');
+  opticalDrawerBtns.forEach(btn => {
+    if (!btn.dataset.wiredOpticalDrawer) {
+      btn.dataset.wiredOpticalDrawer = 'true';
+      btn.addEventListener('click', () => {
+        closeDrawer();
+      });
+    }
+  });
+
   // Keyboard navigation: Escape key closes drawer, Tab focus trap
   document.addEventListener('keydown', event => {
     if (!drawer.classList.contains('is-open')) return;
@@ -239,7 +250,14 @@ export function updateNavigationBadges(state, options = {}) {
   setBadges('field-route', overdueCount, 'stops pending collection', overdueCount > 0);
   setBadges('work-orders', pendingWorkOrders, 'active field work orders', pendingWorkOrders > 0);
   setBadges('sync-conflicts', conflictsCount, 'unresolved sync conflicts', conflictsCount > 0);
-  setBadges('more', (queueCount + conflictsCount), 'offline queued & conflict items', (queueCount + conflictsCount) > 0);
+
+  let opticalAlertCount = 0;
+  if (typeof options.opticalAlertCount === 'number') {
+    opticalAlertCount = options.opticalAlertCount;
+  }
+  setBadges('optical-map', opticalAlertCount, 'optical nodes requiring attention', opticalAlertCount > 0);
+
+  setBadges('more', (queueCount + conflictsCount + opticalAlertCount), 'offline queued, conflicts & optical alerts', (queueCount + conflictsCount + opticalAlertCount) > 0);
 
   return {
     totalCustomers,
@@ -249,6 +267,7 @@ export function updateNavigationBadges(state, options = {}) {
     inventoryCount,
     queueCount,
     conflictsCount,
+    opticalAlertCount,
     fieldRoutePendingCount: overdueCount,
     workOrdersCount: pendingWorkOrders
   };
@@ -5775,6 +5794,19 @@ export function setupSyncConflictModal({
     }
   };
 }
+
+export {
+  SHAHDARA_OPTICAL_NODES,
+  OPTICAL_STORAGE_KEY,
+  getOpticalMeasurements,
+  saveOpticalMeasurements,
+  recordOpticalMeasurement,
+  clearOpticalMeasurements,
+  calculateOpticalSignalMapMetrics,
+  renderOpticalSignalMapSvg,
+  generateOpticalSignalMapReport,
+  setupOpticalSignalMapModal
+} from './nav-optical-map.js';
 
 
 

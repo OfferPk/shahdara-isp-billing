@@ -72,6 +72,10 @@ import {
   generatePowerBriefingReport,
   setupPowerBackupModal,
   renderPowerBackupSvg,
+  calculateRouteDensityMetrics,
+  generateRouteDensityReport,
+  setupRouteDensityModal,
+  renderRouteDensityMatrixSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -4201,6 +4205,205 @@ test('setupPowerBackupModal wires dialog open, populate, filter, copy, and close
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA ISP - POWER OUTAGE & OLT BATTERY HEALTH BRIEFING'));
     assert.equal(toastMessage, 'Power backup audit briefing copied to clipboard!');
+
+    // Close modal
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateRouteDensityMetrics evaluates area stop density, cluster yields, and crew allocations', () => {
+  // Empty state
+  const emptyRes = calculateRouteDensityMetrics(null);
+  assert.equal(emptyRes.totalDelinquentAccounts, 0);
+  assert.equal(emptyRes.totalUncollectedDues, 0);
+  assert.equal(emptyRes.totalAreasTargeted, 0);
+  assert.equal(emptyRes.totalRecommendedCollectors, 0);
+  assert.equal(emptyRes.fleetRoutingStatus, 'Zero Overdue Stops (Roster Clean)');
+  assert.equal(emptyRes.fleetRoutingBadgeClass, 'badge-expansion');
+
+  // Populated state with unpaid bills
+  let state = createInitialState(['Alice Begum', 'Bob Begum', 'Charlie Vandala', 'David Saeed']);
+  state.customers[0].area = 'Begum Kot';
+  state.customers[1].area = 'Begum Kot';
+  state.customers[2].area = 'Vandala Road';
+  state.customers[3].area = 'Saeed Park';
+
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2500', status: 'pending' }, refDate);
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '3500', status: 'pending' }, refDate);
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '1800', status: 'pending' }, refDate);
+  state = saveBillMonth(state, state.customers[3].id, { month: '2026-10', dueAmount: '1200', status: 'pending' }, refDate);
+
+  const metrics = calculateRouteDensityMetrics(state, { referenceDate: refDate });
+  assert.equal(metrics.totalDelinquentAccounts, 4);
+  assert.equal(metrics.totalUncollectedDues, 9000);
+  assert.equal(metrics.totalAreasTargeted, 3);
+  assert.ok(metrics.totalRecommendedCollectors >= 3);
+  assert.ok(metrics.avgFleetStopYieldPkr > 0);
+  assert.ok(metrics.dailyFleetRecoveryTargetPkr > 0);
+
+  // Begum Kot should have 2 accounts and 6000 total overdue
+  const begum = metrics.areas.find(a => a.areaName === 'Begum Kot');
+  assert.ok(begum);
+  assert.equal(begum.overdueCount, 2);
+  assert.equal(begum.totalOverdueAmount, 6000);
+  assert.equal(begum.avgTicketPerStop, 3000);
+  assert.ok(begum.routeEfficiencyScore > 0);
+  assert.ok(begum.subscribers.length === 2);
+});
+
+test('generateRouteDensityReport formats report with sectors, crew recommendations, and advisory', () => {
+  const emptyReport = generateRouteDensityReport({ areas: [] });
+  assert.ok(emptyReport.includes('SHAHDARA ISP - FIELD ROUTE DENSITY & COLLECTOR PACING AUDIT'));
+  assert.ok(emptyReport.includes('No delinquent collection stops recorded'));
+
+  let state = createInitialState(['Cust 1']);
+  state.customers[0].area = 'Vandala Road';
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, refDate);
+
+  const metrics = calculateRouteDensityMetrics(state, { referenceDate: refDate });
+  const report = generateRouteDensityReport(metrics, refDate);
+
+  assert.ok(report.includes('Date: 2026-10-15'));
+  assert.ok(report.includes('Total Delinquent Stops'));
+  assert.ok(report.includes('Total Uncollected Target'));
+  assert.ok(report.includes('Recommended Field Fleet'));
+  assert.ok(report.includes('Vandala Road'));
+  assert.ok(report.includes('COLLECTOR DISPATCH ADVISORY'));
+});
+
+test('renderRouteDensityMatrixSvg renders pure SVG graphic with density rows and legend', () => {
+  const emptySvg = renderRouteDensityMatrixSvg(null);
+  assert.ok(emptySvg.includes('No delinquent collection route stops recorded'));
+
+  let state = createInitialState(['Cust A']);
+  state.customers[0].area = 'Begum Kot';
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '5000', status: 'pending' }, refDate);
+
+  const metrics = calculateRouteDensityMetrics(state, { referenceDate: refDate });
+  const svg = renderRouteDensityMatrixSvg(metrics);
+
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('Area Collection Route Density and Collector Pacing Chart'));
+  assert.ok(svg.includes('Field Route Density &amp; Collector Pacing Matrix'));
+  assert.ok(svg.includes('Begum Kot'));
+  assert.ok(svg.includes('TARGET:'));
+  assert.ok(svg.includes('DENSITY:'));
+});
+
+test('setupRouteDensityModal wires modal open, populate, filter, copy, and close actions', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  let filterAreaCalledWith = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') openHandler = cb; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') closeHandler = cb; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') copyHandler = cb; }
+  };
+
+  const mockStopsEl = { textContent: '' };
+  const mockDuesEl = { textContent: '' };
+  const mockCrewEl = { textContent: '' };
+  const mockStatusBadgeEl = { textContent: '', className: '' };
+  const mockDailyTargetEl = { textContent: '' };
+
+  let filterClickHandler = null;
+  const mockTableBody = {
+    innerHTML: '',
+    querySelectorAll: (sel) => {
+      if (sel.includes('[data-route-filter-area]')) {
+        return [{
+          getAttribute: () => 'Begum Kot',
+          addEventListener: (evt, cb) => {
+            if (evt === 'click') filterClickHandler = cb;
+          }
+        }];
+      }
+      return [];
+    }
+  };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardRouteDensityModal') return mockModal;
+      if (id === 'dashboardOpenRouteDensityModalBtn') return mockOpenBtn;
+      if (id === 'dashboardRouteDensityModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyRouteDensityReportBtn') return mockCopyBtn;
+      if (id === 'routeDensityTotalStopsVal') return mockStopsEl;
+      if (id === 'routeDensityTotalDuesVal') return mockDuesEl;
+      if (id === 'routeDensityFleetCrewVal') return mockCrewEl;
+      if (id === 'routeDensityStatusBadge') return mockStatusBadgeEl;
+      if (id === 'routeDensityDailyTargetVal') return mockDailyTargetEl;
+      if (id === 'routeDensityTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  let state = createInitialState(['User Begum']);
+  state.customers[0].area = 'Begum Kot';
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '4000', status: 'pending' }, refDate);
+
+  try {
+    setupRouteDensityModal(state, {
+      referenceDate: refDate,
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockStopsEl.textContent.includes('Stops'));
+    assert.ok(mockDuesEl.textContent.includes('4,000'));
+    assert.ok(mockCrewEl.textContent.includes('Collectors'));
+    assert.ok(mockTableBody.innerHTML.includes('Begum Kot'));
+
+    // Trigger area filter button
+    assert.ok(filterClickHandler !== null);
+    filterClickHandler();
+    assert.equal(filterAreaCalledWith, 'Begum Kot');
+    assert.equal(modalOpened, false);
+
+    // Trigger copy report
+    assert.ok(copyHandler !== null);
+    await copyHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP - FIELD ROUTE DENSITY & COLLECTOR PACING AUDIT'));
+    assert.equal(toastMessage, 'Route density briefing copied to clipboard!');
 
     // Close modal
     closeHandler();

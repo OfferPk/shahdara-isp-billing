@@ -394,7 +394,23 @@ import {
   calculateRamanMetrics,
   renderRamanDiagramSvg,
   generateRamanReport,
-  setupRamanModal
+  setupRamanModal,
+  SR_MPLS_CONSTANTS,
+  SHAHDARA_SR_LSP_TUNNELS,
+  getSrMplsSelectedTunnel,
+  setSrMplsSelectedTunnel,
+  getSrMplsOptimizationMetric,
+  setSrMplsOptimizationMetric,
+  getSrMplsPlaneMode,
+  setSrMplsPlaneMode,
+  getSrMplsInjectedCongestionPct,
+  setSrMplsInjectedCongestionPct,
+  resetSrMplsSimState,
+  calculateSrMplsDynamics,
+  calculateSrMplsMetrics,
+  renderSrMplsDiagramSvg,
+  generateSrMplsReport,
+  setupSrMplsModal
 } from '../dashboard.js';
 
 
@@ -11060,6 +11076,295 @@ test('Raman simulation state getters, setters, and boundary constraints work cor
   assert.equal(getRamanPumpScheme(), 'COUNTER');
   assert.equal(getRamanPumpWavelengthNm(), 1455);
   assert.equal(getRamanPumpPowerMw(), 500);
+});
+
+test('calculateSrMplsDynamics calculates active segment list, latency, jitter, and triggers TI-LFA sub-50ms protection on high congestion or disjoint policy', () => {
+  const tunnel01 = SHAHDARA_SR_LSP_TUNNELS[0];
+
+  // Baseline optimal condition (0% congestion, LATENCY metric)
+  const baseline = calculateSrMplsDynamics(tunnel01, 'LATENCY', 'SR_MPLS', 0);
+  assert.equal(baseline.status, 'Optimal');
+  assert.equal(baseline.isTiLfaActive, false);
+  assert.deepEqual(baseline.activeSegments, [16003, 16002]);
+  assert.equal(baseline.labelStackDepth, 2);
+  assert.equal(baseline.headerOverheadBytes, 8); // 2 labels * 4 bytes
+  assert.ok(baseline.activeLatencyMs < 2.0);
+  assert.equal(baseline.slaMet, true);
+
+  // SRv6 mode check
+  const srv6Dyn = calculateSrMplsDynamics(tunnel01, 'LATENCY', 'SRV6', 0);
+  assert.deepEqual(srv6Dyn.activeSrv6Segments, ['2001:db8:1::3', '2001:db8:1::2']);
+  assert.equal(srv6Dyn.headerOverheadBytes, 8 + (2 * 16)); // 40 bytes SRv6 SRH
+
+  // High congestion triggers TI-LFA fast reroute
+  const congDyn = calculateSrMplsDynamics(tunnel01, 'LATENCY', 'SR_MPLS', 75);
+  assert.equal(congDyn.isTiLfaActive, true);
+  assert.deepEqual(congDyn.activeSegments, [16004, 16005, 16002]); // Backup path engaged
+  assert.equal(congDyn.hops, 3);
+  assert.ok(congDyn.rerouteReason.includes('TI-LFA Fast Reroute'));
+
+  // Disjoint policy triggers backup path even at 0% congestion
+  const disjointDyn = calculateSrMplsDynamics(tunnel01, 'DISJOINT_TE', 'SR_MPLS', 0);
+  assert.equal(disjointDyn.isTiLfaActive, true);
+  assert.deepEqual(disjointDyn.activeSegments, [16004, 16005, 16002]);
+  assert.equal(disjointDyn.rerouteReason, 'Strict Disjoint Path TE Policy');
+});
+
+test('calculateSrMplsMetrics correlates segment routing LSP tunnel with subscriber roster, monthly billed volume, and revenue at risk', () => {
+  let state = createInitialState(['SR Cust 1', 'SR Cust 2', 'SR Remote']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '4000', status: 'pending' }, refDate);
+
+  state.customers[1].area = 'Kot Abdul Malik';
+  state.customers[1].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '1000', date: '2026-10-06', method: 'Cash' }, refDate);
+
+  state.customers[2].area = 'Distant Unlinked Village';
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '5000', status: 'pending' }, refDate);
+
+  const metrics = calculateSrMplsMetrics(state, {
+    tunnelId: 'sr-lsp-01',
+    optimizationMetric: 'LATENCY',
+    planeMode: 'SR_MPLS',
+    congestionPct: 0
+  });
+
+  assert.equal(metrics.tunnel.id, 'sr-lsp-01');
+  assert.equal(metrics.subscriberCorrelation.totalSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.activeSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.sectorMonthlyRevenue, 7000);
+  assert.equal(metrics.subscriberCorrelation.sectorTotalDues, 6000);
+  assert.equal(metrics.subscriberCorrelation.revenueAtRisk, 0); // Optimal status -> 0 at risk
+
+  // Test empty state
+  const emptyMetrics = calculateSrMplsMetrics({ customers: [] }, { tunnelId: 'sr-lsp-02' });
+  assert.equal(emptyMetrics.tunnel.id, 'sr-lsp-02');
+  assert.equal(emptyMetrics.subscriberCorrelation.totalSubscribers, 0);
+  assert.equal(emptyMetrics.subscriberCorrelation.sectorMonthlyRevenue, 0);
+});
+
+test('renderSrMplsDiagramSvg generates accessible and valid SVG with topology nodes, segment paths, label stack, and SLA gauges', () => {
+  let state = createInitialState(['Test Cust']);
+  const metrics = calculateSrMplsMetrics(state, {
+    tunnelId: 'sr-lsp-01',
+    optimizationMetric: 'LATENCY',
+    planeMode: 'SR_MPLS',
+    congestionPct: 20
+  });
+
+  const fullSvg = renderSrMplsDiagramSvg(metrics, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="sr-mpls-svg"'));
+  assert.ok(fullSvg.includes('CARRIER SEGMENT ROUTING (SR-MPLS / SRv6 RFC 8402) TE MATRIX'));
+  assert.ok(fullSvg.includes('PE-01'));
+  assert.ok(fullSvg.includes('PE-02'));
+  assert.ok(fullSvg.includes('ACTIVE SEGMENT LIST (SR_MPLS)'));
+  assert.ok(fullSvg.includes('RTT Latency:'));
+
+  const compactSvg = renderSrMplsDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="sr-mpls-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 540 280"'));
+
+  const fallbackSvg = renderSrMplsDiagramSvg(null);
+  assert.ok(fallbackSvg.includes('No Segment Routing LSP metrics available.'));
+});
+
+test('generateSrMplsReport formats comprehensive RFC 8402/8660/8986 engineering briefing', () => {
+  let state = createInitialState(['Test Cust']);
+  const metrics = calculateSrMplsMetrics(state, {
+    tunnelId: 'sr-lsp-01',
+    optimizationMetric: 'LATENCY',
+    planeMode: 'SR_MPLS',
+    congestionPct: 15
+  });
+
+  const report = generateSrMplsReport(metrics);
+  assert.ok(report.includes('SHAHDARA ISP CARRIER SEGMENT ROUTING (SR-MPLS / SRv6) TE LSP BRIEFING'));
+  assert.ok(report.includes('MONITORED LSP TUNNEL:'));
+  assert.ok(report.includes('Binding SID (BSID):'));
+  assert.ok(report.includes('Active Segment List:'));
+  assert.ok(report.includes('TI-LFA Protection:'));
+  assert.ok(report.includes('SUBSCRIBER & REVENUE CORRELATION:'));
+
+  assert.equal(generateSrMplsReport(null), 'No Segment Routing LSP metrics available.');
+});
+
+test('setupSrMplsModal binds DOM events, handles input updates, resets state, filters area, and copies briefing', async () => {
+  let state = createInitialState(['SR Modal Cust']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '5000', status: 'pending' }, new Date('2026-10-15T12:00:00+05:00'));
+
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    removeAttribute: () => {},
+    setAttribute: () => {},
+    onclick: null
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+
+  const mockTunnelSelect = { value: 'sr-lsp-01', innerHTML: '', onchange: null };
+  const mockMetricSelect = { value: 'LATENCY', innerHTML: '', onchange: null };
+  const mockPlaneSelect = { value: 'SR_MPLS', innerHTML: '', onchange: null };
+  const mockCongSlider = { value: '0', oninput: null };
+  const mockCongValPill = { textContent: '0%' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiTunnelName = { textContent: '' };
+  const mockKpiLatency = { textContent: '', style: {} };
+  const mockKpiStack = { textContent: '', style: {} };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTunnelsTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementRegistry = {
+    'dashboardSrMplsModal': mockModal,
+    'dashboardOpenSrMplsModalBtn': mockOpenBtn,
+    'dashboardSrMplsModalCloseBtn': mockCloseBtn,
+    'srMplsTunnelSelect': mockTunnelSelect,
+    'srMplsMetricSelect': mockMetricSelect,
+    'srMplsPlaneSelect': mockPlaneSelect,
+    'srMplsCongSlider': mockCongSlider,
+    'srMplsCongVal': mockCongValPill,
+    'srMplsResetBtn': mockResetBtn,
+    'srMplsKpiTunnelName': mockKpiTunnelName,
+    'srMplsKpiLatency': mockKpiLatency,
+    'srMplsKpiStack': mockKpiStack,
+    'srMplsStatusBadge': mockStatusBadge,
+    'srMplsKpiRevenueRisk': mockKpiRevenueRisk,
+    'srMplsModalChartWrap': mockChartWrap,
+    'srMplsTunnelsTableBody': mockTunnelsTableBody,
+    'srMplsFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopySrMplsReportBtn': mockCopyReportBtn,
+    'dashboardSrMplsChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: id => elementRegistry[id] || null
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  try {
+    setupSrMplsModal(state, {
+      onFilterArea: area => { filteredArea = area; },
+      onToast: msg => { toastMsg = msg; },
+      clipboard: {
+        writeText: async text => { copiedText = text; }
+      }
+    });
+
+    // Verification of initial render
+    assert.ok(mockCardChart.innerHTML.includes('sr-mpls-svg'));
+    assert.ok(mockChartWrap.innerHTML.includes('sr-mpls-svg'));
+    assert.ok(mockTunnelsTableBody.innerHTML.includes('SR-LSP-01'));
+    assert.ok(mockKpiTunnelName.textContent.includes('Primary Ring'));
+
+    // Test select change: Switch tunnel to sr-lsp-02
+    mockTunnelSelect.value = 'sr-lsp-02';
+    mockTunnelSelect.onchange({ target: { value: 'sr-lsp-02' } });
+    assert.equal(getSrMplsSelectedTunnel(), 'sr-lsp-02');
+
+    // Test metric change: Switch to BANDWIDTH
+    mockMetricSelect.value = 'BANDWIDTH';
+    mockMetricSelect.onchange({ target: { value: 'BANDWIDTH' } });
+    assert.equal(getSrMplsOptimizationMetric(), 'BANDWIDTH');
+
+    // Test plane mode change: Switch to SRV6
+    mockPlaneSelect.value = 'SRV6';
+    mockPlaneSelect.onchange({ target: { value: 'SRV6' } });
+    assert.equal(getSrMplsPlaneMode(), 'SRV6');
+
+    // Test congestion slider input: 50%
+    mockCongSlider.oninput({ target: { value: 50 } });
+    assert.equal(getSrMplsInjectedCongestionPct(), 50);
+    assert.equal(mockCongValPill.textContent, '50%');
+
+    // Test reset button
+    mockResetBtn.onclick();
+    assert.equal(getSrMplsSelectedTunnel(), 'sr-lsp-01');
+    assert.equal(getSrMplsOptimizationMetric(), 'LATENCY');
+    assert.equal(getSrMplsPlaneMode(), 'SR_MPLS');
+    assert.equal(getSrMplsInjectedCongestionPct(), 0);
+    assert.equal(toastMsg, 'Segment Routing simulation reset to baseline parameters.');
+
+    // Test filter area action
+    mockFilterAreaBtn.onclick();
+    assert.equal(filteredArea, 'Shahdara Town');
+    assert.equal(modalClosed, true);
+
+    // Test copy briefing action
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('SHAHDARA ISP CARRIER SEGMENT ROUTING (SR-MPLS / SRv6) TE LSP BRIEFING'));
+    assert.equal(toastMsg, 'Segment Routing TE briefing copied to clipboard!');
+
+    // Test open and close dialog
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    mockCloseBtn.onclick();
+    assert.equal(modalClosed, true);
+
+  } finally {
+    globalThis.document = originalDocument;
+    resetSrMplsSimState();
+  }
+});
+
+
+test('SR-MPLS simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetSrMplsSimState();
+  assert.equal(getSrMplsSelectedTunnel(), 'sr-lsp-01');
+
+  // Tunnel selection
+  setSrMplsSelectedTunnel('sr-lsp-03');
+  assert.equal(getSrMplsSelectedTunnel(), 'sr-lsp-03');
+  setSrMplsSelectedTunnel('non-existent-tunnel');
+  assert.equal(getSrMplsSelectedTunnel(), 'sr-lsp-03');
+
+  // Metric selection
+  setSrMplsOptimizationMetric('DISJOINT_TE');
+  assert.equal(getSrMplsOptimizationMetric(), 'DISJOINT_TE');
+  setSrMplsOptimizationMetric('INVALID_METRIC');
+  assert.equal(getSrMplsOptimizationMetric(), 'DISJOINT_TE');
+
+  // Plane mode
+  setSrMplsPlaneMode('SRV6');
+  assert.equal(getSrMplsPlaneMode(), 'SRV6');
+  setSrMplsPlaneMode('INVALID_PLANE');
+  assert.equal(getSrMplsPlaneMode(), 'SRV6');
+
+  // Congestion percentage clamping [0, 100]
+  setSrMplsInjectedCongestionPct(45);
+  assert.equal(getSrMplsInjectedCongestionPct(), 45);
+  setSrMplsInjectedCongestionPct(150); // clamped to 100
+  assert.equal(getSrMplsInjectedCongestionPct(), 100);
+  setSrMplsInjectedCongestionPct(-25); // clamped to 0
+  assert.equal(getSrMplsInjectedCongestionPct(), 0);
+
+  // Reset
+  resetSrMplsSimState();
+  assert.equal(getSrMplsSelectedTunnel(), 'sr-lsp-01');
+  assert.equal(getSrMplsOptimizationMetric(), 'LATENCY');
+  assert.equal(getSrMplsPlaneMode(), 'SR_MPLS');
+  assert.equal(getSrMplsInjectedCongestionPct(), 0);
 });
 
 

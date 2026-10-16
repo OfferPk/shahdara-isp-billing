@@ -12983,6 +12983,8 @@ test('setupMefEthernetModal binds DOM elements, recalculates, handles resets and
     mefEthernetStatRevenue: createMockEl('mefEthernetStatRevenue'),
     mefEthernetModalDiagramContainer: createMockEl('mefEthernetModalDiagramContainer'),
     mefEthernetFilterAreaBtn: createMockEl('mefEthernetFilterAreaBtn'),
+    mefEthernetExportJsonBtn: createMockEl('mefEthernetExportJsonBtn'),
+    mefEthernetExportCsvBtn: createMockEl('mefEthernetExportCsvBtn'),
     mefEthernetCopyReportBtn: createMockEl('mefEthernetCopyReportBtn')
   };
 
@@ -13019,6 +13021,12 @@ test('setupMefEthernetModal binds DOM elements, recalculates, handles resets and
   elements.mefEthernetResetBtn.click();
   assert.ok(toastMsg.includes('reset to default'));
 
+  // Test export buttons
+  elements.mefEthernetExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON exported') || toastMsg.includes('Clipboard'));
+  elements.mefEthernetExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV exported') || toastMsg.includes('Clipboard'));
+
   // Test filter area
   elements.mefEthernetFilterAreaBtn.click();
   assert.equal(filterArea, 'Shahdara Town');
@@ -13039,6 +13047,8 @@ test('index.html and dashboard.css contain Carrier Ethernet MEF markup and style
   assert.ok(html.includes('id="mefEthernetServiceSelect"'));
   assert.ok(html.includes('id="mefEthernetOfferedSlider"'));
   assert.ok(html.includes('id="mefEthernetModalDiagramContainer"'));
+  assert.ok(html.includes('id="mefEthernetExportJsonBtn"'));
+  assert.ok(html.includes('id="mefEthernetExportCsvBtn"'));
 
   const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
   assert.ok(css.includes('.chart-card-mef-ethernet'));

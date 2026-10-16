@@ -4045,8 +4045,12 @@
 
           <div id="mefEthernetModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Ethernet Bandwidth Profile and Token Bucket Diagram"></div>
 
-          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
-            <button id="mefEthernetFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="mefEthernetFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="mefEthernetExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="mefEthernetExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
             <button id="mefEthernetCopyReportBtn" class="primary-button" type="button">📋 Copy MEF SLA Report</button>
           </div>
         </div>

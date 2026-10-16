@@ -784,6 +784,43 @@ export function setupMefEthernetModal(state, options = {}) {
     });
   }
 
+  const exportJsonBtn = doc.getElementById('mefEthernetExportJsonBtn');
+  const exportCsvBtn = doc.getElementById('mefEthernetExportCsvBtn');
+
+  if (exportJsonBtn) {
+    exportJsonBtn.addEventListener('click', () => {
+      const params = getSimulationParams();
+      const metrics = calculateMefEthernetMetrics(state, params);
+      const json = exportMefEthernetJson(metrics);
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(json).then(() => {
+          onToast('MEF Carrier Ethernet JSON exported to clipboard!');
+        }).catch(() => {
+          onToast('Failed to copy JSON.');
+        });
+      } else {
+        onToast('Clipboard API not available.');
+      }
+    });
+  }
+
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      const params = getSimulationParams();
+      const metrics = calculateMefEthernetMetrics(state, params);
+      const csv = exportMefEthernetCsv(metrics);
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(csv).then(() => {
+          onToast('MEF Carrier Ethernet CSV exported to clipboard!');
+        }).catch(() => {
+          onToast('Failed to copy CSV.');
+        });
+      } else {
+        onToast('Clipboard API not available.');
+      }
+    });
+  }
+
   if (filterAreaBtn) {
     filterAreaBtn.addEventListener('click', () => {
       const params = getSimulationParams();

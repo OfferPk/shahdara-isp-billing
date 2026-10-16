@@ -8316,3 +8316,291 @@ test('setupMobileMacroBendModal binds DOM controls, updates real-time calculatio
     globalThis.document = origDoc;
   }
 });
+
+/* ==========================================================================
+   Field Optical Attenuator & Overload Protection Assistant Tests
+   ========================================================================== */
+
+test('calculateAttenuationLoss accurately computes direct patch power and identifies overload risk', async () => {
+  const { calculateAttenuationLoss } = await import('../nav.js');
+
+  // Direct connection (-15 dBm on GPON Class B+) -> Optimal
+  const optimal = calculateAttenuationLoss(-15.0, 'GPON_CLASS_B_PLUS', 'NONE_DIRECT', 0.0);
+  assert.equal(optimal.appliedAttenuationDb, 0);
+  assert.equal(optimal.rxPowerDbm, -15.0);
+  assert.equal(optimal.status, 'OPTIMAL');
+  assert.ok(optimal.overloadMarginDb > 0);
+  assert.ok(optimal.sensitivityMarginDb > 0);
+  assert.equal(optimal.recommendedAttDb, 3.0);
+
+  // High input power (-4 dBm on GPON Class B+ where overload is -5 dBm and nominal max is -8 dBm)
+  const overloaded = calculateAttenuationLoss(-4.0, 'GPON_CLASS_B_PLUS', 'NONE_DIRECT', 0.0);
+  assert.equal(overloaded.status, 'OVERDRIVE_CRITICAL');
+  assert.ok(overloaded.overloadMarginDb < 0);
+  assert.ok(overloaded.recommendedAttDb > 0);
+  assert.ok(overloaded.message.includes('exceeds overload'));
+
+  // Near overload (-9.5 dBm on GPON Class B+ where overload is -8.0 dBm)
+  const nearOverload = calculateAttenuationLoss(-9.5, 'GPON_CLASS_B_PLUS', 'NONE_DIRECT', 0.0);
+  assert.equal(nearOverload.status, 'NEAR_OVERLOAD');
+});
+
+test('calculateAttenuationLoss recommends optimal fixed attenuator pads and restores linear dynamic range', async () => {
+  const { calculateAttenuationLoss } = await import('../nav.js');
+
+  // Input +2 dBm on GPON Class B+ (e.g. short bypass feeder)
+  const highInput = calculateAttenuationLoss(2.0, 'GPON_CLASS_B_PLUS', 'NONE_DIRECT', 0.0);
+  assert.equal(highInput.status, 'OVERDRIVE_CRITICAL');
+  // Optimal target is -18.0 dBm, so recommended attenuation is ~20 dB -> best pad 20 dB
+  assert.equal(highInput.bestPadRecommendation.id, 'FIXED_FOA_20DB');
+
+  // Now apply the recommended 20 dB pad:
+  const withPad = calculateAttenuationLoss(2.0, 'GPON_CLASS_B_PLUS', 'FIXED_FOA_20DB', 0.0);
+  assert.equal(withPad.appliedAttenuationDb, 20.0);
+  assert.equal(withPad.rxPowerDbm, -18.0);
+  assert.equal(withPad.status, 'OPTIMAL');
+  assert.ok(withPad.overloadMarginDb > 0);
+  assert.ok(withPad.sensitivityMarginDb > 0);
+});
+
+test('calculateAttenuationLoss supports continuous mechanical VOA precision tuning and multiple ONU classes', async () => {
+  const { calculateAttenuationLoss } = await import('../nav.js');
+
+  // 10G XGS-PON Class N1 with VOA tuned to 8.5 dB
+  const xgs = calculateAttenuationLoss(-2.0, 'XGSPON_CLASS_N1', 'VARIABLE_VOA_CONTINUOUS', 8.5);
+  assert.equal(xgs.appliedAttenuationDb, 8.5);
+  assert.equal(xgs.rxPowerDbm, -10.5);
+  assert.equal(xgs.status, 'OPTIMAL');
+  assert.equal(xgs.onuClass.id, 'XGSPON_CLASS_N1');
+
+  // EPON with excessive attenuation causing sensitivity deficit
+  const deficit = calculateAttenuationLoss(-22.0, 'EPON_1000BASE_PX20', 'FIXED_FOA_10DB', 0.0);
+  assert.equal(deficit.appliedAttenuationDb, 10.0);
+  assert.equal(deficit.rxPowerDbm, -32.0);
+  assert.equal(deficit.status, 'UNDER_SENSITIVITY');
+  assert.ok(deficit.sensitivityMarginDb < 0);
+  assert.ok(deficit.message.includes('sensitivity limit'));
+});
+
+test('getAttenuatorStore, saveAttenuatorStore, recordAttenuatorAudit and clearAttenuatorStore manage optical attenuator audit records', async () => {
+  const { getAttenuatorStore, recordAttenuatorAudit, clearAttenuatorStore } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const initial = getAttenuatorStore(mockStorage);
+  assert.ok(Array.isArray(initial));
+  assert.ok(initial.length >= 2);
+
+  const updated = recordAttenuatorAudit({
+    location: 'Shahdara Town - FAT-04 Port 7',
+    technician: 'Tariq Field Engineer',
+    onuClass: 'GPON_CLASS_B_PLUS',
+    onuClassName: 'GPON Class B+',
+    inputPowerDbm: -4.5,
+    attenuatorId: 'FIXED_FOA_10DB',
+    attenuatorName: 'Fixed FOA Pad - 10 dB',
+    appliedAttenuationDb: 10.0,
+    rxPowerDbm: -14.5,
+    status: 'OPTIMAL',
+    notes: 'Installed 10 dB pad. Overload cleared.'
+  }, mockStorage);
+
+  assert.ok(Array.isArray(updated));
+  assert.equal(updated[0].location, 'Shahdara Town - FAT-04 Port 7');
+  assert.equal(updated[0].appliedAttenuationDb, 10.0);
+
+  clearAttenuatorStore(mockStorage);
+  const cleared = getAttenuatorStore(mockStorage);
+  assert.equal(cleared.length, 0);
+  assert.equal(store['shahdara_attenuator_audits_v1'], '[]');
+});
+
+test('renderMobileAttenuatorSvg generates valid vector visualization with power drop, attenuator element, and optical status indicators', async () => {
+  const { renderMobileAttenuatorSvg, calculateAttenuationLoss } = await import('../nav.js');
+
+  const calc = calculateAttenuationLoss(-4.5, 'GPON_CLASS_B_PLUS', 'FIXED_FOA_10DB', 0.0);
+  const svg = renderMobileAttenuatorSvg(calc);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('attenuator-svg'));
+  assert.ok(svg.includes('-4.5 dBm'));
+  assert.ok(svg.includes('-14.5 dBm'));
+  assert.ok(svg.includes('-10.0 dB Pad'));
+  assert.ok(svg.includes('GPON Class B+'));
+  assert.ok(svg.includes('OPTIMAL'));
+});
+
+test('generateAttenuatorWhatsAppReport formats comprehensive WhatsApp field report', async () => {
+  const { generateAttenuatorWhatsAppReport } = await import('../nav.js');
+
+  const report = generateAttenuatorWhatsAppReport({
+    location: 'Kot Abdul Malik - Factory Node',
+    technician: 'Imran Lineman',
+    timestamp: '2026-10-17T01:00:00.000Z',
+    inputPowerDbm: -3.0,
+    appliedAttenuationDb: 10.0,
+    attenuatorName: 'Fixed FOA 10 dB Pad',
+    rxPowerDbm: -13.0,
+    onuClassName: 'GPON Class B+',
+    status: 'OPTIMAL',
+    notes: '10 dB pad inserted before ONU input port. Clean frame sync.'
+  });
+
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL ATTENUATION FIELD AUDIT'));
+  assert.ok(report.includes('Kot Abdul Malik - Factory Node'));
+  assert.ok(report.includes('Imran Lineman'));
+  assert.ok(report.includes('-3.0 dBm'));
+  assert.ok(report.includes('10.0 dB'));
+  assert.ok(report.includes('-13.0 dBm'));
+  assert.ok(report.includes('PASS - OPTIMAL'));
+});
+
+test('setupMobileAttenuatorModal binds modal controls, updates calculations in real time, and handles user interactions', async () => {
+  const { setupMobileAttenuatorModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+  let toastMessage = '';
+  let copiedText = '';
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    onclick: null
+  };
+
+  const mockCloseBtn = { onclick: null };
+  const mockDrawerBtn = { onclick: null };
+  const mockSpeedDialBtn = { onclick: null };
+  const mockActionSheetBtn = { onclick: null };
+
+  const mockPresetSelect = { value: '', options: [{ value: '' }], onchange: null };
+  const mockOnuClassSelect = { value: 'GPON_CLASS_B_PLUS', onchange: null };
+  const mockInputPowerField = { value: '-15.0', oninput: null };
+  const mockPadSelect = { value: 'NONE_DIRECT', onchange: null };
+  const mockVoaGroup = { style: { display: 'none' } };
+  const mockVoaSlider = { value: '0', oninput: null };
+  const mockVoaVal = { textContent: '' };
+
+  const mockKpiRx = { textContent: '', style: {} };
+  const mockKpiOverloadMargin = { textContent: '', style: {} };
+  const mockKpiSensitivityMargin = { textContent: '', style: {} };
+  const mockKpiRecommended = { textContent: '', style: {} };
+  const mockKpiStatus = { textContent: '', style: {} };
+
+  const mockSvgWrap = { innerHTML: '' };
+  const mockRemediationText = { textContent: '', style: {} };
+
+  const mockLocationInput = { value: 'Shahdara Town - FAT-04' };
+  const mockTechInput = { value: 'Tariq Field Engineer' };
+  const mockNotesInput = { value: 'Inspected' };
+
+  const mockSaveBtn = { onclick: null };
+  const mockWhatsappBtn = { onclick: null };
+  const mockClearHistoryBtn = { onclick: null };
+  const mockHistoryList = { innerHTML: '' };
+
+  const elements = {
+    mobileAttenuatorModal: mockModal,
+    mobileAttenuatorCloseBtn: mockCloseBtn,
+    navAttenuatorBtn: mockDrawerBtn,
+    attenuatorPresetSelect: mockPresetSelect,
+    attenuatorOnuClassSelect: mockOnuClassSelect,
+    attenuatorInputPower: mockInputPowerField,
+    attenuatorPadSelect: mockPadSelect,
+    attenuatorVoaGroup: mockVoaGroup,
+    attenuatorVoaSlider: mockVoaSlider,
+    attenuatorVoaVal: mockVoaVal,
+    attenuatorKpiRx: mockKpiRx,
+    attenuatorKpiOverloadMargin: mockKpiOverloadMargin,
+    attenuatorKpiSensitivityMargin: mockKpiSensitivityMargin,
+    attenuatorKpiRecommended: mockKpiRecommended,
+    attenuatorKpiStatus: mockKpiStatus,
+    attenuatorSvgWrap: mockSvgWrap,
+    attenuatorRemediationText: mockRemediationText,
+    attenuatorLocationInput: mockLocationInput,
+    attenuatorTechInput: mockTechInput,
+    attenuatorNotesInput: mockNotesInput,
+    attenuatorSaveBtn: mockSaveBtn,
+    attenuatorWhatsappBtn: mockWhatsappBtn,
+    attenuatorClearHistoryBtn: mockClearHistoryBtn,
+    attenuatorHistoryList: mockHistoryList
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelector: (sel) => {
+      if (sel === '[data-open-attenuator]') return mockSpeedDialBtn;
+      if (sel === '[data-action-attenuator]') return mockActionSheetBtn;
+      return null;
+    },
+    addEventListener: () => {}
+  };
+
+  try {
+    const controller = setupMobileAttenuatorModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    assert.ok(controller);
+    assert.ok(mockSvgWrap.innerHTML.includes('attenuator-svg'));
+    assert.ok(mockKpiRx.textContent.includes('-15.0 dBm'));
+    assert.ok(mockHistoryList.innerHTML.includes('Shahdara Town'));
+
+    // Open & close modal
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+
+    // Test Preset Selection
+    mockPresetSelect.value = 'PRESET_CLOSE_CENTRAL_OLT';
+    mockPresetSelect.onchange();
+    assert.equal(mockInputPowerField.value, -4.5);
+    assert.ok(toastMessage.includes('Loaded preset'));
+
+    // Test VOA selection
+    mockPadSelect.value = 'VARIABLE_VOA_CONTINUOUS';
+    mockPadSelect.onchange();
+    assert.equal(mockVoaGroup.style.display, 'block');
+
+    mockVoaSlider.value = '7.5';
+    mockVoaSlider.oninput();
+    assert.equal(mockVoaVal.textContent, '7.5 dB');
+
+    // Test Save Audit
+    mockSaveBtn.onclick();
+    assert.ok(toastMessage.includes('audit saved'));
+
+    // Test WhatsApp Report
+    await mockWhatsappBtn.onclick();
+    assert.ok(copiedText.includes('SHAHDARA ISP - OPTICAL ATTENUATION FIELD AUDIT'));
+    assert.ok(toastMessage.includes('WhatsApp audit report copied'));
+
+    // Test Clear History
+    mockClearHistoryBtn.onclick();
+    assert.ok(toastMessage.includes('audit history cleared'));
+    assert.ok(mockHistoryList.innerHTML.includes('No optical attenuation audits recorded'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

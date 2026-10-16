@@ -6072,3 +6072,19 @@ export {
   generateMacroBendWhatsAppReport,
   setupMobileMacroBendModal
 } from './nav-macro-bend.js';
+
+export {
+  OPTICAL_ATTENUATOR_STORAGE_KEY,
+  ONU_RECEIVER_CLASSES,
+  ATTENUATOR_HARDWARE_TYPES,
+  ATTENUATOR_FIELD_PRESETS,
+  calculateAttenuationLoss,
+  renderMobileAttenuatorSvg,
+  getDefaultAttenuatorAudits,
+  getAttenuatorStore,
+  saveAttenuatorStore,
+  recordAttenuatorAudit,
+  clearAttenuatorStore,
+  generateAttenuatorWhatsAppReport,
+  setupMobileAttenuatorModal
+} from './nav-optical-attenuator.js';

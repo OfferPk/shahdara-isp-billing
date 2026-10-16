@@ -24,6 +24,8 @@ import { calculateSrMplsMetrics, setupSrMplsModal, renderSrMplsDiagramSvg } from
 import { calculatePmdMetrics, setupPmdModal, renderPmdDiagramSvg } from './dashboard-pmd.js';
 import { calculateEvpnMetrics, setupEvpnModal, renderEvpnDiagramSvg } from './dashboard-evpn.js';
 import { calculateKerrMetrics, setupKerrModal, renderKerrDiagramSvg } from './dashboard-kerr.js';
+import { calculateMplsTeMetrics, setupMplsTeModal, renderMplsTeDiagramSvg } from './dashboard-mpls-te.js';
+
 
 
 
@@ -3460,7 +3462,15 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupKerrModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const mplsTeEl = document.getElementById('dashboardMplsTeChart');
+  if (mplsTeEl) {
+    const mplsTeData = calculateMplsTeMetrics(state, { referenceDate });
+    mplsTeEl.innerHTML = renderMplsTeDiagramSvg(mplsTeData, { compact: true });
+  }
+
+  setupMplsTeModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg, renderMclagDiagramSvg, renderFlowspecDiagramSvg, renderRamanDiagramSvg, renderSrMplsDiagramSvg, renderPmdDiagramSvg, renderEvpnDiagramSvg, renderKerrDiagramSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg, renderMclagDiagramSvg, renderFlowspecDiagramSvg, renderRamanDiagramSvg, renderSrMplsDiagramSvg, renderPmdDiagramSvg, renderEvpnDiagramSvg, renderKerrDiagramSvg, renderMplsTeDiagramSvg };

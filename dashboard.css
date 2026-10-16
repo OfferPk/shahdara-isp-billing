@@ -1601,6 +1601,30 @@
   max-width: 800px;
 }
 
+/* Fiber Distribution Hub & Optical Splitter Styles */
+.chart-card-fiber {
+  background: var(--surface, #ffffff);
+}
+
+.fiber-modal-card {
+  max-width: 840px;
+}
+
+.signal-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  background: var(--bg-soft, #f1f5f3);
+  color: var(--ink, #182e2a);
+}
+
+[data-theme="dark"] .signal-tag {
+  background: #182923;
+  color: #a7f3d0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .sim-kpi-summary-grid,

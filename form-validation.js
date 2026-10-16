@@ -12137,3 +12137,25 @@ export {
   generateBidirectionalOtdrCsv,
   setupBidirectionalOtdrModal
 } from './qa-otdr-bidirectional-inspection.js';
+
+export {
+  OTDR_DEADZONE_CERT_STORAGE_KEY,
+  SPEED_OF_LIGHT_VACUUM_MPS,
+  STANDARD_FIBER_REFRACTIVE_INDEX,
+  OTDR_PULSE_CONFIGS,
+  OTDR_WAVELENGTH_METRICS,
+  OTDR_SPAN_PRESETS,
+  calculatePulseWidthDeadZones,
+  evaluateOtdrDeadzoneCalibration,
+  generateOtdrDeadzoneCertId,
+  renderOtdrDeadzoneSvg,
+  generateOtdrDeadzoneCertHtml,
+  formatOtdrDeadzoneCertWhatsApp,
+  generateOtdrDeadzoneCertsCsv,
+  getSavedOtdrDeadzoneCerts,
+  saveOtdrDeadzoneCert,
+  clearOtdrDeadzoneCerts,
+  updateOtdrDeadzoneCertStatus,
+  calculateOtdrDeadzoneMetrics,
+  setupOtdrDeadzoneModal
+} from './qa-otdr-deadzone-cert.js';

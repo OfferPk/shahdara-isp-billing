@@ -5273,3 +5273,19 @@ export {
   setSpliceAddedTrays,
   renderSpliceClosureSvg
 } from './dashboard-splice.js';
+
+export {
+  SHAHDARA_JETTING_ROUTES,
+  calculateDuctClearance,
+  calculateBlowingDynamics,
+  calculateDuctJettingMetrics,
+  generateDuctJettingReport,
+  setupDuctJettingModal,
+  getJettingSelectedRoute,
+  setJettingSelectedRoute,
+  getJettingPressure,
+  setJettingPressure,
+  getJettingFriction,
+  setJettingFriction,
+  renderDuctJettingSvg
+} from './dashboard-jetting.js';

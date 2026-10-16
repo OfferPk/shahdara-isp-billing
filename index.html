@@ -544,6 +544,16 @@
             </div>
             <div id="dashboardSpliceChart" class="chart-svg-container" role="img" aria-label="Aerial Fiber Splice Closure Tray Capacity and Micro-Bend Loss Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-jetting">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Underground Duct Jetting &amp; Cable Friction</h4>
+                <p class="chart-subtitle">Pneumatic hydraulic pressure, Euler buckling threshold, and capstan bend reach</p>
+              </div>
+              <button id="dashboardOpenJettingModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Jetting Diagnostics</button>
+            </div>
+            <div id="dashboardJettingChart" class="chart-svg-container" role="img" aria-label="Underground Duct Hydraulic Pressure and Cable Jetting Friction Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -1989,6 +1999,88 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="spliceFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopySpliceReportBtn" class="primary-button" type="button">📋 Copy Splice Closure Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardJettingModal" class="dashboard-modal jetting-modal" aria-labelledby="dashboardJettingModalTitle">
+        <div class="dashboard-modal-card jetting-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">UNDERGROUND CIVIL CONDUIT &amp; PNEUMATIC BLOWING</p>
+              <h3 id="dashboardJettingModalTitle">Underground Duct Hydraulic Pressure &amp; Cable Jetting Friction Matrix</h3>
+            </div>
+            <button id="dashboardJettingModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Physics-based pneumatic cable blowing simulation, HDPE microduct bore clearance (fill ratio %), Euler-Eytelwein capstan bend friction, aerodynamic airflow drag, and helical buckling lockup thresholds.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="jettingRouteSelect" class="otdr-control-label">Monitored Conduit Corridor:</label>
+              <select id="jettingRouteSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="jettingPressureSlider" class="otdr-control-label">Compressor Gauge Pressure:</label>
+                <span id="jettingPressureVal" class="otdr-val-pill">12 bar</span>
+                <label for="jettingFrictionSlider" class="otdr-control-label" style="margin-left: 10px;">Friction (?):</label>
+                <span id="jettingFrictionVal" class="otdr-val-pill">0.12</span>
+                <button id="jettingResetSimBtn" type="button" class="otdr-reset-btn">Reset</button>
+              </div>
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <input type="range" id="jettingPressureSlider" min="6" max="16" step="1" value="12" class="otdr-range-slider" style="flex: 1;" />
+                <input type="range" id="jettingFrictionSlider" min="0.08" max="0.35" step="0.01" value="0.12" class="otdr-range-slider" style="flex: 1;" />
+              </div>
+            </div>
+          </div>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Corridor &amp; Trench</span>
+              <span id="jettingKpiRouteName" class="ltv-kpi-value">GT Road Trench (650m)</span>
+              <span class="ltv-kpi-sub">Civil Conduit Path</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Pneumatic Blowing Reach</span>
+              <span id="jettingKpiBlowingReach" class="ltv-kpi-value">720m (65 m/min)</span>
+              <span class="ltv-kpi-sub">Max Achievable Horizon</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Critical Buckling Limit</span>
+              <span id="jettingKpiBucklingLoad" class="ltv-kpi-value">340 N (SAFE)</span>
+              <span class="ltv-kpi-sub">Euler Column Thrust</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Corridor Health &amp; Risk</span>
+              <span id="jettingStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="jettingKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="jettingModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="Underground Duct Jetting Trajectory &amp; Bore Fill Diagram"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Shahdara Underground Conduit Corridor Register</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-register-table">
+              <thead>
+                <tr>
+                  <th>Corridor &amp; Route Name</th>
+                  <th>Primary Sector</th>
+                  <th>Length</th>
+                  <th>Bore Fill</th>
+                  <th>Reach Horizon (Pressure)</th>
+                  <th>Operational Status</th>
+                </tr>
+              </thead>
+              <tbody id="jettingRoutesTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="jettingFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopyJettingReportBtn" class="primary-button" type="button">📋 Copy Cable Jetting Briefing</button>
           </div>
         </div>
       </dialog>

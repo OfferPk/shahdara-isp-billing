@@ -142,7 +142,20 @@ import {
   setSpliceBendRadius,
   getSpliceAddedTrays,
   setSpliceAddedTrays,
-  renderSpliceClosureSvg
+  renderSpliceClosureSvg,
+  SHAHDARA_JETTING_ROUTES,
+  calculateDuctClearance,
+  calculateBlowingDynamics,
+  calculateDuctJettingMetrics,
+  generateDuctJettingReport,
+  setupDuctJettingModal,
+  getJettingSelectedRoute,
+  setJettingSelectedRoute,
+  getJettingPressure,
+  setJettingPressure,
+  getJettingFriction,
+  setJettingFriction,
+  renderDuctJettingSvg
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -5968,6 +5981,292 @@ test('setupSpliceClosureModal wires open, close, select change, slider input, ad
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA FTTH AERIAL SPLICE CLOSURE & MICRO-BEND LOSS AUDIT REPORT'));
     assert.equal(toastMessage, 'Splice closure audit report copied to clipboard!');
+
+    // Test close
+    assert.ok(closeClickHandler !== null);
+    closeClickHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateDuctClearance calculates fill ratio, clearance gap and flags choked/loose conditions', () => {
+  // Optimal standard clearance (10mm ID duct, 6mm OD cable = 60% fill)
+  const opt = calculateDuctClearance({ ductInnerDiaMm: 10, cableOuterDiaMm: 6 });
+  assert.equal(opt.fillRatioPct, 60.0);
+  assert.equal(opt.clearanceGapMm, 4.0);
+  assert.equal(opt.areaRatioPct, 36.0);
+  assert.equal(opt.clearanceStatus, 'OPTIMAL');
+
+  // Choked clearance (10mm ID duct, 8.5mm OD cable = 85% fill)
+  const choked = calculateDuctClearance({ ductInnerDiaMm: 10, cableOuterDiaMm: 8.5 });
+  assert.equal(choked.fillRatioPct, 85.0);
+  assert.equal(choked.clearanceStatus, 'CHOKED');
+
+  // Loose clearance (16mm ID duct, 5mm OD cable = 31.3% fill)
+  const loose = calculateDuctClearance({ ductInnerDiaMm: 16, cableOuterDiaMm: 5.0 });
+  assert.equal(loose.fillRatioPct, 31.3);
+  assert.equal(loose.clearanceStatus, 'LOOSE');
+});
+
+test('calculateBlowingDynamics models capstan bend drag, Euler buckling limits, and reach horizon', () => {
+  const dyn = calculateBlowingDynamics({
+    routeLengthM: 650,
+    ductInnerDiaMm: 10,
+    cableOuterDiaMm: 6.2,
+    cableWeightKgM: 0.034,
+    cableStiffnessNm2: 0.85,
+    compressorPressureBar: 12,
+    frictionCoeff: 0.12,
+    bendAnglesDegrees: [45, 45, 45, 45],
+    pusherThrustN: 20
+  });
+
+  assert.ok(dyn.pCritN > 15); // Critical buckling load
+  assert.ok(dyn.capstanMultiplier > 1.0); // Euler bend drag multiplier
+  assert.ok(dyn.airDragForcePerMeterN > 0.1);
+  assert.ok(dyn.maxJettingDistanceM > 500);
+  assert.ok(dyn.jettingSpeedMPerMin >= 30);
+  assert.ok(dyn.estimatedInstallMinutes > 0);
+  assert.ok(dyn.bucklingStatus === 'SAFE' || dyn.bucklingStatus === 'WARNING');
+});
+
+test('calculateDuctJettingMetrics aggregates corridor fleet, links area subscribers and calculates revenue at risk', () => {
+  let state = createInitialState(['User MB 1', 'User MB 2', 'User ST 1']);
+  state.customers[0].area = 'Main Bazaar';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].bills = [{ month: '2026-10', amount: 3500 }];
+
+  state.customers[1].area = 'Main Bazaar';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].bills = [{ month: '2026-10', amount: 2500 }];
+
+  state.customers[2].area = 'Shahdara Town';
+  state.customers[2].serviceStatus = 'active';
+  state.customers[2].bills = [{ month: '2026-10', amount: 1500 }];
+
+  const res = calculateDuctJettingMetrics(state, {
+    routeId: 'jet-mb-03',
+    referenceDate: '2026-10-16'
+  });
+
+  assert.equal(res.selectedRoute.id, 'jet-mb-03');
+  assert.equal(res.evaluation.route.routeLengthMeters, 420);
+  assert.equal(res.evaluation.areaCustomersCount, 2);
+  assert.equal(res.evaluation.activeSubscribers, 1);
+  assert.equal(res.evaluation.offlineSubscribers, 1);
+  assert.equal(res.evaluation.monthlyRevenue, 6000);
+  assert.equal(res.evaluation.statusTier, 'CRITICAL'); // high friction 0.28
+  assert.equal(res.evaluation.revenueAtRisk, 6000);
+
+  // Fleet checks
+  assert.equal(res.fleet.totalRoutes, SHAHDARA_JETTING_ROUTES.length);
+  assert.ok(res.fleet.totalMeters > 3000);
+  assert.ok(res.fleet.lockupRiskCount >= 1);
+  assert.ok(res.fleet.optimalCount >= 1);
+});
+
+test('renderDuctJettingSvg generates accessible, theme-aware pure SVG with duct cutaway, airflow vector, and reach gauge', () => {
+  const state = createInitialState([]);
+  const metrics = calculateDuctJettingMetrics(state, { routeId: 'jet-gt-01' });
+
+  const svg = renderDuctJettingSvg(metrics);
+  assert.ok(svg.includes('<svg class="chart-svg duct-jetting-svg"'));
+  assert.ok(svg.includes('Pneumatic Cable Blowing Trajectory'));
+  assert.ok(svg.includes('Bore Fill &amp; Clearance'));
+  assert.ok(svg.includes('CRITICAL BUCKLING'));
+  assert.ok(svg.includes('BLOWING SPEED'));
+  assert.ok(svg.includes('Maximum Blowing Reach Horizon'));
+  assert.ok(svg.includes('Route Length:'));
+
+  // Test empty state fallback
+  const emptySvg = renderDuctJettingSvg(null);
+  assert.ok(emptySvg.includes('No underground duct jetting metrics available'));
+});
+
+test('generateDuctJettingReport produces structured contractor and field technician report', () => {
+  const state = createInitialState(['User Alpha']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].bills = [{ month: '2026-10', amount: 2000 }];
+
+  const metrics = calculateDuctJettingMetrics(state, { routeId: 'jet-gt-01', referenceDate: '2026-10-16' });
+  const report = generateDuctJettingReport(metrics, '2026-10-16');
+
+  assert.ok(report.includes('SHAHDARA FTTH UNDERGROUND DUCT HYDRAULIC PRESSURE & JETTING AUDIT REPORT'));
+  assert.ok(report.includes('ROUTE SPECIFICATION & TRENCH TOPOLOGY:'));
+  assert.ok(report.includes('[jet-gt-01] GT Road Railway Underpass Subduct Trench'));
+  assert.ok(report.includes('CONDUIT BORE & CABLE CLEARANCE METRICS:'));
+  assert.ok(report.includes('PNEUMATIC BLOWING & BUCKLING DYNAMICS:'));
+  assert.ok(report.includes('CUSTOMER ROSTER & BACKBONE REVENUE AT RISK:'));
+  assert.ok(report.includes('SHAHDARA UNDERGROUND CONDUIT FLEET REGISTER:'));
+  assert.ok(report.includes('CONTRACTOR & JETTING MACHINE RECOMMENDATIONS:'));
+});
+
+test('setupDuctJettingModal wires open, close, select change, slider input, reset, filter, and copy actions', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let toastMessage = null;
+  let copiedText = null;
+  let filterAreaCalledWith = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: (attr) => { if (attr === 'open') modalOpened = true; },
+    removeAttribute: (attr) => { if (attr === 'open') modalOpened = false; },
+    addEventListener: () => {},
+    dataset: {}
+  };
+
+  let openClickHandler = null;
+  const mockOpenBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') openClickHandler = fn; },
+    dataset: {}
+  };
+
+  let closeClickHandler = null;
+  const mockCloseBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') closeClickHandler = fn; },
+    dataset: {}
+  };
+
+  let selectChangeHandler = null;
+  const mockSelect = {
+    value: 'jet-mb-03',
+    children: [],
+    appendChild: function(c) { this.children.push(c); },
+    addEventListener: (type, fn) => { if (type === 'change') selectChangeHandler = fn; },
+    dataset: {}
+  };
+
+  let pressureInputHandler = null;
+  const mockPressureSlider = {
+    value: '10',
+    addEventListener: (type, fn) => { if (type === 'input') pressureInputHandler = fn; },
+    dataset: {}
+  };
+  const mockPressureVal = { textContent: '10 bar' };
+
+  let frictionInputHandler = null;
+  const mockFrictionSlider = {
+    value: '0.28',
+    addEventListener: (type, fn) => { if (type === 'input') frictionInputHandler = fn; },
+    dataset: {}
+  };
+  const mockFrictionVal = { textContent: '0.28' };
+
+  let resetClickHandler = null;
+  const mockResetBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') resetClickHandler = fn; },
+    dataset: {}
+  };
+
+  let filterAreaClickHandler = null;
+  const mockFilterAreaBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') filterAreaClickHandler = fn; },
+    dataset: {}
+  };
+
+  let copyClickHandler = null;
+  const mockCopyBtn = {
+    addEventListener: (type, fn) => { if (type === 'click') copyClickHandler = fn; },
+    dataset: {}
+  };
+
+  const mockKpiName = { textContent: '' };
+  const mockKpiReach = { textContent: '' };
+  const mockKpiBuckling = { textContent: '' };
+  const mockKpiBadge = { textContent: '', className: '' };
+  const mockKpiRisk = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = {
+    innerHTML: '',
+    querySelectorAll: () => []
+  };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardJettingModal': return mockModal;
+        case 'dashboardOpenJettingModalBtn': return mockOpenBtn;
+        case 'dashboardJettingModalCloseBtn': return mockCloseBtn;
+        case 'jettingRouteSelect': return mockSelect;
+        case 'jettingPressureSlider': return mockPressureSlider;
+        case 'jettingPressureVal': return mockPressureVal;
+        case 'jettingFrictionSlider': return mockFrictionSlider;
+        case 'jettingFrictionVal': return mockFrictionVal;
+        case 'jettingResetSimBtn': return mockResetBtn;
+        case 'jettingFilterAreaBtn': return mockFilterAreaBtn;
+        case 'dashboardCopyJettingReportBtn': return mockCopyBtn;
+        case 'jettingKpiRouteName': return mockKpiName;
+        case 'jettingKpiBlowingReach': return mockKpiReach;
+        case 'jettingKpiBucklingLoad': return mockKpiBuckling;
+        case 'jettingStatusBadge': return mockKpiBadge;
+        case 'jettingKpiRevenueRisk': return mockKpiRisk;
+        case 'jettingModalChartWrap': return mockChartWrap;
+        case 'jettingRoutesTableBody': return mockTableBody;
+        default: return null;
+      }
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '', selected: false })
+  };
+
+  const state = createInitialState([]);
+
+  try {
+    setupDuctJettingModal(state, {
+      referenceDate: '2026-10-16',
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Check options populated
+    assert.equal(mockSelect.children.length, SHAHDARA_JETTING_ROUTES.length);
+
+    // Test open
+    assert.ok(openClickHandler !== null);
+    openClickHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiName.textContent.includes('Main Bazaar'));
+    assert.ok(mockChartWrap.innerHTML.includes('duct-jetting-svg'));
+
+    // Test pressure slider input
+    assert.ok(pressureInputHandler !== null);
+    mockPressureSlider.value = '15';
+    pressureInputHandler();
+    assert.equal(getJettingPressure(), 15);
+    assert.equal(mockPressureVal.textContent, '15 bar');
+
+    // Test friction slider input
+    assert.ok(frictionInputHandler !== null);
+    mockFrictionSlider.value = '0.10';
+    frictionInputHandler();
+    assert.equal(getJettingFriction(), 0.10);
+    assert.equal(mockFrictionVal.textContent, '0.10');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getJettingPressure(), null);
+    assert.equal(getJettingFriction(), null);
+
+    // Test filter area action
+    assert.ok(filterAreaClickHandler !== null);
+    filterAreaClickHandler();
+    assert.equal(filterAreaCalledWith, 'Main Bazaar');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyClickHandler !== null);
+    await copyClickHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA FTTH UNDERGROUND DUCT HYDRAULIC PRESSURE & JETTING AUDIT REPORT'));
+    assert.equal(toastMessage, 'Underground duct jetting audit copied to clipboard!');
 
     // Test close
     assert.ok(closeClickHandler !== null);

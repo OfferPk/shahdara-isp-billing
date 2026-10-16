@@ -5361,3 +5361,26 @@ export {
   generateIptvMulticastReport,
   setupIptvMulticastModal
 } from './dashboard-iptv.js';
+
+export {
+  SHAHDARA_DNS_RESOLVERS,
+  UPSTREAM_FORWARDERS,
+  DNS_CONSTANTS,
+  getDnsSelectedResolver,
+  setDnsSelectedResolver,
+  getDnsCacheHitRatio,
+  setDnsCacheHitRatio,
+  getDnsUpstreamForwarder,
+  setDnsUpstreamForwarder,
+  getDnssecMode,
+  setDnssecMode,
+  getDnsClockDriftMs,
+  setDnsClockDriftMs,
+  resetDnsSimState,
+  calculateDnsLatency,
+  calculateDnssecValidation,
+  calculateDnsMetrics,
+  renderDnsDiagnosticsSvg,
+  generateDnsDiagnosticReport,
+  setupDnsDiagnosticsModal
+} from './dashboard-dns.js';

@@ -10,6 +10,8 @@ import { calculatePonDbaMetrics, setupPonDbaModal, renderPonDbaQueueSvg } from '
 import { calculateFusionSplicerMetrics, setupFusionSplicerModal, renderFusionSplicerSvg } from './dashboard-splicer.js';
 import { calculateBgpPeeringMetrics, setupBgpRoutingModal, renderBgpRoutingConvergenceSvg } from './dashboard-bgp.js';
 import { calculateIptvMulticastMetrics, setupIptvMulticastModal, renderIptvMulticastSvg } from './dashboard-iptv.js';
+import { calculateDnsMetrics, setupDnsDiagnosticsModal, renderDnsDiagnosticsSvg } from './dashboard-dns.js';
+
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3326,9 +3328,16 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupIptvMulticastModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const dnsEl = document.getElementById('dashboardDnsChart');
+  if (dnsEl) {
+    const dnsData = calculateDnsMetrics(state, { referenceDate });
+    dnsEl.innerHTML = renderDnsDiagnosticsSvg(dnsData, { compact: true });
+  }
+
+  setupDnsDiagnosticsModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg };
-
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg };
 

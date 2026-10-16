@@ -5981,4 +5981,22 @@ export {
   setupMobileOpticalBudgetModal
 } from './nav-optical-budget.js';
 
-
+export {
+  FDT_ALLOCATIONS_STORAGE_KEY,
+  PORT_STATUSES,
+  FDT_CONNECTOR_POLISH_TYPES,
+  OPTICAL_POWER_STANDARDS,
+  DROP_SPAN_LIMITS,
+  DEFAULT_SHAHDARA_FAT_ENCLOSURES,
+  calculateFatCapacitySummary,
+  evaluatePortOpticalHealth,
+  evaluateDropCableSpan,
+  getFatAllocationsStore,
+  saveFatAllocationsStore,
+  updatePortAllocation,
+  resetPortToSpare,
+  resetFatStoreToDefault,
+  renderMobileFdtMatrixSvg,
+  generateFdtAllocationWhatsAppReport,
+  setupMobileFdtAllocationModal
+} from './nav-fdt-allocation.js';

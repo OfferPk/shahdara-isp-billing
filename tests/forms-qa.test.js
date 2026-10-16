@@ -3950,3 +3950,428 @@ test('DOM and styling: index.html, styles.css, and app.js wire Fiber Splicing QA
   assert.match(appJs, /customerSpliceInspectionModalController/);
   assert.match(appJs, /openSpliceInspectionBtn/);
 });
+
+test('calculatePlanMigrationProration accurately computes mid-cycle proration, daily rates, and net adjustment', async () => {
+  const { calculatePlanMigrationProration, getDaysInCalendarMonth } = await import('../form-validation.js');
+
+  assert.equal(getDaysInCalendarMonth('2026-10-15'), 31);
+  assert.equal(getDaysInCalendarMonth('2026-02-10'), 28);
+
+  // Upgrade from 1500 to 2500 on day 16 of a 30-day month
+  // Days elapsed: 15, days remaining: 15
+  // Old credit: (1500 / 30) * 15 = 750
+  // New charge: (2500 / 30) * 15 = 1250
+  // Net adjustment: 1250 - 750 = +500
+  const result = calculatePlanMigrationProration(1500, 2500, '2026-04-16', 30);
+  assert.equal(result.daysInMonth, 30);
+  assert.equal(result.effectiveDay, 16);
+  assert.equal(result.daysElapsed, 15);
+  assert.equal(result.daysRemaining, 15);
+  assert.equal(result.oldPlanCredit, 750);
+  assert.equal(result.newPlanCharge, 1250);
+  assert.equal(result.netAdjustment, 500);
+  assert.equal(result.mrrDelta, 1000);
+  assert.ok(result.actionLabel.includes('Subscriber Owes +PKR 500'));
+
+  // Downgrade from 3000 to 1500 on day 11 of a 30-day month
+  // Days elapsed: 10, days remaining: 20
+  // Old credit: (3000 / 30) * 20 = 2000
+  // New charge: (1500 / 30) * 20 = 1000
+  // Net adjustment: 1000 - 2000 = -1000 (credit)
+  const downgradeResult = calculatePlanMigrationProration(3000, 1500, '2026-04-11', 30);
+  assert.equal(downgradeResult.daysElapsed, 10);
+  assert.equal(downgradeResult.daysRemaining, 20);
+  assert.equal(downgradeResult.oldPlanCredit, 2000);
+  assert.equal(downgradeResult.newPlanCharge, 1000);
+  assert.equal(downgradeResult.netAdjustment, -1000);
+  assert.equal(downgradeResult.mrrDelta, -1500);
+  assert.ok(downgradeResult.actionLabel.includes('Credit Refund PKR 1,000'));
+});
+
+test('assessPlanCompatibility detects transition classification, speed delta, and hardware bottlenecks', async () => {
+  const { assessPlanCompatibility, parseSpeedFromPlanName } = await import('../form-validation.js');
+
+  assert.equal(parseSpeedFromPlanName('15 Mbps Family Streamer'), 15);
+  assert.equal(parseSpeedFromPlanName('100 Mbps Gigabit Commercial'), 100);
+  assert.equal(parseSpeedFromPlanName('Custom 50M Pro'), 50);
+
+  // Upgrade on Gigabit Ethernet
+  const upgrade = assessPlanCompatibility('15 Mbps Family Streamer', '40 Mbps Ultra Fiber HD', 'GE');
+  assert.equal(upgrade.migrationType, 'UPGRADE');
+  assert.equal(upgrade.currentSpeed, 15);
+  assert.equal(upgrade.targetSpeed, 40);
+  assert.equal(upgrade.speedDelta, 25);
+  assert.equal(upgrade.isHardwareCompatible, true);
+  assert.equal(upgrade.warningNotice, null);
+
+  // Downgrade
+  const downgrade = assessPlanCompatibility('60 Mbps Pro Power User', '25 Mbps Turbo Broadband', 'GE');
+  assert.equal(downgrade.migrationType, 'DOWNGRADE');
+  assert.equal(downgrade.speedDelta, -35);
+
+  // Hardware bottleneck with FastEthernet ONT
+  const bottleneck = assessPlanCompatibility('25 Mbps Turbo Broadband', '150 Mbps Enterprise Fiber', 'FE');
+  assert.equal(bottleneck.isHardwareCompatible, false);
+  assert.ok(bottleneck.warningNotice.includes('FastEthernet ONT hardware bottleneck'));
+});
+
+test('validatePlanMigration and buildPlanMigrationRecord enforce integrity and generate vouchers', async () => {
+  const { validatePlanMigration, buildPlanMigrationRecord } = await import('../form-validation.js');
+
+  // Validation failure cases
+  const v1 = validatePlanMigration({});
+  assert.equal(v1.valid, false);
+  assert.ok(v1.errors.some(e => e.includes('Subscriber profile selection is required')));
+
+  const v2 = validatePlanMigration({
+    customerId: 'CUST-001',
+    currentPlan: '15 Mbps Family Streamer',
+    targetPlan: '15 Mbps Family Streamer',
+    targetRate: 1500,
+    effectiveDate: '2026-10-16',
+    authorizedBy: 'Lead Tech'
+  });
+  assert.equal(v2.valid, false);
+  assert.ok(v2.errors.some(e => e.includes('Target plan must be different')));
+
+  // Valid record builder
+  const record = buildPlanMigrationRecord({
+    customerId: 'CUST-042',
+    customerName: 'Muhammad Rizwan',
+    customerPhone: '0300-8877665',
+    customerArea: 'Vandala Road',
+    currentPlan: '15 Mbps Family Streamer',
+    currentRate: 1500,
+    targetPlan: '25 Mbps Turbo Broadband',
+    targetRate: 2000,
+    effectiveDate: '2026-10-16',
+    notes: 'Requested high speed for remote development',
+    authorizedBy: 'Shahdara Lead NOC'
+  });
+
+  assert.ok(record.id.startsWith('MIG-'));
+  assert.equal(record.customerName, 'Muhammad Rizwan');
+  assert.equal(record.migrationType, 'UPGRADE');
+  assert.equal(record.speedDelta, 10);
+  assert.equal(record.status, 'COMPLETED');
+  assert.ok(record.proration);
+  assert.ok(record.compatibility);
+});
+
+test('getSavedPlanMigrations, savePlanMigration, and updatePlanMigrationStatus manage persistence', async () => {
+  const {
+    getSavedPlanMigrations,
+    savePlanMigration,
+    updatePlanMigrationStatus,
+    clearPlanMigrations,
+    buildPlanMigrationRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedPlanMigrations(mockStorage), []);
+
+  const r1 = buildPlanMigrationRecord({
+    customerId: 'CUST-001',
+    customerName: 'Tariq Mehmood',
+    currentPlan: '10 Mbps Standard',
+    currentRate: 1200,
+    targetPlan: '25 Mbps Turbo',
+    targetRate: 2000,
+    effectiveDate: '2026-10-16'
+  });
+
+  savePlanMigration(r1, mockStorage);
+  let list = getSavedPlanMigrations(mockStorage);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, r1.id);
+  assert.equal(list[0].status, 'COMPLETED');
+
+  // Update status
+  updatePlanMigrationStatus(r1.id, 'PENDING_PROVISIONING', mockStorage);
+  list = getSavedPlanMigrations(mockStorage);
+  assert.equal(list[0].status, 'PENDING_PROVISIONING');
+
+  clearPlanMigrations(mockStorage);
+  assert.deepEqual(getSavedPlanMigrations(mockStorage), []);
+});
+
+test('calculatePlanMigrationMetrics computes summary stats and filters records', async () => {
+  const { calculatePlanMigrationMetrics } = await import('../form-validation.js');
+
+  const records = [
+    { id: 'MIG-01', customerName: 'Ali Khan', customerId: 'CUST-01', targetPlan: '25 Mbps', migrationType: 'UPGRADE', netAdjustment: 400, mrrDelta: 500 },
+    { id: 'MIG-02', customerName: 'Zubair Ahmad', customerId: 'CUST-02', targetPlan: '40 Mbps', migrationType: 'UPGRADE', netAdjustment: 600, mrrDelta: 800 },
+    { id: 'MIG-03', customerName: 'Kamran Shah', customerId: 'CUST-03', targetPlan: '10 Mbps', migrationType: 'DOWNGRADE', netAdjustment: -300, mrrDelta: -300 }
+  ];
+
+  const metrics = calculatePlanMigrationMetrics(records);
+  assert.equal(metrics.totalMigrations, 3);
+  assert.equal(metrics.upgradeCount, 2);
+  assert.equal(metrics.downgradeCount, 1);
+  assert.equal(metrics.upgradeRatePct, 67);
+  assert.equal(metrics.totalNetAdjustmentPkr, 700);
+  assert.equal(metrics.totalMrrDeltaPkr, 1000);
+
+  // Filter by UPGRADE
+  const upOnly = calculatePlanMigrationMetrics(records, { filterType: 'UPGRADE' });
+  assert.equal(upOnly.filteredRecords.length, 2);
+
+  // Search by query
+  const search = calculatePlanMigrationMetrics(records, { searchQuery: 'Kamran' });
+  assert.equal(search.filteredRecords.length, 1);
+  assert.equal(search.filteredRecords[0].customerId, 'CUST-03');
+});
+
+test('formatPlanMigrationWhatsApp and generatePlanMigrationHtml format printable and dispatch outputs', async () => {
+  const { formatPlanMigrationWhatsApp, generatePlanMigrationHtml, generatePlanMigrationsCsv } = await import('../form-validation.js');
+
+  const record = {
+    id: 'MIG-202610-8899',
+    timestamp: '2026-10-16T12:00:00Z',
+    customerId: 'CUST-108',
+    customerName: 'Asif Nadeem',
+    customerPhone: '0321-4455667',
+    customerArea: 'Begum Kot',
+    currentPlan: '15 Mbps Family Streamer',
+    currentRate: 1500,
+    targetPlan: '25 Mbps Turbo Broadband',
+    targetRate: 2000,
+    effectiveDate: '2026-10-16',
+    migrationType: 'UPGRADE',
+    speedDelta: 10,
+    netAdjustment: 250,
+    mrrDelta: 500,
+    status: 'COMPLETED',
+    notes: 'Optical power verified at -19.2 dBm',
+    authorizedBy: 'Lead Tech Umar',
+    proration: {
+      daysInMonth: 30,
+      effectiveDay: 16,
+      daysElapsed: 15,
+      daysRemaining: 15,
+      oldPlanCredit: 750,
+      newPlanCharge: 1000
+    },
+    compatibility: {
+      currentSpeed: 15,
+      targetSpeed: 25,
+      speedDelta: 10,
+      migrationType: 'UPGRADE'
+    }
+  };
+
+  // WhatsApp text
+  const wa = formatPlanMigrationWhatsApp(record);
+  assert.match(wa, /SHAHDARA FIBER NET — PLAN MIGRATION VOUCHER/);
+  assert.match(wa, /MIG-202610-8899/);
+  assert.match(wa, /Asif Nadeem/);
+  assert.match(wa, /15 Mbps Family Streamer/);
+  assert.match(wa, /25 Mbps Turbo Broadband/);
+  assert.match(wa, /\+10 Mbps Speed Adjustment/);
+  assert.match(wa, /PKR 250/);
+
+  // A4 Document
+  const a4 = generatePlanMigrationHtml(record, { format: 'standard' });
+  assert.match(a4, /plan-migration-document/);
+  assert.match(a4, /SERVICE PLAN MIGRATION &amp; BANDWIDTH UPGRADE VOUCHER/);
+  assert.match(a4, /Asif Nadeem/);
+  assert.match(a4, /Previous Plan/);
+  assert.match(a4, /New Target Plan/);
+
+  // Thermal Slip
+  const thermal = generatePlanMigrationHtml(record, { format: 'thermal' });
+  assert.match(thermal, /thermal-migration-slip/);
+  assert.match(thermal, /PLAN MIGRATION RECEIPT/);
+  assert.match(thermal, /NET: PKR 250/);
+
+  // CSV
+  const csv = generatePlanMigrationsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /Voucher ID/);
+  assert.match(csv, /MIG-202610-8899/);
+  assert.match(csv, /Asif Nadeem/);
+});
+
+test('setupPlanMigrationModal wires controller, recalculation, and modal actions', async () => {
+  const { setupPlanMigrationModal } = await import('../form-validation.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const mockElement = (id) => ({
+    id,
+    dataset: {},
+    children: [],
+    selectedOptions: [{ dataset: { price: '2000', speed: '25' } }],
+    options: [{ value: '25 Mbps Turbo Broadband', dataset: { price: '2000', speed: '25' } }],
+    value: id === 'migTargetRateInput' ? '2000' : (id === 'migEffectiveDateInput' ? '2026-10-16' : ''),
+    textContent: '',
+    style: {},
+    appendChild(child) { this.children.push(child); },
+    addEventListener: () => {},
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  });
+
+  const modal = mockElement('customerPlanMigrationModal');
+  const closeBtn = mockElement('planMigrationCloseBtn');
+  const openBtn = mockElement('openPlanMigrationBtn');
+
+  const customerNameEl = mockElement('migCustomerName');
+  const customerMetaEl = mockElement('migCustomerMeta');
+  const currentPlanEl = mockElement('migCurrentPlan');
+  const currentRateEl = mockElement('migCurrentRate');
+
+  const targetPlanSelect = mockElement('migTargetPlanSelect');
+  const targetRateInput = mockElement('migTargetRateInput');
+  const effectiveDateInput = mockElement('migEffectiveDateInput');
+  const ontPortSelect = mockElement('migOntPortSelect');
+  const notesInput = mockElement('migNotesInput');
+  const authorizerInput = mockElement('migAuthorizerInput');
+
+  const speedDeltaBadge = mockElement('migSpeedDeltaBadge');
+  const prorationSummaryBox = mockElement('migProrationSummaryBox');
+  const netDueVal = mockElement('migNetDueVal');
+  const mrrDeltaVal = mockElement('migMrrDeltaVal');
+  const hardwareWarningBanner = mockElement('migHardwareWarningBanner');
+
+  const submitBtn = mockElement('planMigrationSubmitBtn');
+  const printA4Btn = mockElement('planMigrationPrintA4Btn');
+  const printThermalBtn = mockElement('planMigrationPrintThermalBtn');
+  const copyWhatsAppBtn = mockElement('planMigrationCopyWhatsAppBtn');
+  const exportCsvBtn = mockElement('planMigrationExportCsvBtn');
+
+  const filterTypeSelect = mockElement('migFilterTypeSelect');
+  const searchInput = mockElement('migSearchInput');
+  const tableBody = mockElement('migHistoryTableBody');
+  const countBadge = mockElement('migTotalCountBadge');
+  const kpiUpgrades = mockElement('migKpiUpgrades');
+  const kpiNetMrr = mockElement('migKpiNetMrr');
+  const kpiProratedTotal = mockElement('migKpiProratedTotal');
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      const map = {
+        customerPlanMigrationModal: modal,
+        planMigrationCloseBtn: closeBtn,
+        migCustomerName: customerNameEl,
+        migCustomerMeta: customerMetaEl,
+        migCurrentPlan: currentPlanEl,
+        migCurrentRate: currentRateEl,
+        migTargetPlanSelect: targetPlanSelect,
+        migTargetRateInput: targetRateInput,
+        migEffectiveDateInput: effectiveDateInput,
+        migOntPortSelect: ontPortSelect,
+        migNotesInput: notesInput,
+        migAuthorizerInput: authorizerInput,
+        migSpeedDeltaBadge: speedDeltaBadge,
+        migProrationSummaryBox: prorationSummaryBox,
+        migNetDueVal: netDueVal,
+        migMrrDeltaVal: mrrDeltaVal,
+        migHardwareWarningBanner: hardwareWarningBanner,
+        planMigrationSubmitBtn: submitBtn,
+        planMigrationPrintA4Btn: printA4Btn,
+        planMigrationPrintThermalBtn: printThermalBtn,
+        planMigrationCopyWhatsAppBtn: copyWhatsAppBtn,
+        planMigrationExportCsvBtn: exportCsvBtn,
+        migFilterTypeSelect: filterTypeSelect,
+        migSearchInput: searchInput,
+        migHistoryTableBody: tableBody,
+        migTotalCountBadge: countBadge,
+        migKpiUpgrades: kpiUpgrades,
+        migKpiNetMrr: kpiNetMrr,
+        migKpiProratedTotal: kpiProratedTotal
+      };
+      return map[id] || null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('data-open-plan-migration') || sel.includes('openPlanMigrationBtn')) {
+        return [openBtn];
+      }
+      return [];
+    },
+    createElement: (tag) => ({
+      tag,
+      dataset: {},
+      value: '',
+      textContent: '',
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    })
+  };
+
+  try {
+    const controller = setupPlanMigrationModal({
+      getState: () => ({ customers: [{ id: 'CUST-001', name: 'Zia Khan', package: '15 Mbps', monthlyFee: 1500 }] })
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.recalculate, 'function');
+
+    controller.open({ id: 'CUST-001', name: 'Zia Khan', package: '15 Mbps', monthlyFee: 1500 });
+    assert.equal(modalOpened, true);
+
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Plan Migration & Proration completely', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /id="openPlanMigrationBtn"/);
+  assert.match(indexHtml, /data-open-plan-migration/);
+  assert.match(indexHtml, /<dialog id="customerPlanMigrationModal" class="modal plan-migration-modal"/);
+  assert.match(indexHtml, /id="planMigrationCloseBtn"/);
+  assert.match(indexHtml, /id="migKpiUpgrades"/);
+  assert.match(indexHtml, /id="migKpiNetMrr"/);
+  assert.match(indexHtml, /id="migKpiProratedTotal"/);
+  assert.match(indexHtml, /id="migCustomerName"/);
+  assert.match(indexHtml, /id="migCurrentPlan"/);
+  assert.match(indexHtml, /id="migCurrentRate"/);
+  assert.match(indexHtml, /id="migTargetPlanSelect"/);
+  assert.match(indexHtml, /id="migTargetRateInput"/);
+  assert.match(indexHtml, /id="migEffectiveDateInput"/);
+  assert.match(indexHtml, /id="migOntPortSelect"/);
+  assert.match(indexHtml, /id="migSpeedDeltaBadge"/);
+  assert.match(indexHtml, /id="migProrationSummaryBox"/);
+  assert.match(indexHtml, /id="migNetDueVal"/);
+  assert.match(indexHtml, /id="migMrrDeltaVal"/);
+  assert.match(indexHtml, /id="migHardwareWarningBanner"/);
+  assert.match(indexHtml, /id="planMigrationSubmitBtn"/);
+  assert.match(indexHtml, /id="planMigrationCopyWhatsAppBtn"/);
+  assert.match(indexHtml, /id="planMigrationPrintA4Btn"/);
+  assert.match(indexHtml, /id="planMigrationPrintThermalBtn"/);
+  assert.match(indexHtml, /id="migHistoryTableBody"/);
+  assert.match(indexHtml, /id="planMigrationExportCsvBtn"/);
+
+  // styles.css checks
+  assert.match(stylesCss, /\.plan-migration-modal/);
+  assert.match(stylesCss, /\.plan-migration-modal-card/);
+  assert.match(stylesCss, /\.mig-subscriber-banner/);
+  assert.match(stylesCss, /\.mig-warning-banner/);
+  assert.match(stylesCss, /\.mig-form-grid/);
+  assert.match(stylesCss, /\.mig-settlement-card/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.plan-migration-modal/);
+
+  // app.js checks
+  assert.match(appJs, /setupPlanMigrationModal/);
+  assert.match(appJs, /customerPlanMigrationModalController/);
+  assert.match(appJs, /openPlanMigrationBtn/);
+});

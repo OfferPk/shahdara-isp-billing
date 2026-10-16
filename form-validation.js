@@ -7830,3 +7830,1092 @@ export function setupSpliceInspectionModal({
     }
   };
 }
+
+/* ==========================================================================
+   CUSTOMER SERVICE PLAN MIGRATION & MID-CYCLE PRORATION VOUCHER SYSTEM
+   (پیکج تبدیلی و اسپیڈ اپ گریڈ واؤچر)
+   ========================================================================== */
+
+export const PLAN_MIGRATIONS_KEY = 'shahdara_plan_migrations_v1';
+
+export const MIGRATION_TYPES = {
+  UPGRADE: 'UPGRADE',
+  DOWNGRADE: 'DOWNGRADE',
+  LATERAL_SWITCH: 'LATERAL_SWITCH',
+  SUSPENSION_HOLD: 'SUSPENSION_HOLD'
+};
+
+export const MIGRATION_STATUSES = {
+  COMPLETED: 'COMPLETED',
+  PENDING_PROVISIONING: 'PENDING_PROVISIONING',
+  CANCELLED_REVERTED: 'CANCELLED_REVERTED'
+};
+
+export const SHAHDARA_BROADBAND_PLANS = [
+  { id: 'plan-10m', name: '10 Mbps Standard Basic', speedMbps: 10, monthlyPrice: 1200, category: 'Home Basic' },
+  { id: 'plan-15m', name: '15 Mbps Family Streamer', speedMbps: 15, monthlyPrice: 1500, category: 'Residential' },
+  { id: 'plan-25m', name: '25 Mbps Turbo Broadband', speedMbps: 25, monthlyPrice: 2000, category: 'Residential Pro' },
+  { id: 'plan-40m', name: '40 Mbps Ultra Fiber HD', speedMbps: 40, monthlyPrice: 2800, category: 'High Speed' },
+  { id: 'plan-60m', name: '60 Mbps Pro Power User', speedMbps: 60, monthlyPrice: 3800, category: 'Ultra Fast' },
+  { id: 'plan-100m', name: '100 Mbps Gigabit Commercial', speedMbps: 100, monthlyPrice: 5500, category: 'Commercial' }
+];
+
+/**
+ * Calculates days in a calendar month for a given ISO date.
+ */
+export function getDaysInCalendarMonth(dateStr) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  if (isNaN(d.getTime())) return 30;
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  return new Date(year, month + 1, 0).getDate();
+}
+
+/**
+ * Calculates mathematical mid-cycle proration for plan migrations.
+ */
+export function calculatePlanMigrationProration(currentRate, targetRate, effectiveDateStr, customDaysInMonth = null) {
+  const cRate = Math.max(0, Number(currentRate) || 0);
+  const tRate = Math.max(0, Number(targetRate) || 0);
+  
+  const d = effectiveDateStr ? new Date(effectiveDateStr) : new Date();
+  const effectiveDay = isNaN(d.getTime()) ? 1 : Math.max(1, d.getDate());
+  const daysInMonth = Number(customDaysInMonth) || getDaysInCalendarMonth(effectiveDateStr);
+
+  const clampedDay = Math.min(daysInMonth, effectiveDay);
+  const daysElapsed = clampedDay - 1;
+  const daysRemaining = daysInMonth - daysElapsed;
+
+  const dailyOldRate = Math.round((cRate / daysInMonth) * 100) / 100;
+  const dailyNewRate = Math.round((tRate / daysInMonth) * 100) / 100;
+
+  // Unearned old plan credit for remaining days
+  const oldPlanCredit = Math.round((cRate / daysInMonth) * daysRemaining);
+  // Prorated new plan charge for remaining days
+  const newPlanCharge = Math.round((tRate / daysInMonth) * daysRemaining);
+
+  const netAdjustment = newPlanCharge - oldPlanCredit;
+  const mrrDelta = tRate - cRate;
+
+  let actionLabel = 'Lateral Exchange';
+  if (netAdjustment > 0) {
+    actionLabel = `Subscriber Owes +PKR ${netAdjustment.toLocaleString()}`;
+  } else if (netAdjustment < 0) {
+    actionLabel = `Credit Refund PKR ${Math.abs(netAdjustment).toLocaleString()}`;
+  } else {
+    actionLabel = 'Zero Difference';
+  }
+
+  return {
+    daysInMonth,
+    effectiveDay: clampedDay,
+    daysElapsed,
+    daysRemaining,
+    dailyOldRate,
+    dailyNewRate,
+    oldPlanCredit,
+    newPlanCharge,
+    netAdjustment,
+    mrrDelta,
+    actionLabel
+  };
+}
+
+/**
+ * Parses numeric speed in Mbps from a package title string.
+ */
+export function parseSpeedFromPlanName(planName) {
+  if (!planName) return 15;
+  const match = String(planName).match(/(\d+)\s*(?:mbps|mb|m)/i);
+  return match ? parseInt(match[1], 10) : 15;
+}
+
+/**
+ * Assesses bandwidth delta and hardware compatibility between plans.
+ */
+export function assessPlanCompatibility(currentPlan, targetPlan, ontPortType = 'GE') {
+  const curSpeed = parseSpeedFromPlanName(currentPlan);
+  const tgtSpeed = parseSpeedFromPlanName(targetPlan);
+  const speedDelta = tgtSpeed - curSpeed;
+
+  let migrationType = MIGRATION_TYPES.LATERAL_SWITCH;
+  if (speedDelta > 0) {
+    migrationType = MIGRATION_TYPES.UPGRADE;
+  } else if (speedDelta < 0) {
+    migrationType = MIGRATION_TYPES.DOWNGRADE;
+  }
+
+  const isFE = String(ontPortType).toUpperCase() === 'FE';
+  let isHardwareCompatible = true;
+  let warningNotice = null;
+
+  if (isFE && tgtSpeed > 100) {
+    isHardwareCompatible = false;
+    warningNotice = 'FastEthernet ONT hardware bottleneck: subscriber ONT cannot negotiate speeds above 100 Mbps. Gigabit ONT swap required.';
+  } else if (isFE && tgtSpeed >= 80) {
+    warningNotice = 'Subscribers on FastEthernet ONT may experience throughput capping near 85-90 Mbps due to Ethernet framing overhead.';
+  }
+
+  return {
+    migrationType,
+    currentSpeed: curSpeed,
+    targetSpeed: tgtSpeed,
+    speedDelta,
+    isHardwareCompatible,
+    warningNotice
+  };
+}
+
+/**
+ * Validates input for creating a plan migration record.
+ */
+export function validatePlanMigration(formData = {}) {
+  const errors = [];
+
+  if (!formData.customerId || !String(formData.customerId).trim()) {
+    errors.push('Subscriber profile selection is required.');
+  }
+
+  if (!formData.currentPlan || !String(formData.currentPlan).trim()) {
+    errors.push('Current plan specification is required.');
+  }
+
+  if (!formData.targetPlan || !String(formData.targetPlan).trim()) {
+    errors.push('Target plan specification is required.');
+  } else if (String(formData.currentPlan).trim().toLowerCase() === String(formData.targetPlan).trim().toLowerCase()) {
+    errors.push('Target plan must be different from current active plan.');
+  }
+
+  if (formData.targetRate == null || isNaN(Number(formData.targetRate)) || Number(formData.targetRate) <= 0) {
+    errors.push('Target monthly rate must be a valid positive amount.');
+  }
+
+  if (!formData.effectiveDate || !/^\d{4}-\d{2}-\d{2}$/.test(formData.effectiveDate)) {
+    errors.push('Valid effective date (YYYY-MM-DD) is required.');
+  }
+
+  if (!formData.authorizedBy || String(formData.authorizedBy).trim().length < 3) {
+    errors.push('Authorizing NOC/billing operator name is required (minimum 3 characters).');
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Builds an immutable, sequentially identified Plan Migration voucher record.
+ */
+export function buildPlanMigrationRecord(data = {}) {
+  const now = new Date();
+  const yearMonth = now.toISOString().slice(0, 7).replace('-', '');
+  const randSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const id = `MIG-${yearMonth}-${randSuffix}`;
+
+  const currentRate = Number(data.currentRate) || 0;
+  const targetRate = Number(data.targetRate) || 0;
+  const effectiveDate = data.effectiveDate || now.toISOString().slice(0, 10);
+
+  const proration = calculatePlanMigrationProration(currentRate, targetRate, effectiveDate);
+  const compatibility = assessPlanCompatibility(data.currentPlan, data.targetPlan, data.ontPortType || 'GE');
+
+  return {
+    id,
+    timestamp: data.timestamp || now.toISOString(),
+    customerId: String(data.customerId || '').trim(),
+    customerName: String(data.customerName || 'Subscriber').trim(),
+    customerPhone: String(data.customerPhone || '').trim(),
+    customerArea: String(data.customerArea || '').trim(),
+    currentPlan: String(data.currentPlan || '').trim(),
+    currentRate,
+    targetPlan: String(data.targetPlan || '').trim(),
+    targetRate,
+    effectiveDate,
+    migrationType: compatibility.migrationType,
+    speedDelta: compatibility.speedDelta,
+    proration,
+    compatibility,
+    netAdjustment: proration.netAdjustment,
+    mrrDelta: proration.mrrDelta,
+    status: data.status || MIGRATION_STATUSES.COMPLETED,
+    notes: String(data.notes || '').trim(),
+    authorizedBy: String(data.authorizedBy || 'Shahdara NOC').trim()
+  };
+}
+
+/**
+ * Retrieves saved plan migration vouchers from local storage.
+ */
+export function getSavedPlanMigrations(storage = null) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return [];
+  try {
+    const raw = store.getItem(PLAN_MIGRATIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves a plan migration voucher into local storage.
+ */
+export function savePlanMigration(record, storage = null) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || !record) return false;
+  try {
+    const records = getSavedPlanMigrations(store);
+    records.unshift(record);
+    store.setItem(PLAN_MIGRATIONS_KEY, JSON.stringify(records));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Updates the status of a saved plan migration voucher.
+ */
+export function updatePlanMigrationStatus(id, newStatus, storage = null) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || !id) return false;
+  try {
+    const records = getSavedPlanMigrations(store);
+    const index = records.findIndex(r => r.id === id);
+    if (index === -1) return false;
+    records[index].status = newStatus;
+    records[index].updatedAt = new Date().toISOString();
+    store.setItem(PLAN_MIGRATIONS_KEY, JSON.stringify(records));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Clears saved plan migration records (used for testing or resetting).
+ */
+export function clearPlanMigrations(storage = null) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return false;
+  try {
+    store.removeItem(PLAN_MIGRATIONS_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Calculates aggregate performance and financial metrics across plan migrations.
+ */
+export function calculatePlanMigrationMetrics(records = [], options = {}) {
+  const list = Array.isArray(records) ? records : [];
+  const { searchQuery = '', filterType = 'ALL' } = options;
+
+  let totalMigrations = 0;
+  let upgradeCount = 0;
+  let downgradeCount = 0;
+  let lateralCount = 0;
+  let totalNetAdjustmentPkr = 0;
+  let totalMrrDeltaPkr = 0;
+
+  const filtered = list.filter(r => {
+    if (filterType !== 'ALL' && r.migrationType !== filterType) {
+      return false;
+    }
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      const matchName = String(r.customerName || '').toLowerCase().includes(q);
+      const matchId = String(r.customerId || '').toLowerCase().includes(q);
+      const matchVoucher = String(r.id || '').toLowerCase().includes(q);
+      const matchPlan = String(r.targetPlan || '').toLowerCase().includes(q);
+      if (!matchName && !matchId && !matchVoucher && !matchPlan) return false;
+    }
+    return true;
+  });
+
+  list.forEach(r => {
+    totalMigrations++;
+    if (r.migrationType === MIGRATION_TYPES.UPGRADE) upgradeCount++;
+    else if (r.migrationType === MIGRATION_TYPES.DOWNGRADE) downgradeCount++;
+    else lateralCount++;
+
+    totalNetAdjustmentPkr += (Number(r.netAdjustment) || 0);
+    totalMrrDeltaPkr += (Number(r.mrrDelta) || 0);
+  });
+
+  const upgradeRatePct = totalMigrations > 0 ? Math.round((upgradeCount / totalMigrations) * 100) : 0;
+
+  return {
+    totalMigrations,
+    upgradeCount,
+    downgradeCount,
+    lateralCount,
+    upgradeRatePct,
+    totalNetAdjustmentPkr,
+    totalMrrDeltaPkr,
+    filteredRecords: filtered
+  };
+}
+
+/**
+ * Formats a bilingual Urdu & English WhatsApp subscriber dispatch slip.
+ */
+export function formatPlanMigrationWhatsApp(record) {
+  if (!record) return '';
+  const p = record.proration || {};
+  const deltaSign = (record.speedDelta || 0) > 0 ? `+${record.speedDelta} Mbps` : `${record.speedDelta || 0} Mbps`;
+  const adjText = record.netAdjustment > 0
+    ? `Payable Now: PKR ${record.netAdjustment.toLocaleString()}`
+    : (record.netAdjustment < 0 ? `Credit Balance: PKR ${Math.abs(record.netAdjustment).toLocaleString()}` : `Net Difference: PKR 0`);
+
+  return [
+    `================================================================`,
+    `📡 SHAHDARA FIBER NET — PLAN MIGRATION VOUCHER`,
+    `واؤچر تبدیلی پیکج و اسپیڈ اپ گریڈ`,
+    `================================================================`,
+    `Voucher Ref : ${record.id}`,
+    `Subscriber  : ${record.customerName} [${record.customerId}]`,
+    `Area/Sector : ${record.customerArea || 'Shahdara Core'}`,
+    `Effective   : ${record.effectiveDate}`,
+    ``,
+    `PACKAGE TRANSITION / پیکج کی تفصیل:`,
+    `  • Previous Plan : ${record.currentPlan} (PKR ${record.currentRate?.toLocaleString()}/mo)`,
+    `  • New Plan      : ${record.targetPlan} (PKR ${record.targetRate?.toLocaleString()}/mo)`,
+    `  • Bandwidth Δ   : ${deltaSign} Speed Adjustment`,
+    `  • Migration     : ${record.migrationType}`,
+    ``,
+    `MID-CYCLE PRORATION / درمیانی ایام کا حساب:`,
+    `  • Month Length  : ${p.daysInMonth || 30} Days (Effective Day: ${p.effectiveDay || 1})`,
+    `  • Days on Old   : ${p.daysElapsed || 0} days`,
+    `  • Days on New   : ${p.daysRemaining || 30} days`,
+    `  • Unearned Cr.  : PKR ${(p.oldPlanCredit || 0).toLocaleString()}`,
+    `  • Prorated Chg. : PKR ${(p.newPlanCharge || 0).toLocaleString()}`,
+    `  • ${adjText}`,
+    ``,
+    `NOTICE & ADVISORY / اہم ہدایات:`,
+    `  1. Please power-cycle your optical fiber router for 30 seconds to lock onto the new OLT profile bandwidth.`,
+    `  2. آئندہ ماہانہ بل میں نئے پیکج کے مطابق ریٹ وصول کیا جائے گا۔`,
+    `  3. Support Helpline: 0300-1234567 | Shahdara NOC`,
+    `================================================================`,
+    `* Digital Provisioning Approved by ${record.authorizedBy} *`
+  ].join('\n');
+}
+
+/**
+ * Generates printable HTML documents (A4 Sheet and 80mm POS Thermal Slip).
+ */
+export function generatePlanMigrationHtml(record, options = {}) {
+  if (!record) return '<p>No migration record provided.</p>';
+  const format = options.format === 'thermal' ? 'thermal' : 'standard';
+  const p = record.proration || {};
+  const c = record.compatibility || {};
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  if (format === 'thermal') {
+    return `
+      <div class="thermal-migration-slip" style="width: 280px; font-family: monospace; font-size: 11px; padding: 6px; color: #000; line-height: 1.4;">
+        <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+          <strong style="font-size: 13px;">SHAHDARA FIBER NET</strong><br>
+          <span>PLAN MIGRATION RECEIPT</span><br>
+          <small>Ref: ${esc(record.id)}</small>
+        </div>
+        <div>
+          <strong>Subscriber:</strong> ${esc(record.customerName)}<br>
+          <strong>ID:</strong> ${esc(record.customerId)} | ${esc(record.customerArea)}<br>
+          <strong>Date:</strong> ${esc(record.effectiveDate)}
+        </div>
+        <div style="border-top: 1px dashed #000; margin: 6px 0; padding-top: 6px;">
+          <strong>OLD:</strong> ${esc(record.currentPlan)}<br>
+          <strong>NEW:</strong> ${esc(record.targetPlan)}<br>
+          <strong>Bandwidth:</strong> ${record.speedDelta > 0 ? '+' : ''}${record.speedDelta} Mbps (${esc(record.migrationType)})
+        </div>
+        <div style="border-top: 1px dashed #000; margin: 6px 0; padding-top: 6px;">
+          Days Old: ${p.daysElapsed} | Days New: ${p.daysRemaining}<br>
+          Old Credit: PKR ${(p.oldPlanCredit || 0).toLocaleString()}<br>
+          New Charge: PKR ${(p.newPlanCharge || 0).toLocaleString()}<br>
+          <strong style="font-size: 12px;">NET: PKR ${(record.netAdjustment || 0).toLocaleString()}</strong>
+        </div>
+        <div style="border-top: 1px dashed #000; padding-top: 6px; text-align: center; font-size: 10px;">
+          Please reboot your ONT router.<br>
+          Helpline: 0300-1234567<br>
+          Auth: ${esc(record.authorizedBy)}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="plan-migration-document" style="font-family: 'DM Sans', system-ui, sans-serif; padding: 24px; color: #1e293b; max-width: 760px; margin: 0 auto; background: #ffffff;">
+      <!-- Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e5b4d; padding-bottom: 14px; margin-bottom: 20px;">
+        <div>
+          <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #0e5b4d; letter-spacing: -0.02em;">SHAHDARA FIBER NET</h1>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #64748b; font-weight: 600;">SERVICE PLAN MIGRATION &amp; BANDWIDTH UPGRADE VOUCHER</p>
+          <p style="margin: 2px 0 0; font-size: 11px; color: #059669; font-weight: 700;">واؤچر تبدیلی و تجدید براڈ بینڈ پیکج</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-family: monospace; font-size: 13px; font-weight: 800; color: #0e5b4d;">${esc(record.id)}</div>
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Effective: <strong>${esc(record.effectiveDate)}</strong></div>
+          <span style="display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; background: ${record.migrationType === 'UPGRADE' ? '#d1fae5' : '#fef3c7'}; color: ${record.migrationType === 'UPGRADE' ? '#065f46' : '#92400e'};">
+            ${esc(record.migrationType)} (${record.speedDelta > 0 ? '+' : ''}${record.speedDelta} Mbps)
+          </span>
+        </div>
+      </div>
+
+      <!-- Subscriber Info Ribbon -->
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+        <div>
+          <span style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700;">SUBSCRIBER</span>
+          <div style="font-size: 13px; font-weight: 700; color: #0f172a;">${esc(record.customerName)}</div>
+          <div style="font-size: 11px; color: #64748b;">ID: ${esc(record.customerId)}</div>
+        </div>
+        <div>
+          <span style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700;">SECTOR &amp; PHONE</span>
+          <div style="font-size: 13px; font-weight: 600; color: #0f172a;">${esc(record.customerArea || 'Shahdara Core')}</div>
+          <div style="font-size: 11px; color: #64748b;">${esc(record.customerPhone || '—')}</div>
+        </div>
+        <div>
+          <span style="font-size: 10px; color: #64748b; text-transform: uppercase; font-weight: 700;">PROVISIONING STATUS</span>
+          <div style="font-size: 13px; font-weight: 700; color: #059669;">${esc(record.status)}</div>
+          <div style="font-size: 11px; color: #64748b;">By: ${esc(record.authorizedBy)}</div>
+        </div>
+      </div>
+
+      <!-- Plan Comparison Table -->
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 12px;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            <th style="padding: 8px 10px; text-align: left; border: 1px solid #e2e8f0;">Plan Component</th>
+            <th style="padding: 8px 10px; text-align: left; border: 1px solid #e2e8f0;">Previous Plan (سابقہ پیکج)</th>
+            <th style="padding: 8px 10px; text-align: left; border: 1px solid #e2e8f0; background: #f0fdf4;">New Target Plan (نیا پیکج)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0; font-weight: 600;">Service Plan Name</td>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0;">${esc(record.currentPlan)}</td>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0; font-weight: 700; color: #0e5b4d; background: #f0fdf4;">${esc(record.targetPlan)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0; font-weight: 600;">Allocated Bandwidth</td>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0;">${c.currentSpeed || 15} Mbps</td>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0; font-weight: 700; color: #0e5b4d; background: #f0fdf4;">${c.targetSpeed || 25} Mbps (${record.speedDelta > 0 ? '+' : ''}${record.speedDelta} Mbps)</td>
+          </tr>
+          <tr>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0; font-weight: 600;">Monthly Tariff (PKR)</td>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0;">PKR ${(record.currentRate || 0).toLocaleString()}</td>
+            <td style="padding: 8px 10px; border: 1px solid #e2e8f0; font-weight: 700; color: #0e5b4d; background: #f0fdf4;">PKR ${(record.targetRate || 0).toLocaleString()} (MRR Δ: PKR ${(record.mrrDelta || 0).toLocaleString()})</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Proration Settlement Card -->
+      <div style="background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+        <h4 style="margin: 0 0 10px; font-size: 13px; color: #0e5b4d; text-transform: uppercase;">Mid-Cycle Proration Calculation (درمیانی ایام کا گوشوارہ)</h4>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 11.5px;">
+          <div>
+            <span style="color: #78716c;">Billing Month Days:</span><br>
+            <strong>${p.daysInMonth || 30} Days</strong>
+          </div>
+          <div>
+            <span style="color: #78716c;">Days on Old Plan:</span><br>
+            <strong>${p.daysElapsed || 0} Days</strong>
+          </div>
+          <div>
+            <span style="color: #78716c;">Days on New Plan:</span><br>
+            <strong>${p.daysRemaining || 30} Days</strong>
+          </div>
+          <div>
+            <span style="color: #78716c;">Net Proration Due:</span><br>
+            <strong style="font-size: 14px; color: ${record.netAdjustment > 0 ? '#b91c1c' : '#047857'};">
+              PKR ${(record.netAdjustment || 0).toLocaleString()}
+            </strong>
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 11px; color: #78716c; border-top: 1px dashed #d6d3d1; padding-top: 8px;">
+          Unearned Credit from Old Plan: <strong>PKR ${(p.oldPlanCredit || 0).toLocaleString()}</strong> &nbsp;|&nbsp; 
+          Prorated Charge for New Plan: <strong>PKR ${(p.newPlanCharge || 0).toLocaleString()}</strong>
+        </div>
+      </div>
+
+      <!-- Notes -->
+      ${record.notes ? `
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px; margin-bottom: 20px; font-size: 11.5px;">
+          <strong>Technician / NOC Notes:</strong> ${esc(record.notes)}
+        </div>
+      ` : ''}
+
+      <!-- Signatures -->
+      <div style="display: flex; justify-content: space-between; margin-top: 40px; border-top: 1px solid #cbd5e1; padding-top: 14px; font-size: 11px;">
+        <div>
+          <strong>Subscriber Acceptance:</strong><br>
+          <span style="display: inline-block; margin-top: 25px; border-top: 1px solid #94a3b8; width: 180px; text-align: center;">Customer Signature</span>
+        </div>
+        <div style="text-align: right;">
+          <strong>Authorized by Shahdara ISP NOC:</strong><br>
+          <span style="display: inline-block; margin-top: 25px; border-top: 1px solid #94a3b8; width: 180px; text-align: center;">NOC Engineer / Stamp</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Generates RFC-4180 CSV export of plan migrations with UTF-8 BOM.
+ */
+export function generatePlanMigrationsCsv(records = []) {
+  const list = Array.isArray(records) ? records : [];
+  const headers = [
+    'Voucher ID',
+    'Timestamp',
+    'Customer ID',
+    'Subscriber Name',
+    'Phone',
+    'Area',
+    'Current Plan',
+    'Current Rate PKR',
+    'Target Plan',
+    'Target Rate PKR',
+    'Effective Date',
+    'Migration Type',
+    'Speed Delta Mbps',
+    'Days Elapsed',
+    'Days Remaining',
+    'Unearned Credit PKR',
+    'Prorated Charge PKR',
+    'Net Adjustment PKR',
+    'MRR Delta PKR',
+    'Status',
+    'Authorized By',
+    'Notes'
+  ];
+
+  const escapeCell = (v) => {
+    const s = String(v ?? '').replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  const rows = [headers.map(escapeCell).join(',')];
+  list.forEach(r => {
+    const p = r.proration || {};
+    rows.push([
+      escapeCell(r.id),
+      escapeCell(r.timestamp),
+      escapeCell(r.customerId),
+      escapeCell(r.customerName),
+      escapeCell(r.customerPhone),
+      escapeCell(r.customerArea),
+      escapeCell(r.currentPlan),
+      escapeCell(r.currentRate),
+      escapeCell(r.targetPlan),
+      escapeCell(r.targetRate),
+      escapeCell(r.effectiveDate),
+      escapeCell(r.migrationType),
+      escapeCell(r.speedDelta),
+      escapeCell(p.daysElapsed),
+      escapeCell(p.daysRemaining),
+      escapeCell(p.oldPlanCredit),
+      escapeCell(p.newPlanCharge),
+      escapeCell(r.netAdjustment),
+      escapeCell(r.mrrDelta),
+      escapeCell(r.status),
+      escapeCell(r.authorizedBy),
+      escapeCell(r.notes)
+    ].join(','));
+  });
+
+  return '\uFEFF' + rows.join('\r\n');
+}
+
+/**
+ * Sets up and wires the Plan Migration & Mid-Cycle Proration dialog modal.
+ */
+export function setupPlanMigrationModal(options = {}) {
+  const {
+    getState = () => ({}),
+    storage = null,
+    onToast = null,
+    onMigrationSaved = null,
+    clipboard = null
+  } = options;
+
+  if (typeof document === 'undefined') {
+    return { open: () => {}, close: () => {}, recalculate: () => {} };
+  }
+
+  const modal = document.getElementById('customerPlanMigrationModal');
+  const openBtns = document.querySelectorAll('[data-open-plan-migration], #openPlanMigrationBtn');
+  const closeBtn = document.getElementById('planMigrationCloseBtn');
+
+  // Customer context fields
+  const customerNameEl = document.getElementById('migCustomerName');
+  const customerMetaEl = document.getElementById('migCustomerMeta');
+  const currentPlanEl = document.getElementById('migCurrentPlan');
+  const currentRateEl = document.getElementById('migCurrentRate');
+
+  // Form controls
+  const targetPlanSelect = document.getElementById('migTargetPlanSelect');
+  const targetRateInput = document.getElementById('migTargetRateInput');
+  const effectiveDateInput = document.getElementById('migEffectiveDateInput');
+  const ontPortSelect = document.getElementById('migOntPortSelect');
+  const notesInput = document.getElementById('migNotesInput');
+  const authorizerInput = document.getElementById('migAuthorizerInput');
+
+  // Preview elements
+  const speedDeltaBadge = document.getElementById('migSpeedDeltaBadge');
+  const prorationSummaryBox = document.getElementById('migProrationSummaryBox');
+  const netDueVal = document.getElementById('migNetDueVal');
+  const mrrDeltaVal = document.getElementById('migMrrDeltaVal');
+  const hardwareWarningBanner = document.getElementById('migHardwareWarningBanner');
+
+  // Actions
+  const submitBtn = document.getElementById('planMigrationSubmitBtn');
+  const printA4Btn = document.getElementById('planMigrationPrintA4Btn');
+  const printThermalBtn = document.getElementById('planMigrationPrintThermalBtn');
+  const copyWhatsAppBtn = document.getElementById('planMigrationCopyWhatsAppBtn');
+  const exportCsvBtn = document.getElementById('planMigrationExportCsvBtn');
+
+  // Audit table & filter elements
+  const filterTypeSelect = document.getElementById('migFilterTypeSelect');
+  const searchInput = document.getElementById('migSearchInput');
+  const tableBody = document.getElementById('migHistoryTableBody');
+  const countBadge = document.getElementById('migTotalCountBadge');
+  const kpiUpgrades = document.getElementById('migKpiUpgrades');
+  const kpiNetMrr = document.getElementById('migKpiNetMrr');
+  const kpiProratedTotal = document.getElementById('migKpiProratedTotal');
+
+  let activeCustomer = null;
+  let lastRecordedRecord = null;
+
+  function populatePlanSelect() {
+    if (targetPlanSelect && targetPlanSelect.children.length === 0) {
+      SHAHDARA_BROADBAND_PLANS.forEach(plan => {
+        const opt = document.createElement('option');
+        opt.value = plan.name;
+        opt.dataset.price = String(plan.monthlyPrice);
+        opt.dataset.speed = String(plan.speedMbps);
+        opt.textContent = `${plan.name} — PKR ${plan.monthlyPrice.toLocaleString()}/mo`;
+        targetPlanSelect.appendChild(opt);
+      });
+    }
+  }
+
+  function getSelectedTargetPlanInfo() {
+    const selectedOpt = targetPlanSelect?.selectedOptions?.[0];
+    const planName = targetPlanSelect?.value || '25 Mbps Turbo Broadband';
+    const price = selectedOpt ? Number(selectedOpt.dataset.price) : 2000;
+    const speed = selectedOpt ? Number(selectedOpt.dataset.speed) : 25;
+    return { planName, price, speed };
+  }
+
+  function recalculateLivePreview() {
+    const state = typeof getState === 'function' ? getState() : {};
+    const curPlan = activeCustomer?.package || activeCustomer?.plan || '15 Mbps Family Streamer';
+    const curRate = Number(activeCustomer?.monthlyFee ?? activeCustomer?.rate ?? 1500) || 1500;
+
+    const tgtPlan = targetPlanSelect?.value || '25 Mbps Turbo Broadband';
+    const tgtRate = Number(targetRateInput?.value) || 2000;
+    const effDate = effectiveDateInput?.value || new Date().toISOString().slice(0, 10);
+    const ontPort = ontPortSelect?.value || 'GE';
+
+    const proration = calculatePlanMigrationProration(curRate, tgtRate, effDate);
+    const compat = assessPlanCompatibility(curPlan, tgtPlan, ontPort);
+
+    if (speedDeltaBadge) {
+      const sign = compat.speedDelta > 0 ? '+' : '';
+      speedDeltaBadge.textContent = `${sign}${compat.speedDelta} Mbps (${compat.migrationType})`;
+      speedDeltaBadge.className = `sim-delta-badge ${compat.migrationType === 'UPGRADE' ? 'badge-success' : (compat.migrationType === 'DOWNGRADE' ? 'badge-warning' : 'badge-info')}`;
+    }
+
+    if (netDueVal) {
+      netDueVal.textContent = `PKR ${proration.netAdjustment.toLocaleString()}`;
+      netDueVal.style.color = proration.netAdjustment > 0 ? '#b91c1c' : (proration.netAdjustment < 0 ? '#047857' : 'inherit');
+    }
+
+    if (mrrDeltaVal) {
+      const sign = proration.mrrDelta > 0 ? '+' : '';
+      mrrDeltaVal.textContent = `${sign}PKR ${proration.mrrDelta.toLocaleString()}/mo`;
+      mrrDeltaVal.style.color = proration.mrrDelta > 0 ? '#047857' : (proration.mrrDelta < 0 ? '#b91c1c' : 'inherit');
+    }
+
+    if (prorationSummaryBox) {
+      prorationSummaryBox.innerHTML = `
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:11px;">
+          <span>Billing Month Length: <strong>${proration.daysInMonth} Days</strong></span>
+          <span>Effective Day: <strong>Day ${proration.effectiveDay}</strong></span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px;">
+          <span>Days on Old Plan: <strong>${proration.daysElapsed} days</strong> (Cr: PKR ${proration.oldPlanCredit.toLocaleString()})</span>
+          <span>Days on New Plan: <strong>${proration.daysRemaining} days</strong> (Chg: PKR ${proration.newPlanCharge.toLocaleString()})</span>
+        </div>
+      `;
+    }
+
+    if (hardwareWarningBanner) {
+      if (compat.warningNotice) {
+        hardwareWarningBanner.textContent = compat.warningNotice;
+        hardwareWarningBanner.removeAttribute('hidden');
+      } else {
+        hardwareWarningBanner.setAttribute('hidden', '');
+      }
+    }
+  }
+
+  function renderList() {
+    const records = getSavedPlanMigrations(storage);
+    const filter = filterTypeSelect?.value || 'ALL';
+    const query = searchInput?.value || '';
+
+    const metrics = calculatePlanMigrationMetrics(records, { filterType: filter, searchQuery: query });
+
+    if (countBadge) countBadge.textContent = `${metrics.filteredRecords.length} records`;
+    if (kpiUpgrades) kpiUpgrades.textContent = `${metrics.upgradeCount} (${metrics.upgradeRatePct}%)`;
+    if (kpiNetMrr) kpiNetMrr.textContent = `+PKR ${metrics.totalMrrDeltaPkr.toLocaleString()}`;
+    if (kpiProratedTotal) kpiProratedTotal.textContent = `PKR ${metrics.totalNetAdjustmentPkr.toLocaleString()}`;
+
+    if (tableBody) {
+      if (metrics.filteredRecords.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:center; padding:18px; color:var(--muted, #64748b);">
+              No plan migration records match the criteria.
+            </td>
+          </tr>
+        `;
+      } else {
+        tableBody.innerHTML = metrics.filteredRecords.map(r => {
+          const p = r.proration || {};
+          const isUp = r.migrationType === 'UPGRADE';
+          return `
+            <tr>
+              <td>
+                <strong>${r.customerName}</strong>
+                <div style="font-size:10px; color:var(--muted, #64748b);">${r.customerId} · ${r.customerArea || 'Shahdara'}</div>
+              </td>
+              <td>
+                <div>${r.currentPlan}</div>
+                <div style="font-size:10px; color:var(--muted, #64748b);">PKR ${r.currentRate?.toLocaleString()}/mo</div>
+              </td>
+              <td>
+                <strong style="color:var(--brand-teal, #0e5b4d);">${r.targetPlan}</strong>
+                <div style="font-size:10px; color:var(--muted, #64748b);">PKR ${r.targetRate?.toLocaleString()}/mo</div>
+              </td>
+              <td>
+                <span class="sim-delta-badge ${isUp ? 'badge-success' : 'badge-warning'}" style="font-size:10px;">
+                  ${r.migrationType} (${r.speedDelta > 0 ? '+' : ''}${r.speedDelta}M)
+                </span>
+              </td>
+              <td>
+                <strong>PKR ${r.netAdjustment?.toLocaleString()}</strong>
+                <div style="font-size:10px; color:var(--muted, #64748b);">Day ${p.effectiveDay}/${p.daysInMonth}</div>
+              </td>
+              <td><span style="font-family:monospace; font-size:11px;">${r.effectiveDate}</span></td>
+              <td>
+                <button type="button" class="table-action-btn" data-print-mig="${r.id}" title="Print Voucher" style="padding:2px 6px; font-size:11px;">🖨️</button>
+                <button type="button" class="table-action-btn" data-wa-mig="${r.id}" title="WhatsApp Slip" style="padding:2px 6px; font-size:11px;">💬</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        tableBody.querySelectorAll('[data-print-mig]').forEach(b => {
+          b.addEventListener('click', () => {
+            const id = b.dataset.printMig;
+            const item = records.find(x => x.id === id);
+            if (item) {
+              const html = generatePlanMigrationHtml(item, { format: 'standard' });
+              const w = window.open('', '_blank');
+              if (w) {
+                w.document.write(`<html><head><title>${item.id}</title></head><body>${html}</body></html>`);
+                w.document.close();
+                w.print();
+              }
+            }
+          });
+        });
+
+        tableBody.querySelectorAll('[data-wa-mig]').forEach(b => {
+          b.addEventListener('click', async () => {
+            const id = b.dataset.waMig;
+            const item = records.find(x => x.id === id);
+            if (item) {
+              const text = formatPlanMigrationWhatsApp(item);
+              const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+              if (clip && typeof clip.writeText === 'function') {
+                try {
+                  await clip.writeText(text);
+                  if (typeof onToast === 'function') onToast('WhatsApp migration voucher copied!');
+                } catch {
+                  if (typeof onToast === 'function') onToast('Failed to copy text.');
+                }
+              }
+            }
+          });
+        });
+      }
+    }
+  }
+
+  function setCustomerContext(cust) {
+    activeCustomer = cust;
+    if (customerNameEl) customerNameEl.textContent = cust?.name || 'Active Subscriber';
+    if (customerMetaEl) customerMetaEl.textContent = `ID: ${cust?.id || '—'} · Sector: ${cust?.area || cust?.mohalla || 'Shahdara Core'}`;
+    if (currentPlanEl) currentPlanEl.textContent = cust?.package || cust?.plan || '15 Mbps Family Streamer';
+    if (currentRateEl) currentRateEl.textContent = `PKR ${(cust?.monthlyFee ?? cust?.rate ?? 1500).toLocaleString()}/mo`;
+
+    populatePlanSelect();
+    if (effectiveDateInput && !effectiveDateInput.value) {
+      effectiveDateInput.value = new Date().toISOString().slice(0, 10);
+    }
+    if (targetPlanSelect && targetPlanSelect.options.length > 0) {
+      targetPlanSelect.selectedIndex = Math.min(2, targetPlanSelect.options.length - 1);
+      const info = getSelectedTargetPlanInfo();
+      if (targetRateInput) targetRateInput.value = String(info.price);
+    }
+    recalculateLivePreview();
+    renderList();
+  }
+
+  populatePlanSelect();
+
+  if (targetPlanSelect && !targetPlanSelect.dataset?.wiredMig) {
+    targetPlanSelect.dataset.wiredMig = 'true';
+    targetPlanSelect.addEventListener('change', () => {
+      const info = getSelectedTargetPlanInfo();
+      if (targetRateInput) targetRateInput.value = String(info.price);
+      recalculateLivePreview();
+    });
+  }
+
+  if (targetRateInput && !targetRateInput.dataset?.wiredMig) {
+    targetRateInput.dataset.wiredMig = 'true';
+    targetRateInput.addEventListener('input', recalculateLivePreview);
+  }
+
+  if (effectiveDateInput && !effectiveDateInput.dataset?.wiredMig) {
+    effectiveDateInput.dataset.wiredMig = 'true';
+    effectiveDateInput.addEventListener('input', recalculateLivePreview);
+  }
+
+  if (ontPortSelect && !ontPortSelect.dataset?.wiredMig) {
+    ontPortSelect.dataset.wiredMig = 'true';
+    ontPortSelect.addEventListener('change', recalculateLivePreview);
+  }
+
+  if (filterTypeSelect && !filterTypeSelect.dataset?.wiredMig) {
+    filterTypeSelect.dataset.wiredMig = 'true';
+    filterTypeSelect.addEventListener('change', renderList);
+  }
+
+  if (searchInput && !searchInput.dataset?.wiredMig) {
+    searchInput.dataset.wiredMig = 'true';
+    searchInput.addEventListener('input', renderList);
+  }
+
+  // Submit Plan Migration
+  if (submitBtn && !submitBtn.dataset?.wiredMig) {
+    submitBtn.dataset.wiredMig = 'true';
+    submitBtn.addEventListener('click', () => {
+      const custId = activeCustomer?.id || 'CUST-DEMO';
+      const custName = activeCustomer?.name || 'Subscriber';
+      const custPhone = activeCustomer?.phone || '';
+      const custArea = activeCustomer?.area || activeCustomer?.mohalla || 'Shahdara Core';
+      const curPlan = activeCustomer?.package || activeCustomer?.plan || '15 Mbps Family Streamer';
+      const curRate = Number(activeCustomer?.monthlyFee ?? activeCustomer?.rate ?? 1500) || 1500;
+      const tgtPlan = targetPlanSelect?.value || '25 Mbps Turbo Broadband';
+      const tgtRate = Number(targetRateInput?.value) || 2000;
+      const effDate = effectiveDateInput?.value || new Date().toISOString().slice(0, 10);
+      const auth = authorizerInput?.value || 'NOC Operator';
+      const notes = notesInput?.value || '';
+
+      const val = validatePlanMigration({
+        customerId: custId,
+        currentPlan: curPlan,
+        targetPlan: tgtPlan,
+        currentRate: curRate,
+        targetRate: tgtRate,
+        effectiveDate: effDate,
+        authorizedBy: auth
+      });
+
+      if (!val.valid) {
+        if (typeof onToast === 'function') onToast(val.errors[0]);
+        return;
+      }
+
+      const record = buildPlanMigrationRecord({
+        customerId: custId,
+        customerName: custName,
+        customerPhone: custPhone,
+        customerArea: custArea,
+        currentPlan: curPlan,
+        currentRate: curRate,
+        targetPlan: tgtPlan,
+        targetRate: tgtRate,
+        effectiveDate: effDate,
+        notes,
+        authorizedBy: auth,
+        ontPortType: ontPortSelect?.value || 'GE'
+      });
+
+      savePlanMigration(record, storage);
+      lastRecordedRecord = record;
+
+      if (typeof onMigrationSaved === 'function') {
+        onMigrationSaved(record);
+      }
+
+      if (typeof onToast === 'function') {
+        onToast(`Migration voucher ${record.id} recorded successfully!`);
+      }
+
+      if (notesInput) notesInput.value = '';
+      renderList();
+    });
+  }
+
+  // Copy WhatsApp slip
+  if (copyWhatsAppBtn && !copyWhatsAppBtn.dataset?.wiredMig) {
+    copyWhatsAppBtn.dataset.wiredMig = 'true';
+    copyWhatsAppBtn.addEventListener('click', async () => {
+      const records = getSavedPlanMigrations(storage);
+      const target = lastRecordedRecord || records[0];
+      if (!target) {
+        if (typeof onToast === 'function') onToast('No plan migration voucher to copy.');
+        return;
+      }
+      const text = formatPlanMigrationWhatsApp(target);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('WhatsApp migration voucher copied!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy text.');
+        }
+      }
+    });
+  }
+
+  // Print A4
+  if (printA4Btn && !printA4Btn.dataset?.wiredMig) {
+    printA4Btn.dataset.wiredMig = 'true';
+    printA4Btn.addEventListener('click', () => {
+      const records = getSavedPlanMigrations(storage);
+      const target = lastRecordedRecord || records[0];
+      if (!target) {
+        if (typeof onToast === 'function') onToast('No plan migration voucher to print.');
+        return;
+      }
+      const html = generatePlanMigrationHtml(target, { format: 'standard' });
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.write(`<html><head><title>${target.id}</title></head><body>${html}</body></html>`);
+        w.document.close();
+        w.print();
+      }
+    });
+  }
+
+  // Print Thermal
+  if (printThermalBtn && !printThermalBtn.dataset?.wiredMig) {
+    printThermalBtn.dataset.wiredMig = 'true';
+    printThermalBtn.addEventListener('click', () => {
+      const records = getSavedPlanMigrations(storage);
+      const target = lastRecordedRecord || records[0];
+      if (!target) {
+        if (typeof onToast === 'function') onToast('No plan migration voucher to print.');
+        return;
+      }
+      const html = generatePlanMigrationHtml(target, { format: 'thermal' });
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.write(`<html><head><title>${target.id}</title></head><body>${html}</body></html>`);
+        w.document.close();
+        w.print();
+      }
+    });
+  }
+
+  // Export CSV
+  if (exportCsvBtn && !exportCsvBtn.dataset?.wiredMig) {
+    exportCsvBtn.dataset.wiredMig = 'true';
+    exportCsvBtn.addEventListener('click', () => {
+      const records = getSavedPlanMigrations(storage);
+      const csv = generatePlanMigrationsCsv(records);
+      const filename = `shahdara_plan_migrations_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      if (typeof onToast === 'function') onToast(`Exported ${filename}`);
+    });
+  }
+
+  // Modal open triggers
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredMigOpen) {
+      btn.dataset.wiredMigOpen = 'true';
+      btn.addEventListener('click', () => {
+        const state = typeof getState === 'function' ? getState() : {};
+        const cust = activeCustomer || state?.customers?.[0] || null;
+        setCustomerContext(cust);
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredMig) {
+    closeBtn.dataset.wiredMig = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    open: (cust) => {
+      setCustomerContext(cust);
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    },
+    setCustomer: setCustomerContext,
+    recalculate: () => {
+      recalculateLivePreview();
+      renderList();
+    }
+  };
+}

@@ -3527,6 +3527,391 @@ export function setupFiberDistributionModal(state, options = {}) {
   }
 }
 
+export const DELINQUENCY_STAGES = [
+  {
+    stageKey: 'grace',
+    stageName: 'Grace Period (Gentle Reminder)',
+    shortLabel: '1-7 Days (Grace)',
+    windowLabel: '1-7 Days',
+    minDays: 1,
+    maxDays: 7,
+    recoveryProbability: 0.90,
+    protocol: 'Automated SMS / WhatsApp payment reminder',
+    color: '#0e5b4d'
+  },
+  {
+    stageKey: 'notice',
+    stageName: 'Notice of Disconnection',
+    shortLabel: '8-21 Days (Notice)',
+    windowLabel: '8-21 Days',
+    minDays: 8,
+    maxDays: 21,
+    recoveryProbability: 0.70,
+    protocol: 'Field collector visit & disconnection notice delivery',
+    color: '#0284c7'
+  },
+  {
+    stageKey: 'suspension_risk',
+    stageName: 'Soft Suspension Risk',
+    shortLabel: '22-45 Days (Throttle)',
+    windowLabel: '22-45 Days',
+    minDays: 22,
+    maxDays: 45,
+    recoveryProbability: 0.45,
+    protocol: 'Speed throttle / soft suspension & supervisor audit call',
+    color: '#d97706'
+  },
+  {
+    stageKey: 'severe',
+    stageName: 'Severe Delinquency Escalation',
+    shortLabel: '46+ Days (Severed)',
+    windowLabel: '46+ Days',
+    minDays: 46,
+    maxDays: Infinity,
+    recoveryProbability: 0.15,
+    protocol: 'Physical drop disconnection & CPE equipment recovery',
+    color: '#dc2626'
+  }
+];
+
+export function calculateDelinquencyRecoveryPipeline(state, referenceDate = new Date()) {
+  const refTime = referenceDate.getTime();
+  const allocations = calculatePaymentAllocations(state);
+  const retainedMonths = new Set(monthsForHistory(referenceDate));
+
+  const stages = DELINQUENCY_STAGES.map(def => ({
+    ...def,
+    subscriberCount: 0,
+    subscribers: [],
+    totalOverdueAmount: 0,
+    expectedRecoverableAmount: 0,
+    percentOfTotalDues: 0
+  }));
+
+  const stageMap = new Map();
+  for (const s of stages) {
+    stageMap.set(s.stageKey, s);
+  }
+
+  const delinquentCustomers = [];
+  const areaAggregationMap = new Map();
+
+  let totalDelinquentAccounts = 0;
+  let totalDelinquentDues = 0;
+
+  for (const c of (state?.customers ?? [])) {
+    if (c.archived) continue;
+
+    let customerDueCents = 0;
+    let oldestUnpaidBill = null;
+    let oldestUnpaidDays = 0;
+
+    for (const bill of (c.bills ?? [])) {
+      if (!retainedMonths.has(bill.month)) continue;
+      const alloc = allocations.forMonth?.(c.id, bill.month);
+      const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(bill.amount || 0) * 100);
+
+      if (balanceDueCents > 0) {
+        customerDueCents += balanceDueCents;
+        let billDueDate = null;
+        if (bill.dueDate) {
+          billDueDate = new Date(bill.dueDate);
+        } else if (bill.month) {
+          billDueDate = new Date(`${bill.month}-10`);
+        }
+
+        let daysOverdue = 1;
+        if (billDueDate && !isNaN(billDueDate.getTime())) {
+          const diffDays = Math.floor((refTime - billDueDate.getTime()) / (1000 * 60 * 60 * 24));
+          daysOverdue = Math.max(1, diffDays);
+        }
+
+        if (!oldestUnpaidBill || daysOverdue > oldestUnpaidDays) {
+          oldestUnpaidBill = bill;
+          oldestUnpaidDays = daysOverdue;
+        }
+      }
+    }
+
+    const totalOverdue = Math.round(customerDueCents / 100);
+    if (totalOverdue <= 0) continue;
+
+    totalDelinquentAccounts++;
+    totalDelinquentDues += totalOverdue;
+
+    let matchedStage = stages[0];
+    for (const s of stages) {
+      if (oldestUnpaidDays >= s.minDays && oldestUnpaidDays <= s.maxDays) {
+        matchedStage = s;
+        break;
+      }
+    }
+
+    const customerSummary = {
+      id: c.id,
+      customerNumber: c.customerNumber || '',
+      name: c.name || 'Unnamed',
+      area: c.area || 'Unassigned',
+      phone: c.phone || '',
+      package: c.packageSpeed || 'Unassigned',
+      balanceDue: totalOverdue,
+      daysOverdue: oldestUnpaidDays,
+      oldestMonth: oldestUnpaidBill?.month || '',
+      stageKey: matchedStage.stageKey,
+      stageName: matchedStage.stageName,
+      serviceStatus: c.serviceStatus || 'not-set'
+    };
+
+    matchedStage.subscriberCount++;
+    matchedStage.totalOverdueAmount += totalOverdue;
+    matchedStage.subscribers.push(customerSummary);
+    delinquentCustomers.push(customerSummary);
+
+    const areaKey = customerSummary.area;
+    if (!areaAggregationMap.has(areaKey)) {
+      areaAggregationMap.set(areaKey, {
+        areaName: areaKey,
+        delinquentAccounts: 0,
+        totalOverdue: 0,
+        severeCount: 0,
+        expectedRecovery: 0
+      });
+    }
+    const areaItem = areaAggregationMap.get(areaKey);
+    areaItem.delinquentAccounts++;
+    areaItem.totalOverdue += totalOverdue;
+    if (matchedStage.stageKey === 'severe') {
+      areaItem.severeCount++;
+    }
+    areaItem.expectedRecovery += Math.round(totalOverdue * matchedStage.recoveryProbability);
+  }
+
+  let totalExpectedRecovery = 0;
+  for (const s of stages) {
+    s.expectedRecoverableAmount = Math.round(s.totalOverdueAmount * s.recoveryProbability);
+    s.percentOfTotalDues = totalDelinquentDues > 0 ? Math.round((s.totalOverdueAmount / totalDelinquentDues) * 100) : 0;
+    totalExpectedRecovery += s.expectedRecoverableAmount;
+  }
+
+  const blendedRecoveryRatePercent = totalDelinquentDues > 0
+    ? Number(((totalExpectedRecovery / totalDelinquentDues) * 100).toFixed(1))
+    : 0;
+
+  const severeStage = stageMap.get('severe');
+  const severeAtRiskAmount = severeStage?.totalOverdueAmount ?? 0;
+  const severePercent = totalDelinquentDues > 0 ? (severeAtRiskAmount / totalDelinquentDues) * 100 : 0;
+
+  let pipelineHealthStatus = 'Healthy Pacing';
+  let pipelineHealthBadgeClass = 'badge-expansion';
+  if (totalDelinquentAccounts === 0) {
+    pipelineHealthStatus = 'Clean Ledger (Zero Delinquency)';
+    pipelineHealthBadgeClass = 'badge-expansion';
+  } else if (severePercent >= 35) {
+    pipelineHealthStatus = 'Critical Escalation Required';
+    pipelineHealthBadgeClass = 'badge-contraction';
+  } else if (severePercent >= 15) {
+    pipelineHealthStatus = 'Moderate Delinquency Backlog';
+    pipelineHealthBadgeClass = 'badge-stable';
+  }
+
+  const dailyPacingTarget = Math.round(totalExpectedRecovery / 30);
+
+  const topDelinquentAreas = Array.from(areaAggregationMap.values())
+    .sort((a, b) => b.totalOverdue - a.totalOverdue || b.delinquentAccounts - a.delinquentAccounts);
+
+  const topDelinquentAccounts = [...delinquentCustomers]
+    .sort((a, b) => b.balanceDue - a.balanceDue || b.daysOverdue - a.daysOverdue);
+
+  return {
+    totalDelinquentAccounts,
+    totalDelinquentDues,
+    totalExpectedRecovery,
+    blendedRecoveryRatePercent,
+    severeAtRiskAmount,
+    pipelineHealthStatus,
+    pipelineHealthBadgeClass,
+    dailyPacingTarget,
+    stages,
+    topDelinquentAreas,
+    topDelinquentAccounts
+  };
+}
+
+export function generateDelinquencyPipelineReport(pipelineData, referenceDate = new Date()) {
+  const dateStr = referenceDate.toISOString().slice(0, 10);
+  const lines = [
+    `🚨 SHAHDARA ISP - DELINQUENCY RECOVERY & ESCALATION BRIEFING`,
+    `Generated: ${dateStr} PKT`,
+    `--------------------------------------------------`,
+    `[ PIPELINE RECOVERY STATUS ]`,
+    `  Health Status: ${pipelineData.pipelineHealthStatus}`,
+    `  Delinquent Accounts: ${pipelineData.totalDelinquentAccounts}`,
+    `  Total Overdue Dues: ${formatPKR(pipelineData.totalDelinquentDues)}`,
+    `  Expected Realizable Recovery: ${formatPKR(pipelineData.totalExpectedRecovery)} (${pipelineData.blendedRecoveryRatePercent}% blended)`,
+    `  Severe At-Risk Dues: ${formatPKR(pipelineData.severeAtRiskAmount)}`,
+    `  Daily Collector Pacing Target: ${formatPKR(pipelineData.dailyPacingTarget)} / day`,
+    ``,
+    `[ AGING STAGES & ESCALATION PROTOCOLS ]`
+  ];
+
+  for (const s of pipelineData.stages) {
+    lines.push(`  • ${s.stageName} (${s.windowLabel}):`);
+    lines.push(`    Subscribers: ${s.subscriberCount} | Overdue: ${formatPKR(s.totalOverdueAmount)} (${s.percentOfTotalDues}%)`);
+    lines.push(`    Expected Net: ${formatPKR(s.expectedRecoverableAmount)} (P=${Math.round(s.recoveryProbability * 100)}%)`);
+    lines.push(`    Action: ${s.protocol}`);
+  }
+
+  lines.push(``);
+  lines.push(`[ AREA DELINQUENCY CONCENTRATION ]`);
+  if (pipelineData.topDelinquentAreas.length === 0) {
+    lines.push(`  None recorded`);
+  } else {
+    pipelineData.topDelinquentAreas.slice(0, 5).forEach((a, i) => {
+      lines.push(`  ${i + 1}. ${a.areaName}: ${a.delinquentAccounts} accounts | Overdue: ${formatPKR(a.totalOverdue)} | Severe: ${a.severeCount}`);
+    });
+  }
+
+  lines.push(``);
+  lines.push(`[ PRIORITY ESCALATION ACCOUNTS ]`);
+  if (pipelineData.topDelinquentAccounts.length === 0) {
+    lines.push(`  None recorded`);
+  } else {
+    pipelineData.topDelinquentAccounts.slice(0, 8).forEach(acc => {
+      lines.push(`  • ${acc.name} (${acc.area}): ${formatPKR(acc.balanceDue)} overdue (${acc.daysOverdue}d) [${acc.stageName}]`);
+    });
+  }
+
+  lines.push(`--------------------------------------------------`);
+  lines.push(`Shahdara ISP Field Collection & Revenue Recovery Operations`);
+  return lines.join('\n');
+}
+
+export function setupDelinquencyPipelineModal(state, { referenceDate = new Date(), onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardDelinquencyModal');
+  const openBtn = document.getElementById('dashboardOpenDelinquencyModalBtn');
+  const closeBtn = document.getElementById('dashboardDelinquencyModalCloseBtn');
+  const stageTableBody = document.getElementById('delinquencyStageTableBody');
+  const accountsTableBody = document.getElementById('delinquencyAccountsTableBody');
+  const copyBtn = document.getElementById('dashboardCopyDelinquencyReportBtn');
+
+  const totalAccountsEl = document.getElementById('delinquencyTotalAccountsVal');
+  const totalDuesEl = document.getElementById('delinquencyTotalDuesVal');
+  const expectedRecoveryEl = document.getElementById('delinquencyExpectedRecoveryVal');
+  const blendedRateEl = document.getElementById('delinquencyBlendedRateVal');
+  const statusBadgeEl = document.getElementById('delinquencyStatusBadge');
+  const dailyTargetEl = document.getElementById('delinquencyDailyTargetVal');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const data = calculateDelinquencyRecoveryPipeline(state, referenceDate);
+
+    if (totalAccountsEl) totalAccountsEl.textContent = String(data.totalDelinquentAccounts);
+    if (totalDuesEl) totalDuesEl.textContent = formatPKR(data.totalDelinquentDues);
+    if (expectedRecoveryEl) expectedRecoveryEl.textContent = formatPKR(data.totalExpectedRecovery);
+    if (blendedRateEl) blendedRateEl.textContent = `${data.blendedRecoveryRatePercent}% blended recovery`;
+    if (statusBadgeEl) {
+      statusBadgeEl.textContent = data.pipelineHealthStatus;
+      statusBadgeEl.className = `sim-delta-badge ${data.pipelineHealthBadgeClass}`;
+    }
+    if (dailyTargetEl) dailyTargetEl.textContent = `Target: ${formatPKR(data.dailyPacingTarget)} / day`;
+
+    if (stageTableBody) {
+      stageTableBody.innerHTML = data.stages.map(s => `
+        <tr>
+          <td><strong style="color: ${s.color};">${escapeXml(s.stageName)}</strong></td>
+          <td><span class="status-pill status-watchlist">${escapeXml(s.windowLabel)}</span></td>
+          <td>${s.subscriberCount}</td>
+          <td><strong>${formatPKR(s.totalOverdueAmount)}</strong></td>
+          <td>${Math.round(s.recoveryProbability * 100)}%</td>
+          <td style="color: #047857; font-weight: 700;">${formatPKR(s.expectedRecoverableAmount)}</td>
+          <td class="text-muted">${escapeXml(s.protocol)}</td>
+        </tr>
+      `).join('');
+    }
+
+    if (accountsTableBody) {
+      if (data.topDelinquentAccounts.length === 0) {
+        accountsTableBody.innerHTML = '<tr><td colspan="8" class="empty-cell">No delinquent subscriber accounts</td></tr>';
+      } else {
+        accountsTableBody.innerHTML = data.topDelinquentAccounts.map(acc => `
+          <tr>
+            <td><strong>${escapeXml(acc.name)}</strong></td>
+            <td>${escapeXml(acc.area)}</td>
+            <td>${escapeXml(acc.phone || '—')}</td>
+            <td>${escapeXml(acc.package)}</td>
+            <td><span class="status-pill ${acc.daysOverdue >= 46 ? 'status-delinquent' : (acc.daysOverdue >= 22 ? 'status-watchlist' : 'status-good')}">${acc.daysOverdue} days</span></td>
+            <td><strong style="color: #b91c1c;">${formatPKR(acc.balanceDue)}</strong></td>
+            <td><span class="role-badge" style="background: ${acc.stageKey === 'severe' ? '#fee2e2' : (acc.stageKey === 'suspension_risk' ? '#fef3c7' : '#e0f2fe')}; color: ${acc.stageKey === 'severe' ? '#991b1b' : (acc.stageKey === 'suspension_risk' ? '#92400e' : '#075985')}">${escapeXml(acc.stageName)}</span></td>
+            <td>
+              <button class="small-action-btn" type="button" data-delinquency-filter-id="${acc.id}">View Roster</button>
+            </td>
+          </tr>
+        `).join('');
+
+        const filterBtns = accountsTableBody.querySelectorAll('[data-delinquency-filter-id]');
+        filterBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const cid = btn.getAttribute('data-delinquency-filter-id');
+            if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(cid);
+              if (modal.close) modal.close();
+              else modal.removeAttribute('open');
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateDelinquencyRecoveryPipeline(state, referenceDate);
+      const text = generateDelinquencyPipelineReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Delinquency recovery briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -3555,6 +3940,7 @@ export {
   renderAcquisitionRoiSvg,
   renderBandwidthShapingSvg,
   renderFiberDistributionSvg,
+  renderDelinquencyPipelineSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

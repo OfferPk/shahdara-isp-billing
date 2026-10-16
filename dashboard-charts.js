@@ -4,6 +4,7 @@ import { calculateOtdrFaultMetrics, setupOtdrModal, renderOtdrTraceSvg } from '.
 import { calculateSolarInverterMetrics, setupSolarModal, renderSolarInverterSvg } from './dashboard-solar.js';
 import { calculateAerialTensionMetrics, setupAerialTensionModal, renderAerialTensionSvg } from './dashboard-aerial.js';
 import { calculateMicrowaveLinkBudget, setupMicrowaveModal, renderMicrowaveLinkSvg } from './dashboard-microwave.js';
+import { calculateSpliceClosureMetrics, setupSpliceClosureModal, renderSpliceClosureSvg } from './dashboard-splice.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3272,9 +3273,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupMicrowaveModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const spliceEl = document.getElementById('dashboardSpliceChart');
+  if (spliceEl) {
+    const spliceData = calculateSpliceClosureMetrics(state, { referenceDate });
+    spliceEl.innerHTML = renderSpliceClosureSvg(spliceData);
+  }
+
+  setupSpliceClosureModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg };
 
 

@@ -105,7 +105,21 @@ import {
   setSolarMode,
   getSolarIrradiance,
   setSolarIrradiance,
-  renderSolarInverterSvg
+  renderSolarInverterSvg,
+  SHAHDARA_AERIAL_SECTORS,
+  SHAHDARA_CABLE_TYPES,
+  calculateAerialTensionMetrics,
+  generateAerialTensionReport,
+  setupAerialTensionModal,
+  getAerialSelectedSector,
+  setAerialSelectedSector,
+  getAerialWindSpeed,
+  setAerialWindSpeed,
+  getAerialTemperature,
+  setAerialTemperature,
+  getAerialCableType,
+  setAerialCableType,
+  renderAerialTensionSvg
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -5026,6 +5040,321 @@ test('setupSolarModal wires hub select, mode, irradiance slider, filter area, co
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA ISP - SOLAR INVERTER & GRID RESILIENCE AUDIT'));
     assert.equal(toastMessage, 'Solar power audit briefing copied to clipboard!');
+
+    // Test close
+    assert.ok(closeHandler !== null);
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateAerialTensionMetrics computes baseline catenary sag, ground clearance, and clamp tension correctly', () => {
+  const state = createInitialState([]);
+  const data = calculateAerialTensionMetrics(state, {
+    sectorId: 'wandala-corridor',
+    windSpeed: 20,
+    temperature: 25
+  });
+
+  assert.equal(data.sector.id, 'wandala-corridor');
+  assert.equal(data.cable.id, 'adss-24c');
+  assert.ok(data.inputs.dynamicWindPressurePa > 0);
+  assert.ok(data.mechanical.verticalGravityLoadNm > 0);
+  assert.ok(data.mechanical.horizontalWindLoadNm > 0);
+  assert.ok(data.mechanical.totalResultantLoadNm > data.mechanical.verticalGravityLoadNm);
+
+  // Sag should be positive and reasonable (typically 0.3m to 1.5m for 56m span)
+  assert.ok(data.mechanical.verticalSagM > 0.1 && data.mechanical.verticalSagM < 2.5);
+  // Clearance should be attachmentHeight - verticalSagM
+  const expectedClearance = Number((data.sector.attachmentHeightMeters - data.mechanical.verticalSagM).toFixed(2));
+  assert.equal(data.mechanical.midspanGroundClearanceM, expectedClearance);
+  // Clearance is above minimum 5.5m under mild conditions
+  assert.equal(data.mechanical.clearanceViolation, false);
+  assert.ok(data.mechanical.clearanceMarginM > 0);
+
+  // Mechanical tension should be within 10% to 50% UTS under mild wind
+  assert.ok(data.mechanical.tensionUtsRatioPercent > 5 && data.mechanical.tensionUtsRatioPercent < 60);
+  assert.equal(data.risk.statusTier, 'optimal');
+  assert.ok(data.fleetSummary.length >= 5);
+});
+
+test('calculateAerialTensionMetrics detects clearance violation under excessive sag and thermal expansion', () => {
+  const state = createInitialState([]);
+  // Longest span (Shahdara Chowk Highway Crossing, 74m) or Saeed Park (68m), high temp 50°C and heavy cable
+  const data = calculateAerialTensionMetrics(state, {
+    sectorId: 'chowk-station-crossing',
+    windSpeed: 60,
+    temperature: 50,
+    cableId: 'armored-48c'
+  });
+
+  assert.equal(data.sector.id, 'chowk-station-crossing');
+  assert.ok(data.mechanical.verticalSagM > 0.5);
+  // With 6.5m required clearance and 9.2m attachment height, sag > 2.7m causes clearance violation
+  assert.ok(data.mechanical.midspanGroundClearanceM <= data.sector.attachmentHeightMeters);
+  assert.ok(data.mechanical.poleBaseBendingMomentNm > 0);
+});
+
+test('calculateAerialTensionMetrics detects critical tension snap hazard under extreme storm gusts', () => {
+  const state = createInitialState([]);
+  // Severe monsoon dust storm (120 km/h) and freezing winter chill (-10°C) with Figure-8 2-core drop
+  const data = calculateAerialTensionMetrics(state, {
+    sectorId: 'saeed-park-overhead',
+    windSpeed: 120,
+    temperature: -10,
+    cableId: 'fig8-2c' // 1250 N UTS
+  });
+
+  assert.equal(data.risk.statusTier, 'critical');
+  assert.equal(data.risk.statusLabel, 'CRITICAL TENSION SNAP HAZARD');
+  assert.ok(data.mechanical.tensionUtsRatioPercent >= 75);
+  assert.ok(data.risk.primaryRiskFactor.includes('exceeds 75%'));
+});
+
+test('calculateAerialTensionMetrics aggregates sector customer counts and revenue at risk from ledger', () => {
+  let state = createInitialState(['Customer One', 'Customer Two', 'Customer Three']);
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].monthlyRate = 2500;
+
+  state.customers[1].area = 'Wandala Road';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].monthlyRate = 1800;
+
+  state.customers[2].area = 'Begum Kot'; // Unrelated area
+  state.customers[2].serviceStatus = 'active';
+  state.customers[2].monthlyRate = 3000;
+
+  const data = calculateAerialTensionMetrics(state, {
+    sectorId: 'wandala-corridor'
+  });
+
+  assert.equal(data.ledger.totalAreaCustomers, 2);
+  assert.equal(data.ledger.activeSubscribers, 1);
+  assert.equal(data.ledger.offlineSubscribers, 1);
+  assert.equal(data.ledger.totalMonthlyBilledPkr, 4300);
+  assert.ok(data.ledger.monthlyRevenueAtRiskPkr > 0);
+  assert.ok(data.ledger.estimatedDropsCarried >= 1);
+});
+
+test('renderAerialTensionSvg produces clean SVG markup with poles, catenary curve, and clearance tags', () => {
+  const state = createInitialState([]);
+  const data = calculateAerialTensionMetrics(state, { sectorId: 'wandala-corridor' });
+  const svg = renderAerialTensionSvg(data);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('class="aerial-svg"'));
+  assert.ok(svg.includes('Pole A'));
+  assert.ok(svg.includes('Pole B'));
+  assert.ok(svg.includes('Req. Clearance'));
+  assert.ok(svg.includes('Sag:'));
+  assert.ok(svg.includes('Clearance:'));
+  assert.ok(svg.includes('WIND:'));
+
+  // Test empty/null state
+  const emptySvg = renderAerialTensionSvg(null);
+  assert.ok(emptySvg.includes('chart-empty-state'));
+});
+
+test('generateAerialTensionReport formats complete executive OSP engineering briefing', () => {
+  const state = createInitialState(['Test User']);
+  state.customers[0].area = 'Vandala Road';
+  state.customers[0].monthlyRate = 2200;
+
+  const data = calculateAerialTensionMetrics(state, { sectorId: 'wandala-corridor' });
+  const report = generateAerialTensionReport(data, new Date('2026-10-16T12:00:00+05:00'));
+
+  assert.ok(report.includes('SHAHDARA ISP OSP ENGINEERING BRIEFING: AERIAL POLE TENSION'));
+  assert.ok(report.includes('1. PRIMARY MONITORED SECTOR:'));
+  assert.ok(report.includes('WANDALA ROAD OPTICAL SPINE'));
+  assert.ok(report.includes('2. MECHANICAL STRESS & CATENARY METRICS'));
+  assert.ok(report.includes('3. SUBSCRIBER & REVENUE IMPACT'));
+  assert.ok(report.includes('4. SHAHDARA SECTORS MECHANICAL AUDIT REGISTER'));
+  assert.ok(report.includes('5. RECOMMENDED FIELD REMEDIATION ACTIONS'));
+
+  assert.equal(generateAerialTensionReport(null), 'No aerial tension data available.');
+});
+
+test('setupAerialTensionModal wires modal controls, sliders, sector selection, area filter, and clipboard export', async () => {
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockModal = {
+    dataset: {},
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  let openHandler = null;
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openHandler = fn; }
+  };
+
+  let closeHandler = null;
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeHandler = fn; }
+  };
+
+  let copyHandler = null;
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyHandler = fn; }
+  };
+
+  let filterAreaHandler = null;
+  const mockFilterAreaBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') filterAreaHandler = fn; }
+  };
+
+  let sectorChangeHandler = null;
+  const mockSectorSelect = {
+    dataset: {},
+    children: [],
+    innerHTML: '',
+    value: 'wandala-corridor',
+    addEventListener: (evt, fn) => { if (evt === 'change') sectorChangeHandler = fn; }
+  };
+
+  let cableChangeHandler = null;
+  const mockCableSelect = {
+    dataset: {},
+    children: [],
+    innerHTML: '',
+    value: 'default',
+    addEventListener: (evt, fn) => { if (evt === 'change') cableChangeHandler = fn; }
+  };
+
+  let windInputHandler = null;
+  const mockWindSlider = {
+    dataset: {},
+    value: '35',
+    addEventListener: (evt, fn) => { if (evt === 'input') windInputHandler = fn; }
+  };
+  const mockWindVal = { textContent: '' };
+
+  let tempInputHandler = null;
+  const mockTempSlider = {
+    dataset: {},
+    value: '25',
+    addEventListener: (evt, fn) => { if (evt === 'input') tempInputHandler = fn; }
+  };
+  const mockTempVal = { textContent: '' };
+
+  let resetClickHandler = null;
+  const mockResetBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') resetClickHandler = fn; }
+  };
+
+  const mockSectorNameEl = { textContent: '' };
+  const mockSagClearanceEl = { textContent: '' };
+  const mockTensionUtsEl = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockRevenueRiskEl = { textContent: '' };
+  const mockModalChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardAerialModal') return mockModal;
+      if (id === 'dashboardOpenAerialModalBtn') return mockOpenBtn;
+      if (id === 'dashboardAerialModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyAerialReportBtn') return mockCopyBtn;
+      if (id === 'aerialFilterAreaBtn') return mockFilterAreaBtn;
+      if (id === 'aerialSectorSelect') return mockSectorSelect;
+      if (id === 'aerialCableSelect') return mockCableSelect;
+      if (id === 'aerialWindSlider') return mockWindSlider;
+      if (id === 'aerialWindVal') return mockWindVal;
+      if (id === 'aerialTempSlider') return mockTempSlider;
+      if (id === 'aerialTempVal') return mockTempVal;
+      if (id === 'aerialResetSimBtn') return mockResetBtn;
+      if (id === 'aerialKpiSectorName') return mockSectorNameEl;
+      if (id === 'aerialKpiSagClearance') return mockSagClearanceEl;
+      if (id === 'aerialKpiTensionUts') return mockTensionUtsEl;
+      if (id === 'aerialStatusBadge') return mockStatusBadge;
+      if (id === 'aerialKpiRevenueRisk') return mockRevenueRiskEl;
+      if (id === 'aerialModalChartWrap') return mockModalChartWrap;
+      if (id === 'aerialSectorsTableBody') return mockTableBody;
+      return null;
+    }
+  };
+
+  let state = createInitialState(['Customer 1']);
+  state.customers[0].area = 'Vandala Road';
+
+  try {
+    setupAerialTensionModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onFilterArea: (a) => { filterAreaCalledWith = a; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: { writeText: async (t) => { copiedText = t; } }
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Verify UI populated
+    assert.ok(mockSectorSelect.innerHTML.includes('Wandala Road'));
+    assert.ok(mockModalChartWrap.innerHTML.includes('aerial-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Wandala Road Optical Spine'));
+
+    // Test sector change
+    assert.ok(sectorChangeHandler !== null);
+    mockSectorSelect.value = 'jia-musa-bazaar';
+    sectorChangeHandler();
+    assert.equal(getAerialSelectedSector(), 'jia-musa-bazaar');
+
+    // Test wind slider
+    assert.ok(windInputHandler !== null);
+    mockWindSlider.value = '55';
+    windInputHandler();
+    assert.equal(getAerialWindSpeed(), 55);
+    assert.equal(mockWindVal.textContent, '55 km/h');
+
+    // Test temp slider
+    assert.ok(tempInputHandler !== null);
+    mockTempSlider.value = '40';
+    tempInputHandler();
+    assert.equal(getAerialTemperature(), 40);
+    assert.equal(mockTempVal.textContent, '40°C');
+
+    // Test cable change
+    assert.ok(cableChangeHandler !== null);
+    mockCableSelect.value = 'adss-48c';
+    cableChangeHandler();
+    assert.equal(getAerialCableType(), 'adss-48c');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getAerialWindSpeed(), 35);
+    assert.equal(getAerialTemperature(), 25);
+    assert.equal(getAerialCableType(), null);
+
+    // Test filter area action
+    assert.ok(filterAreaHandler !== null);
+    filterAreaHandler();
+    assert.ok(filterAreaCalledWith !== null);
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyHandler !== null);
+    await copyHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA ISP OSP ENGINEERING BRIEFING: AERIAL POLE TENSION'));
+    assert.equal(toastMessage, 'Aerial pole tension audit copied to clipboard!');
 
     // Test close
     assert.ok(closeHandler !== null);

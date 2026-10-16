@@ -672,6 +672,16 @@
             </div>
             <div id="dashboardMicroOtdrChart" class="chart-svg-container" role="img" aria-label="SFP Micro-OTDR Optical Reflectometry Trace Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-mclag">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">MC-LAG Dual-Chassis Redundancy Matrix</h4>
+                <p class="chart-subtitle">RFC 7275 ICCP &amp; IEEE 802.1AX active-active forwarding, ICL bypass, and failover</p>
+              </div>
+              <button id="dashboardOpenMclagModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MC-LAG Diagnostics</button>
+            </div>
+            <div id="dashboardMclagChart" class="chart-svg-container" role="img" aria-label="MC-LAG Dual-Chassis Redundancy Architecture Chart"></div>
+          </article>
         </div>
 
 
@@ -3168,6 +3178,94 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="microOtdrFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopyMicroOtdrReportBtn" class="primary-button" type="button">📋 Copy Micro-OTDR Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardMclagModal" class="dashboard-modal mclag-modal" aria-labelledby="dashboardMclagModalTitle">
+        <div class="dashboard-modal-card mclag-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">HIGH AVAILABILITY · RFC 7275 ICCP &amp; IEEE 802.1AX</p>
+              <h3 id="dashboardMclagModalTitle">MC-LAG Dual-Chassis Redundancy &amp; Active-Active Forwarding</h3>
+            </div>
+            <button id="dashboardMclagModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Multi-Chassis Link Aggregation Group (M-LAG / vPC), Inter-Chassis Link (ICL) peer bypass, split-brain protection, sub-50ms local failover, and subscriber revenue protection.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="mclagTrunkSelect">Monitored MC-LAG Trunk:</label>
+              <select id="mclagTrunkSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="mclagScenarioSelect">Failure / Stress Scenario:</label>
+              <select id="mclagScenarioSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="mclagRoleSelect">Chassis View Perspective:</label>
+              <select id="mclagRoleSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="mclagIccpSelect">ICCP Keepalive Interval:</label>
+              <select id="mclagIccpSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="mclagLoadSlider">Ingress Traffic Load: <span id="mclagLoadVal" class="sim-val-pill">120 Gbps</span></label>
+              <input type="range" id="mclagLoadSlider" min="10" max="350" step="5" value="120" class="otdr-slider">
+            </div>
+            <div class="otdr-control-item" style="align-self: flex-end;">
+              <button id="mclagResetBtn" class="secondary-button" type="button">Reset MC-LAG State</button>
+            </div>
+          </div>
+
+          <div class="otdr-kpi-summary-grid">
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">MONITORED TRUNK</span>
+              <span id="mclagKpiTrunkName" class="ltv-kpi-val" style="font-size: 1.05rem;">MC-LAG 01 Central Core</span>
+              <span class="ltv-kpi-sub">Shahdara Town Transit</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">OPERATIONAL FORWARDING</span>
+              <span id="mclagKpiState" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">ACTIVE-ACTIVE</span>
+              <span class="ltv-kpi-sub">Dual-Homed Virtual Chassis</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">FAILOVER SWITCHING TIME</span>
+              <span id="mclagKpiFailover" class="ltv-kpi-val" style="color: #0284c7;">0 ms</span>
+              <span class="ltv-kpi-sub">Sub-50ms Carrier SLA</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">HEALTH &amp; REVENUE RISK</span>
+              <span id="mclagStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="mclagKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="mclagModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="MC-LAG Dual-Chassis Forwarding Topology Diagram"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Multi-Chassis Member Links &amp; LACP State Table</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-register-table">
+              <thead>
+                <tr>
+                  <th>Port</th>
+                  <th>Chassis</th>
+                  <th>Speed</th>
+                  <th>LACP Partner State</th>
+                  <th>Throughput (Hash %)</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="mclagLinksTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="mclagFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopyMclagReportBtn" class="primary-button" type="button">📋 Copy MC-LAG Briefing</button>
           </div>
         </div>
       </dialog>

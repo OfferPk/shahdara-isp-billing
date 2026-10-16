@@ -4612,3 +4612,31 @@ kbd {
   border-color: #243c33;
 }
 
+/* Field Technician Wi-Fi Survey Modal */
+.wifi-survey-modal {
+  max-width: 760px;
+  width: 95vw;
+}
+
+.wifi-survey-modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.wifi-survey-svg {
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .wifi-survey-modal,
+[data-theme="dark"] .wifi-survey-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
+

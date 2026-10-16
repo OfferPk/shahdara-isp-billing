@@ -426,8 +426,29 @@ import {
   calculatePmdMetrics,
   renderPmdDiagramSvg,
   generatePmdReport,
-  setupPmdModal
+  setupPmdModal,
+  EVPN_CONSTANTS,
+  SHAHDARA_EVPN_VNIS,
+  getEvpnSelectedVni,
+  setEvpnSelectedVni,
+  getEvpnSelectedIrbMode,
+  setEvpnSelectedIrbMode,
+  getEvpnSelectedReplication,
+  setEvpnSelectedReplication,
+  getEvpnArpSuppression,
+  setEvpnArpSuppression,
+  getEvpnTrafficSurgePct,
+  setEvpnTrafficSurgePct,
+  getEvpnUnderlayMtu,
+  setEvpnUnderlayMtu,
+  resetEvpnSimState,
+  calculateEvpnDynamics,
+  calculateEvpnMetrics,
+  renderEvpnDiagramSvg,
+  generateEvpnReport,
+  setupEvpnModal
 } from '../dashboard.js';
+
 
 
 
@@ -11665,4 +11686,380 @@ test('PMD simulation state getters, setters, and boundary constraints work corre
   assert.equal(getPmdSelectedBitrate(), '10G_NRZ');
   assert.equal(getPmdSelectedEnv(), 'QUIET_DUCT');
   assert.equal(getPmdInducedStrainPct(), 0);
+});
+
+test('EVPN constants and predefined overlays are defined with valid properties', () => {
+  assert.equal(EVPN_CONSTANTS.DEFAULT_OVERLAY_ID, 'evpn-vni-10010');
+  assert.equal(EVPN_CONSTANTS.DEFAULT_IRB_MODE, 'SYMMETRIC_IRB');
+  assert.equal(EVPN_CONSTANTS.DEFAULT_REPLICATION, 'HER');
+  assert.equal(EVPN_CONSTANTS.DEFAULT_ARP_SUPPRESSION, true);
+  assert.equal(EVPN_CONSTANTS.STANDARD_PAYLOAD_MTU, 1500);
+  assert.equal(EVPN_CONSTANTS.ENCAPSULATION_OVERHEAD_BYTES, 50);
+  assert.equal(EVPN_CONSTANTS.MIN_REQUIRED_UNDERLAY_MTU, 1550);
+  assert.equal(EVPN_CONSTANTS.RECOMMENDED_JUMBO_MTU, 9216);
+  assert.equal(EVPN_CONSTANTS.ARP_SUPPRESSION_EFFICIENCY_PCT, 88);
+
+  assert.ok(Array.isArray(SHAHDARA_EVPN_VNIS));
+  assert.equal(SHAHDARA_EVPN_VNIS.length, 5);
+
+  SHAHDARA_EVPN_VNIS.forEach(vni => {
+    assert.ok(vni.id.startsWith('evpn-vni-'));
+    assert.ok(vni.vni >= 10000);
+    assert.ok(vni.l3Vni >= 50000);
+    assert.ok(vni.vrf.startsWith('VRF-'));
+    assert.ok(vni.primaryArea.length > 0);
+    assert.ok(Array.isArray(vni.aliasAreas) && vni.aliasAreas.length > 0);
+    assert.ok(vni.subnet.includes('/'));
+    assert.ok(vni.anycastVirtualIp.startsWith('10.140.'));
+    assert.ok(vni.anycastVirtualMac.startsWith('00:00:5e:00:01:'));
+    assert.ok(vni.totalMacsLearned > 0);
+    assert.ok(vni.activeHosts > 0);
+    assert.ok(vni.arpRequestsSec > 0);
+    assert.ok(vni.bumTrafficMbps > 0);
+    assert.ok(vni.unicastThroughputGbps > 0);
+    assert.ok(Array.isArray(vni.vtepLeaves) && vni.vtepLeaves.length >= 2);
+    assert.ok(vni.baseLatencyMs > 0);
+    assert.ok(vni.underlayMtu >= 9000);
+  });
+});
+
+test('calculateEvpnDynamics computes MTU headroom, fragmentation risk, and encapsulation overhead', () => {
+  const vni = SHAHDARA_EVPN_VNIS[0];
+
+  // Standard jumbo underlay (9100B)
+  const dJumbo = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'HER', true, 0, 9100);
+  assert.equal(dJumbo.underlayMtu, 9100);
+  assert.equal(dJumbo.requiredMtu, 1550);
+  assert.equal(dJumbo.mtuHeadroom, 7550);
+  assert.equal(dJumbo.mtuStatus, 'Optimal');
+  assert.equal(dJumbo.fragmentationRisk, false);
+
+  // Borderline underlay MTU (1580B) -> Warning
+  const dWarn = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'HER', true, 0, 1580);
+  assert.equal(dWarn.mtuHeadroom, 30);
+  assert.equal(dWarn.mtuStatus, 'Warning');
+  assert.equal(dWarn.fragmentationRisk, false);
+
+  // Sub-standard MTU (1500B standard ethernet without jumbo frames) -> Critical fragmentation
+  const dCrit = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'HER', true, 0, 1500);
+  assert.equal(dCrit.mtuHeadroom, -50);
+  assert.equal(dCrit.mtuStatus, 'Critical');
+  assert.equal(dCrit.fragmentationRisk, true);
+  assert.equal(dCrit.overallStatus, 'Critical');
+  assert.ok(dCrit.effectiveLatencyMs >= 4.5); // software reassembly penalty
+});
+
+test('calculateEvpnDynamics computes ARP suppression efficiency and BUM replication load', () => {
+  const vni = SHAHDARA_EVPN_VNIS[0]; // vtepLeaves has 4 nodes (peerVtepCount = 3)
+
+  // With ARP suppression enabled
+  const dSuppressed = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'HER', true, 0, 9100);
+  assert.equal(dSuppressed.arpSuppression, true);
+  assert.equal(dSuppressed.suppressionEfficiencyPct, 88);
+  assert.equal(dSuppressed.totalArpRequestsSec, vni.arpRequestsSec);
+  assert.equal(dSuppressed.floodedArpRequestsSec, Math.round(vni.arpRequestsSec * 0.12));
+  assert.equal(dSuppressed.locallySuppressedArpSec, vni.arpRequestsSec - Math.round(vni.arpRequestsSec * 0.12));
+  assert.ok(dSuppressed.savedFloodingBandwidthMbps > 0);
+
+  // With ARP suppression disabled
+  const dFlooded = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'HER', false, 0, 9100);
+  assert.equal(dFlooded.arpSuppression, false);
+  assert.equal(dFlooded.suppressionEfficiencyPct, 0);
+  assert.equal(dFlooded.floodedArpRequestsSec, vni.arpRequestsSec);
+  assert.equal(dFlooded.locallySuppressedArpSec, 0);
+  assert.equal(dFlooded.savedFloodingBandwidthMbps, 0);
+  assert.ok(dFlooded.effectiveBumMbps > dSuppressed.effectiveBumMbps);
+
+  // Multicast vs HER replication
+  const dPim = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'PIM_SM', true, 0, 9100);
+  assert.equal(dPim.replicationMode, 'PIM_SM');
+  assert.equal(dPim.totalReplicatedBumThroughputMbps, dSuppressed.effectiveBumMbps); // 1x copy
+  assert.equal(dSuppressed.totalReplicatedBumThroughputMbps, Number((dSuppressed.effectiveBumMbps * 3).toFixed(2))); // 3x copies
+});
+
+test('calculateEvpnDynamics evaluates Symmetric vs Asymmetric IRB forwarding latency and savings', () => {
+  const vni = SHAHDARA_EVPN_VNIS[0];
+
+  // Symmetric IRB
+  const dSym = calculateEvpnDynamics(vni, 'SYMMETRIC_IRB', 'HER', true, 0, 9100);
+  assert.equal(dSym.irbMode, 'SYMMETRIC_IRB');
+  assert.equal(dSym.effectiveLatencyMs, vni.baseLatencyMs);
+  assert.equal(dSym.latencySavedMs, 0);
+
+  // Asymmetric IRB (Trombone routing)
+  const dAsym = calculateEvpnDynamics(vni, 'ASYMMETRIC_IRB', 'HER', true, 0, 9100);
+  assert.equal(dAsym.irbMode, 'ASYMMETRIC_IRB');
+  assert.ok(dAsym.effectiveLatencyMs > dSym.effectiveLatencyMs * 2.5);
+  assert.ok(dAsym.latencySavedMs > 2.0);
+  assert.equal(dAsym.overallStatus, 'Warning');
+});
+
+test('calculateEvpnMetrics correlates overlay topology with subscriber base and revenue at risk', () => {
+  const c1 = { id: 'cust-1', name: 'Shahdara Residential Customer', area: 'Shahdara Town', packagePrice: 2000, status: 'Active' };
+  const c2 = { id: 'cust-2', name: 'Old Town Business', area: 'Old Town', packagePrice: 3500, status: 'Active' };
+  const c3 = { id: 'cust-3', name: 'Kot Abdul Malik Enterprise', area: 'Kot Abdul Malik', packagePrice: 8000, status: 'Active' };
+
+  const customState = {
+    customers: [c1, c2, c3],
+    bills: [
+      { customerId: c1.id, amount: 2000, packagePrice: 2000 },
+      { customerId: c2.id, amount: 3500, packagePrice: 3500 },
+      { customerId: c3.id, amount: 8000, packagePrice: 8000 }
+    ]
+  };
+
+  const metricsVni10010 = calculateEvpnMetrics(customState, { vniId: 'evpn-vni-10010' });
+  assert.equal(metricsVni10010.vni.id, 'evpn-vni-10010');
+  assert.equal(metricsVni10010.subscribers.matchedSubscribers, 2); // c1 (Shahdara Town) + c2 (Old Town)
+  assert.equal(metricsVni10010.subscribers.totalMonthlyRevenueAtRisk, 5500);
+
+  const metricsVni10020 = calculateEvpnMetrics(customState, { vniId: 'evpn-vni-10020' });
+  assert.equal(metricsVni10020.vni.id, 'evpn-vni-10020');
+  assert.equal(metricsVni10020.subscribers.matchedSubscribers, 1); // c3 (Kot Abdul Malik)
+  assert.equal(metricsVni10020.subscribers.totalMonthlyRevenueAtRisk, 8000);
+});
+
+test('renderEvpnDiagramSvg generates compliant SVG in compact and expanded views', () => {
+  const state = createInitialState();
+  const metrics = calculateEvpnMetrics(state, { vniId: 'evpn-vni-10010' });
+
+  // Compact SVG
+  const svgCompact = renderEvpnDiagramSvg(metrics, { compact: true });
+  assert.ok(svgCompact.includes('<svg'));
+  assert.ok(svgCompact.includes('evpn-svg-compact'));
+  assert.ok(svgCompact.includes('VNI 10010'));
+  assert.ok(svgCompact.includes('SPINE-01-RR'));
+  assert.ok(svgCompact.includes('LEAF-1'));
+  assert.ok(svgCompact.includes('OVERLAY L2/L3 VNI'));
+
+  // Expanded SVG
+  const svgExpanded = renderEvpnDiagramSvg(metrics, { compact: false });
+  assert.ok(svgExpanded.includes('<svg'));
+  assert.ok(svgExpanded.includes('evpn-svg-expanded'));
+  assert.ok(svgExpanded.includes('Shahdara Metro Core MP-BGP EVPN / VXLAN Fabric'));
+  assert.ok(svgExpanded.includes('SPINE-01-CORE'));
+  assert.ok(svgExpanded.includes('SPINE-02-CORE'));
+  assert.ok(svgExpanded.includes('LEAF-01'));
+  assert.ok(svgExpanded.includes('LEAF-02'));
+  assert.ok(svgExpanded.includes('LEAF-03'));
+  assert.ok(svgExpanded.includes('LEAF-04'));
+  assert.ok(svgExpanded.includes('Anycast IP: 10.140.10.1'));
+  assert.ok(svgExpanded.includes('VMAC: 00:00:5e:00:01:01'));
+  assert.ok(svgExpanded.includes('ECMP Entropy: 16384 ports'));
+});
+
+test('generateEvpnReport formats comprehensive engineering briefing', () => {
+  const state = createInitialState();
+  const metrics = calculateEvpnMetrics(state, { vniId: 'evpn-vni-10010' });
+  const report = generateEvpnReport(metrics);
+
+  assert.ok(report.includes('SHAHDARA ISP CARRIER MP-BGP EVPN / VXLAN OVERLAY BRIEFING'));
+  assert.ok(report.includes('L2 VNI: 10010'));
+  assert.ok(report.includes('L3 VNI: 50010'));
+  assert.ok(report.includes('Distributed Anycast Gateway IP: 10.140.10.1'));
+  assert.ok(report.includes('Underlay MTU: 9100 Bytes'));
+  assert.ok(report.includes('ARP Suppression Status: ENABLED'));
+  assert.ok(report.includes('Total Active BGP EVPN NLRIs:'));
+  assert.ok(report.includes('Engineering Recommendation:'));
+});
+
+test('setupEvpnModal binds UI events, controls, presets, and clipboard integration', async () => {
+  const state = createInitialState();
+  addCustomer(state, { name: 'Evpn Test Customer', area: 'Shahdara Town', packagePrice: 2500, status: 'Active' });
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    removeAttribute: () => {},
+    setAttribute: () => {},
+    onclick: null
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+
+  const mockVniSelect = { value: 'evpn-vni-10010', onchange: null };
+  const mockIrbModeSelect = { value: 'SYMMETRIC_IRB', onchange: null };
+  const mockRepSelect = { value: 'HER', onchange: null };
+  const mockArpCheckbox = { checked: true, onchange: null };
+  const mockSurgeSlider = { value: '0', oninput: null };
+  const mockSurgeLabel = { textContent: '+0%' };
+  const mockMtuSlider = { value: '9100', oninput: null };
+  const mockMtuLabel = { textContent: '9100 Bytes' };
+  const mockResetBtn = { onclick: null };
+
+  const mockStatLatency = { textContent: '' };
+  const mockStatArp = { textContent: '' };
+  const mockStatMtu = { textContent: '', className: '' };
+  const mockStatNlri = { textContent: '' };
+  const mockStatBum = { textContent: '' };
+  const mockStatRevenue = { textContent: '' };
+
+  const mockDiagramContainer = { innerHTML: '' };
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementRegistry = {
+    'dashboardEvpnModal': mockModal,
+    'dashboardOpenEvpnModalBtn': mockOpenBtn,
+    'dashboardEvpnModalCloseBtn': mockCloseBtn,
+    'evpnVniSelect': mockVniSelect,
+    'evpnIrbModeSelect': mockIrbModeSelect,
+    'evpnReplicationSelect': mockRepSelect,
+    'evpnArpSuppressionCheck': mockArpCheckbox,
+    'evpnSurgeSlider': mockSurgeSlider,
+    'evpnSurgeValueLabel': mockSurgeLabel,
+    'evpnMtuSlider': mockMtuSlider,
+    'evpnMtuValueLabel': mockMtuLabel,
+    'evpnResetSimBtn': mockResetBtn,
+    'evpnStatLatency': mockStatLatency,
+    'evpnStatArp': mockStatArp,
+    'evpnStatMtu': mockStatMtu,
+    'evpnStatNlri': mockStatNlri,
+    'evpnStatBum': mockStatBum,
+    'evpnStatRevenue': mockStatRevenue,
+    'evpnModalDiagramContainer': mockDiagramContainer,
+    'evpnFilterAreaBtn': mockFilterAreaBtn,
+    'evpnCopyReportBtn': mockCopyReportBtn,
+    'dashboardEvpnChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: id => elementRegistry[id] || null
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  try {
+    setupEvpnModal(state, {
+      onFilterArea: area => { filteredArea = area; },
+      onToast: msg => { toastMsg = msg; },
+      clipboard: {
+        writeText: async text => { copiedText = text; }
+      }
+    });
+
+    // Verification of initial render
+    assert.ok(mockDiagramContainer.innerHTML.includes('evpn-svg-expanded'));
+    assert.ok(mockStatLatency.textContent.includes('ms'));
+    assert.ok(mockStatArp.textContent.includes('88%'));
+    assert.ok(mockStatMtu.textContent.includes('9100B'));
+
+    // Test select change: Switch VNI to evpn-vni-10020
+    mockVniSelect.value = 'evpn-vni-10020';
+    mockVniSelect.onchange({ target: { value: 'evpn-vni-10020' } });
+    assert.equal(getEvpnSelectedVni(), 'evpn-vni-10020');
+
+    // Test IRB mode change: Switch to ASYMMETRIC_IRB
+    mockIrbModeSelect.value = 'ASYMMETRIC_IRB';
+    mockIrbModeSelect.onchange({ target: { value: 'ASYMMETRIC_IRB' } });
+    assert.equal(getEvpnSelectedIrbMode(), 'ASYMMETRIC_IRB');
+
+    // Test replication mode change: Switch to PIM_SM
+    mockRepSelect.value = 'PIM_SM';
+    mockRepSelect.onchange({ target: { value: 'PIM_SM' } });
+    assert.equal(getEvpnSelectedReplication(), 'PIM_SM');
+
+    // Test ARP suppression toggle
+    mockArpCheckbox.onchange({ target: { checked: false } });
+    assert.equal(getEvpnArpSuppression(), false);
+
+    // Test traffic surge slider: 50%
+    mockSurgeSlider.oninput({ target: { value: 50 } });
+    assert.equal(getEvpnTrafficSurgePct(), 50);
+    assert.equal(mockSurgeLabel.textContent, '+50%');
+
+    // Test MTU slider: 1550 Bytes
+    mockMtuSlider.oninput({ target: { value: 1550 } });
+    assert.equal(getEvpnUnderlayMtu(), 1550);
+    assert.equal(mockMtuLabel.textContent, '1550 Bytes');
+
+    // Test reset button
+    mockResetBtn.onclick();
+    assert.equal(getEvpnSelectedVni(), 'evpn-vni-10010');
+    assert.equal(getEvpnSelectedIrbMode(), 'SYMMETRIC_IRB');
+    assert.equal(getEvpnSelectedReplication(), 'HER');
+    assert.equal(getEvpnArpSuppression(), true);
+    assert.equal(getEvpnTrafficSurgePct(), 0);
+    assert.equal(getEvpnUnderlayMtu(), 9100);
+
+    // Test filter area action
+    mockFilterAreaBtn.onclick();
+    assert.equal(filteredArea, 'Shahdara Town');
+    assert.equal(modalClosed, true);
+
+    // Test copy briefing action
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('SHAHDARA ISP CARRIER MP-BGP EVPN / VXLAN OVERLAY BRIEFING'));
+    assert.equal(toastMsg, 'EVPN/VXLAN briefing copied to clipboard!');
+
+    // Test open and close dialog
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    mockCloseBtn.onclick();
+    assert.equal(modalClosed, true);
+
+  } finally {
+    globalThis.document = originalDocument;
+    resetEvpnSimState();
+  }
+});
+
+test('EVPN simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetEvpnSimState();
+  assert.equal(getEvpnSelectedVni(), 'evpn-vni-10010');
+
+  // VNI selection
+  setEvpnSelectedVni('evpn-vni-10030');
+  assert.equal(getEvpnSelectedVni(), 'evpn-vni-10030');
+  setEvpnSelectedVni('non-existent-vni');
+  assert.equal(getEvpnSelectedVni(), 'evpn-vni-10030');
+
+  // IRB mode selection
+  setEvpnSelectedIrbMode('ASYMMETRIC_IRB');
+  assert.equal(getEvpnSelectedIrbMode(), 'ASYMMETRIC_IRB');
+  setEvpnSelectedIrbMode('INVALID_IRB');
+  assert.equal(getEvpnSelectedIrbMode(), 'ASYMMETRIC_IRB');
+
+  // Replication mode selection
+  setEvpnSelectedReplication('PIM_SM');
+  assert.equal(getEvpnSelectedReplication(), 'PIM_SM');
+  setEvpnSelectedReplication('INVALID_REP');
+  assert.equal(getEvpnSelectedReplication(), 'PIM_SM');
+
+  // ARP suppression
+  setEvpnArpSuppression(false);
+  assert.equal(getEvpnArpSuppression(), false);
+  setEvpnArpSuppression(true);
+  assert.equal(getEvpnArpSuppression(), true);
+
+  // Traffic surge percentage clamping [0, 200]
+  setEvpnTrafficSurgePct(75);
+  assert.equal(getEvpnTrafficSurgePct(), 75);
+  setEvpnTrafficSurgePct(300); // invalid, out of range -> unchanged
+  assert.equal(getEvpnTrafficSurgePct(), 75);
+  setEvpnTrafficSurgePct(-20); // invalid, out of range -> unchanged
+  assert.equal(getEvpnTrafficSurgePct(), 75);
+
+  // Underlay MTU setting clamping [1400, 9216]
+  setEvpnUnderlayMtu(9000);
+  assert.equal(getEvpnUnderlayMtu(), 9000);
+  setEvpnUnderlayMtu(1200); // invalid, out of range -> unchanged
+  assert.equal(getEvpnUnderlayMtu(), 9000);
+  setEvpnUnderlayMtu(10000); // invalid, out of range -> unchanged
+  assert.equal(getEvpnUnderlayMtu(), 9000);
+
+  // Reset
+  resetEvpnSimState();
+  assert.equal(getEvpnSelectedVni(), 'evpn-vni-10010');
+  assert.equal(getEvpnSelectedIrbMode(), 'SYMMETRIC_IRB');
+  assert.equal(getEvpnSelectedReplication(), 'HER');
+  assert.equal(getEvpnArpSuppression(), true);
+  assert.equal(getEvpnTrafficSurgePct(), 0);
+  assert.equal(getEvpnUnderlayMtu(), 9100);
 });

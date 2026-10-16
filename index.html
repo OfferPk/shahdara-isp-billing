@@ -727,6 +727,16 @@
             </div>
             <div id="dashboardPmdChart" class="chart-svg-container" role="img" aria-label="DWDM Optical PMD Maxwellian Distribution Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-evpn">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">MP-BGP EVPN / VXLAN Network Virtualization Overlay Matrix</h4>
+                <p class="chart-subtitle">RFC 7432 / RFC 8365 Leaf-Spine overlay, Anycast Gateway (IRB), ARP suppression &amp; MTU headroom</p>
+              </div>
+              <button id="dashboardOpenEvpnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">EVPN Diagnostics</button>
+            </div>
+            <div id="dashboardEvpnChart" class="chart-svg-container" role="img" aria-label="Carrier MP-BGP EVPN VXLAN Overlay Chart"></div>
+          </article>
         </div>
 
 
@@ -3648,6 +3658,97 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="pmdFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopyPmdReportBtn" class="primary-button" type="button">📋 Copy PMD Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardEvpnModal" class="dashboard-modal evpn-modal" aria-labelledby="dashboardEvpnModalTitle">
+        <div class="dashboard-modal-card evpn-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <span class="eyebrow">CORE METRO IP NETWORK VIRTUALIZATION MATRIX</span>
+              <h3 id="dashboardEvpnModalTitle">MP-BGP EVPN / VXLAN Distributed Anycast Gateway Matrix</h3>
+            </div>
+            <button id="dashboardEvpnModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">x</button>
+          </div>
+          <p class="dashboard-modal-sub">RFC 7432 / RFC 8365 / RFC 9135 Multi-Protocol BGP Ethernet VPN with VXLAN encapsulation, Symmetric/Asymmetric IRB Anycast Gateways, Head-End Replication (HER), and Host ARP Suppression.</p>
+
+          <div class="sim-controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="evpnVniSelect">Target Overlay VNI &amp; Tenant:</label>
+              <select id="evpnVniSelect" class="form-select">
+                <option value="evpn-vni-10010">VNI 10010: Shahdara Town Residential (PPPoE/IPoE)</option>
+                <option value="evpn-vni-10020">VNI 10020: Kot Abdul Malik Enterprise DIA</option>
+                <option value="evpn-vni-10030">VNI 10030: Vandala Road GPON Backhaul</option>
+                <option value="evpn-vni-10040">VNI 10040: Ravi Siphon Metro Core Transit</option>
+                <option value="evpn-vni-10050">VNI 10050: Baradari Smart City IoT Grid</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="evpnIrbModeSelect">Integrated Routing &amp; Bridging (IRB):</label>
+              <select id="evpnIrbModeSelect" class="form-select">
+                <option value="SYMMETRIC_IRB">Symmetric IRB (Distributed Anycast L3 VNI)</option>
+                <option value="ASYMMETRIC_IRB">Asymmetric IRB (Centralized Trombone)</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="evpnReplicationSelect">BUM Replication Mode:</label>
+              <select id="evpnReplicationSelect" class="form-select">
+                <option value="HER">Ingress Head-End Replication (HER)</option>
+                <option value="PIM_SM">Underlay PIM Multicast Tree</option>
+              </select>
+            </div>
+            <div class="sim-control-group" style="display: flex; flex-direction: column; justify-content: center;">
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-top: 8px;">
+                <input type="checkbox" id="evpnArpSuppressionCheck" checked>
+                <span>Enable Host ARP Suppression</span>
+              </label>
+            </div>
+            <div class="sim-control-group">
+              <label for="evpnSurgeSlider">Traffic Surge Factor: <span id="evpnSurgeValueLabel" class="sim-val-pill">+0%</span></label>
+              <input type="range" id="evpnSurgeSlider" min="0" max="150" step="5" value="0" class="otdr-slider">
+            </div>
+            <div class="sim-control-group">
+              <label for="evpnMtuSlider">Underlay Switch MTU: <span id="evpnMtuValueLabel" class="sim-val-pill">9100 Bytes</span></label>
+              <input type="range" id="evpnMtuSlider" min="1500" max="9216" step="50" value="9100" class="otdr-slider">
+            </div>
+            <div class="sim-control-group" style="display: flex; align-items: flex-end;">
+              <button id="evpnResetSimBtn" class="secondary-button" type="button">Reset Simulation</button>
+            </div>
+          </div>
+
+          <div class="ltv-kpis-row" style="margin-bottom: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">FORWARDING DELAY</span>
+              <span id="evpnStatLatency" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">0.85 ms</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">ARP SUPPRESSION</span>
+              <span id="evpnStatArp" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">88%</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">UNDERLAY MTU HEADROOM</span>
+              <span id="evpnStatMtu" class="ltv-kpi-val" style="font-size: 1.05rem;">9100B (7550B)</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">BGP EVPN NLRIS</span>
+              <span id="evpnStatNlri" class="ltv-kpi-val" style="color: #c084fc; font-size: 1.05rem;">516</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">REPLICATED BUM LOAD</span>
+              <span id="evpnStatBum" class="ltv-kpi-val" style="color: #f59e0b; font-size: 1.05rem;">18.5 Mbps</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">SUBSCRIBER REVENUE AT RISK</span>
+              <span id="evpnStatRevenue" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">PKR 0</span>
+            </div>
+          </div>
+
+          <div id="evpnModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="MP-BGP EVPN VXLAN Overlay Fabric Architecture Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="evpnFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="evpnCopyReportBtn" class="primary-button" type="button">📋 Copy EVPN Briefing</button>
           </div>
         </div>
       </dialog>

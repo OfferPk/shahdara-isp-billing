@@ -187,6 +187,22 @@ export function updateNavigationBadges(state, options = {}) {
     } catch {}
   }
 
+  let workOrdersCount = 0;
+  if (typeof options.workOrdersCount === 'number') {
+    workOrdersCount = options.workOrdersCount;
+  } else if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('shahdara_field_work_orders_v1');
+      if (raw) {
+        const orders = JSON.parse(raw);
+        if (Array.isArray(orders)) {
+          workOrdersCount = orders.filter(o => o.status === 'open' || o.status === 'in_progress').length;
+        }
+      }
+    } catch {}
+  }
+  const pendingWorkOrders = workOrdersCount > 0 ? workOrdersCount : offlineCount;
+
   function setBadges(target, count, label, alertClass = false) {
     const badges = document.querySelectorAll(`[data-nav-badge="${target}"]`);
     badges.forEach(badge => {
@@ -206,6 +222,7 @@ export function updateNavigationBadges(state, options = {}) {
   setBadges('inventory', inventoryCount, 'inventory items');
   setBadges('collection', overdueCount, 'subscribers with pending dues', overdueCount > 0);
   setBadges('field-route', overdueCount, 'stops pending collection', overdueCount > 0);
+  setBadges('work-orders', pendingWorkOrders, 'active field work orders', pendingWorkOrders > 0);
   setBadges('more', queueCount, 'offline queued items', queueCount > 0);
 
   return {
@@ -215,7 +232,8 @@ export function updateNavigationBadges(state, options = {}) {
     expensesCount,
     inventoryCount,
     queueCount,
-    fieldRoutePendingCount: overdueCount
+    fieldRoutePendingCount: overdueCount,
+    workOrdersCount: pendingWorkOrders
   };
 }
 
@@ -2065,6 +2083,7 @@ export function setupMobileSpeedDial({
   onFieldEnrollment,
   onFieldDiagnostics,
   onFieldRouteSheet,
+  onWorkOrders,
   onReminders,
   onScrollTop
 } = {}) {
@@ -2150,6 +2169,8 @@ export function setupMobileSpeedDial({
           onFieldDiagnostics();
         } else if (action === 'field-route' && typeof onFieldRouteSheet === 'function') {
           onFieldRouteSheet();
+        } else if (action === 'work-orders' && typeof onWorkOrders === 'function') {
+          onWorkOrders();
         } else if (action === 'reminders' && typeof onReminders === 'function') {
           onReminders();
         } else if (action === 'scroll-top' && typeof onScrollTop === 'function') {
@@ -4336,6 +4357,776 @@ export function setupFieldRouteSheet({
     }
   };
 }
+
+/* ==========================================================================
+   Field Technician Work Order & Customer Service Dispatch Engine (agent2)
+   ========================================================================== */
+
+export const WORK_ORDERS_STORAGE_KEY = 'shahdara_field_work_orders_v1';
+
+export const WORK_ORDER_CATEGORIES = {
+  fiber_cut: { label: 'Red LOS / Fiber Break', icon: '🔴', defaultPriority: 'urgent' },
+  low_signal: { label: 'High Loss / Low Optical Power', icon: '🟡', defaultPriority: 'high' },
+  ont_fault: { label: 'ONT / ONU Hardware Fault', icon: '⚙️', defaultPriority: 'high' },
+  wifi_config: { label: 'Wi-Fi Router Configuration', icon: '📶', defaultPriority: 'normal' },
+  shift_line: { label: 'Shift / Relocate Connection', icon: '📦', defaultPriority: 'normal' },
+  new_install: { label: 'New Drop Cable Installation', icon: '🔌', defaultPriority: 'normal' },
+  speed_issue: { label: 'Speed Degradation / Packet Loss', icon: '⚡', defaultPriority: 'normal' },
+  other: { label: 'General Service Request', icon: '📝', defaultPriority: 'normal' }
+};
+
+export const WORK_ORDER_PRIORITIES = {
+  urgent: { label: 'Urgent', class: 'badge-alert', weight: 4 },
+  high: { label: 'High', class: 'badge-warning', weight: 3 },
+  normal: { label: 'Normal', class: 'badge-primary', weight: 2 },
+  low: { label: 'Low', class: 'badge-neutral', weight: 1 }
+};
+
+export function getFieldWorkOrders(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(WORK_ORDERS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveFieldWorkOrders(orders, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !Array.isArray(orders)) return;
+  try {
+    storage.setItem(WORK_ORDERS_STORAGE_KEY, JSON.stringify(orders));
+  } catch {
+    // Ignore storage quota
+  }
+}
+
+export function clearFieldWorkOrders(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return;
+  try {
+    storage.removeItem(WORK_ORDERS_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+export function createFieldWorkOrder(data = {}, storage = (typeof localStorage !== 'undefined' ? localStorage : null), nowStr) {
+  const currentOrders = getFieldWorkOrders(storage);
+  const dateIso = nowStr || new Date().toISOString();
+  const dateStr = dateIso.slice(0, 10);
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  const ticketId = `WO-${dateStr.replace(/-/g, '').slice(2)}-${randomSuffix}`;
+
+  const categoryKey = data.category && WORK_ORDER_CATEGORIES[data.category] ? data.category : 'other';
+  const categoryInfo = WORK_ORDER_CATEGORIES[categoryKey];
+  const priorityKey = data.priority && WORK_ORDER_PRIORITIES[data.priority] ? data.priority : categoryInfo.defaultPriority;
+
+  const newOrder = {
+    id: ticketId,
+    customerId: data.customerId ? String(data.customerId) : null,
+    customerName: String(data.customerName || 'Subscriber Service Request').trim(),
+    username: String(data.username || '').trim(),
+    phone: String(data.phone || '').trim(),
+    area: String(data.area || 'Shahdara Town').trim(),
+    address: String(data.address || '').trim(),
+    category: categoryKey,
+    categoryLabel: categoryInfo.label,
+    categoryIcon: categoryInfo.icon,
+    priority: priorityKey,
+    status: 'open',
+    notes: String(data.notes || '').trim(),
+    assignedTech: String(data.assignedTech || 'Field Line Worker').trim(),
+    createdAt: dateIso,
+    updatedAt: dateIso,
+    resolvedAt: null,
+    resolutionNotes: '',
+    history: [
+      {
+        timestamp: dateIso,
+        action: 'Created Ticket',
+        tech: String(data.assignedTech || 'Field Line Worker').trim()
+      }
+    ]
+  };
+
+  currentOrders.unshift(newOrder);
+  saveFieldWorkOrders(currentOrders, storage);
+  return newOrder;
+}
+
+export function updateFieldWorkOrderStatus(orderId, newStatus, resolutionNotes = '', storage = (typeof localStorage !== 'undefined' ? localStorage : null), nowStr) {
+  const currentOrders = getFieldWorkOrders(storage);
+  const target = currentOrders.find(o => o.id === orderId);
+  const dateIso = nowStr || new Date().toISOString();
+
+  if (!target) return null;
+
+  target.status = newStatus;
+  target.updatedAt = dateIso;
+  if (resolutionNotes) {
+    target.resolutionNotes = String(resolutionNotes).trim();
+  }
+  if (newStatus === 'resolved') {
+    target.resolvedAt = dateIso;
+  } else if (newStatus !== 'resolved' && target.resolvedAt) {
+    target.resolvedAt = null;
+  }
+
+  if (!Array.isArray(target.history)) {
+    target.history = [];
+  }
+  target.history.push({
+    timestamp: dateIso,
+    action: `Status marked as ${newStatus.replace('_', ' ').toUpperCase()}`,
+    notes: resolutionNotes ? String(resolutionNotes).trim() : ''
+  });
+
+  saveFieldWorkOrders(currentOrders, storage);
+  return target;
+}
+
+export function calculateFieldWorkOrders(state, {
+  sector = 'All',
+  status = 'all',
+  priority = 'all',
+  searchQuery = '',
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  nowStr = new Date().toISOString().slice(0, 10)
+} = {}) {
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const storedOrders = getFieldWorkOrders(storage);
+  const activeOrdersMap = new Map();
+
+  storedOrders.forEach(order => {
+    activeOrdersMap.set(order.id, order);
+    if (order.customerId && order.status !== 'resolved' && order.status !== 'cancelled') {
+      activeOrdersMap.set(`cust-${order.customerId}`, order);
+    }
+  });
+
+  const allOrders = [...storedOrders];
+
+  customers.forEach(cust => {
+    if (cust.archived) return;
+    if (cust.status === 'offline') {
+      const autoId = `AUTO-OFFLINE-${cust.id}`;
+      if (!activeOrdersMap.has(autoId) && !activeOrdersMap.has(`cust-${cust.id}`)) {
+        const cat = WORK_ORDER_CATEGORIES.fiber_cut;
+        const autoTicket = {
+          id: autoId,
+          customerId: cust.id,
+          customerName: cust.name || 'Offline Subscriber',
+          username: cust.username || cust.id,
+          phone: cust.phone || '',
+          area: cust.area || cust.mohalla || 'Shahdara Town',
+          address: [cust.address, cust.mohalla].filter(Boolean).join(', ') || cust.area || 'Shahdara Town',
+          category: 'fiber_cut',
+          categoryLabel: cat.label,
+          categoryIcon: cat.icon,
+          priority: 'urgent',
+          status: 'open',
+          notes: 'Automatic alert: Subscriber connection offline. Suspected physical fiber break or power loss at customer premises.',
+          assignedTech: 'Field Line Worker',
+          createdAt: `${nowStr}T08:00:00Z`,
+          updatedAt: `${nowStr}T08:00:00Z`,
+          resolvedAt: null,
+          resolutionNotes: '',
+          isAutoGenerated: true,
+          history: []
+        };
+        allOrders.push(autoTicket);
+      }
+    }
+  });
+
+  let totalOrders = 0;
+  let openOrders = 0;
+  let inProgressOrders = 0;
+  let resolvedCount = 0;
+  let urgentCount = 0;
+  let highPriorityCount = 0;
+  let slaBreachedCount = 0;
+
+  const nowTime = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  allOrders.forEach(o => {
+    if (o.status === 'cancelled') return;
+    totalOrders++;
+    if (o.status === 'open') openOrders++;
+    if (o.status === 'in_progress') inProgressOrders++;
+    if (o.status === 'resolved') resolvedCount++;
+    if (o.priority === 'urgent' && o.status !== 'resolved') urgentCount++;
+    if (o.priority === 'high' && o.status !== 'resolved') highPriorityCount++;
+
+    if (o.status !== 'resolved') {
+      const createdTime = Date.parse(o.createdAt || nowStr);
+      if (!Number.isNaN(createdTime) && (nowTime - createdTime) > dayMs) {
+        slaBreachedCount++;
+      }
+    }
+  });
+
+  const activeCount = openOrders + inProgressOrders;
+  const resolutionRate = totalOrders > 0 ? Math.round((resolvedCount / totalOrders) * 100) : 100;
+
+  const sectorSet = new Set(['All']);
+  allOrders.forEach(o => {
+    if (o.area && o.area.trim()) sectorSet.add(o.area.trim());
+  });
+  customers.forEach(c => {
+    const a = (c.area || c.mohalla || '').trim();
+    if (a) sectorSet.add(a);
+  });
+  const sectors = Array.from(sectorSet).sort();
+
+  const q = String(searchQuery || '').trim().toLowerCase();
+  const selSector = String(sector || 'All').trim();
+  const selStatus = String(status || 'all').trim().toLowerCase();
+  const selPriority = String(priority || 'all').trim().toLowerCase();
+
+  const filtered = allOrders.filter(o => {
+    if (selSector !== 'All' && o.area?.toLowerCase() !== selSector.toLowerCase()) {
+      return false;
+    }
+
+    if (selStatus === 'urgent') {
+      if (o.priority !== 'urgent' || o.status === 'resolved' || o.status === 'cancelled') {
+        return false;
+      }
+    } else if (selStatus !== 'all') {
+      if (o.status !== selStatus) return false;
+    }
+
+    if (selPriority !== 'all') {
+      if (o.priority !== selPriority) return false;
+    }
+
+    if (q) {
+      const match =
+        o.id.toLowerCase().includes(q) ||
+        o.customerName.toLowerCase().includes(q) ||
+        (o.username && o.username.toLowerCase().includes(q)) ||
+        (o.phone && o.phone.includes(q)) ||
+        (o.address && o.address.toLowerCase().includes(q)) ||
+        (o.area && o.area.toLowerCase().includes(q)) ||
+        (o.categoryLabel && o.categoryLabel.toLowerCase().includes(q)) ||
+        (o.notes && o.notes.toLowerCase().includes(q)) ||
+        (o.assignedTech && o.assignedTech.toLowerCase().includes(q));
+      if (!match) return false;
+    }
+
+    return true;
+  });
+
+  filtered.sort((a, b) => {
+    const statusWeight = (s) => (s === 'in_progress' ? 3 : s === 'open' ? 2 : s === 'resolved' ? 1 : 0);
+    const priorityWeight = (p) => (p === 'urgent' ? 4 : p === 'high' ? 3 : p === 'normal' ? 2 : 1);
+
+    const pwDiff = priorityWeight(b.priority) - priorityWeight(a.priority);
+    if (pwDiff !== 0) return pwDiff;
+
+    const swDiff = statusWeight(b.status) - statusWeight(a.status);
+    if (swDiff !== 0) return swDiff;
+
+    return Date.parse(b.createdAt || 0) - Date.parse(a.createdAt || 0);
+  });
+
+  const enrichedOrders = filtered.map((o, idx) => {
+    const rawPhone = String(o.phone || '').trim();
+    let phoneUrl = '';
+    let whatsappUrl = '';
+    if (rawPhone) {
+      const cleanPhone = rawPhone.replace(/\D/g, '');
+      phoneUrl = `tel:${rawPhone.startsWith('+') ? rawPhone : '+92' + (cleanPhone.startsWith('92') ? cleanPhone.slice(2) : cleanPhone.replace(/^0/, ''))}`;
+      const intlPhone = cleanPhone.startsWith('92') ? cleanPhone : `92${cleanPhone.replace(/^0/, '')}`;
+      const waText = encodeURIComponent(`Assalam-o-Alaikum ${o.customerName}, Shahdara Fiber Net field technician is on the way for Ticket #${o.id} (${o.categoryLabel}).`);
+      whatsappUrl = `https://wa.me/${intlPhone}?text=${waText}`;
+    }
+
+    const mapQuery = encodeURIComponent([o.customerName, o.address, o.area, 'Shahdara Lahore'].filter(Boolean).join(', '));
+    const mapsQueryUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
+
+    return {
+      ...o,
+      ticketIndex: idx + 1,
+      phoneUrl,
+      whatsappUrl,
+      mapsQueryUrl
+    };
+  });
+
+  return {
+    date: nowStr,
+    selectedSector: selSector,
+    selectedStatus: selStatus,
+    selectedPriority: selPriority,
+    totalOrders,
+    openOrders,
+    inProgressOrders,
+    activeCount,
+    resolvedCount,
+    urgentCount,
+    highPriorityCount,
+    slaBreachedCount,
+    resolutionRate,
+    sectors,
+    orders: enrichedOrders
+  };
+}
+
+export function generateWorkOrderManifestText(woData = {}) {
+  const date = woData.date || new Date().toISOString().slice(0, 10);
+  const sector = woData.selectedSector || 'All Sectors';
+  const orders = Array.isArray(woData.orders) ? woData.orders : [];
+
+  let text = `⚡ *SHAHDARA FIBER NET — FIELD WORK ORDER MANIFEST*\n`;
+  text += `📅 Date: ${date} | 📍 Sector: ${sector}\n`;
+  text += `📊 Summary: ${woData.openOrders ?? 0} Open, ${woData.inProgressOrders ?? 0} In Progress, ${woData.urgentCount ?? 0} Urgent, ${woData.resolvedCount ?? 0} Resolved (${woData.resolutionRate ?? 0}% Completion)\n`;
+  text += `─────────────────────────────────────────\n`;
+
+  if (orders.length === 0) {
+    text += `🎉 No pending field service tickets matching current filter.\n`;
+  } else {
+    orders.forEach((o, i) => {
+      const statusIcon = o.status === 'resolved' ? '✅ [RESOLVED]' : o.status === 'in_progress' ? '⚡ [IN PROGRESS]' : o.priority === 'urgent' ? '🔴 [URGENT]' : '🟡 [OPEN]';
+      text += `${i + 1}. ${statusIcon} *#${o.id}* — ${o.categoryLabel}\n`;
+      text += `   👤 ${o.customerName}${o.username ? ` (@${o.username})` : ''}\n`;
+      text += `   📍 ${o.address ? `${o.address} ` : ''}[${o.area}]\n`;
+      if (o.phone) text += `   📞 ${o.phone}\n`;
+      if (o.assignedTech) text += `   👷 Assigned: ${o.assignedTech}\n`;
+      if (o.notes) text += `   📝 Note: ${o.notes}\n`;
+      if (o.resolutionNotes) text += `   ✨ Resolution: ${o.resolutionNotes}\n`;
+      text += `\n`;
+    });
+  }
+
+  text += `─────────────────────────────────────────\n`;
+  text += `⚠️ Field Line Staff: Confirm fiber fusion splice optical power (-15 to -22 dBm) before marking resolved.`;
+  return text;
+}
+
+export function setupFieldWorkOrderSheet({
+  getState,
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onNavigateCustomer,
+  onToast,
+  clipboard = (typeof navigator !== 'undefined' ? navigator.clipboard : null)
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      recalculate: () => null,
+      getWorkOrderData: () => null,
+      open: () => {},
+      close: () => {},
+      setState: () => {}
+    };
+  }
+
+  const modal = document.getElementById('fieldWorkOrderModal');
+  if (!modal) {
+    return {
+      recalculate: () => null,
+      getWorkOrderData: () => null,
+      open: () => {},
+      close: () => {},
+      setState: () => {}
+    };
+  }
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  const closeBtn = document.getElementById('fieldWorkOrderCloseBtn');
+  const sectorFilter = document.getElementById('woSectorFilter');
+  const statusFilter = document.getElementById('woStatusFilter');
+  const priorityFilter = document.getElementById('woPriorityFilter');
+  const searchInput = document.getElementById('woSearchInput');
+  const ordersList = document.getElementById('fieldWorkOrderList');
+  const emptyState = document.getElementById('woEmptyState');
+
+  const metricOpen = document.getElementById('woMetricOpen');
+  const metricInProgress = document.getElementById('woMetricInProgress');
+  const metricUrgent = document.getElementById('woMetricUrgent');
+  const metricResolved = document.getElementById('woMetricResolved');
+
+  const toggleNewBtn = document.getElementById('woToggleNewBtn');
+  const newTicketPanel = document.getElementById('woNewTicketPanel');
+  const closeNewTicketBtn = document.getElementById('woCloseNewTicketBtn');
+  const newTicketForm = document.getElementById('woNewTicketForm');
+  const formCustomerSelect = document.getElementById('woFormCustomer');
+  const formCategorySelect = document.getElementById('woFormCategory');
+  const formPrioritySelect = document.getElementById('woFormPriority');
+  const formTechInput = document.getElementById('woFormTech');
+  const formNotesInput = document.getElementById('woFormNotes');
+
+  const copyBtn = document.getElementById('copyWorkOrderManifestBtn');
+  const shareWhatsappBtn = document.getElementById('shareWorkOrderWhatsappBtn');
+  const openBtns = Array.from(document.querySelectorAll('[data-open-work-orders]'));
+
+  let currentState = typeof getState === 'function' ? getState() : null;
+  let lastData = null;
+
+  function updateUi() {
+    currentState = typeof getState === 'function' ? getState() : currentState;
+    const selectedSector = sectorFilter?.value || 'All';
+    const selectedStatus = statusFilter?.value || 'urgent';
+    const selectedPriority = priorityFilter?.value || 'all';
+    const searchQuery = searchInput?.value || '';
+
+    const woData = calculateFieldWorkOrders(currentState, {
+      sector: selectedSector,
+      status: selectedStatus,
+      priority: selectedPriority,
+      searchQuery,
+      storage
+    });
+    lastData = woData;
+
+    if (metricOpen) metricOpen.textContent = String(woData.openOrders);
+    if (metricInProgress) metricInProgress.textContent = String(woData.inProgressOrders);
+    if (metricUrgent) metricUrgent.textContent = String(woData.urgentCount);
+    if (metricResolved) metricResolved.textContent = String(woData.resolvedCount);
+
+    if (sectorFilter && woData.sectors) {
+      const currentVal = sectorFilter.value;
+      const opts = woData.sectors.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+      if (sectorFilter.dataset.lastSectors !== JSON.stringify(woData.sectors)) {
+        sectorFilter.innerHTML = opts;
+        sectorFilter.dataset.lastSectors = JSON.stringify(woData.sectors);
+        if (woData.sectors.includes(currentVal)) {
+          sectorFilter.value = currentVal;
+        } else {
+          sectorFilter.value = 'All';
+        }
+      }
+    }
+
+    if (formCustomerSelect && currentState?.customers) {
+      const activeCusts = currentState.customers.filter(c => !c.archived);
+      const custOpts = [
+        '<option value="">-- Select Subscriber --</option>',
+        ...activeCusts.map(c => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(c.area || 'Shahdara')})</option>`)
+      ].join('');
+      if (formCustomerSelect.dataset.lastCustCount !== String(activeCusts.length)) {
+        formCustomerSelect.innerHTML = custOpts;
+        formCustomerSelect.dataset.lastCustCount = String(activeCusts.length);
+      }
+    }
+
+    if (ordersList) {
+      ordersList.innerHTML = '';
+      if (!woData.orders || woData.orders.length === 0) {
+        if (emptyState) emptyState.hidden = false;
+      } else {
+        if (emptyState) emptyState.hidden = true;
+        woData.orders.forEach(order => {
+          const card = document.createElement('div');
+          card.className = `work-order-card is-${order.status} is-priority-${order.priority}`;
+          card.setAttribute('role', 'listitem');
+
+          const statusBadge = order.status === 'resolved'
+            ? '<span class="role-badge role-primary">Resolved</span>'
+            : order.status === 'in_progress'
+            ? '<span class="role-badge role-warning">In Progress</span>'
+            : '<span class="role-badge role-alert">Open</span>';
+
+          const priorityBadge = order.priority === 'urgent'
+            ? '<span class="role-badge badge-alert">🔴 Urgent</span>'
+            : order.priority === 'high'
+            ? '<span class="role-badge badge-warning">🟡 High</span>'
+            : '<span class="role-badge badge-neutral">Normal</span>';
+
+          card.innerHTML = `
+            <div class="wo-card-top">
+              <div class="wo-card-header">
+                <span class="wo-card-ticket-id">#${esc(order.id)}</span>
+                <span class="wo-card-category">${esc(order.categoryIcon || '🛠️')} ${esc(order.categoryLabel)}</span>
+                ${priorityBadge}
+                ${statusBadge}
+              </div>
+              <div class="wo-card-subscriber">
+                <strong class="wo-card-name">${esc(order.customerName)}</strong>
+                ${order.username ? `<span class="wo-card-user">@${esc(order.username)}</span>` : ''}
+              </div>
+              <div class="wo-card-meta">
+                <span class="wo-card-addr">📍 ${esc(order.address || order.area)} [${esc(order.area)}]</span>
+                <span class="wo-card-tech">👷 Tech: ${esc(order.assignedTech)}</span>
+              </div>
+              ${order.notes ? `<div class="wo-card-notes">📝 ${esc(order.notes)}</div>` : ''}
+              ${order.resolutionNotes ? `<div class="wo-card-res-notes">✨ Resolved: ${esc(order.resolutionNotes)}</div>` : ''}
+              <div class="wo-card-contact-row">
+                ${order.phoneUrl ? `<a href="${order.phoneUrl}" class="action-btn-sm" aria-label="Call ${esc(order.customerName)}">📞 Call</a>` : ''}
+                ${order.whatsappUrl ? `<a href="${order.whatsappUrl}" target="_blank" rel="noopener noreferrer" class="action-btn-sm" aria-label="WhatsApp ${esc(order.customerName)}">💬 WhatsApp</a>` : ''}
+                <a href="${order.mapsQueryUrl}" target="_blank" rel="noopener noreferrer" class="action-btn-sm" aria-label="Navigate to ${esc(order.customerName)}">🗺️ Map</a>
+              </div>
+            </div>
+            <div class="wo-card-actions">
+              ${order.status === 'open' ? `<button type="button" class="action-btn-sm primary-sm" data-wo-start="${esc(order.id)}">⚡ Start Work</button>` : ''}
+              ${order.status === 'in_progress' ? `<button type="button" class="action-btn-sm primary-sm" data-wo-resolve="${esc(order.id)}">✅ Mark Resolved</button>` : ''}
+              ${order.status === 'resolved' ? `<button type="button" class="action-btn-sm" data-wo-reopen="${esc(order.id)}">↺ Reopen</button>` : ''}
+              ${order.customerId ? `<button type="button" class="action-btn-sm" data-wo-profile="${esc(order.customerId)}">Profile</button>` : ''}
+            </div>
+          `;
+          ordersList.appendChild(card);
+        });
+      }
+    }
+
+    const badge = document.querySelector('[data-nav-badge="work-orders"]');
+    if (badge) {
+      const activeTickets = woData.openOrders + woData.inProgressOrders;
+      badge.textContent = activeTickets > 99 ? '99+' : String(activeTickets);
+      badge.hidden = activeTickets === 0;
+      badge.classList.toggle('badge-alert', woData.urgentCount > 0);
+    }
+
+    return woData;
+  }
+
+  if (sectorFilter && !sectorFilter.dataset?.wiredWo) {
+    if (sectorFilter.dataset) sectorFilter.dataset.wiredWo = 'true';
+    sectorFilter.addEventListener('change', () => {
+      triggerHaptic('selection');
+      updateUi();
+    });
+  }
+
+  if (statusFilter && !statusFilter.dataset?.wiredWo) {
+    if (statusFilter.dataset) statusFilter.dataset.wiredWo = 'true';
+    statusFilter.addEventListener('change', () => {
+      triggerHaptic('selection');
+      updateUi();
+    });
+  }
+
+  if (priorityFilter && !priorityFilter.dataset?.wiredWo) {
+    if (priorityFilter.dataset) priorityFilter.dataset.wiredWo = 'true';
+    priorityFilter.addEventListener('change', () => {
+      triggerHaptic('selection');
+      updateUi();
+    });
+  }
+
+  if (searchInput && !searchInput.dataset?.wiredWo) {
+    if (searchInput.dataset) searchInput.dataset.wiredWo = 'true';
+    searchInput.addEventListener('input', () => {
+      updateUi();
+    });
+  }
+
+  if (ordersList && !ordersList.dataset?.wiredWo) {
+    if (ordersList.dataset) ordersList.dataset.wiredWo = 'true';
+    ordersList.addEventListener('click', (e) => {
+      const startBtn = e.target.closest('[data-wo-start]');
+      if (startBtn) {
+        const ticketId = startBtn.getAttribute('data-wo-start');
+        triggerHaptic('medium');
+        if (ticketId.startsWith('AUTO-OFFLINE-')) {
+          const custId = ticketId.replace('AUTO-OFFLINE-', '');
+          const cust = currentState?.customers?.find(c => c.id === custId);
+          if (cust) {
+            const created = createFieldWorkOrder({
+              customerId: cust.id,
+              customerName: cust.name,
+              username: cust.username,
+              phone: cust.phone,
+              area: cust.area || 'Shahdara Town',
+              address: cust.address,
+              category: 'fiber_cut',
+              priority: 'urgent',
+              notes: 'Field worker initiated repair for offline connection.'
+            }, storage);
+            updateFieldWorkOrderStatus(created.id, 'in_progress', 'Technician on-site inspecting fiber drop.', storage);
+          }
+        } else {
+          updateFieldWorkOrderStatus(ticketId, 'in_progress', 'Technician en route to location.', storage);
+        }
+        updateUi();
+        if (typeof onToast === 'function') onToast('Ticket status updated: In Progress');
+        return;
+      }
+
+      const resolveBtn = e.target.closest('[data-wo-resolve]');
+      if (resolveBtn) {
+        const ticketId = resolveBtn.getAttribute('data-wo-resolve');
+        triggerHaptic('medium');
+        updateFieldWorkOrderStatus(ticketId, 'resolved', 'Fiber splice verified with optimal optical power.', storage);
+        updateUi();
+        if (typeof onToast === 'function') onToast('Ticket marked as resolved!');
+        return;
+      }
+
+      const reopenBtn = e.target.closest('[data-wo-reopen]');
+      if (reopenBtn) {
+        const ticketId = reopenBtn.getAttribute('data-wo-reopen');
+        triggerHaptic('selection');
+        updateFieldWorkOrderStatus(ticketId, 'open', 'Ticket reopened for further inspection.', storage);
+        updateUi();
+        if (typeof onToast === 'function') onToast('Ticket reopened.');
+        return;
+      }
+
+      const profileBtn = e.target.closest('[data-wo-profile]');
+      if (profileBtn) {
+        const custId = profileBtn.getAttribute('data-wo-profile');
+        triggerHaptic('selection');
+        if (typeof modal?.close === 'function') modal.close();
+        else if (modal) modal.removeAttribute('open');
+        if (typeof onNavigateCustomer === 'function') {
+          onNavigateCustomer(custId);
+        }
+        return;
+      }
+    });
+  }
+
+  if (toggleNewBtn && !toggleNewBtn.dataset?.wiredWo) {
+    if (toggleNewBtn.dataset) toggleNewBtn.dataset.wiredWo = 'true';
+    toggleNewBtn.addEventListener('click', () => {
+      if (newTicketPanel) {
+        newTicketPanel.hidden = !newTicketPanel.hidden;
+        if (!newTicketPanel.hidden) {
+          formCustomerSelect?.focus();
+        }
+      }
+    });
+  }
+
+  if (closeNewTicketBtn && !closeNewTicketBtn.dataset?.wiredWo) {
+    if (closeNewTicketBtn.dataset) closeNewTicketBtn.dataset.wiredWo = 'true';
+    closeNewTicketBtn.addEventListener('click', () => {
+      if (newTicketPanel) newTicketPanel.hidden = true;
+    });
+  }
+
+  if (newTicketForm && !newTicketForm.dataset?.wiredWo) {
+    if (newTicketForm.dataset) newTicketForm.dataset.wiredWo = 'true';
+    newTicketForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const custId = formCustomerSelect?.value;
+      const cust = currentState?.customers?.find(c => c.id === custId);
+      if (!cust && !custId) {
+        if (typeof onToast === 'function') onToast('Please select a subscriber account.');
+        return;
+      }
+
+      const category = formCategorySelect?.value || 'other';
+      const priority = formPrioritySelect?.value || 'normal';
+      const tech = formTechInput?.value || 'Field Line Worker';
+      const notes = formNotesInput?.value || '';
+
+      const created = createFieldWorkOrder({
+        customerId: cust ? cust.id : null,
+        customerName: cust ? cust.name : 'Subscriber Ticket',
+        username: cust ? cust.username : '',
+        phone: cust ? cust.phone : '',
+        area: cust ? (cust.area || cust.mohalla || 'Shahdara Town') : 'Shahdara Town',
+        address: cust ? (cust.address || '') : '',
+        category,
+        priority,
+        assignedTech: tech,
+        notes
+      }, storage);
+
+      triggerHaptic('success');
+      newTicketForm.reset();
+      if (newTicketPanel) newTicketPanel.hidden = true;
+      updateUi();
+      if (typeof onToast === 'function') onToast(`Work Order #${created.id} created and dispatched!`);
+    });
+  }
+
+  if (copyBtn && !copyBtn.dataset?.wiredWo) {
+    if (copyBtn.dataset) copyBtn.dataset.wiredWo = 'true';
+    copyBtn.addEventListener('click', async () => {
+      const woData = updateUi();
+      const text = generateWorkOrderManifestText(woData);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Work order manifest copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this browser.');
+      }
+    });
+  }
+
+  if (shareWhatsappBtn && !shareWhatsappBtn.dataset?.wiredWo) {
+    if (shareWhatsappBtn.dataset) shareWhatsappBtn.dataset.wiredWo = 'true';
+    shareWhatsappBtn.addEventListener('click', () => {
+      const woData = updateUi();
+      const text = generateWorkOrderManifestText(woData);
+      const encoded = encodeURIComponent(text);
+      const whatsappUrl = `https://wa.me/?text=${encoded}`;
+      if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+      }
+      if (typeof onToast === 'function') onToast('Opening WhatsApp dispatch...');
+    });
+  }
+
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredWoOpen) {
+      if (btn.dataset) btn.dataset.wiredWoOpen = 'true';
+      btn.addEventListener('click', () => {
+        updateUi();
+        triggerHaptic('medium');
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredWo) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredWo = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    recalculate: updateUi,
+    getWorkOrderData: () => lastData,
+    open: () => {
+      updateUi();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    },
+    setState: (newState) => {
+      currentState = newState;
+      updateUi();
+    }
+  };
+}
+
 
 
 

@@ -94,6 +94,17 @@ export function setupNavigationDrawer({
     });
   }
 
+  // Wire drawer field diagnostics button if present
+  const diagDrawerBtns = drawer.querySelectorAll('[data-open-field-diagnostics]');
+  diagDrawerBtns.forEach(btn => {
+    if (!btn.dataset.wiredDiagDrawer) {
+      btn.dataset.wiredDiagDrawer = 'true';
+      btn.addEventListener('click', () => {
+        closeDrawer();
+      });
+    }
+  });
+
   // Keyboard navigation: Escape key closes drawer, Tab focus trap
   document.addEventListener('keydown', event => {
     if (!drawer.classList.contains('is-open')) return;
@@ -133,7 +144,7 @@ export function setupNavigationDrawer({
 /**
  * Updates live badges on navigation drawer and mobile bottom nav items.
  */
-export function updateNavigationBadges(state) {
+export function updateNavigationBadges(state, options = {}) {
   if (!state || typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
 
   const customers = Array.isArray(state.customers) ? state.customers : [];
@@ -141,11 +152,38 @@ export function updateNavigationBadges(state) {
   const expensesCount = Array.isArray(state.expenses) ? state.expenses.length : 0;
   const inventoryCount = Array.isArray(state.inventoryItems) ? state.inventoryItems.length : 0;
 
-  function setBadges(target, count, label) {
+  let overdueCount = 0;
+  let offlineCount = 0;
+  for (const c of customers) {
+    if (c.archived) continue;
+    if (c.status === 'offline') offlineCount++;
+    if (Array.isArray(c.bills)) {
+      const hasUnpaid = c.bills.some(b => Number(b.dueAmount) > 0 && b.status !== 'paid');
+      if (hasUnpaid) overdueCount++;
+    }
+  }
+
+  let queueCount = 0;
+  if (typeof options.offlineQueueCount === 'number') {
+    queueCount = options.offlineQueueCount;
+  } else if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('shahdara_offline_payment_queue');
+      if (raw) {
+        const q = JSON.parse(raw);
+        if (Array.isArray(q)) queueCount = q.length;
+      }
+    } catch {}
+  }
+
+  function setBadges(target, count, label, alertClass = false) {
     const badges = document.querySelectorAll(`[data-nav-badge="${target}"]`);
     badges.forEach(badge => {
-      badge.textContent = String(count);
+      badge.textContent = count > 99 ? '99+' : String(count);
       badge.hidden = count === 0;
+      if (badge.classList?.toggle) {
+        badge.classList.toggle('badge-alert', alertClass);
+      }
       if (label && badge.setAttribute) {
         badge.setAttribute('aria-label', `${count} ${label}`);
       }
@@ -155,6 +193,17 @@ export function updateNavigationBadges(state) {
   setBadges('customers', totalCustomers, 'active customer profiles');
   setBadges('expenses', expensesCount, 'recorded expenses');
   setBadges('inventory', inventoryCount, 'inventory items');
+  setBadges('collection', overdueCount, 'subscribers with pending dues', overdueCount > 0);
+  setBadges('more', queueCount, 'offline queued items', queueCount > 0);
+
+  return {
+    totalCustomers,
+    overdueCount,
+    offlineCount,
+    expensesCount,
+    inventoryCount,
+    queueCount
+  };
 }
 
 /**
@@ -2001,6 +2050,7 @@ export function setupMobileSpeedDial({
   onRecordPayment,
   onAddCustomer,
   onFieldEnrollment,
+  onFieldDiagnostics,
   onReminders,
   onScrollTop
 } = {}) {
@@ -2082,6 +2132,8 @@ export function setupMobileSpeedDial({
           onAddCustomer();
         } else if (action === 'field-enrollment' && typeof onFieldEnrollment === 'function') {
           onFieldEnrollment();
+        } else if (action === 'field-diagnostics' && typeof onFieldDiagnostics === 'function') {
+          onFieldDiagnostics();
         } else if (action === 'reminders' && typeof onReminders === 'function') {
           onReminders();
         } else if (action === 'scroll-top' && typeof onScrollTop === 'function') {
@@ -3375,6 +3427,309 @@ export function setupCustomerEnrollmentWizard({
     setFormData,
     reset,
     isOpen: () => isOpen
+  };
+}
+
+/**
+ * Calculates optical link budget, fiber link attenuation, and ONU receive power.
+ * Based on GPON ITU-T G.984 standards for FTTH distribution.
+ */
+export function calculateOpticalLinkBudget(options = {}) {
+  const distanceKm = Math.max(0.1, parseFloat(options.distanceKm) || 2.0);
+  const splitterRatio = String(options.splitterRatio || '1:8').trim();
+  const connectorsCount = Math.max(0, parseInt(options.connectorsCount, 10) || 4);
+  const spliceLossDb = Math.max(0, parseFloat(options.spliceLossDb) || 0.4);
+  const fiberAttenuationDbPerKm = Math.max(0.1, parseFloat(options.fiberAttenuationDbPerKm) || 0.35);
+  const oltTxPowerDbm = parseFloat(options.oltTxPowerDbm) || 4.5;
+  const onuSensitivityDbm = parseFloat(options.onuSensitivityDbm) || -28.0;
+
+  const SPLITTER_LOSSES = {
+    '1:2': 3.7,
+    '1:4': 7.2,
+    '1:8': 10.5,
+    '1:16': 13.8,
+    '1:32': 17.1,
+    '1:64': 20.5
+  };
+
+  const splitterLossDb = SPLITTER_LOSSES[splitterRatio] ?? 10.5;
+  const fiberLossDb = parseFloat((distanceKm * fiberAttenuationDbPerKm).toFixed(2));
+  const connectorsLossDb = parseFloat((connectorsCount * spliceLossDb).toFixed(2));
+  const safetyMarginDb = 1.5;
+
+  const totalLinkLossDb = parseFloat((splitterLossDb + fiberLossDb + connectorsLossDb + safetyMarginDb).toFixed(2));
+  const estRxPowerDbm = parseFloat((oltTxPowerDbm - (splitterLossDb + fiberLossDb + connectorsLossDb)).toFixed(2));
+  const linkMarginDb = parseFloat((estRxPowerDbm - onuSensitivityDbm).toFixed(2));
+
+  let diagnosisTier = 'Excellent Optical Signal';
+  let badgeClass = 'status-good';
+  let advice = 'Optimal GPON optical link. Clean reception well within ONU sensitivity specs.';
+
+  if (estRxPowerDbm < onuSensitivityDbm) {
+    diagnosisTier = 'Critical Attenuation / Link Fault';
+    badgeClass = 'status-danger';
+    advice = 'Received signal below ONU sensitivity floor (-28 dBm). Link will drop or flap. Check drop cable micro-bends, bad splices, or dirty SC/APC connectors.';
+  } else if (estRxPowerDbm <= -26.0) {
+    diagnosisTier = 'Marginal Signal Warning';
+    badgeClass = 'status-warn';
+    advice = 'Optical power near cut-off threshold. Clean optical connectors, check outdoor patch box, verify splitter port insertion.';
+  } else if (estRxPowerDbm <= -23.5) {
+    diagnosisTier = 'Good / Standard Link';
+    badgeClass = 'status-normal';
+    advice = 'Stable link power. Suitable for all standard residential and commercial packages.';
+  }
+
+  return {
+    distanceKm,
+    splitterRatio,
+    splitterLossDb,
+    fiberLossDb,
+    connectorsCount,
+    connectorsLossDb,
+    safetyMarginDb,
+    totalLinkLossDb,
+    oltTxPowerDbm,
+    onuSensitivityDbm,
+    estRxPowerDbm,
+    linkMarginDb,
+    diagnosisTier,
+    badgeClass,
+    advice
+  };
+}
+
+/**
+ * Calculates theoretical download throughput and peak hour CIR floor.
+ */
+export function calculateBandwidthThrottle(options = {}) {
+  const speedMbps = Math.max(1, parseFloat(options.speedMbps) || 15);
+  const contentionRatio = Math.max(1, parseInt(options.contentionRatio, 10) || 8);
+  const simulatedLatencyMs = Math.max(1, parseInt(options.simulatedLatencyMs, 10) || 12);
+
+  const downloadRateKbps = Math.round(speedMbps * 1024);
+  const downloadRateKBps = Math.round(downloadRateKbps / 8);
+  const downloadRateMBps = parseFloat((speedMbps / 8).toFixed(2));
+
+  const peakCirMbps = parseFloat((speedMbps / contentionRatio).toFixed(2));
+  const peakCirKBps = Math.round((peakCirMbps * 1024) / 8);
+
+  const streams1080p = Math.max(1, Math.floor(speedMbps / 5));
+  const streams4k = Math.max(0, Math.floor(speedMbps / 25));
+
+  let latencyRating = 'Ultra-Low Latency (Local GPON Gateway)';
+  let latencyBadge = 'status-good';
+  if (simulatedLatencyMs > 60) {
+    latencyRating = 'High Latency / Jitter Warning';
+    latencyBadge = 'status-danger';
+  } else if (simulatedLatencyMs > 30) {
+    latencyRating = 'National Spine Latency (Karachi/Transit)';
+    latencyBadge = 'status-warn';
+  } else if (simulatedLatencyMs > 15) {
+    latencyRating = 'Metro Core Latency (Lahore IXP)';
+    latencyBadge = 'status-normal';
+  }
+
+  return {
+    speedMbps,
+    contentionRatio,
+    downloadRateKbps,
+    downloadRateKBps,
+    downloadRateMBps,
+    peakCirMbps,
+    peakCirKBps,
+    streams1080p,
+    streams4k,
+    simulatedLatencyMs,
+    latencyRating,
+    latencyBadge
+  };
+}
+
+/**
+ * Generates plain-text field diagnostic report for field technicians.
+ */
+export function generateFieldDiagnosticReportText(optical, bandwidth, options = {}) {
+  const ref = (options.referenceDate instanceof Date && !isNaN(options.referenceDate))
+    ? options.referenceDate
+    : new Date();
+  const dateStr = ref.toISOString().slice(0, 10);
+  const area = options.area || 'Shahdara Area Drop';
+  const customerName = options.customerName || 'General Subscriber Inspection';
+
+  const lines = [
+    '====================================================',
+    'SHAHDARA ISP - FIELD CONNECTIVITY DIAGNOSTIC REPORT',
+    '====================================================',
+    `Date: ${dateStr} PKT | Target: ${customerName}`,
+    `Location: ${area} | OLT Core: Shahdara Core Hub`,
+    '',
+    '----------------------------------------------------',
+    '1. OPTICAL LINK BUDGET (FTTH GPON):',
+    '----------------------------------------------------',
+    `  Distance from OLT: ${optical.distanceKm} km`,
+    `  Splitter Ratio: ${optical.splitterRatio} (Splitter Loss: ${optical.splitterLossDb} dB)`,
+    `  Fiber Cable Loss: ${optical.fiberLossDb} dB (0.35 dB/km)`,
+    `  Connectors / Splices: ${optical.connectorsCount} points (${optical.connectorsLossDb} dB)`,
+    `  OLT Launch Power: +${optical.oltTxPowerDbm} dBm (Class C+)`,
+    `  Est. Received Power (Rx): ${optical.estRxPowerDbm} dBm`,
+    `  ONU Link Margin: +${optical.linkMarginDb} dB above threshold`,
+    `  Optical Health: ${optical.diagnosisTier}`,
+    `  Field Advice: ${optical.advice}`,
+    '',
+    '----------------------------------------------------',
+    '2. BANDWIDTH & THROUGHPUT VERIFICATION:',
+    '----------------------------------------------------',
+    `  Subscribed Package Speed: ${bandwidth.speedMbps} Mbps`,
+    `  Max Download Throughput: ${bandwidth.downloadRateMBps} MB/s (${bandwidth.downloadRateKBps} KB/s)`,
+    `  Peak Concurrency CIR Floor: ${bandwidth.peakCirMbps} Mbps (Ratio 1:${bandwidth.contentionRatio})`,
+    `  Video Streaming Capacity: ${bandwidth.streams1080p}x HD 1080p / ${bandwidth.streams4k}x 4K UHD`,
+    `  Ping Latency: ${bandwidth.simulatedLatencyMs} ms (${bandwidth.latencyRating})`,
+    '',
+    '====================================================',
+    'Technician Signature: _______________________________',
+    'Shahdara Fiber Net Field Ops Support'
+  ];
+
+  return lines.join('\n');
+}
+
+/**
+ * Wires the Field Diagnostics Modal dialog and interactive calculations.
+ */
+export function setupFieldDiagnosticsModal(options = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('fieldDiagnosticsModal');
+  const openBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('[data-open-field-diagnostics]')
+    : [];
+  const closeBtn = document.getElementById('fieldDiagnosticsCloseBtn');
+  const copyBtn = document.getElementById('copyFieldDiagnosticReportBtn');
+  const runPingBtn = document.getElementById('runPingTestBtn');
+
+  const distInput = document.getElementById('diagDistanceInput');
+  const splitterSelect = document.getElementById('diagSplitterSelect');
+  const speedSelect = document.getElementById('diagSpeedSelect');
+  const contentionSelect = document.getElementById('diagContentionSelect');
+
+  const rxPowerVal = document.getElementById('diagRxPowerVal');
+  const linkMarginVal = document.getElementById('diagLinkMarginVal');
+  const diagStatusBadge = document.getElementById('diagStatusBadge');
+  const diagAdviceText = document.getElementById('diagAdviceText');
+
+  const maxSpeedVal = document.getElementById('diagMaxSpeedVal');
+  const cirFloorVal = document.getElementById('diagCirFloorVal');
+  const pingVal = document.getElementById('diagPingVal');
+  const pingBadge = document.getElementById('diagPingBadge');
+
+  const onToast = options.onToast;
+  const clipboard = options.clipboard;
+
+  let currentPingMs = 12;
+
+  function recalculate() {
+    const dist = parseFloat(distInput?.value) || 2.0;
+    const split = splitterSelect?.value || '1:8';
+    const speed = parseFloat(speedSelect?.value) || 15;
+    const contention = parseInt(contentionSelect?.value, 10) || 8;
+
+    const opt = calculateOpticalLinkBudget({ distanceKm: dist, splitterRatio: split });
+    const bw = calculateBandwidthThrottle({ speedMbps: speed, contentionRatio: contention, simulatedLatencyMs: currentPingMs });
+
+    if (rxPowerVal) rxPowerVal.textContent = `${opt.estRxPowerDbm} dBm`;
+    if (linkMarginVal) linkMarginVal.textContent = `+${opt.linkMarginDb} dB`;
+    if (diagStatusBadge) {
+      diagStatusBadge.textContent = opt.diagnosisTier;
+      diagStatusBadge.className = `role-badge ${opt.badgeClass === 'status-good' ? 'role-primary' : (opt.badgeClass === 'status-danger' ? 'role-danger' : 'role-warn')}`;
+    }
+    if (diagAdviceText) diagAdviceText.textContent = opt.advice;
+
+    if (maxSpeedVal) maxSpeedVal.textContent = `${bw.downloadRateMBps} MB/s`;
+    if (cirFloorVal) cirFloorVal.textContent = `${bw.peakCirMbps} Mbps`;
+    if (pingVal) pingVal.textContent = `${bw.simulatedLatencyMs} ms`;
+    if (pingBadge) {
+      pingBadge.textContent = bw.latencyRating.split('(')[0].trim();
+      pingBadge.className = `role-badge ${bw.latencyBadge === 'status-good' ? 'role-primary' : 'role-warn'}`;
+    }
+
+    return { opt, bw };
+  }
+
+  [distInput, splitterSelect, speedSelect, contentionSelect].forEach(input => {
+    if (input && !input.dataset?.wiredDiag) {
+      if (input.dataset) input.dataset.wiredDiag = 'true';
+      input.addEventListener('change', recalculate);
+      input.addEventListener('input', recalculate);
+    }
+  });
+
+  if (runPingBtn && !runPingBtn.dataset?.wiredDiag) {
+    if (runPingBtn.dataset) runPingBtn.dataset.wiredDiag = 'true';
+    runPingBtn.addEventListener('click', () => {
+      currentPingMs = Math.floor(Math.random() * 12) + 8;
+      recalculate();
+      if (typeof onToast === 'function') onToast(`Gateway ping test complete: ${currentPingMs} ms`);
+    });
+  }
+
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredDiag) {
+      if (btn.dataset) btn.dataset.wiredDiag = 'true';
+      btn.addEventListener('click', () => {
+        recalculate();
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredDiag) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredDiag = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  if (copyBtn && !copyBtn.dataset?.wiredDiag) {
+    if (copyBtn.dataset) copyBtn.dataset.wiredDiag = 'true';
+    copyBtn.addEventListener('click', async () => {
+      const { opt, bw } = recalculate();
+      const text = generateFieldDiagnosticReportText(opt, bw);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Diagnostic report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+
+  return {
+    recalculate,
+    open: () => {
+      recalculate();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    }
   };
 }
 

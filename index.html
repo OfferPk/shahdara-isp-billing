@@ -1244,7 +1244,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -2576,6 +2576,186 @@
             </thead>
             <tbody id="adjHistoryTableBody">
               <tr><td colspan="6" class="text-center empty-muted">No adjustment vouchers issued for this customer yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </dialog>
+
+  <dialog id="customerServiceContractModal" class="modal agreement-modal" aria-labelledby="serviceContractModalTitle">
+    <section class="modal-card agreement-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">CUSTOMER ONBOARDING &amp; FIELD OPS</p>
+          <h2 id="serviceContractModalTitle">Service Agreement &amp; Installation Order (معاہدہ انٹرنیٹ سروس)</h2>
+        </div>
+        <button id="closeServiceContractModalBtn" class="close-button" type="button" aria-label="Close agreement dialog">×</button>
+      </div>
+
+      <!-- Customer Context Ribbon -->
+      <div class="contract-customer-ribbon">
+        <div class="contract-cust-info">
+          <span class="ribbon-label">Subscriber:</span>
+          <strong id="contractCustName">Subscriber</strong>
+          <span class="ribbon-sep">|</span>
+          <span id="contractCustPhone">Phone</span>
+          <span class="ribbon-sep">|</span>
+          <span id="contractCustLocation">Shahdara</span>
+          <span class="ribbon-sep">|</span>
+          <span class="role-badge role-primary" id="contractCustCurrentPackage">15 Mbps</span>
+        </div>
+      </div>
+
+      <form id="serviceContractForm" class="contract-form" novalidate onsubmit="return false;">
+        <div class="contract-grid">
+          <!-- Column 1: Identity & Tariff -->
+          <div class="contract-col">
+            <h4 class="contract-col-title">1. Subscriber CNIC &amp; Tariff</h4>
+            
+            <div class="form-field">
+              <label for="contractCnicInput">Pakistani CNIC (National Identity Card)</label>
+              <input id="contractCnicInput" class="form-input" type="text" placeholder="35202-1234567-1" maxlength="15" autocomplete="off">
+              <span class="field-hint">13 digits required (auto-masks as XXXXX-XXXXXXX-X)</span>
+              <p id="contractCnicError" class="field-error" hidden></p>
+            </div>
+
+            <div class="form-field">
+              <label for="contractPackageSelect">Subscribed Internet Package</label>
+              <select id="contractPackageSelect" class="form-select">
+                <option value="5 Mbps Starter">5 Mbps Starter</option>
+                <option value="10 Mbps Basic">10 Mbps Basic</option>
+                <option value="15 Mbps Turbo" selected>15 Mbps Turbo</option>
+                <option value="25 Mbps Ultra">25 Mbps Ultra</option>
+                <option value="50 Mbps Fiber Max">50 Mbps Fiber Max</option>
+              </select>
+            </div>
+
+            <div class="form-row-two">
+              <div class="form-field">
+                <label for="contractMonthlyRateInput">Monthly Subscription (PKR)</label>
+                <input id="contractMonthlyRateInput" class="form-input" type="number" min="0" step="50" value="1500">
+                <p id="contractMonthlyRateError" class="field-error" hidden></p>
+              </div>
+              <div class="form-field">
+                <label for="contractTenureSelect">Agreement Tenure</label>
+                <select id="contractTenureSelect" class="form-select">
+                  <option value="0">Open (Month-to-Month)</option>
+                  <option value="3">3 Months</option>
+                  <option value="6">6 Months</option>
+                  <option value="12" selected>12 Months (Standard)</option>
+                  <option value="24">24 Months</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row-two">
+              <div class="form-field">
+                <label for="contractInstallFeeInput">Setup / Installation Fee (PKR)</label>
+                <input id="contractInstallFeeInput" class="form-input" type="number" min="0" step="100" value="1000">
+              </div>
+              <div class="form-field">
+                <label for="contractDepositInput">ONU Security Deposit (PKR)</label>
+                <input id="contractDepositInput" class="form-input" type="number" min="0" step="100" value="1500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: Equipment & Field Specs -->
+          <div class="contract-col">
+            <h4 class="contract-col-title">2. Hardware Custody &amp; Installation</h4>
+
+            <div class="form-row-two">
+              <div class="form-field">
+                <label for="contractOntModelInput">ONU / Router Device Model</label>
+                <input id="contractOntModelInput" class="form-input" type="text" value="Huawei HG8546M GPON">
+              </div>
+              <div class="form-field">
+                <label for="contractOntSerialInput">Hardware Serial Number (S/N)</label>
+                <input id="contractOntSerialInput" class="form-input font-mono" type="text" placeholder="HWTC-12345678" maxlength="30">
+              </div>
+            </div>
+
+            <div class="form-row-two">
+              <div class="form-field">
+                <label for="contractCableMetersInput">Drop Cable Deployed (meters)</label>
+                <input id="contractCableMetersInput" class="form-input" type="number" min="0" max="1000" value="75">
+              </div>
+              <div class="form-field">
+                <label for="contractOpticalPowerInput">Optical Power Rx (dBm)</label>
+                <input id="contractOpticalPowerInput" class="form-input" type="number" step="0.1" value="-21.5">
+              </div>
+            </div>
+
+            <div class="form-row-two">
+              <div class="form-field">
+                <label for="contractStartDateInput">Installation Date</label>
+                <input id="contractStartDateInput" class="form-input" type="date">
+              </div>
+              <div class="form-field">
+                <label for="contractTechNameInput">Lead Field Technician</label>
+                <input id="contractTechNameInput" class="form-input" type="text" value="Umair Tech">
+                <p id="contractTechError" class="field-error" hidden></p>
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label for="contractNotesInput">Special Notes / Address Instructions</label>
+              <input id="contractNotesInput" class="form-input" type="text" placeholder="e.g. 2nd floor router placement, aerial drop from Pole #14">
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Contract Preview Ribbon -->
+        <div class="contract-preview-box">
+          <div class="preview-item">
+            <span class="preview-lbl">Agreement Ref:</span>
+            <strong id="contractPreviewAgrNumber" class="font-mono">AGR-202610-0001</strong>
+          </div>
+          <div class="preview-item">
+            <span class="preview-lbl">Valid Till:</span>
+            <strong id="contractPreviewExpiry">12 Months</strong>
+          </div>
+          <div class="preview-item">
+            <span class="preview-lbl">Total Initial Paid:</span>
+            <strong id="contractPreviewTotalInitial" class="highlight-green font-mono font-bold">PKR 4,000</strong>
+          </div>
+          <div class="preview-item">
+            <span class="preview-lbl">Assigned Hardware:</span>
+            <span id="contractPreviewOntSummary">Huawei HG8546M GPON</span>
+          </div>
+        </div>
+
+        <div class="contract-modal-actions">
+          <button id="submitServiceContractBtn" class="primary-button" type="button">Issue &amp; Save Agreement</button>
+          <button id="printServiceContractA4Btn" class="secondary-button" type="button">🖨️ Print Formal A4</button>
+          <button id="printServiceContractSlipBtn" class="secondary-button" type="button">🧾 Print 80mm Slip</button>
+          <button id="whatsappServiceContractBtn" class="action-btn-whatsapp" type="button">💬 WhatsApp Copy</button>
+          <button id="exportServiceContractCsvBtn" class="secondary-button" type="button">📊 Export CSV</button>
+          <button id="closeServiceContractSecondaryBtn" class="secondary-button" type="button">Close</button>
+        </div>
+      </form>
+
+      <!-- Existing Agreements History Table -->
+      <section class="contract-history-section">
+        <div class="contract-history-header">
+          <h4>Issued Service Agreements &amp; Work Orders</h4>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" aria-label="Customer service agreements history">
+            <thead>
+              <tr>
+                <th>Agreement #</th>
+                <th>Date</th>
+                <th>Package</th>
+                <th class="text-right">Monthly (PKR)</th>
+                <th class="text-right">Total Paid (PKR)</th>
+                <th>Tenure</th>
+                <th class="text-center">Print Actions</th>
+              </tr>
+            </thead>
+            <tbody id="contractHistoryTableBody">
+              <tr><td colspan="7" class="text-center empty-muted">No service agreements issued yet.</td></tr>
             </tbody>
           </table>
         </div>

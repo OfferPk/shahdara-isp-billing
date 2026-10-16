@@ -12197,3 +12197,28 @@ export {
   calculateFerruleGeometryMetrics,
   setupFerruleGeometryModal
 } from './qa-ferrule-geometry.js';
+
+export {
+  FUSION_ARC_QA_STORAGE_KEY,
+  SPLICER_MODELS,
+  FIBER_TYPES,
+  PROOF_TEST_STATUSES,
+  QA_VERDICTS,
+  FUSION_ARC_PRESETS,
+  calculateElectrodeLife,
+  calculateArcCompensation,
+  calculateSpliceLoss,
+  evaluateFusionSpliceQa,
+  renderFusionArcQaAnalysisSvg,
+  buildFusionArcQaRecord,
+  generateFusionArcQaCertId,
+  generateFusionArcQaCertHtml,
+  formatFusionArcQaCertWhatsApp,
+  generateFusionArcQaCertsCsv,
+  getSavedFusionArcQaCerts,
+  saveFusionArcQaCert,
+  updateFusionArcQaCertStatus,
+  clearFusionArcQaCerts,
+  calculateFusionArcQaMetrics,
+  setupFusionArcQaModal
+} from './qa-fusion-splicer-arc.js';

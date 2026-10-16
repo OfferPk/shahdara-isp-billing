@@ -72,6 +72,7 @@
           <li class="nav-drawer-item"><button type="button" id="navOpticalBudgetBtn" data-open-optical-budget><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="17" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="3"/></svg></span><span>Optical Link Budget</span><span id="navBadgeOpticalBudget" class="nav-drawer-badge" data-nav-badge="optical-budget" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navFdtAllocationBtn" data-open-fdt-allocation><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></span><span>FAT Port Matrix</span><span id="navBadgeFdtAllocation" class="nav-drawer-badge" data-nav-badge="fdt-allocation" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navOntDiagnosticsBtn" data-open-ont-diagnostics><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="6" cy="12" r="1.5"/><circle cx="10" cy="12" r="1.5"/><circle cx="14" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></span><span>ONT Diagnostics</span><span id="navBadgeOntDiagnostics" class="nav-drawer-badge" data-nav-badge="ont-diagnostics" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navFiberProbeBtn" data-open-fiber-probe><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg></span><span>Fiber Probe Scope</span><span id="navBadgeFiberProbe" class="nav-drawer-badge" data-nav-badge="fiber-probe" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -3666,7 +3667,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -4204,6 +4205,10 @@
         <span class="sheet-action-icon" aria-hidden="true">📟</span>
         <span class="sheet-action-label">ONT Diag</span>
       </button>
+      <button type="button" id="actionSheetFiberProbeBtn" class="sheet-action-tile" data-sheet-action="fiber-probe" data-open-fiber-probe>
+        <span class="sheet-action-icon" aria-hidden="true">🔬</span>
+        <span class="sheet-action-label">Fiber Probe</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -4320,6 +4325,10 @@
       <button type="button" id="speedDialOntDiagnosticsBtn" class="speed-dial-action" data-speed-action="ont-diagnostics" data-open-ont-diagnostics role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">📟</span>
         <span class="speed-action-label">ONT Diag</span>
+      </button>
+      <button type="button" id="speedDialFiberProbeBtn" class="speed-dial-action" data-speed-action="fiber-probe" data-open-fiber-probe role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🔬</span>
+        <span class="speed-action-label">Fiber Probe</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -6460,6 +6469,135 @@
       <div class="ont-history-section">
         <h3 style="margin:0;font-size:13px;font-weight:700">Recent ONT Inspection Logs</h3>
         <ul id="ontDiagHistoryList" class="ont-history-list" role="feed" aria-label="Recent ONT diagnostics">
+          <!-- Dynamically populated entries -->
+        </ul>
+      </div>
+    </section>
+  </dialog>
+
+  <!-- Mobile Field Optical Fiber Inspection Probe & Connector End-Face Scope Modal -->
+  <dialog id="mobileFiberProbeModal" class="modal fiber-probe-modal" aria-labelledby="fiberProbeModalTitle">
+    <section class="probe-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">IEC 61300-3-35 MICROSCOPE INSPECTION &amp; PASS/FAIL GRADING</p>
+          <h2 id="fiberProbeModalTitle">Fiber Connector Probe Scope</h2>
+        </div>
+        <button id="mobileFiberProbeCloseBtn" class="close-button" type="button" aria-label="Close fiber probe modal">×</button>
+      </div>
+
+      <!-- Preset & Magnification Selector Row -->
+      <div class="fdt-selector-row">
+        <div class="fdt-selector-group">
+          <label for="fiberProbePresetSelect" style="font-size:12px;font-weight:700">Inspection Sample:</label>
+          <select id="fiberProbePresetSelect" class="fdt-select" aria-label="Select Inspection Preset">
+            <option value="PRISTINE_CLEAN" selected>Pristine Clean Factory Ferrule (PASS)</option>
+            <option value="CORE_SCRATCH">Zone A Core Scratch Gouge (CRITICAL FAIL)</option>
+            <option value="CLAD_PARTICLES">Zone B Cladding Dust Contamination (FAIL)</option>
+            <option value="ADHESIVE_CHIPS">Zone C Adhesive Chipping / Cracks (FAIL)</option>
+            <option value="FERRULE_DIRT">Zone D Ferrule Mating Soil &amp; Oil (FAIL)</option>
+            <option value="MINOR_ACCEPTABLE">Acceptable Light Cladding Blemishes (PASS)</option>
+          </select>
+        </div>
+        <div class="fdt-selector-group">
+          <label for="fiberProbeMagSelect" style="font-size:12px;font-weight:700">Magnification:</label>
+          <select id="fiberProbeMagSelect" class="fdt-select" aria-label="Select Microscope Magnification">
+            <option value="400X" selected>400X High Resolution (Core Analysis)</option>
+            <option value="200X">200X Wide Field (Ferrule View)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- SVG Microscope Live View Container -->
+      <div id="fiberProbeSvgContainer" class="probe-svg-wrap" role="img" aria-label="Fiber Optic Connector End-Face Visual Microscope">
+        <!-- Pure SVG rendered here -->
+      </div>
+
+      <!-- Zone Assessment Grid -->
+      <section class="probe-zone-grid" aria-label="IEC 61300-3-35 Zone Analysis">
+        <div class="probe-zone-badge">
+          <span class="probe-zone-title">Zone A: Core (0-25µm)</span>
+          <span id="fiberProbeCoreStatus" class="probe-status-pill status-pass">0 Defects (PASS)</span>
+        </div>
+        <div class="probe-zone-badge">
+          <span class="probe-zone-title">Zone B: Cladding (25-115µm)</span>
+          <span id="fiberProbeCladStatus" class="probe-status-pill status-pass">0 Defects (PASS)</span>
+        </div>
+        <div class="probe-zone-badge">
+          <span class="probe-zone-title">Zone C: Adhesive (115-135µm)</span>
+          <span id="fiberProbeAdhrStatus" class="probe-status-pill status-pass">0 Defects (PASS)</span>
+        </div>
+        <div class="probe-zone-badge">
+          <span class="probe-zone-title">Zone D: Ferrule (135-250µm)</span>
+          <span id="fiberProbeFerrStatus" class="probe-status-pill status-pass">0 Defects (PASS)</span>
+        </div>
+      </section>
+
+      <!-- Optical Performance & Diagnostic Summary -->
+      <div class="probe-summary-strip">
+        <div class="probe-metric">
+          <span class="metric-label">Overall IEC Grade</span>
+          <span id="fiberProbeOverallBadge" class="metric-val text-pass">PASS</span>
+        </div>
+        <div class="probe-metric">
+          <span class="metric-label">Est. Insertion Loss Penalty</span>
+          <span id="fiberProbeIlPenalty" class="metric-val">+0.00 dB</span>
+        </div>
+        <div class="probe-metric">
+          <span class="metric-label">Est. Optical Return Loss</span>
+          <span id="fiberProbeRlEst" class="metric-val">65.0 dB</span>
+        </div>
+      </div>
+
+      <!-- Remediation Recommendation Box -->
+      <div class="probe-remediation-box">
+        <span class="remediation-icon" aria-hidden="true">💡</span>
+        <div class="remediation-content">
+          <strong>Cleaning Remediation:</strong>
+          <span id="fiberProbeRemediationTip">End-face meets IEC 61300-3-35 standard. Safe to mate with patch panel adapter.</span>
+        </div>
+      </div>
+
+      <!-- Audit Metadata Inputs -->
+      <section class="probe-meta-grid" aria-label="Field Location &amp; Technician">
+        <div class="probe-meta-group">
+          <label for="fiberProbeLocationInput">Location Area</label>
+          <input id="fiberProbeLocationInput" type="text" placeholder="e.g. Baradari Road" value="Baradari Road" />
+        </div>
+        <div class="probe-meta-group">
+          <label for="fiberProbeNodeTagInput">FAT Node / Drop Cable</label>
+          <input id="fiberProbeNodeTagInput" type="text" placeholder="e.g. FAT-BAR-01 Drop 4" value="FAT-BAR-01 Drop 4" />
+        </div>
+        <div class="probe-meta-group">
+          <label for="fiberProbeTechInput">Inspecting Lineman</label>
+          <input id="fiberProbeTechInput" type="text" placeholder="e.g. Tariq Lineman" value="Tariq Lineman" />
+        </div>
+      </section>
+
+      <!-- Cleaning Action Controls -->
+      <div class="probe-cleaning-controls">
+        <div class="fdt-selector-group" style="flex:1">
+          <label for="fiberProbeCleanMethodSelect" style="font-size:12px;font-weight:700">Cleaning Protocol:</label>
+          <select id="fiberProbeCleanMethodSelect" class="fdt-select">
+            <option value="WET_DRY_IPA" selected>Wet-to-Dry 99.9% IPA Precision Lint-Free Wipe</option>
+            <option value="DRY_CLICK">One-Click Dry Push Pen (2.5mm / 1.25mm)</option>
+            <option value="CASSETTE_CLEANER">Optical Fiber Clean-Box Reel Cassette</option>
+          </select>
+        </div>
+        <button id="fiberProbeCleanBtn" type="button" class="btn-clean">🧹 Execute Cleaning</button>
+        <button id="fiberProbeReinspectBtn" type="button" class="btn-secondary">🔄 Re-Inspect</button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="fdt-actions-row">
+        <button id="fiberProbeWhatsappBtn" type="button" class="btn-whatsapp">💬 WhatsApp Scope Report</button>
+        <button id="fiberProbeClearHistoryBtn" type="button" class="btn-secondary" style="margin-left:auto">🗑️ Clear History</button>
+      </div>
+
+      <!-- Recent Inspection History -->
+      <div class="probe-history-section">
+        <h3 style="margin:0;font-size:13px;font-weight:700">Recent Probe Inspection Audits</h3>
+        <ul id="fiberProbeHistoryList" class="probe-history-list" role="feed" aria-label="Recent probe audits">
           <!-- Dynamically populated entries -->
         </ul>
       </div>

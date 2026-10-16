@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal } from './nav.js?v=1.10.0';
 
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
@@ -1640,6 +1640,8 @@ mobileActionSheetController = setupMobileActionSheet({
       mobileOpmTestingModalController?.open();
     } else if (action === 'vfl-tracer') {
       mobileVflModalController?.open();
+    } else if (action === 'fiber-probe') {
+      mobileFiberProbeModalController?.open();
     }
 
   },
@@ -1981,6 +1983,12 @@ let mobileFdtAllocationModalController = setupMobileFdtAllocationModal({
 
 // Setup Field Technician GPON ONU / ONT Optical BOSA Diagnostics Monitor
 let mobileOntDiagnosticsModalController = setupMobileOntDiagnosticsModal({
+  storage: typeof localStorage !== 'undefined' ? localStorage : null,
+  onToast: (msg) => toast(msg)
+});
+
+// Setup Field Technician Optical Fiber Inspection Probe & Connector End-Face Scope
+let mobileFiberProbeModalController = setupMobileFiberProbeModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
 });

@@ -7723,7 +7723,17 @@
         <button id="cleaverResetPositionBtn" type="button" class="btn-secondary">↺ Reset Position</button>
         <button id="cleaverSaveAuditBtn" type="button" class="btn-secondary">💾 Save Audit Record</button>
         <button id="cleaverCopyReportBtn" type="button" class="btn-secondary">📋 Copy Engineering Report</button>
+        <button id="cleaverExportCsvBtn" type="button" class="btn-secondary">Export CSV</button>
         <button id="cleaverShareWhatsAppBtn" type="button" class="btn-whatsapp">💬 WhatsApp Dispatch Ticket</button>
+        <button id="cleaverClearHistoryBtn" type="button" class="btn-secondary" style="margin-left:auto">🗑️ Clear History</button>
+      </div>
+
+      <!-- Recent Cleaver Audits List -->
+      <div class="probe-history-section">
+        <h3 style="margin:0;font-size:13px;font-weight:700">Recent Fiber Cleaver Blade Field Audits</h3>
+        <ul id="cleaverHistoryList" class="probe-history-list" role="feed" aria-label="Recent fiber cleaver blade audits">
+          <!-- Dynamically populated entries -->
+        </ul>
       </div>
     </section>
   </dialog>

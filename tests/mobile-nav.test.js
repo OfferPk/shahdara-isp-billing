@@ -9037,6 +9037,11 @@ test('loadCleaverAuditLog, saveCleaverAuditLog and clearCleaverAuditLog manage p
     assert.equal(saved2.length, 2);
     assert.equal(saved2[0].position, 3); // Prepends most recent
 
+    const { exportCleaverAuditsCsv } = await import('../nav.js');
+    const csv = exportCleaverAuditsCsv(saved2);
+    assert.ok(csv.includes('Timestamp,Model,Serial_Number'));
+    assert.ok(csv.includes('3,'));
+
     clearCleaverAuditLog(testKey);
     assert.deepEqual(loadCleaverAuditLog(testKey), []);
   } finally {
@@ -9099,7 +9104,10 @@ test('setupMobileCleaverModal binds DOM controls, executes rotations, resets and
     cleaverResetPositionBtn: createMockEl('cleaverResetPositionBtn'),
     cleaverSaveAuditBtn: createMockEl('cleaverSaveAuditBtn'),
     cleaverCopyReportBtn: createMockEl('cleaverCopyReportBtn'),
-    cleaverShareWhatsAppBtn: createMockEl('cleaverShareWhatsAppBtn')
+    cleaverExportCsvBtn: createMockEl('cleaverExportCsvBtn'),
+    cleaverShareWhatsAppBtn: createMockEl('cleaverShareWhatsAppBtn'),
+    cleaverClearHistoryBtn: createMockEl('cleaverClearHistoryBtn'),
+    cleaverHistoryList: createMockEl('cleaverHistoryList')
   };
 
   elements.cleaverModelSelect.value = 'FUJIKURA_CT50';
@@ -9141,6 +9149,14 @@ test('setupMobileCleaverModal binds DOM controls, executes rotations, resets and
   elements.cleaverSaveAuditBtn.click();
   assert.ok(toastMsg.includes('Saved cleaver audit'));
 
+  // Test export CSV button
+  elements.cleaverExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('copied') || toastMsg.includes('Clipboard'));
+
+  // Test clear history button
+  elements.cleaverClearHistoryBtn.click();
+  assert.ok(toastMsg.includes('cleared'));
+
   controller.close();
   assert.equal(elements.mobileCleaverModal.open, false);
 });
@@ -9156,6 +9172,9 @@ test('index.html contains mobile cleaver button and modal markup', async () => {
   assert.ok(html.includes('id="cleaverPositionSlider"'));
   assert.ok(html.includes('id="cleaverRotateNextBtn"'));
   assert.ok(html.includes('id="cleaverModalDiagramContainer"'));
+  assert.ok(html.includes('id="cleaverExportCsvBtn"'));
+  assert.ok(html.includes('id="cleaverClearHistoryBtn"'));
+  assert.ok(html.includes('id="cleaverHistoryList"'));
 
   const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
   assert.ok(css.includes('.mobile-cleaver-modal'));

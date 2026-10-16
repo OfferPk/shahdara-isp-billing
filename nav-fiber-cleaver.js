@@ -556,6 +556,49 @@ export function clearCleaverAuditLog(storageKey = FIBER_CLEAVER_STORAGE_KEY) {
 }
 
 /**
+ * Export cleaver audit records as CSV for fleet maintenance logs.
+ */
+export function exportCleaverAuditsCsv(records = []) {
+  const headers = [
+    'Timestamp',
+    'Model',
+    'Serial_Number',
+    'Technician',
+    'Area',
+    'Position',
+    'Height',
+    'Position_Cleaves',
+    'Position_Wear_Pct',
+    'Remaining_Cleaves',
+    'Cleave_Angle_Deg',
+    'Defect_Type',
+    'Splice_Loss_Penalty_Db',
+    'Quality_Grade',
+    'Splice_Viability'
+  ];
+
+  const rows = records.map(r => [
+    `"${r.timestamp || ''}"`,
+    `"${(r.modelName || '').replace(/"/g, '""')}"`,
+    `"${(r.cleaverSerial || '').replace(/"/g, '""')}"`,
+    `"${(r.technicianName || '').replace(/"/g, '""')}"`,
+    `"${(r.targetArea || '').replace(/"/g, '""')}"`,
+    r.currentPosition ?? r.position ?? 1,
+    r.currentHeight ?? r.height ?? 1,
+    r.positionCleaves ?? 0,
+    r.positionWearPct ?? 0,
+    r.positionRemainingCleaves ?? 0,
+    r.measuredCleaveAngle ?? r.angle ?? 0.4,
+    `"${r.observedDefectName || ''}"`,
+    r.estimatedSpliceLossDb ?? 0.05,
+    `"${r.cleaveQuality || ''}"`,
+    `"${r.spliceViability || ''}"`
+  ].join(','));
+
+  return [headers.join(','), ...rows].join('\r\n');
+}
+
+/**
  * DOM Controller wiring the mobile cleaver modal dialog and event interactions.
  */
 export function setupMobileCleaverModal(state = {}, options = {}) {
@@ -684,11 +727,61 @@ export function setupMobileCleaverModal(state = {}, options = {}) {
     });
   }
 
+  const historyList = doc.getElementById('cleaverHistoryList');
+  const exportCsvBtn = doc.getElementById('cleaverExportCsvBtn');
+  const clearHistoryBtn = doc.getElementById('cleaverClearHistoryBtn');
+
+  function renderHistory() {
+    if (!historyList) return;
+    const records = loadCleaverAuditLog();
+    if (records.length === 0) {
+      historyList.innerHTML = '<li class="probe-history-empty" style="padding:10px;color:#94a3b8;font-size:12px">No fiber cleaver audits recorded yet.</li>';
+      return;
+    }
+    historyList.innerHTML = records.slice(0, 10).map(rec => `
+      <li class="probe-history-item" style="display:flex;justify-content:space-between;padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);font-size:12px">
+        <div>
+          <strong>${rec.modelName} (Pos #${rec.currentPosition})</strong> - ${rec.technicianName}
+          <div style="color:#94a3b8;font-size:10px">${rec.targetArea} · ${rec.observedDefectName} · ${rec.measuredCleaveAngle}°</div>
+        </div>
+        <div style="text-align:right">
+          <span style="color:${rec.badgeColor || '#10b981'};font-weight:700">${rec.cleaveQuality}</span>
+          <div style="font-size:10px;color:#cbd5e1">+${rec.estimatedSpliceLossDb} dB</div>
+        </div>
+      </li>
+    `).join('');
+  }
+
   if (saveAuditBtn) {
     saveAuditBtn.addEventListener('click', () => {
       const metrics = recalculate();
       saveCleaverAuditLog(metrics);
+      renderHistory();
       onToast(`Saved cleaver audit for Position #${metrics.currentPosition} to local audit register.`);
+    });
+  }
+
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      const records = loadCleaverAuditLog();
+      const csv = exportCleaverAuditsCsv(records.length > 0 ? records : [recalculate()]);
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        navigator.clipboard.writeText(csv).then(() => {
+          onToast('Cleaver audit log CSV copied to clipboard!');
+        }).catch(() => {
+          onToast('Failed to copy CSV.');
+        });
+      } else {
+        onToast('Clipboard API not available.');
+      }
+    });
+  }
+
+  if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener('click', () => {
+      clearCleaverAuditLog();
+      renderHistory();
+      onToast('Fiber cleaver audit register cleared.');
     });
   }
 
@@ -730,6 +823,7 @@ export function setupMobileCleaverModal(state = {}, options = {}) {
         else modal.setAttribute('open', '');
       }
       recalculate();
+      renderHistory();
     });
   });
 
@@ -749,6 +843,7 @@ export function setupMobileCleaverModal(state = {}, options = {}) {
         else modal.setAttribute('open', '');
       }
       recalculate();
+      renderHistory();
     },
     close: () => {
       if (modal) {
@@ -756,6 +851,7 @@ export function setupMobileCleaverModal(state = {}, options = {}) {
         else modal.removeAttribute('open');
       }
     },
-    recalculate
+    recalculate,
+    renderHistory
   };
 }

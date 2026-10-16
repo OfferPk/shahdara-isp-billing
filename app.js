@@ -40,7 +40,8 @@ import {
   setupPlanMigrationModal,
   setupOpticalAcceptanceModal,
   setupDropSafetyInspectionModal,
-  setupEthernetCertModal
+  setupEthernetCertModal,
+  setupOrlCertModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3305,6 +3306,7 @@ export let customerPlanMigrationModalController;
 export let customerOpticalAcceptanceModalController;
 export let customerDropSafetyModalController;
 export let customerEthernetCertModalController;
+export let customerOrlCertModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3500,6 +3502,20 @@ if (typeof document !== 'undefined') {
     openEthernetCertBtn.addEventListener('click', () => {
       const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
       customerEthernetCertModalController?.open(cust);
+    });
+  }
+
+  customerOrlCertModalController = setupOrlCertModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openOrlCertBtn = $('#openOrlCertBtn');
+  if (openOrlCertBtn) {
+    openOrlCertBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      customerOrlCertModalController?.open(cust);
     });
   }
 }

@@ -2,6 +2,7 @@ import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocati
 import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal, calculatePowerBackupMetrics, setupPowerBackupModal, calculateRouteDensityMetrics, setupRouteDensityModal } from './dashboard.js';
 import { calculateOtdrFaultMetrics, setupOtdrModal, renderOtdrTraceSvg } from './dashboard-otdr.js';
 import { calculateSolarInverterMetrics, setupSolarModal, renderSolarInverterSvg } from './dashboard-solar.js';
+import { calculateAerialTensionMetrics, setupAerialTensionModal, renderAerialTensionSvg } from './dashboard-aerial.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3254,9 +3255,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupSolarModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const aerialEl = document.getElementById('dashboardAerialChart');
+  if (aerialEl) {
+    const aerialData = calculateAerialTensionMetrics(state, { referenceDate });
+    aerialEl.innerHTML = renderAerialTensionSvg(aerialData);
+  }
+
+  setupAerialTensionModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg };
 
 

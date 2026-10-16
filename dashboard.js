@@ -5228,6 +5228,23 @@ export {
   renderSolarInverterSvg
 } from './dashboard-solar.js';
 
+export {
+  SHAHDARA_AERIAL_SECTORS,
+  SHAHDARA_CABLE_TYPES,
+  calculateAerialTensionMetrics,
+  generateAerialTensionReport,
+  setupAerialTensionModal,
+  getAerialSelectedSector,
+  setAerialSelectedSector,
+  getAerialWindSpeed,
+  setAerialWindSpeed,
+  getAerialTemperature,
+  setAerialTemperature,
+  getAerialCableType,
+  setAerialCableType,
+  renderAerialTensionSvg
+} from './dashboard-aerial.js';
+
 
 
 

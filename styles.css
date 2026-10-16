@@ -5438,3 +5438,46 @@ html, body {
   }
 }
 
+/* =========================================================================
+   Subscriber ONT Optical Power Calibration & Rx/Tx Decibel QA Acceptance Certificate
+   ========================================================================= */
+
+.optical-acceptance-modal {
+  border: none;
+  border-radius: 12px;
+  padding: 0;
+  max-width: 900px;
+  width: 95vw;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+  background: transparent;
+}
+
+.optical-acceptance-modal-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+[data-theme="dark"] .optical-acceptance-modal-card {
+  background: #14241e;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+@media print {
+  .optical-acceptance-modal,
+  .optical-acceptance-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+

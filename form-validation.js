@@ -6090,4 +6090,893 @@ export function setupKycComplianceModal({
   };
 }
 
+/* =========================================================================
+   Subscriber Equipment Retrieval & Hardware Custody Return Manifest System
+   (واپسی و بازیابی آلات و راؤٹر مینی فیسٹ)
+   ========================================================================= */
 
+export const EQUIPMENT_RETRIEVAL_KEY = 'shahdara_equipment_retrievals_v1';
+
+export const EQUIPMENT_TYPES = {
+  ont_gpon: { id: 'ont_gpon', label: 'GPON ONT / ONU Optical Modem', defaultDeposit: 3500 },
+  wifi_router: { id: 'wifi_router', label: 'Dual-Band Gigabit Wi-Fi Router', defaultDeposit: 3000 },
+  fiber_patch_cord: { id: 'fiber_patch_cord', label: 'SC/UPC Fiber Drop Patch Cord', defaultDeposit: 500 },
+  power_adapter: { id: 'power_adapter', label: '12V 1.5A/2A DC Power Adapter', defaultDeposit: 600 }
+};
+
+export const RETRIEVAL_STATUSES = {
+  retrieved: { id: 'retrieved', label: 'Retrieved & In Custody', labelUrdu: 'موصول شدہ / برآمد', badgeClass: 'role-primary' },
+  pending_retrieval: { id: 'pending_retrieval', label: 'Pending Field Retrieval', labelUrdu: 'بازیابی زیرِ التواء', badgeClass: 'badge-warning' },
+  damaged_unusable: { id: 'damaged_unusable', label: 'Damaged / Hardware Fault', labelUrdu: 'خراب / ناقابلِ استعمال', badgeClass: 'role-alert' },
+  subscriber_purchased: { id: 'subscriber_purchased', label: 'Subscriber Purchased', labelUrdu: 'گاہک نے خرید لیا', badgeClass: 'role-info' },
+  waived_unrecoverable: { id: 'waived_unrecoverable', label: 'Unrecoverable / Waived', labelUrdu: 'ناقابلِ واپسی / معاف', badgeClass: 'role-muted' }
+};
+
+export const EQUIPMENT_CONDITIONS = {
+  excellent: 'Excellent / Like New',
+  good: 'Good Working Condition',
+  minor_wear: 'Minor Scratches / Working',
+  damaged_casing: 'Physical Casing Cracked / Damaged',
+  burnt_power_surge: 'Burnt Port / Power Surge Defective',
+  missing_parts: 'Missing Adapter / Cable Incomplete'
+};
+
+/**
+ * Validates equipment retrieval input payload.
+ */
+export function validateEquipmentRetrieval(payload = {}) {
+  const errors = {};
+  if (!payload.customerId) {
+    errors.customerId = 'Subscriber selection is required.';
+  }
+  if (!payload.equipmentType || !EQUIPMENT_TYPES[payload.equipmentType]) {
+    errors.equipmentType = 'Valid equipment type must be selected.';
+  }
+  const cleanSerial = String(payload.serialNumber || '').trim();
+  if (!cleanSerial || cleanSerial.length < 3) {
+    errors.serialNumber = 'Hardware serial number is required (min 3 chars).';
+  }
+  if (!payload.retrievalStatus || !RETRIEVAL_STATUSES[payload.retrievalStatus]) {
+    errors.retrievalStatus = 'Valid retrieval status must be selected.';
+  }
+  const cleanTech = String(payload.technicianName || '').trim();
+  if (!cleanTech || cleanTech.length < 2) {
+    errors.technicianName = 'Retrieving technician name must be at least 2 characters.';
+  }
+  const dateStr = String(payload.recoveryDate || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || isNaN(new Date(dateStr).getTime())) {
+    errors.recoveryDate = 'Valid recovery date in YYYY-MM-DD format is required.';
+  }
+  if (payload.securityDepositHeld !== undefined && Number(payload.securityDepositHeld) < 0) {
+    errors.securityDepositHeld = 'Security deposit cannot be negative.';
+  }
+  if (payload.damageDeduction !== undefined && Number(payload.damageDeduction) < 0) {
+    errors.damageDeduction = 'Damage deduction cannot be negative.';
+  }
+  if (payload.unreturnedPenalty !== undefined && Number(payload.unreturnedPenalty) < 0) {
+    errors.unreturnedPenalty = 'Unreturned penalty cannot be negative.';
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+/**
+ * Calculates financial deposit refund and ledger settlement.
+ */
+export function calculateEquipmentSettlement({
+  securityDepositHeld = 0,
+  damageDeduction = 0,
+  unreturnedPenalty = 0,
+  monthlyArrears = 0
+} = {}) {
+  const deposit = Math.max(0, Number(securityDepositHeld) || 0);
+  const damage = Math.max(0, Number(damageDeduction) || 0);
+  const penalty = Math.max(0, Number(unreturnedPenalty) || 0);
+  const arrears = Math.max(0, Number(monthlyArrears) || 0);
+
+  const totalDeductions = damage + penalty + arrears;
+  const netRefundToSubscriber = Math.max(0, deposit - totalDeductions);
+  const netDueFromSubscriber = Math.max(0, totalDeductions - deposit);
+  const isBalanced = netRefundToSubscriber === 0 && netDueFromSubscriber === 0;
+
+  return {
+    securityDepositHeld: deposit,
+    damageDeduction: damage,
+    unreturnedPenalty: penalty,
+    monthlyArrears: arrears,
+    totalDeductions,
+    netRefundToSubscriber,
+    netDueFromSubscriber,
+    isBalanced
+  };
+}
+
+/**
+ * Builds an immutable Equipment Retrieval Return Manifest record.
+ */
+export function buildEquipmentRetrievalRecord({
+  customer,
+  equipmentType = 'ont_gpon',
+  brandModel = 'Huawei EchoLife HG8546M',
+  serialNumber = '',
+  macAddress = '',
+  opticalPort = 'PON 1',
+  conditionRating = 'good',
+  conditionNotes = '',
+  retrievalStatus = 'retrieved',
+  technicianName = 'Field Splicer Worker',
+  recoveryDate = null,
+  securityDepositHeld = 0,
+  damageDeduction = 0,
+  unreturnedPenalty = 0,
+  monthlyArrears = 0,
+  handoverNotes = '',
+  existingCount = 0
+} = {}) {
+  const now = new Date();
+  const dateStr = recoveryDate ? String(recoveryDate).slice(0, 10) : now.toISOString().slice(0, 10);
+  const yearMonth = dateStr.slice(0, 7).replace('-', '');
+  const seq = String(Number(existingCount || 0) + 1).padStart(4, '0');
+  const manifestNumber = `RET-${yearMonth}-${seq}`;
+
+  const eqTypeMeta = EQUIPMENT_TYPES[equipmentType] || EQUIPMENT_TYPES.ont_gpon;
+  const statusMeta = RETRIEVAL_STATUSES[retrievalStatus] || RETRIEVAL_STATUSES.retrieved;
+
+  const settlement = calculateEquipmentSettlement({
+    securityDepositHeld,
+    damageDeduction,
+    unreturnedPenalty,
+    monthlyArrears
+  });
+
+  return {
+    id: `ret-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    manifestNumber,
+    customerId: customer?.id || '',
+    customerNumber: customer?.customerNumber || '',
+    customerName: customer?.name || 'Unnamed Subscriber',
+    customerPhone: customer?.phone || '',
+    customerArea: customer?.area || customer?.mohalla || 'Shahdara Area',
+    equipmentType: eqTypeMeta.id,
+    equipmentTypeLabel: eqTypeMeta.label,
+    brandModel: String(brandModel || 'Standard ISP Unit').trim(),
+    serialNumber: String(serialNumber || '').trim(),
+    macAddress: String(macAddress || '').trim(),
+    opticalPort: String(opticalPort || 'PON 1').trim(),
+    conditionRating: EQUIPMENT_CONDITIONS[conditionRating] ? conditionRating : 'good',
+    conditionLabel: EQUIPMENT_CONDITIONS[conditionRating] || 'Good Working Condition',
+    conditionNotes: String(conditionNotes || '').trim(),
+    retrievalStatus: statusMeta.id,
+    retrievalStatusLabel: statusMeta.label,
+    retrievalStatusLabelUrdu: statusMeta.labelUrdu,
+    badgeClass: statusMeta.badgeClass,
+    technicianName: String(technicianName || 'Field Splicer Worker').trim(),
+    recoveryDate: dateStr,
+    settlement,
+    handoverNotes: String(handoverNotes || '').trim(),
+    createdAt: now.toISOString()
+  };
+}
+
+export function getSavedEquipmentRetrievals(storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.getItem !== 'function') return [];
+  try {
+    const raw = store.getItem(EQUIPMENT_RETRIEVAL_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveEquipmentRetrieval(record, storage) {
+  if (!record || !record.id) return null;
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const list = getSavedEquipmentRetrievals(store);
+  const existingIdx = list.findIndex(r => r.id === record.id || r.manifestNumber === record.manifestNumber);
+
+  if (existingIdx !== -1) {
+    list[existingIdx] = { ...list[existingIdx], ...record };
+  } else {
+    list.unshift(record);
+  }
+
+  if (store && typeof store.setItem === 'function') {
+    try {
+      store.setItem(EQUIPMENT_RETRIEVAL_KEY, JSON.stringify(list));
+    } catch {}
+  }
+  return record;
+}
+
+export function updateEquipmentRetrievalStatus(retrievalId, newStatus, storage, { updatedBy = 'Store Inventory Manager', note = '' } = {}) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const list = getSavedEquipmentRetrievals(store);
+  const idx = list.findIndex(r => r.id === retrievalId || r.manifestNumber === retrievalId);
+  if (idx === -1) return null;
+
+  const statusMeta = RETRIEVAL_STATUSES[newStatus] || RETRIEVAL_STATUSES.retrieved;
+  const updated = {
+    ...list[idx],
+    retrievalStatus: statusMeta.id,
+    retrievalStatusLabel: statusMeta.label,
+    retrievalStatusLabelUrdu: statusMeta.labelUrdu,
+    badgeClass: statusMeta.badgeClass,
+    statusUpdatedAt: new Date().toISOString(),
+    statusUpdatedBy: updatedBy,
+    statusUpdateNote: note || `Status updated to ${statusMeta.label}`
+  };
+
+  list[idx] = updated;
+  if (store && typeof store.setItem === 'function') {
+    try {
+      store.setItem(EQUIPMENT_RETRIEVAL_KEY, JSON.stringify(list));
+    } catch {}
+  }
+  return updated;
+}
+
+export function clearEquipmentRetrievals(storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.removeItem !== 'function') return;
+  try {
+    store.removeItem(EQUIPMENT_RETRIEVAL_KEY);
+  } catch {}
+}
+
+export function calculateEquipmentRetrievalMetrics(retrievals = [], options = {}) {
+  const list = Array.isArray(retrievals) ? retrievals : [];
+  const statusFilter = options.statusFilter || 'all';
+  const query = (options.query || '').toLowerCase().trim();
+
+  let retrievedCount = 0;
+  let pendingCount = 0;
+  let damagedCount = 0;
+  let purchasedCount = 0;
+  let waivedCount = 0;
+  let totalDepositHeld = 0;
+  let totalRefunded = 0;
+  let totalDeductions = 0;
+
+  list.forEach(r => {
+    if (r.retrievalStatus === 'retrieved') retrievedCount++;
+    else if (r.retrievalStatus === 'pending_retrieval') pendingCount++;
+    else if (r.retrievalStatus === 'damaged_unusable') damagedCount++;
+    else if (r.retrievalStatus === 'subscriber_purchased') purchasedCount++;
+    else if (r.retrievalStatus === 'waived_unrecoverable') waivedCount++;
+
+    const set = r.settlement || {};
+    totalDepositHeld += Number(set.securityDepositHeld || 0);
+    totalRefunded += Number(set.netRefundToSubscriber || 0);
+    totalDeductions += Number(set.totalDeductions || 0);
+  });
+
+  const totalCount = list.length;
+  const recoveryRatePercent = totalCount > 0 ? Math.round(((retrievedCount + purchasedCount) / totalCount) * 100) : 100;
+
+  const filtered = list.filter(r => {
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'retrieved' && r.retrievalStatus !== 'retrieved') return false;
+      if (statusFilter === 'pending' && r.retrievalStatus !== 'pending_retrieval') return false;
+      if (statusFilter === 'damaged' && r.retrievalStatus !== 'damaged_unusable') return false;
+      if (statusFilter === 'purchased' && r.retrievalStatus !== 'subscriber_purchased') return false;
+      if (statusFilter === 'waived' && r.retrievalStatus !== 'waived_unrecoverable') return false;
+    }
+
+    if (query) {
+      const matchManifest = (r.manifestNumber || '').toLowerCase().includes(query);
+      const matchName = (r.customerName || '').toLowerCase().includes(query);
+      const matchPhone = (r.customerPhone || '').toLowerCase().includes(query);
+      const matchArea = (r.customerArea || '').toLowerCase().includes(query);
+      const matchSerial = (r.serialNumber || '').toLowerCase().includes(query);
+      const matchModel = (r.brandModel || '').toLowerCase().includes(query);
+      const matchTech = (r.technicianName || '').toLowerCase().includes(query);
+      if (!matchManifest && !matchName && !matchPhone && !matchArea && !matchSerial && !matchModel && !matchTech) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  return {
+    metrics: {
+      totalCount,
+      retrievedCount,
+      pendingCount,
+      damagedCount,
+      purchasedCount,
+      waivedCount,
+      totalDepositHeld,
+      totalRefunded,
+      totalDeductions,
+      recoveryRatePercent
+    },
+    filtered
+  };
+}
+
+export function formatEquipmentRetrievalWhatsApp(record) {
+  if (!record) return '';
+  const set = record.settlement || {};
+  const formatPkr = (n) => `PKR ${Number(n || 0).toLocaleString()}`;
+
+  const lines = [
+    `📦 *SHAHDARA BROADBAND - HARDWARE RETRIEVAL MANIFEST* 📦`,
+    `رسید واپسی آلات و سازوسامان`,
+    `----------------------------------------`,
+    `📋 *Manifest No:* \`${record.manifestNumber}\``,
+    `📅 *Recovery Date:* ${record.recoveryDate}`,
+    `👤 *Subscriber:* ${record.customerName} (#${record.customerNumber || record.customerId})`,
+    `📍 *Area / Mohalla:* ${record.customerArea}`,
+    `📞 *Contact:* ${record.customerPhone || 'N/A'}`,
+    `----------------------------------------`,
+    `⚙️ *EQUIPMENT SPECIFICATIONS:*`,
+    `• Type: ${record.equipmentTypeLabel}`,
+    `• Model: ${record.brandModel}`,
+    `• Serial No (S/N): \`${record.serialNumber}\``,
+    record.macAddress ? `• MAC Address: \`${record.macAddress}\`` : null,
+    `• Physical Condition: ${record.conditionLabel}`,
+    `• Custody Status: *${record.retrievalStatusLabel}* (${record.retrievalStatusLabelUrdu})`,
+    `----------------------------------------`,
+    `💰 *DEPOSIT & LEDGER SETTLEMENT:*`,
+    `• Security Deposit Held: ${formatPkr(set.securityDepositHeld)}`,
+    set.damageDeduction > 0 ? `• Damage / Fault Deduction: -${formatPkr(set.damageDeduction)}` : null,
+    set.unreturnedPenalty > 0 ? `• Missing Cable/Parts Penalty: -${formatPkr(set.unreturnedPenalty)}` : null,
+    set.monthlyArrears > 0 ? `• Overdue Monthly Dues: -${formatPkr(set.monthlyArrears)}` : null,
+    `----------------------------------------`,
+    set.netRefundToSubscriber > 0
+      ? `🟢 *NET REFUND PAYABLE TO SUBSCRIBER:* *${formatPkr(set.netRefundToSubscriber)}*`
+      : (set.netDueFromSubscriber > 0
+        ? `🔴 *NET BALANCE DUE FROM SUBSCRIBER:* *${formatPkr(set.netDueFromSubscriber)}*`
+        : `⚪ *LEDGER SETTLED:* *PKR 0 Balance*`),
+    `----------------------------------------`,
+    `👷 *Assigned Technician:* ${record.technicianName}`,
+    record.conditionNotes ? `📝 *Inspector Notes:* ${record.conditionNotes}` : null,
+    `----------------------------------------`,
+    `Shahdara Fiber Net Field Ops & Hardware Custody Desk`,
+    `Helpline / WhatsApp: +92 300 0000000`
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+export function generateEquipmentRetrievalHtml(record, { format = 'standard' } = {}) {
+  if (!record) return '<p>No retrieval record specified.</p>';
+  const set = record.settlement || {};
+  const formatPkr = (n) => `PKR ${Number(n || 0).toLocaleString()}`;
+
+  if (format === 'thermal') {
+    return `
+      <div class="thermal-receipt-container" style="max-width: 320px; font-family: monospace; font-size: 12px; line-height: 1.3; color: #000; padding: 10px;">
+        <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 14px; text-transform: uppercase;">SHAHDARA BROADBAND</h3>
+          <p style="margin: 2px 0; font-size: 11px;">Hardware Retrieval & Handover Slip</p>
+          <p style="margin: 2px 0; font-size: 11px;">رسید واپسی آلات و سازوسامان</p>
+        </div>
+        <div style="margin-bottom: 8px; font-size: 11px;">
+          <div>Manifest: <strong>${escapeHtml(record.manifestNumber)}</strong></div>
+          <div>Date: ${escapeHtml(record.recoveryDate)}</div>
+          <div>Sub: ${escapeHtml(record.customerName)} (#${escapeHtml(String(record.customerNumber || record.customerId))})</div>
+          <div>Phone: ${escapeHtml(record.customerPhone || '—')}</div>
+          <div>Area: ${escapeHtml(record.customerArea)}</div>
+        </div>
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin-bottom: 8px; font-size: 11px;">
+          <div><strong>Hardware:</strong> ${escapeHtml(record.equipmentTypeLabel)}</div>
+          <div>Model: ${escapeHtml(record.brandModel)}</div>
+          <div>S/N: ${escapeHtml(record.serialNumber)}</div>
+          <div>Cond: ${escapeHtml(record.conditionLabel)}</div>
+          <div>Status: <strong>${escapeHtml(record.retrievalStatusLabel)}</strong></div>
+        </div>
+        <div style="margin-bottom: 8px; font-size: 11px;">
+          <div>Deposit Held: ${formatPkr(set.securityDepositHeld)}</div>
+          <div>Deductions: -${formatPkr(set.totalDeductions)}</div>
+          <div style="border-top: 1px solid #000; margin-top: 4px; padding-top: 4px; font-weight: bold;">
+            ${set.netRefundToSubscriber > 0
+              ? `Refund Due: ${formatPkr(set.netRefundToSubscriber)}`
+              : (set.netDueFromSubscriber > 0 ? `Balance Due: ${formatPkr(set.netDueFromSubscriber)}` : 'Balance: PKR 0')}
+          </div>
+        </div>
+        <div style="margin-top: 15px; font-size: 10px; text-align: center;">
+          <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+            <div style="border-top: 1px solid #000; width: 45%;">Tech Sign</div>
+            <div style="border-top: 1px solid #000; width: 45%;">Client Sign</div>
+          </div>
+          <p style="margin-top: 8px;">Shahdara Fiber Net Field Ops Desk</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Standard A4 Layout
+  return `
+    <div class="printable-contract-document" style="max-width: 800px; margin: 0 auto; padding: 25px; font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; background: #ffffff;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 18px;">
+        <div>
+          <h2 style="margin: 0; color: #0e5b4d; font-size: 22px; text-transform: uppercase;">SHAHDARA FIBER BROADBAND SERVICES</h2>
+          <p style="margin: 3px 0; font-size: 13px; color: #64748b;">Licensed Local Internet Service Provider · Shahdara Lahore</p>
+          <h3 style="margin: 6px 0 0; color: #1e293b; font-size: 16px;">SUBSCRIBER EQUIPMENT CUSTODY &amp; RETRIEVAL MANIFEST</h3>
+          <p style="margin: 2px 0; font-size: 13px; color: #0e5b4d; font-weight: bold;" dir="rtl">فردِ بازیابی و حوالگی سامان و آلاتِ نیٹ ورک</p>
+        </div>
+        <div style="text-align: right;">
+          <div style="font-family: monospace; font-size: 13px; font-weight: bold; background: #f1f5f9; padding: 6px 12px; border-radius: 6px; border: 1px solid #cbd5e1;">
+            ${escapeHtml(record.manifestNumber)}
+          </div>
+          <p style="margin: 4px 0 0; font-size: 12px; color: #64748b;">Recovery Date: <strong>${escapeHtml(record.recoveryDate)}</strong></p>
+          <span style="display: inline-block; margin-top: 4px; padding: 3px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; background: #e0f2fe; color: #0369a1;">
+            ${escapeHtml(record.retrievalStatusLabel)}
+          </span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 18px;">
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+          <h4 style="margin: 0 0 8px; font-size: 13px; text-transform: uppercase; color: #0e5b4d; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">Subscriber Details / گاہک کی تفصیلات</h4>
+          <table style="width: 100%; font-size: 12px; line-height: 1.6;">
+            <tr><td style="color: #64748b; width: 40%;">Name:</td><td><strong>${escapeHtml(record.customerName)}</strong></td></tr>
+            <tr><td style="color: #64748b;">Account #:</td><td>#${escapeHtml(String(record.customerNumber || record.customerId))}</td></tr>
+            <tr><td style="color: #64748b;">Area / Mohalla:</td><td>${escapeHtml(record.customerArea)}</td></tr>
+            <tr><td style="color: #64748b;">Phone:</td><td>${escapeHtml(record.customerPhone || '—')}</td></tr>
+          </table>
+        </div>
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;">
+          <h4 style="margin: 0 0 8px; font-size: 13px; text-transform: uppercase; color: #0e5b4d; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">Hardware Custody / آلات کی معلومات</h4>
+          <table style="width: 100%; font-size: 12px; line-height: 1.6;">
+            <tr><td style="color: #64748b; width: 40%;">Hardware Type:</td><td><strong>${escapeHtml(record.equipmentTypeLabel)}</strong></td></tr>
+            <tr><td style="color: #64748b;">Make &amp; Model:</td><td>${escapeHtml(record.brandModel)}</td></tr>
+            <tr><td style="color: #64748b;">Serial No (S/N):</td><td style="font-family: monospace;"><strong>${escapeHtml(record.serialNumber)}</strong></td></tr>
+            <tr><td style="color: #64748b;">Physical State:</td><td>${escapeHtml(record.conditionLabel)}</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 18px;">
+        <h4 style="margin: 0 0 8px; font-size: 13px; text-transform: uppercase; color: #0e5b4d;">Security Deposit Settlement / تصفیہ زرضمانت و واجبات</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12.5px;">
+          <thead>
+            <tr style="background: #f1f5f9; text-align: left;">
+              <th style="padding: 8px; border: 1px solid #cbd5e1;">Ledger Settlement Item</th>
+              <th style="padding: 8px; border: 1px solid #cbd5e1; text-align: right;">Amount (PKR)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #e2e8f0;">Refundable Hardware Security Deposit Held on File</td>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; font-weight: bold;">${formatPkr(set.securityDepositHeld)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c;">Hardware Damage / Port Defect / Burn Deduction</td>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color: #b91c1c;">-${formatPkr(set.damageDeduction)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c;">Unreturned Patch Cord / Adapter / Accessories Penalty</td>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color: #b91c1c;">-${formatPkr(set.unreturnedPenalty)}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; color: #b91c1c;">Unpaid Monthly Subscription Arrears Offset</td>
+              <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: right; color: #b91c1c;">-${formatPkr(set.monthlyArrears)}</td>
+            </tr>
+            <tr style="background: #f8fafc; font-weight: bold; font-size: 13.5px;">
+              <td style="padding: 10px; border: 2px solid #cbd5e1;">
+                ${set.netRefundToSubscriber > 0
+                  ? '<span style="color: #047857;">NET REFUND PAYABLE TO SUBSCRIBER (قابلِ واپسی رقم)</span>'
+                  : (set.netDueFromSubscriber > 0
+                    ? '<span style="color: #b91c1c;">NET BALANCE DUE FROM SUBSCRIBER (واجب الادا بقیہ)</span>'
+                    : '<span>LEDGER FULLY SETTLED / NO OUTSTANDING</span>')}
+              </td>
+              <td style="padding: 10px; border: 2px solid #cbd5e1; text-align: right;">
+                ${set.netRefundToSubscriber > 0
+                  ? `<span style="color: #047857;">${formatPkr(set.netRefundToSubscriber)}</span>`
+                  : (set.netDueFromSubscriber > 0
+                    ? `<span style="color: #b91c1c;">${formatPkr(set.netDueFromSubscriber)}</span>`
+                    : 'PKR 0')}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      ${record.conditionNotes ? `
+        <div style="background: #fffbeb; border: 1px solid #fef3c7; border-radius: 6px; padding: 10px; margin-bottom: 18px; font-size: 12px;">
+          <strong>Field Technician Condition Notes:</strong> ${escapeHtml(record.conditionNotes)}
+        </div>
+      ` : ''}
+
+      <div style="border-top: 1px solid #e2e8f0; padding-top: 12px; margin-top: 25px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 35px; text-align: center;">
+          <div>
+            <div style="border-top: 1px solid #000; width: 70%; margin: 0 auto; padding-top: 5px; font-size: 12px; font-weight: bold;">
+              ${escapeHtml(record.technicianName)}
+            </div>
+            <p style="margin: 2px 0; font-size: 11px; color: #64748b;">Authorized Field Ops Splicer / Collector</p>
+          </div>
+          <div>
+            <div style="border-top: 1px solid #000; width: 70%; margin: 0 auto; padding-top: 5px; font-size: 12px; font-weight: bold;">
+              ${escapeHtml(record.customerName)}
+            </div>
+            <p style="margin: 2px 0; font-size: 11px; color: #64748b;">Subscriber Acknowledging Handover</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function generateEquipmentRetrievalCsv(retrievals = []) {
+  const list = Array.isArray(retrievals) ? retrievals : [];
+  const headers = [
+    'Manifest Number',
+    'Date',
+    'Customer ID',
+    'Customer Name',
+    'Customer Area',
+    'Customer Phone',
+    'Hardware Type',
+    'Model',
+    'Serial Number',
+    'Physical Condition',
+    'Status',
+    'Deposit Held PKR',
+    'Damage Deduction PKR',
+    'Penalty Deduction PKR',
+    'Arrears Offset PKR',
+    'Net Refund PKR',
+    'Net Due PKR',
+    'Technician',
+    'Notes'
+  ];
+
+  const escapeCsv = (val) => {
+    const s = String(val ?? '').replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  const rows = list.map(r => {
+    const set = r.settlement || {};
+    return [
+      escapeCsv(r.manifestNumber),
+      escapeCsv(r.recoveryDate),
+      escapeCsv(r.customerNumber || r.customerId),
+      escapeCsv(r.customerName),
+      escapeCsv(r.customerArea),
+      escapeCsv(r.customerPhone),
+      escapeCsv(r.equipmentTypeLabel),
+      escapeCsv(r.brandModel),
+      escapeCsv(r.serialNumber),
+      escapeCsv(r.conditionLabel),
+      escapeCsv(r.retrievalStatusLabel),
+      escapeCsv(set.securityDepositHeld || 0),
+      escapeCsv(set.damageDeduction || 0),
+      escapeCsv(set.unreturnedPenalty || 0),
+      escapeCsv(set.monthlyArrears || 0),
+      escapeCsv(set.netRefundToSubscriber || 0),
+      escapeCsv(set.netDueFromSubscriber || 0),
+      escapeCsv(r.technicianName),
+      escapeCsv(r.conditionNotes || '')
+    ].join(',');
+  });
+
+  return '\uFEFF' + [headers.map(escapeCsv).join(','), ...rows].join('\r\n');
+}
+
+/**
+ * Sets up and wires the Equipment Retrieval Modal dialog.
+ */
+export function setupEquipmentRetrievalModal({
+  getState,
+  storage,
+  onToast,
+  onNavigateCustomer,
+  onEquipmentRetrieved
+} = {}) {
+  if (typeof document === 'undefined') {
+    return { recalculate: () => {}, open: () => {}, close: () => {} };
+  }
+
+  const modal = document.getElementById('equipmentRetrievalModal');
+  const closeBtn = document.getElementById('closeEquipmentRetrievalBtn');
+  const openBtns = document.querySelectorAll('[data-open-equipment-retrieval]');
+
+  const custSelect = document.getElementById('retrievalCustomerSelect');
+  const typeSelect = document.getElementById('retrievalTypeSelect');
+  const modelInput = document.getElementById('retrievalModelInput');
+  const serialInput = document.getElementById('retrievalSerialInput');
+  const conditionSelect = document.getElementById('retrievalConditionSelect');
+  const statusSelect = document.getElementById('retrievalStatusSelect');
+  const techInput = document.getElementById('retrievalTechInput');
+  const dateInput = document.getElementById('retrievalDateInput');
+  const notesInput = document.getElementById('retrievalNotesInput');
+
+  const depositInput = document.getElementById('retrievalDepositInput');
+  const damageInput = document.getElementById('retrievalDamageInput');
+  const penaltyInput = document.getElementById('retrievalPenaltyInput');
+  const arrearsInput = document.getElementById('retrievalArrearsInput');
+
+  const netRefundEl = document.getElementById('retrievalNetRefundVal');
+  const netDueEl = document.getElementById('retrievalNetDueVal');
+  const formEl = document.getElementById('equipmentRetrievalForm');
+
+  const statusFilter = document.getElementById('retrievalFilterStatus');
+  const searchInput = document.getElementById('retrievalSearchInput');
+  const tableBody = document.getElementById('equipmentRetrievalTableBody');
+
+  const kpiTotal = document.getElementById('retrievalKpiTotal');
+  const kpiRecovered = document.getElementById('retrievalKpiRecovered');
+  const kpiPending = document.getElementById('retrievalKpiPending');
+  const kpiRate = document.getElementById('retrievalKpiRate');
+
+  const csvBtn = document.getElementById('exportEquipmentRetrievalCsvBtn');
+
+  let currentSelectedCustomer = null;
+
+  function recalculateSettlement() {
+    const deposit = Number(depositInput?.value) || 0;
+    const damage = Number(damageInput?.value) || 0;
+    const penalty = Number(penaltyInput?.value) || 0;
+    const arrears = Number(arrearsInput?.value) || 0;
+
+    const res = calculateEquipmentSettlement({
+      securityDepositHeld: deposit,
+      damageDeduction: damage,
+      unreturnedPenalty: penalty,
+      monthlyArrears: arrears
+    });
+
+    if (netRefundEl) netRefundEl.textContent = `PKR ${res.netRefundToSubscriber.toLocaleString()}`;
+    if (netDueEl) netDueEl.textContent = `PKR ${res.netDueFromSubscriber.toLocaleString()}`;
+    return res;
+  }
+
+  [depositInput, damageInput, penaltyInput, arrearsInput].forEach(inp => {
+    if (inp && !inp.dataset?.wiredRet) {
+      if (inp.dataset) inp.dataset.wiredRet = 'true';
+      inp.addEventListener('input', recalculateSettlement);
+    }
+  });
+
+  function populateCustomerSelect() {
+    if (!custSelect) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    const customers = Array.isArray(state?.customers) ? state.customers : [];
+    custSelect.innerHTML = '<option value="">-- Select Subscriber --</option>' +
+      customers.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)} (#${escapeHtml(String(c.customerNumber || c.id))}) - ${escapeHtml(c.area || c.mohalla || 'Shahdara')}</option>`).join('');
+  }
+
+  function renderList() {
+    const retrievals = getSavedEquipmentRetrievals(storage);
+    const filter = statusFilter?.value || 'all';
+    const query = searchInput?.value || '';
+
+    const { metrics, filtered } = calculateEquipmentRetrievalMetrics(retrievals, { statusFilter: filter, query });
+
+    if (kpiTotal) kpiTotal.textContent = String(metrics.totalCount);
+    if (kpiRecovered) kpiRecovered.textContent = String(metrics.retrievedCount);
+    if (kpiPending) kpiPending.textContent = String(metrics.pendingCount);
+    if (kpiRate) kpiRate.textContent = `${metrics.recoveryRatePercent}%`;
+
+    if (tableBody) {
+      tableBody.innerHTML = '';
+      if (filtered.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="8" class="text-center text-muted" style="padding: 16px;">No equipment retrieval manifests recorded.</td></tr>`;
+      } else {
+        filtered.forEach(r => {
+          const tr = document.createElement('tr');
+          const set = r.settlement || {};
+          tr.innerHTML = `
+            <td class="font-mono font-bold">${escapeHtml(r.manifestNumber)}</td>
+            <td>${escapeHtml(r.recoveryDate)}</td>
+            <td>
+              <strong>${escapeHtml(r.customerName)}</strong>
+              <div class="text-muted" style="font-size: 11px;">#${escapeHtml(String(r.customerNumber || r.customerId))} · ${escapeHtml(r.customerArea)}</div>
+            </td>
+            <td>
+              <div><strong>${escapeHtml(r.equipmentTypeLabel)}</strong></div>
+              <div class="font-mono" style="font-size: 11px;">S/N: ${escapeHtml(r.serialNumber)}</div>
+            </td>
+            <td>${escapeHtml(r.conditionLabel)}</td>
+            <td class="text-center"><span class="role-badge ${escapeHtml(r.badgeClass || 'role-primary')}">${escapeHtml(r.retrievalStatusLabel)}</span></td>
+            <td class="text-right font-bold">
+              ${set.netRefundToSubscriber > 0
+                ? `<span style="color: #059669;">+PKR ${set.netRefundToSubscriber.toLocaleString()}</span>`
+                : (set.netDueFromSubscriber > 0
+                  ? `<span style="color: #dc2626;">-PKR ${set.netDueFromSubscriber.toLocaleString()}</span>`
+                  : 'PKR 0')}
+            </td>
+            <td class="text-center">
+              <button type="button" class="action-btn-sm" data-ret-print-a4="${escapeHtml(r.manifestNumber)}" title="Print A4 Manifest">🖨️ A4</button>
+              <button type="button" class="action-btn-sm" data-ret-print-slip="${escapeHtml(r.manifestNumber)}" title="Print Thermal Slip">🧾 Slip</button>
+              <button type="button" class="action-btn-sm" data-ret-wa="${escapeHtml(r.manifestNumber)}" title="Send WhatsApp">💬</button>
+            </td>
+          `;
+          tableBody.appendChild(tr);
+        });
+      }
+    }
+  }
+
+  if (statusFilter && !statusFilter.dataset?.wiredRet) {
+    if (statusFilter.dataset) statusFilter.dataset.wiredRet = 'true';
+    statusFilter.addEventListener('change', renderList);
+  }
+
+  if (searchInput && !searchInput.dataset?.wiredRet) {
+    if (searchInput.dataset) searchInput.dataset.wiredRet = 'true';
+    searchInput.addEventListener('input', renderList);
+  }
+
+  if (tableBody && !tableBody.dataset?.wiredRet) {
+    if (tableBody.dataset) tableBody.dataset.wiredRet = 'true';
+    tableBody.addEventListener('click', (e) => {
+      const a4Btn = e.target.closest('[data-ret-print-a4]');
+      const slipBtn = e.target.closest('[data-ret-print-slip]');
+      const waBtn = e.target.closest('[data-ret-wa]');
+
+      const retrievals = getSavedEquipmentRetrievals(storage);
+
+      if (a4Btn) {
+        const num = a4Btn.getAttribute('data-ret-print-a4');
+        const rec = retrievals.find(r => r.manifestNumber === num);
+        if (rec) {
+          const html = generateEquipmentRetrievalHtml(rec, { format: 'standard' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<!DOCTYPE html><html><head><title>Manifest ${rec.manifestNumber}</title><style>body { margin: 0; padding: 20px; font-family: sans-serif; } @media print { body { padding: 0; } }</style></head><body>${html}<script>window.onload = function() { window.print(); };</script></body></html>`);
+            win.document.close();
+          }
+        }
+      } else if (slipBtn) {
+        const num = slipBtn.getAttribute('data-ret-print-slip');
+        const rec = retrievals.find(r => r.manifestNumber === num);
+        if (rec) {
+          const html = generateEquipmentRetrievalHtml(rec, { format: 'thermal' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<!DOCTYPE html><html><head><title>Slip ${rec.manifestNumber}</title><style>body { margin: 0; padding: 10px; font-family: monospace; }</style></head><body>${html}<script>window.onload = function() { window.print(); };</script></body></html>`);
+            win.document.close();
+          }
+        }
+      } else if (waBtn) {
+        const num = waBtn.getAttribute('data-ret-wa');
+        const rec = retrievals.find(r => r.manifestNumber === num);
+        if (rec) {
+          const text = encodeURIComponent(formatEquipmentRetrievalWhatsApp(rec));
+          const phone = (rec.customerPhone || '').replace(/\D/g, '');
+          const intlPhone = phone.startsWith('0') ? '92' + phone.slice(1) : (phone.startsWith('92') ? phone : '92' + phone);
+          window.open(`https://wa.me/${intlPhone}?text=${text}`, '_blank', 'noopener,noreferrer');
+        }
+      }
+    });
+  }
+
+  if (formEl && !formEl.dataset?.wiredRet) {
+    if (formEl.dataset) formEl.dataset.wiredRet = 'true';
+    formEl.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const state = typeof getState === 'function' ? getState() : null;
+      const customers = Array.isArray(state?.customers) ? state.customers : [];
+      const customerId = custSelect?.value || currentSelectedCustomer?.id;
+      const cust = customers.find(c => c.id === customerId) || currentSelectedCustomer;
+
+      if (!cust) {
+        if (typeof onToast === 'function') onToast('Please select a subscriber.');
+        return;
+      }
+
+      const payload = {
+        customerId: cust.id,
+        equipmentType: typeSelect?.value || 'ont_gpon',
+        brandModel: modelInput?.value || 'Standard ISP Unit',
+        serialNumber: serialInput?.value || '',
+        conditionRating: conditionSelect?.value || 'good',
+        conditionNotes: notesInput?.value || '',
+        retrievalStatus: statusSelect?.value || 'retrieved',
+        technicianName: techInput?.value || 'Field Splicer Worker',
+        recoveryDate: dateInput?.value || new Date().toISOString().slice(0, 10),
+        securityDepositHeld: Number(depositInput?.value) || 0,
+        damageDeduction: Number(damageInput?.value) || 0,
+        unreturnedPenalty: Number(penaltyInput?.value) || 0,
+        monthlyArrears: Number(arrearsInput?.value) || 0
+      };
+
+      const val = validateEquipmentRetrieval(payload);
+      if (!val.valid) {
+        const firstErr = Object.values(val.errors)[0];
+        if (typeof onToast === 'function') onToast(firstErr || 'Form validation failed.');
+        return;
+      }
+
+      const existingCount = getSavedEquipmentRetrievals(storage).length;
+      const record = buildEquipmentRetrievalRecord({
+        customer: cust,
+        ...payload,
+        existingCount
+      });
+
+      saveEquipmentRetrieval(record, storage);
+      renderList();
+      formEl.reset();
+      recalculateSettlement();
+
+      if (typeof onToast === 'function') onToast(`Equipment manifest #${record.manifestNumber} created!`);
+      if (typeof onEquipmentRetrieved === 'function') onEquipmentRetrieved(record);
+    });
+  }
+
+  if (csvBtn && !csvBtn.dataset?.wiredRet) {
+    if (csvBtn.dataset) csvBtn.dataset.wiredRet = 'true';
+    csvBtn.addEventListener('click', () => {
+      const retrievals = getSavedEquipmentRetrievals(storage);
+      const csv = generateEquipmentRetrievalCsv(retrievals);
+      const filename = `equipment_retrievals_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      if (typeof onToast === 'function') onToast(`Exported ${filename}`);
+    });
+  }
+
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredRetOpen) {
+      if (btn.dataset) btn.dataset.wiredRetOpen = 'true';
+      btn.addEventListener('click', () => {
+        populateCustomerSelect();
+        renderList();
+        recalculateSettlement();
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredRet) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredRet = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    recalculate: () => {
+      renderList();
+      recalculateSettlement();
+    },
+    open: (customer = null) => {
+      currentSelectedCustomer = customer;
+      populateCustomerSelect();
+      if (customer && custSelect) {
+        custSelect.value = customer.id;
+      }
+      if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().slice(0, 10);
+      }
+      renderList();
+      recalculateSettlement();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    }
+  };
+}

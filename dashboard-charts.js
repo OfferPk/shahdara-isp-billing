@@ -16,6 +16,7 @@ import { calculateOscMetrics, setupOscModal, renderOscTelemetrySvg } from './das
 import { calculateQinqMetrics, setupQinqModal, renderQinqTrunkSvg } from './dashboard-qinq.js';
 import { calculateSyncEMetrics, setupSyncEModal, renderSyncEClockSvg } from './dashboard-synce.js';
 import { calculateRoadmMetrics, setupRoadmModal, renderRoadmOpticalSvg } from './dashboard-roadm.js';
+import { calculateMicroOtdrMetrics, setupMicroOtdrModal, renderMicroOtdrTraceSvg } from './dashboard-micro-otdr.js';
 
 
 
@@ -3386,9 +3387,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupRoadmModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const microOtdrEl = document.getElementById('dashboardMicroOtdrChart');
+  if (microOtdrEl) {
+    const microOtdrData = calculateMicroOtdrMetrics(state, { referenceDate });
+    microOtdrEl.innerHTML = renderMicroOtdrTraceSvg(microOtdrData, { compact: true });
+  }
+
+  setupMicroOtdrModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg };
 
 

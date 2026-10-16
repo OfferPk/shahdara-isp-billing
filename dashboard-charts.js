@@ -5,6 +5,7 @@ import { calculateSolarInverterMetrics, setupSolarModal, renderSolarInverterSvg 
 import { calculateAerialTensionMetrics, setupAerialTensionModal, renderAerialTensionSvg } from './dashboard-aerial.js';
 import { calculateMicrowaveLinkBudget, setupMicrowaveModal, renderMicrowaveLinkSvg } from './dashboard-microwave.js';
 import { calculateSpliceClosureMetrics, setupSpliceClosureModal, renderSpliceClosureSvg } from './dashboard-splice.js';
+import { calculateDuctJettingMetrics, setupDuctJettingModal, renderDuctJettingSvg } from './dashboard-jetting.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3281,9 +3282,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupSpliceClosureModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const jettingEl = document.getElementById('dashboardJettingChart');
+  if (jettingEl) {
+    const jettingData = calculateDuctJettingMetrics(state, { referenceDate });
+    jettingEl.innerHTML = renderDuctJettingSvg(jettingData);
+  }
+
+  setupDuctJettingModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg };
 
 

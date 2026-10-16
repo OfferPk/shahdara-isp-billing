@@ -35,7 +35,8 @@ import {
   setupDisputeClaimModal,
   setupKycComplianceModal,
   setupEquipmentRetrievalModal,
-  setupSpliceInspectionModal
+  setupSpliceInspectionModal,
+  setupPlanMigrationModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3225,6 +3226,7 @@ export let customerDisputeModalController;
 export let customerKycComplianceModalController;
 export let customerEquipmentRetrievalModalController;
 export let customerSpliceInspectionModalController;
+export let customerPlanMigrationModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3352,6 +3354,32 @@ if (typeof document !== 'undefined') {
   if (openSpliceInspectionBtn) {
     openSpliceInspectionBtn.addEventListener('click', () => {
       customerSpliceInspectionModalController?.open();
+    });
+  }
+
+  customerPlanMigrationModalController = setupPlanMigrationModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    onMigrationSaved: (record) => {
+      if (selectedCustomerId && state?.customers) {
+        const cust = state.customers.find(c => c.id === selectedCustomerId);
+        if (cust && record && record.customerId === cust.id) {
+          cust.package = record.targetPlan;
+          cust.plan = record.targetPlan;
+          cust.monthlyFee = record.targetRate;
+          renderCustomerDetail();
+          saveState();
+        }
+      }
+    }
+  });
+
+  const openPlanMigrationBtn = $('#openPlanMigrationBtn');
+  if (openPlanMigrationBtn) {
+    openPlanMigrationBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      customerPlanMigrationModalController?.open(cust);
     });
   }
 }

@@ -2144,7 +2144,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="openSpliceInspectionBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-splice-inspection title="Fiber Optic Splicing &amp; Joint Enclosure QA Inspection Checklist">🔬 Splicing QA</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="openSpliceInspectionBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-splice-inspection title="Fiber Optic Splicing &amp; Joint Enclosure QA Inspection Checklist">🔬 Splicing QA</button><button id="openPlanMigrationBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-plan-migration title="Service Plan Migration &amp; Mid-Cycle Proration Voucher">⚡ Plan Migration</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -4800,6 +4800,176 @@
       <!-- Action Footer -->
       <div class="modal-form-actions kyc-modal-actions" style="margin-top: 14px;">
         <button id="spliceExportCsvBtn" class="secondary-button" type="button">📥 Export Splicing CSV Register</button>
+      </div>
+    </section>
+  </dialog>
+
+  <!-- Customer Plan Migration & Mid-Cycle Proration Voucher Modal -->
+  <dialog id="customerPlanMigrationModal" class="modal plan-migration-modal" aria-labelledby="planMigrationModalTitle">
+    <section class="modal-card plan-migration-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">BROADBAND TARIFF &amp; BANDWIDTH PROVISIONING</p>
+          <h2 id="planMigrationModalTitle">Service Plan Migration &amp; Proration Voucher</h2>
+          <p class="urdu-subheading" dir="rtl">واؤچر تبدیلی و تجدید براڈ بینڈ پیکج و حساب درمیانی ایام</p>
+        </div>
+        <button id="planMigrationCloseBtn" class="close-button" type="button" aria-label="Close plan migration modal">×</button>
+      </div>
+
+      <!-- KPI Summary Ribbon -->
+      <div class="kyc-summary-ribbon">
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">UPGRADE SHARE</span>
+          <span id="migKpiUpgrades" class="kyc-kpi-val">0 (0%)</span>
+        </div>
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">NET MRR IMPACT</span>
+          <span id="migKpiNetMrr" class="kyc-kpi-val" style="color: #047857;">+PKR 0</span>
+        </div>
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">NET PRORATED TOTAL</span>
+          <span id="migKpiProratedTotal" class="kyc-kpi-val">PKR 0</span>
+        </div>
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">MIGRATION LEDGER</span>
+          <span id="migTotalCountBadge" class="kyc-kpi-val">0 records</span>
+        </div>
+      </div>
+
+      <!-- Active Subscriber Context Banner -->
+      <div class="mig-subscriber-banner">
+        <div class="mig-sub-info">
+          <span class="mig-sub-label">ACTIVE SUBSCRIBER</span>
+          <strong id="migCustomerName" class="mig-sub-name">Subscriber Name</strong>
+          <span id="migCustomerMeta" class="mig-sub-meta">ID: — · Sector: Shahdara Core</span>
+        </div>
+        <div class="mig-sub-current-plan">
+          <span class="mig-sub-label">CURRENT ACTIVE PLAN</span>
+          <strong id="migCurrentPlan" class="mig-plan-title">15 Mbps Family Streamer</strong>
+          <span id="migCurrentRate" class="mig-plan-price">PKR 1,500/mo</span>
+        </div>
+      </div>
+
+      <!-- Hardware Bottleneck Warning Banner -->
+      <div id="migHardwareWarningBanner" class="mig-warning-banner" role="alert" hidden></div>
+
+      <!-- Intake Form & Live Proration Split Grid -->
+      <div class="mig-form-grid">
+        <!-- Left: Form Controls -->
+        <div class="mig-controls-col">
+          <h3 class="mig-section-title">New Plan Specification</h3>
+
+          <div class="form-field">
+            <label for="migTargetPlanSelect">Target Broadband Plan:</label>
+            <select id="migTargetPlanSelect" class="kyc-select"></select>
+          </div>
+
+          <div class="mig-dual-field-row">
+            <div class="form-field">
+              <label for="migTargetRateInput">New Monthly Tariff (PKR):</label>
+              <input id="migTargetRateInput" type="number" min="0" value="2000" class="kyc-input">
+            </div>
+            <div class="form-field">
+              <label for="migEffectiveDateInput">Effective Date:</label>
+              <input id="migEffectiveDateInput" type="date" class="kyc-input">
+            </div>
+          </div>
+
+          <div class="mig-dual-field-row">
+            <div class="form-field">
+              <label for="migOntPortSelect">ONT LAN Port Hardware:</label>
+              <select id="migOntPortSelect" class="kyc-select">
+                <option value="GE" selected>Gigabit Ethernet (1000M) — High Speed</option>
+                <option value="FE">Fast Ethernet (100M) — Standard Legacy</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="migAuthorizerInput">Authorizing NOC Operator:</label>
+              <input id="migAuthorizerInput" type="text" value="Duty NOC Engineer" class="kyc-input">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="migNotesInput">Migration Reason &amp; Provisioning Notes:</label>
+            <input id="migNotesInput" type="text" placeholder="e.g. Subscriber requested speed upgrade for streaming/gaming" class="kyc-input">
+          </div>
+        </div>
+
+        <!-- Right: Live Calculation & Preview Box -->
+        <div class="mig-preview-col">
+          <h3 class="mig-section-title">Mid-Cycle Proration &amp; Settlement</h3>
+
+          <div class="mig-settlement-card">
+            <div class="mig-settlement-header">
+              <span>Transition Classification</span>
+              <span id="migSpeedDeltaBadge" class="sim-delta-badge badge-success">+10 Mbps (UPGRADE)</span>
+            </div>
+
+            <div id="migProrationSummaryBox" class="mig-proration-summary">
+              <!-- Dynamically populated calculation breakdown -->
+            </div>
+
+            <div class="mig-totals-row">
+              <div class="mig-total-block">
+                <span class="mig-total-lbl">NET PRORATION DUE</span>
+                <span id="migNetDueVal" class="mig-total-val" style="color: #b91c1c;">PKR 0</span>
+              </div>
+              <div class="mig-total-block">
+                <span class="mig-total-lbl">MONTHLY MRR DELTA</span>
+                <span id="migMrrDeltaVal" class="mig-total-val" style="color: #047857;">+PKR 500/mo</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mig-form-actions">
+            <button id="planMigrationSubmitBtn" class="primary-button" type="button">⚡ Issue Migration Voucher</button>
+            <button id="planMigrationCopyWhatsAppBtn" class="secondary-button" type="button">💬 Copy WhatsApp Slip</button>
+            <button id="planMigrationPrintA4Btn" class="secondary-button" type="button">🖨️ Print A4 Voucher</button>
+            <button id="planMigrationPrintThermalBtn" class="secondary-button" type="button">🧾 80mm POS Slip</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Migration History Table & Filters -->
+      <div class="kyc-controls-toolbar" style="margin-top: 18px;">
+        <div class="kyc-filter-group">
+          <label for="migFilterTypeSelect">Filter Transition</label>
+          <select id="migFilterTypeSelect" class="kyc-select">
+            <option value="ALL" selected>All Transitions</option>
+            <option value="UPGRADE">🚀 Upgrades Only</option>
+            <option value="DOWNGRADE">📉 Downgrades Only</option>
+            <option value="LATERAL_SWITCH">🔄 Lateral Switches</option>
+          </select>
+        </div>
+        <div class="kyc-filter-group kyc-search-group">
+          <label for="migSearchInput">Search Vouchers</label>
+          <input id="migSearchInput" class="kyc-input" type="search" placeholder="Search voucher ID, subscriber name, sector, plan...">
+        </div>
+      </div>
+
+      <!-- History Data Table -->
+      <div class="table-scroll" style="max-height: 260px; overflow-y: auto;">
+        <table class="data-table" aria-label="Plan Migration History Audit Ledger">
+          <thead>
+            <tr>
+              <th>Subscriber</th>
+              <th>Previous Plan</th>
+              <th>Target Plan</th>
+              <th>Transition</th>
+              <th>Net Proration</th>
+              <th>Effective</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="migHistoryTableBody">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="modal-form-actions kyc-modal-actions" style="margin-top: 14px;">
+        <button id="planMigrationExportCsvBtn" class="secondary-button" type="button">📥 Export Plan Migrations CSV</button>
       </div>
     </section>
   </dialog>

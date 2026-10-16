@@ -5423,3 +5423,22 @@ export {
   generateOscReport,
   setupOscModal
 } from './dashboard-osc.js';
+
+export {
+  SHAHDARA_QINQ_TRUNKS,
+  QINQ_CONSTANTS,
+  getQinqSelectedTrunk,
+  setQinqSelectedTrunk,
+  getQinqTrafficSurgeGbps,
+  setQinqTrafficSurgeGbps,
+  getQinqFailedMembersCount,
+  setQinqFailedMembersCount,
+  getQinqHashAlgorithm,
+  setQinqHashAlgorithm,
+  resetQinqSimState,
+  calculateTrunkLacpMetrics,
+  calculateQinqMetrics,
+  renderQinqTrunkSvg,
+  generateQinqReport,
+  setupQinqModal
+} from './dashboard-qinq.js';

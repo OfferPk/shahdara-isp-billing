@@ -44,7 +44,8 @@ import {
   setupOrlCertModal,
   setupDdmiCertModal,
   setupDispersionCertModal,
-  setupBendLossCertModal
+  setupBendLossCertModal,
+  setupBidirectionalOtdrModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3359,6 +3360,7 @@ export let customerOrlCertModalController;
 export let customerDdmiCertModalController;
 export let customerDispersionModalController;
 export let customerBendLossModalController;
+export let customerBidirectionalOtdrModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3628,6 +3630,26 @@ if (typeof document !== 'undefined') {
         });
       }
       customerBendLossModalController?.open(cust);
+    });
+  }
+
+  customerBidirectionalOtdrModalController = setupBidirectionalOtdrModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
+  });
+
+  const openBidirectionalOtdrBtn = $('#openBidirectionalOtdrBtn');
+  if (openBidirectionalOtdrBtn) {
+    openBidirectionalOtdrBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      if (cust && customerBidirectionalOtdrModalController) {
+        customerBidirectionalOtdrModalController.setReading({
+          routeName: `Shahdara Trunk Span (${cust.area || 'Baradari Trunk'})`,
+          terminusNode: `${cust.name || 'Demarcation'} FAT Port`
+        });
+      }
+      customerBidirectionalOtdrModalController?.open(cust);
     });
   }
 }

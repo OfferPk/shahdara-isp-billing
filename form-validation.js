@@ -12120,4 +12120,20 @@ export {
   setupBendLossCertModal
 } from './qa-bend-loss-inspection.js';
 
-
+export {
+  BIDIRECTIONAL_OTDR_STORAGE_KEY,
+  OTDR_WAVELENGTHS,
+  OTDR_EVENT_TYPES,
+  OTDR_ROUTE_PRESETS,
+  BIDIRECTIONAL_QA_VERDICTS,
+  calculateBidirectionalAveraging,
+  renderBidirectionalOtdrSvg,
+  buildBidirectionalOtdrCertRecord,
+  getSavedBidirectionalOtdrCerts,
+  saveBidirectionalOtdrCert,
+  clearBidirectionalOtdrCerts,
+  formatBidirectionalOtdrCertWhatsApp,
+  generateBidirectionalOtdrCertHtml,
+  generateBidirectionalOtdrCsv,
+  setupBidirectionalOtdrModal
+} from './qa-otdr-bidirectional-inspection.js';

@@ -52,6 +52,10 @@ import {
   generateBandwidthShapingReport,
   setupBandwidthShapingModal,
   renderBandwidthShapingSvg,
+  calculateFiberDistributionMetrics,
+  generateFiberDistributionReport,
+  setupFiberDistributionModal,
+  renderFiberDistributionSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -3220,6 +3224,229 @@ test('setupBandwidthShapingModal wires modal open, close, ratio toggling, and cl
     globalThis.document = originalDocument;
   }
 });
+
+test('calculateFiberDistributionMetrics handles empty customer state gracefully', () => {
+  const state = createInitialState([]);
+  const res = calculateFiberDistributionMetrics(state);
+
+  assert.equal(res.hubs.length, 0);
+  assert.equal(res.totalDeployedPorts, 0);
+  assert.equal(res.totalAssignedPorts, 0);
+  assert.equal(res.totalActivePorts, 0);
+  assert.equal(res.totalOfflinePorts, 0);
+  assert.equal(res.totalSparePorts, 0);
+  assert.equal(res.overallSaturationPercent, 0);
+  assert.equal(res.networkStatus, 'No Active Fiber Drops');
+  assert.equal(res.targetSplitterSize, 8);
+});
+
+test('calculateFiberDistributionMetrics accurately aggregates area port splitters, saturation, and link attenuation', () => {
+  let state = createInitialState(['Farooq User 1', 'Farooq User 2', 'Farooq User 3', 'Farooq User 4', 'Farooq User 5', 'Farooq User 6', 'Farooq User 7']);
+  // Assign 7 users to Farooq Ganj
+  state.customers = state.customers.map(c => ({ ...c, area: 'Farooq Ganj', status: 'active' }));
+  // Set 1 user offline
+  state.customers[0].status = 'offline';
+
+  // Add 1 user to Baradari Road
+  state.customers.push({ id: 'c-baradari', name: 'Baradari User', area: 'Baradari Road', status: 'active', bills: [] });
+
+  const res = calculateFiberDistributionMetrics(state, { targetSplitterSize: 8 });
+
+  assert.equal(res.hubs.length, 2);
+  assert.equal(res.totalAssignedPorts, 8);
+  // Farooq Ganj: 7 users => 1x 1:8 splitter => 8 ports. Saturation = 7/8 = 87.5% (Critical)
+  const fg = res.hubs.find(h => h.areaName === 'Farooq Ganj');
+  assert.ok(fg);
+  assert.equal(fg.totalSubscribers, 7);
+  assert.equal(fg.activeSubscribers, 6);
+  assert.equal(fg.offlineSubscribers, 1);
+  assert.equal(fg.splitters, 1);
+  assert.equal(fg.totalPorts, 8);
+  assert.equal(fg.sparePorts, 1);
+  assert.equal(fg.saturationPercent, 87.5);
+  assert.equal(fg.saturationTier, 'Critical Saturation');
+  assert.equal(fg.badgeClass, 'badge-danger');
+  assert.equal(fg.distanceKm, 1.8);
+  assert.ok(fg.estRxPowerDbm < 0);
+  assert.equal(fg.signalStatus, 'Signal Optimal');
+
+  // Baradari Road: 1 user => 1x 1:8 splitter => 8 ports. Saturation = 1/8 = 12.5%
+  const br = res.hubs.find(h => h.areaName === 'Baradari Road');
+  assert.ok(br);
+  assert.equal(br.totalSubscribers, 1);
+  assert.equal(br.saturationPercent, 12.5);
+  assert.equal(br.saturationTier, 'Optimal');
+
+  // Overall totals: 8 assigned, 16 deployed ports => 50% saturation
+  assert.equal(res.totalDeployedPorts, 16);
+  assert.equal(res.totalSparePorts, 8);
+  assert.equal(res.overallSaturationPercent, 50);
+  assert.equal(res.criticalSaturationCount, 1);
+  assert.equal(res.networkStatus, 'Critical Port Saturation Risk');
+});
+
+test('calculateFiberDistributionMetrics respects targetSplitterSize option (16 ports)', () => {
+  let state = createInitialState(['User A', 'User B', 'User C']);
+  state.customers = state.customers.map(c => ({ ...c, area: 'Saeed Park', status: 'active' }));
+
+  const res = calculateFiberDistributionMetrics(state, { targetSplitterSize: 16 });
+  assert.equal(res.targetSplitterSize, 16);
+  assert.equal(res.hubs[0].totalPorts, 16);
+  assert.equal(res.hubs[0].splitters, 1);
+  assert.equal(res.hubs[0].sparePorts, 13);
+  assert.equal(res.hubs[0].saturationPercent, 18.8);
+});
+
+test('generateFiberDistributionReport formats complete audit briefing text', () => {
+  let state = createInitialState(['Alpha', 'Beta']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[1].area = 'Shahdara Town';
+  state.customers[1].status = 'offline';
+
+  const res = calculateFiberDistributionMetrics(state);
+  const text = generateFiberDistributionReport(res, new Date('2026-10-16T12:00:00+05:00'));
+
+  assert.ok(text.includes('SHAHDARA ISP - FIBER DISTRIBUTION HUB & OPTICAL SPLITTER AUDIT'));
+  assert.ok(text.includes('Total Splitter Ports Provisioned: 8'));
+  assert.ok(text.includes('Assigned Customer Drops: 2 (Active: 1, Offline: 1)'));
+  assert.ok(text.includes('Dark Fiber / Spare Ports Available: 6'));
+  assert.ok(text.includes('Shahdara Town: 2 / 8 ports'));
+});
+
+test('renderFiberDistributionSvg renders empty state and populated chart', () => {
+  const emptyRes = calculateFiberDistributionMetrics(createInitialState([]));
+  const emptySvg = renderFiberDistributionSvg(emptyRes);
+  assert.ok(emptySvg.includes('No fiber distribution hubs or drops recorded'));
+
+  let state = createInitialState(['Client 1', 'Client 2', 'Client 3']);
+  state.customers[0].area = 'Farooq Ganj';
+  state.customers[1].area = 'Begum Kot';
+  state.customers[2].area = 'Begum Kot';
+
+  const populatedRes = calculateFiberDistributionMetrics(state);
+  const svg = renderFiberDistributionSvg(populatedRes);
+  assert.ok(svg.includes('Markaz-e-Taqseem-e-Fiber (FDH)'));
+  assert.ok(svg.includes('Begum Kot'));
+  assert.ok(svg.includes('Active Drops'));
+  assert.ok(svg.includes('Dark Headroom (Spare)'));
+});
+
+test('setupFiberDistributionModal wires dialog, filters, KPIs, and clipboard dispatch', async () => {
+  let state = createInitialState(['User 1', 'User 2']);
+  state.customers[0].area = 'Farooq Ganj';
+  state.customers[1].area = 'Farooq Ganj';
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  const filterHandlers = [];
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') openHandler = handler; }
+  };
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') closeHandler = handler; }
+  };
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, handler) => { if (evt === 'click') copyHandler = handler; }
+  };
+
+  const mockTotalEl = { textContent: '' };
+  const mockAssignedEl = { textContent: '' };
+  const mockSpareEl = { textContent: '' };
+  const mockSatEl = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockTbody = { innerHTML: '' };
+  const mockP10El = { textContent: '' };
+  const mockP25El = { textContent: '' };
+  const mockP50El = { textContent: '' };
+  const mockExpEl = { textContent: '' };
+
+  const mockFilterBtns = [
+    {
+      dataset: { fiberFilter: 'all' },
+      classList: { toggle: () => {} },
+      setAttribute: () => {},
+      addEventListener: (evt, handler) => { if (evt === 'click') filterHandlers.push(handler); }
+    },
+    {
+      dataset: { fiberFilter: 'high' },
+      classList: { toggle: () => {} },
+      setAttribute: () => {},
+      addEventListener: (evt, handler) => { if (evt === 'click') filterHandlers.push(handler); }
+    }
+  ];
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardFiberModal') return mockModal;
+      if (id === 'dashboardOpenFiberModalBtn') return mockOpenBtn;
+      if (id === 'dashboardFiberModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyFiberReportBtn') return mockCopyBtn;
+      if (id === 'fiberTotalPortsVal') return mockTotalEl;
+      if (id === 'fiberAssignedVal') return mockAssignedEl;
+      if (id === 'fiberSpareVal') return mockSpareEl;
+      if (id === 'fiberSaturationVal') return mockSatEl;
+      if (id === 'fiberStatusBadge') return mockStatusBadge;
+      if (id === 'fiberHubTableBody') return mockTbody;
+      if (id === 'fiberProj10Val') return mockP10El;
+      if (id === 'fiberProj25Val') return mockP25El;
+      if (id === 'fiberProj50Val') return mockP50El;
+      if (id === 'fiberExpansionSplittersVal') return mockExpEl;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('#fiberFilterGroup')) return mockFilterBtns;
+      return [];
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  try {
+    setupFiberDistributionModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockTotalEl.textContent.includes('Ports'));
+    assert.ok(mockAssignedEl.textContent.includes('Drops'));
+    assert.ok(mockTbody.innerHTML.includes('Farooq Ganj'));
+
+    // Trigger high filter
+    filterHandlers[1]();
+    // Re-verify modal functions
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - FIBER DISTRIBUTION HUB & OPTICAL SPLITTER AUDIT'));
+    assert.equal(toastMessage, 'Fiber distribution briefing copied to clipboard!');
+
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
 
 
 

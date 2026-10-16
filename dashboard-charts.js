@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2206,6 +2206,104 @@ export function renderBandwidthShapingSvg(metrics) {
 }
 
 /**
+ * Renders an offline SVG chart displaying Fiber Distribution Hub (FDH) port capacity,
+ * active vs offline drops, and available dark fiber headroom across key areas.
+ */
+export function renderFiberDistributionSvg(metrics) {
+  const width = 560;
+  const height = 240;
+
+  if (!metrics || !metrics.hubs || metrics.hubs.length === 0 || metrics.totalDeployedPorts === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Fiber Distribution Hub: No active drops">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-12 0 L-4 -8 L4 8 L12 0" stroke="#0e5b4d" stroke-width="2" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No fiber distribution hubs or drops recorded</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">Assign customers to areas to map optical splitter utilization, attenuation, and dark fiber headroom</text>
+      </g>
+    </svg>`;
+  }
+
+  const topPad = 36;
+  const bottomPad = 36;
+  const leftPad = 130;
+  const rightPad = 100;
+  const plotWidth = width - leftPad - rightPad;
+
+  // Display top 5 hubs
+  const displayHubs = metrics.hubs.slice(0, 5);
+  const rowHeight = Math.floor((height - topPad - bottomPad) / Math.max(displayHubs.length, 1));
+  const barHeight = Math.min(18, Math.max(12, rowHeight - 12));
+
+  let statusColor = '#047857';
+  if (metrics.overallSaturationPercent >= 85) statusColor = '#ef4444';
+  else if (metrics.overallSaturationPercent >= 70) statusColor = '#d97706';
+
+  const rowsSvg = displayHubs.map((hub, idx) => {
+    const yCenter = topPad + idx * rowHeight + rowHeight / 2;
+    const barY = Math.round(yCenter - barHeight / 2);
+
+    const activeRatio = hub.totalPorts > 0 ? hub.activeSubscribers / hub.totalPorts : 0;
+    const offlineRatio = hub.totalPorts > 0 ? hub.offlineSubscribers / hub.totalPorts : 0;
+
+    const activeW = Math.round(activeRatio * plotWidth);
+    const offlineW = Math.round(offlineRatio * plotWidth);
+    const spareW = Math.max(0, plotWidth - activeW - offlineW);
+
+    const activeX = leftPad;
+    const offlineX = activeX + activeW;
+    const spareX = offlineX + offlineW;
+
+    const satColor = hub.saturationPercent >= 85 ? '#ef4444' : (hub.saturationPercent >= 70 ? '#d97706' : '#10b981');
+
+    return `
+      <text x="${leftPad - 12}" y="${yCenter + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="11" font-weight="600" fill="var(--ink, #182e2a)">
+        ${escapeXml(hub.areaName.length > 16 ? hub.areaName.slice(0, 15) + '…' : hub.areaName)}
+      </text>
+
+      <rect x="${leftPad}" y="${barY}" width="${plotWidth}" height="${barHeight}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
+
+      ${activeW > 0 ? `<rect x="${activeX}" y="${barY}" width="${activeW}" height="${barHeight}" rx="${offlineW === 0 && spareW === 0 ? 4 : 0}" fill="#0e5b4d" />` : ''}
+
+      ${offlineW > 0 ? `<rect x="${offlineX}" y="${barY}" width="${offlineW}" height="${barHeight}" rx="${activeW === 0 && spareW === 0 ? 4 : 0}" fill="#f59e0b" />` : ''}
+
+      ${spareW > 0 ? `<rect x="${spareX}" y="${barY}" width="${spareW}" height="${barHeight}" rx="${activeW === 0 && offlineW === 0 ? 4 : 0}" fill="rgba(148, 163, 184, 0.4)" />` : ''}
+
+      <text x="${leftPad + plotWidth + 8}" y="${yCenter + 4}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="${satColor}">
+        ${hub.assignedPorts}/${hub.totalPorts} (${hub.saturationPercent}%)
+      </text>
+    `;
+  }).join('');
+
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${leftPad}, 20)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+        Markaz-e-Taqseem-e-Fiber (FDH)
+      </text>
+      <text x="${plotWidth + rightPad - 10}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Total Ports: <tspan font-weight="700" fill="var(--ink, #182e2a)">${metrics.totalDeployedPorts}</tspan> · Dark Headroom: <tspan font-weight="700" fill="#047857">${metrics.totalSparePorts}</tspan> · Saturation: <tspan font-weight="700" fill="${statusColor}">${metrics.overallSaturationPercent}%</tspan>
+      </text>
+    </g>
+
+    ${rowsSvg}
+
+    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
+      <rect x="-180" y="-8" width="10" height="10" rx="2" fill="#0e5b4d" />
+      <text x="-164" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Active Drops</text>
+
+      <rect x="-70" y="-8" width="10" height="10" rx="2" fill="#f59e0b" />
+      <text x="-54" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Offline Drops</text>
+
+      <rect x="40" y="-8" width="10" height="10" rx="2" fill="rgba(148, 163, 184, 0.5)" />
+      <text x="56" y="0" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)" text-anchor="start">Dark Headroom (Spare)</text>
+    </g>
+  </svg>`;
+}
+
+/**
  * Generates an executive plain-text report of the margin simulation.
  */
 export function generateMarginSimulationReportText(simResult) {
@@ -2681,6 +2779,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupBandwidthShapingModal(state, { referenceDate, onToast: options.onToast });
+
+  const fiberEl = document.getElementById('dashboardFiberChart');
+  if (fiberEl) {
+    const fiberData = calculateFiberDistributionMetrics(state, { targetSplitterSize: 8 });
+    fiberEl.innerHTML = renderFiberDistributionSvg(fiberData);
+  }
+
+  setupFiberDistributionModal(state, { referenceDate, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

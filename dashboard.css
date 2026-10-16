@@ -1628,6 +1628,25 @@
   max-width: 860px;
 }
 
+/* Power Outage & OLT Battery Health Styles */
+.chart-card-power {
+  background: var(--surface, #ffffff);
+}
+
+.power-modal-card {
+  max-width: 900px;
+}
+
+[data-theme="dark"] .chart-card-power {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .power-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
 .signal-tag {
   display: inline-block;
   padding: 2px 6px;

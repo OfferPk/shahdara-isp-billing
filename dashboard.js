@@ -4364,6 +4364,465 @@ export function setupCpeAssetModal(state, { referenceDate = new Date(), onFilter
   }
 }
 
+export const SHAHDARA_POWER_HUBS = [
+  {
+    id: 'hub-vandala-core',
+    name: 'Shahdara Core NOC (Vandala Road)',
+    role: 'Central NOC & Core OLT',
+    primaryAreas: ['Vandala Road', 'Main Bazaar', 'Railway Road'],
+    powerSource: 'Mains (LESCO)',
+    batteryVoltage: 53.2,
+    batteryCapacityAh: 200,
+    batteryType: '48V LiFePO4 Smart Lithium',
+    batteryHealthSoH: 98,
+    batteryLevelPercent: 95,
+    inverterLoadWatts: 580,
+    generatorModel: 'Perkins 15 kVA Diesel Genset',
+    generatorFuelLiters: 42,
+    generatorCapacityLiters: 60,
+    generatorFuelBurnRate: 1.8 // L/hr
+  },
+  {
+    id: 'hub-begum-kot',
+    name: 'Begum Kot Sub-POP Node',
+    role: 'Area Distribution OLT',
+    primaryAreas: ['Begum Kot', 'Shadbagh'],
+    powerSource: 'Inverter Battery',
+    batteryVoltage: 48.4,
+    batteryCapacityAh: 100,
+    batteryType: '48V AGM Deep Cycle Gel',
+    batteryHealthSoH: 91,
+    batteryLevelPercent: 68,
+    inverterLoadWatts: 320,
+    generatorModel: 'Honda 5.5 kVA Gas/Petrol Genset',
+    generatorFuelLiters: 16,
+    generatorCapacityLiters: 25,
+    generatorFuelBurnRate: 1.1 // L/hr
+  },
+  {
+    id: 'hub-saeed-park',
+    name: 'Saeed Park Distribution Hub',
+    role: 'Secondary OLT Node',
+    primaryAreas: ['Saeed Park', 'Baradari Road'],
+    powerSource: 'Mains (LESCO)',
+    batteryVoltage: 52.8,
+    batteryCapacityAh: 100,
+    batteryType: '48V Tubular Deep Cycle',
+    batteryHealthSoH: 89,
+    batteryLevelPercent: 88,
+    inverterLoadWatts: 310,
+    generatorModel: 'Yamaha 3.5 kVA Inverter Genset',
+    generatorFuelLiters: 11,
+    generatorCapacityLiters: 18,
+    generatorFuelBurnRate: 0.9 // L/hr
+  },
+  {
+    id: 'hub-jia-musa',
+    name: 'Jia Musa Remote OLT Node',
+    role: 'Edge OLT & Solar Hybrid',
+    primaryAreas: ['Jia Musa', 'Kot Mohibbu', 'Chah Jhabbay Wala'],
+    powerSource: 'Mains (LESCO)',
+    batteryVoltage: 51.5,
+    batteryCapacityAh: 50,
+    batteryType: '48V Lithium-Ion Rack',
+    batteryHealthSoH: 95,
+    batteryLevelPercent: 82,
+    inverterLoadWatts: 190,
+    generatorModel: 'Loncin 2.8 kVA Portable Genset',
+    generatorFuelLiters: 7,
+    generatorCapacityLiters: 12,
+    generatorFuelBurnRate: 0.7 // L/hr
+  }
+];
+
+/**
+ * Calculates power outage backup telemetry, battery bank health, generator runtime, and outage resilience.
+ */
+export function calculatePowerBackupMetrics(state, options = {}) {
+  const fuelCostPerLiter = typeof options.fuelCostPerLiter === 'number' && options.fuelCostPerLiter > 0
+    ? options.fuelCostPerLiter
+    : 285;
+
+  const rawHubs = Array.isArray(options.hubsOverride) && options.hubsOverride.length > 0
+    ? options.hubsOverride
+    : SHAHDARA_POWER_HUBS;
+
+  const customers = Array.isArray(state?.customers) ? state.customers.filter(c => !c.archived) : [];
+
+  // Match customers to hubs by area
+  const hubList = rawHubs.map(h => ({
+    ...h,
+    primaryAreas: Array.isArray(h.primaryAreas) ? [...h.primaryAreas] : [],
+    activeSubscribers: 0,
+    totalSubscribers: 0,
+    subscribersList: []
+  }));
+
+  const fallbackHub = hubList[0] || null;
+
+  for (const c of customers) {
+    const rawArea = String(c.area || '').trim().toLowerCase();
+    const isAct = String(c.serviceStatus || '').toLowerCase() === 'active';
+
+    let matchedHub = hubList.find(h =>
+      h.primaryAreas.some(a => String(a).trim().toLowerCase() === rawArea)
+    );
+
+    if (!matchedHub) {
+      // Partial match
+      matchedHub = hubList.find(h =>
+        h.primaryAreas.some(a => rawArea.includes(String(a).trim().toLowerCase()) || String(a).trim().toLowerCase().includes(rawArea))
+      );
+    }
+
+    if (!matchedHub && fallbackHub) {
+      matchedHub = fallbackHub;
+    }
+
+    if (matchedHub) {
+      matchedHub.totalSubscribers++;
+      if (isAct) matchedHub.activeSubscribers++;
+      matchedHub.subscribersList.push({
+        id: c.id,
+        name: c.name || 'Unnamed',
+        area: c.area || 'Unassigned',
+        serviceStatus: c.serviceStatus || 'not-set',
+        phone: c.phone || ''
+      });
+    }
+  }
+
+  let totalActiveSubscribers = 0;
+  let totalSubscribersProtected = 0;
+  let totalFuelReservesLiters = 0;
+  let totalFuelCapacityLiters = 0;
+  let totalBatteryCapacityKwh = 0;
+  let totalBatteryRunwayHoursSum = 0;
+  let totalGeneratorBurnRateSum = 0;
+  let totalHourlyFuelCostPkr = 0;
+  let activeOutagesCount = 0;
+  let criticalHubsCount = 0;
+
+  const hubs = hubList.map(h => {
+    totalActiveSubscribers += h.activeSubscribers;
+    totalSubscribersProtected += h.totalSubscribers;
+
+    const batteryCapAh = Number(h.batteryCapacityAh) || 100;
+    const batteryPct = Math.min(100, Math.max(0, Number(h.batteryLevelPercent) || 0));
+    const invWatts = Number(h.inverterLoadWatts) || 300;
+    const volt = Number(h.batteryVoltage) || 48.0;
+
+    // Battery energy storage in Wh = Ah * 48V * (pct / 100) * 0.85 (inverter efficiency)
+    const usableWh = batteryCapAh * 48 * (batteryPct / 100) * 0.85;
+    const batteryRunwayHours = invWatts > 0 ? Number((usableWh / invWatts).toFixed(1)) : 0;
+    const totalHubBatteryKwh = Number(((batteryCapAh * 48) / 1000).toFixed(1));
+    totalBatteryCapacityKwh += totalHubBatteryKwh;
+    totalBatteryRunwayHoursSum += batteryRunwayHours;
+
+    const fuelLiters = Math.max(0, Number(h.generatorFuelLiters) || 0);
+    const fuelCap = Math.max(1, Number(h.generatorCapacityLiters) || 20);
+    const burnRate = Math.max(0.1, Number(h.generatorFuelBurnRate) || 1.0);
+    const genRunwayHours = Number((fuelLiters / burnRate).toFixed(1));
+    const fuelReservePct = Math.min(100, Math.round((fuelLiters / fuelCap) * 100));
+    const hourlyCost = Math.round(burnRate * fuelCostPerLiter);
+
+    totalFuelReservesLiters += fuelLiters;
+    totalFuelCapacityLiters += fuelCap;
+    totalGeneratorBurnRateSum += burnRate;
+    totalHourlyFuelCostPkr += hourlyCost;
+
+    const totalOutageRunwayHours = Number((batteryRunwayHours + genRunwayHours).toFixed(1));
+
+    const isOutage = h.powerSource !== 'Mains (LESCO)';
+    if (isOutage) activeOutagesCount++;
+
+    let statusTier = 'Normal / Grid Stable';
+    let statusBadgeClass = 'badge-expansion';
+
+    if (batteryPct < 35 || fuelLiters <= 5) {
+      statusTier = 'Critical Discharge';
+      statusBadgeClass = 'badge-contraction';
+      criticalHubsCount++;
+    } else if (isOutage || batteryPct < 70) {
+      statusTier = 'Active Backup / Advisory';
+      statusBadgeClass = 'badge-stable';
+    }
+
+    return {
+      ...h,
+      batteryCapacityAh: batteryCapAh,
+      batteryLevelPercent: batteryPct,
+      batteryVoltage: volt,
+      inverterLoadWatts: invWatts,
+      batteryEnergyWh: Math.round(usableWh),
+      totalHubBatteryKwh,
+      batteryRunwayHours,
+      generatorFuelLiters: fuelLiters,
+      generatorCapacityLiters: fuelCap,
+      generatorFuelBurnRate: burnRate,
+      generatorRunwayHours: genRunwayHours,
+      fuelReservePercent: fuelReservePct,
+      hourlyFuelCostPkr: hourlyCost,
+      totalOutageRunwayHours,
+      statusTier,
+      statusBadgeClass
+    };
+  });
+
+  const totalHubsMonitored = hubs.length;
+  const overallFuelPercent = totalFuelCapacityLiters > 0
+    ? Math.round((totalFuelReservesLiters / totalFuelCapacityLiters) * 100)
+    : 0;
+
+  const avgBatteryRunwayHours = totalHubsMonitored > 0
+    ? Number((totalBatteryRunwayHoursSum / totalHubsMonitored).toFixed(1))
+    : 0;
+
+  const totalGeneratorRunwayHours = totalGeneratorBurnRateSum > 0
+    ? Number((totalFuelReservesLiters / totalGeneratorBurnRateSum).toFixed(1))
+    : 0;
+
+  const combinedFleetRunwayHours = Number((avgBatteryRunwayHours + totalGeneratorRunwayHours).toFixed(1));
+
+  let gridResilienceStatus = 'Grid Resilient (100% Mains)';
+  let gridResilienceBadgeClass = 'badge-expansion';
+
+  if (criticalHubsCount > 0) {
+    gridResilienceStatus = 'Critical Power Disruption';
+    gridResilienceBadgeClass = 'badge-contraction';
+  } else if (activeOutagesCount > 0) {
+    gridResilienceStatus = 'Load Shedding Active';
+    gridResilienceBadgeClass = 'badge-stable';
+  }
+
+  return {
+    totalHubsMonitored,
+    totalActiveSubscribers,
+    totalSubscribersProtected,
+    totalFuelReservesLiters,
+    totalFuelCapacityLiters,
+    overallFuelPercent,
+    totalBatteryCapacityKwh: Number(totalBatteryCapacityKwh.toFixed(1)),
+    avgBatteryRunwayHours,
+    totalGeneratorRunwayHours,
+    combinedFleetRunwayHours,
+    totalHourlyFuelCostPkr,
+    activeOutagesCount,
+    criticalHubsCount,
+    gridResilienceStatus,
+    gridResilienceBadgeClass,
+    fuelCostPerLiter,
+    hubs
+  };
+}
+
+/**
+ * Generates plain-text briefing on POP battery health, generator runtime, and outage resilience.
+ */
+export function generatePowerBriefingReport(metrics, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+
+  const lines = [
+    '================================================================',
+    'SHAHDARA ISP - POWER OUTAGE & OLT BATTERY HEALTH BRIEFING',
+    '================================================================',
+    `Date: ${dateStr} | Central NOC: Shahdara Core Hub (Vandala Rd)`,
+    `Grid Utility: LESCO (Lahore Electric Supply) | Telecom Standard: -48V DC`,
+    '',
+    `Fleet Telecom Battery Capacity: ${metrics.totalBatteryCapacityKwh} kWh (Avg Runway: ${metrics.avgBatteryRunwayHours} hrs)`,
+    `Diesel / Petrol Fuel Reserves: ${metrics.totalFuelReservesLiters} Liters (${metrics.overallFuelPercent}% Capacity | Runway: ${metrics.totalGeneratorRunwayHours} hrs)`,
+    `Combined Outage Runway: ${metrics.combinedFleetRunwayHours} Hours`,
+    `Fleet Power Grid Status: ${metrics.gridResilienceStatus}`,
+    `Active Load Shedding Incidents: ${metrics.activeOutagesCount} / ${metrics.totalHubsMonitored} Hubs`,
+    '',
+    '----------------------------------------------------------------',
+    'POP TELEMETRY & RUNWAY AUDIT:',
+    '----------------------------------------------------------------'
+  ];
+
+  if (!metrics.hubs || metrics.hubs.length === 0) {
+    lines.push('No distribution hubs configured.');
+  } else {
+    for (const h of metrics.hubs) {
+      lines.push(
+        `• ${h.name} [${h.powerSource}]: ` +
+        `Batt: ${h.batteryVoltage}V (${h.batteryLevelPercent}%) ~${h.batteryRunwayHours}h | ` +
+        `Fuel: ${h.generatorFuelLiters}L (${h.generatorModel}) ~${h.generatorRunwayHours}h | ` +
+        `Total: ${h.totalOutageRunwayHours}h | ${h.statusTier} (${h.activeSubscribers} active subs)`
+      );
+    }
+  }
+
+  lines.push('');
+  lines.push('----------------------------------------------------------------');
+  lines.push('EMERGENCY FUEL CONSUMPTION ESTIMATE:');
+  lines.push('----------------------------------------------------------------');
+  const avgBurn = metrics.totalGeneratorRunwayHours > 0
+    ? (metrics.totalFuelReservesLiters / metrics.totalGeneratorRunwayHours).toFixed(1)
+    : '0.0';
+  lines.push(`Fleet Fuel Burn Rate: ~${avgBurn} L/hr | Hourly Operating Cost: ${formatPKR(metrics.totalHourlyFuelCostPkr)}/hr`);
+  lines.push('Recommendation: Keep at least 20L diesel buffer at Central NOC during peak load-shedding seasons.');
+  lines.push('================================================================');
+
+  return lines.join('\n');
+}
+
+/**
+ * Sets up the Power Backup & OLT Battery Health modal dialog and clipboard reporting.
+ */
+export function setupPowerBackupModal(state, { referenceDate = new Date(), onFilterArea, onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardPowerModal');
+  const openBtn = document.getElementById('dashboardOpenPowerModalBtn');
+  const closeBtn = document.getElementById('dashboardPowerModalCloseBtn');
+  const tableBody = document.getElementById('powerHubsTableBody');
+  const copyBtn = document.getElementById('dashboardCopyPowerReportBtn');
+
+  const energyEl = document.getElementById('powerTotalEnergyVal');
+  const battRunwayEl = document.getElementById('powerTotalRunwayVal');
+  const fuelReservesEl = document.getElementById('powerFuelReservesVal');
+  const fuelRunwayEl = document.getElementById('powerFuelRunwayVal');
+  const combinedRunwayEl = document.getElementById('powerCombinedRunwayVal');
+  const statusBadgeEl = document.getElementById('powerStatusBadge');
+  const outagesCountEl = document.getElementById('powerOutagesCountVal');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const data = calculatePowerBackupMetrics(state, { referenceDate });
+
+    if (energyEl) energyEl.textContent = `${data.totalBatteryCapacityKwh} kWh`;
+    if (battRunwayEl) battRunwayEl.textContent = `Avg ${data.avgBatteryRunwayHours} hrs battery runway`;
+    if (fuelReservesEl) fuelReservesEl.textContent = `${data.totalFuelReservesLiters} Liters`;
+    if (fuelRunwayEl) fuelRunwayEl.textContent = `${data.totalGeneratorRunwayHours} hrs genset runtime`;
+    if (combinedRunwayEl) combinedRunwayEl.textContent = `${data.combinedFleetRunwayHours} Hours`;
+
+    if (statusBadgeEl) {
+      statusBadgeEl.textContent = data.gridResilienceStatus;
+      statusBadgeEl.className = `sim-delta-badge ${data.gridResilienceBadgeClass}`;
+    }
+
+    if (outagesCountEl) {
+      outagesCountEl.textContent = `${data.activeOutagesCount} active outages (${data.criticalHubsCount} critical)`;
+    }
+
+    if (tableBody) {
+      if (!data.hubs || data.hubs.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="empty-cell">No distribution hubs monitored</td></tr>';
+      } else {
+        tableBody.innerHTML = data.hubs.map(h => {
+          const powerBadgeClass = h.powerSource.includes('Mains')
+            ? 'badge-expansion'
+            : (h.powerSource.includes('Battery') ? 'badge-stable' : 'badge-contraction');
+
+          const primaryAreaName = h.primaryAreas[0] || '';
+
+          return `
+            <tr>
+              <td>
+                <strong>${escapeXml(h.name)}</strong>
+                <div class="text-muted" style="font-size: 11px;">${escapeXml(h.role)}</div>
+              </td>
+              <td>
+                <div>${h.activeSubscribers} <span class="text-muted">active</span> (${h.totalSubscribers} total)</div>
+                <div class="text-muted" style="font-size: 11px;">${escapeXml(h.primaryAreas.join(', '))}</div>
+              </td>
+              <td>
+                <span class="sim-delta-badge ${powerBadgeClass}" style="font-size: 11px;">
+                  ${escapeXml(h.powerSource)}
+                </span>
+              </td>
+              <td>
+                <div><strong>${h.batteryLevelPercent}%</strong> (${h.batteryVoltage}V)</div>
+                <div class="text-muted" style="font-size: 11px;">~${h.batteryRunwayHours}h (${h.batteryCapacityAh}Ah · ${h.inverterLoadWatts}W)</div>
+              </td>
+              <td>
+                <div><strong>${h.generatorFuelLiters} L</strong> (${h.fuelReservePercent}%)</div>
+                <div class="text-muted" style="font-size: 11px;">~${h.generatorRunwayHours}h (${escapeXml(h.generatorModel)})</div>
+              </td>
+              <td>
+                <div>${formatPKR(h.hourlyFuelCostPkr)}/hr</div>
+                <div class="text-muted" style="font-size: 11px;">@ ${h.generatorFuelBurnRate} L/h</div>
+              </td>
+              <td>
+                <span class="sim-delta-badge ${h.statusBadgeClass}" style="font-size: 11px;">
+                  ${escapeXml(h.statusTier)}
+                </span>
+              </td>
+              <td>
+                <button class="small-action-btn" type="button" data-power-filter-area="${escapeXml(primaryAreaName)}">Area Subs</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        const areaBtns = tableBody.querySelectorAll('[data-power-filter-area]');
+        areaBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const area = btn.getAttribute('data-power-filter-area');
+            if (typeof onFilterArea === 'function' && area) {
+              onFilterArea(area);
+              if (modal.close) modal.close();
+              else modal.removeAttribute('open');
+            } else if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(area);
+              if (modal.close) modal.close();
+              else modal.removeAttribute('open');
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculatePowerBackupMetrics(state, { referenceDate });
+      const text = generatePowerBriefingReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Power backup audit briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -4394,6 +4853,7 @@ export {
   renderFiberDistributionSvg,
   renderDelinquencyPipelineSvg,
   renderCpeAssetLifecycleSvg,
+  renderPowerBackupSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

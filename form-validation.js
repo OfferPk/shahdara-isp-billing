@@ -2652,4 +2652,834 @@ export function setupDailyRegisterModal({
   };
 }
 
+/* ==========================================================================
+   CUSTOMER ACCOUNT ADJUSTMENT & OUTAGE VOUCHER ENGINE (Tarmeem-e-Khata واؤچر)
+   ========================================================================== */
 
+export const ADJUSTMENT_VOUCHERS_KEY = 'shahdara_customer_adjustments';
+
+export const ADJUSTMENT_CATEGORIES = Object.freeze({
+  downtime_credit: {
+    id: 'downtime_credit',
+    label: 'Fiber Cut / Outage Downtime Credit',
+    labelUrdu: 'انٹرنیٹ خرابی کٹوتی',
+    defaultReason: 'Broadband outage downtime compensation'
+  },
+  billing_dispute: {
+    id: 'billing_dispute',
+    label: 'Billing Dispute / Overcharge Settlement',
+    labelUrdu: 'بل تنازعہ حل',
+    defaultReason: 'Resolution of disputed billing charge'
+  },
+  promotional_discount: {
+    id: 'promotional_discount',
+    label: 'Promotional Discount / Retention Waiver',
+    labelUrdu: 'خصوصی رعایت',
+    defaultReason: 'Customer loyalty retention discount'
+  },
+  ont_fee_waiver: {
+    id: 'ont_fee_waiver',
+    label: 'ONT Router Fee / Deposit Waiver',
+    labelUrdu: 'راؤٹر فیس چھوٹ',
+    defaultReason: 'ONT installation/device concession'
+  },
+  manager_waiver: {
+    id: 'manager_waiver',
+    label: 'Management Special Concession',
+    labelUrdu: 'منیجر رعایت',
+    defaultReason: 'Special administrative concession'
+  },
+  custom: {
+    id: 'custom',
+    label: 'Other Account Ledger Adjustment',
+    labelUrdu: 'دیگر ترمیم',
+    defaultReason: 'General ledger adjustment'
+  }
+});
+
+/**
+ * Prorates outage credit based on monthly recurring rate, downtime days, and downtime hours.
+ * @param {number} monthlyRate - Customer's monthly package subscription rate in PKR
+ * @param {Object} [downtime]
+ * @param {number} [downtime.days=0] - Number of full days without service
+ * @param {number} [downtime.hours=0] - Additional hours without service
+ * @param {number} [downtime.daysInMonth=30] - Base days in month (default 30)
+ * @returns {number} Prorated credit amount in PKR rounded to nearest whole rupee
+ */
+export function calculateOutageCredit(monthlyRate, { days = 0, hours = 0, daysInMonth = 30 } = {}) {
+  const rate = Math.max(0, Number(monthlyRate) || 0);
+  const totalDays = Math.max(1, Number(daysInMonth) || 30);
+  const outageDays = Math.max(0, Number(days) || 0);
+  const outageHours = Math.max(0, Math.min(23, Number(hours) || 0));
+
+  if (rate === 0 || (outageDays === 0 && outageHours === 0)) {
+    return 0;
+  }
+
+  const dailyRate = rate / totalDays;
+  const hourlyRate = dailyRate / 24;
+  const rawCredit = (outageDays * dailyRate) + (outageHours * hourlyRate);
+
+  return Math.min(rate, Math.round(rawCredit));
+}
+
+/**
+ * Validates adjustment voucher input parameters.
+ * @param {Object} fields
+ * @param {string} fields.customerId
+ * @param {number|string} fields.amount
+ * @param {string} fields.category
+ * @param {string} fields.reason
+ * @param {string} fields.authorizedBy
+ * @returns {{ valid: boolean, errors: Object }}
+ */
+export function validateAdjustmentVoucher({ customerId, amount, category, reason, authorizedBy }) {
+  const errors = {};
+
+  if (!customerId || String(customerId).trim() === '') {
+    errors.customerId = 'Customer is required.';
+  }
+
+  const numAmount = Number(amount);
+  if (!Number.isFinite(numAmount) || numAmount <= 0) {
+    errors.amount = 'Credit voucher amount must be a positive number greater than 0.';
+  } else if (numAmount > 100000) {
+    errors.amount = 'Credit voucher amount cannot exceed PKR 100,000.';
+  }
+
+  const cleanCategory = String(category || '').trim();
+  if (!cleanCategory) {
+    errors.category = 'Adjustment category is required.';
+  }
+
+  const cleanReason = String(reason || '').trim();
+  if (!cleanReason || cleanReason.length < 5) {
+    errors.reason = 'Reason for adjustment must be at least 5 characters.';
+  }
+
+  const cleanAuth = String(authorizedBy || '').trim();
+  if (!cleanAuth || cleanAuth.length < 2) {
+    errors.authorizedBy = 'Authorizer name/title must be at least 2 characters.';
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+/**
+ * Assembles an immutable Adjustment Voucher record.
+ * @param {Object} params
+ * @returns {Object} Complete voucher object
+ */
+export function buildAdjustmentVoucherData({
+  customer,
+  category = 'downtime_credit',
+  amount = 0,
+  reason = '',
+  authorizedBy = 'Manager',
+  date = null,
+  outageDetails = null,
+  existingVouchersCount = 0
+} = {}) {
+  const numAmount = Math.max(0, Number(amount) || 0);
+  const now = new Date();
+  const dateStr = date ? String(date).slice(0, 10) : now.toISOString().slice(0, 10);
+  const yearMonth = dateStr.slice(0, 7).replace('-', '');
+  const seq = String(Number(existingVouchersCount || 0) + 1).padStart(4, '0');
+  const voucherNumber = `ADJ-${yearMonth}-${seq}`;
+
+  const categoryMeta = ADJUSTMENT_CATEGORIES[category] || {
+    id: category,
+    label: category,
+    labelUrdu: 'ترمیم کھاتہ',
+    defaultReason: 'Account balance adjustment'
+  };
+
+  const bills = Array.isArray(customer?.bills) ? customer.bills : [];
+  let currentBalance = 0;
+  bills.forEach(b => {
+    const due = Number(b.dueAmount || 0);
+    const paid = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+    currentBalance += Math.max(0, due - paid);
+  });
+
+  const projectedBalance = Math.max(0, currentBalance - numAmount);
+
+  return {
+    id: `adj-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    voucherNumber,
+    customerId: customer?.id || '',
+    customerNumber: customer?.customerNumber || '',
+    customerName: customer?.name || 'Unnamed Subscriber',
+    customerPhone: customer?.phone || '',
+    customerArea: customer?.area || customer?.mohalla || '',
+    category: categoryMeta.id,
+    categoryLabel: categoryMeta.label,
+    categoryLabelUrdu: categoryMeta.labelUrdu,
+    amount: numAmount,
+    previousBalance: currentBalance,
+    projectedBalance,
+    reason: String(reason || categoryMeta.defaultReason).trim(),
+    authorizedBy: String(authorizedBy || 'Manager').trim(),
+    date: dateStr,
+    createdAt: now.toISOString(),
+    outageDetails: outageDetails ? {
+      days: Number(outageDetails.days) || 0,
+      hours: Number(outageDetails.hours) || 0,
+      monthlyRate: Number(outageDetails.monthlyRate) || 0,
+      calculatedCredit: Number(outageDetails.calculatedCredit) || 0
+    } : null
+  };
+}
+
+/**
+ * Formats a professional bilingual WhatsApp notification for the customer.
+ * @param {Object} voucher
+ * @returns {string}
+ */
+export function formatAdjustmentVoucherWhatsApp(voucher) {
+  if (!voucher) return '';
+  const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+  const lines = [
+    `🧾 *SHAHDARA BROADBAND - CREDIT ADJUSTMENT VOUCHER* 🧾`,
+    `واؤچر برائے رعایت / کھاتہ ترمیم`,
+    `----------------------------------------`,
+    `🔢 *Voucher No:* \`${voucher.voucherNumber}\``,
+    `👤 *Subscriber:* ${voucher.customerName} (#${voucher.customerNumber})`,
+    `📅 *Date:* ${voucher.date}`,
+    `📌 *Category:* ${voucher.categoryLabel} (${voucher.categoryLabelUrdu})`,
+    `----------------------------------------`,
+    `💰 *CREDIT ADJUSTED (رعایت):*`,
+    `👉 *PKR ${formatPkr(voucher.amount)}* (مبارک ہو! آپ کے کھاتے میں کریڈٹ کر دیا گیا ہے)`,
+    `----------------------------------------`,
+    `📝 *Reason / Notes:* ${voucher.reason}`
+  ];
+
+  if (voucher.outageDetails && (voucher.outageDetails.days > 0 || voucher.outageDetails.hours > 0)) {
+    lines.push(`⚡ *Downtime Compensated:* ${voucher.outageDetails.days} days, ${voucher.outageDetails.hours} hours outage`);
+  }
+
+  lines.push(`📊 *Adjusted Balance:* PKR ${formatPkr(voucher.projectedBalance)}`);
+  lines.push(`✍️ *Authorized By:* ${voucher.authorizedBy}`);
+  lines.push(`----------------------------------------`);
+  lines.push(`شکریہ، شاہدرہ انٹرنیٹ سروسز ہیلپ لائن: 0300-1234567`);
+
+  return lines.join('\n');
+}
+
+/**
+ * Generates RFC-4180 CSV export of adjustment vouchers.
+ * @param {Array<Object>} vouchers
+ * @returns {string}
+ */
+export function generateAdjustmentLedgerCsv(vouchers = []) {
+  const headers = [
+    'Voucher_No',
+    'Date',
+    'Customer_No',
+    'Customer_Name',
+    'Category',
+    'Credit_PKR',
+    'Previous_Balance_PKR',
+    'Projected_Balance_PKR',
+    'Reason',
+    'Authorized_By',
+    'Created_At'
+  ];
+
+  const rows = (Array.isArray(vouchers) ? vouchers : []).map(v => [
+    v.voucherNumber || '',
+    v.date || '',
+    String(v.customerNumber || ''),
+    v.customerName || '',
+    v.categoryLabel || v.category || '',
+    String(v.amount ?? 0),
+    String(v.previousBalance ?? 0),
+    String(v.projectedBalance ?? 0),
+    v.reason || '',
+    v.authorizedBy || '',
+    v.createdAt || ''
+  ]);
+
+  return generateCsvContent(headers, rows);
+}
+
+/**
+ * Generates printable voucher slip (80mm thermal or standard A4).
+ * @param {Object} voucher
+ * @param {Object} [options]
+ * @param {string} [options.format='slip'] - 'slip' (thermal 80mm) or 'sheet' (formal A4)
+ * @returns {string} HTML string
+ */
+export function generateAdjustmentVoucherHtml(voucher, { format = 'slip' } = {}) {
+  if (!voucher) return '';
+  const formatPkr = (n) => Number(n || 0).toLocaleString();
+
+  const isSlip = format === 'slip';
+
+  return `
+    <div class="adj-voucher-document ${isSlip ? 'adj-thermal-slip' : 'adj-formal-sheet'}">
+      <header class="adj-slip-header">
+        <div class="adj-brand">
+          <h3>SHAHDARA ISP NETWORKS</h3>
+          <p class="adj-subtitle">Official Credit Note &amp; Adjustment Slip</p>
+          <p class="adj-urdu-title">رسید کھاتہ ترمیم و کٹوتی واؤچر</p>
+        </div>
+        <div class="adj-voucher-code">
+          <span class="v-num">${escapeHtml(voucher.voucherNumber)}</span>
+          <span class="v-date">${escapeHtml(voucher.date)}</span>
+        </div>
+      </header>
+
+      <div class="adj-divider"></div>
+
+      <section class="adj-slip-customer">
+        <div class="adj-row"><span>Subscriber:</span><strong>#${escapeHtml(voucher.customerNumber)} ${escapeHtml(voucher.customerName)}</strong></div>
+        ${voucher.customerPhone ? `<div class="adj-row"><span>Phone:</span><span>${escapeHtml(voucher.customerPhone)}</span></div>` : ''}
+        ${voucher.customerArea ? `<div class="adj-row"><span>Area:</span><span>${escapeHtml(voucher.customerArea)}</span></div>` : ''}
+      </section>
+
+      <div class="adj-divider"></div>
+
+      <section class="adj-slip-details">
+        <div class="adj-row"><span>Adjustment Type:</span><span>${escapeHtml(voucher.categoryLabel)}</span></div>
+        <div class="adj-row adj-urdu-row"><span>قسم ترمیم:</span><span>${escapeHtml(voucher.categoryLabelUrdu)}</span></div>
+        ${voucher.outageDetails && (voucher.outageDetails.days > 0 || voucher.outageDetails.hours > 0) ? `
+          <div class="adj-row"><span>Outage Compensated:</span><span>${voucher.outageDetails.days}d ${voucher.outageDetails.hours}h</span></div>
+        ` : ''}
+        <div class="adj-row adj-amount-highlight">
+          <span>CREDIT AMOUNT:</span>
+          <strong class="font-mono">PKR ${formatPkr(voucher.amount)}</strong>
+        </div>
+        <div class="adj-row"><span>Reason:</span><span class="adj-reason-text">${escapeHtml(voucher.reason)}</span></div>
+      </section>
+
+      <div class="adj-divider"></div>
+
+      <section class="adj-slip-balance">
+        <div class="adj-row"><span>Previous Dues:</span><span>PKR ${formatPkr(voucher.previousBalance)}</span></div>
+        <div class="adj-row adj-new-balance"><span>Updated Balance:</span><strong>PKR ${formatPkr(voucher.projectedBalance)}</strong></div>
+      </section>
+
+      <footer class="adj-slip-footer">
+        <div class="adj-sig-block">
+          <div class="adj-sig-line"></div>
+          <p>Authorized: ${escapeHtml(voucher.authorizedBy)}</p>
+        </div>
+        <p class="adj-slip-notes">Computer generated credit note. Valid without physical stamp for Shahdara ISP accounting.</p>
+      </footer>
+    </div>
+  `;
+}
+
+/**
+ * Retrieves saved adjustment vouchers from localStorage.
+ * @param {Storage} [storage]
+ * @param {string} [customerId=null] - Optional filter by customerId
+ * @returns {Array<Object>}
+ */
+export function getSavedAdjustmentVouchers(storage = (typeof localStorage !== 'undefined' ? localStorage : null), customerId = null) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(ADJUSTMENT_VOUCHERS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    if (!customerId) return parsed;
+    return parsed.filter(v => v.customerId === customerId);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves a new adjustment voucher to localStorage.
+ * @param {Storage} [storage]
+ * @param {Object} voucher
+ * @returns {Array<Object>} Updated list of vouchers
+ */
+export function saveAdjustmentVoucher(storage = (typeof localStorage !== 'undefined' ? localStorage : null), voucher) {
+  if (!storage || !voucher) return [];
+  try {
+    const existing = getSavedAdjustmentVouchers(storage);
+    const updated = [voucher, ...existing];
+    storage.setItem(ADJUSTMENT_VOUCHERS_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Sets up and binds the Customer Adjustment & Outage Voucher Modal Controller.
+ * @param {Object} options
+ * @returns {Object} Controller with { open, close, refresh, getVouchers }
+ */
+export function setupAdjustmentVoucherModal({
+  modalId = 'customerAdjustmentModal',
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onToast = (msg) => {},
+  onVoucherIssued = (voucher) => {},
+  openWindow = (typeof window !== 'undefined' ? window.open : null)
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      open: () => {},
+      close: () => {},
+      refresh: () => {},
+      getVouchers: () => []
+    };
+  }
+
+  const modal = document.getElementById(modalId);
+  if (!modal) {
+    return {
+      open: () => {},
+      close: () => {},
+      refresh: () => {},
+      getVouchers: () => []
+    };
+  }
+
+  const closeBtn = document.getElementById('closeAdjustmentModalBtn');
+  const closeSecondaryBtn = document.getElementById('closeAdjustmentModalSecondaryBtn');
+  const openTriggerBtn = document.getElementById('openAdjustmentModalBtn');
+
+  // Customer strip elements
+  const custNameEl = document.getElementById('adjCustomerName');
+  const custMetaEl = document.getElementById('adjCustomerMeta');
+  const currBalEl = document.getElementById('adjCurrentBalance');
+  const projBalEl = document.getElementById('adjProjectedBalance');
+
+  // Outage calculator elements
+  const toggleCalcBtn = document.getElementById('adjToggleCalculatorBtn');
+  const calcBody = document.getElementById('adjCalculatorBody');
+  const toggleCalcIcon = document.getElementById('adjToggleCalcIcon');
+  const outageDaysInput = document.getElementById('adjOutageDays');
+  const outageHoursInput = document.getElementById('adjOutageHours');
+  const monthlyRateDisplay = document.getElementById('adjMonthlyRateDisplay');
+  const calcCreditPkr = document.getElementById('adjCalcCreditPkr');
+  const applyCalcBtn = document.getElementById('adjApplyCalcBtn');
+
+  // Form inputs
+  const form = document.getElementById('customerAdjustmentForm');
+  const categorySelect = document.getElementById('adjCategorySelect');
+  const amountInput = document.getElementById('adjAmountInput');
+  const dateInput = document.getElementById('adjDateInput');
+  const authorizedByInput = document.getElementById('adjAuthorizedByInput');
+  const reasonInput = document.getElementById('adjReasonInput');
+
+  // Errors
+  const amountError = document.getElementById('adjAmountError');
+  const authError = document.getElementById('adjAuthError');
+  const reasonError = document.getElementById('adjReasonError');
+
+  // Preview elements
+  const previewVoucherNum = document.getElementById('adjPreviewVoucherNum');
+  const previewAmount = document.getElementById('adjPreviewAmount');
+  const previewCategory = document.getElementById('adjPreviewCategory');
+  const previewNewBal = document.getElementById('adjPreviewNewBal');
+
+  // Actions
+  const submitBtn = document.getElementById('submitAdjustmentVoucherBtn');
+  const printBtn = document.getElementById('printAdjustmentSlipBtn');
+  const whatsappBtn = document.getElementById('sendAdjustmentWhatsAppBtn');
+
+  // History table
+  const historyTableBody = document.getElementById('adjHistoryTableBody');
+  const historyCountBadge = document.getElementById('adjHistoryCountBadge');
+
+  let currentCustomer = null;
+  let activeVoucher = null;
+  let outageCreditCalculated = 0;
+
+  function calculateCustomerBalance(customer) {
+    if (!customer) return 0;
+    const bills = Array.isArray(customer.bills) ? customer.bills : [];
+    let balance = 0;
+    bills.forEach(b => {
+      const due = Number(b.dueAmount || 0);
+      const paid = (b.payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+      balance += Math.max(0, due - paid);
+    });
+    return balance;
+  }
+
+  function getCustomerMonthlyRate(customer) {
+    if (!customer) return 1500;
+    if (customer.monthlySellingAmount && Number(customer.monthlySellingAmount) > 0) {
+      return Number(customer.monthlySellingAmount);
+    }
+    const bills = Array.isArray(customer.bills) ? customer.bills : [];
+    const latestBill = bills.find(b => Number(b.dueAmount) > 0);
+    if (latestBill) return Number(latestBill.dueAmount);
+    return 1500;
+  }
+
+  function updateProrationCalculation() {
+    const rate = currentCustomer ? getCustomerMonthlyRate(currentCustomer) : 1500;
+    const days = outageDaysInput ? Number(outageDaysInput.value) || 0 : 0;
+    const hours = outageHoursInput ? Number(outageHoursInput.value) || 0 : 0;
+
+    outageCreditCalculated = calculateOutageCredit(rate, { days, hours, daysInMonth: 30 });
+    if (calcCreditPkr) {
+      calcCreditPkr.textContent = `PKR ${outageCreditCalculated.toLocaleString()}`;
+    }
+  }
+
+  function updateLivePreview() {
+    const curBal = calculateCustomerBalance(currentCustomer);
+    const amount = amountInput ? Math.max(0, Number(amountInput.value) || 0) : 0;
+    const projected = Math.max(0, curBal - amount);
+
+    if (currBalEl) currBalEl.textContent = `PKR ${curBal.toLocaleString()}`;
+    if (projBalEl) projBalEl.textContent = `PKR ${projected.toLocaleString()}`;
+
+    if (previewAmount) previewAmount.textContent = `PKR ${amount.toLocaleString()}`;
+    if (previewNewBal) previewNewBal.textContent = `PKR ${projected.toLocaleString()}`;
+
+    const catKey = categorySelect?.value || 'downtime_credit';
+    const catMeta = ADJUSTMENT_CATEGORIES[catKey];
+    if (previewCategory) {
+      previewCategory.textContent = catMeta ? catMeta.label : catKey;
+    }
+
+    const allVouchers = getSavedAdjustmentVouchers(storage);
+    const yearMonth = (dateInput?.value || new Date().toISOString().slice(0, 10)).slice(0, 7).replace('-', '');
+    const seq = String(allVouchers.length + 1).padStart(4, '0');
+    if (previewVoucherNum) {
+      previewVoucherNum.textContent = `ADJ-${yearMonth}-${seq}`;
+    }
+  }
+
+  function renderHistory() {
+    if (!historyTableBody) return;
+    if (!currentCustomer) {
+      historyTableBody.innerHTML = '<tr><td colspan="6" class="text-center empty-muted">Select a customer to view voucher history.</td></tr>';
+      if (historyCountBadge) historyCountBadge.textContent = '0 vouchers';
+      return;
+    }
+
+    const vouchers = getSavedAdjustmentVouchers(storage, currentCustomer.id);
+    if (historyCountBadge) {
+      historyCountBadge.textContent = `${vouchers.length} voucher${vouchers.length === 1 ? '' : 's'}`;
+    }
+
+    if (vouchers.length === 0) {
+      historyTableBody.innerHTML = '<tr><td colspan="6" class="text-center empty-muted">No adjustment vouchers issued for this customer yet.</td></tr>';
+      return;
+    }
+
+    historyTableBody.innerHTML = vouchers.map(v => `
+      <tr>
+        <td class="font-mono font-bold">${escapeHtml(v.voucherNumber)}</td>
+        <td>${escapeHtml(v.date)}</td>
+        <td><span class="adj-cat-tag">${escapeHtml(v.categoryLabel || v.category)}</span></td>
+        <td class="adj-reason-cell">${escapeHtml(v.reason)}</td>
+        <td class="text-right font-mono font-bold highlight-green">PKR ${Number(v.amount || 0).toLocaleString()}</td>
+        <td>${escapeHtml(v.authorizedBy)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function open(customer) {
+    currentCustomer = customer || null;
+    activeVoucher = null;
+
+    if (currentCustomer) {
+      if (custNameEl) custNameEl.textContent = `#${currentCustomer.customerNumber || ''} ${currentCustomer.name || 'Unnamed'}`;
+      if (custMetaEl) custMetaEl.textContent = `${currentCustomer.phone || 'No phone'} · ${currentCustomer.area || currentCustomer.mohalla || 'Shahdara'}`;
+      const monthlyRate = getCustomerMonthlyRate(currentCustomer);
+      if (monthlyRateDisplay) monthlyRateDisplay.value = monthlyRate;
+    } else {
+      if (custNameEl) custNameEl.textContent = 'No Subscriber Selected';
+      if (custMetaEl) custMetaEl.textContent = '—';
+    }
+
+    // Default dates
+    if (dateInput && !dateInput.value) {
+      dateInput.value = new Date().toISOString().slice(0, 10);
+    }
+    if (outageDaysInput) outageDaysInput.value = '0';
+    if (outageHoursInput) outageHoursInput.value = '0';
+
+    updateProrationCalculation();
+    updateLivePreview();
+    renderHistory();
+
+    // Reset error banners
+    if (amountError) amountError.hidden = true;
+    if (authError) authError.hidden = true;
+    if (reasonError) reasonError.hidden = true;
+
+    if (typeof modal.showModal === 'function') {
+      try { modal.showModal(); } catch { modal.setAttribute('open', ''); }
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  function close() {
+    if (typeof modal.close === 'function') {
+      try { modal.close(); } catch { modal.removeAttribute('open'); }
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
+  // Toggle calculator
+  if (toggleCalcBtn && !toggleCalcBtn.dataset?.wiredAdj) {
+    if (toggleCalcBtn.dataset) toggleCalcBtn.dataset.wiredAdj = 'true';
+    toggleCalcBtn.addEventListener('click', () => {
+      const isHidden = calcBody ? calcBody.hidden : true;
+      if (calcBody) calcBody.hidden = !isHidden;
+      toggleCalcBtn.setAttribute('aria-expanded', String(!isHidden));
+      if (toggleCalcIcon) {
+        toggleCalcIcon.textContent = !isHidden ? '▲' : '▼';
+      }
+    });
+  }
+
+  if (outageDaysInput && !outageDaysInput.dataset?.wiredAdj) {
+    if (outageDaysInput.dataset) outageDaysInput.dataset.wiredAdj = 'true';
+    outageDaysInput.addEventListener('input', updateProrationCalculation);
+  }
+
+  if (outageHoursInput && !outageHoursInput.dataset?.wiredAdj) {
+    if (outageHoursInput.dataset) outageHoursInput.dataset.wiredAdj = 'true';
+    outageHoursInput.addEventListener('input', updateProrationCalculation);
+  }
+
+  if (applyCalcBtn && !applyCalcBtn.dataset?.wiredAdj) {
+    if (applyCalcBtn.dataset) applyCalcBtn.dataset.wiredAdj = 'true';
+    applyCalcBtn.addEventListener('click', () => {
+      if (outageCreditCalculated > 0 && amountInput) {
+        amountInput.value = String(outageCreditCalculated);
+        if (categorySelect) categorySelect.value = 'downtime_credit';
+        if (reasonInput && (!reasonInput.value || reasonInput.value.length < 5)) {
+          const days = outageDaysInput?.value || 0;
+          const hrs = outageHoursInput?.value || 0;
+          reasonInput.value = `Outage compensation: ${days} day(s) and ${hrs} hour(s) network downtime credited.`;
+        }
+        updateLivePreview();
+        onToast(`Applied PKR ${outageCreditCalculated.toLocaleString()} outage credit.`);
+      } else {
+        onToast('Calculate a credit amount greater than 0 first.');
+      }
+    });
+  }
+
+  if (amountInput && !amountInput.dataset?.wiredAdj) {
+    if (amountInput.dataset) amountInput.dataset.wiredAdj = 'true';
+    amountInput.addEventListener('input', () => {
+      if (amountError) amountError.hidden = true;
+      updateLivePreview();
+    });
+  }
+
+  if (categorySelect && !categorySelect.dataset?.wiredAdj) {
+    if (categorySelect.dataset) categorySelect.dataset.wiredAdj = 'true';
+    categorySelect.addEventListener('change', () => {
+      const catKey = categorySelect.value;
+      const catMeta = ADJUSTMENT_CATEGORIES[catKey];
+      if (reasonInput && (!reasonInput.value || reasonInput.value.trim().length === 0)) {
+        if (catMeta) reasonInput.value = catMeta.defaultReason;
+      }
+      updateLivePreview();
+    });
+  }
+
+  if (reasonInput && !reasonInput.dataset?.wiredAdj) {
+    if (reasonInput.dataset) reasonInput.dataset.wiredAdj = 'true';
+    reasonInput.addEventListener('input', () => {
+      if (reasonError) reasonError.hidden = true;
+    });
+  }
+
+  if (authorizedByInput && !authorizedByInput.dataset?.wiredAdj) {
+    if (authorizedByInput.dataset) authorizedByInput.dataset.wiredAdj = 'true';
+    authorizedByInput.addEventListener('input', () => {
+      if (authError) authError.hidden = true;
+    });
+  }
+
+  // Issue credit voucher
+  if (submitBtn && !submitBtn.dataset?.wiredAdj) {
+    if (submitBtn.dataset) submitBtn.dataset.wiredAdj = 'true';
+    submitBtn.addEventListener('click', () => {
+      if (!currentCustomer) {
+        onToast('Please select a subscriber first.');
+        return;
+      }
+
+      const amountVal = amountInput ? amountInput.value : '';
+      const catVal = categorySelect ? categorySelect.value : 'downtime_credit';
+      const reasonVal = reasonInput ? reasonInput.value : '';
+      const authVal = authorizedByInput ? authorizedByInput.value : '';
+      const dateVal = dateInput ? dateInput.value : new Date().toISOString().slice(0, 10);
+
+      const validation = validateAdjustmentVoucher({
+        customerId: currentCustomer.id,
+        amount: amountVal,
+        category: catVal,
+        reason: reasonVal,
+        authorizedBy: authVal
+      });
+
+      if (!validation.valid) {
+        if (validation.errors.amount && amountError) {
+          amountError.textContent = validation.errors.amount;
+          amountError.hidden = false;
+        }
+        if (validation.errors.reason && reasonError) {
+          reasonError.textContent = validation.errors.reason;
+          reasonError.hidden = false;
+        }
+        if (validation.errors.authorizedBy && authError) {
+          authError.textContent = validation.errors.authorizedBy;
+          authError.hidden = false;
+        }
+        onToast('Please correct form validation errors.');
+        return;
+      }
+
+      const allVouchers = getSavedAdjustmentVouchers(storage);
+      const voucher = buildAdjustmentVoucherData({
+        customer: currentCustomer,
+        category: catVal,
+        amount: Number(amountVal),
+        reason: reasonVal,
+        authorizedBy: authVal,
+        date: dateVal,
+        outageDetails: {
+          days: outageDaysInput ? Number(outageDaysInput.value) || 0 : 0,
+          hours: outageHoursInput ? Number(outageHoursInput.value) || 0 : 0,
+          monthlyRate: getCustomerMonthlyRate(currentCustomer),
+          calculatedCredit: outageCreditCalculated
+        },
+        existingVouchersCount: allVouchers.length
+      });
+
+      saveAdjustmentVoucher(storage, voucher);
+      activeVoucher = voucher;
+
+      renderHistory();
+      updateLivePreview();
+
+      if (typeof onVoucherIssued === 'function') {
+        onVoucherIssued(voucher);
+      }
+
+      onToast(`Adjustment Voucher #${voucher.voucherNumber} issued successfully!`);
+    });
+  }
+
+  // Print voucher slip
+  if (printBtn && !printBtn.dataset?.wiredAdj) {
+    if (printBtn.dataset) printBtn.dataset.wiredAdj = 'true';
+    printBtn.addEventListener('click', () => {
+      const voucherToPrint = activeVoucher || (currentCustomer ? getSavedAdjustmentVouchers(storage, currentCustomer.id)[0] : null);
+      if (!voucherToPrint) {
+        onToast('Issue a voucher first or select an existing voucher to print.');
+        return;
+      }
+
+      const html = generateAdjustmentVoucherHtml(voucherToPrint, { format: 'slip' });
+      const win = openWindow ? openWindow('', '_blank') : null;
+      if (win && win.document) {
+        win.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Credit Voucher - ${voucherToPrint.voucherNumber}</title>
+            <style>
+              body { font-family: 'Courier New', Courier, monospace, system-ui; margin: 10px; color: #000; font-size: 13px; }
+              .adj-voucher-document { max-width: 320px; margin: 0 auto; padding: 10px; }
+              .adj-slip-header { text-align: center; }
+              .adj-slip-header h3 { margin: 0; font-size: 16px; font-weight: 800; }
+              .adj-subtitle { margin: 2px 0; font-size: 11px; }
+              .adj-urdu-title { margin: 2px 0 6px; font-size: 12px; }
+              .adj-voucher-code { display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 6px; }
+              .adj-divider { border-top: 1px dashed #000; margin: 8px 0; }
+              .adj-row { display: flex; justify-content: space-between; margin: 3px 0; }
+              .adj-urdu-row { direction: rtl; }
+              .adj-amount-highlight { font-size: 14px; font-weight: bold; margin: 6px 0; }
+              .adj-reason-text { font-size: 11px; max-width: 180px; text-align: right; }
+              .adj-new-balance { font-weight: bold; }
+              .adj-slip-footer { text-align: center; margin-top: 16px; font-size: 10px; }
+              .adj-sig-block { margin-bottom: 8px; }
+              .adj-sig-line { width: 140px; border-bottom: 1px solid #000; margin: 20px auto 4px; }
+              @media print { body { margin: 0; } }
+            </style>
+          </head>
+          <body>
+            ${html}
+            <script>window.onload = function() { window.print(); };</script>
+          </body>
+          </html>
+        `);
+        win.document.close();
+      } else if (typeof window !== 'undefined' && typeof window.print === 'function') {
+        window.print();
+      }
+    });
+  }
+
+  // Send WhatsApp notice
+  if (whatsappBtn && !whatsappBtn.dataset?.wiredAdj) {
+    if (whatsappBtn.dataset) whatsappBtn.dataset.wiredAdj = 'true';
+    whatsappBtn.addEventListener('click', () => {
+      const voucherToSend = activeVoucher || (currentCustomer ? getSavedAdjustmentVouchers(storage, currentCustomer.id)[0] : null);
+      if (!voucherToSend) {
+        onToast('Issue a voucher first to generate WhatsApp notice.');
+        return;
+      }
+
+      const text = formatAdjustmentVoucherWhatsApp(voucherToSend);
+      const phone = voucherToSend.customerPhone || currentCustomer?.phone || '';
+      const url = formatWhatsAppUrl(phone, text);
+      if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
+  }
+
+  // Close triggers
+  if (closeBtn && !closeBtn.dataset?.wiredAdj) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredAdj = 'true';
+    closeBtn.addEventListener('click', close);
+  }
+  if (closeSecondaryBtn && !closeSecondaryBtn.dataset?.wiredAdj) {
+    if (closeSecondaryBtn.dataset) closeSecondaryBtn.dataset.wiredAdj = 'true';
+    closeSecondaryBtn.addEventListener('click', close);
+  }
+
+  // Backdrop click to close
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      close();
+    }
+  });
+
+  // Escape key to close
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+  });
+
+  return {
+    open,
+    close,
+    refresh: () => {
+      updateLivePreview();
+      renderHistory();
+    },
+    getVouchers: (cid = null) => getSavedAdjustmentVouchers(storage, cid)
+  };
+}

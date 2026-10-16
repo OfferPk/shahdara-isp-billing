@@ -1126,7 +1126,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -2198,6 +2198,160 @@
         <button id="exportDailyRegisterCsvBtn" class="secondary-button" type="button">📊 Export Day CSV</button>
         <button id="copyRegisterTextBtn" class="secondary-button" type="button">📋 Copy Summary</button>
       </div>
+    </section>
+  </dialog>
+  <dialog id="customerAdjustmentModal" class="modal adjustment-modal" aria-labelledby="adjustmentModalTitle">
+    <section class="adjustment-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">CUSTOMER ACCOUNT ADJUSTMENT</p>
+          <h2 id="adjustmentModalTitle">Credit Note &amp; Outage Voucher (کھاتہ ترمیم)</h2>
+        </div>
+        <button id="closeAdjustmentModalBtn" class="close-button" type="button" aria-label="Close adjustment modal">×</button>
+      </div>
+
+      <div class="adjustment-customer-strip">
+        <div class="adj-cust-info">
+          <span class="adj-cust-tag">Selected Subscriber</span>
+          <strong id="adjCustomerName" class="adj-cust-name">—</strong>
+          <span id="adjCustomerMeta" class="adj-cust-meta">—</span>
+        </div>
+        <div class="adj-cust-balances">
+          <div class="adj-bal-item">
+            <span class="adj-bal-lbl">Current Balance:</span>
+            <strong id="adjCurrentBalance" class="adj-bal-val">PKR 0</strong>
+          </div>
+          <div class="adj-bal-item highlight-projected">
+            <span class="adj-bal-lbl">Adjusted Balance:</span>
+            <strong id="adjProjectedBalance" class="adj-bal-val">PKR 0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outage Calculator Collapsible Section -->
+      <fieldset class="adjustment-calculator-fieldset">
+        <legend class="adj-legend">
+          <button id="adjToggleCalculatorBtn" type="button" class="adj-toggle-btn" aria-expanded="false">
+            <span>⚡ Outage Downtime Proration Calculator</span>
+            <span id="adjToggleCalcIcon" class="adj-toggle-icon">▼</span>
+          </button>
+        </legend>
+        <div id="adjCalculatorBody" class="adj-calculator-body" hidden>
+          <div class="adj-calc-row">
+            <div class="adj-field">
+              <label for="adjOutageDays">Outage Days:</label>
+              <input id="adjOutageDays" type="number" min="0" max="31" step="1" value="0">
+            </div>
+            <div class="adj-field">
+              <label for="adjOutageHours">Additional Hours:</label>
+              <input id="adjOutageHours" type="number" min="0" max="23" step="1" value="0">
+            </div>
+            <div class="adj-field">
+              <label for="adjMonthlyRateDisplay">Monthly Rate (PKR):</label>
+              <input id="adjMonthlyRateDisplay" type="text" readonly value="1500">
+            </div>
+            <div class="adj-field adj-calc-result">
+              <span class="adj-calc-lbl">Calculated Credit:</span>
+              <strong id="adjCalcCreditPkr" class="adj-calc-val">PKR 0</strong>
+            </div>
+          </div>
+          <button id="adjApplyCalcBtn" type="button" class="secondary-button adj-btn-apply-calc">Apply To Voucher Amount</button>
+        </div>
+      </fieldset>
+
+      <form id="customerAdjustmentForm" class="adjustment-form" novalidate>
+        <div class="adj-form-grid">
+          <div class="form-field">
+            <label for="adjCategorySelect">Adjustment Category: <span class="required">*</span></label>
+            <select id="adjCategorySelect" required>
+              <option value="downtime_credit" selected>Fiber Cut / Outage Downtime Credit (انٹرنیٹ خرابی کٹوتی)</option>
+              <option value="billing_dispute">Billing Dispute / Overcharge Settlement (بل تنازعہ حل)</option>
+              <option value="promotional_discount">Promotional Discount / Retention Waiver (خصوصی رعایت)</option>
+              <option value="ont_fee_waiver">ONT Router Fee / Deposit Waiver (راؤٹر فیس چھوٹ)</option>
+              <option value="manager_waiver">Management Special Concession (منیجر رعایت)</option>
+              <option value="custom">Other Account Ledger Adjustment (دیگر ترمیم)</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="adjAmountInput">Credit Voucher Amount (PKR): <span class="required">*</span></label>
+            <input id="adjAmountInput" type="number" min="1" max="100000" step="1" placeholder="e.g. 500" required>
+            <span id="adjAmountHint" class="field-hint">Amount credited against customer outstanding dues</span>
+            <span id="adjAmountError" class="field-error" hidden>Please enter a valid positive credit amount</span>
+          </div>
+
+          <div class="form-field">
+            <label for="adjDateInput">Adjustment Date: <span class="required">*</span></label>
+            <input id="adjDateInput" type="date" required>
+          </div>
+
+          <div class="form-field">
+            <label for="adjAuthorizedByInput">Authorized By: <span class="required">*</span></label>
+            <input id="adjAuthorizedByInput" type="text" value="Network Manager" required placeholder="Name or title">
+            <span id="adjAuthError" class="field-error" hidden>Please provide authorizer name or title</span>
+          </div>
+        </div>
+
+        <div class="form-field full-width">
+          <label for="adjReasonInput">Field Notes / Reason for Adjustment: <span class="required">*</span></label>
+          <textarea id="adjReasonInput" rows="2" placeholder="e.g. 3 days main feeder fiber cut near Shahdara Town grid station repaired on 2026-10-14" required></textarea>
+          <span id="adjReasonError" class="field-error" hidden>Please provide a reason (minimum 5 characters)</span>
+        </div>
+
+        <!-- Live Voucher Card Preview -->
+        <div class="adj-preview-card" id="adjVoucherPreviewCard" aria-live="polite">
+          <div class="adj-preview-header">
+            <span class="adj-voucher-tag">CREDIT NOTE VOUCHER</span>
+            <span id="adjPreviewVoucherNum" class="adj-voucher-num">ADJ-PREVIEW</span>
+          </div>
+          <div class="adj-preview-body">
+            <div class="adj-preview-row">
+              <span>Credit Amount:</span>
+              <strong id="adjPreviewAmount" class="highlight-green">PKR 0</strong>
+            </div>
+            <div class="adj-preview-row">
+              <span>Category:</span>
+              <span id="adjPreviewCategory">Fiber Cut / Outage Downtime Credit</span>
+            </div>
+            <div class="adj-preview-row">
+              <span>New Customer Balance:</span>
+              <span id="adjPreviewNewBal">PKR 0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="adjustment-modal-actions">
+          <button id="submitAdjustmentVoucherBtn" class="primary-button" type="button">Issue Credit Voucher</button>
+          <button id="printAdjustmentSlipBtn" class="secondary-button" type="button">🖨️ Print Voucher Slip</button>
+          <button id="sendAdjustmentWhatsAppBtn" class="action-btn-whatsapp" type="button">💬 WhatsApp Notice</button>
+          <button id="closeAdjustmentModalSecondaryBtn" class="secondary-button" type="button">Close</button>
+        </div>
+      </form>
+
+      <!-- Past Adjustments Ledger Sub-table -->
+      <section class="adj-history-section">
+        <div class="adj-history-header">
+          <h4>Voucher History on Device</h4>
+          <span id="adjHistoryCountBadge" class="adj-history-badge">0 vouchers</span>
+        </div>
+        <div class="table-scroll adj-history-scroll">
+          <table class="data-table" aria-label="Customer adjustment vouchers history">
+            <thead>
+              <tr>
+                <th>Voucher #</th>
+                <th>Date</th>
+                <th>Category</th>
+                <th>Reason</th>
+                <th class="text-right">Credit (PKR)</th>
+                <th>Authorized By</th>
+              </tr>
+            </thead>
+            <tbody id="adjHistoryTableBody">
+              <tr><td colspan="6" class="text-center empty-muted">No adjustment vouchers issued for this customer yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

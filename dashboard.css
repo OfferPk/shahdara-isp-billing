@@ -2139,6 +2139,33 @@
   border-color: #1b3d54;
 }
 
+.chart-card-synce {
+  background: var(--surface, #ffffff);
+}
+
+.synce-modal-card {
+  max-width: 960px;
+}
+
+.synce-compact-svg,
+.synce-modal-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-synce {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .synce-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
+
 
 
 

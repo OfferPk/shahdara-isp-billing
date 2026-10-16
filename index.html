@@ -61,6 +61,7 @@
           <li class="nav-drawer-item"><button type="button" data-open-work-orders><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span>Field Work Orders</span><span id="navBadgeWorkOrders" class="nav-drawer-badge" data-nav-badge="work-orders" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-sync-conflicts><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg></span><span>Sync Conflicts</span><span id="navBadgeSyncConflicts" class="nav-drawer-badge" data-nav-badge="sync-conflicts" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-optical-map><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span><span>Optical Signal Map</span><span id="navBadgeOpticalMap" class="nav-drawer-badge" data-nav-badge="optical-map" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-open-van-transfer><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><span>Van Stock Transfer</span><span id="navBadgeVanTransfer" class="nav-drawer-badge" data-nav-badge="van-transfer" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -2095,7 +2096,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -2589,6 +2590,10 @@
         <span class="sheet-action-icon" aria-hidden="true">🌐</span>
         <span class="sheet-action-label">Optical Map</span>
       </button>
+      <button type="button" class="sheet-action-tile" data-sheet-action="van-transfer" data-open-van-transfer>
+        <span class="sheet-action-icon" aria-hidden="true">🚐</span>
+        <span class="sheet-action-label">Van Stock</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -2661,6 +2666,10 @@
       <button type="button" class="speed-dial-action" data-speed-action="optical-map" data-open-optical-map role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">🌐</span>
         <span class="speed-action-label">Optical Map</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="van-transfer" data-open-van-transfer role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🚐</span>
+        <span class="speed-action-label">Van Transfer</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -3487,6 +3496,112 @@
       <!-- Modal Footer Actions -->
       <div class="modal-form-actions work-order-modal-actions" style="margin-top: 14px;">
         <button id="opticalSignalMapCopyReportBtn" class="primary-button" type="button">📋 Copy WhatsApp Field Briefing</button>
+      </div>
+    </section>
+  </dialog>
+
+  <!-- Technician Vehicle Inventory & Rolling Stock Transfer Dialog -->
+  <dialog id="vehicleTransferModal" class="modal van-inventory-modal" aria-labelledby="vehicleTransferModalTitle">
+    <section class="modal-card van-inventory-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FIELD LOGISTICS &amp; ROLLING INVENTORY</p>
+          <h2 id="vehicleTransferModalTitle">Technician Vehicle Inventory &amp; Stock Transfer</h2>
+        </div>
+        <button id="vehicleTransferModalClose" class="close-button" type="button" aria-label="Close vehicle transfer modal">×</button>
+      </div>
+
+      <!-- Vehicle Selector & Overview KPI Ribbon -->
+      <div class="van-inventory-top-controls">
+        <div class="van-selector-group">
+          <label for="vanCurrentVehicleSelect"><strong>Inspecting Unit:</strong></label>
+          <select id="vanCurrentVehicleSelect" class="van-select-input"></select>
+        </div>
+        <div class="van-kpi-ribbon">
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">ASSIGNED CREW</span>
+            <span id="vanKpiVehicleName" class="van-kpi-val">—</span>
+          </div>
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">ON-BOARD ITEMS</span>
+            <span id="vanKpiTotalItems" class="van-kpi-val">0 units</span>
+          </div>
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">ROLLING VALUATION</span>
+            <span id="vanKpiInventoryValue" class="van-kpi-val">PKR 0</span>
+          </div>
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">STOCK STATUS</span>
+            <span id="vanKpiStatusBadge" class="sim-delta-badge badge-success">Optimal</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vehicle Cargo Bay Visualizer -->
+      <div class="van-rack-visualizer-container">
+        <h3 class="van-section-heading">Cargo Bay Rack &amp; Shelf Allocation</h3>
+        <div id="vanInventoryChartWrap" class="van-inventory-chart-wrap" tabindex="0" role="region" aria-label="Technician vehicle cargo bay visualizer"></div>
+      </div>
+
+      <!-- Quick Transfer Form Section -->
+      <div class="van-transfer-form-card">
+        <h3 class="van-section-heading">Quick Stock Transfer Between Vehicles / Warehouse</h3>
+        <div class="van-transfer-form-grid">
+          <div class="van-form-field">
+            <label for="transferSourceSelect">Source (From):</label>
+            <select id="transferSourceSelect" class="van-select-input"></select>
+          </div>
+          <div class="van-form-field">
+            <label for="transferDestSelect">Destination (To):</label>
+            <select id="transferDestSelect" class="van-select-input"></select>
+          </div>
+          <div class="van-form-field">
+            <label for="transferItemSelect">Material / Hardware:</label>
+            <select id="transferItemSelect" class="van-select-input"></select>
+          </div>
+          <div class="van-form-field">
+            <label for="transferQtyInput">Quantity:</label>
+            <div class="van-qty-control-row">
+              <input id="transferQtyInput" type="number" min="1" value="1" class="van-qty-input">
+              <button type="button" id="transferQtyPlus1" class="quick-qty-btn">+1</button>
+              <button type="button" id="transferQtyPlus5" class="quick-qty-btn">+5</button>
+              <button type="button" id="transferQtyPlus10" class="quick-qty-btn">+10</button>
+            </div>
+          </div>
+          <div class="van-form-field van-form-field-full">
+            <label for="transferNoteInput">Reason / Work Order Notes:</label>
+            <input id="transferNoteInput" type="text" placeholder="e.g. Splicing job near Chowk Begum Kot, urgent replenishment" class="van-text-input">
+          </div>
+        </div>
+        <div class="van-form-actions-row">
+          <button id="vehicleTransferSubmitBtn" class="primary-button" type="button">⚡ Record Stock Transfer</button>
+          <button id="vehicleTransferCopySlipBtn" class="secondary-button" type="button">📋 Copy Custody Receipt</button>
+        </div>
+      </div>
+
+      <!-- Stock Table and Recent Transfers Grid -->
+      <div class="van-details-split-grid">
+        <div class="van-stock-table-card">
+          <h3 class="van-section-heading">Current On-Vehicle Stock Details</h3>
+          <div class="table-responsive-wrapper">
+            <table class="van-stock-table">
+              <thead>
+                <tr>
+                  <th>Hardware Item</th>
+                  <th>On-Hand</th>
+                  <th>Min Safe</th>
+                  <th>Value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="vanInventoryTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="van-transfers-log-card">
+          <h3 class="van-section-heading">Recent Transfers (Audit Trail)</h3>
+          <ul id="vanRecentTransfersList" class="van-transfers-log-list"></ul>
+        </div>
       </div>
     </section>
   </dialog>

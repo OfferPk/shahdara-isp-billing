@@ -4103,6 +4103,264 @@ kbd {
   color: #e6edea;
 }
 
+/* ==========================================================================
+   TECHNICIAN VEHICLE INVENTORY & ROLLING STOCK QUICK-TRANSFER
+   ========================================================================== */
+
+.van-inventory-modal {
+  padding: 0;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 20px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 24px 60px rgba(14, 30, 24, 0.28);
+  max-width: 900px;
+  width: min(900px, calc(100vw - 32px));
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.van-inventory-modal-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.van-inventory-top-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-subtle, #f4f8f6);
+  border-radius: 12px;
+  border: 1px solid var(--line, #e2ece7);
+}
+
+.van-selector-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.van-select-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong, #c8ded4);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.van-kpi-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.van-kpi-card {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 12px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+}
+
+.van-kpi-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #60756c);
+}
+
+.van-kpi-val {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink, #182e2a);
+}
+
+.van-section-heading {
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0 0 10px 0;
+  color: var(--ink, #182e2a);
+}
+
+.van-rack-visualizer-container {
+  padding: 16px;
+  background: var(--bg-subtle, #f8faf9);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 14px;
+}
+
+.van-inventory-chart-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.van-transfer-form-card {
+  padding: 16px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 14px;
+}
+
+.van-transfer-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.van-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.van-form-field label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+}
+
+.van-form-field-full {
+  grid-column: 1 / -1;
+}
+
+.van-text-input {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong, #c8ded4);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font-size: 13px;
+}
+
+.van-qty-control-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.van-qty-input {
+  width: 70px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-strong, #c8ded4);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.quick-qty-btn {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line-strong, #c8ded4);
+  background: var(--bg-subtle, #f4f8f6);
+  color: var(--ink, #182e2a);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.quick-qty-btn:hover {
+  background: var(--line, #e2ece7);
+}
+
+.van-form-actions-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.van-details-split-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .van-details-split-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.van-stock-table-card,
+.van-transfers-log-card {
+  padding: 16px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 14px;
+}
+
+.van-stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.van-stock-table th {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 2px solid var(--line, #e2ece7);
+  color: var(--muted, #60756c);
+  font-size: 10.5px;
+  text-transform: uppercase;
+}
+
+.van-stock-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--line, #e2ece7);
+  color: var(--ink, #182e2a);
+}
+
+.van-transfers-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+[data-theme="dark"] .van-inventory-modal {
+  background: #101c18;
+  border-color: #243a32;
+}
+
+[data-theme="dark"] .van-inventory-top-controls,
+[data-theme="dark"] .van-rack-visualizer-container,
+[data-theme="dark"] .van-transfer-form-card,
+[data-theme="dark"] .van-stock-table-card,
+[data-theme="dark"] .van-transfers-log-card,
+[data-theme="dark"] .van-kpi-card {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .van-select-input,
+[data-theme="dark"] .van-text-input,
+[data-theme="dark"] .van-qty-input,
+[data-theme="dark"] .quick-qty-btn {
+  background: #0f1c17;
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .van-kpi-val,
+[data-theme="dark"] .van-section-heading,
+[data-theme="dark"] .van-stock-table td {
+  color: #e6edea;
+}
+
 
 
 

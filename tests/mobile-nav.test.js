@@ -3993,3 +3993,299 @@ test('index.html, nav.css, and app.js wire Optical Signal Map completely', () =>
   assert.match(appJs, /setupOpticalSignalMapModal/);
   assert.match(appJs, /opticalSignalMapModalController/);
 });
+
+test('getVehicleInventoryStore and saveVehicleInventoryStore handle local storage persistence', async () => {
+  const { getVehicleInventoryStore, saveVehicleInventoryStore } = await import('../nav.js');
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); }
+  };
+
+  const initial = getVehicleInventoryStore(mockStorage);
+  assert.deepEqual(initial.transfers, []);
+  assert.deepEqual(initial.vehicleStockOverrides, {});
+
+  const updated = {
+    transfers: [{ id: 'tx-1', itemId: 'onu-gpon', quantity: 2 }],
+    vehicleStockOverrides: { 'van-01_onu-gpon': 8 }
+  };
+  const saved = saveVehicleInventoryStore(updated, mockStorage);
+  assert.equal(saved, true);
+
+  const reloaded = getVehicleInventoryStore(mockStorage);
+  assert.equal(reloaded.transfers.length, 1);
+  assert.equal(reloaded.vehicleStockOverrides['van-01_onu-gpon'], 8);
+});
+
+test('recordVehicleTransfer correctly modifies inventory balances and audit log', async () => {
+  const { recordVehicleTransfer, calculateVehicleStock } = await import('../nav.js');
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); }
+  };
+
+  // Base quantity for van-01 for onu-gpon is 6
+  const stockBefore = calculateVehicleStock({}, 'van-01', mockStorage);
+  const gponBefore = stockBefore.stockRows.find(r => r.hardware.id === 'onu-gpon').onHand;
+  assert.equal(gponBefore, 6);
+
+  // Transfer 2 units from van-01 to van-02
+  const transfer = recordVehicleTransfer({
+    sourceVehicleId: 'van-01',
+    destVehicleId: 'van-02',
+    itemId: 'onu-gpon',
+    quantity: 2,
+    transferNote: 'Emergency replacement',
+    authorizedBy: 'Lead Tech Ali'
+  }, mockStorage);
+
+  assert.ok(transfer.id.startsWith('txf-'));
+  assert.equal(transfer.quantity, 2);
+  assert.equal(transfer.transferNote, 'Emergency replacement');
+
+  const van1After = calculateVehicleStock({}, 'van-01', mockStorage);
+  const van2After = calculateVehicleStock({}, 'van-02', mockStorage);
+
+  const gponVan1 = van1After.stockRows.find(r => r.hardware.id === 'onu-gpon').onHand;
+  const gponVan2 = van2After.stockRows.find(r => r.hardware.id === 'onu-gpon').onHand;
+
+  assert.equal(gponVan1, 4);
+  assert.equal(gponVan2, 8);
+});
+
+test('calculateVehicleStock flags depleted and low-stock items correctly', async () => {
+  const { calculateVehicleStock, recordVehicleTransfer } = await import('../nav.js');
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); }
+  };
+
+  // Transfer all 10 GPON ONUs away from van-01
+  recordVehicleTransfer({
+    sourceVehicleId: 'van-01',
+    destVehicleId: 'van-04',
+    itemId: 'onu-gpon',
+    quantity: 10
+  }, mockStorage);
+
+  const stock = calculateVehicleStock({}, 'van-01', mockStorage);
+  assert.equal(stock.vehicleStatus, 'depleted');
+  assert.equal(stock.badgeClass, 'badge-danger');
+  assert.ok(stock.depletedCount >= 1);
+
+  const depletedRow = stock.stockRows.find(r => r.hardware.id === 'onu-gpon');
+  assert.equal(depletedRow.onHand, 0);
+  assert.equal(depletedRow.itemStatus, 'depleted');
+});
+
+test('renderVehicleInventorySvg renders SVG cargo rack visualization', async () => {
+  const { renderVehicleInventorySvg, calculateVehicleStock } = await import('../nav.js');
+  const summary = calculateVehicleStock({}, 'van-01');
+  const svg = renderVehicleInventorySvg(summary);
+
+  assert.match(svg, /<svg class="chart-svg van-inventory-svg"/);
+  assert.match(svg, /Technician Vehicle Cargo Bay Inventory Rack Visualizer/);
+  assert.match(svg, /Van 1 - Tariq Fiber Splicing Unit/);
+  assert.match(svg, /van-shelf-bin/);
+});
+
+test('generateVehicleTransferReceipt formats WhatsApp receipt text', async () => {
+  const { generateVehicleTransferReceipt } = await import('../nav.js');
+  const transfer = {
+    id: 'txf-test1234',
+    timestamp: '2026-10-16T12:00:00Z',
+    sourceVehicleId: 'warehouse',
+    destVehicleId: 'van-01',
+    itemId: 'drop-cable-roll',
+    quantity: 2,
+    transferNote: 'Morning sector dispatch',
+    authorizedBy: 'Shahdara Dispatch Hub'
+  };
+
+  const receipt = generateVehicleTransferReceipt(transfer);
+  assert.match(receipt, /SHAHDARA ISP FIELD STOCK TRANSFER RECEIPT & CUSTODY SLIP/);
+  assert.match(receipt, /\[txf-test1234\]/);
+  assert.match(receipt, /Central Shahdara Base Depot/);
+  assert.match(receipt, /Van 1 - Tariq Fiber Splicing Unit/);
+  assert.match(receipt, /1-Core FTTH Drop Cable/);
+  assert.match(receipt, /2 meters/);
+  assert.match(receipt, /Morning sector dispatch/);
+  assert.match(receipt, /Shahdara Dispatch Hub/);
+});
+
+test('setupVehicleTransferModal wires controls, quick qty, submit, and copy slip', async () => {
+  const { setupVehicleTransferModal } = await import('../nav.js');
+
+  const listeners = new Map();
+  const createMockElement = (id) => ({
+    id,
+    dataset: {},
+    children: [],
+    value: '1',
+    textContent: '',
+    className: '',
+    appendChild(child) { this.children.push(child); },
+    addEventListener(evt, fn) { listeners.set(`${id}:${evt}`, fn); },
+    showModal: () => {},
+    close: () => {},
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  });
+
+  const modal = createMockElement('vehicleTransferModal');
+  const closeBtn = createMockElement('vehicleTransferModalClose');
+  const currentVehicleSelect = createMockElement('vanCurrentVehicleSelect');
+  const sourceSelect = createMockElement('transferSourceSelect');
+  const destSelect = createMockElement('transferDestSelect');
+  const itemSelect = createMockElement('transferItemSelect');
+  const qtyInput = createMockElement('transferQtyInput');
+  const noteInput = createMockElement('transferNoteInput');
+  const submitBtn = createMockElement('vehicleTransferSubmitBtn');
+  const copySlipBtn = createMockElement('vehicleTransferCopySlipBtn');
+  const chartWrap = createMockElement('vanInventoryChartWrap');
+  const tableBody = createMockElement('vanInventoryTableBody');
+  const transfersLogList = createMockElement('vanRecentTransfersList');
+  const qtyPlus1 = createMockElement('transferQtyPlus1');
+  const qtyPlus5 = createMockElement('transferQtyPlus5');
+  const qtyPlus10 = createMockElement('transferQtyPlus10');
+  const kpiVehicleName = createMockElement('vanKpiVehicleName');
+  const kpiTotalItems = createMockElement('vanKpiTotalItems');
+  const kpiInventoryValue = createMockElement('vanKpiInventoryValue');
+  const kpiStatusBadge = createMockElement('vanKpiStatusBadge');
+
+  const openTrigger = {
+    dataset: {},
+    addEventListener(evt, fn) { listeners.set(`openTrigger:${evt}`, fn); }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      const map = {
+        vehicleTransferModal: modal,
+        vehicleTransferModalClose: closeBtn,
+        vanCurrentVehicleSelect: currentVehicleSelect,
+        transferSourceSelect: sourceSelect,
+        transferDestSelect: destSelect,
+        transferItemSelect: itemSelect,
+        transferQtyInput: qtyInput,
+        transferNoteInput: noteInput,
+        vehicleTransferSubmitBtn: submitBtn,
+        vehicleTransferCopySlipBtn: copySlipBtn,
+        vanInventoryChartWrap: chartWrap,
+        vanInventoryTableBody: tableBody,
+        vanRecentTransfersList: transfersLogList,
+        transferQtyPlus1: qtyPlus1,
+        transferQtyPlus5: qtyPlus5,
+        transferQtyPlus10: qtyPlus10,
+        vanKpiVehicleName: kpiVehicleName,
+        vanKpiTotalItems: kpiTotalItems,
+        vanKpiInventoryValue: kpiInventoryValue,
+        vanKpiStatusBadge: kpiStatusBadge
+      };
+      return map[id] || null;
+    },
+    querySelectorAll(sel) {
+      if (sel.includes('data-open-van-transfer')) return [openTrigger];
+      if (sel.includes('data-nav-badge="van-transfer"')) return [];
+      return [];
+    },
+    createElement(tag) {
+      return { tag, value: '', textContent: '', selected: false };
+    }
+  };
+
+  let toasted = null;
+  let copiedText = null;
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); }
+  };
+
+  try {
+    const controller = setupVehicleTransferModal({
+      storage: mockStorage,
+      onToast: (msg) => { toasted = msg; },
+      clipboard: { writeText: async (t) => { copiedText = t; } }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.refresh, 'function');
+
+    // Test quick qty buttons
+    qtyInput.value = '2';
+    listeners.get('transferQtyPlus1:click')();
+    assert.equal(qtyInput.value, 3);
+    listeners.get('transferQtyPlus5:click')();
+    assert.equal(qtyInput.value, 8);
+    listeners.get('transferQtyPlus10:click')();
+    assert.equal(qtyInput.value, 18);
+
+    // Test submit transfer
+    sourceSelect.value = 'warehouse';
+    destSelect.value = 'van-01';
+    itemSelect.value = 'onu-gpon';
+    qtyInput.value = '5';
+    listeners.get('vehicleTransferSubmitBtn:click')();
+    assert.ok(toasted.includes('Transferred 5x'));
+
+    // Test copy slip
+    await listeners.get('vehicleTransferCopySlipBtn:click')();
+    assert.ok(copiedText.includes('SHAHDARA ISP FIELD STOCK TRANSFER RECEIPT'));
+    assert.equal(toasted, 'Transfer custody receipt copied to clipboard!');
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, nav.css, and app.js wire Technician Vehicle Inventory completely', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /<dialog id="vehicleTransferModal" class="modal van-inventory-modal"/);
+  assert.match(indexHtml, /id="vehicleTransferModalClose"/);
+  assert.match(indexHtml, /id="vanCurrentVehicleSelect"/);
+  assert.match(indexHtml, /id="vanKpiVehicleName"/);
+  assert.match(indexHtml, /id="vanKpiTotalItems"/);
+  assert.match(indexHtml, /id="vanKpiInventoryValue"/);
+  assert.match(indexHtml, /id="vanKpiStatusBadge"/);
+  assert.match(indexHtml, /id="vanInventoryChartWrap"/);
+  assert.match(indexHtml, /id="transferSourceSelect"/);
+  assert.match(indexHtml, /id="transferDestSelect"/);
+  assert.match(indexHtml, /id="transferItemSelect"/);
+  assert.match(indexHtml, /id="transferQtyInput"/);
+  assert.match(indexHtml, /id="transferQtyPlus1"/);
+  assert.match(indexHtml, /id="transferQtyPlus5"/);
+  assert.match(indexHtml, /id="transferQtyPlus10"/);
+  assert.match(indexHtml, /id="transferNoteInput"/);
+  assert.match(indexHtml, /id="vehicleTransferSubmitBtn"/);
+  assert.match(indexHtml, /id="vehicleTransferCopySlipBtn"/);
+  assert.match(indexHtml, /id="vanInventoryTableBody"/);
+  assert.match(indexHtml, /id="vanRecentTransfersList"/);
+
+  assert.match(indexHtml, /data-open-van-transfer/);
+  assert.match(indexHtml, /data-mobile-more="van-transfer"/);
+  assert.match(indexHtml, /data-sheet-action="van-transfer"/);
+  assert.match(indexHtml, /data-speed-action="van-transfer"/);
+
+  // nav.css checks
+  assert.match(navCss, /\.van-inventory-modal/);
+  assert.match(navCss, /\.van-inventory-modal-card/);
+  assert.match(navCss, /\.van-inventory-top-controls/);
+  assert.match(navCss, /\.van-rack-visualizer-container/);
+  assert.match(navCss, /\.van-transfer-form-card/);
+  assert.match(navCss, /\.van-stock-table-card/);
+  assert.match(navCss, /\.van-transfers-log-card/);
+
+  // app.js checks
+  assert.match(appJs, /setupVehicleTransferModal/);
+  assert.match(appJs, /vehicleTransferModalController/);
+});

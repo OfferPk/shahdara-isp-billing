@@ -322,7 +322,26 @@ import {
   calculateRoadmMetrics,
   renderRoadmOpticalSvg,
   generateRoadmReport,
-  setupRoadmModal
+  setupRoadmModal,
+  MICRO_OTDR_CONSTANTS,
+  SHAHDARA_MICRO_OTDR_PORTS,
+  getMicroOtdrPortId,
+  setMicroOtdrPortId,
+  getMicroOtdrWavelength,
+  setMicroOtdrWavelength,
+  getMicroOtdrPulseWidth,
+  setMicroOtdrPulseWidth,
+  getMicroOtdrFaultPreset,
+  setMicroOtdrFaultPreset,
+  getMicroOtdrThresholdDbm,
+  setMicroOtdrThresholdDbm,
+  resetMicroOtdrSimState,
+  calculateFiberPropagationDelay,
+  calculateEventSignatures,
+  calculateMicroOtdrMetrics,
+  renderMicroOtdrTraceSvg,
+  generateMicroOtdrReport,
+  setupMicroOtdrModal
 } from '../dashboard.js';
 
 
@@ -9598,6 +9617,385 @@ test('ROADM state getters, setters, and boundary clamping work reliably', () => 
   assert.equal(getRoadmSpanCondition(), ROADM_CONSTANTS.FIBER_SPAN_CONDITIONS.NORMAL);
   assert.equal(getRoadmSwitchingMode(), ROADM_CONSTANTS.SWITCHING_MODES.AUTOMATIC_PROTECTION);
   assert.equal(getRoadmVoaAttenuationDb(), 2.0);
+});
+
+test('MICRO_OTDR_CONSTANTS and SHAHDARA_MICRO_OTDR_PORTS have valid specifications', () => {
+  assert.ok(Array.isArray(SHAHDARA_MICRO_OTDR_PORTS));
+  assert.equal(SHAHDARA_MICRO_OTDR_PORTS.length, 5);
+
+  for (const port of SHAHDARA_MICRO_OTDR_PORTS) {
+    assert.ok(port.id.startsWith('sfp-port-'));
+    assert.ok(port.name.length > 5);
+    assert.ok(port.primaryArea.length > 0);
+    assert.ok(Array.isArray(port.aliasAreas) && port.aliasAreas.length > 0);
+    assert.ok(port.transceiverType.length > 5);
+    assert.ok(port.targetDistanceM > 1000);
+    assert.ok(typeof port.txPowerDbm === 'number');
+    assert.ok(typeof port.rxSensitivityDbm === 'number');
+    assert.ok(port.rxSensitivityDbm < port.txPowerDbm);
+  }
+
+  assert.equal(MICRO_OTDR_CONSTANTS.FIBER_REFRACTIVE_INDEX, 1.4682);
+  assert.equal(MICRO_OTDR_CONSTANTS.DEFAULT_WAVELENGTH, '1310');
+  assert.ok(MICRO_OTDR_CONSTANTS.FIBER_ATTENUATION_COEFF_DB_KM['1310'] > 0);
+  assert.ok(MICRO_OTDR_CONSTANTS.FIBER_ATTENUATION_COEFF_DB_KM['1550'] > 0);
+  assert.ok(MICRO_OTDR_CONSTANTS.FIBER_ATTENUATION_COEFF_DB_KM['1577'] > 0);
+});
+
+test('calculateFiberPropagationDelay computes round-trip optical time of flight precisely', () => {
+  // At 0 meters, delay is 0
+  assert.equal(calculateFiberPropagationDelay(0), 0.0);
+
+  // At 1,420 meters:
+  // tau = (2 * 1.4682 * 1420) / (299792.458 m/s * 1s/1000000us) / 1000
+  // tau = (2 * 1.4682 * 1420) / 299.792458 = 4169.688 / 299.792458 ~= 13.908 us
+  const delay1420 = calculateFiberPropagationDelay(1420);
+  assert.ok(delay1420 > 13.8 && delay1420 < 14.0);
+
+  // At 5,000 meters:
+  const delay5000 = calculateFiberPropagationDelay(5000);
+  assert.ok(delay5000 > 48.0 && delay5000 < 50.0);
+});
+
+test('calculateEventSignatures correctly models normal, fiber cut, dirty connector, and macro-bend states', () => {
+  const port = SHAHDARA_MICRO_OTDR_PORTS[0];
+
+  // 1. Normal Intact Link
+  const normalSig = calculateEventSignatures(port, { faultPreset: 'NORMAL', wavelength: '1577' });
+  assert.equal(normalSig.faultDetected, false);
+  assert.equal(normalSig.faultType, null);
+  assert.equal(normalSig.faultDistanceM, null);
+  assert.equal(normalSig.linkStatus, 'Optimal');
+  assert.ok(normalSig.events.length >= 4);
+  assert.equal(normalSig.events[0].type, MICRO_OTDR_CONSTANTS.EVENT_TYPES.LAUNCH);
+  assert.ok(normalSig.totalLinkLossDb > 0 && normalSig.totalLinkLossDb < 5.0);
+  assert.ok(normalSig.opticalReturnLossDb > 25.0);
+  assert.ok(normalSig.opticalSafetyMarginDb > 0);
+
+  // 2. Fiber Cut at 1420m
+  const cutSig = calculateEventSignatures(port, { faultPreset: 'FIBER_CUT_1400M', wavelength: '1577' });
+  assert.equal(cutSig.faultDetected, true);
+  assert.equal(cutSig.faultType, 'FIBER_CUT');
+  assert.equal(cutSig.faultDistanceM, 1420);
+  assert.equal(cutSig.linkStatus, 'Critical');
+  assert.equal(cutSig.activeDistanceLimit, 1420);
+  const cutEvent = cutSig.events.find(e => e.type === MICRO_OTDR_CONSTANTS.EVENT_TYPES.TERMINATION_BREAK);
+  assert.ok(cutEvent);
+  assert.equal(cutEvent.distanceM, 1420);
+  assert.equal(cutEvent.reflectanceDb, -14.8);
+  assert.equal(cutEvent.severity, 'Critical');
+  assert.ok(cutSig.totalLinkLossDb > 30.0);
+
+  // 3. Dirty APC Connector at 850m
+  const dirtySig = calculateEventSignatures(port, { faultPreset: 'DIRTY_CONNECTOR_850M', wavelength: '1577' });
+  assert.equal(dirtySig.faultDetected, true);
+  assert.equal(dirtySig.faultType, 'DIRTY_CONNECTOR');
+  assert.equal(dirtySig.faultDistanceM, 850);
+  assert.equal(dirtySig.linkStatus, 'Warning');
+  const dirtyEvent = dirtySig.events.find(e => e.type === MICRO_OTDR_CONSTANTS.EVENT_TYPES.FRESNEL_REFLECTION);
+  assert.ok(dirtyEvent);
+  assert.equal(dirtyEvent.distanceM, 850);
+  assert.equal(dirtyEvent.reflectanceDb, -26.2);
+  assert.equal(dirtyEvent.stepLossDb, 1.85);
+  assert.equal(dirtyEvent.severity, 'Warning');
+
+  // 4. Macro-bend at 2100m
+  const bendSig = calculateEventSignatures(port, { faultPreset: 'MACRO_BEND_2100M', wavelength: '1577' });
+  assert.equal(bendSig.faultDetected, true);
+  assert.equal(bendSig.faultType, 'MACRO_BEND');
+  assert.equal(bendSig.faultDistanceM, 2100);
+  assert.equal(bendSig.linkStatus, 'Warning');
+  const bendEvent = bendSig.events.find(e => e.type === MICRO_OTDR_CONSTANTS.EVENT_TYPES.ATTENUATION_STEP);
+  assert.ok(bendEvent);
+  assert.equal(bendEvent.distanceM, 2100);
+  assert.ok(bendEvent.stepLossDb >= 3.4);
+  assert.equal(bendEvent.reflectanceDb, -62.0); // Non-reflective
+});
+
+test('calculateMicroOtdrMetrics correlates physical link telemetry with customer revenue exposure', () => {
+  const state = {
+    ...createInitialState(['OTDR Tech']),
+    customers: [
+      { id: 'c1', name: 'Tariq Textiles Feeder', area: 'Shahdara Town', status: 'Active', packagePrice: 3500 },
+      { id: 'c2', name: 'Old Town Commercial Hub', area: 'Old Town', status: 'Active', packagePrice: 6000 },
+      { id: 'c3', name: 'Baradari Fiber User', area: 'Baradari Road', status: 'Active', packagePrice: 2800 }
+    ]
+  };
+
+  // Calculate metrics under Normal state for Port 1 (Shahdara Town)
+  const normalMetrics = calculateMicroOtdrMetrics(state, {
+    selectedPortId: 'sfp-port-01',
+    faultPreset: 'NORMAL'
+  });
+
+  assert.equal(normalMetrics.selectedPort.id, 'sfp-port-01');
+  assert.equal(normalMetrics.totalAreaSubscribers, 2);
+  assert.equal(normalMetrics.activeSubscribers, 2);
+  assert.equal(normalMetrics.monthlyBilledRevenue, 9500); // 3500 + 6000
+  assert.equal(normalMetrics.affectedSubscribers, 0);
+  assert.equal(normalMetrics.monthlyRevenueAtRiskPkr, 0);
+  assert.equal(normalMetrics.revenueProtectionRate, 100.0);
+  assert.equal(normalMetrics.linkStatus, 'Optimal');
+
+  // Calculate metrics under Fiber Cut state
+  const cutMetrics = calculateMicroOtdrMetrics(state, {
+    selectedPortId: 'sfp-port-01',
+    faultPreset: 'FIBER_CUT_1400M'
+  });
+
+  assert.equal(cutMetrics.linkStatus, 'Critical');
+  assert.equal(cutMetrics.affectedSubscribers, 2);
+  assert.equal(cutMetrics.monthlyRevenueAtRiskPkr, 9500);
+  assert.equal(cutMetrics.revenueProtectionRate, 0.0);
+
+  // Calculate metrics under Macro-Bend state
+  const bendMetrics = calculateMicroOtdrMetrics(state, {
+    selectedPortId: 'sfp-port-01',
+    faultPreset: 'MACRO_BEND_2100M'
+  });
+
+  assert.equal(bendMetrics.linkStatus, 'Warning');
+  assert.ok(bendMetrics.affectedSubscribers > 0);
+  assert.ok(bendMetrics.monthlyRevenueAtRiskPkr > 0 && bendMetrics.monthlyRevenueAtRiskPkr < 9500);
+  assert.ok(bendMetrics.revenueProtectionRate > 0 && bendMetrics.revenueProtectionRate < 100);
+
+  // Check ports summary list
+  assert.equal(normalMetrics.portsSummary.length, 5);
+  const p1 = normalMetrics.portsSummary.find(p => p.id === 'sfp-port-01');
+  assert.ok(p1);
+  assert.equal(p1.isSelected, true);
+});
+
+test('renderMicroOtdrTraceSvg generates valid SVG markup in compact and modal modes', () => {
+  const state = {
+    ...createInitialState(['OTDR Tech']),
+    customers: [
+      { id: 'c1', name: 'Customer 1', area: 'Shahdara Town', status: 'Active', packagePrice: 3000 }
+    ]
+  };
+  const metrics = calculateMicroOtdrMetrics(state, { selectedPortId: 'sfp-port-01' });
+
+  // Compact SVG
+  const compactSvg = renderMicroOtdrTraceSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="micro-otdr-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 560 220"'));
+  assert.ok(compactSvg.includes('Backscatter Power (dBm)'));
+  assert.ok(compactSvg.includes('Distance (m)'));
+  assert.ok(compactSvg.includes('Sens:'));
+
+  // Full/Modal SVG
+  const modalSvg = renderMicroOtdrTraceSvg(metrics, { compact: false });
+  assert.ok(modalSvg.includes('<svg class="micro-otdr-svg"'));
+  assert.ok(modalSvg.includes('viewBox="0 0 780 340"'));
+  assert.ok(modalSvg.includes('path d='));
+});
+
+test('generateMicroOtdrReport formats comprehensive physical reflectometry audit report', () => {
+  const state = {
+    ...createInitialState(['OTDR Tech']),
+    customers: [
+      { id: 'c1', name: 'Customer 1', area: 'Shahdara Town', status: 'Active', packagePrice: 3000 }
+    ]
+  };
+  const metrics = calculateMicroOtdrMetrics(state, {
+    selectedPortId: 'sfp-port-01',
+    faultPreset: 'FIBER_CUT_1400M'
+  });
+
+  const report = generateMicroOtdrReport(metrics);
+  assert.ok(report.includes('SHAHDARA ISP · SFP MICRO-OTDR REFLECTOMETRY AUDIT BRIEFING'));
+  assert.ok(report.includes('ITU-T G.984 / SFF-8472 / SFF-8636 EMBEDDED DIAGNOSTICS'));
+  assert.ok(report.includes('Monitored Port: OLT-01 Port 1 Feeder (Shahdara Town)'));
+  assert.ok(report.includes('Fault Classification: FIBER_CUT'));
+  assert.ok(report.includes('Fault Location Distance: 1420 m'));
+  assert.ok(report.includes('DISCRETE REFLECTION & ATTENUATION EVENT REGISTER'));
+  assert.ok(report.includes('RECOMMENDED FIELD SPLICING ACTION:'));
+  assert.ok(report.includes('Dispatch OTDR splicing crew'));
+});
+
+test('setupMicroOtdrModal wires interactive controls, dropdowns, slider, and clipboard copy', async () => {
+  const state = {
+    ...createInitialState(['OTDR Tech']),
+    customers: [
+      { id: 'c1', name: 'Test Customer', area: 'Shahdara Town', status: 'Active', packagePrice: 3000 }
+    ]
+  };
+
+  let modalOpened = false;
+  let copiedText = '';
+  let toastMsg = '';
+  let filterAreaTarget = '';
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockOpenBtn = { addEventListener: (evt, fn) => { mockOpenBtn.onclick = fn; } };
+  const mockCloseBtn = { addEventListener: (evt, fn) => { mockCloseBtn.onclick = fn; } };
+  const mockPortSelect = { options: [], value: 'sfp-port-01', appendChild: (opt) => mockPortSelect.options.push(opt), addEventListener: (evt, fn) => { mockPortSelect.onchange = fn; } };
+  const mockWavelengthSelect = { options: [], value: '1577', appendChild: (opt) => mockWavelengthSelect.options.push(opt), addEventListener: (evt, fn) => { mockWavelengthSelect.onchange = fn; } };
+  const mockPulseWidthSelect = { options: [], value: '50', appendChild: (opt) => mockPulseWidthSelect.options.push(opt), addEventListener: (evt, fn) => { mockPulseWidthSelect.onchange = fn; } };
+  const mockFaultSelect = { options: [], value: 'NORMAL', appendChild: (opt) => mockFaultSelect.options.push(opt), addEventListener: (evt, fn) => { mockFaultSelect.onchange = fn; } };
+  const mockThreshSlider = { value: '-30.0', addEventListener: (evt, fn) => { mockThreshSlider.oninput = fn; } };
+  const mockThreshVal = { textContent: '-30.0 dBm' };
+  const mockResetBtn = { addEventListener: (evt, fn) => { mockResetBtn.onclick = fn; } };
+  const mockKpiPortName = { textContent: '' };
+  const mockKpiFaultDistance = { textContent: '', style: {} };
+  const mockKpiReturnLoss = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+  const mockFilterAreaBtn = { addEventListener: (evt, fn) => { mockFilterAreaBtn.onclick = fn; } };
+  const mockCopyReportBtn = { addEventListener: (evt, fn) => { mockCopyReportBtn.onclick = fn; } };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementMap = {
+    'dashboardMicroOtdrModal': mockModal,
+    'dashboardOpenMicroOtdrModalBtn': mockOpenBtn,
+    'dashboardMicroOtdrModalCloseBtn': mockCloseBtn,
+    'microOtdrPortSelect': mockPortSelect,
+    'microOtdrWavelengthSelect': mockWavelengthSelect,
+    'microOtdrPulseWidthSelect': mockPulseWidthSelect,
+    'microOtdrFaultSelect': mockFaultSelect,
+    'microOtdrThreshSlider': mockThreshSlider,
+    'microOtdrThreshVal': mockThreshVal,
+    'microOtdrResetBtn': mockResetBtn,
+    'microOtdrKpiPortName': mockKpiPortName,
+    'microOtdrKpiFaultDistance': mockKpiFaultDistance,
+    'microOtdrKpiReturnLoss': mockKpiReturnLoss,
+    'microOtdrStatusBadge': mockStatusBadge,
+    'microOtdrKpiRevenueRisk': mockKpiRevenueRisk,
+    'microOtdrModalChartWrap': mockChartWrap,
+    'microOtdrEventsTableBody': mockTableBody,
+    'microOtdrFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyMicroOtdrReportBtn': mockCopyReportBtn,
+    'dashboardMicroOtdrChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementMap[id] || null
+  };
+
+  try {
+    setupMicroOtdrModal(state, {
+      onFilterArea: (area) => { filterAreaTarget = area; },
+      onToast: (msg) => { toastMsg = msg; },
+      clipboard: {
+        writeText: async (txt) => { copiedText = txt; }
+      }
+    });
+
+    // Check initial render of card chart
+    assert.ok(mockCardChart.innerHTML.includes('micro-otdr-svg'));
+
+    // Open modal
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiPortName.textContent.includes('OLT-01'));
+    assert.ok(mockChartWrap.innerHTML.includes('micro-otdr-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('#1'));
+
+    // Change port
+    mockPortSelect.value = 'sfp-port-02';
+    mockPortSelect.onchange({ target: { value: 'sfp-port-02' } });
+    assert.equal(getMicroOtdrPortId(), 'sfp-port-02');
+
+    // Change wavelength
+    mockWavelengthSelect.value = '1490';
+    mockWavelengthSelect.onchange({ target: { value: '1490' } });
+    assert.equal(getMicroOtdrWavelength(), '1490');
+
+    // Change pulse width
+    mockPulseWidthSelect.value = '100';
+    mockPulseWidthSelect.onchange({ target: { value: '100' } });
+    assert.equal(getMicroOtdrPulseWidth(), 100);
+
+    // Change fault preset
+    mockFaultSelect.value = 'FIBER_CUT_1400M';
+    mockFaultSelect.onchange({ target: { value: 'FIBER_CUT_1400M' } });
+    assert.equal(getMicroOtdrFaultPreset(), 'FIBER_CUT_1400M');
+    assert.equal(mockStatusBadge.textContent, 'CRITICAL');
+
+    // Change threshold slider
+    mockThreshSlider.value = '-25.0';
+    mockThreshSlider.oninput({ target: { value: '-25.0' } });
+    assert.equal(getMicroOtdrThresholdDbm(), -25.0);
+    assert.equal(mockThreshVal.textContent, '-25.0 dBm');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getMicroOtdrPortId(), 'sfp-port-01');
+    assert.equal(getMicroOtdrWavelength(), '1577');
+    assert.equal(getMicroOtdrPulseWidth(), 50);
+    assert.equal(getMicroOtdrFaultPreset(), 'NORMAL');
+    assert.equal(getMicroOtdrThresholdDbm(), -30.0);
+    assert.equal(toastMsg, 'Micro-OTDR simulation reset to baseline.');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaTarget, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('SFP MICRO-OTDR REFLECTOMETRY AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'Micro-OTDR diagnostic briefing copied to clipboard!');
+
+    // Close button
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetMicroOtdrSimState();
+  }
+});
+
+test('Micro-OTDR state getters, setters, and boundary clamping work reliably', () => {
+  resetMicroOtdrSimState();
+  assert.equal(getMicroOtdrPortId(), 'sfp-port-01');
+
+  setMicroOtdrPortId('sfp-port-03');
+  assert.equal(getMicroOtdrPortId(), 'sfp-port-03');
+  setMicroOtdrPortId('invalid-port');
+  assert.equal(getMicroOtdrPortId(), 'sfp-port-03');
+
+  setMicroOtdrWavelength('1550');
+  assert.equal(getMicroOtdrWavelength(), '1550');
+  setMicroOtdrWavelength('9999');
+  assert.equal(getMicroOtdrWavelength(), '1550');
+
+  setMicroOtdrPulseWidth(500);
+  assert.equal(getMicroOtdrPulseWidth(), 500);
+  setMicroOtdrPulseWidth(999);
+  assert.equal(getMicroOtdrPulseWidth(), 500);
+
+  setMicroOtdrFaultPreset('DIRTY_CONNECTOR_850M');
+  assert.equal(getMicroOtdrFaultPreset(), 'DIRTY_CONNECTOR_850M');
+  setMicroOtdrFaultPreset('invalid-fault');
+  assert.equal(getMicroOtdrFaultPreset(), 'DIRTY_CONNECTOR_850M');
+
+  setMicroOtdrThresholdDbm(-20.0);
+  assert.equal(getMicroOtdrThresholdDbm(), -20.0);
+  setMicroOtdrThresholdDbm(0.0); // Clamped to -15.0
+  assert.equal(getMicroOtdrThresholdDbm(), -15.0);
+  setMicroOtdrThresholdDbm(-100.0); // Clamped to -45.0
+  assert.equal(getMicroOtdrThresholdDbm(), -45.0);
+
+  resetMicroOtdrSimState();
+  assert.equal(getMicroOtdrPortId(), 'sfp-port-01');
+  assert.equal(getMicroOtdrWavelength(), '1577');
+  assert.equal(getMicroOtdrPulseWidth(), 50);
+  assert.equal(getMicroOtdrFaultPreset(), 'NORMAL');
+  assert.equal(getMicroOtdrThresholdDbm(), -30.0);
 });
 
 

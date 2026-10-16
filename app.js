@@ -50,7 +50,8 @@ import {
   setupBidirectionalOtdrModal,
   setupOtdrDeadzoneModal,
   setupSplitterQaModal,
-  setupFerruleGeometryModal
+  setupFerruleGeometryModal,
+  setupFusionArcQaModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3415,6 +3416,7 @@ export let customerBidirectionalOtdrModalController;
 export let customerOtdrDeadzoneModalController;
 export let customerSplitterQaModalController;
 export let customerFerruleGeometryModalController;
+export let customerFusionArcQaModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3764,6 +3766,30 @@ if (typeof document !== 'undefined') {
           modal.setAttribute('open', '');
         }
         customerFerruleGeometryModalController?.recalculate();
+      }
+    });
+  }
+
+  customerFusionArcQaModalController = setupFusionArcQaModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openFusionArcQaBtn = $('#openFusionArcQaBtn');
+  if (openFusionArcQaBtn) {
+    openFusionArcQaBtn.addEventListener('click', () => {
+      const modal = $('#fusionArcQaModal');
+      if (modal) {
+        if (typeof modal.showModal === 'function') {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) customerFusionArcQaModalController?.populateCustomer(c);
+        }
+        customerFusionArcQaModalController?.recalculate();
       }
     });
   }

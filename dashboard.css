@@ -2112,6 +2112,34 @@
   border-color: #1e3a5f;
 }
 
+/* Metro Ethernet QinQ & LACP Trunk Styles */
+.chart-card-qinq {
+  background: var(--surface, #ffffff);
+}
+
+.qinq-modal-card {
+  max-width: 960px;
+}
+
+.qinq-compact-svg,
+.qinq-expanded-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-qinq {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .qinq-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
+
 
 
 

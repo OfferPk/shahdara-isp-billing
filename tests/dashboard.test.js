@@ -268,8 +268,25 @@ import {
   calculateOscMetrics,
   renderOscTelemetrySvg,
   generateOscReport,
-  setupOscModal
+  setupOscModal,
+  SHAHDARA_QINQ_TRUNKS,
+  QINQ_CONSTANTS,
+  getQinqSelectedTrunk,
+  setQinqSelectedTrunk,
+  getQinqTrafficSurgeGbps,
+  setQinqTrafficSurgeGbps,
+  getQinqFailedMembersCount,
+  setQinqFailedMembersCount,
+  getQinqHashAlgorithm,
+  setQinqHashAlgorithm,
+  resetQinqSimState,
+  calculateTrunkLacpMetrics,
+  calculateQinqMetrics,
+  renderQinqTrunkSvg,
+  generateQinqReport,
+  setupQinqModal
 } from '../dashboard.js';
+
 
 
 
@@ -8649,5 +8666,277 @@ test('setupOscModal hooks all UI elements, controls, and callbacks properly', as
   } finally {
     globalThis.document = originalDocument;
     resetOscSimState();
+  }
+});
+
+test('calculateTrunkLacpMetrics evaluates nominal/operational capacity, saturation, and failover', () => {
+  const coreTrunk = SHAHDARA_QINQ_TRUNKS.find(t => t.id === 'lacp-trunk-core-agg');
+  assert.ok(coreTrunk);
+
+  // Normal baseline state
+  const normal = calculateTrunkLacpMetrics(coreTrunk, {
+    trafficSurgeGbps: 0.0,
+    failedMembersCount: 0
+  });
+
+  assert.equal(normal.totalMembers, 4);
+  assert.equal(normal.activeMembers, 4);
+  assert.equal(normal.nominalCapacityGbps, 40);
+  assert.equal(normal.operationalCapacityGbps, 40);
+  assert.equal(normal.effectiveTrafficGbps, 24.5);
+  // 24.5 / 40 = 61.25% -> rounded to 61.3%
+  assert.equal(normal.saturationPct, 61.3);
+  assert.equal(normal.healthStatus, 'OPTIMAL');
+  assert.equal(normal.badgeClass, 'badge-success');
+  assert.equal(normal.packetLossEstPct, 0.0);
+  assert.equal(normal.memberLinks.length, 4);
+  assert.ok(normal.memberLinks.every(l => l.isActive));
+
+  // High load simulation (surge +10 Gbps -> 34.5 Gbps -> 86.25% saturation)
+  const surge = calculateTrunkLacpMetrics(coreTrunk, {
+    trafficSurgeGbps: 10.0,
+    failedMembersCount: 0
+  });
+  assert.equal(surge.effectiveTrafficGbps, 34.5);
+  assert.equal(surge.saturationPct, 86.3);
+  assert.equal(surge.healthStatus, 'HIGH UTILIZATION');
+  assert.equal(surge.badgeClass, 'badge-warning');
+
+  // Severe failover scenario (2 links down -> capacity drops to 20 Gbps; 24.5G load -> 122.5% saturation)
+  const failover = calculateTrunkLacpMetrics(coreTrunk, {
+    trafficSurgeGbps: 0.0,
+    failedMembersCount: 2
+  });
+  assert.equal(failover.activeMembers, 2);
+  assert.equal(failover.operationalCapacityGbps, 20);
+  assert.equal(failover.saturationPct, 122.5);
+  assert.equal(failover.healthStatus, 'SATURATED / DROPPING');
+  assert.equal(failover.badgeClass, 'badge-danger');
+  assert.ok(failover.packetLossEstPct > 0);
+  assert.equal(failover.memberLinks.filter(l => !l.isActive).length, 2);
+});
+
+test('calculateQinqMetrics evaluates aggregate metro ethernet fleet and customer exposure', () => {
+  let state = createInitialState(['Core Subscriber 1', 'Baradari User', 'Vandala User']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].packagePrice = 3000;
+  state.customers[0].bills = [{ id: 'b-q1', amount: 3000, serviceMonth: '2026-10' }];
+
+  state.customers[1].area = 'Baradari Road';
+  state.customers[1].packagePrice = 5000;
+
+  state.customers[2].area = 'Vandala Road';
+  state.customers[2].packagePrice = 2500;
+
+  const metrics = calculateQinqMetrics(state);
+  assert.equal(metrics.totalTrunks, 6);
+  assert.ok(metrics.totalCarrierCapacityGbps > 100);
+  assert.ok(metrics.totalLiveTrafficGbps > 50);
+  assert.ok(metrics.selectedTrunk !== null);
+  assert.ok(metrics.allTrunks.length === 6);
+
+  const coreMetrics = metrics.allTrunks.find(t => t.id === 'lacp-trunk-core-agg');
+  assert.ok(coreMetrics);
+  assert.equal(coreMetrics.matchingCount, 1);
+  assert.equal(coreMetrics.totalBilledRevenue, 3000);
+  assert.equal(coreMetrics.totalOutstandingDues, 3000);
+});
+
+test('QinQ simulation state getters, setters, and bounds operate properly', () => {
+  resetQinqSimState();
+  assert.equal(getQinqSelectedTrunk(), 'lacp-trunk-core-agg');
+  assert.equal(getQinqTrafficSurgeGbps(), 0.0);
+  assert.equal(getQinqFailedMembersCount(), 0);
+  assert.equal(getQinqHashAlgorithm(), QINQ_CONSTANTS.HASH_ALGORITHMS.L3_L4);
+
+  setQinqSelectedTrunk('lacp-trunk-baradari-ind');
+  assert.equal(getQinqSelectedTrunk(), 'lacp-trunk-baradari-ind');
+
+  setQinqTrafficSurgeGbps(15.5);
+  assert.equal(getQinqTrafficSurgeGbps(), 15.5);
+  setQinqTrafficSurgeGbps(50.0); // should clamp to 25.0
+  assert.equal(getQinqTrafficSurgeGbps(), 25.0);
+
+  setQinqFailedMembersCount(2);
+  assert.equal(getQinqFailedMembersCount(), 2);
+  setQinqFailedMembersCount(10); // should clamp to 3
+  assert.equal(getQinqFailedMembersCount(), 3);
+
+  setQinqHashAlgorithm(QINQ_CONSTANTS.HASH_ALGORITHMS.L2);
+  assert.equal(getQinqHashAlgorithm(), QINQ_CONSTANTS.HASH_ALGORITHMS.L2);
+
+  resetQinqSimState();
+  assert.equal(getQinqSelectedTrunk(), 'lacp-trunk-core-agg');
+  assert.equal(getQinqTrafficSurgeGbps(), 0.0);
+  assert.equal(getQinqFailedMembersCount(), 0);
+  assert.equal(getQinqHashAlgorithm(), QINQ_CONSTANTS.HASH_ALGORITHMS.L3_L4);
+});
+
+test('renderQinqTrunkSvg produces valid SVG markup for compact and expanded modes', () => {
+  let state = createInitialState(['Sub']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateQinqMetrics(state);
+
+  const compactSvg = renderQinqTrunkSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="qinq-compact-svg"'));
+  assert.ok(compactSvg.includes('ACTIVE CAPACITY'));
+  assert.ok(compactSvg.includes('LIVE TRAFFIC'));
+  assert.ok(compactSvg.includes('PORT SATURATION'));
+  assert.ok(compactSvg.includes('Trunk-LAG-01'));
+
+  const expandedSvg = renderQinqTrunkSvg(metrics, { compact: false });
+  assert.ok(expandedSvg.includes('<svg class="qinq-expanded-svg"'));
+  assert.ok(expandedSvg.includes('IEEE 802.1ad PROVIDER BRIDGING (Q-IN-Q) FRAME STRUCTURE'));
+  assert.ok(expandedSvg.includes('OUTER S-TAG (802.1ad)'));
+  assert.ok(expandedSvg.includes('INNER C-TAG (802.1Q)'));
+  assert.ok(expandedSvg.includes('IEEE 802.3ad LACP BUNDLE MEMBER INTERFACES &amp; LOAD SHARE'));
+  assert.ok(expandedSvg.includes('TRUNK BANDWIDTH CAPACITY &amp; SATURATION'));
+  assert.ok(expandedSvg.includes('CUSTOMER VLANS &amp; REVENUE'));
+});
+
+test('generateQinqReport produces comprehensive plain text diagnostic brief', () => {
+  let state = createInitialState(['Corporate Trunk User']);
+  state.customers[0].area = 'Shahdara Town';
+  const metrics = calculateQinqMetrics(state);
+
+  const report = generateQinqReport(metrics, { referenceDate: '2026-10-16T12:00:00Z' });
+  assert.ok(report.includes('SHAHDARA METRO ETHERNET Q-IN-Q & LACP TRUNK AUDIT BRIEFING'));
+  assert.ok(report.includes('NETWORK METRO FLEET SUMMARY'));
+  assert.ok(report.includes('AUDITED TRUNK LAG DETAILS'));
+  assert.ok(report.includes('LACP AGGREGATION & SATURATION PERFORMANCE'));
+  assert.ok(report.includes('MULTIPLEXED CUSTOMER VLANS'));
+  assert.ok(report.includes('SUBSCRIBER EXPOSURE & FINANCIALS'));
+  assert.ok(report.includes('OPERATIONAL DIRECTIVES:'));
+});
+
+test('setupQinqModal hooks all UI elements, controls, and callbacks properly', async () => {
+  let state = createInitialState(['QinQ Client']);
+  state.customers[0].area = 'Shahdara Town';
+
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+
+  const mockTrunkSelect = { options: [], value: 'lacp-trunk-core-agg', innerHTML: '', onchange: null };
+  const mockFailSelect = { options: [], value: '0', innerHTML: '', onchange: null };
+  const mockHashSelect = { options: [], value: QINQ_CONSTANTS.HASH_ALGORITHMS.L3_L4, innerHTML: '', onchange: null };
+  const mockSurgeSlider = { value: '0.0', oninput: null };
+  const mockSurgeVal = { textContent: '' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiTrunkName = { textContent: '' };
+  const mockKpiCapacity = { textContent: '' };
+  const mockKpiSaturation = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+
+  const elementsMap = {
+    'dashboardQinqModal': mockModal,
+    'dashboardOpenQinqModalBtn': mockOpenBtn,
+    'dashboardQinqModalCloseBtn': mockCloseBtn,
+    'qinqTrunkSelect': mockTrunkSelect,
+    'qinqFailLinkSelect': mockFailSelect,
+    'qinqHashSelect': mockHashSelect,
+    'qinqSurgeSlider': mockSurgeSlider,
+    'qinqSurgeVal': mockSurgeVal,
+    'qinqResetSimBtn': mockResetBtn,
+    'qinqKpiTrunkName': mockKpiTrunkName,
+    'qinqKpiCapacity': mockKpiCapacity,
+    'qinqKpiSaturation': mockKpiSaturation,
+    'qinqStatusBadge': mockStatusBadge,
+    'qinqKpiRevenueRisk': mockKpiRevenueRisk,
+    'qinqModalChartWrap': mockChartWrap,
+    'qinqTrunksTableBody': mockTableBody,
+    'qinqFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyQinqReportBtn': mockCopyReportBtn
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementsMap[id] || null
+  };
+
+  try {
+    setupQinqModal(state, {
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (text) => { copiedText = text; }
+      }
+    });
+
+    // Open modal
+    assert.ok(mockOpenBtn.onclick !== null);
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiTrunkName.textContent.includes('Trunk-LAG-01'));
+    assert.ok(mockChartWrap.innerHTML.includes('qinq-expanded-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Shahdara Central Core'));
+
+    // Change trunk
+    assert.ok(mockTrunkSelect.onchange !== null);
+    mockTrunkSelect.onchange({ target: { value: 'lacp-trunk-baradari-ind' } });
+    assert.equal(getQinqSelectedTrunk(), 'lacp-trunk-baradari-ind');
+    assert.ok(mockKpiTrunkName.textContent.includes('Baradari'));
+
+    // Change fail link select
+    assert.ok(mockFailSelect.onchange !== null);
+    mockFailSelect.onchange({ target: { value: '1' } });
+    assert.equal(getQinqFailedMembersCount(), 1);
+
+    // Change hash select
+    assert.ok(mockHashSelect.onchange !== null);
+    mockHashSelect.onchange({ target: { value: QINQ_CONSTANTS.HASH_ALGORITHMS.L2 } });
+    assert.equal(getQinqHashAlgorithm(), QINQ_CONSTANTS.HASH_ALGORITHMS.L2);
+
+    // Change surge slider
+    assert.ok(mockSurgeSlider.oninput !== null);
+    mockSurgeSlider.oninput({ target: { value: '6.0' } });
+    assert.equal(getQinqTrafficSurgeGbps(), 6.0);
+    assert.equal(mockSurgeVal.textContent, '+6.0 Gbps');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getQinqSelectedTrunk(), 'lacp-trunk-core-agg');
+    assert.equal(getQinqTrafficSurgeGbps(), 0.0);
+    assert.equal(getQinqFailedMembersCount(), 0);
+    assert.equal(getQinqHashAlgorithm(), QINQ_CONSTANTS.HASH_ALGORITHMS.L3_L4);
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(toastMessage.includes('Metro Ethernet QinQ & LACP Audit Briefing'));
+    assert.ok(copiedText.includes('SHAHDARA METRO ETHERNET Q-IN-Q & LACP TRUNK AUDIT BRIEFING'));
+
+    // Close modal
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetQinqSimState();
   }
 });

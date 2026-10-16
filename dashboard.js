@@ -3162,6 +3162,371 @@ export function setupBandwidthShapingModal(state, { referenceDate = new Date(), 
   }
 }
 
+/**
+ * Calculates Fiber Distribution Hub (FDH) and optical splitter capacity metrics.
+ * Evaluates port distribution, active vs offline drops, dark fiber headroom,
+ * attenuation estimates (dBm), and capacity expansion requirements per area/hub.
+ */
+export function calculateFiberDistributionMetrics(state, options = {}) {
+  const targetSplitterSize = Number(options.targetSplitterSize) || 8;
+
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const areaMap = new Map();
+
+  for (const customer of customers) {
+    if (customer.archived) continue;
+    const rawArea = typeof customer.area === 'string' ? customer.area.trim() : '';
+    const areaName = rawArea || 'Central Hub / Unassigned';
+
+    if (!areaMap.has(areaName)) {
+      areaMap.set(areaName, {
+        areaName,
+        totalCustomers: 0,
+        activeCustomers: 0,
+        offlineCustomers: 0
+      });
+    }
+
+    const hub = areaMap.get(areaName);
+    hub.totalCustomers++;
+    if (customer.status === 'offline') {
+      hub.offlineCustomers++;
+    } else {
+      hub.activeCustomers++;
+    }
+  }
+
+  // Pre-configured distance benchmarks from Core Shahdara OLT Hub (km)
+  const AREA_DISTANCES = {
+    'Farooq Ganj': 1.8,
+    'Baradari Road': 2.0,
+    'Saeed Park': 2.5,
+    'Begum Kot': 2.8,
+    'Shahdara Town': 3.2,
+    'Jia Musa': 3.0,
+    'Wandala Road': 4.1,
+    'Nain Sukh': 4.5,
+    'Ravi Toll': 2.2,
+    'Chungi Amar Sidhu': 3.5
+  };
+
+  const hubs = [];
+  let totalDeployedPorts = 0;
+  let totalAssignedPorts = 0;
+  let totalActivePorts = 0;
+  let totalOfflinePorts = 0;
+  let totalSparePorts = 0;
+  let totalSplittersDeployed = 0;
+  let highSaturationCount = 0;
+  let criticalSaturationCount = 0;
+  let expansionSplittersNeeded25 = 0;
+
+  for (const [areaName, data] of areaMap.entries()) {
+    const totalSubscribers = data.totalCustomers;
+    const activeSubscribers = data.activeCustomers;
+    const offlineSubscribers = data.offlineCustomers;
+
+    // Optical splitters are deployed in discrete blocks of targetSplitterSize (e.g. 1:8 or 1:16)
+    const splitters = Math.max(1, Math.ceil(totalSubscribers / targetSplitterSize));
+    const totalPorts = splitters * targetSplitterSize;
+    const assignedPorts = totalSubscribers;
+    const sparePorts = Math.max(0, totalPorts - assignedPorts);
+    const saturationPercent = totalPorts > 0
+      ? parseFloat(((assignedPorts / totalPorts) * 100).toFixed(1))
+      : 0;
+
+    let saturationTier = 'Optimal';
+    let badgeClass = 'badge-good';
+    if (saturationPercent >= 85) {
+      saturationTier = 'Critical Saturation';
+      badgeClass = 'badge-danger';
+      criticalSaturationCount++;
+    } else if (saturationPercent >= 70) {
+      saturationTier = 'High Density';
+      badgeClass = 'badge-warn';
+      highSaturationCount++;
+    }
+
+    // Optical Link Loss & Rx Signal calculation (dBm)
+    // Nominal OLT Class C+ Tx power = +4.5 dBm
+    // 1:8 Splitter Loss ~ 10.5 dB (or 1:16 ~ 13.8 dB)
+    const splitterLoss = targetSplitterSize >= 16 ? 13.8 : 10.5;
+    const distanceKm = AREA_DISTANCES[areaName] || 2.4;
+    const fiberLoss = parseFloat((distanceKm * 0.35).toFixed(2)); // 0.35 dB/km @ 1310nm
+    const connectorLoss = 1.6; // 4 connectors / splices @ 0.4 dB
+    const totalLossDb = parseFloat((splitterLoss + fiberLoss + connectorLoss).toFixed(2));
+    const estRxPowerDbm = parseFloat((4.5 - totalLossDb).toFixed(1));
+
+    let signalStatus = 'Signal Optimal';
+    if (estRxPowerDbm < -26.0) {
+      signalStatus = 'High Attenuation';
+    } else if (estRxPowerDbm < -24.0) {
+      signalStatus = 'Acceptable Margin';
+    }
+
+    // Growth forecasts (+10%, +25%, +50%)
+    const proj10 = Math.ceil(totalSubscribers * 1.10);
+    const proj25 = Math.ceil(totalSubscribers * 1.25);
+    const proj50 = Math.ceil(totalSubscribers * 1.50);
+
+    const neededSplitters25 = Math.max(0, Math.ceil(proj25 / targetSplitterSize) - splitters);
+    expansionSplittersNeeded25 += neededSplitters25;
+
+    totalDeployedPorts += totalPorts;
+    totalAssignedPorts += assignedPorts;
+    totalActivePorts += activeSubscribers;
+    totalOfflinePorts += offlineSubscribers;
+    totalSparePorts += sparePorts;
+    totalSplittersDeployed += splitters;
+
+    hubs.push({
+      areaName,
+      totalSubscribers,
+      activeSubscribers,
+      offlineSubscribers,
+      splitters,
+      totalPorts,
+      assignedPorts,
+      sparePorts,
+      saturationPercent,
+      saturationTier,
+      badgeClass,
+      distanceKm,
+      totalLossDb,
+      estRxPowerDbm,
+      signalStatus,
+      proj10,
+      proj25,
+      proj50,
+      neededSplitters25
+    });
+  }
+
+  // Sort hubs descending by assigned ports / saturation
+  hubs.sort((a, b) => b.assignedPorts - a.assignedPorts || b.saturationPercent - a.saturationPercent);
+
+  const overallSaturationPercent = totalDeployedPorts > 0
+    ? parseFloat(((totalAssignedPorts / totalDeployedPorts) * 100).toFixed(1))
+    : 0;
+
+  let networkStatus = 'Optimal Headroom Available';
+  if (hubs.length === 0 || totalDeployedPorts === 0) {
+    networkStatus = 'No Active Fiber Drops';
+  } else if (overallSaturationPercent >= 85 || criticalSaturationCount > 0) {
+    networkStatus = 'Critical Port Saturation Risk';
+  } else if (overallSaturationPercent >= 70 || highSaturationCount > 0) {
+    networkStatus = 'High Port Density';
+  }
+
+  const projected10TotalPorts = Math.ceil(totalAssignedPorts * 1.10);
+  const projected25TotalPorts = Math.ceil(totalAssignedPorts * 1.25);
+  const projected50TotalPorts = Math.ceil(totalAssignedPorts * 1.50);
+
+  return {
+    hubs,
+    totalDeployedPorts,
+    totalAssignedPorts,
+    totalActivePorts,
+    totalOfflinePorts,
+    totalSparePorts,
+    totalSplittersDeployed,
+    overallSaturationPercent,
+    highSaturationCount,
+    criticalSaturationCount,
+    networkStatus,
+    targetSplitterSize,
+    projected10TotalPorts,
+    projected25TotalPorts,
+    projected50TotalPorts,
+    expansionSplittersNeeded25
+  };
+}
+
+/**
+ * Generates plain-text briefing on fiber distribution hubs and optical splitter capacity.
+ */
+export function generateFiberDistributionReport(metrics, referenceDate = new Date()) {
+  const ref = (referenceDate instanceof Date && !isNaN(referenceDate)) ? referenceDate : new Date(referenceDate);
+  const dateStr = ref.toISOString().slice(0, 10);
+
+  const lines = [
+    '================================================================',
+    'SHAHDARA ISP - FIBER DISTRIBUTION HUB & OPTICAL SPLITTER AUDIT',
+    '================================================================',
+    `Date: ${dateStr} | Central OLT: Shahdara Core Hub`,
+    `Topology: GPON Class C+ | Distribution Splitter Standard: 1:${metrics.targetSplitterSize}`,
+    '',
+    `Total Splitter Ports Provisioned: ${metrics.totalDeployedPorts}`,
+    `Assigned Customer Drops: ${metrics.totalAssignedPorts} (Active: ${metrics.totalActivePorts}, Offline: ${metrics.totalOfflinePorts})`,
+    `Dark Fiber / Spare Ports Available: ${metrics.totalSparePorts}`,
+    `Network-Wide Port Saturation: ${metrics.overallSaturationPercent}%`,
+    `Network Status: ${metrics.networkStatus}`,
+    `Hubs In Saturation Warning: ${metrics.highSaturationCount + metrics.criticalSaturationCount} / ${metrics.hubs.length}`,
+    '',
+    '----------------------------------------------------------------',
+    'AREA / HUB DISTRIBUTION MATRIX:',
+    '----------------------------------------------------------------'
+  ];
+
+  if (!metrics.hubs || metrics.hubs.length === 0) {
+    lines.push('No active customer fiber drops recorded.');
+  } else {
+    for (const h of metrics.hubs) {
+      lines.push(
+        `• ${h.areaName}: ${h.assignedPorts} / ${h.totalPorts} ports (${h.saturationPercent}%) - ${h.saturationTier} ` +
+        `[${h.splitters}x 1:${metrics.targetSplitterSize} splitters, ${h.sparePorts} dark, Rx: ${h.estRxPowerDbm} dBm, ${h.signalStatus}]`
+      );
+    }
+  }
+
+  lines.push('');
+  lines.push('----------------------------------------------------------------');
+  lines.push('CAPACITY EXPANSION FORECAST (+25% Growth):');
+  lines.push('----------------------------------------------------------------');
+  lines.push(`Projected Customer Drops: ${metrics.projected25TotalPorts} (+${Math.max(0, metrics.projected25TotalPorts - metrics.totalAssignedPorts)})`);
+  lines.push(`Additional 1:${metrics.targetSplitterSize} Splitters Required: ${metrics.expansionSplittersNeeded25} units`);
+  lines.push('Target Headroom: Maintain at least 2 dark ports per FDH enclosure.');
+  lines.push('================================================================');
+
+  return lines.join('\n');
+}
+
+/**
+ * Sets up the Fiber Distribution Hub & Optical Splitter modal dialog and clipboard reporting.
+ */
+export function setupFiberDistributionModal(state, options = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardFiberModal');
+  const openBtn = document.getElementById('dashboardOpenFiberModalBtn');
+  const closeBtn = document.getElementById('dashboardFiberModalCloseBtn');
+  const copyBtn = document.getElementById('dashboardCopyFiberReportBtn');
+  const referenceDate = options.referenceDate || new Date();
+  const onToast = options.onToast;
+  const clipboard = options.clipboard;
+
+  let activeFilter = 'all';
+
+  function renderModalContent() {
+    const data = calculateFiberDistributionMetrics(state, { targetSplitterSize: 8 });
+
+    const totalEl = document.getElementById('fiberTotalPortsVal');
+    const assignedEl = document.getElementById('fiberAssignedVal');
+    const spareEl = document.getElementById('fiberSpareVal');
+    const satEl = document.getElementById('fiberSaturationVal');
+    const badgeEl = document.getElementById('fiberStatusBadge');
+    const tbody = document.getElementById('fiberHubTableBody');
+    const p10El = document.getElementById('fiberProj10Val');
+    const p25El = document.getElementById('fiberProj25Val');
+    const p50El = document.getElementById('fiberProj50Val');
+    const expEl = document.getElementById('fiberExpansionSplittersVal');
+
+    if (totalEl) totalEl.textContent = `${data.totalDeployedPorts} Ports`;
+    if (assignedEl) assignedEl.textContent = `${data.totalAssignedPorts} Drops`;
+    if (spareEl) spareEl.textContent = `${data.totalSparePorts} Ports`;
+    if (satEl) satEl.textContent = `${data.overallSaturationPercent}%`;
+    if (badgeEl) {
+      badgeEl.textContent = data.networkStatus;
+      badgeEl.className = 'role-badge ' + (data.overallSaturationPercent >= 85 ? 'role-danger' : (data.overallSaturationPercent >= 70 ? 'role-warn' : 'role-primary'));
+    }
+
+    if (p10El) p10El.textContent = `${data.projected10TotalPorts} Drops`;
+    if (p25El) p25El.textContent = `${data.projected25TotalPorts} Drops`;
+    if (p50El) p50El.textContent = `${data.projected50TotalPorts} Drops`;
+    if (expEl) expEl.textContent = data.expansionSplittersNeeded25 > 0 ? `+${data.expansionSplittersNeeded25} Splitters` : 'Headroom sufficient';
+
+    if (tbody) {
+      let filteredHubs = data.hubs;
+      if (activeFilter === 'high') {
+        filteredHubs = data.hubs.filter(h => h.saturationPercent >= 70);
+      } else if (activeFilter === 'healthy') {
+        filteredHubs = data.hubs.filter(h => h.saturationPercent < 70);
+      }
+
+      if (filteredHubs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted); padding: 16px;">No hubs match the selected capacity filter.</td></tr>';
+      } else {
+        tbody.innerHTML = filteredHubs.map(h => `
+          <tr>
+            <td><strong>${escapeXml(h.areaName)}</strong></td>
+            <td>${h.splitters}x (1:8)</td>
+            <td>${h.assignedPorts} / ${h.totalPorts}</td>
+            <td><strong style="color: ${h.sparePorts > 2 ? '#047857' : '#d97706'};">${h.sparePorts}</strong></td>
+            <td>${h.saturationPercent}%</td>
+            <td><span class="signal-tag">${h.estRxPowerDbm} dBm</span></td>
+            <td><span class="badge ${escapeXml(h.badgeClass)}">${escapeXml(h.saturationTier)}</span></td>
+          </tr>
+        `).join('');
+      }
+    }
+  }
+
+  const filterBtns = (typeof document.querySelectorAll === 'function')
+    ? document.querySelectorAll('#fiberFilterGroup .chart-range-btn')
+    : [];
+
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = btn.dataset?.fiberFilter || btn.getAttribute?.('data-fiber-filter') || 'all';
+      activeFilter = f;
+      filterBtns.forEach(b => {
+        const isActive = b === btn;
+        if (b.classList?.toggle) b.classList.toggle('is-active', isActive);
+        if (b.setAttribute) b.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+      renderModalContent();
+    });
+  });
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', () => {
+      renderModalContent();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    });
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateFiberDistributionMetrics(state, { targetSplitterSize: 8 });
+      const text = generateFiberDistributionReport(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Fiber distribution briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -3189,6 +3554,7 @@ export {
   renderUpstreamGatewaySvg,
   renderAcquisitionRoiSvg,
   renderBandwidthShapingSvg,
+  renderFiberDistributionSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

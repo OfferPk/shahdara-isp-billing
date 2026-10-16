@@ -7709,3 +7709,287 @@ test('nav-fiber-probe: setupMobileFiberProbeModal lifecycle and UI interactions'
     globalThis.document = origDoc;
   }
 });
+
+test('nav-splitter-tree: calculateSplitterLoss calculates balanced and tap splitter attenuation', async () => {
+  const { calculateSplitterLoss } = await import('../nav-splitter-tree.js');
+
+  // Balanced splitters
+  assert.equal(calculateSplitterLoss('1:2'), 3.5);
+  assert.equal(calculateSplitterLoss('1:4'), 7.2);
+  assert.equal(calculateSplitterLoss('1:8'), 10.5);
+  assert.equal(calculateSplitterLoss('1:16'), 13.8);
+  assert.equal(calculateSplitterLoss('1:32'), 17.0);
+  assert.equal(calculateSplitterLoss('1:64'), 20.5);
+
+  // Optical Tap Splitters
+  assert.equal(calculateSplitterLoss('TAP_90_10', 'through'), 0.8);
+  assert.equal(calculateSplitterLoss('TAP_90_10', 'tap'), 10.6);
+  assert.equal(calculateSplitterLoss('TAP_80_20', 'through'), 1.4);
+  assert.equal(calculateSplitterLoss('TAP_80_20', 'tap'), 7.4);
+});
+
+test('nav-splitter-tree: calculateCascadedBranchBudget computes link budget and margin', async () => {
+  const { calculateCascadedBranchBudget, SHAHDARA_CASCADE_PRESETS } = await import('../nav-splitter-tree.js');
+
+  // Baradari preset (healthy 2-stage cascade)
+  const baradari = calculateCascadedBranchBudget(SHAHDARA_CASCADE_PRESETS[0]);
+  assert.equal(baradari.isPass, true);
+  assert.equal(baradari.overallPass, true);
+  assert.equal(baradari.healthStatus, 'OPTIMAL');
+  assert.ok(baradari.opticalMarginDb > 5.0);
+  assert.ok(baradari.receivedPowerDbm > -25.0);
+
+  // Overextended / macrobend preset (fail)
+  const macrobend = calculateCascadedBranchBudget(SHAHDARA_CASCADE_PRESETS[3]);
+  assert.equal(macrobend.isPass, false);
+  assert.equal(macrobend.healthStatus, 'OUT_OF_SERVICE_FAIL');
+  assert.ok(macrobend.opticalMarginDb <= 0);
+});
+
+test('nav-splitter-tree: storage methods save, retrieve, record, and clear audit records', async () => {
+  const {
+    getSplitterTreeStore,
+    saveSplitterTreeStore,
+    recordSplitterTreeAudit,
+    clearSplitterTreeStore
+  } = await import('../nav-splitter-tree.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  // Initially loads default audits
+  const initial = getSplitterTreeStore(mockStorage);
+  assert.ok(Array.isArray(initial));
+  assert.ok(initial.length > 0);
+
+  // Clear store
+  clearSplitterTreeStore(mockStorage);
+  assert.deepEqual(getSplitterTreeStore(mockStorage), []);
+
+  // Record audit
+  const newAudit = {
+    locationArea: 'Baghbanpura Feed',
+    feederCableTag: 'FDR-BAGH-01',
+    primarySplitter: '1:4',
+    secondarySplitter: '1:8',
+    totalFiberKm: 3.2,
+    totalLossDb: 21.5,
+    receivedPowerDbm: -18.0,
+    status: 'PASS',
+    healthStatus: 'OPTIMAL',
+    technician: 'Noman Field Tech'
+  };
+  const recorded = recordSplitterTreeAudit(newAudit, mockStorage);
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].locationArea, 'Baghbanpura Feed');
+  assert.ok(recorded[0].id.startsWith('TREE-'));
+});
+
+test('nav-splitter-tree: renderMobileSplitterTreeSvg produces valid SVG topology diagram', async () => {
+  const { renderMobileSplitterTreeSvg, calculateCascadedBranchBudget, SHAHDARA_CASCADE_PRESETS } = await import('../nav-splitter-tree.js');
+
+  const budget = calculateCascadedBranchBudget(SHAHDARA_CASCADE_PRESETS[0]);
+  const svg = renderMobileSplitterTreeSvg(budget);
+
+  assert.ok(svg.includes('<svg class="splitter-tree-svg"'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('ODN CASCADED SPLITTER TREE'));
+  assert.ok(svg.includes('OLT PORT'));
+  assert.ok(svg.includes('STAGE 1'));
+  assert.ok(svg.includes('STAGE 2'));
+});
+
+test('nav-splitter-tree: generateSplitterTreeWhatsAppReport formats dispatch report', async () => {
+  const { generateSplitterTreeWhatsAppReport } = await import('../nav-splitter-tree.js');
+
+  const report = generateSplitterTreeWhatsAppReport({
+    id: 'TREE-20261016-01',
+    displayDate: 'Oct 16, 2026',
+    displayTime: '04:30 PM',
+    locationArea: 'Baradari Road',
+    feederCableTag: 'FDR-BAR-01',
+    primarySplitter: '1:4',
+    secondarySplitter: '1:8',
+    totalFiberKm: 3.35,
+    totalLossDb: 22.1,
+    receivedPowerDbm: -18.6,
+    status: 'PASS',
+    healthStatus: 'OPTIMAL',
+    technician: 'Tariq Lineman'
+  });
+
+  assert.ok(report.includes('CASCADED SPLITTER TREE REPORT'));
+  assert.ok(report.includes('Baradari Road'));
+  assert.ok(report.includes('FDR-BAR-01'));
+  assert.ok(report.includes('1:4'));
+  assert.ok(report.includes('1:8'));
+  assert.ok(report.includes('-18.6 dBm'));
+  assert.ok(report.includes('PASS'));
+});
+
+test('nav-splitter-tree: setupMobileSplitterTreeModal lifecycle and UI interactions', async () => {
+  const { setupMobileSplitterTreeModal } = await import('../nav-splitter-tree.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const listeners = new Map();
+  function makeMockElement(id, tag = 'div') {
+    return {
+      id,
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      open: false,
+      classList: {
+        add: () => {},
+        remove: () => {},
+        toggle: () => {},
+        contains: () => false
+      },
+      showModal: function() { this.open = true; },
+      close: function() { this.open = false; },
+      setAttribute: function(k, v) { if (k === 'open') this.open = true; },
+      removeAttribute: function(k) { if (k === 'open') this.open = false; },
+      addEventListener: function(event, fn) {
+        listeners.set(`${id}:${event}`, fn);
+      },
+      set onclick(fn) {
+        listeners.set(`${id}:click`, fn);
+      },
+      set oninput(fn) {
+        listeners.set(`${id}:input`, fn);
+      },
+      set onchange(fn) {
+        listeners.set(`${id}:change`, fn);
+      },
+      querySelectorAll: () => [],
+      querySelector: () => null
+    };
+  }
+
+  const modal = makeMockElement('mobileSplitterTreeModal', 'dialog');
+  const closeBtn = makeMockElement('mobileSplitterTreeCloseBtn', 'button');
+  const presetSelect = makeMockElement('splitterTreePresetSelect', 'select');
+  presetSelect.value = 'PRESET_BARADARI_CASCADE';
+  const primarySelect = makeMockElement('splitterTreePrimarySelect', 'select');
+  primarySelect.value = '1:4';
+  const secondarySelect = makeMockElement('splitterTreeSecondarySelect', 'select');
+  secondarySelect.value = '1:8';
+  const odnClassSelect = makeMockElement('splitterTreeOdnClassSelect', 'select');
+  odnClassSelect.value = 'CLASS_B_PLUS';
+  const feederKm = makeMockElement('splitterTreeFeederKm', 'input');
+  feederKm.value = '2.4';
+  const distKm = makeMockElement('splitterTreeDistKm', 'input');
+  distKm.value = '0.8';
+  const dropKm = makeMockElement('splitterTreeDropKm', 'input');
+  dropKm.value = '0.15';
+  const splices = makeMockElement('splitterTreeSplices', 'input');
+  splices.value = '4';
+  const connectors = makeMockElement('splitterTreeConnectors', 'input');
+  connectors.value = '3';
+  const oltTx = makeMockElement('splitterTreeOltTx', 'input');
+  oltTx.value = '3.5';
+  const svgWrap = makeMockElement('splitterTreeSvgContainer');
+  const historyList = makeMockElement('splitterTreeHistoryList', 'ul');
+  const lossBadge = makeMockElement('splitterTreeTotalLossBadge');
+  const rxBadge = makeMockElement('splitterTreeRxPowerBadge');
+  const marginBadge = makeMockElement('splitterTreeMarginBadge');
+  const statusBadge = makeMockElement('splitterTreeStatusBadge');
+  const saveBtn = makeMockElement('splitterTreeSaveBtn', 'button');
+  const whatsappBtn = makeMockElement('splitterTreeWhatsappBtn', 'button');
+  const clearHistoryBtn = makeMockElement('splitterTreeClearHistoryBtn', 'button');
+  const locationInput = makeMockElement('splitterTreeLocationInput', 'input');
+  locationInput.value = 'Baradari Road';
+  const feederTagInput = makeMockElement('splitterTreeFeederTagInput', 'input');
+  feederTagInput.value = 'FDR-BAR-01';
+  const techInput = makeMockElement('splitterTreeTechInput', 'input');
+  techInput.value = 'Tariq Lineman';
+  const triggerBtn = makeMockElement('triggerBtn', 'button');
+
+  const elements = {
+    mobileSplitterTreeModal: modal,
+    mobileSplitterTreeCloseBtn: closeBtn,
+    splitterTreePresetSelect: presetSelect,
+    splitterTreePrimarySelect: primarySelect,
+    splitterTreeSecondarySelect: secondarySelect,
+    splitterTreeOdnClassSelect: odnClassSelect,
+    splitterTreeFeederKm: feederKm,
+    splitterTreeDistKm: distKm,
+    splitterTreeDropKm: dropKm,
+    splitterTreeSplices: splices,
+    splitterTreeConnectors: connectors,
+    splitterTreeOltTx: oltTx,
+    splitterTreeSvgContainer: svgWrap,
+    splitterTreeHistoryList: historyList,
+    splitterTreeTotalLossBadge: lossBadge,
+    splitterTreeRxPowerBadge: rxBadge,
+    splitterTreeMarginBadge: marginBadge,
+    splitterTreeStatusBadge: statusBadge,
+    splitterTreeSaveBtn: saveBtn,
+    splitterTreeWhatsappBtn: whatsappBtn,
+    splitterTreeClearHistoryBtn: clearHistoryBtn,
+    splitterTreeLocationInput: locationInput,
+    splitterTreeFeederTagInput: feederTagInput,
+    splitterTreeTechInput: techInput
+  };
+
+  let toastMessage = '';
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-splitter-tree]') return [triggerBtn];
+      return [];
+    },
+    createElement: (tag) => makeMockElement('created', tag)
+  };
+
+  try {
+    const controller = setupMobileSplitterTreeModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.openModal, 'function');
+    assert.equal(typeof controller.closeModal, 'function');
+    assert.equal(typeof controller.applyPreset, 'function');
+
+    // Trigger button opens modal
+    const triggerFn = listeners.get('triggerBtn:click');
+    if (triggerFn) triggerFn();
+    assert.ok(modal.open);
+
+    // Close button closes modal
+    const closeFn = listeners.get('mobileSplitterTreeCloseBtn:click');
+    if (closeFn) closeFn();
+    assert.equal(modal.open, false);
+
+    // Apply preset
+    controller.applyPreset('PRESET_VANDALA_HIGH_DENSITY');
+    assert.equal(primarySelect.value, '1:2');
+    assert.equal(secondarySelect.value, '1:16');
+
+    // Save audit
+    const saveFn = listeners.get('splitterTreeSaveBtn:click');
+    if (saveFn) saveFn();
+    assert.ok(toastMessage.includes('audit saved'));
+
+    // Clear history
+    const clearFn = listeners.get('splitterTreeClearHistoryBtn:click');
+    if (clearFn) clearFn();
+    assert.ok(toastMessage.includes('Cleared splitter tree'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

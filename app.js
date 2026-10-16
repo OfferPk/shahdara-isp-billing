@@ -31,7 +31,8 @@ import {
   reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
   calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
   setupAdjustmentVoucherModal,
-  setupServiceContractModal
+  setupServiceContractModal,
+  setupDisputeClaimModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3220,6 +3221,31 @@ if (typeof document !== 'undefined') {
       const cust = state.customers.find(c => c.id === selectedCustomerId);
       if (!cust) return;
       customerServiceContractModalController?.open(cust);
+    });
+  }
+
+  customerDisputeModalController = setupDisputeClaimModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    onApplyLedgerCredit: (claim) => {
+      if (selectedCustomerId) {
+        renderCustomerDetail();
+        renderCustomers();
+      }
+    }
+  });
+
+  const openDisputeBtn = $('#openDisputeClaimBtn');
+  if (openDisputeBtn) {
+    openDisputeBtn.addEventListener('click', () => {
+      if (!selectedCustomerId) {
+        toast('Please select a customer first.');
+        return;
+      }
+      const cust = state.customers.find(c => c.id === selectedCustomerId);
+      if (!cust) return;
+      customerDisputeModalController?.open(cust);
     });
   }
 }

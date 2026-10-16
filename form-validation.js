@@ -4420,3 +4420,901 @@ export function setupServiceContractModal({
   };
 }
 
+/* ==========================================================================
+   Customer Formal Billing Dispute Resolution & Discrepancy Claims Form (agent3 - shahdara-forms-qa)
+   ========================================================================== */
+
+export const DISPUTE_CLAIMS_KEY = 'shahdara_dispute_claims';
+
+export const DISPUTE_CATEGORIES = {
+  unrecorded_payment: {
+    label: 'Unrecorded Cash / Direct Payment',
+    labelUrdu: 'غیر اندراج شدہ کیش ادائیگی',
+    requiresClaimDate: true
+  },
+  rate_mismatch: {
+    label: 'Package Tariff / Rate Discrepancy',
+    labelUrdu: 'پیکج ریٹ و ٹیرف فرق',
+    requiresClaimDate: false
+  },
+  downtime_dispute: {
+    label: 'Prolonged Service Outage / Fiber Cut',
+    labelUrdu: 'طویل سروس تعطل و خرابی',
+    requiresClaimDate: true
+  },
+  wrong_billing_period: {
+    label: 'Incorrect Service Period / Shifted Month',
+    labelUrdu: 'غلط بلنگ دورانیہ',
+    requiresClaimDate: false
+  },
+  duplicate_charge: {
+    label: 'Duplicate Charge / Arrears Double-Entry',
+    labelUrdu: 'ڈبل بلنگ یا دوہرا اندراج',
+    requiresClaimDate: false
+  },
+  unauthorized_addon: {
+    label: 'Unrecognized Equipment / Surcharge',
+    labelUrdu: 'غیر مصدقہ سازوسامان چارج',
+    requiresClaimDate: false
+  },
+  other: {
+    label: 'General Billing Inquiry / Discrepancy',
+    labelUrdu: 'دیگر متنازعہ بلنگ استفسار',
+    requiresClaimDate: false
+  }
+};
+
+export function validateDisputeClaim({
+  customerId,
+  category,
+  disputedAmount,
+  reason,
+  filedBy
+} = {}) {
+  const errors = {};
+
+  if (!customerId || typeof customerId !== 'string' || !customerId.trim()) {
+    errors.customerId = 'Valid subscriber account must be selected.';
+  }
+
+  if (!category || !DISPUTE_CATEGORIES[category]) {
+    errors.category = 'A valid dispute category is required.';
+  }
+
+  const amt = Number(disputedAmount);
+  if (isNaN(amt) || amt <= 0) {
+    errors.disputedAmount = 'Disputed amount must be greater than zero.';
+  }
+
+  if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+    errors.reason = 'Please provide detailed reason for the claim (at least 5 characters).';
+  }
+
+  if (!filedBy || typeof filedBy !== 'string' || filedBy.trim().length < 2) {
+    errors.filedBy = 'Officer or subscriber filing name is required (min 2 characters).';
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+export function assessDisputeClaim(claimData = {}, customer = {}) {
+  let currentBalance = 0;
+  if (Array.isArray(customer.bills)) {
+    for (const b of customer.bills) {
+      const due = Number(b.dueAmount) || 0;
+      if (due > 0 && b.status !== 'paid') {
+        currentBalance += due;
+      }
+    }
+  }
+
+  const disputedAmt = Math.max(0, Number(claimData.disputedAmount) || 0);
+  const approvedAmt = claimData.approvedAmount !== undefined
+    ? Math.max(0, Number(claimData.approvedAmount) || 0)
+    : disputedAmt;
+
+  const netProjectedBalance = Math.max(0, currentBalance - approvedAmt);
+  const categoryMeta = DISPUTE_CATEGORIES[claimData.category] || DISPUTE_CATEGORIES.other;
+
+  let isPlausible = true;
+  let recommendation = 'Standard verification required with subscriber billing history.';
+
+  if (claimData.category === 'unrecorded_payment') {
+    if (currentBalance >= disputedAmt) {
+      recommendation = 'Claim matches or is within outstanding arrears. Check collector logbook and physical receipts.';
+      isPlausible = true;
+    } else {
+      recommendation = 'Claimed payment exceeds total outstanding balance. Audit for advance credit or duplicate entry.';
+      isPlausible = false;
+    }
+  } else if (claimData.category === 'rate_mismatch') {
+    recommendation = 'Verify subscribed speed tier in bandwidth throttle records vs invoice snapshot.';
+  } else if (claimData.category === 'downtime_dispute') {
+    recommendation = 'Cross-reference optical link down-events and area outage log for claimed period.';
+  }
+
+  return {
+    currentBalance,
+    disputedAmount: disputedAmt,
+    approvedAmount: approvedAmt,
+    netProjectedBalance,
+    categoryLabel: categoryMeta.label,
+    categoryLabelUrdu: categoryMeta.labelUrdu,
+    isPlausible,
+    recommendation
+  };
+}
+
+export function buildDisputeClaimRecord({
+  customer = {},
+  category = 'other',
+  disputedAmount = 0,
+  approvedAmount = null,
+  reason = '',
+  filedBy = 'Billing Staff',
+  status = 'SUBMITTED',
+  resolvedBy = '',
+  resolutionNotes = '',
+  billMonth = '',
+  claimedDate = '',
+  evidenceRef = '',
+  existingClaimsCount = 0
+} = {}) {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const seq = String(existingClaimsCount + 1).padStart(4, '0');
+  const ticketNumber = `DSP-${yyyy}${mm}-${seq}`;
+
+  const categoryMeta = DISPUTE_CATEGORIES[category] || DISPUTE_CATEGORIES.other;
+  const assessment = assessDisputeClaim({
+    category,
+    disputedAmount,
+    approvedAmount: approvedAmount !== null ? approvedAmount : (status && status.startsWith('APPROVED') ? disputedAmount : 0)
+  }, customer);
+
+  return {
+    ticketNumber,
+    customerId: customer.id || '',
+    customerNumber: customer.customerNumber || null,
+    customerName: customer.name || 'Subscriber',
+    customerPhone: customer.phone || '',
+    customerArea: customer.area || customer.mohalla || '',
+    category,
+    categoryLabel: categoryMeta.label,
+    categoryLabelUrdu: categoryMeta.labelUrdu,
+    disputedAmount: Number(disputedAmount) || 0,
+    approvedAmount: Number(assessment.approvedAmount) || 0,
+    previousBalance: assessment.currentBalance,
+    projectedBalance: assessment.netProjectedBalance,
+    reason: (reason || '').trim(),
+    filedBy: (filedBy || '').trim(),
+    status: status || 'SUBMITTED',
+    resolvedBy: (resolvedBy || '').trim(),
+    resolutionNotes: (resolutionNotes || '').trim(),
+    billMonth: billMonth || '',
+    claimedDate: claimedDate || '',
+    evidenceRef: (evidenceRef || '').trim(),
+    createdAt: new Date().toISOString()
+  };
+}
+
+export function getSavedDisputeClaims(storage, customerId = null) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.getItem !== 'function') return [];
+  try {
+    const raw = store.getItem(DISPUTE_CLAIMS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    if (customerId) {
+      return list.filter(c => c.customerId === customerId);
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+export function saveDisputeClaim(claim, storage) {
+  if (!claim || !claim.ticketNumber) return null;
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const existing = getSavedDisputeClaims(store);
+  const updated = [claim, ...existing.filter(c => c.ticketNumber !== claim.ticketNumber)];
+  if (store && typeof store.setItem === 'function') {
+    try {
+      store.setItem(DISPUTE_CLAIMS_KEY, JSON.stringify(updated));
+    } catch {}
+  }
+  return claim;
+}
+
+export function updateDisputeClaimStatus(ticketNumber, {
+  status = 'APPROVED_FULL',
+  approvedAmount = null,
+  resolvedBy = '',
+  resolutionNotes = ''
+} = {}, storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const existing = getSavedDisputeClaims(store);
+  let updatedClaim = null;
+
+  const modified = existing.map(item => {
+    if (item.ticketNumber === ticketNumber) {
+      const finalApproved = approvedAmount !== null
+        ? Number(approvedAmount)
+        : (status === 'APPROVED_FULL' ? item.disputedAmount : (status === 'REJECTED' ? 0 : item.approvedAmount));
+
+      updatedClaim = {
+        ...item,
+        status,
+        approvedAmount: finalApproved,
+        projectedBalance: Math.max(0, item.previousBalance - finalApproved),
+        resolvedBy: resolvedBy || item.resolvedBy,
+        resolutionNotes: resolutionNotes || item.resolutionNotes,
+        resolvedAt: new Date().toISOString()
+      };
+      return updatedClaim;
+    }
+    return item;
+  });
+
+  if (store && typeof store.setItem === 'function') {
+    try {
+      store.setItem(DISPUTE_CLAIMS_KEY, JSON.stringify(modified));
+    } catch {}
+  }
+
+  return updatedClaim;
+}
+
+export function formatDisputeClaimWhatsApp(claim = {}) {
+  const statusIcon = claim.status === 'APPROVED_FULL' ? '✅ [APPROVED IN FULL]'
+    : claim.status === 'APPROVED_PARTIAL' ? '⚠️ [PARTIAL CREDIT APPROVED]'
+    : claim.status === 'REJECTED' ? '❌ [CLAIM REJECTED]'
+    : claim.status === 'UNDER_INVESTIGATION' ? '🔍 [UNDER AUDIT]'
+    : '⏳ [SUBMITTED]';
+
+  const lines = [
+    `*SHAHDARA FIBER NET - BILLING DISPUTE TICKET*`,
+    `📋 Ticket Ref: ${claim.ticketNumber || 'DSP-0000'}`,
+    `👤 Subscriber: ${claim.customerName || 'Customer'}${claim.customerNumber ? ` (#${claim.customerNumber})` : ''}`,
+    `🏷️ Category: ${claim.categoryLabel || 'Billing Dispute'} (${claim.categoryLabelUrdu || ''})`,
+    `💰 Disputed Amount: PKR ${Number(claim.disputedAmount || 0).toLocaleString()}`,
+    `📌 Status: ${statusIcon}`,
+    `⚖️ Approved Adjustment: PKR ${Number(claim.approvedAmount || 0).toLocaleString()}`,
+    `💳 Balance After Settlement: PKR ${Number(claim.projectedBalance || 0).toLocaleString()}`,
+    `───────────────────────`,
+    `📝 Grounds: ${claim.reason || 'Subscriber billing inquiry'}`,
+    claim.evidenceRef ? `📎 Evidence Ref: ${claim.evidenceRef}` : '',
+    claim.billMonth ? `📅 Disputed Service Month: ${claim.billMonth}` : '',
+    claim.resolutionNotes ? `🔎 Settlement Finding: ${claim.resolutionNotes}` : '',
+    claim.resolvedBy ? `👨‍💼 Decided By: ${claim.resolvedBy}` : '',
+    `───────────────────────`,
+    `Helpline: 0300-1234567 | Shahdara Network Accounts`
+  ].filter(Boolean);
+
+  return lines.join('\n');
+}
+
+export function generateDisputeClaimsCsv(claims = []) {
+  const headers = [
+    'Ticket_No', 'Date', 'Customer_No', 'Customer_Name', 'Phone', 'Area',
+    'Category', 'Disputed_PKR', 'Approved_Credit_PKR', 'Net_Balance_PKR',
+    'Status', 'Filed_By', 'Resolved_By', 'Evidence_Ref', 'Reason'
+  ];
+
+  const rows = claims.map(c => [
+    c.ticketNumber || '',
+    (c.createdAt || '').slice(0, 10),
+    String(c.customerNumber || ''),
+    c.customerName || '',
+    c.customerPhone || '',
+    c.customerArea || '',
+    c.categoryLabel || '',
+    String(c.disputedAmount || 0),
+    String(c.approvedAmount || 0),
+    String(c.projectedBalance || 0),
+    c.status || '',
+    c.filedBy || '',
+    c.resolvedBy || '',
+    c.evidenceRef || '',
+    c.reason || ''
+  ]);
+
+  return generateCsvContent(headers, rows);
+}
+
+export function generateDisputeClaimHtml(claim = {}, options = {}) {
+  const format = options.format || 'a4';
+  const c = claim || {};
+
+  if (format === 'slip') {
+    return `
+      <div class="dispute-thermal-slip" style="font-family: monospace; max-width: 300px; padding: 10px; border: 1px dashed #ccc; line-height: 1.3; font-size: 12px;">
+        <div style="text-align: center; border-bottom: 1px dashed #444; padding-bottom: 6px; margin-bottom: 8px;">
+          <h2 style="font-size: 14px; margin: 0;">SHAHDARA FIBER NET</h2>
+          <p style="font-size: 11px; margin: 2px 0;">BILLING DISPUTE CLAIM SLIP</p>
+          <p style="font-size: 10px; margin: 0; color: #555;">تنازعہ بلنگ و کھاتہ تصدیق واؤچر</p>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <strong>Ticket #: </strong><span>${escapeHtml(c.ticketNumber)}</span><br>
+          <strong>Date: </strong><span>${escapeHtml((c.createdAt || '').slice(0, 10))}</span><br>
+          <strong>Customer: </strong><span>${escapeHtml(c.customerName)} (#${escapeHtml(c.customerNumber || '')})</span><br>
+          <strong>Category: </strong><span>${escapeHtml(c.categoryLabel)}</span><br>
+          <strong>Status: </strong><span>${escapeHtml(c.status)}</span>
+        </div>
+        <div style="border-top: 1px dashed #444; border-bottom: 1px dashed #444; padding: 6px 0; margin: 6px 0;">
+          <div style="display:flex; justify-content:space-between;">
+            <span>Disputed Amount:</span>
+            <strong>PKR ${Number(c.disputedAmount || 0).toLocaleString()}</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span>Approved Credit:</span>
+            <strong style="color: #047857;">PKR ${Number(c.approvedAmount || 0).toLocaleString()}</strong>
+          </div>
+          <div style="display:flex; justify-content:space-between;">
+            <span>Net Balance:</span>
+            <strong>PKR ${Number(c.projectedBalance || 0).toLocaleString()}</strong>
+          </div>
+        </div>
+        <div style="font-size: 11px; margin-bottom: 8px;">
+          <strong>Grounds: </strong><span>${escapeHtml(c.reason)}</span><br>
+          ${c.evidenceRef ? `<strong>Ref: </strong><span>${escapeHtml(c.evidenceRef)}</span><br>` : ''}
+          ${c.resolutionNotes ? `<strong>Resolution: </strong><span>${escapeHtml(c.resolutionNotes)}</span><br>` : ''}
+        </div>
+        <div style="border-top: 1px dashed #444; padding-top: 8px; display:flex; justify-content:space-between; font-size: 10px;">
+          <div><br>Subscriber Sign</div>
+          <div><br>Accountant Sign</div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="dispute-formal-sheet" style="font-family: sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; border: 1px solid #ddd; background: #fff; line-height: 1.4; color: #111;">
+      <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 16px;">
+        <div>
+          <h1 style="font-size: 20px; margin: 0; color: #0e5b4d;">SHAHDARA FIBER BROADBAND NETWORK</h1>
+          <p style="font-size: 12px; margin: 2px 0; color: #444;">Main Bazar, Shahdara, Lahore · Accounts &amp; Revenue Dispute Tribunal</p>
+          <h3 style="font-size: 14px; margin: 4px 0 0 0; color: #333;">FORMAL BILLING DISPUTE SETTLEMENT VOUCHER</h3>
+        </div>
+        <div style="text-align: right;">
+          <h2 style="font-size: 16px; margin: 0; color: #0e5b4d;" dir="rtl">درخواست برائے تصفیہ متنازعہ واجبات</h2>
+          <p style="font-size: 12px; margin: 4px 0; font-family: monospace;"><strong>${escapeHtml(c.ticketNumber)}</strong></p>
+          <span style="display: inline-block; padding: 2px 8px; font-size: 11px; font-weight: bold; background: #f0fdf4; border: 1px solid #86efac; border-radius: 4px; color: #166534;">${escapeHtml(c.status)}</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; background: #f9fafb; padding: 12px; border-radius: 8px; border: 1px solid #e5e7eb;">
+        <div>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Subscriber Name:</strong> ${escapeHtml(c.customerName)}</p>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Account #:</strong> #${escapeHtml(c.customerNumber || '—')}</p>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Phone:</strong> ${escapeHtml(c.customerPhone || '—')}</p>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Service Area:</strong> ${escapeHtml(c.customerArea || 'Shahdara')}</p>
+        </div>
+        <div>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Dispute Category:</strong> ${escapeHtml(c.categoryLabel)}</p>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Category (Urdu):</strong> <span dir="rtl">${escapeHtml(c.categoryLabelUrdu)}</span></p>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Filing Date:</strong> ${escapeHtml((c.createdAt || '').slice(0, 10))}</p>
+          <p style="margin: 3px 0; font-size: 13px;"><strong>Evidence Reference:</strong> ${escapeHtml(c.evidenceRef || 'None on file')}</p>
+        </div>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <h4 style="margin: 0 0 6px 0; font-size: 14px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">1. Claim Grounds &amp; Subscriber Statement</h4>
+        <p style="margin: 4px 0; font-size: 13px; background: #fff; border: 1px solid #e5e7eb; padding: 10px; border-radius: 6px;">${escapeHtml(c.reason)}</p>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <h4 style="margin: 0 0 6px 0; font-size: 14px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">2. Financial Audit &amp; Settlement Adjustment</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <thead>
+            <tr style="background: #f3f4f6;">
+              <th style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: left;">Audit Metric</th>
+              <th style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: right;">Amount (PKR)</th>
+              <th style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: left;">Remarks</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px;">Ledger Outstanding Prior to Claim</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: right;">PKR ${Number(c.previousBalance || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px;">Recorded ledger arrears</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px;">Disputed Amount Claimed</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: right; color: #b91c1c;">PKR ${Number(c.disputedAmount || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px;">Submitted by subscriber</td>
+            </tr>
+            <tr style="background: #f0fdf4;">
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px; font-weight: bold;">Approved Ledger Credit Adjustment</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: right; font-weight: bold; color: #047857;">PKR ${Number(c.approvedAmount || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px;">Credit applied to ledger</td>
+            </tr>
+            <tr style="background: #fefce8;">
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px; font-weight: bold;">Net Remaining Payable Balance</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px; text-align: right; font-weight: bold;">PKR ${Number(c.projectedBalance || 0).toLocaleString()}</td>
+              <td style="border: 1px solid #d1d5db; padding: 6px 10px;">Updated dues payable</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <h4 style="margin: 0 0 6px 0; font-size: 14px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">3. Audit Findings &amp; Resolution Order</h4>
+        <p style="margin: 4px 0; font-size: 13px; background: #fff; border: 1px solid #e5e7eb; padding: 10px; border-radius: 6px;">
+          ${escapeHtml(c.resolutionNotes || 'Claim assessed against network logs, physical collector scrolls, and OLT session records.')}
+        </p>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 10px;">
+        <div style="border-top: 1px solid #444; width: 220px; text-align: center; font-size: 12px;">
+          Subscriber Acceptance Signature<br>
+          <span style="color: #666; font-size: 11px;">(دستخط صارف / کسٹمر)</span>
+        </div>
+        <div style="border-top: 1px solid #444; width: 220px; text-align: center; font-size: 12px;">
+          Accounts Officer / Manager Sign<br>
+          <span style="color: #666; font-size: 11px;">${escapeHtml(c.resolvedBy || 'Saad Accounting')}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function setupDisputeClaimModal({
+  getState,
+  onApplyLedgerCredit,
+  onToast,
+  storage
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      open: () => {},
+      close: () => {},
+      refresh: () => {},
+      getClaims: () => []
+    };
+  }
+
+  const modal = document.getElementById('customerDisputeModal');
+  if (!modal) {
+    return {
+      open: () => {},
+      close: () => {},
+      refresh: () => {},
+      getClaims: () => []
+    };
+  }
+
+  const closeBtn = document.getElementById('closeDisputeModalBtn');
+  const closeSecondaryBtn = document.getElementById('closeDisputeSecondaryBtn');
+  const custNameEl = document.getElementById('disputeCustName');
+  const custPhoneEl = document.getElementById('disputeCustPhone');
+  const custBalanceEl = document.getElementById('disputeCustBalance');
+
+  const categorySelect = document.getElementById('disputeCategorySelect');
+  const billMonthSelect = document.getElementById('disputeBillMonthSelect');
+  const amountInput = document.getElementById('disputeAmountInput');
+  const claimedDateInput = document.getElementById('disputeClaimedDateInput');
+  const evidenceInput = document.getElementById('disputeEvidenceInput');
+  const reasonInput = document.getElementById('disputeReasonInput');
+  const filedByInput = document.getElementById('disputeFiledByInput');
+  const statusSelect = document.getElementById('disputeStatusSelect');
+  const approvedAmountInput = document.getElementById('disputeApprovedAmountInput');
+  const resolutionNotesInput = document.getElementById('disputeResolutionNotesInput');
+  const resolvedByInput = document.getElementById('disputeResolvedByInput');
+
+  const prevTicketEl = document.getElementById('disputePreviewTicket');
+  const prevCreditEl = document.getElementById('disputePreviewCredit');
+  const prevNetBalEl = document.getElementById('disputePreviewNetBal');
+  const prevRecEl = document.getElementById('disputePreviewRecommendation');
+
+  const submitBtn = document.getElementById('submitDisputeClaimBtn');
+  const printA4Btn = document.getElementById('printDisputeA4Btn');
+  const printSlipBtn = document.getElementById('printDisputeSlipBtn');
+  const whatsappBtn = document.getElementById('whatsappDisputeBtn');
+  const exportCsvBtn = document.getElementById('exportDisputeCsvBtn');
+  const historyTbody = document.getElementById('disputeHistoryTableBody');
+
+  let currentCustomer = null;
+  let activeClaim = null;
+
+  function recalculatePreview() {
+    if (!currentCustomer) return;
+    const cat = categorySelect ? categorySelect.value : 'unrecorded_payment';
+    const disAmt = amountInput ? Number(amountInput.value) || 0 : 0;
+
+    let appAmt = approvedAmountInput ? Number(approvedAmountInput.value) : 0;
+    if (statusSelect && statusSelect.value === 'APPROVED_FULL') {
+      appAmt = disAmt;
+      if (approvedAmountInput) approvedAmountInput.value = disAmt;
+    } else if (statusSelect && statusSelect.value === 'REJECTED') {
+      appAmt = 0;
+      if (approvedAmountInput) approvedAmountInput.value = 0;
+    }
+
+    const assessment = assessDisputeClaim({
+      category: cat,
+      disputedAmount: disAmt,
+      approvedAmount: appAmt
+    }, currentCustomer);
+
+    if (prevCreditEl) prevCreditEl.textContent = `PKR ${assessment.approvedAmount.toLocaleString()}`;
+    if (prevNetBalEl) prevNetBalEl.textContent = `PKR ${assessment.netProjectedBalance.toLocaleString()}`;
+    if (prevRecEl) prevRecEl.textContent = assessment.recommendation;
+
+    return assessment;
+  }
+
+  function renderHistory() {
+    if (!historyTbody) return;
+    const claims = currentCustomer
+      ? getSavedDisputeClaims(storage, currentCustomer.id)
+      : getSavedDisputeClaims(storage);
+
+    if (!claims.length) {
+      historyTbody.innerHTML = '<tr><td colspan="7" class="text-center empty-muted">No dispute claims recorded for this subscriber yet.</td></tr>';
+      return;
+    }
+
+    historyTbody.innerHTML = claims.map(c => `
+      <tr data-dispute-ticket="${escapeHtml(c.ticketNumber)}">
+        <td class="font-mono font-bold">${escapeHtml(c.ticketNumber)}</td>
+        <td>${escapeHtml((c.createdAt || '').slice(0, 10))}</td>
+        <td>${escapeHtml(c.categoryLabel)}</td>
+        <td class="text-right">PKR ${Number(c.disputedAmount || 0).toLocaleString()}</td>
+        <td class="text-right font-bold" style="color: #047857;">PKR ${Number(c.approvedAmount || 0).toLocaleString()}</td>
+        <td class="text-center"><span class="role-badge ${c.status && c.status.startsWith('APPROVED') ? 'role-primary' : c.status === 'REJECTED' ? 'role-danger' : 'role-warn'}">${escapeHtml(c.status)}</span></td>
+        <td class="text-center">
+          <button type="button" class="action-btn-sm" data-action="print-a4" data-ticket="${escapeHtml(c.ticketNumber)}">A4</button>
+          <button type="button" class="action-btn-sm" data-action="print-slip" data-ticket="${escapeHtml(c.ticketNumber)}">Slip</button>
+          <button type="button" class="action-btn-sm" data-action="wa-ticket" data-ticket="${escapeHtml(c.ticketNumber)}">WhatsApp</button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function open(customer) {
+    currentCustomer = customer || null;
+    activeClaim = null;
+
+    if (custNameEl) custNameEl.textContent = customer?.name || 'Customer Profile';
+    if (custPhoneEl) custPhoneEl.textContent = customer?.phone || 'No phone';
+
+    let bal = 0;
+    if (customer && Array.isArray(customer.bills)) {
+      for (const b of customer.bills) {
+        const d = Number(b.dueAmount) || 0;
+        if (d > 0 && b.status !== 'paid') bal += d;
+      }
+    }
+    if (custBalanceEl) custBalanceEl.textContent = `PKR ${bal.toLocaleString()}`;
+
+    if (billMonthSelect) {
+      billMonthSelect.innerHTML = '<option value="">All / Entire Ledger</option>';
+      if (customer && Array.isArray(customer.bills)) {
+        customer.bills.forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b.month || b.billingMonth || '';
+          opt.textContent = `${b.month || b.billingMonth || 'Month'} (Due: PKR ${Number(b.dueAmount || 0).toLocaleString()})`;
+          billMonthSelect.appendChild(opt);
+        });
+      }
+    }
+
+    if (amountInput) amountInput.value = bal > 0 ? bal : 1500;
+    if (claimedDateInput) claimedDateInput.value = new Date().toISOString().slice(0, 10);
+    if (reasonInput) reasonInput.value = '';
+    if (evidenceInput) evidenceInput.value = '';
+    if (resolutionNotesInput) resolutionNotesInput.value = '';
+
+    const allClaims = getSavedDisputeClaims(storage);
+    const d = new Date();
+    const seq = String(allClaims.length + 1).padStart(4, '0');
+    if (prevTicketEl) prevTicketEl.textContent = `DSP-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}-${seq}`;
+
+    recalculatePreview();
+    renderHistory();
+
+    triggerHaptic('medium');
+    if (typeof modal.showModal === 'function') modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  function close() {
+    if (typeof modal.close === 'function') modal.close();
+    else modal.removeAttribute('open');
+  }
+
+  [categorySelect, amountInput, statusSelect, approvedAmountInput].forEach(inp => {
+    if (inp && !inp.dataset?.wiredDispute) {
+      if (inp.dataset) inp.dataset.wiredDispute = 'true';
+      inp.addEventListener('input', recalculatePreview);
+      inp.addEventListener('change', recalculatePreview);
+    }
+  });
+
+  if (historyTbody && !historyTbody.dataset?.wiredDispute) {
+    if (historyTbody.dataset) historyTbody.dataset.wiredDispute = 'true';
+    historyTbody.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const act = btn.getAttribute('data-action');
+      const ticket = btn.getAttribute('data-ticket');
+      const claim = getSavedDisputeClaims(storage).find(c => c.ticketNumber === ticket);
+      if (!claim) return;
+
+      if (act === 'print-a4') {
+        printDisputeDoc(claim, 'a4');
+      } else if (act === 'print-slip') {
+        printDisputeDoc(claim, 'slip');
+      } else if (act === 'wa-ticket') {
+        const text = formatDisputeClaimWhatsApp(claim);
+        const url = formatWhatsAppUrl(claim.customerPhone, text);
+        if (typeof window !== 'undefined' && typeof window.open === 'function') {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+      }
+    });
+  }
+
+  function printDisputeDoc(claim, fmt) {
+    const html = generateDisputeClaimHtml(claim, { format: fmt });
+    const printWindow = window.open('', '_blank', 'width=800,height=700');
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${claim.ticketNumber} - Dispute Settlement</title>
+          <style>
+            @media print { body { margin: 0; } }
+            body { margin: 20px; font-family: sans-serif; }
+          </style>
+        </head>
+        <body>
+          ${html}
+          <script>window.onload = function() { window.print(); };<\/script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  }
+
+  if (submitBtn && !submitBtn.dataset?.wiredDispute) {
+    if (submitBtn.dataset) submitBtn.dataset.wiredDispute = 'true';
+    submitBtn.addEventListener('click', () => {
+      if (!currentCustomer) {
+        if (typeof onToast === 'function') onToast('Please select a customer first.');
+        return;
+      }
+
+      const validation = validateDisputeClaim({
+        customerId: currentCustomer.id,
+        category: categorySelect?.value,
+        disputedAmount: amountInput?.value,
+        reason: reasonInput?.value,
+        filedBy: filedByInput?.value
+      });
+
+      if (!validation.isValid) {
+        const firstErr = Object.values(validation.errors)[0];
+        if (typeof onToast === 'function') onToast(`Validation Error: ${firstErr}`);
+        return;
+      }
+
+      const allClaims = getSavedDisputeClaims(storage);
+      const claim = buildDisputeClaimRecord({
+        customer: currentCustomer,
+        category: categorySelect.value,
+        disputedAmount: Number(amountInput.value),
+        approvedAmount: approvedAmountInput ? Number(approvedAmountInput.value) : null,
+        reason: reasonInput.value,
+        filedBy: filedByInput ? filedByInput.value : 'Customer',
+        status: statusSelect ? statusSelect.value : 'SUBMITTED',
+        resolvedBy: resolvedByInput ? resolvedByInput.value : 'Saad Accounting',
+        resolutionNotes: resolutionNotesInput ? resolutionNotesInput.value : '',
+        billMonth: billMonthSelect ? billMonthSelect.value : '',
+        claimedDate: claimedDateInput ? claimedDateInput.value : '',
+        evidenceRef: evidenceInput ? evidenceInput.value : '',
+        existingClaimsCount: allClaims.length
+      });
+
+      saveDisputeClaim(claim, storage);
+      activeClaim = claim;
+
+      if (typeof onApplyLedgerCredit === 'function' && claim.status && claim.status.startsWith('APPROVED') && claim.approvedAmount > 0) {
+        onApplyLedgerCredit(claim);
+      }
+
+      triggerHaptic('success');
+      renderHistory();
+      if (typeof onToast === 'function') onToast(`Dispute ticket ${claim.ticketNumber} saved successfully.`);
+    });
+  }
+
+  if (printA4Btn && !printA4Btn.dataset?.wiredDispute) {
+    if (printA4Btn.dataset) printA4Btn.dataset.wiredDispute = 'true';
+    printA4Btn.addEventListener('click', () => {
+      const claim = activeClaim || (currentCustomer ? getSavedDisputeClaims(storage, currentCustomer.id)[0] : null);
+      if (!claim) {
+        if (typeof onToast === 'function') onToast('Submit or select a dispute claim first to print.');
+        return;
+      }
+      printDisputeDoc(claim, 'a4');
+    });
+  }
+
+  if (printSlipBtn && !printSlipBtn.dataset?.wiredDispute) {
+    if (printSlipBtn.dataset) printSlipBtn.dataset.wiredDispute = 'true';
+    printSlipBtn.addEventListener('click', () => {
+      const claim = activeClaim || (currentCustomer ? getSavedDisputeClaims(storage, currentCustomer.id)[0] : null);
+      if (!claim) {
+        if (typeof onToast === 'function') onToast('Submit or select a dispute claim first to print.');
+        return;
+      }
+      printDisputeDoc(claim, 'slip');
+    });
+  }
+
+  if (whatsappBtn && !whatsappBtn.dataset?.wiredDispute) {
+    if (whatsappBtn.dataset) whatsappBtn.dataset.wiredDispute = 'true';
+    whatsappBtn.addEventListener('click', () => {
+      const claim = activeClaim || (currentCustomer ? getSavedDisputeClaims(storage, currentCustomer.id)[0] : null);
+      if (!claim) {
+        if (typeof onToast === 'function') onToast('Submit or select a dispute claim first for WhatsApp.');
+        return;
+      }
+      const text = formatDisputeClaimWhatsApp(claim);
+      const url = formatWhatsAppUrl(claim.customerPhone, text);
+      if (typeof window !== 'undefined' && typeof window.open === 'function') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
+  }
+
+  if (exportCsvBtn && !exportCsvBtn.dataset?.wiredDispute) {
+    if (exportCsvBtn.dataset) exportCsvBtn.dataset.wiredDispute = 'true';
+    exportCsvBtn.addEventListener('click', () => {
+      const all = getSavedDisputeClaims(storage);
+      if (!all.length) {
+        if (typeof onToast === 'function') onToast('No dispute claims found to export.');
+        return;
+      }
+      const csv = generateDisputeClaimsCsv(all);
+      const filename = `shahdara_billing_disputes_${new Date().toISOString().slice(0, 10)}.csv`;
+      downloadCsvFile(filename, csv);
+      if (typeof onToast === 'function') onToast('Billing disputes CSV downloaded.');
+    });
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wiredDispute) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredDispute = 'true';
+    closeBtn.addEventListener('click', close);
+  }
+  if (closeSecondaryBtn && !closeSecondaryBtn.dataset?.wiredDispute) {
+    if (closeSecondaryBtn.dataset) closeSecondaryBtn.dataset.wiredDispute = 'true';
+    closeSecondaryBtn.addEventListener('click', close);
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+
+  modal.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+  });
+
+  return {
+    open,
+    close,
+    refresh: () => {
+      recalculatePreview();
+      renderHistory();
+    },
+    getClaims: (cid = null) => getSavedDisputeClaims(storage, cid)
+  };
+}
+
+/**
+ * Computes aggregated executive metrics and statistics across dispute claims.
+ * @param {Array<Object>} claims
+ * @returns {Object}
+ */
+export function exportDisputeClaimsSummaryStats(claims = []) {
+  const safeList = Array.isArray(claims) ? claims : [];
+  let totalDisputedAmount = 0;
+  let totalApprovedAmount = 0;
+  let pendingCount = 0;
+  let approvedCount = 0;
+  let rejectedCount = 0;
+  const categoryBreakdown = {};
+  const statusCounts = {
+    SUBMITTED: 0,
+    UNDER_INVESTIGATION: 0,
+    APPROVED_FULL: 0,
+    APPROVED_PARTIAL: 0,
+    REJECTED: 0
+  };
+
+  safeList.forEach(c => {
+    const disputed = Number(c.disputedAmount) || 0;
+    const approved = Number(c.approvedAmount) || 0;
+    totalDisputedAmount += disputed;
+    totalApprovedAmount += approved;
+
+    const cat = c.category || 'other';
+    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
+
+    const status = c.status || 'SUBMITTED';
+    if (Object.prototype.hasOwnProperty.call(statusCounts, status)) {
+      statusCounts[status]++;
+    } else {
+      statusCounts[status] = 1;
+    }
+
+    if (status === 'SUBMITTED' || status === 'UNDER_INVESTIGATION') {
+      pendingCount++;
+    } else if (status === 'APPROVED_FULL' || status === 'APPROVED_PARTIAL') {
+      approvedCount++;
+    } else if (status === 'REJECTED') {
+      rejectedCount++;
+    }
+  });
+
+  const recoveryRate = totalDisputedAmount > 0
+    ? Math.round((totalApprovedAmount / totalDisputedAmount) * 1000) / 10
+    : 0;
+
+  return {
+    totalClaims: safeList.length,
+    totalDisputedAmount,
+    totalApprovedAmount,
+    pendingCount,
+    approvedCount,
+    rejectedCount,
+    statusCounts,
+    categoryBreakdown,
+    recoveryRate
+  };
+}
+
+/**
+ * Filters dispute claims according to criteria (status, category, text search).
+ * @param {Array<Object>} claims
+ * @param {Object} [filters]
+ * @returns {Array<Object>}
+ */
+export function filterDisputeClaims(claims = [], { status = 'all', category = 'all', search = '' } = {}) {
+  const safeList = Array.isArray(claims) ? claims : [];
+  const normalizedSearch = String(search || '').trim().toLowerCase();
+
+  return safeList.filter(claim => {
+    if (status && status !== 'all' && claim.status !== status) {
+      return false;
+    }
+    if (category && category !== 'all' && claim.category !== category) {
+      return false;
+    }
+    if (normalizedSearch) {
+      const matchTicket = String(claim.ticketNumber || '').toLowerCase().includes(normalizedSearch);
+      const matchName = String(claim.customerName || '').toLowerCase().includes(normalizedSearch);
+      const matchPhone = String(claim.customerPhone || '').toLowerCase().includes(normalizedSearch);
+      const matchReason = String(claim.reason || '').toLowerCase().includes(normalizedSearch);
+      if (!matchTicket && !matchName && !matchPhone && !matchReason) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+

@@ -5350,3 +5350,368 @@ test('DOM and styling: index.html, styles.css, and app.js wire LAN Ethernet Cabl
   assert.match(appJs, /customerEthernetCertModalController/);
   assert.match(appJs, /openEthernetCertBtn/);
 });
+
+test('calculateReflectanceFromOrl and calculateOrlFromReflectance convert correctly', async () => {
+  const { calculateReflectanceFromOrl, calculateOrlFromReflectance } = await import('../form-validation.js');
+
+  const r60 = calculateReflectanceFromOrl(60);
+  assert.equal(r60.orlDb, 60);
+  assert.equal(r60.reflectanceDb, -60);
+  assert.equal(r60.reflectancePpm, 1);
+  assert.equal(r60.opticalPowerReturnedPercent, 0.0001);
+
+  const r50 = calculateReflectanceFromOrl(50);
+  assert.equal(r50.reflectanceDb, -50);
+  assert.equal(r50.reflectancePpm, 10);
+
+  const orlBack = calculateOrlFromReflectance(-60);
+  assert.equal(orlBack, 60);
+
+  // Clamping and invalid inputs
+  assert.equal(calculateReflectanceFromOrl(null).orlDb, 0);
+  assert.equal(calculateReflectanceFromOrl('invalid').orlDb, 0);
+  assert.equal(calculateOrlFromReflectance(null), 0);
+});
+
+test('evaluateOrlReflectance evaluates SC/APC, SC/UPC, defects and DFB laser stability', async () => {
+  const { evaluateOrlReflectance } = await import('../form-validation.js');
+
+  // Pristine SC/APC at 65 dB
+  const evalApcPass = evaluateOrlReflectance({
+    polish: 'SC_APC',
+    measuredOrlDb: 65,
+    defects: []
+  });
+  assert.equal(evalApcPass.orlPassed, true);
+  assert.equal(evalApcPass.iecEndfacePassed, true);
+  assert.equal(evalApcPass.overallPass, true);
+  assert.equal(evalApcPass.qualityGrade, 'GRADE_A');
+  assert.equal(evalApcPass.laserStabilityRisk, 'NEGLIGIBLE');
+
+  // Marginal SC/APC at 32 dB (below 35 dB floor)
+  const evalApcFail = evaluateOrlReflectance({
+    polish: 'SC_APC',
+    measuredOrlDb: 32,
+    defects: []
+  });
+  assert.equal(evalApcFail.orlPassed, false);
+  assert.equal(evalApcFail.overallPass, false);
+  assert.ok(evalApcFail.marginDb < 0);
+
+  // Critical Core Scratch on SC/APC
+  const evalDefectFail = evaluateOrlReflectance({
+    polish: 'SC_APC',
+    measuredOrlDb: 62,
+    defects: ['CORE_SCRATCH']
+  });
+  assert.equal(evalDefectFail.iecEndfacePassed, false);
+  assert.equal(evalDefectFail.overallPass, false);
+  assert.equal(evalDefectFail.qualityGrade, 'GRADE_D');
+  assert.equal(evalDefectFail.laserStabilityRisk, 'CRITICAL');
+  assert.ok(evalDefectFail.actionRequired.includes('Re-cleave and re-splice') || evalDefectFail.actionRequired.includes('re-splice'));
+
+  // SC/UPC at 52 dB with mild dust
+  const evalUpcPass = evaluateOrlReflectance({
+    polish: 'SC_UPC',
+    measuredOrlDb: 52,
+    defects: ['DUST_SPECS']
+  });
+  assert.equal(evalUpcPass.overallPass, false); // requires cleaning
+  assert.equal(evalUpcPass.qualityGrade, 'GRADE_C');
+});
+
+test('validateOrlCertInput validates input data bounds and required fields', async () => {
+  const { validateOrlCertInput } = await import('../form-validation.js');
+
+  const validRes = validateOrlCertInput({
+    customerName: 'Muhammad Tariq',
+    technicianName: 'Lineman Sajid',
+    measuredOrlDb: 62.5
+  });
+  assert.equal(validRes.valid, true);
+  assert.equal(validRes.errors.length, 0);
+
+  const missingRes = validateOrlCertInput({});
+  assert.equal(missingRes.valid, false);
+  assert.ok(missingRes.errors.some(e => e.includes('Customer name')));
+  assert.ok(missingRes.errors.some(e => e.includes('Technician name')));
+
+  const outOfBoundsRes = validateOrlCertInput({
+    customerName: 'Tariq',
+    technicianName: 'Sajid',
+    measuredOrlDb: 105
+  });
+  assert.equal(outOfBoundsRes.valid, false);
+  assert.ok(outOfBoundsRes.errors.some(e => e.includes('Measured ORL')));
+});
+
+test('buildOrlCertRecord generates structured record with unique ID and evaluation', async () => {
+  const { buildOrlCertRecord, generateOrlCertId } = await import('../form-validation.js');
+
+  const id = generateOrlCertId(42);
+  assert.match(id, /^ORL-\d{6}-0043$/);
+
+  const record = buildOrlCertRecord({
+    customerId: 'CUST-TEST-01',
+    customerName: 'Kashif Mehmood',
+    customerPhone: '+92 300 1234567',
+    customerArea: 'Begum Kot, Shahdara',
+    polish: 'SC_APC',
+    measuredOrlDb: 63.8,
+    wavelengthNm: 1550,
+    technicianName: 'Splicer Hamza',
+    defects: [],
+    notes: 'Pre-activation inspection at FAT-04'
+  }, 10);
+
+  assert.equal(record.id, generateOrlCertId(10));
+  assert.equal(record.customerName, 'Kashif Mehmood');
+  assert.equal(record.customerArea, 'Begum Kot, Shahdara');
+  assert.equal(record.polish, 'SC_APC');
+  assert.equal(record.polishName, 'SC/APC (Green Angled 8°)');
+  assert.equal(record.overallPass, true);
+  assert.equal(record.qualityGrade, 'GRADE_A');
+  assert.equal(record.status, 'CERTIFIED_PASS');
+  assert.ok(record.evaluation);
+  assert.ok(record.isoStandard.includes('IEC 61300-3-35'));
+});
+
+test('getSavedOrlCerts, saveOrlCert, updateOrlCertStatus, clearOrlCerts and calculateOrlCertMetrics perform CRUD', async () => {
+  const {
+    saveOrlCert,
+    getSavedOrlCerts,
+    updateOrlCertStatus,
+    clearOrlCerts,
+    calculateOrlCertMetrics,
+    buildOrlCertRecord
+  } = await import('../form-validation.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] ?? null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  const rec1 = buildOrlCertRecord({
+    customerId: 'CUST-101',
+    customerName: 'Zahid Hussain',
+    customerPhone: '+92 321 9988776',
+    customerArea: 'Saeed Park',
+    polish: 'SC_APC',
+    measuredOrlDb: 64,
+    technicianName: 'Splicer Bilal',
+    defects: []
+  }, 0);
+
+  const rec2 = buildOrlCertRecord({
+    customerId: 'CUST-102',
+    customerName: 'Imran Ashraf',
+    customerPhone: '+92 333 4455667',
+    customerArea: 'Yousaf Park',
+    polish: 'SC_UPC',
+    measuredOrlDb: 40, // Fails SC_UPC 50dB
+    technicianName: 'Splicer Bilal',
+    defects: ['CORE_SCRATCH']
+  }, 1);
+
+  saveOrlCert(mockStorage, rec1);
+  saveOrlCert(mockStorage, rec2);
+
+  const listAll = getSavedOrlCerts(mockStorage);
+  assert.equal(listAll.length, 2);
+
+  // Filter by customerId
+  const cust101 = getSavedOrlCerts(mockStorage, 'CUST-101');
+  assert.equal(cust101.length, 1);
+  assert.equal(cust101[0].customerName, 'Zahid Hussain');
+
+  // Metrics
+  const metrics = calculateOrlCertMetrics(listAll);
+  assert.equal(metrics.total, 2);
+  assert.equal(metrics.passCount, 1);
+  assert.equal(metrics.failCount, 1);
+  assert.equal(metrics.passRatePercent, 50);
+  assert.equal(metrics.averageOrlDb, 44.5); // (64 + 25) / 2
+
+  // Update status after cleaning & re-test
+  const updated = updateOrlCertStatus(mockStorage, rec2.id, 'CLEANED_RETEST_PASS', 'Cleaned endface with IPA swab and re-measured');
+  assert.equal(updated.status, 'CLEANED_RETEST_PASS');
+  assert.equal(updated.overallPass, true);
+
+  const retestedMetrics = calculateOrlCertMetrics(getSavedOrlCerts(mockStorage));
+  assert.equal(retestedMetrics.passCount, 2);
+  assert.equal(retestedMetrics.passRatePercent, 100);
+
+  // Clear
+  clearOrlCerts(mockStorage);
+  assert.deepEqual(getSavedOrlCerts(mockStorage), []);
+});
+
+test('formatOrlCertWhatsApp formats bilingual notification for technician and customer', async () => {
+  const { buildOrlCertRecord, formatOrlCertWhatsApp } = await import('../form-validation.js');
+
+  const rec = buildOrlCertRecord({
+    customerId: 'CUST-WA-01',
+    customerName: 'Chaudhry Nadeem',
+    customerPhone: '+92 300 5544332',
+    customerArea: 'Jia Musa, Shahdara',
+    polish: 'SC_APC',
+    measuredOrlDb: 66.2,
+    technicianName: 'Master Splicer Ali',
+    defects: []
+  }, 5);
+
+  const wa = formatOrlCertWhatsApp(rec);
+  assert.ok(wa.includes('SHAHDARA ISP - OPTICAL RETURN LOSS & ENDFACE QA CERTIFICATE'));
+  assert.ok(wa.includes('مصدقہ معیاری صاف ریفلیکٹنس'));
+  assert.ok(wa.includes('Chaudhry Nadeem'));
+  assert.ok(wa.includes('Jia Musa, Shahdara'));
+  assert.ok(wa.includes('SC/APC (Green Angled 8°)'));
+  assert.ok(wa.includes('Master Splicer Ali'));
+  assert.ok(wa.includes('Certified Pristine') || wa.includes('CERTIFIED_PRISTINE'));
+});
+
+test('generateOrlCertHtml produces A4 ISO/IEC and 80mm thermal slip layouts', async () => {
+  const { buildOrlCertRecord, generateOrlCertHtml } = await import('../form-validation.js');
+
+  const rec = buildOrlCertRecord({
+    customerId: 'CUST-PRINT-01',
+    customerName: 'Malik Rizwan',
+    customerPhone: '+92 321 7766554',
+    customerArea: 'Rehman Park, Shahdara',
+    polish: 'SC_APC',
+    measuredOrlDb: 61.5,
+    technicianName: 'Splicer Usman',
+    defects: ['DUST_SPECS']
+  }, 12);
+
+  // A4 Layout
+  const htmlA4 = generateOrlCertHtml(rec, { format: 'a4' });
+  assert.ok(htmlA4.includes('SHAHDARA FIBER NETWORKS &amp; BROADBAND'));
+  assert.ok(htmlA4.includes('IEC 61300-3-35 CERTIFICATE'));
+  assert.ok(htmlA4.includes('Malik Rizwan'));
+  assert.ok(htmlA4.includes('Splicer Usman'));
+  assert.ok(htmlA4.includes('IEC 61300-3-35 Ferrule Endface Inspection Breakdown'));
+  assert.ok(htmlA4.includes('Zone A (Core)'));
+
+  // Thermal Slip
+  const htmlSlip = generateOrlCertHtml(rec, { format: 'slip' });
+  assert.ok(htmlSlip.includes('SHAHDARA BROADBAND'));
+  assert.ok(htmlSlip.includes('Optical Return Loss &amp; Endface QA Slip'));
+  assert.ok(htmlSlip.includes('Malik Rizwan'));
+  assert.ok(htmlSlip.includes('SC/APC'));
+});
+
+test('generateOrlCertsCsv outputs RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { buildOrlCertRecord, generateOrlCertsCsv } = await import('../form-validation.js');
+
+  const rec1 = buildOrlCertRecord({
+    customerId: 'C-01',
+    customerName: 'Ali, Khan & Co.',
+    customerPhone: '+92 300 1112233',
+    customerArea: 'Shahdara Town',
+    polish: 'SC_APC',
+    measuredOrlDb: 63,
+    technicianName: 'Splicer Bilal'
+  }, 0);
+
+  const csv = generateOrlCertsCsv([rec1]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Certificate ID,Date,Customer ID'));
+  assert.ok(csv.includes('"Ali, Khan & Co."'));
+  assert.ok(csv.includes('Shahdara Town'));
+  assert.ok(csv.includes('SC/APC (Green Angled 8°)'));
+});
+
+test('renderFerruleEndfaceSvg renders 4 concentric IEC zones and angle indicator', async () => {
+  const { renderFerruleEndfaceSvg, evaluateOrlReflectance } = await import('../form-validation.js');
+
+  const evalRes = evaluateOrlReflectance({
+    polish: 'SC_APC',
+    measuredOrlDb: 64,
+    defects: ['CORE_SCRATCH', 'DUST_SPECS']
+  });
+
+  const svg = renderFerruleEndfaceSvg(evalRes);
+  assert.ok(svg.includes('<svg class="ferrule-endface-svg"'));
+  assert.ok(svg.includes('IEC 61300-3-35'));
+  assert.ok(svg.includes('OPTICAL RETURN LOSS'));
+  assert.ok(svg.includes('QA VERDICT'));
+});
+
+test('setupOrlCertModal controller initializes safely and handles events', async () => {
+  const { setupOrlCertModal } = await import('../form-validation.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] ?? null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  const controller = setupOrlCertModal({
+    storage: mockStorage,
+    getState: () => ({
+      customers: [
+        { id: 'CUST-10', name: 'Tanveer Ahmed', phone: '+92 300 9988776', area: 'Vandala Road' }
+      ]
+    })
+  });
+
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.refresh, 'function');
+  assert.equal(typeof controller.setPolish, 'function');
+  assert.equal(typeof controller.setMeasuredOrl, 'function');
+  assert.equal(typeof controller.addDefect, 'function');
+
+  // Calling without DOM attached is completely safe and returns controller
+  assert.equal(controller.open('CUST-10'), controller);
+  assert.equal(controller.setPolish('SC_UPC'), controller);
+  assert.equal(controller.setMeasuredOrl(55), controller);
+  assert.equal(controller.addDefect('OIL_SMUDGE'), controller);
+  assert.equal(controller.refresh(), controller);
+  assert.equal(controller.close(), controller);
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire ORL & Reflectance QA Certificate', () => {
+  const freshIndex = read('index.html');
+  const freshStyles = read('styles.css');
+  const freshApp = read('app.js');
+
+  // Trigger button
+  assert.match(freshIndex, /id="openOrlCertBtn"/);
+  assert.match(freshIndex, /data-open-orl-cert/);
+
+  // Modal dialog & inputs
+  assert.match(freshIndex, /<dialog id="orlCertModal"/);
+  assert.match(freshIndex, /id="closeOrlCertModalBtn"/);
+  assert.match(freshIndex, /id="orlKpiEffectiveOrl"/);
+  assert.match(freshIndex, /id="orlKpiReflectance"/);
+  assert.match(freshIndex, /id="orlKpiLaserRisk"/);
+  assert.match(freshIndex, /id="orlKpiVerdict"/);
+  assert.match(freshIndex, /id="orlFerruleSvgContainer"/);
+  assert.match(freshIndex, /id="orlCustomerSelect"/);
+  assert.match(freshIndex, /id="orlTechInput"/);
+  assert.match(freshIndex, /id="orlPolishSelect"/);
+  assert.match(freshIndex, /id="orlDefectSelect"/);
+  assert.match(freshIndex, /id="orlMeasuredSlider"/);
+  assert.match(freshIndex, /id="orlMeasuredInput"/);
+  assert.match(freshIndex, /id="orlNotesInput"/);
+  assert.match(freshIndex, /id="orlSaveBtn"/);
+  assert.match(freshIndex, /id="orlPrintBtn"/);
+  assert.match(freshIndex, /id="orlWhatsAppBtn"/);
+  assert.match(freshIndex, /id="orlCsvBtn"/);
+  assert.match(freshIndex, /id="orlHistoryList"/);
+
+  // Styles
+  assert.match(freshStyles, /\.orl-cert-modal-card/);
+  assert.match(freshStyles, /\.ferrule-endface-svg/);
+  assert.match(freshStyles, /\[data-theme="dark"\] \.orl-cert-modal-card/);
+
+  // App.js
+  assert.match(freshApp, /setupOrlCertModal/);
+  assert.match(freshApp, /customerOrlCertModalController/);
+  assert.match(freshApp, /openOrlCertBtn/);
+});

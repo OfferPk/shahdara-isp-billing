@@ -12035,3 +12035,28 @@ export function setupEthernetCertModal(options = {}) {
     recalculate
   };
 }
+
+export {
+  ORL_CERT_STORAGE_KEY,
+  ORL_CONNECTOR_POLISHES,
+  ORL_END_FACE_ZONES,
+  ORL_DEFECT_TYPES,
+  ORL_VERDICTS,
+  calculateReflectanceFromOrl,
+  calculateOrlFromReflectance,
+  evaluateOrlReflectance,
+  generateOrlCertId,
+  validateOrlCertification,
+  validateOrlCertInput,
+  buildOrlCertRecord,
+  getSavedOrlCerts,
+  saveOrlCert,
+  updateOrlCertStatus,
+  clearOrlCerts,
+  calculateOrlCertMetrics,
+  formatOrlCertWhatsApp,
+  generateOrlCertHtml,
+  generateOrlCertsCsv,
+  renderFerruleEndfaceSvg,
+  setupOrlCertModal
+} from './qa-orl-reflectance.js';

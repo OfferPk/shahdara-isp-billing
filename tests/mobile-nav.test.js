@@ -4764,3 +4764,224 @@ test('mobile OTDR trace UI elements are wired in index.html, nav.css, and app.js
   assert.match(appJs, /setupMobileOtdrTraceModal/);
   assert.match(appJs, /mobileOtdrTraceModalController/);
 });
+
+/* ==========================================================================
+   FIELD TECHNICIAN GPS BREADCRUMBS & GEOFENCING SUITE TESTS
+   ========================================================================== */
+
+test('nav-gps-tracking haversineDistanceMeters and calculateBearingDegrees calculate geometry correctly', async () => {
+  const {
+    haversineDistanceMeters,
+    calculateBearingDegrees,
+    SHAHDARA_FIELD_NODES
+  } = await import('../nav-gps-tracking.js');
+
+  // Verify node structure
+  assert.ok(SHAHDARA_FIELD_NODES.length >= 5);
+  const odf = SHAHDARA_FIELD_NODES.find(n => n.id === 'node-central-odf');
+  const baradari = SHAHDARA_FIELD_NODES.find(n => n.id === 'node-baradari-splice');
+  assert.ok(odf);
+  assert.ok(baradari);
+
+  // Distance between ODF and Baradari (approx 1.5 - 1.6 km)
+  const dist = haversineDistanceMeters(odf.lat, odf.lng, baradari.lat, baradari.lng);
+  assert.ok(dist > 1400 && dist < 1700, `Expected ~1550m, got ${dist}m`);
+
+  // Same coordinates yield zero distance
+  assert.equal(haversineDistanceMeters(odf.lat, odf.lng, odf.lat, odf.lng), 0);
+
+  // Bearing calculation
+  const bearing = calculateBearingDegrees(odf.lat, odf.lng, baradari.lat, baradari.lng);
+  assert.ok(bearing >= 0 && bearing <= 360);
+
+  // Invalid coordinates fail safe
+  assert.equal(haversineDistanceMeters(null, 74.2, 31.6, 74.2), 0);
+  assert.equal(calculateBearingDegrees('invalid', 74.2, 31.6, 74.2), 0);
+});
+
+test('nav-gps-tracking evaluateNodeGeofence and findNearestFieldNode detect proximity and perimeter', async () => {
+  const {
+    evaluateNodeGeofence,
+    findNearestFieldNode,
+    SHAHDARA_FIELD_NODES
+  } = await import('../nav-gps-tracking.js');
+
+  const odf = SHAHDARA_FIELD_NODES.find(n => n.id === 'node-central-odf');
+
+  // Fix right at ODF (0m distance)
+  const fenceInside = evaluateNodeGeofence(odf.lat, odf.lng, odf);
+  assert.equal(fenceInside.isInside, true);
+  assert.equal(fenceInside.distanceMeters, 0);
+
+  // Fix 500m away
+  const fenceFar = evaluateNodeGeofence(odf.lat + 0.005, odf.lng, odf);
+  assert.equal(fenceFar.isInside, false);
+  assert.ok(fenceFar.distanceMeters > 400);
+
+  // Find nearest node
+  const nearest = findNearestFieldNode(odf.lat + 0.0001, odf.lng + 0.0001);
+  assert.equal(nearest.node.id, 'node-central-odf');
+  assert.equal(nearest.isWithinGeofence, true);
+  assert.ok(nearest.distanceMeters < 30);
+});
+
+test('nav-gps-tracking storage persistence and recordGpsBreadcrumb filter accuracy', async () => {
+  const {
+    getGpsBreadcrumbsStore,
+    saveGpsBreadcrumbsStore,
+    recordGpsBreadcrumb,
+    clearGpsBreadcrumbsStore
+  } = await import('../nav-gps-tracking.js');
+
+  const fakeStorageData = {};
+  const mockStorage = {
+    getItem(key) { return fakeStorageData[key] || null; },
+    setItem(key, val) { fakeStorageData[key] = String(val); },
+    removeItem(key) { delete fakeStorageData[key]; }
+  };
+
+  // Initially empty
+  assert.deepEqual(getGpsBreadcrumbsStore(mockStorage), []);
+
+  // Record valid breadcrumb
+  const rec1 = recordGpsBreadcrumb({
+    lat: 31.6215,
+    lng: 74.2820,
+    accuracy: 15,
+    speed: 22,
+    batteryLevel: 80,
+    technicianId: 'TECH-RAZA-01',
+    activeOrderId: 'WO-FIBER-101'
+  }, mockStorage);
+
+  assert.equal(rec1.success, true);
+  assert.ok(rec1.point.id);
+  assert.equal(rec1.point.isInsideGeofence, true);
+
+  const list = getGpsBreadcrumbsStore(mockStorage);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].technicianId, 'TECH-RAZA-01');
+
+  // Record fix with excessive inaccuracy (> 75m)
+  const recBad = recordGpsBreadcrumb({
+    lat: 31.625,
+    lng: 74.285,
+    accuracy: 120
+  }, mockStorage);
+  assert.equal(recBad.success, false);
+  assert.ok(recBad.reason.includes('exceeds threshold'));
+  assert.equal(getGpsBreadcrumbsStore(mockStorage).length, 1);
+
+  // Clear storage
+  clearGpsBreadcrumbsStore(mockStorage);
+  assert.equal(getGpsBreadcrumbsStore(mockStorage).length, 0);
+});
+
+test('nav-gps-tracking calculateBreadcrumbMetrics computes telemetry stats and battery drain', async () => {
+  const { calculateBreadcrumbMetrics } = await import('../nav-gps-tracking.js');
+
+  const samplePoints = [
+    {
+      id: 'fix-1',
+      lat: 31.6215,
+      lng: 74.2820,
+      speed: 15,
+      batteryLevel: 90,
+      timestamp: '2026-10-16T10:00:00.000Z',
+      isInsideGeofence: true
+    },
+    {
+      id: 'fix-2',
+      lat: 31.6240,
+      lng: 74.2850,
+      speed: 25,
+      batteryLevel: 88,
+      timestamp: '2026-10-16T10:10:00.000Z',
+      isInsideGeofence: false
+    },
+    {
+      id: 'fix-3',
+      lat: 31.6292,
+      lng: 74.2745,
+      speed: 20,
+      batteryLevel: 85,
+      timestamp: '2026-10-16T10:25:00.000Z',
+      isInsideGeofence: true
+    }
+  ];
+
+  const metrics = calculateBreadcrumbMetrics(samplePoints);
+  assert.equal(metrics.totalFixes, 3);
+  assert.ok(metrics.totalDistanceMeters > 500);
+  assert.equal(metrics.averageSpeedKmh, 20);
+  assert.equal(metrics.durationMinutes, 25);
+  assert.equal(metrics.batteryDrainPercent, 5); // 90 - 85
+  assert.equal(metrics.geofenceEncounters, 2);
+
+  // Empty list returns defaults
+  const emptyMetrics = calculateBreadcrumbMetrics([]);
+  assert.equal(emptyMetrics.totalFixes, 0);
+  assert.equal(emptyMetrics.totalDistanceMeters, 0);
+});
+
+test('nav-gps-tracking generateTechnicianLocationShare and renderMobileGpsBreadcrumbsSvg produce expected outputs', async () => {
+  const {
+    generateTechnicianLocationShare,
+    renderMobileGpsBreadcrumbsSvg,
+    SHAHDARA_FIELD_NODES
+  } = await import('../nav-gps-tracking.js');
+
+  const odf = SHAHDARA_FIELD_NODES[0];
+  const fix = {
+    lat: 31.6215,
+    lng: 74.2820,
+    technicianId: 'TECH-ASIF-02',
+    activeOrderId: 'WO-FIBER-884',
+    batteryLevel: 78,
+    accuracy: 8,
+    timestamp: '2026-10-16T11:30:00.000Z'
+  };
+
+  const shareText = generateTechnicianLocationShare(fix, odf, 'WO-FIBER-884');
+  assert.ok(shareText.includes('TECH-ASIF-02'));
+  assert.ok(shareText.includes('WO-FIBER-884'));
+  assert.ok(shareText.includes('Shahdara Central ODF'));
+  assert.ok(shareText.includes('https://maps.google.com/?q=31.6215,74.282'));
+
+  // SVG rendering
+  const svg = renderMobileGpsBreadcrumbsSvg([fix]);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('SHAHDARA OSP FIELD RADAR'));
+  assert.ok(svg.includes('LIVE TECH'));
+  assert.ok(svg.includes('SHAH-ODF-01'));
+});
+
+test('mobile GPS breadcrumbs UI elements are wired in index.html, nav.css, and app.js', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // Trigger buttons
+  assert.match(indexHtml, /id="navGpsBreadcrumbsBtn"/);
+  assert.match(indexHtml, /data-nav-badge="gps-breadcrumbs"/);
+  assert.match(indexHtml, /id="mobileMoreGpsBreadcrumbsBtn"/);
+  assert.match(indexHtml, /id="actionSheetGpsBreadcrumbsBtn"/);
+  assert.match(indexHtml, /id="speedDialGpsBreadcrumbsBtn"/);
+
+  // Modal dialog
+  assert.match(indexHtml, /<dialog id="mobileGpsBreadcrumbsModal"/);
+  assert.match(indexHtml, /id="gpsStatFixes"/);
+  assert.match(indexHtml, /id="gpsModalSvgContainer"/);
+  assert.match(indexHtml, /id="btnGpsMockPing"/);
+  assert.match(indexHtml, /id="btnGpsShareLocation"/);
+
+  // Styles
+  assert.match(navCss, /\.gps-breadcrumbs-modal/);
+  assert.match(navCss, /\.gps-breadcrumbs-svg/);
+  assert.match(navCss, /\.gps-badge-in/);
+
+  // App.js
+  assert.match(appJs, /setupMobileGpsBreadcrumbsModal/);
+  assert.match(appJs, /mobileGpsBreadcrumbsModalController/);
+});
+

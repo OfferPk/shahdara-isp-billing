@@ -38,7 +38,8 @@ import {
   setupSpliceInspectionModal,
   setupPlanMigrationModal,
   setupOpticalAcceptanceModal,
-  setupDropSafetyInspectionModal
+  setupDropSafetyInspectionModal,
+  setupEthernetCertModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3284,6 +3285,7 @@ export let customerSpliceInspectionModalController;
 export let customerPlanMigrationModalController;
 export let customerOpticalAcceptanceModalController;
 export let customerDropSafetyModalController;
+export let customerEthernetCertModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3465,6 +3467,20 @@ if (typeof document !== 'undefined') {
     openDropInspectionBtn.addEventListener('click', () => {
       const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
       customerDropSafetyModalController?.open(cust);
+    });
+  }
+
+  customerEthernetCertModalController = setupEthernetCertModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openEthernetCertBtn = $('#openEthernetCertBtn');
+  if (openEthernetCertBtn) {
+    openEthernetCertBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      customerEthernetCertModalController?.open(cust);
     });
   }
 }

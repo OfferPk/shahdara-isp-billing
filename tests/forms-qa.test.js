@@ -5005,3 +5005,348 @@ test('DOM and styling: index.html, styles.css, and app.js wire Drop Tension & Sa
   assert.match(appJs, /openDropInspectionBtn/);
 });
 
+test('evaluateEthernetWireMap evaluates straight-through, open, short, split-pair, and reversed polarity faults', async () => {
+  const {
+    evaluateEthernetWireMap,
+    WIRING_STANDARDS
+  } = await import('../form-validation.js');
+
+  // Straight-through T568B
+  const straightB = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'NONE' });
+  assert.equal(straightB.pass, true);
+  assert.equal(straightB.gigabitSupported, true);
+  assert.equal(straightB.wireMapGrade, 'STRAIGHT_THROUGH_PASS');
+  assert.equal(straightB.pinMap.length, 8);
+  assert.equal(straightB.pinMap[0].color, 'White/Orange');
+  assert.equal(straightB.pinMap[0].farPin, 1);
+  assert.equal(straightB.pinMap[7].color, 'Brown');
+  assert.equal(straightB.pinMap[7].farPin, 8);
+
+  // T568A Pin 1 is White/Green
+  const straightA = evaluateEthernetWireMap({ standard: 'T568A', faultType: 'NONE' });
+  assert.equal(straightA.pinMap[0].color, 'White/Green');
+  assert.equal(straightA.pinMap[1].color, 'Green');
+
+  // Open conductor pin 4
+  const open4 = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'OPEN_PIN_4' });
+  assert.equal(open4.pass, false);
+  assert.equal(open4.gigabitSupported, false);
+  assert.equal(open4.wireMapGrade, 'OPEN_FAULT');
+  assert.equal(open4.pinMap[3].status, 'OPEN');
+  assert.equal(open4.pinMap[3].farPin, null);
+
+  // Open pair 4 (pins 7 & 8)
+  const open78 = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'OPEN_PIN_7_8' });
+  assert.equal(open78.pass, false);
+  assert.equal(open78.gigabitSupported, false);
+  assert.equal(open78.wireMapGrade, 'OPEN_FAULT_GIGABIT_DROPPED');
+
+  // Short circuit pins 1 & 2
+  const short12 = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'SHORT_PINS_1_2' });
+  assert.equal(short12.pass, false);
+  assert.equal(short12.wireMapGrade, 'SHORT_FAULT');
+  assert.equal(short12.pinMap[0].status, 'SHORT');
+
+  // Split pair
+  const splitPair = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'SPLIT_PAIR_3_6' });
+  assert.equal(splitPair.pass, false);
+  assert.equal(splitPair.wireMapGrade, 'SPLIT_PAIR_FAULT');
+
+  // Reversed polarity
+  const reversed = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'REVERSED_PAIR_2' });
+  assert.equal(reversed.pass, false);
+  assert.equal(reversed.wireMapGrade, 'REVERSED_PAIR');
+  assert.equal(reversed.pinMap[0].farPin, 2);
+  assert.equal(reversed.pinMap[1].farPin, 1);
+
+  // Crossover
+  const crossover = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'CROSSOVER' });
+  assert.equal(crossover.pass, true);
+  assert.equal(crossover.wireMapGrade, 'CROSSOVER_MDIX');
+});
+
+test('calculateEthernetTransmission computes insertion loss, return loss, NEXT, propagation delay, and link speed', async () => {
+  const {
+    calculateEthernetTransmission,
+    evaluateEthernetWireMap
+  } = await import('../form-validation.js');
+
+  // Cat6 at 25 meters, clean wire map
+  const cleanMap = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'NONE' });
+  const transCat6 = calculateEthernetTransmission({
+    cableGrade: 'CAT6',
+    lengthMeters: 25,
+    wireMapResult: cleanMap,
+    planSpeedMbps: 100
+  });
+
+  assert.equal(transCat6.cableGrade, 'CAT6');
+  assert.equal(transCat6.lengthMeters, 25);
+  assert.equal(transCat6.insertionLossDb, 4.95); // 25 * 0.198
+  assert.ok(transCat6.returnLossDb >= 19.0);
+  assert.ok(transCat6.nextMarginDb >= 35.0);
+  assert.ok(transCat6.propagationDelayNs > 0);
+  assert.ok(transCat6.delaySkewNs <= 50.0);
+  assert.equal(transCat6.speedMbps, 1000);
+  assert.equal(transCat6.isBottleneck, false);
+  assert.equal(transCat6.verdictKey, 'FLUKE_CERTIFIED_PASS');
+  assert.equal(transCat6.isCertified, true);
+
+  // Excessive length (> 100m)
+  const transLong = calculateEthernetTransmission({
+    cableGrade: 'CAT6',
+    lengthMeters: 120,
+    wireMapResult: cleanMap,
+    planSpeedMbps: 100
+  });
+  assert.equal(transLong.isLengthExceeded, true);
+  assert.equal(transLong.verdictKey, 'FAILED_TERMINATION_FAULT');
+
+  // Faulty wiring dropping gigabit to 100 Mbps on a 200 Mbps plan
+  const faultMap = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'OPEN_PIN_7_8' });
+  const transBottleneck = calculateEthernetTransmission({
+    cableGrade: 'CAT6',
+    lengthMeters: 20,
+    wireMapResult: faultMap,
+    planSpeedMbps: 200
+  });
+  assert.equal(transBottleneck.speedMbps, 100);
+  assert.equal(transBottleneck.isBottleneck, true);
+  assert.ok(transBottleneck.bottleneckNotice.includes('200 Mbps'));
+
+  // Cat5 legacy cable capped at 100 Mbps
+  const transCat5 = calculateEthernetTransmission({
+    cableGrade: 'CAT5',
+    lengthMeters: 30,
+    wireMapResult: cleanMap,
+    planSpeedMbps: 50
+  });
+  assert.equal(transCat5.speedMbps, 100);
+});
+
+test('validateEthernetCertification and buildEthernetCertRecord validate inputs and produce sequential IDs', async () => {
+  const {
+    validateEthernetCertification,
+    buildEthernetCertRecord
+  } = await import('../form-validation.js');
+
+  // Validation
+  const invalid = validateEthernetCertification({});
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.errors.customerId);
+  assert.ok(invalid.errors.technicianName);
+
+  const valid = validateEthernetCertification({
+    customerId: 'CUST-001',
+    technicianName: 'Lineman Bilal',
+    lengthMeters: 35
+  });
+  assert.equal(valid.valid, true);
+
+  // Record builder
+  const record = buildEthernetCertRecord({
+    customerId: 'CUST-BAR-042',
+    customerName: 'Muhammad Arshad',
+    customerPhone: '+92 300 9876543',
+    customerArea: 'Baradari Road',
+    technicianName: 'Lineman Asif',
+    cableGrade: 'CAT6',
+    lengthMeters: 30,
+    wiringStandard: 'T568B',
+    faultType: 'NONE',
+    planSpeedMbps: 100,
+    timestamp: '2026-10-16T12:00:00.000Z'
+  }, 4);
+
+  assert.equal(record.id, 'ETH-202610-0005');
+  assert.equal(record.customerName, 'Muhammad Arshad');
+  assert.equal(record.cableGrade, 'CAT6');
+  assert.equal(record.lengthMeters, 30);
+  assert.equal(record.verdict, 'FLUKE_CERTIFIED_PASS');
+  assert.ok(record.transmission);
+  assert.ok(record.wireMap);
+});
+
+test('getSavedEthernetCerts, saveEthernetCert, updateEthernetCertStatus, clearEthernetCerts, and calculateEthernetCertMetrics', async () => {
+  const {
+    getSavedEthernetCerts,
+    saveEthernetCert,
+    updateEthernetCertStatus,
+    clearEthernetCerts,
+    calculateEthernetCertMetrics,
+    buildEthernetCertRecord
+  } = await import('../form-validation.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  assert.deepEqual(getSavedEthernetCerts(mockStorage), []);
+
+  const r1 = buildEthernetCertRecord({
+    customerId: 'CUST-01',
+    technicianName: 'Tech 1',
+    cableGrade: 'CAT6',
+    lengthMeters: 20
+  }, 0);
+
+  const r2 = buildEthernetCertRecord({
+    customerId: 'CUST-02',
+    technicianName: 'Tech 2',
+    cableGrade: 'CAT6',
+    lengthMeters: 110 // Fails length limit
+  }, 1);
+
+  saveEthernetCert(mockStorage, r1);
+  saveEthernetCert(mockStorage, r2);
+
+  const certs = getSavedEthernetCerts(mockStorage);
+  assert.equal(certs.length, 2);
+
+  // Filter by customer
+  assert.equal(getSavedEthernetCerts(mockStorage, 'CUST-01').length, 1);
+
+  // Update status
+  const updated = updateEthernetCertStatus(mockStorage, r2.id, 'RE_TERMINATED_PASS', 'Cut cable to 90m and re-crimped');
+  assert.equal(updated.status, 'RE_TERMINATED_PASS');
+  assert.equal(updated.verdict, 'FLUKE_CERTIFIED_PASS');
+
+  // Metrics
+  const metrics = calculateEthernetCertMetrics(getSavedEthernetCerts(mockStorage));
+  assert.equal(metrics.total, 2);
+  assert.equal(metrics.certifiedCount, 2);
+  assert.equal(metrics.passRatePercent, 100);
+
+  // Clear
+  clearEthernetCerts(mockStorage);
+  assert.deepEqual(getSavedEthernetCerts(mockStorage), []);
+});
+
+test('formatEthernetCertWhatsApp and generateEthernetCertHtml produce bilingual and dual print layouts', async () => {
+  const {
+    buildEthernetCertRecord,
+    formatEthernetCertWhatsApp,
+    generateEthernetCertHtml
+  } = await import('../form-validation.js');
+
+  const cert = buildEthernetCertRecord({
+    customerId: 'CUST-BAR-01',
+    customerName: 'Shahid Mehmood',
+    customerPhone: '+92 321 4455667',
+    customerArea: 'Vandala Road',
+    technicianName: 'Lineman Bilal',
+    cableGrade: 'CAT6',
+    lengthMeters: 25,
+    wiringStandard: 'T568B',
+    faultType: 'NONE'
+  }, 0);
+
+  // WhatsApp
+  const wa = formatEthernetCertWhatsApp(cert);
+  assert.ok(wa.includes('SHAHDARA ISP - LAN ETHERNET & GIGABIT QA CERTIFICATE'));
+  assert.ok(wa.includes('لین کیبلنگ اور گیگابٹ سپیڈ سرٹیفکیٹ'));
+  assert.ok(wa.includes('Shahid Mehmood'));
+  assert.ok(wa.includes('1000BASE-T Full Duplex (1000 Mbps)'));
+  assert.ok(wa.includes('Lineman Bilal'));
+
+  // Thermal Slip
+  const thermalHtml = generateEthernetCertHtml(cert, { format: 'slip' });
+  assert.ok(thermalHtml.includes('PREMISES LAN CABLE QA SLIP'));
+  assert.ok(thermalHtml.includes('Shahid Mehmood'));
+  assert.ok(thermalHtml.includes('CAT6 (25m)'));
+
+  // A4 Certificate
+  const a4Html = generateEthernetCertHtml(cert, { format: 'a4' });
+  assert.ok(a4Html.includes('Outside Plant & Premises LAN Engineering'));
+  assert.ok(a4Html.includes('Gigabit Ethernet Cabling & Wire Map QA Certificate'));
+  assert.ok(a4Html.includes('ANSI/TIA-568-C.2 Verified'));
+  assert.ok(a4Html.includes('Shahid Mehmood'));
+  assert.ok(a4Html.includes('Certified Field Engineer Signature'));
+});
+
+test('generateEthernetCertsCsv exports valid RFC-4180 CSV with UTF-8 BOM', async () => {
+  const {
+    buildEthernetCertRecord,
+    generateEthernetCertsCsv
+  } = await import('../form-validation.js');
+
+  const cert = buildEthernetCertRecord({
+    customerId: 'CUST-009',
+    customerName: 'Nasir "Chief" Mehmood',
+    customerPhone: '+92 300 1234567',
+    customerArea: 'Baradari Road',
+    technicianName: 'Bilal',
+    cableGrade: 'CAT6',
+    lengthMeters: 25,
+    notes: 'Grounding OK, "tested" high-speed'
+  }, 0);
+
+  const csv = generateEthernetCertsCsv([cert]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Certificate ID,Customer ID,Customer Name'));
+  assert.ok(csv.includes('"Nasir ""Chief"" Mehmood"'));
+  assert.ok(csv.includes('25'));
+});
+
+test('renderRj45WireMapSvg generates valid SVG diagram with 8 pin traces', async () => {
+  const {
+    evaluateEthernetWireMap,
+    renderRj45WireMapSvg
+  } = await import('../form-validation.js');
+
+  const wm = evaluateEthernetWireMap({ standard: 'T568B', faultType: 'NONE' });
+  const svg = renderRj45WireMapSvg(wm);
+
+  assert.ok(svg.includes('<svg class="rj45-wiremap-svg"'));
+  assert.ok(svg.includes('T568B'));
+  assert.ok(svg.includes('STRAIGHT_THROUGH_PASS'));
+  assert.ok(svg.includes('Pin 1 Column'));
+  assert.ok(svg.includes('Pin 8 Column'));
+  assert.ok(svg.includes('ONT'));
+  assert.ok(svg.includes('LAN'));
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire LAN Ethernet Cabling & Gigabit QA Certificate', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // Trigger button
+  assert.match(indexHtml, /id="openEthernetCertBtn"/);
+  assert.match(indexHtml, /data-open-ethernet-cert/);
+
+  // Modal dialog & inputs
+  assert.match(indexHtml, /<dialog id="ethernetCertModal"/);
+  assert.match(indexHtml, /id="closeEthernetCertModalBtn"/);
+  assert.match(indexHtml, /id="ethKpiWireMap"/);
+  assert.match(indexHtml, /id="ethKpiLoss"/);
+  assert.match(indexHtml, /id="ethKpiDelay"/);
+  assert.match(indexHtml, /id="ethKpiSpeed"/);
+  assert.match(indexHtml, /id="ethKpiVerdict"/);
+  assert.match(indexHtml, /id="ethWireMapSvgContainer"/);
+  assert.match(indexHtml, /id="ethCustomerSelect"/);
+  assert.match(indexHtml, /id="ethTechInput"/);
+  assert.match(indexHtml, /id="ethCableSelect"/);
+  assert.match(indexHtml, /id="ethStandardSelect"/);
+  assert.match(indexHtml, /id="ethFaultSelect"/);
+  assert.match(indexHtml, /id="ethLengthSlider"/);
+  assert.match(indexHtml, /id="ethLengthInput"/);
+  assert.match(indexHtml, /id="ethSaveBtn"/);
+  assert.match(indexHtml, /id="ethPrintBtn"/);
+  assert.match(indexHtml, /id="ethWhatsAppBtn"/);
+  assert.match(indexHtml, /id="ethCsvBtn"/);
+  assert.match(indexHtml, /id="ethHistoryList"/);
+
+  // Styles
+  assert.match(stylesCss, /\.ethernet-cert-modal-card/);
+  assert.match(stylesCss, /\.rj45-wiremap-svg/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.ethernet-cert-modal-card/);
+
+  // App.js
+  assert.match(appJs, /setupEthernetCertModal/);
+  assert.match(appJs, /customerEthernetCertModalController/);
+  assert.match(appJs, /openEthernetCertBtn/);
+});

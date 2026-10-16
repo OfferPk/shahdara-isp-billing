@@ -11007,3 +11007,1031 @@ export function setupDropSafetyInspectionModal(options = {}) {
   };
 }
 
+/* ==========================================================================
+   SUBSCRIBER LAN ETHERNET CABLING, RJ45 WIRE MAP & GIGABIT LINK SPEED QA CERTIFICATION
+   ANSI/TIA-568-C.2 Cat6/Cat5e Fluke-style Transmission & Wire Map Evaluator
+   ========================================================================== */
+
+export const ETHERNET_CERT_STORAGE_KEY = 'shahdara_ethernet_cert_v1';
+
+export const ETHERNET_CABLE_GRADES = {
+  'CAT6': {
+    name: 'Cat6 UTP / STP (250 MHz Gigabit+)',
+    bandwidthMhz: 250,
+    baseLossDbPer100m: 19.8,
+    maxSpecMeters: 100,
+    gigabitCapable: true,
+    delayNsPerMeter: 4.85
+  },
+  'CAT5E': {
+    name: 'Cat5e UTP (100 MHz Gigabit)',
+    bandwidthMhz: 100,
+    baseLossDbPer100m: 22.0,
+    maxSpecMeters: 100,
+    gigabitCapable: true,
+    delayNsPerMeter: 5.10
+  },
+  'CAT5': {
+    name: 'Cat5 Legacy (100 MHz Fast Ethernet)',
+    bandwidthMhz: 100,
+    baseLossDbPer100m: 24.5,
+    maxSpecMeters: 100,
+    gigabitCapable: false,
+    delayNsPerMeter: 5.40
+  },
+  'CAT7': {
+    name: 'Cat7 S/FTP Shielded (600 MHz 10G Ready)',
+    bandwidthMhz: 600,
+    baseLossDbPer100m: 17.5,
+    maxSpecMeters: 100,
+    gigabitCapable: true,
+    delayNsPerMeter: 4.60
+  }
+};
+
+export const WIRING_STANDARDS = {
+  'T568B': {
+    name: 'ANSI/TIA-568-C.2 T568B (Commercial Standard)',
+    description: 'Standard ISP premises LAN pinout (Pair 2 on pins 1-2, Pair 3 on pins 3-6)',
+    pinColors: [
+      'White/Orange', 'Orange', 'White/Green', 'Blue',
+      'White/Blue', 'Green', 'White/Brown', 'Brown'
+    ]
+  },
+  'T568A': {
+    name: 'ANSI/TIA-568-C.2 T568A (Residential Standard)',
+    description: 'Residential telecom pinout (Pair 3 on pins 1-2, Pair 2 on pins 3-6)',
+    pinColors: [
+      'White/Green', 'Green', 'White/Orange', 'Blue',
+      'White/Blue', 'Orange', 'White/Brown', 'Brown'
+    ]
+  }
+};
+
+export const ETHERNET_WIRE_PAIRS = [
+  { pairNum: 2, pins: [1, 2], name: 'Pair 2 (Tx+ / Tx-)', baseColor: '#f97316' },
+  { pairNum: 3, pins: [3, 6], name: 'Pair 3 (Rx+ / Rx-)', baseColor: '#10b981' },
+  { pairNum: 1, pins: [4, 5], name: 'Pair 1 (Data+ / Data-)', baseColor: '#3b82f6' },
+  { pairNum: 4, pins: [7, 8], name: 'Pair 4 (Data+ / Data-)', baseColor: '#a16207' }
+];
+
+/**
+ * Evaluates an 8-conductor RJ45 termination wire map against TIA-568 standards.
+ */
+export function evaluateEthernetWireMap({ standard = 'T568B', faultType = 'NONE', customPinMap = null } = {}) {
+  const std = WIRING_STANDARDS[standard] || WIRING_STANDARDS['T568B'];
+  const pinColors = std.pinColors;
+
+  let pinMap = [];
+  for (let pin = 1; pin <= 8; pin++) {
+    pinMap.push({
+      pin,
+      farPin: pin,
+      color: pinColors[pin - 1],
+      status: 'PASS',
+      pair: pin === 1 || pin === 2 ? 2 : (pin === 3 || pin === 6 ? 3 : (pin === 4 || pin === 5 ? 1 : 4))
+    });
+  }
+
+  let wireMapGrade = 'STRAIGHT_THROUGH_PASS';
+  let pass = true;
+  let gigabitSupported = true;
+  let statusLabel = 'Straight-Through T568B Pass';
+  let badgeClass = 'badge-success';
+  let statusColor = '#10b981';
+  let faultDescription = 'All 8 conductors pinned 1-to-1 in full compliance with ANSI/TIA-568.';
+
+  if (faultType === 'OPEN_PIN_4') {
+    pinMap[3].farPin = null;
+    pinMap[3].status = 'OPEN';
+    wireMapGrade = 'OPEN_FAULT';
+    pass = false;
+    gigabitSupported = false;
+    statusLabel = 'Conductor 4 Open / Disconnected';
+    badgeClass = 'badge-danger';
+    statusColor = '#ef4444';
+    faultDescription = 'Pin 4 (Blue) is disconnected or broken. Gigabit 1000BASE-T link will fail.';
+  } else if (faultType === 'OPEN_PIN_7_8') {
+    pinMap[6].farPin = null;
+    pinMap[6].status = 'OPEN';
+    pinMap[7].farPin = null;
+    pinMap[7].status = 'OPEN';
+    wireMapGrade = 'OPEN_FAULT_GIGABIT_DROPPED';
+    pass = false;
+    gigabitSupported = false;
+    statusLabel = 'Pair 4 Open (Pins 7-8 Disconnected)';
+    badgeClass = 'badge-warning';
+    statusColor = '#f59e0b';
+    faultDescription = 'Pins 7 & 8 (Brown pair) are severed. Link drops from 1000 Mbps Gigabit to 100 Mbps Fast Ethernet.';
+  } else if (faultType === 'SHORT_PINS_1_2') {
+    pinMap[0].status = 'SHORT';
+    pinMap[1].status = 'SHORT';
+    pinMap[0].farPin = '1+2';
+    pinMap[1].farPin = '1+2';
+    wireMapGrade = 'SHORT_FAULT';
+    pass = false;
+    gigabitSupported = false;
+    statusLabel = 'Conductor Short on Pins 1 & 2';
+    badgeClass = 'badge-danger';
+    statusColor = '#ef4444';
+    faultDescription = 'Short circuit detected between Pins 1 and 2 (Orange pair). Physical layer cannot synchronize.';
+  } else if (faultType === 'SPLIT_PAIR_3_6') {
+    pinMap[2].status = 'SPLIT';
+    pinMap[3].status = 'SPLIT';
+    wireMapGrade = 'SPLIT_PAIR_FAULT';
+    pass = false;
+    gigabitSupported = false;
+    statusLabel = 'Split Pair Error (High NEXT Crosstalk)';
+    badgeClass = 'badge-danger';
+    statusColor = '#dc2626';
+    faultDescription = 'Pin 3 & 4 split across different twisted pairs. Severe Near-End Crosstalk (NEXT) will cause packet loss.';
+  } else if (faultType === 'REVERSED_PAIR_2') {
+    pinMap[0].farPin = 2;
+    pinMap[0].status = 'REVERSED';
+    pinMap[1].farPin = 1;
+    pinMap[1].status = 'REVERSED';
+    wireMapGrade = 'REVERSED_PAIR';
+    pass = false;
+    gigabitSupported = false;
+    statusLabel = 'Reversed Polarity on Pair 2';
+    badgeClass = 'badge-warning';
+    statusColor = '#f59e0b';
+    faultDescription = 'Pins 1 and 2 are swapped at far end. Auto-MDIX may compensate, but fails formal TIA certification.';
+  } else if (faultType === 'CROSSOVER') {
+    pinMap[0].farPin = 3;
+    pinMap[1].farPin = 6;
+    pinMap[2].farPin = 1;
+    pinMap[5].farPin = 2;
+    wireMapGrade = 'CROSSOVER_MDIX';
+    pass = true;
+    gigabitSupported = true;
+    statusLabel = 'T568A / T568B Crossover Cable';
+    badgeClass = 'badge-info';
+    statusColor = '#38bdf8';
+    faultDescription = 'One end wired T568A and other T568B. Auto-MDIX gigabit switches support this, but straight-through is standard.';
+  }
+
+  if (Array.isArray(customPinMap) && customPinMap.length === 8) {
+    pinMap = customPinMap;
+  }
+
+  return {
+    standard,
+    standardName: std.name,
+    faultType,
+    wireMapGrade,
+    pass,
+    gigabitSupported,
+    statusLabel,
+    badgeClass,
+    statusColor,
+    faultDescription,
+    pinMap
+  };
+}
+
+/**
+ * Calculates physical layer transmission parameters (attenuation, return loss, NEXT, delay skew, link speed).
+ */
+export function calculateEthernetTransmission({
+  cableGrade = 'CAT6',
+  lengthMeters = 25,
+  wireMapResult = null,
+  planSpeedMbps = 100
+} = {}) {
+  const gradeKey = ETHERNET_CABLE_GRADES[cableGrade] ? cableGrade : 'CAT6';
+  const grade = ETHERNET_CABLE_GRADES[gradeKey];
+  const L = Math.max(1, Math.min(200, Number(lengthMeters) || 25));
+  const wireMap = wireMapResult || evaluateEthernetWireMap({ standard: 'T568B', faultType: 'NONE' });
+
+  // Insertion Loss / Attenuation (dB at nominal 100 MHz)
+  const lossDb = Math.round((L * (grade.baseLossDbPer100m / 100)) * 100) / 100;
+  const isLossCompliant = lossDb <= 24.0 && L <= 100;
+
+  // Return Loss (dB)
+  const returnLossDb = Math.max(8.0, Math.round((26.0 - L * 0.055) * 10) / 10);
+  const isReturnLossCompliant = returnLossDb >= 19.0;
+
+  // Near-End Crosstalk (NEXT) (dB)
+  let nextMarginDb = Math.round((46.0 - L * 0.075) * 10) / 10;
+  if (!wireMap.pass) {
+    nextMarginDb = Math.min(nextMarginDb, 14.5);
+  }
+  const isNextCompliant = nextMarginDb >= 35.0;
+
+  // Propagation Delay & Delay Skew
+  const propDelayNs = Math.round(L * grade.delayNsPerMeter * 10) / 10;
+  const delaySkewNs = Math.round((12.0 + L * 0.16) * 10) / 10;
+  const isSkewCompliant = delaySkewNs <= 50.0;
+
+  // Negotiated Link Speed
+  let negotiatedSpeed = '1000BASE-T Full Duplex (1000 Mbps)';
+  let speedMbps = 1000;
+  let isBottleneck = false;
+  let bottleneckNotice = null;
+
+  if (wireMap.gigabitSupported && L <= 100 && grade.gigabitCapable && isNextCompliant) {
+    negotiatedSpeed = '1000BASE-T Full Duplex (1000 Mbps)';
+    speedMbps = 1000;
+  } else if (wireMap.pinMap[0]?.status !== 'SHORT' && wireMap.pinMap[1]?.status !== 'SHORT' &&
+             wireMap.pinMap[0]?.farPin && wireMap.pinMap[1]?.farPin &&
+             wireMap.pinMap[2]?.farPin && wireMap.pinMap[5]?.farPin) {
+    negotiatedSpeed = '100BASE-TX Full Duplex (100 Mbps)';
+    speedMbps = 100;
+    if (planSpeedMbps > 100) {
+      isBottleneck = true;
+      bottleneckNotice = `Subscriber subscribed to ${planSpeedMbps} Mbps but Ethernet LAN link is capped at 100 Mbps!`;
+    }
+  } else {
+    negotiatedSpeed = '10BASE-T Half Duplex (10 Mbps Degraded)';
+    speedMbps = 10;
+    isBottleneck = true;
+    bottleneckNotice = 'Severe physical wiring fault; link downgraded to 10 Mbps.';
+  }
+
+  // Length warning
+  const isLengthExceeded = L > 100;
+
+  // Overall QA Verdict
+  let verdictKey = 'FLUKE_CERTIFIED_PASS';
+  let verdictLabel = 'Fluke Certified Pass (Gigabit Ready)';
+  let verdictClass = 'badge-success';
+  let verdictColor = '#10b981';
+
+  if (!wireMap.pass || isLengthExceeded || !isNextCompliant) {
+    verdictKey = 'FAILED_TERMINATION_FAULT';
+    verdictLabel = 'Failed - Wiring or Length Fault';
+    verdictClass = 'badge-danger';
+    verdictColor = '#ef4444';
+  } else if (speedMbps < 1000 || L > 85) {
+    verdictKey = 'CONDITIONAL_PASS';
+    verdictLabel = 'Conditional Pass (Sub-optimal Span)';
+    verdictClass = 'badge-warning';
+    verdictColor = '#f59e0b';
+  }
+
+  return {
+    cableGrade: gradeKey,
+    cableName: grade.name,
+    bandwidthMhz: grade.bandwidthMhz,
+    lengthMeters: L,
+    isLengthExceeded,
+    insertionLossDb: lossDb,
+    isLossCompliant,
+    returnLossDb,
+    isReturnLossCompliant,
+    nextMarginDb,
+    isNextCompliant,
+    propagationDelayNs: propDelayNs,
+    delaySkewNs,
+    isSkewCompliant,
+    negotiatedSpeed,
+    speedMbps,
+    isBottleneck,
+    bottleneckNotice,
+    verdictKey,
+    verdictLabel,
+    verdictClass,
+    verdictColor,
+    isCertified: verdictKey === 'FLUKE_CERTIFIED_PASS'
+  };
+}
+
+/**
+ * Validates subscriber Ethernet certification form input.
+ */
+export function validateEthernetCertification(formData = {}) {
+  const errors = {};
+  if (!formData.customerId || !String(formData.customerId).trim()) {
+    errors.customerId = 'Customer selection is required.';
+  }
+  if (!formData.technicianName || !String(formData.technicianName).trim()) {
+    errors.technicianName = 'Technician name is required.';
+  }
+  const len = Number(formData.lengthMeters);
+  if (isNaN(len) || len < 1 || len > 200) {
+    errors.lengthMeters = 'Cable length must be between 1 and 200 meters.';
+  }
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+/**
+ * Builds a structured Ethernet certification record with sequential identifier.
+ */
+export function buildEthernetCertRecord(formData = {}, existingCount = 0) {
+  const d = formData.timestamp ? new Date(formData.timestamp) : new Date();
+  const yearMonth = d.toISOString().slice(0, 7).replace('-', '');
+  const seqNum = String(Number(existingCount || 0) + 1).padStart(4, '0');
+  const certId = `ETH-${yearMonth}-${seqNum}`;
+
+  const wireMap = evaluateEthernetWireMap({
+    standard: formData.wiringStandard || 'T568B',
+    faultType: formData.faultType || 'NONE'
+  });
+
+  const transmission = calculateEthernetTransmission({
+    cableGrade: formData.cableGrade || 'CAT6',
+    lengthMeters: Number(formData.lengthMeters) || 25,
+    wireMapResult: wireMap,
+    planSpeedMbps: Number(formData.planSpeedMbps) || 100
+  });
+
+  return {
+    id: certId,
+    certNumber: certId,
+    customerId: formData.customerId || '',
+    customerName: formData.customerName || 'Subscriber',
+    customerPhone: formData.customerPhone || '',
+    customerArea: formData.customerArea || '',
+    technicianName: formData.technicianName || 'Shahdara Network Crew',
+    cableGrade: transmission.cableGrade,
+    cableName: transmission.cableName,
+    lengthMeters: transmission.lengthMeters,
+    wiringStandard: wireMap.standard,
+    wiringStandardName: wireMap.standardName,
+    wireMap,
+    transmission,
+    verdict: transmission.verdictKey,
+    verdictLabel: transmission.verdictLabel,
+    verdictColor: transmission.verdictColor,
+    status: formData.status || 'ACTIVE',
+    inspectionDate: formData.inspectionDate || d.toISOString().slice(0, 10),
+    timestamp: d.toISOString(),
+    notes: formData.notes || ''
+  };
+}
+
+function resolveEthernetStorage(storage) {
+  if (storage) return storage;
+  if (typeof localStorage !== 'undefined') return localStorage;
+  return null;
+}
+
+/**
+ * Retrieves saved Ethernet certification records from storage.
+ */
+export function getSavedEthernetCerts(storage = null, customerId = null) {
+  const store = resolveEthernetStorage(storage);
+  if (!store) return [];
+  try {
+    const raw = store.getItem(ETHERNET_CERT_STORAGE_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    if (customerId) {
+      return list.filter(r => r.customerId === customerId);
+    }
+    return list;
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Saves a new Ethernet certification record into storage.
+ */
+export function saveEthernetCert(storage, record) {
+  const store = resolveEthernetStorage(storage);
+  if (!store || !record) return false;
+  try {
+    const list = getSavedEthernetCerts(store);
+    const existingIdx = list.findIndex(r => r.id === record.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = record;
+    } else {
+      list.unshift(record);
+    }
+    store.setItem(ETHERNET_CERT_STORAGE_KEY, JSON.stringify(list));
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Updates status of an Ethernet certification record.
+ */
+export function updateEthernetCertStatus(storage, recordId, newStatus, notes = '') {
+  const store = resolveEthernetStorage(storage);
+  if (!store || !recordId) return null;
+  try {
+    const list = getSavedEthernetCerts(store);
+    const item = list.find(r => r.id === recordId);
+    if (!item) return null;
+    item.status = newStatus;
+    if (newStatus === 'RE_TERMINATED_PASS') {
+      item.verdictLabel = 'Re-Terminated & Certified';
+      item.verdict = 'FLUKE_CERTIFIED_PASS';
+      item.transmission.isCertified = true;
+    }
+    if (notes) {
+      item.notes = (item.notes ? `${item.notes} | ` : '') + notes;
+    }
+    store.setItem(ETHERNET_CERT_STORAGE_KEY, JSON.stringify(list));
+    return item;
+  } catch (err) {
+    return null;
+  }
+}
+
+/**
+ * Clears saved Ethernet certifications.
+ */
+export function clearEthernetCerts(storage) {
+  const store = resolveEthernetStorage(storage);
+  if (!store) return false;
+  try {
+    store.removeItem(ETHERNET_CERT_STORAGE_KEY);
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
+/**
+ * Calculates aggregate summary metrics from Ethernet certification records.
+ */
+export function calculateEthernetCertMetrics(records = []) {
+  if (!Array.isArray(records) || records.length === 0) {
+    return {
+      total: 0,
+      totalInspections: 0,
+      certifiedCount: 0,
+      conditionalCount: 0,
+      failedCount: 0,
+      gigabitRatePercent: 100,
+      passRatePercent: 100,
+      averageLengthMeters: 0,
+      bottleneckAlerts: 0
+    };
+  }
+
+  let cert = 0;
+  let cond = 0;
+  let fail = 0;
+  let gigabitCount = 0;
+  let totalLen = 0;
+  let bottlenecks = 0;
+
+  for (const r of records) {
+    const v = r.verdict || r.transmission?.verdictKey;
+    if (v === 'FLUKE_CERTIFIED_PASS') cert++;
+    else if (v === 'CONDITIONAL_PASS') cond++;
+    else fail++;
+
+    if (r.transmission?.speedMbps >= 1000) gigabitCount++;
+    if (r.transmission?.isBottleneck) bottlenecks++;
+    totalLen += Number(r.lengthMeters || r.transmission?.lengthMeters) || 0;
+  }
+
+  const total = records.length;
+  return {
+    total,
+    totalInspections: total,
+    certifiedCount: cert,
+    conditionalCount: cond,
+    failedCount: fail,
+    gigabitRatePercent: Math.round((gigabitCount / total) * 100),
+    passRatePercent: Math.round(((cert + cond) / total) * 100),
+    averageLengthMeters: Math.round((totalLen / total) * 10) / 10,
+    bottleneckAlerts: bottlenecks
+  };
+}
+
+/**
+ * Formats a bilingual WhatsApp dispatch message for subscriber LAN verification.
+ */
+export function formatEthernetCertWhatsApp(cert = {}) {
+  const c = cert.customerName || 'Valued Subscriber';
+  const id = cert.id || 'ETH-CERT';
+  const cable = cert.cableName || 'Cat6 UTP';
+  const len = cert.lengthMeters || 25;
+  const speed = cert.transmission?.negotiatedSpeed || '1000 Mbps Full Duplex';
+  const verdict = cert.verdictLabel || 'Fluke Certified Pass';
+  const tech = cert.technicianName || 'Shahdara Network Crew';
+
+  return [
+    '========================================',
+    '🔌 SHAHDARA ISP - LAN ETHERNET & GIGABIT QA CERTIFICATE',
+    'لین کیبلنگ اور گیگابٹ سپیڈ سرٹیفکیٹ',
+    '========================================',
+    `📋 Certificate #: ${id}`,
+    `👤 Customer: ${c} (${cert.customerArea || 'Shahdara'})`,
+    `🧵 Cable Spec: ${cable} · Length: ${len} meters`,
+    `📌 Wire Map: ${cert.wireMap?.statusLabel || 'Straight-Through T568B Pass'}`,
+    `⚡ Negotiated Speed: ${speed}`,
+    `📉 Insertion Loss: ${cert.transmission?.insertionLossDb || '0.0'} dB`,
+    `🏆 Quality Verdict: ${verdict}`,
+    `🛠 Tested by: ${tech}`,
+    '----------------------------------------',
+    '✅ Your internal LAN cabling has been verified for Gigabit fiber throughput.',
+    'آپ کی اندرونی لین وائرنگ گیگابٹ براڈبینڈ کیلئے تصدیق شدہ ہے۔',
+    'Shahdara Fiber Net · Fast · Reliable · Local'
+  ].join('\n');
+}
+
+/**
+ * Generates printable HTML for formal A4 certificate or 80mm thermal field slip.
+ */
+export function generateEthernetCertHtml(cert = {}, options = {}) {
+  const format = options.format || 'a4';
+  const isThermal = format === 'thermal' || format === 'slip';
+  const t = cert.transmission || {};
+  const w = cert.wireMap || {};
+
+  if (isThermal) {
+    return `
+      <div class="eth-thermal-slip" style="max-width: 290px; font-family: monospace; font-size: 11px; line-height: 1.35; color: #000; padding: 4px;">
+        <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: bold;">SHAHDARA FIBER NET</h3>
+          <p style="margin: 2px 0; font-size: 10px;">PREMISES LAN CABLE QA SLIP</p>
+          <p style="margin: 0; font-weight: bold;">#${cert.id || ''}</p>
+        </div>
+        <div style="margin-bottom: 6px;">
+          <div><strong>Customer:</strong> ${cert.customerName || ''}</div>
+          <div><strong>Area:</strong> ${cert.customerArea || ''}</div>
+          <div><strong>Date:</strong> ${cert.inspectionDate || ''}</div>
+          <div><strong>Tech:</strong> ${cert.technicianName || ''}</div>
+        </div>
+        <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin-bottom: 6px;">
+          <div><strong>Cable:</strong> ${cert.cableGrade || 'CAT6'} (${cert.lengthMeters || 25}m)</div>
+          <div><strong>Standard:</strong> ${cert.wiringStandard || 'T568B'}</div>
+          <div><strong>Wire Map:</strong> ${w.wireMapGrade || 'PASS'}</div>
+          <div><strong>Link Speed:</strong> ${t.speedMbps || 1000} Mbps</div>
+          <div><strong>Loss:</strong> ${t.insertionLossDb || 0} dB</div>
+        </div>
+        <div style="text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 6px;">
+          VERDICT: ${cert.verdictLabel || 'PASS'}
+        </div>
+        <div style="text-align: center; font-size: 9px; border-top: 1px dashed #000; padding-top: 6px;">
+          Thank you for choosing Shahdara Fiber Net
+        </div>
+      </div>
+    `;
+  }
+
+  // A4 Document
+  return `
+    <div class="eth-a4-cert" style="max-width: 720px; margin: 0 auto; padding: 24px; font-family: system-ui, -apple-system, sans-serif; color: #0f172a; background: #fff; border: 2px solid #0284c7; border-radius: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 16px;">
+        <div>
+          <h1 style="margin: 0; font-size: 20px; color: #0369a1; text-transform: uppercase;">Outside Plant & Premises LAN Engineering</h1>
+          <h2 style="margin: 4px 0 0; font-size: 15px; font-weight: normal; color: #475569;">Gigabit Ethernet Cabling & Wire Map QA Certificate</h2>
+        </div>
+        <div style="text-align: right;">
+          <span style="display: inline-block; padding: 6px 12px; border-radius: 4px; background: #0284c7; color: #fff; font-weight: bold; font-size: 13px;">${cert.id || ''}</span>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">ANSI/TIA-568-C.2 Verified</p>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; padding: 12px; border-radius: 6px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+        <div>
+          <p style="margin: 0 0 4px; font-size: 11px; color: #64748b; font-weight: bold;">SUBSCRIBER INFORMATION</p>
+          <p style="margin: 0; font-size: 14px; font-weight: 600;">${cert.customerName || ''}</p>
+          <p style="margin: 2px 0; font-size: 12px; color: #334155;">📞 ${cert.customerPhone || 'N/A'} · 📍 ${cert.customerArea || 'Shahdara'}</p>
+        </div>
+        <div>
+          <p style="margin: 0 0 4px; font-size: 11px; color: #64748b; font-weight: bold;">INSPECTION AUDIT DETAILS</p>
+          <p style="margin: 0; font-size: 12px;"><strong>Technician:</strong> ${cert.technicianName || ''}</p>
+          <p style="margin: 2px 0; font-size: 12px;"><strong>Date:</strong> ${cert.inspectionDate || ''}</p>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px;">
+        <thead>
+          <tr style="background: #e0f2fe; text-align: left;">
+            <th style="padding: 8px; border: 1px solid #bae6fd;">Test Parameter</th>
+            <th style="padding: 8px; border: 1px solid #bae6fd;">Measured Value</th>
+            <th style="padding: 8px; border: 1px solid #bae6fd;">Specification Limit</th>
+            <th style="padding: 8px; border: 1px solid #bae6fd;">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Cable Specification</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${cert.cableName || 'Cat6'}</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">TIA Cat5e / Cat6</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: #10b981; font-weight: bold;">PASS</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Physical Cable Length (TDR)</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${cert.lengthMeters || 25} meters</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">&le; 100.0 meters</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: ${t.isLengthExceeded ? '#ef4444' : '#10b981'}; font-weight: bold;">${t.isLengthExceeded ? 'FAIL' : 'PASS'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">8-Conductor Wire Map</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${w.statusLabel || 'Straight-Through'}</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Pin 1-8 Continuity</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: ${w.pass ? '#10b981' : '#ef4444'}; font-weight: bold;">${w.pass ? 'PASS' : 'FAIL'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Insertion Loss (Attenuation)</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${t.insertionLossDb || '0.0'} dB</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">&le; 24.0 dB @ 100MHz</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: #10b981; font-weight: bold;">PASS</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Near-End Crosstalk (NEXT)</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${t.nextMarginDb || '44.0'} dB</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">&ge; 35.3 dB</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: ${t.isNextCompliant ? '#10b981' : '#ef4444'}; font-weight: bold;">${t.isNextCompliant ? 'PASS' : 'FAIL'}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Negotiated Link Speed</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: bold;">${t.negotiatedSpeed || '1000 Mbps'}</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">1000BASE-T Full Duplex</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: ${t.speedMbps >= 1000 ? '#10b981' : '#f59e0b'}; font-weight: bold;">${t.speedMbps >= 1000 ? 'PASS' : 'WARN'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="background: ${cert.verdictColor || '#10b981'}15; border: 1px solid ${cert.verdictColor || '#10b981'}; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; font-size: 15px; color: ${cert.verdictColor || '#10b981'}; text-transform: uppercase;">FINAL QA VERDICT: ${cert.verdictLabel || 'PASS'}</h3>
+        <p style="margin: 4px 0 0; font-size: 12px; color: #334155;">${w.faultDescription || ''}</p>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; margin-top: 24px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+        <div>Shahdara ISP Network Operations Center · QA Division</div>
+        <div>Certified Field Engineer Signature: _______________________</div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Generates RFC-4180 CSV export with UTF-8 BOM.
+ */
+export function generateEthernetCertsCsv(records = []) {
+  const BOM = '\uFEFF';
+  const headers = [
+    'Certificate ID', 'Customer ID', 'Customer Name', 'Phone', 'Area',
+    'Inspection Date', 'Technician', 'Cable Grade', 'Length (m)',
+    'Wiring Standard', 'Wire Map Grade', 'Negotiated Speed', 'Loss (dB)',
+    'NEXT (dB)', 'Verdict', 'Notes'
+  ];
+
+  const rows = (records || []).map(r => {
+    return [
+      `"${r.id || ''}"`,
+      `"${r.customerId || ''}"`,
+      `"${(r.customerName || '').replace(/"/g, '""')}"`,
+      `"${r.customerPhone || ''}"`,
+      `"${(r.customerArea || '').replace(/"/g, '""')}"`,
+      `"${r.inspectionDate || ''}"`,
+      `"${(r.technicianName || '').replace(/"/g, '""')}"`,
+      `"${r.cableGrade || ''}"`,
+      r.lengthMeters || 0,
+      `"${r.wiringStandard || ''}"`,
+      `"${r.wireMap?.wireMapGrade || ''}"`,
+      `"${r.transmission?.negotiatedSpeed || ''}"`,
+      r.transmission?.insertionLossDb || 0,
+      r.transmission?.nextMarginDb || 0,
+      `"${r.verdictLabel || ''}"`,
+      `"${(r.notes || '').replace(/"/g, '""')}"`
+    ].join(',');
+  });
+
+  return BOM + [headers.join(','), ...rows].join('\r\n');
+}
+
+/**
+ * Renders an interactive SVG diagram of the 8-pin RJ45 wire map connector.
+ */
+export function renderRj45WireMapSvg(wireMapResult = null) {
+  const wm = wireMapResult || evaluateEthernetWireMap({ standard: 'T568B', faultType: 'NONE' });
+  const pins = wm.pinMap || [];
+
+  const pinWidth = 28;
+  const pinSpacing = 36;
+  const startX = 26;
+
+  const pinElements = pins.map((p, idx) => {
+    const x = startX + idx * pinSpacing;
+    const isPass = p.status === 'PASS';
+    const pinColor = p.status === 'PASS' ? '#10b981' : (p.status === 'OPEN' ? '#94a3b8' : '#ef4444');
+    const label = p.farPin !== null ? `${p.pin} ➔ ${p.farPin}` : `${p.pin} ✕`;
+
+    return `
+      <!-- Pin ${p.pin} Column -->
+      <g transform="translate(${x}, 0)">
+        <!-- Near-End Pin Box -->
+        <rect x="0" y="24" width="${pinWidth}" height="28" rx="4" fill="#1e293b" stroke="${pinColor}" stroke-width="2" />
+        <text x="${pinWidth / 2}" y="42" text-anchor="middle" font-size="12px" font-weight="bold" fill="#f8fafc">${p.pin}</text>
+
+        <!-- Connecting Wire Trace -->
+        <line x1="${pinWidth / 2}" y1="52" x2="${pinWidth / 2}" y2="108" stroke="${pinColor}" stroke-width="${isPass ? '3.5' : '2'}" stroke-dasharray="${p.status === 'OPEN' ? '4,4' : 'none'}" />
+
+        <!-- Far-End Pin Box -->
+        <rect x="0" y="108" width="${pinWidth}" height="28" rx="4" fill="#1e293b" stroke="${pinColor}" stroke-width="2" />
+        <text x="${pinWidth / 2}" y="126" text-anchor="middle" font-size="11px" font-weight="bold" fill="#f8fafc">${p.farPin || '✕'}</text>
+
+        <!-- Wire Color Indicator Dot -->
+        <circle cx="${pinWidth / 2}" y="80" r="5" fill="${pinColor}" />
+        <text x="${pinWidth / 2}" y="152" text-anchor="middle" font-size="8px" fill="#94a3b8">${p.color.split('/')[0].slice(0, 3)}</text>
+      </g>
+    `;
+  }).join('');
+
+  return `
+    <svg class="rj45-wiremap-svg" viewBox="0 0 340 165" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RJ45 8-Pin Wire Map Diagram">
+      <rect x="4" y="4" width="332" height="157" rx="8" fill="#0b1120" stroke="#334155" stroke-width="1.5" />
+
+      <!-- Headers -->
+      <text x="14" y="18" font-size="9px" font-weight="bold" fill="#38bdf8">${wm.standardName || 'T568B'}</text>
+      <text x="326" y="18" text-anchor="end" font-size="9px" font-weight="bold" fill="${wm.statusColor}">${wm.wireMapGrade}</text>
+
+      <!-- Label Track -->
+      <text x="10" y="42" font-size="8px" fill="#64748b">ONT</text>
+      <text x="10" y="126" font-size="8px" fill="#64748b">LAN</text>
+
+      ${pinElements}
+    </svg>
+  `;
+}
+
+/**
+ * Initializes and wires events for the Subscriber Ethernet Certification Modal Dialog.
+ */
+export function setupEthernetCertModal(options = {}) {
+  const modal = document.getElementById('ethernetCertModal');
+  if (!modal) return null;
+
+  const storage = options.storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const onToast = typeof options.onToast === 'function' ? options.onToast : () => {};
+  const getState = typeof options.getState === 'function' ? options.getState : () => ({});
+
+  // DOM elements
+  const closeBtn = document.getElementById('closeEthernetCertModalBtn');
+  const custSelect = document.getElementById('ethCustomerSelect');
+  const techInput = document.getElementById('ethTechInput');
+  const cableSelect = document.getElementById('ethCableSelect');
+  const standardSelect = document.getElementById('ethStandardSelect');
+  const lengthSlider = document.getElementById('ethLengthSlider');
+  const lengthInput = document.getElementById('ethLengthInput');
+  const faultSelect = document.getElementById('ethFaultSelect');
+
+  // KPI elements
+  const kpiWireMap = document.getElementById('ethKpiWireMap');
+  const kpiLoss = document.getElementById('ethKpiLoss');
+  const kpiDelay = document.getElementById('ethKpiDelay');
+  const kpiSpeed = document.getElementById('ethKpiSpeed');
+  const kpiVerdict = document.getElementById('ethKpiVerdict');
+  const svgContainer = document.getElementById('ethWireMapSvgContainer');
+
+  // Form buttons
+  const saveBtn = document.getElementById('ethSaveBtn');
+  const printBtn = document.getElementById('ethPrintBtn');
+  const whatsappBtn = document.getElementById('ethWhatsAppBtn');
+  const csvBtn = document.getElementById('ethCsvBtn');
+  const historyList = document.getElementById('ethHistoryList');
+  const notesInput = document.getElementById('ethNotesInput');
+
+  let activeCustomer = null;
+  let activeRecord = null;
+
+  function recalculate() {
+    const std = standardSelect?.value || 'T568B';
+    const fault = faultSelect?.value || 'NONE';
+    const cable = cableSelect?.value || 'CAT6';
+    const len = Number(lengthInput?.value || lengthSlider?.value || 25);
+
+    const wireMap = evaluateEthernetWireMap({ standard: std, faultType: fault });
+    const trans = calculateEthernetTransmission({
+      cableGrade: cable,
+      lengthMeters: len,
+      wireMapResult: wireMap
+    });
+
+    if (svgContainer) {
+      svgContainer.innerHTML = renderRj45WireMapSvg(wireMap);
+    }
+
+    if (kpiWireMap) {
+      kpiWireMap.textContent = wireMap.statusLabel;
+      kpiWireMap.style.color = wireMap.statusColor;
+    }
+
+    if (kpiLoss) {
+      kpiLoss.textContent = `${trans.insertionLossDb.toFixed(2)} dB`;
+    }
+
+    if (kpiDelay) {
+      kpiDelay.textContent = `${trans.delaySkewNs.toFixed(1)} ns`;
+    }
+
+    if (kpiSpeed) {
+      kpiSpeed.textContent = trans.negotiatedSpeed.split(' ')[0];
+    }
+
+    if (kpiVerdict) {
+      kpiVerdict.textContent = trans.verdictLabel;
+      kpiVerdict.className = `badge ${trans.verdictClass}`;
+      kpiVerdict.style.color = trans.verdictColor;
+    }
+
+    return { wireMap, trans };
+  }
+
+  function renderHistory() {
+    if (!historyList) return;
+    const records = getSavedEthernetCerts(storage, activeCustomer?.id);
+    if (records.length === 0) {
+      historyList.innerHTML = '<li style="padding: 8px; color: var(--muted, #94a3b8); font-size: 12px; text-align: center;">No LAN certificates recorded yet.</li>';
+      return;
+    }
+
+    historyList.innerHTML = records.slice(0, 15).map(r => `
+      <li class="eth-cert-item" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; background: rgba(15, 23, 42, 0.4); border-radius: 6px; border: 1px solid var(--border, #334155); margin-bottom: 6px; font-size: 12px;">
+        <div>
+          <span style="font-weight: bold; color: #38bdf8;">${r.id}</span> ·
+          <span>${r.cableGrade} (${r.lengthMeters}m)</span> ·
+          <span style="color: ${r.verdictColor || '#10b981'}; font-weight: bold;">${r.verdictLabel || 'PASS'}</span>
+          <div style="font-size: 11px; color: var(--muted, #94a3b8);">${r.inspectionDate} by ${r.technicianName}</div>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="icon-button btn-print-single" data-cert-id="${r.id}" type="button" title="Print Certificate" style="padding: 2px 6px; font-size: 11px;">🖨️</button>
+        </div>
+      </li>
+    `).join('');
+
+    historyList.querySelectorAll('.btn-print-single').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute('data-cert-id');
+        const c = records.find(x => x.id === id);
+        if (c) printCert(c);
+      };
+    });
+  }
+
+  function setCustomerContext(cust) {
+    activeCustomer = cust;
+    if (custSelect && cust) {
+      custSelect.value = cust.id;
+    }
+    recalculate();
+    renderHistory();
+  }
+
+  function printCert(cert) {
+    const html = generateEthernetCertHtml(cert, { format: 'a4' });
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>LAN Ethernet Certificate - ${cert.id}</title>
+          <style>body { margin: 15px; background: #fff; }</style>
+        </head>
+        <body>
+          ${html}
+          <script>window.onload = function() { window.print(); };</script>
+        </body>
+        </html>
+      `);
+      win.document.close();
+    } else {
+      window.print();
+    }
+  }
+
+  // Hook input changes
+  if (lengthSlider) {
+    lengthSlider.oninput = (e) => {
+      if (lengthInput) lengthInput.value = e.target.value;
+      recalculate();
+    };
+  }
+  if (lengthInput) {
+    lengthInput.oninput = (e) => {
+      if (lengthSlider) lengthSlider.value = e.target.value;
+      recalculate();
+    };
+  }
+  if (cableSelect) cableSelect.onchange = recalculate;
+  if (standardSelect) standardSelect.onchange = recalculate;
+  if (faultSelect) faultSelect.onchange = recalculate;
+
+  if (saveBtn) {
+    saveBtn.onclick = () => {
+      const state = getState();
+      const currentCust = activeCustomer || state?.customers?.find(c => c.id === custSelect?.value) || state?.customers?.[0];
+      const formData = {
+        customerId: currentCust?.id || 'CUST-GENERAL',
+        customerName: currentCust?.name || 'Walk-in Subscriber',
+        customerPhone: currentCust?.phone || '',
+        customerArea: currentCust?.area || 'Baradari Road',
+        technicianName: techInput?.value || 'Lineman Bilal',
+        cableGrade: cableSelect?.value || 'CAT6',
+        lengthMeters: Number(lengthInput?.value || 25),
+        wiringStandard: standardSelect?.value || 'T568B',
+        faultType: faultSelect?.value || 'NONE',
+        notes: notesInput?.value || ''
+      };
+
+      const val = validateEthernetCertification(formData);
+      if (!val.valid) {
+        onToast(Object.values(val.errors)[0]);
+        return;
+      }
+
+      const allCerts = getSavedEthernetCerts(storage);
+      const record = buildEthernetCertRecord(formData, allCerts.length);
+      saveEthernetCert(storage, record);
+      activeRecord = record;
+      renderHistory();
+      onToast(`✓ Recorded LAN Certificate #${record.id} (${record.verdictLabel})`);
+    };
+  }
+
+  if (printBtn) {
+    printBtn.onclick = () => {
+      const all = getSavedEthernetCerts(storage, activeCustomer?.id);
+      const target = activeRecord || all[0];
+      if (!target) {
+        onToast('Please save or select a certification record first.');
+        return;
+      }
+      printCert(target);
+    };
+  }
+
+  if (whatsappBtn) {
+    whatsappBtn.onclick = async () => {
+      const all = getSavedEthernetCerts(storage, activeCustomer?.id);
+      const target = activeRecord || all[0];
+      if (!target) {
+        onToast('Please save or select a certification record first.');
+        return;
+      }
+      const text = formatEthernetCertWhatsApp(target);
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          onToast('✓ WhatsApp LAN Certificate copied to clipboard');
+        } catch (_) {
+          onToast('Generated WhatsApp certificate');
+        }
+      }
+    };
+  }
+
+  if (csvBtn) {
+    csvBtn.onclick = () => {
+      const all = getSavedEthernetCerts(storage);
+      if (all.length === 0) {
+        onToast('No LAN records to export');
+        return;
+      }
+      const csv = generateEthernetCertsCsv(all);
+      const filename = `shahdara_lan_certs_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      onToast(`Exported ${filename}`);
+    };
+  }
+
+  // Trigger buttons
+  document.querySelectorAll('[data-open-ethernet-cert], #openEthernetCertBtn').forEach(btn => {
+    btn.onclick = () => {
+      const state = getState();
+      const cust = activeCustomer || state?.customers?.[0] || null;
+      setCustomerContext(cust);
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.setAttribute('open', '');
+    };
+  });
+
+  if (closeBtn) {
+    closeBtn.onclick = () => {
+      if (typeof modal.close === 'function') modal.close();
+      else modal.removeAttribute('open');
+    };
+  }
+
+  return {
+    open: (cust) => {
+      setCustomerContext(cust);
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal.close === 'function') modal.close();
+      else modal.removeAttribute('open');
+    },
+    setCustomer: setCustomerContext,
+    recalculate
+  };
+}

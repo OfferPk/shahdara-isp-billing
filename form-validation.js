@@ -5318,3 +5318,776 @@ export function filterDisputeClaims(claims = [], { status = 'all', category = 'a
   });
 }
 
+/* ==========================================================================
+   Subscriber KYC Identity Verification & PTA Regulatory Compliance Audit (agent3)
+   ========================================================================== */
+
+export const PAKISTAN_CNIC_PROVINCES = {
+  '1': 'Khyber Pakhtunkhwa (KPK)',
+  '2': 'FATA (Merged Districts)',
+  '3': 'Punjab (Lahore / Shahdara)',
+  '4': 'Sindh',
+  '5': 'Balochistan',
+  '6': 'Islamabad (ICT)',
+  '7': 'Gilgit-Baltistan / AJK'
+};
+
+/**
+ * Parses detailed metadata from a 13-digit Pakistani CNIC number.
+ * @param {string} cnic
+ * @returns {{ valid: boolean, formatted: string, raw: string, province: string, gender: string, error?: string }}
+ */
+export function parsePakistaniCnicDetails(cnic) {
+  if (!cnic || typeof cnic !== 'string' || !cnic.trim()) {
+    return {
+      valid: false,
+      formatted: '',
+      raw: '',
+      provinceCode: '',
+      province: 'Unknown',
+      provinceName: 'Unknown',
+      genderCode: '',
+      gender: 'Unspecified',
+      error: 'CNIC number is missing or not provided.',
+      reason: 'No CNIC provided'
+    };
+  }
+
+  const clean = cnic.replace(/[^0-9]/g, '');
+  if (clean.length !== 13) {
+    return {
+      valid: false,
+      formatted: cnic.trim(),
+      raw: clean,
+      provinceCode: clean[0] || '',
+      province: 'Unknown',
+      provinceName: 'Unknown',
+      genderCode: '',
+      gender: 'Unspecified',
+      error: `CNIC must contain exactly 13 digits (found ${clean.length}).`,
+      reason: `CNIC must contain exactly 13 numeric digits (found ${clean.length}).`
+    };
+  }
+
+  const provinceCode = clean[0];
+  const province = PAKISTAN_CNIC_PROVINCES[provinceCode];
+  if (!province) {
+    return {
+      valid: false,
+      formatted: cnic.trim(),
+      raw: clean,
+      provinceCode,
+      province: 'Unknown',
+      provinceName: 'Unknown',
+      genderCode: clean[12],
+      gender: 'Unspecified',
+      error: `Invalid province identifier code '${provinceCode}' in CNIC.`,
+      reason: `Invalid province identifier code '${provinceCode}' in CNIC.`
+    };
+  }
+
+  const lastDigit = Number(clean[12]);
+  const gender = lastDigit % 2 !== 0 ? 'Male' : 'Female';
+  const formatted = `${clean.slice(0, 5)}-${clean.slice(5, 12)}-${clean.slice(12, 13)}`;
+
+  return {
+    valid: true,
+    formatted,
+    raw: clean,
+    provinceCode,
+    province,
+    provinceName: province,
+    genderCode: String(lastDigit),
+    gender,
+    error: null,
+    reason: null
+  };
+}
+
+/**
+ * Calculates network-wide subscriber KYC identity verification and regulatory PTA compliance.
+ * @param {Object} state - Application state
+ * @param {Object} [options]
+ * @returns {Object} Complete KYC audit summary object
+ */
+export function calculateKycComplianceAudit(state, options = {}) {
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const includeArchived = Boolean(options.includeArchived);
+  const activeCustomers = includeArchived ? customers : customers.filter(c => !c.archived);
+  const nowStr = options.dateStr || new Date().toISOString().slice(0, 10);
+
+  const cnicCounts = new Map();
+  activeCustomers.forEach(cust => {
+    const rawCnic = cust.cnic || cust.contractCnic;
+    if (rawCnic && typeof rawCnic === 'string') {
+      const clean = rawCnic.replace(/\D/g, '');
+      if (clean.length === 13) {
+        cnicCounts.set(clean, (cnicCounts.get(clean) || 0) + 1);
+      }
+    }
+  });
+
+  let verifiedCount = 0;
+  let missingCount = 0;
+  let invalidCount = 0;
+  let duplicateCount = 0;
+
+  const provinceCounts = {
+    Punjab: 0,
+    Sindh: 0,
+    KPK: 0,
+    Balochistan: 0,
+    ICT: 0,
+    Other: 0,
+    Unknown: 0
+  };
+
+  const genderCounts = {
+    Male: 0,
+    Female: 0,
+    Unspecified: 0
+  };
+
+  const records = activeCustomers.map((cust, idx) => {
+    const rawCnic = cust.cnic || cust.contractCnic || '';
+    const details = parsePakistaniCnicDetails(rawCnic);
+    let status = 'VERIFIED';
+    let statusLabel = 'Verified (PTA Compliant)';
+    let discrepancyNote = '';
+
+    if (!rawCnic || !rawCnic.trim()) {
+      status = 'MISSING_CNIC';
+      statusLabel = 'Missing CNIC';
+      discrepancyNote = 'No CNIC identity card recorded on subscriber profile.';
+      missingCount++;
+      provinceCounts.Unknown++;
+      genderCounts.Unspecified++;
+    } else if (!details.valid) {
+      status = 'INVALID_FORMAT';
+      statusLabel = 'Invalid CNIC';
+      discrepancyNote = details.error || details.reason || 'CNIC format invalid.';
+      invalidCount++;
+      provinceCounts.Unknown++;
+      genderCounts.Unspecified++;
+    } else if (cnicCounts.get(details.raw) > 1) {
+      status = 'DUPLICATE_CNIC';
+      statusLabel = 'Duplicate CNIC';
+      discrepancyNote = `CNIC ${details.formatted} is shared across ${cnicCounts.get(details.raw)} active subscriptions.`;
+      duplicateCount++;
+      if (details.province.includes('Punjab')) provinceCounts.Punjab++;
+      else if (details.province.includes('Sindh')) provinceCounts.Sindh++;
+      else if (details.province.includes('KPK') || details.province.includes('FATA')) provinceCounts.KPK++;
+      else if (details.province.includes('Balochistan')) provinceCounts.Balochistan++;
+      else if (details.province.includes('Islamabad')) provinceCounts.ICT++;
+      else provinceCounts.Other++;
+      if (details.gender === 'Male') genderCounts.Male++;
+      else genderCounts.Female++;
+    } else {
+      status = 'VERIFIED';
+      statusLabel = 'Verified';
+      verifiedCount++;
+      if (details.province.includes('Punjab')) provinceCounts.Punjab++;
+      else if (details.province.includes('Sindh')) provinceCounts.Sindh++;
+      else if (details.province.includes('KPK') || details.province.includes('FATA')) provinceCounts.KPK++;
+      else if (details.province.includes('Balochistan')) provinceCounts.Balochistan++;
+      else if (details.province.includes('Islamabad')) provinceCounts.ICT++;
+      else provinceCounts.Other++;
+      if (details.gender === 'Male') genderCounts.Male++;
+      else genderCounts.Female++;
+    }
+
+    const cleanPhone = String(cust.phone || '').replace(/\D/g, '');
+    const intlPhone = cleanPhone.startsWith('92') ? cleanPhone : `92${cleanPhone.replace(/^0/, '')}`;
+    const rawPhone = String(cust.phone || '').trim();
+    const phoneUrl = rawPhone ? `tel:${rawPhone.startsWith('+') ? rawPhone : '+92' + (cleanPhone.startsWith('92') ? cleanPhone.slice(2) : cleanPhone.replace(/^0/, ''))}` : '';
+
+    return {
+      serialNumber: idx + 1,
+      id: cust.id,
+      customerId: cust.id,
+      customerNumber: cust.customerNumber ?? (idx + 1),
+      name: String(cust.name || 'Subscriber').trim(),
+      username: String(cust.username || cust.id).trim(),
+      phone: rawPhone,
+      phoneUrl,
+      whatsappIntlPhone: intlPhone,
+      area: String(cust.area || cust.mohalla || 'Shahdara Town').trim(),
+      mohalla: String(cust.mohalla || cust.area || 'Shahdara Town').trim(),
+      address: String(cust.address || cust.mohalla || 'Shahdara Lahore').trim(),
+      cnic: rawCnic ? (details.valid ? details.formatted : rawCnic.trim()) : '',
+      formattedCnic: details.valid ? details.formatted : (rawCnic ? rawCnic.trim() : 'NOT_RECORDED'),
+      cleanCnic: details.raw,
+      isValidCnic: details.valid,
+      isDuplicate: cnicCounts.get(details.raw) > 1,
+      province: details.province,
+      provinceName: details.provinceName || details.province,
+      gender: details.gender,
+      status,
+      statusLabel,
+      discrepancyNote,
+      reason: discrepancyNote || (details.valid ? 'Valid CNIC' : details.reason)
+    };
+  });
+
+  const totalSubscribers = activeCustomers.length;
+  const complianceRate = totalSubscribers > 0 ? Number(((verifiedCount / totalSubscribers) * 100).toFixed(1)) : 100;
+
+  let riskLevel = 'LOW_RISK';
+  let riskBadge = 'PTA Compliant (Low Regulatory Risk)';
+  if (complianceRate < 75) {
+    riskLevel = 'HIGH_RISK';
+    riskBadge = 'Critical Non-Compliance (License Audit Risk)';
+  } else if (complianceRate < 90) {
+    riskLevel = 'MODERATE_RISK';
+    riskBadge = 'Attention Required (Notice Issued)';
+  }
+
+  const sectorSet = new Set(['All']);
+  records.forEach(r => {
+    if (r.area) sectorSet.add(r.area);
+    if (r.mohalla) sectorSet.add(r.mohalla);
+  });
+  const sectors = Array.from(sectorSet).sort();
+
+  return {
+    auditDate: nowStr,
+    generatedAt: new Date().toISOString(),
+    totalSubscribers,
+    totalAudited: totalSubscribers,
+    verifiedCount,
+    compliantCount: verifiedCount,
+    missingCount,
+    invalidCount,
+    duplicateCount,
+    attentionRequiredCount: missingCount + invalidCount + duplicateCount,
+    complianceRate,
+    riskLevel,
+    riskBadge,
+    riskLabel: riskBadge,
+    provinceCounts,
+    provinces: provinceCounts,
+    genderCounts,
+    genderCount: genderCounts,
+    sectors,
+    records
+  };
+}
+
+/**
+ * Filters KYC compliance records by status, sector, and search query.
+ * @param {Array<Object>} records
+ * @param {Object} [filters]
+ * @returns {Array<Object>}
+ */
+export function filterKycComplianceRecords(records = [], { status = 'all', sector = 'All', search = '' } = {}) {
+  const safeList = Array.isArray(records) ? records : [];
+  const normalizedSearch = String(search || '').trim().toLowerCase();
+  const normalizedSector = String(sector || 'All').trim().toLowerCase();
+  const rawStatus = String(status || 'all').trim();
+  const normalizedStatus = rawStatus.toUpperCase();
+
+  return safeList.filter(rec => {
+    if (normalizedSector !== 'all') {
+      const recArea = String(rec.area || rec.mohalla || '').toLowerCase();
+      if (recArea !== normalizedSector) {
+        return false;
+      }
+    }
+
+    if (normalizedStatus === 'ATTENTION_REQUIRED') {
+      if (rec.status === 'VERIFIED') return false;
+    } else if (normalizedStatus !== 'ALL') {
+      const recStatus = String(rec.status || '').toUpperCase();
+      const statusMatches =
+        recStatus === normalizedStatus ||
+        (normalizedStatus === 'COMPLIANT' && recStatus === 'VERIFIED') ||
+        (normalizedStatus === 'MISSING' && (recStatus === 'MISSING_CNIC' || recStatus === 'MISSING')) ||
+        (normalizedStatus === 'INVALID' && (recStatus === 'INVALID_FORMAT' || recStatus === 'INVALID')) ||
+        (normalizedStatus === 'DUPLICATE' && (recStatus === 'DUPLICATE_CNIC' || recStatus === 'DUPLICATE'));
+      if (!statusMatches) return false;
+    }
+
+    if (normalizedSearch) {
+      const matchName = String(rec.name || '').toLowerCase().includes(normalizedSearch);
+      const matchUser = String(rec.username || '').toLowerCase().includes(normalizedSearch);
+      const matchCnic = String(rec.cnic || '').toLowerCase().includes(normalizedSearch);
+      const matchPhone = String(rec.phone || '').includes(normalizedSearch);
+      const matchArea = String(rec.area || rec.mohalla || '').toLowerCase().includes(normalizedSearch);
+      const matchId = String(rec.customerNumber || rec.customerId || '').toLowerCase().includes(normalizedSearch);
+      if (!matchName && !matchUser && !matchCnic && !matchPhone && !matchArea && !matchId) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+/**
+ * Builds formatted bilingual WhatsApp KYC verification reminder message.
+ * @param {Object} customer
+ * @returns {string} Formatted WhatsApp message string
+ */
+export function generateKycNoticeWhatsAppText(customer = {}) {
+  if (!customer) return '';
+  const name = customer.name || customer.customerName || 'Subscriber';
+  const username = customer.username || '';
+  const area = customer.area || 'Shahdara Town';
+
+  let text = `🇵🇰 *پی ٹی اے بائیو میٹرک و شناختی تصدیقی نوٹس*\n`;
+  text += `*PTA SUBSCRIBER IDENTITY VERIFICATION NOTICE*\n`;
+  text += `─────────────────────────────────────────\n`;
+  text += `محترم صارف *${name}* صاحب!\n`;
+  if (username) text += `شاہدرہ فائبر نیٹ ورک کنکشن: *${username}* [${area}]\n`;
+  text += `\n`;
+  text += `پی ٹی اے (Pakistan Telecommunication Authority) اور الیکٹرانک جرائم کی روک تھام ایکٹ (PECA) کے تحت تمام فعال انٹرنیٹ کنکشنز کا نادرا شناختی کارڈ (CNIC) ریکارڈ میں تصدیق شدہ ہونا لازمی ہے۔\n\n`;
+  text += `⚠️ *ضروری اطلاع:* آپ کے انٹرنیٹ کنکشن ریکارڈ میں شناختی کارڈ نمبر درج نہیں ہے یا تجدید طلب ہے۔\n\n`;
+  text += `براہِ کرم بلاتعطل انٹرنیٹ سروس کے تسلسل کے لیے اپنا 13 ہندسی شناختی کارڈ نمبر یا شناختی کارڈ کی دونوں اطراف کی واضح تصویر بذریعہ واٹس ایپ فوری ارسال فرمائیں۔\n\n`;
+  text += `شکریہ،\n`;
+  text += `*انتظامیہ شاہدرہ فائبر براڈبینڈ نیٹ ورک*\n`;
+  text += `📞 ہیلپ لائن: 0300-1234567 | 📍 مین بازار، شاہدرہ، لاہور`;
+
+  return text;
+}
+
+/**
+ * Generates RFC-4180 CSV compliance audit register with UTF-8 BOM.
+ * @param {Object} auditData
+ * @returns {string} CSV string
+ */
+export function generateKycComplianceCsv(auditData = {}) {
+  if (!auditData) return '';
+  const records = Array.isArray(auditData.records) ? auditData.records : [];
+  const headers = [
+    'Sr #',
+    'Customer ID',
+    'Subscriber Name',
+    'Username',
+    'Phone',
+    'Area / Sector',
+    'Street Address',
+    'CNIC Number',
+    'KYC Status',
+    'Province',
+    'Gender',
+    'Discrepancy Notes'
+  ];
+
+  const escapeCell = (val) => {
+    const s = String(val ?? '').replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  const rows = [headers.map(escapeCell).join(',')];
+  records.forEach((r, idx) => {
+    rows.push([
+      escapeCell(idx + 1),
+      escapeCell(r.id),
+      escapeCell(r.name),
+      escapeCell(r.username),
+      escapeCell(r.phone),
+      escapeCell(r.area || r.mohalla || ''),
+      escapeCell(r.address),
+      escapeCell(r.cnic),
+      escapeCell(r.statusLabel),
+      escapeCell(r.province),
+      escapeCell(r.gender),
+      escapeCell(r.discrepancyNote)
+    ].join(','));
+  });
+
+  return '\uFEFF' + rows.join('\r\n');
+}
+
+/**
+ * Generates formal printable regulatory KYC register for PTA audits.
+ * @param {Object} auditData
+ * @returns {string} HTML string
+ */
+export function generateKycCompliancePrintHtml(auditData = {}) {
+  if (!auditData) return '';
+  const date = auditData.auditDate || new Date().toISOString().slice(0, 10);
+  const total = auditData.totalSubscribers ?? auditData.totalAudited ?? 0;
+  const verified = auditData.verifiedCount ?? auditData.compliantCount ?? 0;
+  const missing = auditData.missingCount ?? 0;
+  const duplicate = auditData.duplicateCount ?? 0;
+  const rate = auditData.complianceRate ?? 0;
+  const records = Array.isArray(auditData.records) ? auditData.records : [];
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  const rowsHtml = records.map((r, i) => `
+    <tr>
+      <td style="text-align: center;">${i + 1}</td>
+      <td><strong>${esc(r.name)}</strong></td>
+      <td style="font-family: monospace;">${esc(r.cnic || '—')}</td>
+      <td>${esc(r.area || r.mohalla || '—')}</td>
+      <td>${esc(r.phone)}</td>
+      <td>${esc(r.province)} (${esc(r.gender)})</td>
+      <td style="text-align: center; font-weight: bold; color: ${r.status === 'VERIFIED' ? '#047857' : '#b91c1c'};">${esc(r.statusLabel)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="kyc-print-document" style="font-family: sans-serif; padding: 24px; color: #111;">
+      <div style="border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end;">
+        <div>
+          <h1 style="margin: 0; font-size: 20px; color: #0e5b4d; text-transform: uppercase;">Shahdara Fiber Net — PTA Subscriber KYC Register</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #555;">Regulatory Compliance Record under PTA Broadband Regulations &amp; PECA Identity Requirements</p>
+        </div>
+        <div style="text-align: right;">
+          <strong style="font-size: 13px;">Date: ${esc(date)}</strong><br>
+          <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; background: ${rate >= 90 ? '#d1fae5' : '#fee2e2'}; color: ${rate >= 90 ? '#065f46' : '#991b1b'};">
+            ${esc(auditData.riskBadge || 'Audit Verified')}
+          </span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
+        <div style="background: #f8fafc; border: 1px solid #cbd5e1; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: #64748b; text-transform: uppercase;">Total Active Subscribers</div>
+          <div style="font-size: 18px; font-weight: bold;">${total}</div>
+        </div>
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: #166534; text-transform: uppercase;">Verified CNIC Records</div>
+          <div style="font-size: 18px; font-weight: bold; color: #166534;">${verified} (${rate}%)</div>
+        </div>
+        <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: #991b1b; text-transform: uppercase;">Missing CNIC Cards</div>
+          <div style="font-size: 18px; font-weight: bold; color: #991b1b;">${missing}</div>
+        </div>
+        <div style="background: #fffbeb; border: 1px solid #fde68a; padding: 10px; border-radius: 6px;">
+          <div style="font-size: 11px; color: #92400e; text-transform: uppercase;">Duplicate / Multi-Line</div>
+          <div style="font-size: 18px; font-weight: bold; color: #92400e;">${duplicate}</div>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead>
+          <tr style="background: #0e5b4d; color: #fff;">
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d;">#</th>
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d; text-align: left;">Subscriber Name</th>
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d; text-align: left;">CNIC Number</th>
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d; text-align: left;">Area / Sector</th>
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d; text-align: left;">Phone</th>
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d; text-align: left;">Origin / Gender</th>
+            <th style="padding: 6px 8px; border: 1px solid #0e5b4d; text-align: center;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; border-top: 1px solid #cbd5e1; padding-top: 16px;">
+        <div>
+          <strong>Certified by Network Operations Center (NOC):</strong><br>
+          Shahdara Fiber Net Technical Lead
+        </div>
+        <div style="text-align: right;">
+          <strong>Authorized Signature &amp; Stamp:</strong><br>
+          ________________________________________
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Interactive controller for `<dialog id="kycComplianceModal">`.
+ */
+export function setupKycComplianceModal({
+  getState,
+  onNavigateCustomer,
+  onToast,
+  clipboard = (typeof navigator !== 'undefined' ? navigator.clipboard : null)
+} = {}) {
+  if (typeof document === 'undefined') {
+    return {
+      recalculate: () => null,
+      getAuditData: () => null,
+      open: () => {},
+      close: () => {},
+      setState: () => {}
+    };
+  }
+
+  const modal = document.getElementById('kycComplianceModal');
+  if (!modal) {
+    return {
+      recalculate: () => null,
+      getAuditData: () => null,
+      open: () => {},
+      close: () => {},
+      setState: () => {}
+    };
+  }
+
+  function esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  const closeBtn = document.getElementById('closeKycModalBtn');
+  const sectorFilter = document.getElementById('kycSectorFilter');
+  const statusFilter = document.getElementById('kycStatusFilter');
+  const searchInput = document.getElementById('kycSearchInput');
+  const tableBody = document.getElementById('kycTableBody');
+  const emptyState = document.getElementById('kycEmptyState');
+
+  const metricRate = document.getElementById('kycMetricRate');
+  const metricVerified = document.getElementById('kycMetricVerified');
+  const metricMissing = document.getElementById('kycMetricMissing');
+  const metricDuplicates = document.getElementById('kycMetricDuplicates');
+
+  const copyBtn = document.getElementById('copyKycStatementBtn');
+  const downloadCsvBtn = document.getElementById('downloadKycCsvBtn');
+  const printBtn = document.getElementById('printKycRegisterBtn');
+  const openBtns = Array.from(document.querySelectorAll('[data-open-kyc-audit], #openKycAuditBtn'));
+
+  let currentState = typeof getState === 'function' ? getState() : null;
+  let lastAuditData = null;
+
+  function updateUi() {
+    currentState = typeof getState === 'function' ? getState() : currentState;
+    const auditData = calculateKycComplianceAudit(currentState);
+    lastAuditData = auditData;
+
+    if (metricRate) metricRate.textContent = `${auditData.complianceRate}%`;
+    if (metricVerified) metricVerified.textContent = String(auditData.verifiedCount);
+    if (metricMissing) metricMissing.textContent = String(auditData.missingCount);
+    if (metricDuplicates) metricDuplicates.textContent = String(auditData.duplicateCount);
+
+    if (sectorFilter && auditData.sectors) {
+      const currentVal = sectorFilter.value;
+      const opts = auditData.sectors.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+      if (sectorFilter.dataset.lastSectors !== JSON.stringify(auditData.sectors)) {
+        sectorFilter.innerHTML = opts;
+        sectorFilter.dataset.lastSectors = JSON.stringify(auditData.sectors);
+        if (auditData.sectors.includes(currentVal)) {
+          sectorFilter.value = currentVal;
+        } else {
+          sectorFilter.value = 'All';
+        }
+      }
+    }
+
+    const filtered = filterKycComplianceRecords(auditData.records, {
+      sector: sectorFilter?.value || 'All',
+      status: statusFilter?.value || 'ATTENTION_REQUIRED',
+      search: searchInput?.value || ''
+    });
+
+    if (tableBody) {
+      tableBody.innerHTML = '';
+      if (filtered.length === 0) {
+        if (emptyState) emptyState.hidden = false;
+      } else {
+        if (emptyState) emptyState.hidden = true;
+        filtered.forEach((rec, idx) => {
+          const row = document.createElement('tr');
+          const statusBadge = rec.status === 'VERIFIED'
+            ? '<span class="role-badge role-primary">✅ Verified</span>'
+            : rec.status === 'DUPLICATE_CNIC'
+            ? '<span class="role-badge badge-warning">🟠 Duplicate</span>'
+            : rec.status === 'INVALID_FORMAT'
+            ? '<span class="role-badge badge-warning">🟡 Invalid</span>'
+            : '<span class="role-badge role-alert">🔴 Missing</span>';
+
+          const noticeText = encodeURIComponent(generateKycNoticeWhatsAppText(rec));
+          const whatsappNoticeUrl = `https://wa.me/${rec.whatsappIntlPhone}?text=${noticeText}`;
+
+          row.innerHTML = `
+            <td class="text-center font-mono">${idx + 1}</td>
+            <td>
+              <strong class="kyc-row-name">${esc(rec.name)}</strong>
+              ${rec.username ? `<span class="kyc-row-user">@${esc(rec.username)}</span>` : ''}
+              ${rec.discrepancyNote ? `<div class="kyc-row-discrepancy">${esc(rec.discrepancyNote)}</div>` : ''}
+            </td>
+            <td class="font-mono">${esc(rec.cnic || '—')}</td>
+            <td>${esc(rec.area)}</td>
+            <td class="font-mono">${esc(rec.phone || '—')}</td>
+            <td><span class="kyc-row-origin">${esc(rec.province)}</span><span class="kyc-row-gender">${esc(rec.gender)}</span></td>
+            <td class="text-center">${statusBadge}</td>
+            <td class="text-center kyc-actions-cell">
+              ${rec.status !== 'VERIFIED' && rec.whatsappIntlPhone ? `<a href="${whatsappNoticeUrl}" target="_blank" rel="noopener noreferrer" class="action-btn-sm" title="Send WhatsApp KYC verification notice">💬 WhatsApp</a>` : ''}
+              <button type="button" class="action-btn-sm" data-kyc-profile="${esc(rec.id)}">Profile</button>
+            </td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
+    }
+
+    return auditData;
+  }
+
+  if (sectorFilter && !sectorFilter.dataset?.wiredKyc) {
+    if (sectorFilter.dataset) sectorFilter.dataset.wiredKyc = 'true';
+    sectorFilter.addEventListener('change', updateUi);
+  }
+
+  if (statusFilter && !statusFilter.dataset?.wiredKyc) {
+    if (statusFilter.dataset) statusFilter.dataset.wiredKyc = 'true';
+    statusFilter.addEventListener('change', updateUi);
+  }
+
+  if (searchInput && !searchInput.dataset?.wiredKyc) {
+    if (searchInput.dataset) searchInput.dataset.wiredKyc = 'true';
+    searchInput.addEventListener('input', updateUi);
+  }
+
+  if (tableBody && !tableBody.dataset?.wiredKyc) {
+    if (tableBody.dataset) tableBody.dataset.wiredKyc = 'true';
+    tableBody.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-kyc-profile]');
+      if (btn) {
+        const custId = btn.getAttribute('data-kyc-profile');
+        if (typeof modal?.close === 'function') modal.close();
+        else if (modal) modal.removeAttribute('open');
+        if (typeof onNavigateCustomer === 'function') {
+          onNavigateCustomer(custId);
+        }
+      }
+    });
+  }
+
+  if (copyBtn && !copyBtn.dataset?.wiredKyc) {
+    if (copyBtn.dataset) copyBtn.dataset.wiredKyc = 'true';
+    copyBtn.addEventListener('click', async () => {
+      const audit = updateUi();
+      const text = `🇵🇰 *SHAHDARA FIBER NET — PTA SUBSCRIBER KYC AUDIT STATEMENT*\n` +
+        `📅 Date: ${audit.auditDate}\n` +
+        `📊 Active Subscribers: ${audit.totalSubscribers}\n` +
+        `✅ Verified Compliant: ${audit.verifiedCount} (${audit.complianceRate}%)\n` +
+        `🔴 Missing CNIC: ${audit.missingCount}\n` +
+        `🟠 Duplicate / Shared CNIC: ${audit.duplicateCount}\n` +
+        `🟡 Invalid Format: ${audit.invalidCount}\n` +
+        `🏛️ Risk Assessment: ${audit.riskBadge}\n` +
+        `─────────────────────────────────────────\n` +
+        `Certified for PTA Broadband Regulatory Inspection.`;
+
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('PTA KYC Audit statement copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this browser.');
+      }
+    });
+  }
+
+  if (downloadCsvBtn && !downloadCsvBtn.dataset?.wiredKyc) {
+    if (downloadCsvBtn.dataset) downloadCsvBtn.dataset.wiredKyc = 'true';
+    downloadCsvBtn.addEventListener('click', () => {
+      const audit = updateUi();
+      const csv = generateKycComplianceCsv(audit);
+      const filename = `shahdara_pta_kyc_audit_${audit.auditDate}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      if (typeof onToast === 'function') onToast(`Downloaded ${filename}`);
+    });
+  }
+
+  if (printBtn && !printBtn.dataset?.wiredKyc) {
+    if (printBtn.dataset) printBtn.dataset.wiredKyc = 'true';
+    printBtn.addEventListener('click', () => {
+      const audit = updateUi();
+      const printHtml = generateKycCompliancePrintHtml(audit);
+      const printWin = window.open('', '_blank');
+      if (printWin) {
+        printWin.document.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>PTA KYC Compliance Register - ${audit.auditDate}</title>
+              <style>
+                body { margin: 0; padding: 20px; font-family: sans-serif; }
+                @media print { body { padding: 0; } }
+              </style>
+            </head>
+            <body>
+              ${printHtml}
+              <script>window.onload = function() { window.print(); };</script>
+            </body>
+          </html>
+        `);
+        printWin.document.close();
+      } else if (typeof onToast === 'function') {
+        onToast('Pop-up blocked. Please allow pop-ups to print register.');
+      }
+    });
+  }
+
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredKycOpen) {
+      if (btn.dataset) btn.dataset.wiredKycOpen = 'true';
+      btn.addEventListener('click', () => {
+        updateUi();
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredKyc) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredKyc = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    recalculate: updateUi,
+    getAuditData: () => lastAuditData,
+    open: () => {
+      updateUi();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    },
+    setState: (newState) => {
+      currentState = newState;
+      updateUi();
+    }
+  };
+}
+
+

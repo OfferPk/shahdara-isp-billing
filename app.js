@@ -32,7 +32,8 @@ import {
   calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
   setupAdjustmentVoucherModal,
   setupServiceContractModal,
-  setupDisputeClaimModal
+  setupDisputeClaimModal,
+  setupKycComplianceModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3188,6 +3189,9 @@ if (typeof document !== 'undefined') {
 
 // Setup Customer Ledger Adjustment & Outage Voucher Modal Controller
 export let customerAdjustmentModalController;
+export let customerServiceContractModalController;
+export let customerDisputeModalController;
+export let customerKycComplianceModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3261,6 +3265,23 @@ if (typeof document !== 'undefined') {
       const cust = state.customers.find(c => c.id === selectedCustomerId);
       if (!cust) return;
       customerDisputeModalController?.open(cust);
+    });
+  }
+
+  customerKycComplianceModalController = setupKycComplianceModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    onNavigateCustomer: (cid) => {
+      switchView('customers');
+      selectCustomer(cid);
+    }
+  });
+
+  const openKycAuditBtn = $('#openKycAuditBtn');
+  if (openKycAuditBtn) {
+    openKycAuditBtn.addEventListener('click', () => {
+      customerKycComplianceModalController?.open();
     });
   }
 }

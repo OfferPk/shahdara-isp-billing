@@ -531,6 +531,102 @@ ${metrics.redDropMbps > 0
 }
 
 /**
+ * Export metrics as JSON string suitable for automated NOC ingestion.
+ */
+export function exportMefEthernetJson(metrics, options = {}) {
+  const payload = {
+    standard: 'MEF 6.2 / MEF 10.3 / RFC 4115',
+    timestamp: options.timestamp || new Date().toISOString(),
+    service: {
+      id: metrics.serviceId,
+      name: metrics.serviceName,
+      type: metrics.serviceType,
+      cosProfile: metrics.cosProfile,
+      primaryArea: metrics.primaryArea,
+      secondaryAreas: metrics.secondaryAreas
+    },
+    bandwidthProfile: {
+      cirMbps: metrics.cirMbps,
+      cbsKbytes: metrics.cbsKbytes,
+      eirMbps: metrics.eirMbps,
+      ebsKbytes: metrics.ebsKbytes,
+      couplingFlag: metrics.couplingFlag,
+      colorAware: metrics.colorAware
+    },
+    policingResults: {
+      offeredMbps: metrics.offeredMbps,
+      greenMbps: metrics.greenMbps,
+      greenPct: metrics.greenPct,
+      yellowMbps: metrics.yellowMbps,
+      yellowPct: metrics.yellowPct,
+      redDropMbps: metrics.redDropMbps,
+      redPct: metrics.redPct,
+      totalForwardedMbps: metrics.totalForwardedMbps
+    },
+    slaMetrics: {
+      frameDelayMs: metrics.frameDelayMs,
+      frameJitterMs: metrics.frameJitterMs,
+      flrPct: metrics.flrPct,
+      availabilitySlaPct: metrics.availabilitySlaPct,
+      status: metrics.status,
+      verdict: metrics.slaVerdict
+    },
+    financialExposure: {
+      linkedCustomers: metrics.linkedCustomerCount,
+      monthlyRevenuePkr: metrics.monthlyRevenuePkr,
+      totalDuesPkr: metrics.totalDuesPkr,
+      revenueAtRiskPkr: metrics.revenueAtRiskPkr
+    }
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+/**
+ * Export metrics as CSV rows for spreadsheet analysis.
+ */
+export function exportMefEthernetCsv(metrics) {
+  const headers = [
+    'Service_ID',
+    'Service_Name',
+    'Service_Type',
+    'CoS_Profile',
+    'CIR_Mbps',
+    'CBS_KB',
+    'EIR_Mbps',
+    'EBS_KB',
+    'Offered_Mbps',
+    'Green_Mbps',
+    'Yellow_Mbps',
+    'Red_Drop_Mbps',
+    'Delay_ms',
+    'Jitter_ms',
+    'Availability_Pct',
+    'Verdict',
+    'Revenue_Risk_PKR'
+  ];
+  const row = [
+    `"${metrics.serviceId}"`,
+    `"${metrics.serviceName.replace(/"/g, '""')}"`,
+    `"${metrics.serviceType}"`,
+    `"${metrics.cosProfile}"`,
+    metrics.cirMbps,
+    metrics.cbsKbytes,
+    metrics.eirMbps,
+    metrics.ebsKbytes,
+    metrics.offeredMbps,
+    metrics.greenMbps,
+    metrics.yellowMbps,
+    metrics.redDropMbps,
+    metrics.frameDelayMs,
+    metrics.frameJitterMs,
+    metrics.availabilitySlaPct,
+    `"${metrics.slaVerdict}"`,
+    metrics.revenueAtRiskPkr
+  ];
+  return `${headers.join(',')}\r\n${row.join(',')}`;
+}
+
+/**
  * Controller to wire and manage the Carrier Ethernet MEF modal dialog.
  */
 export function setupMefEthernetModal(state, options = {}) {

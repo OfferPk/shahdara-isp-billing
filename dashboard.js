@@ -5680,5 +5680,7 @@ export {
   calculateMefEthernetMetrics,
   renderMefCarrierEthernetSvg,
   generateMefEthernetReport,
+  exportMefEthernetJson,
+  exportMefEthernetCsv,
   setupMefEthernetModal
 } from './dashboard-mef-ethernet.js';

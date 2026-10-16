@@ -12904,6 +12904,30 @@ test('generateMefEthernetReport formats structured engineering briefing', async 
   assert.ok(report.includes('SLA PERFORMANCE GUARANTEES:'));
 });
 
+test('exportMefEthernetJson and exportMefEthernetCsv generate valid structured payloads', async () => {
+  const { calculateMefEthernetMetrics, exportMefEthernetJson, exportMefEthernetCsv } = await import('../dashboard.js');
+
+  const metrics = calculateMefEthernetMetrics({}, {
+    serviceId: 'mef-elan-commercial-202',
+    cirMbps: 50,
+    eirMbps: 200,
+    offeredMbps: 180
+  });
+
+  const jsonStr = exportMefEthernetJson(metrics, { timestamp: '2026-10-17T03:30:00Z' });
+  const parsed = JSON.parse(jsonStr);
+  assert.strictEqual(parsed.standard, 'MEF 6.2 / MEF 10.3 / RFC 4115');
+  assert.strictEqual(parsed.service.id, 'mef-elan-commercial-202');
+  assert.strictEqual(parsed.bandwidthProfile.cirMbps, 50);
+  assert.strictEqual(parsed.policingResults.offeredMbps, 180);
+  assert.strictEqual(parsed.slaMetrics.verdict, 'YELLOW_BEST_EFFORT_FORWARD');
+
+  const csvStr = exportMefEthernetCsv(metrics);
+  assert.ok(csvStr.includes('Service_ID,Service_Name,Service_Type'));
+  assert.ok(csvStr.includes('"mef-elan-commercial-202"'));
+  assert.ok(csvStr.includes('50,256,200,128,180'));
+});
+
 test('setupMefEthernetModal binds DOM elements, recalculates, handles resets and report copy', async () => {
   const { setupMefEthernetModal } = await import('../dashboard.js');
 

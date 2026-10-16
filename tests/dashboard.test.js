@@ -378,7 +378,23 @@ import {
   calculateFlowspecMetrics,
   renderFlowspecDiagramSvg,
   generateFlowspecReport,
-  setupFlowspecModal
+  setupFlowspecModal,
+  RAMAN_CONSTANTS,
+  SHAHDARA_RAMAN_SPANS,
+  getRamanSelectedSpan,
+  setRamanSelectedSpan,
+  getRamanPumpScheme,
+  setRamanPumpScheme,
+  getRamanPumpWavelengthNm,
+  setRamanPumpWavelengthNm,
+  getRamanPumpPowerMw,
+  setRamanPumpPowerMw,
+  resetRamanSimState,
+  calculateRamanDynamics,
+  calculateRamanMetrics,
+  renderRamanDiagramSvg,
+  generateRamanReport,
+  setupRamanModal
 } from '../dashboard.js';
 
 
@@ -10746,6 +10762,304 @@ test('Flowspec simulation state getters, setters, and boundary constraints work 
   assert.equal(getFlowspecSelectedRule(), 'fs-rule-01');
   assert.equal(getFlowspecAttackVolumeGbps(), 45);
   assert.equal(getFlowspecScrubCapacityGbps(), 60);
+});
+
+test('calculateRamanDynamics computes effective length, distributed on-off gain, OSNR boost, and DRS penalty', () => {
+  const span01 = SHAHDARA_RAMAN_SPANS.find(s => s.id === 'raman-span-01'); // 42 km SMF-28e+
+
+  // 1. Baseline 500 mW counter-pump @ 1455 nm
+  const base = calculateRamanDynamics(span01, 500, 'COUNTER', 1455);
+  assert.equal(base.powerMw, 500);
+  assert.ok(base.effectiveLengthKm > 10 && base.effectiveLengthKm < 20); // typical Leff ~ 15.3 km for 42km fiber
+  assert.ok(base.onOffGainDb >= 9.0 && base.onOffGainDb <= 16.0); // typical ~12 dB
+  assert.equal(base.passiveSpanLossDb, 8.4); // 42 km * 0.20 dB/km = 8.4 dB
+  assert.ok(base.netSpanGainDb > 0); // Net positive link margin
+  assert.ok(base.osnrImprovementDb >= 4.0 && base.osnrImprovementDb <= 6.5);
+  assert.equal(base.status, RAMAN_CONSTANTS.STATUS.OPTIMAL);
+  assert.ok(base.noiseTransferRisk.includes('Counter-Propagating'));
+
+  // 2. High power pump (950 mW) triggering DRS penalty and CRITICAL status
+  const highPower = calculateRamanDynamics(span01, 950, 'COUNTER', 1455);
+  assert.ok(highPower.onOffGainDb > 20.0);
+  assert.ok(highPower.drsPenaltyDb > 1.2);
+  assert.equal(highPower.status, RAMAN_CONSTANTS.STATUS.CRITICAL);
+
+  // 3. Bidirectional pump scheme provides uniform gain profile
+  const biPump = calculateRamanDynamics(span01, 500, 'BIDIRECTIONAL', 1455);
+  assert.ok(biPump.onOffGainDb > base.onOffGainDb); // 1.15x multiplier
+  assert.ok(biPump.noiseTransferRisk.includes('Co+Counter'));
+
+  // 4. Low power 150 mW pump gives lower gain with minimal depletion
+  const lowPower = calculateRamanDynamics(span01, 150, 'COUNTER', 1455);
+  assert.ok(lowPower.onOffGainDb < 5.0);
+  assert.equal(lowPower.drsPenaltyDb, 0.0);
+});
+
+test('calculateRamanMetrics correlates optical span with subscriber ledger, revenue, and dues', () => {
+  let state = createInitialState(['Raman Cust 1', 'Raman Cust 2', 'Raman Far']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // Customer 0: Shahdara Town, Active, 3000 PKR bill
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '3000', status: 'pending' }, refDate);
+
+  // Customer 1: Kot Abdul Malik (alias for Span 01), Active, 2000 PKR bill, 1000 paid
+  state.customers[1].area = 'Kot Abdul Malik';
+  state.customers[1].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '1000', date: '2026-10-06', method: 'Cash' }, refDate);
+
+  // Customer 2: Baradari Road (belongs to Span 02)
+  state.customers[2].area = 'Baradari Road';
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '4500', status: 'pending' }, refDate);
+
+  // Test Span 01
+  const metrics = calculateRamanMetrics(state, {
+    spanId: 'raman-span-01',
+    pumpPowerMw: 500,
+    pumpScheme: 'COUNTER',
+    pumpWavelengthNm: 1455
+  });
+
+  assert.equal(metrics.span.id, 'raman-span-01');
+  assert.equal(metrics.subscriberCorrelation.totalSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.activeSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.sectorMonthlyRevenue, 5000); // 3000 + 2000
+  assert.equal(metrics.subscriberCorrelation.sectorTotalDues, 4000); // 3000 + 1000
+  assert.equal(metrics.subscriberCorrelation.revenueAtRisk, 0); // Optimal status -> 0 at risk
+
+  // Test Empty state
+  const emptyMetrics = calculateRamanMetrics({ customers: [] }, { spanId: 'raman-span-03' });
+  assert.equal(emptyMetrics.span.id, 'raman-span-03');
+  assert.equal(emptyMetrics.subscriberCorrelation.totalSubscribers, 0);
+  assert.equal(emptyMetrics.subscriberCorrelation.sectorMonthlyRevenue, 0);
+  assert.equal(emptyMetrics.subscriberCorrelation.revenueAtRisk, 0);
+});
+
+test('renderRamanDiagramSvg produces accessible and valid SVG with power curves, gauges, and legend', () => {
+  const state = createInitialState(['Svg Customer']);
+  const metrics = calculateRamanMetrics(state, {
+    spanId: 'raman-span-01',
+    pumpPowerMw: 500,
+    pumpScheme: 'COUNTER',
+    pumpWavelengthNm: 1455
+  });
+
+  // 1. Full modal view
+  const fullSvg = renderRamanDiagramSvg(metrics, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="raman-svg"'));
+  assert.ok(fullSvg.includes('viewBox="0 0 860 380"'));
+  assert.ok(fullSvg.includes('role="img"'));
+  assert.ok(fullSvg.includes('OPTICAL FIBER RAMAN AMPLIFIER (FRA) DISTRIBUTED GAIN'));
+  assert.ok(fullSvg.includes('Raman Signal (+'));
+  assert.ok(fullSvg.includes('Passive Loss (-'));
+  assert.ok(fullSvg.includes('On-Off Gain:'));
+  assert.ok(fullSvg.includes('OSNR Boost:'));
+  assert.ok(fullSvg.includes('Net Gain / Margin:'));
+
+  // 2. Compact card view
+  const compactSvg = renderRamanDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="raman-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 540 280"'));
+
+  // 3. Null fallback
+  const fallbackSvg = renderRamanDiagramSvg(null);
+  assert.ok(fallbackSvg.includes('No Optical Raman metrics available.'));
+});
+
+test('generateRamanReport formats comprehensive optical engineering report', () => {
+  const state = createInitialState(['NOC Customer']);
+  const metrics = calculateRamanMetrics(state, {
+    spanId: 'raman-span-01',
+    pumpPowerMw: 500,
+    pumpScheme: 'COUNTER',
+    pumpWavelengthNm: 1455
+  });
+
+  const report = generateRamanReport(metrics);
+  assert.ok(report.includes('OPTICAL FIBER RAMAN AMPLIFIER (ITU-T G.665) AUDIT BRIEFING'));
+  assert.ok(report.includes('Optical Span: Central Ring Trunk 01: Shahdara Core to Kot Abdul Malik'));
+  assert.ok(report.includes('Span Physical Length: 42 km'));
+  assert.ok(report.includes('Launch Pump Power: 500 mW'));
+  assert.ok(report.includes('On-Off Distributed Raman Gain: +'));
+  assert.ok(report.includes('OSNR Improvement Factor: +'));
+  assert.ok(report.includes('OPTIMAL CARRIER PERFORMANCE'));
+
+  // Null fallback
+  assert.equal(generateRamanReport(null), 'No Optical Raman Amplifier data recorded.');
+});
+
+test('setupRamanModal binds DOM events, handles input updates, resets state, filters area, and copies report', async () => {
+  let modalOpened = false;
+  let filterAreaTarget = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; }
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+  const mockSpanSelect = { value: 'raman-span-01', innerHTML: '', onchange: null };
+  const mockSchemeSelect = { value: 'COUNTER', innerHTML: '', onchange: null };
+  const mockWlSelect = { value: '1455', innerHTML: '', onchange: null };
+  const mockPowerSlider = { value: '500', oninput: null };
+  const mockPowerValPill = { textContent: '' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiSpanName = { textContent: '' };
+  const mockKpiGain = { textContent: '', style: {} };
+  const mockKpiOsnr = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockSpansTableBody = { innerHTML: '' };
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementMap = {
+    'dashboardRamanModal': mockModal,
+    'dashboardOpenRamanModalBtn': mockOpenBtn,
+    'dashboardRamanModalCloseBtn': mockCloseBtn,
+    'ramanSpanSelect': mockSpanSelect,
+    'ramanSchemeSelect': mockSchemeSelect,
+    'ramanWlSelect': mockWlSelect,
+    'ramanPowerSlider': mockPowerSlider,
+    'ramanPowerVal': mockPowerValPill,
+    'ramanResetBtn': mockResetBtn,
+    'ramanKpiSpanName': mockKpiSpanName,
+    'ramanKpiGain': mockKpiGain,
+    'ramanKpiOsnr': mockKpiOsnr,
+    'ramanStatusBadge': mockStatusBadge,
+    'ramanKpiRevenueRisk': mockKpiRevenueRisk,
+    'ramanModalChartWrap': mockChartWrap,
+    'ramanSpansTableBody': mockSpansTableBody,
+    'ramanFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyRamanReportBtn': mockCopyReportBtn,
+    'dashboardRamanChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementMap[id] || null
+  };
+
+  try {
+    const state = createInitialState(['DOM Test User']);
+    setupRamanModal(state, {
+      onFilterArea: (area) => { filterAreaTarget = area; },
+      onToast: (msg) => { toastMsg = msg; },
+      clipboard: {
+        writeText: async (txt) => { copiedText = txt; }
+      }
+    });
+
+    // Initial render
+    assert.ok(mockCardChart.innerHTML.includes('raman-svg'));
+
+    // Open modal
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiSpanName.textContent.includes('Central Ring Trunk 01'));
+    assert.ok(mockChartWrap.innerHTML.includes('raman-svg'));
+    assert.ok(mockSpansTableBody.innerHTML.includes('RAMAN-SPAN-01'));
+
+    // Change span to Span 02 (Baradari)
+    mockSpanSelect.value = 'raman-span-02';
+    mockSpanSelect.onchange({ target: { value: 'raman-span-02' } });
+    assert.equal(getRamanSelectedSpan(), 'raman-span-02');
+    assert.equal(getRamanPumpPowerMw(), 450);
+
+    // Change scheme to BIDIRECTIONAL
+    mockSchemeSelect.value = 'BIDIRECTIONAL';
+    mockSchemeSelect.onchange({ target: { value: 'BIDIRECTIONAL' } });
+    assert.equal(getRamanPumpScheme(), 'BIDIRECTIONAL');
+
+    // Change wavelength to 1460
+    mockWlSelect.value = '1460';
+    mockWlSelect.onchange({ target: { value: '1460' } });
+    assert.equal(getRamanPumpWavelengthNm(), 1460);
+
+    // Change power slider
+    mockPowerSlider.value = '700';
+    mockPowerSlider.oninput({ target: { value: '700' } });
+    assert.equal(getRamanPumpPowerMw(), 700);
+    assert.equal(mockPowerValPill.textContent, '700 mW');
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getRamanSelectedSpan(), 'raman-span-01');
+    assert.equal(getRamanPumpScheme(), 'COUNTER');
+    assert.equal(getRamanPumpWavelengthNm(), 1455);
+    assert.equal(getRamanPumpPowerMw(), 500);
+    assert.equal(toastMsg, 'Raman Amplifier simulation reset to baseline parameters.');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaTarget, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('OPTICAL FIBER RAMAN AMPLIFIER (ITU-T G.665) AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'Optical Raman engineering report copied to clipboard!');
+
+    // Close button
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetRamanSimState();
+  }
+});
+
+test('Raman simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetRamanSimState();
+  assert.equal(getRamanSelectedSpan(), 'raman-span-01');
+
+  // Span selection
+  setRamanSelectedSpan('raman-span-03');
+  assert.equal(getRamanSelectedSpan(), 'raman-span-03');
+  assert.equal(getRamanPumpPowerMw(), 650);
+  assert.equal(getRamanPumpScheme(), 'BIDIRECTIONAL');
+  setRamanSelectedSpan('invalid-span');
+  assert.equal(getRamanSelectedSpan(), 'raman-span-03');
+
+  // Pump scheme
+  setRamanPumpScheme('CO');
+  assert.equal(getRamanPumpScheme(), 'CO');
+  setRamanPumpScheme('invalid-scheme');
+  assert.equal(getRamanPumpScheme(), 'CO');
+
+  // Pump wavelength
+  setRamanPumpWavelengthNm(1480);
+  assert.equal(getRamanPumpWavelengthNm(), 1480);
+  setRamanPumpWavelengthNm(9999);
+  assert.equal(getRamanPumpWavelengthNm(), 1480);
+
+  // Pump power clamping [100, 1000]
+  setRamanPumpPowerMw(600);
+  assert.equal(getRamanPumpPowerMw(), 600);
+  setRamanPumpPowerMw(1800); // clamped to 1000
+  assert.equal(getRamanPumpPowerMw(), 1000);
+  setRamanPumpPowerMw(20); // clamped to 100
+  assert.equal(getRamanPumpPowerMw(), 100);
+
+  // Reset
+  resetRamanSimState();
+  assert.equal(getRamanSelectedSpan(), 'raman-span-01');
+  assert.equal(getRamanPumpScheme(), 'COUNTER');
+  assert.equal(getRamanPumpWavelengthNm(), 1455);
+  assert.equal(getRamanPumpPowerMw(), 500);
 });
 
 

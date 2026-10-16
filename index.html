@@ -492,6 +492,16 @@
             </div>
             <div id="dashboardRouteDensityChart" class="chart-svg-container" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-otdr">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">OTDR Fiber Fault Locator &amp; Break Estimator</h4>
+                <p class="chart-subtitle">Laser pulse backscattering, optical cut distance localization, and splicing crew dispatch</p>
+              </div>
+              <button id="dashboardOpenOtdrModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OTDR Trace Diagnostics</button>
+            </div>
+            <div id="dashboardOtdrChart" class="chart-svg-container" role="img" aria-label="OTDR Fiber Fault Locator and Break Distance Estimator Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -1508,6 +1518,91 @@
 
           <div class="sim-modal-footer" style="margin-top: 14px;">
             <button id="dashboardCopyRouteDensityReportBtn" class="primary-button" type="button">📋 Copy Route Dispatch Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardOtdrModal" class="dashboard-modal otdr-modal" aria-labelledby="dashboardOtdrModalTitle">
+        <div class="dashboard-modal-card otdr-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">OPTICAL REFLECTOMETRY &amp; FAULT LOCALIZATION</p>
+              <h3 id="dashboardOtdrModalTitle">OTDR Fiber Fault Locator &amp; Break Estimator</h3>
+            </div>
+            <button id="dashboardOtdrModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Real-time optical time-domain reflectometry modeling, Rayleigh backscatter attenuation analysis, and precision fiber cut distance localization across Shahdara feeder lines.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="otdrRouteSelect" class="otdr-control-label">Monitored Fiber Trunk:</label>
+              <select id="otdrRouteSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="otdrWavelengthSelect" class="otdr-control-label">Laser Wavelength:</label>
+              <select id="otdrWavelengthSelect" class="otdr-select">
+                <option value="1310" selected>1310 nm (Standard Single-Mode)</option>
+                <option value="1550">1550 nm (Macrobend Sensitive)</option>
+              </select>
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="otdrDistanceSlider" class="otdr-control-label">Simulate Cut Distance:</label>
+                <span id="otdrDistanceSliderVal" class="otdr-val-pill">Auto (Live State)</span>
+                <button id="otdrResetSimBtn" type="button" class="otdr-reset-btn">Reset</button>
+              </div>
+              <input type="range" id="otdrDistanceSlider" min="0" max="3800" step="50" class="otdr-range-slider" />
+            </div>
+          </div>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Monitored Route Span</span>
+              <span id="otdrKpiRouteName" class="ltv-kpi-value">Saeed Park (2.4 km)</span>
+              <span class="ltv-kpi-sub">Central OLT Distribution</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Detected Fault Distance</span>
+              <span id="otdrKpiBreakDist" class="ltv-kpi-value">1,420 m</span>
+              <span class="ltv-kpi-sub">Precision optical break</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Subscribers at Risk</span>
+              <span id="otdrKpiAffectedSubs" class="ltv-kpi-value">0 Offline</span>
+              <span id="otdrKpiAtRiskRev" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Optical Health &amp; Margin</span>
+              <span id="otdrStatusBadge" class="sim-delta-badge badge-success">Normal Link</span>
+              <span id="otdrKpiOpticalMargin" class="ltv-kpi-sub">14.5 dB Margin</span>
+            </div>
+          </div>
+
+          <div id="otdrModalTraceChart" class="otdr-modal-chart-wrap" role="img" aria-label="OTDR Modal Trace Display"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Optical Event Table &amp; Splice Landmarks</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-table">
+              <thead>
+                <tr>
+                  <th>Event</th>
+                  <th>Distance</th>
+                  <th>Event Classification</th>
+                  <th>Step Loss</th>
+                  <th>Reflectance</th>
+                  <th>Power Level</th>
+                  <th>Physical Landmark / Pole</th>
+                </tr>
+              </thead>
+              <tbody id="otdrEventsTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="otdrFilterAreaBtn" class="secondary-button" type="button">Inspect Route Subscribers</button>
+            <button id="dashboardCopyOtdrReportBtn" class="primary-button" type="button">📋 Copy OTDR Dispatch Briefing</button>
           </div>
         </div>
       </dialog>

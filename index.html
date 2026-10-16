@@ -69,6 +69,7 @@
           <li class="nav-drawer-item"><button type="button" id="navVflTracerBtn" data-open-vfl-tracer><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m8 17 4 4 4-4"/></svg></span><span>VFL Laser &amp; Core Tracer</span><span id="navBadgeVflTracer" class="nav-drawer-badge" data-nav-badge="vfl-tracer" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navFusionSpliceBtn" data-open-fusion-splice><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span><span>Fusion Splice Audit</span><span id="navBadgeFusionSplice" class="nav-drawer-badge" data-nav-badge="fusion-splice" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navWifiSurveyBtn" data-open-wifi-survey><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></span><span>Wi-Fi Survey</span><span id="navBadgeWifiSurvey" class="nav-drawer-badge" data-nav-badge="wifi-survey" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navOpticalBudgetBtn" data-open-optical-budget><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="17" y1="12" x2="21" y2="12"/><circle cx="12" cy="12" r="3"/></svg></span><span>Optical Link Budget</span><span id="navBadgeOpticalBudget" class="nav-drawer-badge" data-nav-badge="optical-budget" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -3286,7 +3287,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -3812,6 +3813,10 @@
         <span class="sheet-action-icon" aria-hidden="true">📶</span>
         <span class="sheet-action-label">Wi-Fi Survey</span>
       </button>
+      <button type="button" id="actionSheetOpticalBudgetBtn" class="sheet-action-tile" data-sheet-action="optical-budget" data-open-optical-budget>
+        <span class="sheet-action-icon" aria-hidden="true">📉</span>
+        <span class="sheet-action-label">Optical Budget</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -3916,6 +3921,10 @@
       <button type="button" id="speedDialWifiSurveyBtn" class="speed-dial-action" data-speed-action="wifi-survey" data-open-wifi-survey role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">📶</span>
         <span class="speed-action-label">Wi-Fi Survey</span>
+      </button>
+      <button type="button" id="speedDialOpticalBudgetBtn" class="speed-dial-action" data-speed-action="optical-budget" data-open-optical-budget role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">📉</span>
+        <span class="speed-action-label">Optical Budget</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -5715,6 +5724,160 @@
       </div>
     </section>
   </dialog>
+
+  <!-- Mobile Field Optical Link Loss Budget Assistant Modal -->
+  <dialog id="mobileOpticalBudgetModal" class="modal optical-budget-modal" aria-labelledby="opticalBudgetModalTitle">
+    <section class="optical-budget-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">ITU-T G.984 / G.9807 OPTICAL ENGINEERING</p>
+          <h2 id="opticalBudgetModalTitle">Optical Link Loss Budget Assistant</h2>
+        </div>
+        <button id="mobileOpticalBudgetModalCloseBtn" class="close-button" type="button" aria-label="Close optical budget modal">×</button>
+      </div>
+
+      <!-- Preset Feeder Selection -->
+      <div class="budget-field-group">
+        <label for="opticalBudgetPresetSelect">Feeder Preset Route</label>
+        <select id="opticalBudgetPresetSelect" class="form-control">
+          <option value="PRESET_SHAHDARA_TOWN" selected>Shahdara Town Central OLT - Feeder 01 (2.8 km)</option>
+          <option value="PRESET_BARADARI_ROAD">Baradari Industrial Hub - Feeder 02 (3.9 km)</option>
+          <option value="PRESET_VANDALA_ROAD">Vandala Road Core - Feeder 03 (3.2 km, XGS-PON)</option>
+          <option value="PRESET_JIA_MUSA">Jia Musa Main POP - Feeder 04 (1.9 km)</option>
+          <option value="PRESET_BEGUM_KOT">Begum Kot Substation - Feeder 05 (4.8 km)</option>
+          <option value="PRESET_RAVI_SIPHON">Ravi Siphon Perimeter - Feeder 06 (6.2 km)</option>
+        </select>
+      </div>
+
+      <!-- KPI Summary Ribbon -->
+      <div class="optical-budget-kpis" role="region" aria-label="Calculated Link Metrics">
+        <div class="budget-kpi-item">
+          <span class="budget-kpi-label">Expected Rx Power</span>
+          <span id="opticalBudgetKpiRxPower" class="budget-kpi-val">-- dBm</span>
+        </div>
+        <div class="budget-kpi-item">
+          <span class="budget-kpi-label">Headroom Margin</span>
+          <span id="opticalBudgetKpiMargin" class="budget-kpi-val">-- dB</span>
+        </div>
+        <div class="budget-kpi-item">
+          <span class="budget-kpi-label">Total Attenuation</span>
+          <span id="opticalBudgetKpiTotalLoss" class="budget-kpi-val">-- dB</span>
+        </div>
+        <div class="budget-kpi-badge-wrap">
+          <span id="opticalBudgetKpiStatus" class="sim-delta-badge badge-success">OPTIMAL</span>
+        </div>
+      </div>
+
+      <!-- Main Controls Grid -->
+      <div class="optical-budget-grid">
+        <div class="budget-field-group">
+          <label for="opticalBudgetStandardSelect">OLT / PON Standard</label>
+          <select id="opticalBudgetStandardSelect" class="form-control">
+            <option value="GPON_CLASS_B_PLUS" selected>GPON Class B+ (Tx +3.0 dBm / Rx -27 dBm)</option>
+            <option value="GPON_CLASS_C_PLUS">GPON Class C+ (Tx +5.0 dBm / Rx -30 dBm)</option>
+            <option value="XGS_PON_CLASS_N1">10G XGS-PON N1 (Tx +4.0 dBm / Rx -28 dBm)</option>
+            <option value="XGS_PON_CLASS_N2">10G XGS-PON N2 (Tx +6.0 dBm / Rx -30 dBm)</option>
+          </select>
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetWavelengthSelect">Optical Wavelength</label>
+          <select id="opticalBudgetWavelengthSelect" class="form-control">
+            <option value="1490" selected>1490 nm (GPON Downstream / 0.28 dB/km)</option>
+            <option value="1577">1577 nm (XGS-PON Downstream / 0.25 dB/km)</option>
+            <option value="1310">1310 nm (GPON Upstream / 0.35 dB/km)</option>
+            <option value="1550">1550 nm (RF CATV Overlay / 0.22 dB/km)</option>
+          </select>
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetDistanceInput">Route Fiber Length (meters)</label>
+          <input id="opticalBudgetDistanceInput" type="number" class="form-control" min="100" max="40000" step="50" value="2800">
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetPrimarySplitterSelect">Primary Splitter (FDT / FDH)</label>
+          <select id="opticalBudgetPrimarySplitterSelect" class="form-control">
+            <option value="NONE">None (Direct Feeder)</option>
+            <option value="1:2">1:2 PLC Splitter (~3.70 dB)</option>
+            <option value="1:4">1:4 PLC Splitter (~7.20 dB)</option>
+            <option value="1:8" selected>1:8 PLC Splitter (~10.50 dB)</option>
+            <option value="1:16">1:16 PLC Splitter (~13.80 dB)</option>
+            <option value="1:32">1:32 PLC Splitter (~17.10 dB)</option>
+            <option value="1:64">1:64 PLC Splitter (~20.50 dB)</option>
+          </select>
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetSecondarySplitterSelect">Secondary Splitter (FAT / NAP)</label>
+          <select id="opticalBudgetSecondarySplitterSelect" class="form-control">
+            <option value="NONE">None (Single-stage architecture)</option>
+            <option value="1:2">1:2 PLC Splitter (~3.70 dB)</option>
+            <option value="1:4">1:4 PLC Splitter (~7.20 dB)</option>
+            <option value="1:8" selected>1:8 PLC Splitter (~10.50 dB)</option>
+            <option value="1:16">1:16 PLC Splitter (~13.80 dB)</option>
+            <option value="1:32">1:32 PLC Splitter (~17.10 dB)</option>
+            <option value="1:64">1:64 PLC Splitter (~20.50 dB)</option>
+          </select>
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetFusionSpliceInput">Fusion Splices (0.08 dB ea)</label>
+          <input id="opticalBudgetFusionSpliceInput" type="number" class="form-control" min="0" max="30" step="1" value="4">
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetMechSpliceInput">Mechanical Splices (0.20 dB ea)</label>
+          <input id="opticalBudgetMechSpliceInput" type="number" class="form-control" min="0" max="10" step="1" value="0">
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetConnPairsInput">SC/APC Connector Pairs (0.25 dB ea)</label>
+          <input id="opticalBudgetConnPairsInput" type="number" class="form-control" min="0" max="20" step="1" value="2">
+        </div>
+
+        <div class="budget-field-group">
+          <label for="opticalBudgetTxPowerInput">Custom OLT Tx Power (dBm, opt)</label>
+          <input id="opticalBudgetTxPowerInput" type="number" class="form-control" min="-10" max="15" step="0.1" placeholder="Auto default">
+        </div>
+      </div>
+
+      <!-- Waterfall Chart Visualization -->
+      <div class="optical-budget-chart-section">
+        <h3 class="budget-section-heading">Attenuation Cascade Waterfall Chart</h3>
+        <div id="opticalBudgetChartWrap" class="optical-budget-chart-wrap" role="img" aria-label="Waterfall breakdown of optical attenuation losses">
+          <!-- Dynamic SVG injected here -->
+        </div>
+      </div>
+
+      <!-- Action Toolbar -->
+      <div class="optical-budget-actions">
+        <div class="budget-buttons-row">
+          <button id="opticalBudgetSaveRecordBtn" type="button" class="button button-primary">
+            💾 Save Link Budget Log
+          </button>
+          <button id="opticalBudgetWhatsAppReportBtn" type="button" class="button button-secondary">
+            💬 WhatsApp Lineman Dispatch
+          </button>
+          <button id="opticalBudgetResetBtn" type="button" class="button button-outline">
+            🔄 Reset
+          </button>
+          <button id="opticalBudgetClearHistoryBtn" type="button" class="button button-outline danger">
+            🗑️ Clear History
+          </button>
+        </div>
+      </div>
+
+      <!-- Audit History List -->
+      <div class="optical-budget-history-section">
+        <h3 class="budget-section-heading">Saved Link Budget Calculations</h3>
+        <ul id="opticalBudgetHistoryList" class="optical-budget-history-list" role="feed" aria-label="Recent Optical Budget Logs">
+          <!-- Dynamically populated items -->
+        </ul>
+      </div>
+    </section>
+  </dialog>
+
 
   <dialog id="customerBillInvoiceModal" class="modal invoice-modal" aria-labelledby="billInvoiceModalTitle">
     <section class="invoice-modal-card">

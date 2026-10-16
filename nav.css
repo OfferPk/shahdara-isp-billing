@@ -4511,7 +4511,34 @@ kbd {
   border-color: #243c33;
 }
 
+/* ==========================================================================
+   FIELD TECHNICIAN OPTICAL POWER METER (OPM) & INSERTION LOSS VERIFIER
+   ========================================================================== */
 
+.opm-testing-modal {
+  max-width: 680px;
+  width: 95vw;
+}
 
+.opm-testing-modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+}
 
+.opm-gauge-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+}
 
+.opm-log-item {
+  transition: background-color 0.15s ease;
+}
+
+.opm-log-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="dark"] .opm-testing-modal,
+[data-theme="dark"] .opm-testing-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}

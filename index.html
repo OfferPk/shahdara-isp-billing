@@ -576,6 +576,16 @@
             </div>
             <div id="dashboardSplicerChart" class="chart-svg-container" role="img" aria-label="Fusion Splicer Electrode Wear and Cleave Angle Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-bgp">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Core BGP Peering &amp; Route Flap Damping</h4>
+                <p class="chart-subtitle">Upstream ASN transit convergence, RFC 2439 penalty decay, and RPKI ROA security</p>
+              </div>
+              <button id="dashboardOpenBgpModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">BGP Diagnostics</button>
+            </div>
+            <div id="dashboardBgpChart" class="chart-svg-container" role="img" aria-label="Core IP Backbone BGP Peering and Route Flap Damping Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -2274,6 +2284,88 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="splicerFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopySplicerReportBtn" class="primary-button" type="button">📋 Copy Splicer Maintenance Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardBgpModal" class="dashboard-modal bgp-modal" aria-labelledby="dashboardBgpModalTitle">
+        <div class="dashboard-modal-card bgp-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">CORE IP BACKBONE · UPSTREAM BGP ROUTING</p>
+              <h3 id="dashboardBgpModalTitle">Core BGP Peering &amp; Route Flap Damping Diagnostics</h3>
+            </div>
+            <button id="dashboardBgpModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">RFC 2439 route flap penalty exponential decay, suppress/reuse thresholds, RPKI ROA cryptographic origin validation, hardware TCAM FIB occupancy, and subscriber exposure.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="bgpPeerSelect" class="otdr-control-label">BGP Carrier &amp; ASN:</label>
+              <select id="bgpPeerSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="bgpFlapSlider" class="otdr-control-label">Flap Count (0-30):</label>
+                <span id="bgpFlapVal" class="otdr-val-pill">2 flaps</span>
+                <label for="bgpThreshSlider" class="otdr-control-label" style="margin-left: 10px;">Suppress Thresh:</label>
+                <span id="bgpThreshVal" class="otdr-val-pill">2000 pts</span>
+                <button id="bgpResetSimBtn" type="button" class="otdr-reset-btn">Reset</button>
+              </div>
+              <div style="display: flex; gap: 8px; width: 100%;">
+                <input type="range" id="bgpFlapSlider" min="0" max="30" step="1" value="2" class="otdr-range-slider" style="flex: 1;" />
+                <input type="range" id="bgpThreshSlider" min="1000" max="5000" step="250" value="2000" class="otdr-range-slider" style="flex: 1;" />
+              </div>
+            </div>
+          </div>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Selected Peer</span>
+              <span id="bgpKpiPeerName" class="ltv-kpi-value">AS133929 (Nayatel)</span>
+              <span class="ltv-kpi-sub">Border Session</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Flap Penalty</span>
+              <span id="bgpKpiPenalty" class="ltv-kpi-value">500 pts (2 flaps)</span>
+              <span class="ltv-kpi-sub">RFC 2439 Score</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Convergence Time</span>
+              <span id="bgpKpiConvergence" class="ltv-kpi-value">320 ms (RTT 4.2ms)</span>
+              <span class="ltv-kpi-sub">Best-path Pacing</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Peering Health</span>
+              <span id="bgpStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="bgpKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="bgpModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="BGP Peering Topology and Flap Damping Simulation Diagram"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Shahdara BGP Peering Sessions &amp; Carriers Register</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-register-table">
+              <thead>
+                <tr>
+                  <th>Carrier &amp; ASN</th>
+                  <th>Primary Sector</th>
+                  <th>Flaps &amp; Penalty</th>
+                  <th>Convergence</th>
+                  <th>RPKI Valid</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="bgpPeersTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="bgpFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopyBgpReportBtn" class="primary-button" type="button">📋 Copy BGP Routing Briefing</button>
           </div>
         </div>
       </dialog>

@@ -5684,3 +5684,16 @@ export {
   exportMefEthernetCsv,
   setupMefEthernetModal
 } from './dashboard-mef-ethernet.js';
+
+export {
+  ERPS_CONSTANTS,
+  SHAHDARA_ERPS_RINGS,
+  calculateErpsDynamics,
+  calculateErpsMetrics,
+  renderErpsDiagramSvg,
+  generateErpsReport,
+  exportErpsJson,
+  exportErpsCsv,
+  setupErpsModal
+} from './dashboard-erps.js';
+

@@ -6088,3 +6088,19 @@ export {
   generateAttenuatorWhatsAppReport,
   setupMobileAttenuatorModal
 } from './nav-optical-attenuator.js';
+
+export {
+  OPTICAL_RETURN_LOSS_STORAGE_KEY,
+  OPTICAL_NETWORK_STANDARDS,
+  ORL_CONNECTOR_POLISH_TYPES,
+  ORL_FIELD_PRESETS,
+  calculateOpticalReturnLoss,
+  renderMobileOrlSvg,
+  getDefaultOrlAudits,
+  getOrlStore,
+  saveOrlStore,
+  recordOrlAudit,
+  clearOrlStore,
+  generateOrlWhatsAppReport,
+  setupMobileOrlModal
+} from './nav-optical-return-loss.js';

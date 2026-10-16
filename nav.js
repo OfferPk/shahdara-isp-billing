@@ -5808,6 +5808,19 @@ export {
   setupOpticalSignalMapModal
 } from './nav-optical-map.js';
 
+export {
+  SHAHDARA_VEHICLE_FLEET,
+  SHAHDARA_STANDARD_HARDWARE,
+  VEHICLE_STORAGE_KEY,
+  getVehicleInventoryStore,
+  saveVehicleInventoryStore,
+  recordVehicleTransfer,
+  calculateVehicleStock,
+  renderVehicleInventorySvg,
+  generateVehicleTransferReceipt,
+  setupVehicleTransferModal
+} from './nav-van-inventory.js';
+
 
 
 

@@ -770,6 +770,16 @@
             </div>
             <div id="dashboardMefEthernetChart" class="chart-svg-container" role="img" aria-label="Carrier Ethernet Bandwidth Profile and Token Bucket Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-erps-ring">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Metro Ethernet Ring Protection (ITU-T G.8032 ERPS)</h4>
+                <p class="chart-subtitle">Resilient fiber ring topology, R-APS protocol, RPL link blocking &amp; sub-50ms protection switching</p>
+              </div>
+              <button id="dashboardOpenErpsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">ERPS Ring Diagnostics</button>
+            </div>
+            <div id="dashboardErpsChart" class="chart-svg-container" role="img" aria-label="Metro Ethernet Ring Protection Topology and Switching Chart"></div>
+          </article>
         </div>
 
 
@@ -4052,6 +4062,96 @@
               <button id="mefEthernetExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="mefEthernetCopyReportBtn" class="primary-button" type="button">📋 Copy MEF SLA Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardErpsModal" class="dashboard-modal erps-modal" aria-labelledby="dashboardErpsModalTitle">
+        <div class="dashboard-modal-card erps-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <h3 id="dashboardErpsModalTitle">ITU-T G.8032 / Y.1344 Metro Ethernet Ring Protection (ERPS)</h3>
+              <p class="modal-subtitle">Resilient optical ring topology, R-APS protocol, RPL link blocking &amp; sub-50ms carrier protection switching</p>
+            </div>
+            <button id="dashboardErpsModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="form-group">
+              <label for="erpsRingSelect">Target Metro Fiber Ring:</label>
+              <select id="erpsRingSelect" class="form-select">
+                <option value="shahdara-central-baradari">Shahdara Central Baradari Metro Ring (6 Nodes, 14.2 km)</option>
+                <option value="jia-musa-plaza-ring">Jia Musa Commercial Plaza Ring (4 Nodes, 8.6 km)</option>
+                <option value="begum-kot-industrial-ring">Begum Kot Industrial &amp; Feeder Ring (5 Nodes, 11.4 km)</option>
+                <option value="ravi-siphon-aerial-ring">Ravi Siphon River Crossing Ring (4 Nodes, 18.2 km)</option>
+                <option value="vandala-road-olt-ring">Vandala Road OLT Aggregation Ring (8 Nodes, 22.8 km)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="erpsSpanSelect">Simulated Failed Fiber Span:</label>
+              <select id="erpsSpanSelect" class="form-select">
+                <option value="">None (All Spans Normal / Healthy)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="erpsDetectSelect">Defect Detection Mechanism:</label>
+              <select id="erpsDetectSelect" class="form-select">
+                <option value="los">Hardware Loss of Signal (LOS / Transceiver SF - 0.8ms)</option>
+                <option value="cfm-3.3ms">IEEE 802.1ag / ITU-T Y.1731 CFM (3.3ms CCM x 3 - 10ms)</option>
+                <option value="cfm-10ms">IEEE 802.1ag CFM (10ms CCM x 3 - 30ms)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="erpsWtrInput">WTR Timer (Wait-to-Restore Minutes):</label>
+              <input type="number" id="erpsWtrInput" class="form-input" value="5" min="1" max="12" step="1">
+            </div>
+          </div>
+
+          <div class="erps-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="erpsInjectCutBtn" class="primary-button" style="background-color: #ef4444;" type="button">⚡ Inject Simulated Fiber Cut</button>
+            <button id="erpsRestoreBtn" class="secondary-button" type="button">🔄 Restore Link &amp; Start WTR</button>
+            <button id="erpsClearBtn" class="secondary-button" type="button">✓ Reset to Idle (RPL Blocked)</button>
+          </div>
+
+          <div class="sim-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 8px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Ring State</span>
+              <span id="erpsStatState" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">IDLE</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Switchover Time</span>
+              <span id="erpsStatSwitchTime" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">1.98 ms</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Sub-50ms SLA</span>
+              <span id="erpsStatCompliance" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Carrier Grade</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">RPL Port</span>
+              <span id="erpsStatRpl" class="ltv-kpi-val" style="color: #fbbf24; font-size: 1.05rem;">BLOCKED</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Failover Loss Window</span>
+              <span id="erpsStatLoss" class="ltv-kpi-val" style="color: #f59e0b; font-size: 1.05rem;">13.4 Mb</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Protected Base</span>
+              <span id="erpsStatSubscribers" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">420 Sub</span>
+            </div>
+          </div>
+
+          <div id="erpsModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="ITU-T G.8032 ERPS Metro Ring Protection Topology and Switching Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="erpsFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="erpsExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="erpsExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="erpsCopyReportBtn" class="primary-button" type="button">📋 Copy ERPS Audit Report</button>
           </div>
         </div>
       </dialog>

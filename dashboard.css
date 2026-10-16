@@ -2569,3 +2569,26 @@
     color: #000000 !important;
   }
 }
+
+/* Metro Ethernet Ring Protection (ITU-T G.8032 ERPS) Styles */
+.chart-card-erps-ring {
+  background: var(--surface, #ffffff);
+}
+
+.erps-modal-card {
+  max-width: 820px;
+  width: 95vw;
+}
+
+.erps-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-erps-ring {
+  background: #182923;
+  border-color: #28443b;
+}
+

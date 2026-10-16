@@ -6980,3 +6980,853 @@ export function setupEquipmentRetrievalModal({
     }
   };
 }
+
+/* ==========================================================================
+   FIBER OPTIC SPLICING & JOINT ENCLOSURE QA INSPECTION MANIFEST
+   ========================================================================== */
+
+export const SPLICE_INSPECTIONS_KEY = 'shahdara_splice_inspections_v1';
+
+export const SPLICE_CATEGORIES = [
+  { id: 'NEW_DEPLOYMENT', label: 'New Feeder / Distribution Deployment', urdu: 'نئی فیڈر و ڈسٹری بیوشن تنصیب' },
+  { id: 'CUT_REPAIR', label: 'Emergency Fiber Cut Splicing Repair', urdu: 'ہنگامی فائبر کٹ جوائنٹ مرمت' },
+  { id: 'SPLITTER_EXPANSION', label: 'Splitter Expansion / FAT Branching', urdu: 'اسپلٹر توسیع و ایف اے ٹی برانچنگ' },
+  { id: 'MAINTENANCE_AUDIT', label: 'Scheduled Maintenance & Cleaning Audit', urdu: 'شیڈولڈ معائنہ و صفائی آڈٹ' },
+  { id: 'WEATHER_RESTORATION', label: 'Monsoon / Wind Storm Recovery', urdu: 'بارش و طوفان بحالی اسپلائسنگ' }
+];
+
+export const FIBER_COLOR_CODES = [
+  'Blue (1)', 'Orange (2)', 'Green (3)', 'Brown (4)', 'Slate (5)', 'White (6)',
+  'Red (7)', 'Black (8)', 'Yellow (9)', 'Violet (10)', 'Rose (11)', 'Aqua (12)'
+];
+
+export const SPLICE_VERDICTS = [
+  { id: 'PASSED_CERTIFIED', label: '🟢 Certified Passed (Loss ≤ 0.05 dB)', statusClass: 'status-passed', urdu: 'کامیاب تصدیق شدہ' },
+  { id: 'CONDITIONAL_PASS', label: '🟡 Conditional Pass (Loss 0.06 - 0.12 dB)', statusClass: 'status-conditional', urdu: 'مشروط منظوری' },
+  { id: 'FAILED_REWORK', label: '🔴 Failed - Rework Required (Loss > 0.12 dB)', statusClass: 'status-failed', urdu: 'ناکام - دوبارہ اسپلائسنگ درکار' }
+];
+
+export function validateSpliceInspection(formData = {}) {
+  const errors = [];
+  const enclosureId = String(formData.enclosureId ?? '').trim();
+  const location = String(formData.location ?? '').trim();
+  const inspectorName = String(formData.inspectorName ?? '').trim();
+  const inspectionDate = String(formData.inspectionDate ?? '').trim();
+  const category = String(formData.category ?? '').trim();
+
+  if (!enclosureId || enclosureId.length < 3) {
+    errors.push('Enclosure / Pole ID is required (min 3 characters).');
+  }
+
+  if (!location || location.length < 3) {
+    errors.push('Installation location / area is required (min 3 characters).');
+  }
+
+  if (!inspectorName || inspectorName.length < 3) {
+    errors.push('Lead Splicer / Inspector Name is required (min 3 characters).');
+  }
+
+  if (!inspectionDate || !/^\d{4}-\d{2}-\d{2}$/.test(inspectionDate)) {
+    errors.push('Valid inspection date in YYYY-MM-DD format is required.');
+  }
+
+  const validCategories = SPLICE_CATEGORIES.map(c => c.id);
+  if (!category || !validCategories.includes(category)) {
+    errors.push('A valid splicing operation category must be selected.');
+  }
+
+  const coresCount = Number(formData.coresCount);
+  if (isNaN(coresCount) || coresCount < 1 || coresCount > 96 || !Number.isInteger(coresCount)) {
+    errors.push('Number of cores spliced must be an integer between 1 and 96.');
+  }
+
+  const averageLossDb = Number(formData.averageLossDb);
+  if (isNaN(averageLossDb) || averageLossDb < 0.001 || averageLossDb > 2.0) {
+    errors.push('Average splice loss must be a positive number between 0.001 and 2.0 dB per joint.');
+  }
+
+  let inputPowerDbm = null;
+  if (formData.inputPowerDbm !== undefined && formData.inputPowerDbm !== '' && formData.inputPowerDbm !== null) {
+    const num = Number(formData.inputPowerDbm);
+    if (isNaN(num) || num < -40 || num > 15) {
+      errors.push('Input optical power must be between -40 dBm and +15 dBm.');
+    } else {
+      inputPowerDbm = Number(num.toFixed(2));
+    }
+  }
+
+  let outputPowerDbm = null;
+  if (formData.outputPowerDbm !== undefined && formData.outputPowerDbm !== '' && formData.outputPowerDbm !== null) {
+    const num = Number(formData.outputPowerDbm);
+    if (isNaN(num) || num < -40 || num > 15) {
+      errors.push('Output optical power must be between -40 dBm and +15 dBm.');
+    } else {
+      outputPowerDbm = Number(num.toFixed(2));
+    }
+  }
+
+  const checklist = {
+    closureSealed: Boolean(formData.checklist?.closureSealed),
+    spliceTraysOrganized: Boolean(formData.checklist?.spliceTraysOrganized),
+    cableTiesSecured: Boolean(formData.checklist?.cableTiesSecured),
+    dropPigtailsLabeled: Boolean(formData.checklist?.dropPigtailsLabeled),
+    silicaGelReplaced: Boolean(formData.checklist?.silicaGelReplaced)
+  };
+
+  const sanitized = {
+    enclosureId,
+    location,
+    inspectorName,
+    inspectionDate,
+    category,
+    coresCount: Number(coresCount) || 1,
+    averageLossDb: Number(averageLossDb.toFixed(3)),
+    inputPowerDbm,
+    outputPowerDbm,
+    checklist,
+    notes: String(formData.notes ?? '').trim()
+  };
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    sanitized
+  };
+}
+
+export function calculateSpliceInsertionLoss(inputDbm, outputDbm) {
+  if (inputDbm === null || inputDbm === undefined || inputDbm === '' ||
+      outputDbm === null || outputDbm === undefined || outputDbm === '') {
+    return null;
+  }
+  const inVal = Number(inputDbm);
+  const outVal = Number(outputDbm);
+  if (isNaN(inVal) || isNaN(outVal)) return null;
+  const diff = inVal - outVal;
+  return Number(Math.max(0, diff).toFixed(2));
+}
+
+export function determineSpliceVerdict(averageLossDb, checklist = {}) {
+  const loss = Number(averageLossDb);
+  const isLossValid = !isNaN(loss) && loss > 0;
+  const sealed = Boolean(checklist.closureSealed);
+  const organized = Boolean(checklist.spliceTraysOrganized);
+  const secured = Boolean(checklist.cableTiesSecured);
+  const labeled = Boolean(checklist.dropPigtailsLabeled);
+  const silica = Boolean(checklist.silicaGelReplaced);
+
+  if (isLossValid && loss <= 0.05 && sealed && organized && secured) {
+    return {
+      verdict: 'PASSED_CERTIFIED',
+      label: '🟢 Certified Passed',
+      statusClass: 'status-passed',
+      reason: `Superior fusion joint quality (${loss.toFixed(3)} dB/joint) and enclosure fully sealed.`
+    };
+  } else if (isLossValid && loss <= 0.12 && sealed) {
+    return {
+      verdict: 'CONDITIONAL_PASS',
+      label: '🟡 Conditional Pass',
+      statusClass: 'status-conditional',
+      reason: `Acceptable splice attenuation (${loss.toFixed(3)} dB/joint). Verify tray coiling and labels.`
+    };
+  } else {
+    let reason = `High joint attenuation (${isLossValid ? loss.toFixed(3) : 0} dB/joint > 0.12 dB threshold).`;
+    if (!sealed) reason += ' Enclosure rubber gasket not sealed.';
+    return {
+      verdict: 'FAILED_REWORK',
+      label: '🔴 Failed - Rework Required',
+      statusClass: 'status-failed',
+      reason
+    };
+  }
+}
+
+export function buildSpliceInspectionRecord(data) {
+  const validation = validateSpliceInspection(data);
+  if (!validation.isValid) {
+    throw new Error(`Invalid splice inspection data: ${validation.errors.join(' ')}`);
+  }
+
+  const s = validation.sanitized;
+  const verdictObj = determineSpliceVerdict(s.averageLossDb, s.checklist);
+  const insertionLossDb = calculateSpliceInsertionLoss(s.inputPowerDbm, s.outputPowerDbm);
+
+  const dateParts = s.inspectionDate.split('-');
+  const yyyymm = dateParts.length >= 2 ? `${dateParts[0]}${dateParts[1]}` : new Date().toISOString().slice(0, 7).replace('-', '');
+  const randNum = Math.floor(1000 + Math.random() * 9000);
+  const id = `SPL-${yyyymm}-${randNum}`;
+
+  return {
+    id,
+    createdAt: new Date().toISOString(),
+    enclosureId: s.enclosureId,
+    location: s.location,
+    inspectorName: s.inspectorName,
+    inspectionDate: s.inspectionDate,
+    category: s.category,
+    coresCount: s.coresCount,
+    averageLossDb: s.averageLossDb,
+    inputPowerDbm: s.inputPowerDbm,
+    outputPowerDbm: s.outputPowerDbm,
+    insertionLossDb,
+    checklist: s.checklist,
+    verdict: verdictObj.verdict,
+    verdictLabel: verdictObj.label,
+    verdictClass: verdictObj.statusClass,
+    verdictReason: verdictObj.reason,
+    notes: s.notes
+  };
+}
+
+export function getSavedSpliceInspections(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(SPLICE_INSPECTIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSpliceInspection(record, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !record) return;
+  try {
+    const list = getSavedSpliceInspections(storage);
+    list.unshift(record);
+    if (list.length > 200) list.length = 200;
+    storage.setItem(SPLICE_INSPECTIONS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+export function updateSpliceInspectionStatus(id, newVerdict, notes = '', storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage || !id) return null;
+  try {
+    const list = getSavedSpliceInspections(storage);
+    const target = list.find(r => r.id === id);
+    if (target) {
+      target.verdict = newVerdict;
+      const vObj = SPLICE_VERDICTS.find(v => v.id === newVerdict);
+      if (vObj) {
+        target.verdictLabel = vObj.label;
+        target.verdictClass = vObj.statusClass;
+      }
+      if (notes) {
+        target.notes = target.notes ? `${target.notes} | ${notes}` : notes;
+      }
+      target.updatedAt = new Date().toISOString();
+      storage.setItem(SPLICE_INSPECTIONS_KEY, JSON.stringify(list));
+      return target;
+    }
+  } catch {}
+  return null;
+}
+
+export function clearSpliceInspections(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return;
+  try {
+    storage.removeItem(SPLICE_INSPECTIONS_KEY);
+  } catch {}
+}
+
+export function calculateSpliceInspectionMetrics(records = [], options = {}) {
+  const list = Array.isArray(records) ? records : [];
+  const categoryFilter = options.category || 'all';
+  const verdictFilter = options.verdict || 'all';
+  const query = String(options.search || '').toLowerCase().trim();
+
+  let totalInspections = list.length;
+  let passedCount = 0;
+  let conditionalCount = 0;
+  let failedCount = 0;
+  let totalLossSum = 0;
+  let totalCoresSpliced = 0;
+
+  for (const r of list) {
+    if (r.verdict === 'PASSED_CERTIFIED') passedCount++;
+    else if (r.verdict === 'CONDITIONAL_PASS') conditionalCount++;
+    else if (r.verdict === 'FAILED_REWORK') failedCount++;
+
+    totalLossSum += (Number(r.averageLossDb) || 0);
+    totalCoresSpliced += (Number(r.coresCount) || 0);
+  }
+
+  const averageLossDb = totalInspections > 0 ? Number((totalLossSum / totalInspections).toFixed(3)) : 0;
+  const passRatePct = totalInspections > 0 ? Math.round((passedCount / totalInspections) * 100) : 100;
+
+  let filtered = list;
+  if (categoryFilter !== 'all') {
+    filtered = filtered.filter(r => r.category === categoryFilter);
+  }
+  if (verdictFilter !== 'all') {
+    filtered = filtered.filter(r => r.verdict === verdictFilter);
+  }
+  if (query) {
+    filtered = filtered.filter(r =>
+      String(r.id || '').toLowerCase().includes(query) ||
+      String(r.enclosureId || '').toLowerCase().includes(query) ||
+      String(r.location || '').toLowerCase().includes(query) ||
+      String(r.inspectorName || '').toLowerCase().includes(query) ||
+      String(r.notes || '').toLowerCase().includes(query)
+    );
+  }
+
+  return {
+    totalInspections,
+    passedCount,
+    conditionalCount,
+    failedCount,
+    passRatePct,
+    averageLossDb,
+    totalCoresSpliced,
+    reworkPendingCount: failedCount,
+    filteredRecords: filtered
+  };
+}
+
+export function formatSpliceInspectionWhatsApp(record) {
+  if (!record) return '';
+  const catObj = SPLICE_CATEGORIES.find(c => c.id === record.category);
+  const catLabel = catObj ? `${catObj.label} (${catObj.urdu})` : (record.category || 'Standard');
+
+  const checkSymbols = (val) => val ? '✅' : '❌';
+
+  return `*SHAHDARA FIBER NETWORK — OSP SPLICING QA CERTIFICATE*
+*Inspection Ticket:* ${record.id}
+*Date:* ${record.inspectionDate}
+*Enclosure / Pole ID:* ${record.enclosureId}
+*Location:* ${record.location}
+*Lead Splicer:* ${record.inspectorName}
+*Category:* ${catLabel}
+
+*TECHNICAL OPTICAL METRICS:*
+- Spliced Cores: ${record.coresCount} Cores
+- Average Loss: ${Number(record.averageLossDb).toFixed(3)} dB / joint (Threshold ≤ 0.05 dB)
+${record.insertionLossDb !== null ? `- Total Insertion Loss: ${record.insertionLossDb} dB (In: ${record.inputPowerDbm ?? '—'} dBm, Out: ${record.outputPowerDbm ?? '—'} dBm)\n` : ''}- Final Verdict: ${record.verdictLabel || record.verdict}
+
+*ENCLOSURE INTEGRITY QA CHECKLIST:*
+- Closure Gasket Sealed: ${checkSymbols(record.checklist?.closureSealed)}
+- Trays & Bend Radius Organised: ${checkSymbols(record.checklist?.spliceTraysOrganized)}
+- Cable Armor Clamped: ${checkSymbols(record.checklist?.cableTiesSecured)}
+- Drop Pigtails Labeled: ${checkSymbols(record.checklist?.dropPigtailsLabeled)}
+- Silica Gel Desiccant Replaced: ${checkSymbols(record.checklist?.silicaGelReplaced)}
+
+*Notes:* ${record.notes || 'No defects recorded.'}
+_Shahdara Outside Plant Maintenance QA Portal_`;
+}
+
+export function generateSpliceInspectionHtml(record, options = {}) {
+  if (!record) return '<p>No inspection record provided.</p>';
+  const format = options.format || 'standard'; // 'standard' (A4) or 'thermal' (80mm)
+  const catObj = SPLICE_CATEGORIES.find(c => c.id === record.category);
+  const catLabel = catObj ? catObj.label : (record.category || 'Standard');
+
+  const checkBadge = (val) => val ? '<span style="color:#10b981;font-weight:bold;">[✔] PASS</span>' : '<span style="color:#ef4444;font-weight:bold;">[✘] FAIL</span>';
+
+  if (format === 'thermal') {
+    return `
+      <div class="thermal-splice-slip" style="font-family:monospace;width:76mm;margin:0 auto;padding:6mm;background:#fff;color:#000;font-size:11px;line-height:1.35;">
+        <div style="text-align:center;border-bottom:1px dashed #000;padding-bottom:5px;margin-bottom:6px;">
+          <h2 style="font-size:14px;margin:0;font-weight:900;">SHAHDARA FIBER NET</h2>
+          <p style="margin:2px 0 0;font-size:10px;">OSP Fiber Splicing QA Slip</p>
+          <strong style="font-size:12px;">${record.id}</strong>
+        </div>
+        <div style="margin-bottom:6px;">
+          <div>Date: <strong>${record.inspectionDate}</strong></div>
+          <div>Pole/Node: <strong>${escapeHtml(record.enclosureId)}</strong></div>
+          <div>Area: <strong>${escapeHtml(record.location)}</strong></div>
+          <div>Splicer: <strong>${escapeHtml(record.inspectorName)}</strong></div>
+          <div>Type: <strong>${escapeHtml(catLabel)}</strong></div>
+        </div>
+        <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:5px 0;margin:6px 0;">
+          <div>Cores Spliced: <strong>${record.coresCount}</strong></div>
+          <div>Avg Joint Loss: <strong>${Number(record.averageLossDb).toFixed(3)} dB</strong></div>
+          ${record.insertionLossDb !== null ? `<div>Insertion Loss: <strong>${record.insertionLossDb} dB</strong></div>` : ''}
+          <div style="margin-top:4px;font-size:12px;"><strong>VERDICT: ${escapeHtml(record.verdictLabel || record.verdict)}</strong></div>
+        </div>
+        <div style="font-size:10px;margin-bottom:6px;">
+          <div>Sealed: ${record.checklist?.closureSealed ? 'YES' : 'NO'} | Trays: ${record.checklist?.spliceTraysOrganized ? 'YES' : 'NO'}</div>
+          <div>Clamped: ${record.checklist?.cableTiesSecured ? 'YES' : 'NO'} | Labeled: ${record.checklist?.dropPigtailsLabeled ? 'YES' : 'NO'}</div>
+          <div>Desiccant: ${record.checklist?.silicaGelReplaced ? 'YES' : 'NO'}</div>
+        </div>
+        <div style="border-top:1px dashed #000;padding-top:12px;margin-top:10px;text-align:center;font-size:10px;">
+          <div>_______________________</div>
+          <div>Splicer Sign &amp; Date</div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="splice-certificate-doc" style="max-width:800px;margin:0 auto;padding:24px;background:#fff;color:#182e2a;font-family:Manrope,system-ui,sans-serif;border:1px solid #e2ece7;border-radius:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0f766e;padding-bottom:14px;margin-bottom:18px;">
+        <div>
+          <h1 style="margin:0;font-size:20px;font-weight:900;color:#0f766e;letter-spacing:0.5px;">SHAHDARA FIBER NETWORK (PVT) LTD</h1>
+          <p style="margin:3px 0 0;font-size:12px;color:#60756c;font-weight:600;">OSP Fiber Optic Splicing &amp; Joint Enclosure Quality Assurance Certificate</p>
+          <p style="margin:2px 0 0;font-size:13px;font-weight:700;color:#134e4a;" dir="rtl">فائبر اسپلائسنگ و جوائنٹ کلوزر کوالٹی ایکسیپٹنس سرٹیفکیٹ</p>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;font-weight:700;color:#60756c;">MANIFEST ID</div>
+          <strong style="font-size:16px;color:#0f766e;font-family:monospace;">${record.id}</strong>
+          <div style="font-size:11px;color:#60756c;margin-top:3px;">Dated: ${record.inspectionDate}</div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px;background:#f8fafc;padding:14px;border-radius:6px;border:1px solid #e2e8f0;">
+        <div>
+          <div style="font-size:11px;color:#64748b;font-weight:700;">ENCLOSURE / POLE IDENTIFIER</div>
+          <div style="font-size:14px;font-weight:800;color:#0f172a;">${escapeHtml(record.enclosureId)}</div>
+          <div style="font-size:12px;color:#475569;margin-top:2px;">Location: ${escapeHtml(record.location)}</div>
+        </div>
+        <div>
+          <div style="font-size:11px;color:#64748b;font-weight:700;">OPERATION CATEGORY &amp; SPLICER</div>
+          <div style="font-size:13px;font-weight:800;color:#0f172a;">${escapeHtml(catLabel)}</div>
+          <div style="font-size:12px;color:#475569;margin-top:2px;">Lead Technician: <strong>${escapeHtml(record.inspectorName)}</strong></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <h3 style="font-size:14px;margin:0 0 8px;font-weight:800;color:#0f766e;text-transform:uppercase;">1. Optical Splicing Telemetry</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+          <thead>
+            <tr style="background:#f1f5f9;text-align:left;">
+              <th style="padding:6px 10px;border:1px solid #cbd5e1;">Cores Spliced</th>
+              <th style="padding:6px 10px;border:1px solid #cbd5e1;">Average Joint Loss</th>
+              <th style="padding:6px 10px;border:1px solid #cbd5e1;">Optical Input (dBm)</th>
+              <th style="padding:6px 10px;border:1px solid #cbd5e1;">Optical Output (dBm)</th>
+              <th style="padding:6px 10px;border:1px solid #cbd5e1;">Insertion Loss</th>
+              <th style="padding:6px 10px;border:1px solid #cbd5e1;">QA Verdict</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:8px 10px;border:1px solid #cbd5e1;font-weight:700;">${record.coresCount} Cores</td>
+              <td style="padding:8px 10px;border:1px solid #cbd5e1;font-weight:800;color:#0284c7;">${Number(record.averageLossDb).toFixed(3)} dB / joint</td>
+              <td style="padding:8px 10px;border:1px solid #cbd5e1;">${record.inputPowerDbm !== null ? `${record.inputPowerDbm} dBm` : '—'}</td>
+              <td style="padding:8px 10px;border:1px solid #cbd5e1;">${record.outputPowerDbm !== null ? `${record.outputPowerDbm} dBm` : '—'}</td>
+              <td style="padding:8px 10px;border:1px solid #cbd5e1;font-weight:700;">${record.insertionLossDb !== null ? `${record.insertionLossDb} dB` : '—'}</td>
+              <td style="padding:8px 10px;border:1px solid #cbd5e1;font-weight:800;">${escapeHtml(record.verdictLabel || record.verdict)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="font-size:11px;color:#64748b;margin-top:4px;">* Standard Shahdara ISP tolerance: Single-mode G.652.D fusion splice loss must not exceed 0.05 dB per core.</div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <h3 style="font-size:14px;margin:0 0 8px;font-weight:800;color:#0f766e;text-transform:uppercase;">2. Physical Enclosure Integrity Checklist</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tbody>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;width:75%;">Waterproof rubber gasket sealed &amp; mechanical bolts tightened against dust/rain:</td>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;">${checkBadge(record.checklist?.closureSealed)}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;">Splice trays organized, heat shrink sleeves locked &amp; bend radius &gt; 30mm maintained:</td>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;">${checkBadge(record.checklist?.spliceTraysOrganized)}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;">Strength member clamp secured &amp; cable armored ground wire bonded:</td>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;">${checkBadge(record.checklist?.cableTiesSecured)}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;">Drop pigtails and fiber buffer tubes labeled with subscriber ferrule tags:</td>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;">${checkBadge(record.checklist?.dropPigtailsLabeled)}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;">Silica gel moisture absorbing desiccant pack refreshed inside closure:</td>
+              <td style="padding:6px 10px;border:1px solid #e2e8f0;text-align:right;">${checkBadge(record.checklist?.silicaGelReplaced)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-bottom:20px;background:#f8fafc;padding:10px 14px;border-radius:6px;border:1px solid #e2e8f0;font-size:12px;">
+        <strong>Splicer Notes &amp; Observations:</strong> ${escapeHtml(record.notes || 'Enclosure cleared QA standards with zero microbends detected.')}
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:28px;padding-top:14px;border-top:1px solid #cbd5e1;font-size:11px;color:#475569;">
+        <div style="text-align:center;width:200px;">
+          <div style="border-bottom:1px solid #000;padding-bottom:30px;margin-bottom:4px;"></div>
+          <strong>Lead Splicer Signature</strong>
+        </div>
+        <div style="text-align:center;width:200px;">
+          <div style="border-bottom:1px solid #000;padding-bottom:30px;margin-bottom:4px;"></div>
+          <strong>OSP QA Manager / NOC Sign-off</strong>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function generateSpliceInspectionCsv(records = []) {
+  const list = Array.isArray(records) ? records : [];
+  const header = [
+    'Inspection ID',
+    'Date',
+    'Enclosure / Pole ID',
+    'Location',
+    'Category',
+    'Cores Spliced',
+    'Average Joint Loss (dB)',
+    'Input Power (dBm)',
+    'Output Power (dBm)',
+    'Insertion Loss (dB)',
+    'Closure Sealed',
+    'Trays Organized',
+    'Cables Clamped',
+    'Pigtails Labeled',
+    'Silica Gel Replaced',
+    'Verdict',
+    'Inspector Name',
+    'Notes'
+  ];
+
+  const rows = list.map(r => [
+    r.id,
+    r.inspectionDate,
+    r.enclosureId,
+    r.location,
+    r.category,
+    r.coresCount,
+    r.averageLossDb,
+    r.inputPowerDbm ?? '',
+    r.outputPowerDbm ?? '',
+    r.insertionLossDb ?? '',
+    r.checklist?.closureSealed ? 'PASS' : 'FAIL',
+    r.checklist?.spliceTraysOrganized ? 'PASS' : 'FAIL',
+    r.checklist?.cableTiesSecured ? 'PASS' : 'FAIL',
+    r.checklist?.dropPigtailsLabeled ? 'PASS' : 'FAIL',
+    r.checklist?.silicaGelReplaced ? 'PASS' : 'FAIL',
+    r.verdict,
+    r.inspectorName,
+    r.notes ?? ''
+  ]);
+
+  return generateCsvContent(header, rows);
+}
+
+export function setupSpliceInspectionModal({
+  getState,
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onToast
+} = {}) {
+  if (typeof document === 'undefined') {
+    return { recalculate: () => {}, open: () => {}, close: () => {} };
+  }
+
+  const modal = document.getElementById('spliceInspectionModal');
+  const closeBtn = document.getElementById('spliceInspectionCloseBtn');
+  const form = document.getElementById('spliceInspectionForm');
+
+  const enclosureInput = document.getElementById('spliceEnclosureIdInput');
+  const locationInput = document.getElementById('spliceLocationInput');
+  const inspectorInput = document.getElementById('spliceInspectorInput');
+  const dateInput = document.getElementById('spliceDateInput');
+  const categorySelect = document.getElementById('spliceCategorySelect');
+  const coresInput = document.getElementById('spliceCoresInput');
+  const lossInput = document.getElementById('spliceLossInput');
+  const inputPowerInput = document.getElementById('spliceInputPowerInput');
+  const outputPowerInput = document.getElementById('spliceOutputPowerInput');
+  const insertionLossDisplay = document.getElementById('spliceInsertionLossDisplay');
+  const verdictPreviewBadge = document.getElementById('spliceVerdictPreviewBadge');
+  const notesInput = document.getElementById('spliceNotesInput');
+
+  // Checklist checkboxes
+  const checkSealed = document.getElementById('spliceCheckSealed');
+  const checkTrays = document.getElementById('spliceCheckTrays');
+  const checkTies = document.getElementById('spliceCheckTies');
+  const checkLabeled = document.getElementById('spliceCheckLabeled');
+  const checkSilica = document.getElementById('spliceCheckSilica');
+
+  // Metrics Ribbon
+  const kpiTotal = document.getElementById('spliceKpiTotal');
+  const kpiPassRate = document.getElementById('spliceKpiPassRate');
+  const kpiAvgLoss = document.getElementById('spliceKpiAvgLoss');
+  const kpiFailed = document.getElementById('spliceKpiFailed');
+
+  // Toolbar & Table
+  const filterVerdictSelect = document.getElementById('spliceFilterVerdictSelect');
+  const filterCategorySelect = document.getElementById('spliceFilterCategorySelect');
+  const searchInput = document.getElementById('spliceSearchInput');
+  const tableBody = document.getElementById('spliceTableBody');
+  const exportCsvBtn = document.getElementById('spliceExportCsvBtn');
+
+  // Trigger buttons
+  const openBtns = document.querySelectorAll('[data-open-splice-inspection]');
+
+  let currentVerdictFilter = 'all';
+  let currentCategoryFilter = 'all';
+  let searchQuery = '';
+
+  function recalculateLivePreview() {
+    const inVal = inputPowerInput?.value;
+    const outVal = outputPowerInput?.value;
+    const insLoss = calculateSpliceInsertionLoss(inVal, outVal);
+    if (insertionLossDisplay) {
+      insertionLossDisplay.textContent = insLoss !== null ? `${insLoss} dB` : '—';
+    }
+
+    const lossVal = Number(lossInput?.value);
+    const checklist = {
+      closureSealed: Boolean(checkSealed?.checked),
+      spliceTraysOrganized: Boolean(checkTrays?.checked),
+      cableTiesSecured: Boolean(checkTies?.checked),
+      dropPigtailsLabeled: Boolean(checkLabeled?.checked),
+      silicaGelReplaced: Boolean(checkSilica?.checked)
+    };
+
+    const verdictObj = determineSpliceVerdict(lossVal, checklist);
+    if (verdictPreviewBadge) {
+      verdictPreviewBadge.textContent = verdictObj.label;
+      verdictPreviewBadge.className = `splice-status-badge ${verdictObj.statusClass}`;
+    }
+  }
+
+  function renderList() {
+    const records = getSavedSpliceInspections(storage);
+    const metrics = calculateSpliceInspectionMetrics(records, {
+      category: currentCategoryFilter,
+      verdict: currentVerdictFilter,
+      search: searchQuery
+    });
+
+    if (kpiTotal) kpiTotal.textContent = String(metrics.totalInspections);
+    if (kpiPassRate) kpiPassRate.textContent = `${metrics.passRatePct}%`;
+    if (kpiAvgLoss) kpiAvgLoss.textContent = `${metrics.averageLossDb} dB`;
+    if (kpiFailed) kpiFailed.textContent = `${metrics.reworkPendingCount} Rework`;
+
+    if (!tableBody) return;
+
+    if (!metrics.filteredRecords || metrics.filteredRecords.length === 0) {
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="8" class="text-center empty-muted" style="padding: 24px;">
+            No fiber joint inspections found matching current filters.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tableBody.innerHTML = metrics.filteredRecords.map(r => {
+      const catObj = SPLICE_CATEGORIES.find(c => c.id === r.category);
+      const catShort = catObj ? catObj.label.split('/')[0].trim() : r.category;
+      return `
+        <tr>
+          <td><strong class="font-mono">${escapeHtml(r.id)}</strong></td>
+          <td>${escapeHtml(r.inspectionDate)}</td>
+          <td>
+            <strong>${escapeHtml(r.enclosureId)}</strong>
+            <div class="table-sub-meta">${escapeHtml(r.location)}</div>
+          </td>
+          <td>${escapeHtml(catShort)}</td>
+          <td>${r.coresCount} cores</td>
+          <td>
+            <strong class="font-mono ${r.averageLossDb <= 0.05 ? 'highlight-green' : (r.averageLossDb <= 0.12 ? 'highlight-amber' : 'highlight-red')}">${Number(r.averageLossDb).toFixed(3)} dB</strong>
+          </td>
+          <td>
+            <span class="splice-status-badge ${r.verdictClass || 'status-passed'}">${escapeHtml(r.verdictLabel || r.verdict)}</span>
+          </td>
+          <td>
+            <div class="table-action-btn-group">
+              <button type="button" class="action-btn-sm" data-splice-view="${escapeHtml(r.id)}" title="Print Certificate Slip">🖨️ Slip</button>
+              <button type="button" class="action-btn-sm" data-splice-wa="${escapeHtml(r.id)}" title="Share on WhatsApp">💬 WA</button>
+              ${r.verdict === 'FAILED_REWORK' ? `<button type="button" class="action-btn-sm highlight-green-btn" data-splice-pass="${escapeHtml(r.id)}" title="Mark Rework Passed">✔ Pass</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    // Wire table row action buttons
+    tableBody.querySelectorAll('[data-splice-view]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-splice-view');
+        const rec = records.find(r => r.id === id);
+        if (rec) {
+          const html = generateSpliceInspectionHtml(rec, { format: 'standard' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<!DOCTYPE html><html><head><title>${rec.id} - Splice QA Certificate</title><style>@page{size:A4;margin:10mm;}</style></head><body>${html}<script>window.print();</script></body></html>`);
+            win.document.close();
+          }
+        }
+      });
+    });
+
+    tableBody.querySelectorAll('[data-splice-wa]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-splice-wa');
+        const rec = records.find(r => r.id === id);
+        if (rec) {
+          const text = formatSpliceInspectionWhatsApp(rec);
+          const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+          window.open(url, '_blank');
+          if (typeof onToast === 'function') onToast(`Opened WhatsApp for ${rec.id}`);
+        }
+      });
+    });
+
+    tableBody.querySelectorAll('[data-splice-pass]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-splice-pass');
+        updateSpliceInspectionStatus(id, 'PASSED_CERTIFIED', 'Rework verified and certified by Lead Splicer.', storage);
+        if (typeof onToast === 'function') onToast(`Marked ${id} as PASSED_CERTIFIED`);
+        renderList();
+      });
+    });
+  }
+
+  // Live input events
+  [lossInput, inputPowerInput, outputPowerInput, checkSealed, checkTrays, checkTies, checkLabeled, checkSilica].forEach(el => {
+    if (el && !el.dataset?.wiredSplice) {
+      if (el.dataset) el.dataset.wiredSplice = 'true';
+      el.addEventListener('input', recalculateLivePreview);
+      el.addEventListener('change', recalculateLivePreview);
+    }
+  });
+
+  // Filter events
+  if (filterVerdictSelect && !filterVerdictSelect.dataset?.wiredSplice) {
+    if (filterVerdictSelect.dataset) filterVerdictSelect.dataset.wiredSplice = 'true';
+    filterVerdictSelect.addEventListener('change', () => {
+      currentVerdictFilter = filterVerdictSelect.value;
+      renderList();
+    });
+  }
+
+  if (filterCategorySelect && !filterCategorySelect.dataset?.wiredSplice) {
+    if (filterCategorySelect.dataset) filterCategorySelect.dataset.wiredSplice = 'true';
+    filterCategorySelect.addEventListener('change', () => {
+      currentCategoryFilter = filterCategorySelect.value;
+      renderList();
+    });
+  }
+
+  if (searchInput && !searchInput.dataset?.wiredSplice) {
+    if (searchInput.dataset) searchInput.dataset.wiredSplice = 'true';
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value;
+      renderList();
+    });
+  }
+
+  // Form submission
+  if (form && !form.dataset?.wiredSplice) {
+    if (form.dataset) form.dataset.wiredSplice = 'true';
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = {
+        enclosureId: enclosureInput?.value,
+        location: locationInput?.value,
+        inspectorName: inspectorInput?.value,
+        inspectionDate: dateInput?.value || new Date().toISOString().slice(0, 10),
+        category: categorySelect?.value,
+        coresCount: Number(coresInput?.value) || 1,
+        averageLossDb: Number(lossInput?.value) || 0.03,
+        inputPowerDbm: inputPowerInput?.value,
+        outputPowerDbm: outputPowerInput?.value,
+        checklist: {
+          closureSealed: Boolean(checkSealed?.checked),
+          spliceTraysOrganized: Boolean(checkTrays?.checked),
+          cableTiesSecured: Boolean(checkTies?.checked),
+          dropPigtailsLabeled: Boolean(checkLabeled?.checked),
+          silicaGelReplaced: Boolean(checkSilica?.checked)
+        },
+        notes: notesInput?.value
+      };
+
+      const val = validateSpliceInspection(payload);
+      if (!val.isValid) {
+        if (typeof onToast === 'function') onToast(`Error: ${val.errors[0]}`);
+        return;
+      }
+
+      const record = buildSpliceInspectionRecord(payload);
+      saveSpliceInspection(record, storage);
+      if (typeof onToast === 'function') onToast(`Logged Inspection ${record.id} (${record.verdictLabel})`);
+
+      // Reset form
+      form.reset();
+      if (dateInput) dateInput.value = new Date().toISOString().slice(0, 10);
+      if (checkSealed) checkSealed.checked = true;
+      if (checkTrays) checkTrays.checked = true;
+      if (checkTies) checkTies.checked = true;
+      if (checkLabeled) checkLabeled.checked = true;
+      if (checkSilica) checkSilica.checked = true;
+      recalculateLivePreview();
+      renderList();
+    });
+  }
+
+  // Export CSV
+  if (exportCsvBtn && !exportCsvBtn.dataset?.wiredSplice) {
+    if (exportCsvBtn.dataset) exportCsvBtn.dataset.wiredSplice = 'true';
+    exportCsvBtn.addEventListener('click', () => {
+      const records = getSavedSpliceInspections(storage);
+      const csv = generateSpliceInspectionCsv(records);
+      const filename = `shahdara_fiber_splice_inspections_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      if (typeof onToast === 'function') onToast(`Exported ${filename}`);
+    });
+  }
+
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredSpliceOpen) {
+      if (btn.dataset) btn.dataset.wiredSpliceOpen = 'true';
+      btn.addEventListener('click', () => {
+        if (dateInput && !dateInput.value) {
+          dateInput.value = new Date().toISOString().slice(0, 10);
+        }
+        recalculateLivePreview();
+        renderList();
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  if (closeBtn && !closeBtn.dataset?.wiredSplice) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredSplice = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    recalculate: () => {
+      recalculateLivePreview();
+      renderList();
+    },
+    open: () => {
+      if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().slice(0, 10);
+      }
+      recalculateLivePreview();
+      renderList();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    }
+  };
+}

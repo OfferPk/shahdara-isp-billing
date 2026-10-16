@@ -60,6 +60,7 @@
           <li class="nav-drawer-item"><button type="button" data-open-field-route><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span><span>Field Route Sheet</span><span id="navBadgeRouteSheet" class="nav-drawer-badge" data-nav-badge="field-route" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-work-orders><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span>Field Work Orders</span><span id="navBadgeWorkOrders" class="nav-drawer-badge" data-nav-badge="work-orders" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-sync-conflicts><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg></span><span>Sync Conflicts</span><span id="navBadgeSyncConflicts" class="nav-drawer-badge" data-nav-badge="sync-conflicts" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-open-optical-map><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span><span>Optical Signal Map</span><span id="navBadgeOpticalMap" class="nav-drawer-badge" data-nav-badge="optical-map" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -1914,7 +1915,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -2404,6 +2405,10 @@
         <span class="sheet-action-icon" aria-hidden="true">🔄</span>
         <span class="sheet-action-label">Sync Conflicts</span>
       </button>
+      <button type="button" class="sheet-action-tile" data-sheet-action="optical-map" data-open-optical-map>
+        <span class="sheet-action-icon" aria-hidden="true">🌐</span>
+        <span class="sheet-action-label">Optical Map</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -2472,6 +2477,10 @@
       <button type="button" class="speed-dial-action" data-speed-action="sync-conflicts" data-open-sync-conflicts role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">🔄</span>
         <span class="speed-action-label">Sync Conflicts</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="optical-map" data-open-optical-map role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🌐</span>
+        <span class="speed-action-label">Optical Map</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -3207,6 +3216,97 @@
       <div class="modal-form-actions work-order-modal-actions">
         <button id="autoResolveSafeConflictsBtn" class="secondary-button" type="button">⚡ Auto-Resolve Safe Items</button>
         <button id="copySyncConflictReportBtn" class="primary-button" type="button">📋 Copy Audit Report</button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="opticalSignalMapModal" class="modal optical-map-modal" aria-labelledby="opticalSignalMapModalTitle">
+    <section class="modal-card optical-map-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">OSP FIBER TELEMETRY &amp; TOPOLOGY</p>
+          <h2 id="opticalSignalMapModalTitle">Optical Signal Loss Map &amp; Node Heatmap</h2>
+        </div>
+        <button id="opticalSignalMapCloseBtn" class="close-button" type="button" aria-label="Close optical signal map modal">×</button>
+      </div>
+
+      <!-- Metrics Bar -->
+      <div class="optical-inspector-stats" style="margin: 10px 0;">
+        <div class="optical-inspector-stat-pill">
+          <span class="optical-stat-label">Total Nodes</span>
+          <span id="opticalKpiTotalNodes" class="optical-stat-val">6</span>
+        </div>
+        <div class="optical-inspector-stat-pill">
+          <span class="optical-stat-label">Avg Path Loss</span>
+          <span id="opticalKpiAvgLoss" class="optical-stat-val">27.9 dB</span>
+        </div>
+        <div class="optical-inspector-stat-pill">
+          <span class="optical-stat-label">Critical Nodes</span>
+          <span id="opticalKpiCriticalNodes" class="optical-stat-val">1</span>
+        </div>
+        <div class="optical-inspector-stat-pill">
+          <span class="optical-stat-label">Revenue at Risk</span>
+          <span id="opticalKpiRevenueRisk" class="optical-stat-val">PKR 0</span>
+        </div>
+      </div>
+
+      <!-- Filter and Search Toolbar -->
+      <div class="work-order-toolbar">
+        <div class="work-order-filter-group" role="group" aria-label="Filter optical nodes">
+          <button type="button" class="work-order-filter-btn is-active" data-optical-filter="all">All Nodes</button>
+          <button type="button" class="work-order-filter-btn" data-optical-filter="optimal">🟢 Optimal</button>
+          <button type="button" class="work-order-filter-btn" data-optical-filter="warning">🟡 Warning</button>
+          <button type="button" class="work-order-filter-btn" data-optical-filter="critical">🔴 Critical</button>
+        </div>
+        <div class="work-order-filter-group work-order-search-group">
+          <label for="opticalSignalMapSearchInput">Search Node</label>
+          <input id="opticalSignalMapSearchInput" class="work-order-input" type="search" placeholder="Search node, area, splitter, pole...">
+        </div>
+      </div>
+
+      <!-- SVG Map Canvas -->
+      <div class="optical-map-canvas-wrap">
+        <div id="opticalSignalMapSvgContainer"></div>
+      </div>
+
+      <!-- Node Inspector Panel -->
+      <div id="opticalNodeInspectorPanel" class="optical-inspector-panel">
+        <div class="optical-inspector-header">
+          <div>
+            <h4 id="opticalInspectorTitle" class="optical-inspector-title">FDH-01 · Wandala Chowk Optical Hub</h4>
+            <p id="opticalInspectorSpecs" class="optical-inspector-specs">1:16 Primary Splitter · Feeder: 2.8km · Location: Pole #12 Main Bazaar</p>
+          </div>
+          <span id="opticalInspectorStatusBadge" class="sim-delta-badge">🟢 Optimal</span>
+        </div>
+
+        <div class="optical-inspector-stats">
+          <div class="optical-inspector-stat-pill">
+            <span class="optical-stat-label">Measured Rx Power</span>
+            <span id="opticalInspectorRx" class="optical-stat-val">-21.4 dBm</span>
+          </div>
+          <div class="optical-inspector-stat-pill">
+            <span class="optical-stat-label">Total Path Loss</span>
+            <span id="opticalInspectorLoss" class="optical-stat-val">25.9 dB</span>
+          </div>
+          <div class="optical-inspector-sim-box">
+            <label for="opticalSimReadingInput" class="optical-sim-label">Field Power Meter Reading (dBm)</label>
+            <div class="optical-sim-input-row">
+              <input id="opticalSimReadingInput" class="optical-num-input" type="number" step="0.1" min="-40" max="-10" placeholder="-22.0">
+              <button id="opticalSimReadingBtn" class="action-btn-sm" type="button">Log</button>
+              <button id="opticalResetReadingsBtn" class="action-btn-sm" type="button" title="Reset custom readings">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <h5 class="optical-customers-title">Subscribers Connected via this Node</h5>
+        <ul id="opticalInspectorCustomersList" class="optical-customers-roster">
+          <!-- Populated dynamically -->
+        </ul>
+      </div>
+
+      <!-- Modal Footer Actions -->
+      <div class="modal-form-actions work-order-modal-actions" style="margin-top: 14px;">
+        <button id="opticalSignalMapCopyReportBtn" class="primary-button" type="button">📋 Copy WhatsApp Field Briefing</button>
       </div>
     </section>
   </dialog>

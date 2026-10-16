@@ -49,7 +49,8 @@ import {
   setupBendLossCertModal,
   setupBidirectionalOtdrModal,
   setupOtdrDeadzoneModal,
-  setupSplitterQaModal
+  setupSplitterQaModal,
+  setupFerruleGeometryModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3407,6 +3408,7 @@ export let customerBendLossModalController;
 export let customerBidirectionalOtdrModalController;
 export let customerOtdrDeadzoneModalController;
 export let customerSplitterQaModalController;
+export let customerFerruleGeometryModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3736,6 +3738,26 @@ if (typeof document !== 'undefined') {
           modal.setAttribute('open', '');
         }
         customerSplitterQaModalController?.recalculate();
+      }
+    });
+  }
+
+  customerFerruleGeometryModalController = setupFerruleGeometryModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openFerruleGeometryBtn = $('#openFerruleGeometryBtn');
+  if (openFerruleGeometryBtn) {
+    openFerruleGeometryBtn.addEventListener('click', () => {
+      const modal = $('#ferruleGeometryModal');
+      if (modal) {
+        if (typeof modal.showModal === 'function') {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
+        customerFerruleGeometryModalController?.recalculate();
       }
     });
   }

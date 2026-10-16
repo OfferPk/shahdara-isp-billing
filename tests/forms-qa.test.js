@@ -6809,5 +6809,453 @@ test('setupBendLossCertModal operates safely in headless and interactive mock DO
   assert.equal(domElements.bendLossCertModal.open, false);
 });
 
+test('OTDR bidirectional constants and presets match ITU-T G.650.1 / G.652 standards', async () => {
+  const {
+    BIDIRECTIONAL_OTDR_STORAGE_KEY,
+    OTDR_WAVELENGTHS,
+    OTDR_EVENT_TYPES,
+    OTDR_ROUTE_PRESETS,
+    BIDIRECTIONAL_QA_VERDICTS
+  } = await import('../form-validation.js');
 
+  assert.equal(BIDIRECTIONAL_OTDR_STORAGE_KEY, 'shahdara_otdr_bidirectional_certs_v1');
 
+  // Verify Wavelengths
+  assert.ok(OTDR_WAVELENGTHS['1310']);
+  assert.equal(OTDR_WAVELENGTHS['1310'].wavelengthNm, 1310);
+  assert.equal(OTDR_WAVELENGTHS['1550'].standardFiberAttenuation, 0.20);
+  assert.equal(OTDR_WAVELENGTHS['1625'].wavelengthNm, 1625);
+
+  // Verify Event Types
+  assert.ok(OTDR_EVENT_TYPES.FUSION_SPLICE);
+  assert.equal(OTDR_EVENT_TYPES.FUSION_SPLICE.isReflective, false);
+  assert.equal(OTDR_EVENT_TYPES.FUSION_SPLICE.maxAllowedLossDb, 0.10);
+  assert.ok(OTDR_EVENT_TYPES.LAUNCH_CONNECTOR.isReflective);
+  assert.ok(OTDR_EVENT_TYPES.TERMINAL_REFLECTIVE.isReflective);
+
+  // Verify Route Presets
+  assert.ok(Array.isArray(OTDR_ROUTE_PRESETS));
+  assert.ok(OTDR_ROUTE_PRESETS.length >= 5);
+  const baradari = OTDR_ROUTE_PRESETS.find(p => p.id === 'ROUTE_BARADARI_TRUNK');
+  assert.ok(baradari);
+  assert.equal(baradari.spanLengthKm, 14.8);
+  assert.ok(baradari.events.some(ev => ev.lossAtoB < 0)); // has gainer
+
+  // Verify Verdicts
+  assert.ok(BIDIRECTIONAL_QA_VERDICTS.CERTIFIED_PASS);
+  assert.ok(BIDIRECTIONAL_QA_VERDICTS.RESPLICE_ADVISORY);
+  assert.ok(BIDIRECTIONAL_QA_VERDICTS.CRITICAL_FAULT);
+});
+
+test('calculateBidirectionalAveraging arithmetically cancels false gainers and computes true loss', async () => {
+  const { calculateBidirectionalAveraging } = await import('../form-validation.js');
+
+  // Case with a clear gainer at splice 2: -0.15 dB A->B, +0.35 dB B->A => True = +0.10 dB
+  const events = [
+    { id: 'E1', distanceKm: 0.0, type: 'LAUNCH_CONNECTOR', lossAtoB: 0.30, lossBtoA: 0.30 },
+    { id: 'E2', distanceKm: 4.5, type: 'FUSION_SPLICE', lossAtoB: -0.15, lossBtoA: 0.35 },
+    { id: 'E3', distanceKm: 8.0, type: 'FUSION_SPLICE', lossAtoB: 0.06, lossBtoA: 0.04 },
+    { id: 'E4', distanceKm: 10.0, type: 'TERMINAL_REFLECTIVE', lossAtoB: 0.40, lossBtoA: 0.40 }
+  ];
+
+  const result = calculateBidirectionalAveraging({
+    events,
+    fiberLengthKm: 10.0,
+    wavelengthNm: 1550
+  });
+
+  assert.equal(result.fiberLengthKm, 10.0);
+  assert.equal(result.wavelengthNm, 1550);
+  assert.equal(result.fiberDistributedLossDb, 2.0); // 10.0 * 0.20
+  assert.equal(result.gainerCount, 1);
+
+  // Event 2 analysis
+  const ev2 = result.events.find(e => e.id === 'E2');
+  assert.ok(ev2);
+  assert.equal(ev2.isGainer, true);
+  assert.equal(ev2.isGainerAtoB, true);
+  assert.equal(ev2.isGainerBtoA, false);
+  assert.equal(ev2.trueLossDb, 0.10); // (-0.15 + 0.35) / 2
+  assert.equal(ev2.backscatterDeltaDb, -0.25); // (-0.15 - 0.35) / 2
+  assert.equal(ev2.verdict, 'PASS');
+
+  // Total true loss = 2.0 (fiber) + 0.30 + 0.10 + 0.05 + 0.40 = 2.85 dB
+  assert.equal(result.totalTrueLossDb, 2.85);
+  assert.equal(result.meanAttenuationDbPerKm, 0.285);
+  assert.equal(result.overallVerdict.id, 'CERTIFIED_PASS');
+});
+
+test('calculateBidirectionalAveraging flags excessive splice loss as RESPLICE_ADVISORY or CRITICAL_FAULT', async () => {
+  const { calculateBidirectionalAveraging } = await import('../form-validation.js');
+
+  // Severe splice loss at 3.0km (0.24 dB true loss)
+  const events = [
+    { id: 'E1', distanceKm: 3.0, type: 'FUSION_SPLICE', lossAtoB: 0.22, lossBtoA: 0.26 } // True: 0.24 dB
+  ];
+
+  const result = calculateBidirectionalAveraging({
+    events,
+    fiberLengthKm: 5.0,
+    wavelengthNm: 1550
+  });
+
+  assert.equal(result.respliceRequiredCount, 1);
+  assert.equal(result.overallVerdict.id, 'RESPLICE_ADVISORY');
+
+  // Critical fault case: impossible unphysical negative true loss
+  const faultEvents = [
+    { id: 'E1', distanceKm: 2.0, type: 'FUSION_SPLICE', lossAtoB: -0.50, lossBtoA: -0.20 } // True: -0.35 dB
+  ];
+  const faultResult = calculateBidirectionalAveraging({
+    events: faultEvents,
+    fiberLengthKm: 5.0
+  });
+  assert.equal(faultResult.criticalCount, 1);
+  assert.equal(faultResult.overallVerdict.id, 'CRITICAL_FAULT');
+});
+
+test('renderBidirectionalOtdrSvg produces valid interactive SVG graphic markup', async () => {
+  const { renderBidirectionalOtdrSvg } = await import('../form-validation.js');
+
+  const svg = renderBidirectionalOtdrSvg({
+    events: [
+      { id: 'E1', distanceKm: 0.0, type: 'LAUNCH_CONNECTOR', lossAtoB: 0.3, lossBtoA: 0.3 },
+      { id: 'E2', distanceKm: 5.0, type: 'FUSION_SPLICE', lossAtoB: -0.12, lossBtoA: 0.28 },
+      { id: 'E3', distanceKm: 10.0, type: 'TERMINAL_REFLECTIVE', lossAtoB: 0.4, lossBtoA: 0.4 }
+    ],
+    fiberLengthKm: 10.0,
+    wavelengthNm: 1550,
+    width: 720,
+    height: 280
+  });
+
+  assert.ok(svg.includes('<svg class="bidirectional-otdr-svg"'));
+  assert.ok(svg.includes('viewBox="0 0 720 280"'));
+  assert.ok(svg.includes('BIDIRECTIONAL OTDR TRACE AVERAGING'));
+  assert.ok(svg.includes('1550nm'));
+  assert.ok(svg.includes('#38bdf8')); // Trace A->B color
+  assert.ok(svg.includes('#f59e0b')); // Trace B->A color
+  assert.ok(svg.includes('#10b981')); // True avg color
+  assert.ok(svg.includes('Attenuation (dB)'));
+  assert.ok(svg.includes('Distance Along Span (km)'));
+  assert.ok(svg.includes('otdr-event-marker'));
+});
+
+test('buildBidirectionalOtdrCertRecord creates compliant record with unique ID and telemetries', async () => {
+  const { buildBidirectionalOtdrCertRecord } = await import('../form-validation.js');
+
+  const existing = [{ id: 'OTDR-BI-202610-0001' }];
+  const record = buildBidirectionalOtdrCertRecord({
+    customerName: 'Muhammad Arshad',
+    customerNumber: 'PK-4029',
+    area: 'Baradari Road',
+    routeName: 'Baradari Trunk Feeder to Ring-A',
+    fiberLengthKm: 12.0,
+    wavelengthNm: 1550,
+    events: [
+      { id: 'E1', distanceKm: 0.0, type: 'LAUNCH_CONNECTOR', lossAtoB: 0.25, lossBtoA: 0.25 },
+      { id: 'E2', distanceKm: 6.0, type: 'FUSION_SPLICE', lossAtoB: -0.10, lossBtoA: 0.22 },
+      { id: 'E3', distanceKm: 12.0, type: 'TERMINAL_REFLECTIVE', lossAtoB: 0.35, lossBtoA: 0.35 }
+    ],
+    notes: 'Span spliced with Sumitomo Type-82C.'
+  }, existing);
+
+  assert.match(record.id, /^OTDR-BI-\d{6}-0002$/);
+  assert.equal(record.customerName, 'Muhammad Arshad');
+  assert.equal(record.customerNumber, 'PK-4029');
+  assert.equal(record.area, 'Baradari Road');
+  assert.equal(record.gainerCount, 1);
+  assert.ok(record.totalTrueLossDb > 0);
+  assert.equal(record.verdict, 'CERTIFIED_PASS');
+  assert.equal(record.notes, 'Span spliced with Sumitomo Type-82C.');
+});
+
+test('storage functions persist, read, and clear bidirectional OTDR cert records', async () => {
+  const {
+    saveBidirectionalOtdrCert,
+    getSavedBidirectionalOtdrCerts,
+    clearBidirectionalOtdrCerts,
+    BIDIRECTIONAL_OTDR_STORAGE_KEY
+  } = await import('../form-validation.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  assert.deepEqual(getSavedBidirectionalOtdrCerts(mockStorage), []);
+
+  const cert1 = { id: 'OTDR-BI-202610-0001', customerName: 'Tariq Mehmood', totalTrueLossDb: 2.5 };
+  const cert2 = { id: 'OTDR-BI-202610-0002', customerName: 'Zahid Hussain', totalTrueLossDb: 3.1 };
+
+  saveBidirectionalOtdrCert(cert1, mockStorage);
+  saveBidirectionalOtdrCert(cert2, mockStorage);
+
+  const saved = getSavedBidirectionalOtdrCerts(mockStorage);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].id, 'OTDR-BI-202610-0002'); // latest first
+
+  clearBidirectionalOtdrCerts(mockStorage);
+  assert.deepEqual(getSavedBidirectionalOtdrCerts(mockStorage), []);
+  assert.equal(mockStorage.getItem(BIDIRECTIONAL_OTDR_STORAGE_KEY), null);
+});
+
+test('formatBidirectionalOtdrCertWhatsApp formats comprehensive notice text', async () => {
+  const { formatBidirectionalOtdrCertWhatsApp } = await import('../form-validation.js');
+
+  const record = {
+    id: 'OTDR-BI-202610-0005',
+    timestamp: '2026-10-16T12:00:00Z',
+    customerName: 'Imtiaz Ahmed',
+    customerNumber: 'SH-8821',
+    area: 'Jia Musa',
+    routeName: 'Jia Musa Ring Feeder',
+    originNode: 'OLT Hub Alpha',
+    terminusNode: 'FAT-03',
+    fiberLengthKm: 8.5,
+    wavelengthNm: 1550,
+    apparentLossAtoBDb: 2.85,
+    apparentLossBtoADb: 2.75,
+    totalTrueLossDb: 2.80,
+    meanAttenuationDbPerKm: 0.329,
+    gainerCount: 1,
+    verdictLabel: 'CERTIFIED PASS',
+    technicianName: 'Sajjad Ali',
+    notes: 'Core misalignment eliminated.',
+    events: [
+      { distanceKm: 4.2, type: 'FUSION_SPLICE', lossAtoB: -0.15, lossBtoA: 0.25, trueLossDb: 0.05, isGainer: true }
+    ]
+  };
+
+  const msg = formatBidirectionalOtdrCertWhatsApp(record);
+  assert.ok(msg.includes('SHAHDARA FIBER NETWORK OPERATIONS'));
+  assert.ok(msg.includes('OTDR BIDIRECTIONAL QA CERTIFICATE'));
+  assert.ok(msg.includes('OTDR-BI-202610-0005'));
+  assert.ok(msg.includes('Imtiaz Ahmed'));
+  assert.ok(msg.includes('8.50 km'));
+  assert.ok(msg.includes('2.80 dB'));
+  assert.ok(msg.includes('False Gainers Eliminated'));
+  assert.ok(msg.includes('CERTIFIED PASS'));
+  assert.ok(msg.includes('Sajjad Ali'));
+});
+
+test('generateBidirectionalOtdrCertHtml outputs A4 sheet and thermal slip formats', async () => {
+  const { generateBidirectionalOtdrCertHtml } = await import('../form-validation.js');
+
+  const record = {
+    id: 'OTDR-BI-202610-0006',
+    timestamp: '2026-10-16T12:00:00Z',
+    customerName: 'Khurram Shehzad',
+    customerNumber: 'SH-1094',
+    area: 'Begum Kot',
+    routeName: 'Begum Kot Commercial Feeder',
+    originNode: 'Begum Kot Central OLT',
+    terminusNode: 'FAT-09',
+    fiberLengthKm: 6.4,
+    wavelengthNm: 1550,
+    apparentLossAtoBDb: 2.10,
+    apparentLossBtoADb: 1.95,
+    totalTrueLossDb: 2.02,
+    meanAttenuationDbPerKm: 0.316,
+    gainerCount: 1,
+    verdictLabel: 'CERTIFIED PASS',
+    technicianName: 'Asim Raza',
+    events: [
+      { id: 'E1', distanceKm: 0.0, type: 'LAUNCH_CONNECTOR', lossAtoB: 0.3, lossBtoA: 0.3, trueLossDb: 0.3, verdict: 'PASS' },
+      { id: 'E2', distanceKm: 3.2, type: 'FUSION_SPLICE', lossAtoB: -0.12, lossBtoA: 0.26, trueLossDb: 0.07, isGainer: true, verdict: 'PASS' }
+    ]
+  };
+
+  // Sheet format
+  const sheetHtml = generateBidirectionalOtdrCertHtml(record, { format: 'sheet' });
+  assert.ok(sheetHtml.includes('a4-otdr-cert'));
+  assert.ok(sheetHtml.includes('SHAHDARA ISP &amp; OPTICAL FIBER NETWORK'));
+  assert.ok(sheetHtml.includes('OTDR-BI-202610-0006'));
+  assert.ok(sheetHtml.includes('Khurram Shehzad'));
+  assert.ok(sheetHtml.includes('bidirectional-otdr-svg'));
+  assert.ok(sheetHtml.includes('NOC Supervisor Sign-off'));
+
+  // Slip format
+  const slipHtml = generateBidirectionalOtdrCertHtml(record, { format: 'slip' });
+  assert.ok(slipHtml.includes('thermal-otdr-slip'));
+  assert.ok(slipHtml.includes('SHAHDARA FIBER NET'));
+  assert.ok(slipHtml.includes('OTDR BIDIRECTIONAL QA SLIP'));
+  assert.ok(slipHtml.includes('2.02 dB'));
+  assert.ok(slipHtml.includes('*** CARRIER CERTIFIED FIBER ***'));
+});
+
+test('generateBidirectionalOtdrCsv outputs valid CSV columns and formatted rows', async () => {
+  const { generateBidirectionalOtdrCsv } = await import('../form-validation.js');
+
+  const records = [
+    {
+      id: 'OTDR-BI-202610-0001',
+      timestamp: '2026-10-16T10:00:00Z',
+      customerNumber: 'SH-01',
+      customerName: 'Ali Raza',
+      area: 'Baradari',
+      routeName: 'Trunk Feeder',
+      originNode: 'PoP 1',
+      terminusNode: 'FAT 1',
+      fiberLengthKm: 10.0,
+      wavelengthNm: 1550,
+      totalTrueLossDb: 2.8,
+      apparentLossAtoBDb: 2.9,
+      apparentLossBtoADb: 2.7,
+      meanAttenuationDbPerKm: 0.28,
+      gainerCount: 1,
+      verdict: 'CERTIFIED_PASS',
+      technicianName: 'Umair',
+      notes: 'Clean'
+    }
+  ];
+
+  const csv = generateBidirectionalOtdrCsv(records);
+  assert.ok(csv.includes('CertID,Timestamp,CustomerNumber,CustomerName'));
+  assert.ok(csv.includes('"OTDR-BI-202610-0001"'));
+  assert.ok(csv.includes('"Ali Raza"'));
+  assert.ok(csv.includes('"Baradari"'));
+  assert.ok(csv.includes('10.00'));
+  assert.ok(csv.includes('2.80'));
+});
+
+test('setupBidirectionalOtdrModal wires event listeners and handles user interactions', async () => {
+  const { setupBidirectionalOtdrModal, BIDIRECTIONAL_OTDR_STORAGE_KEY } = await import('../form-validation.js');
+
+  function createMockElement(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      open: false,
+      style: {},
+      addEventListener(event, fn) {
+        if (!listeners[event]) listeners[event] = [];
+        listeners[event].push(fn);
+      },
+      dispatchEvent(event) {
+        if (listeners[event.type]) {
+          listeners[event.type].forEach(fn => fn(event));
+        }
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      appendChild(child) { /* mock */ },
+      querySelector(sel) { return null; },
+      querySelectorAll(sel) { return []; }
+    };
+  }
+
+  const elements = {
+    '#bidirectionalOtdrModal': createMockElement('bidirectionalOtdrModal'),
+    '#bidirectionalOtdrModalCloseBtn': createMockElement('bidirectionalOtdrModalCloseBtn'),
+    '#bidirectionalOtdrSvgContainer': createMockElement('bidirectionalOtdrSvgContainer'),
+    '#bidirectionalOtdrPresetSelect': createMockElement('bidirectionalOtdrPresetSelect'),
+    '#bidirectionalOtdrWlSelect': createMockElement('bidirectionalOtdrWlSelect'),
+    '#bidirectionalOtdrSpanSlider': createMockElement('bidirectionalOtdrSpanSlider'),
+    '#bidirectionalOtdrSpanVal': createMockElement('bidirectionalOtdrSpanVal'),
+    '#bidirectionalOtdrRouteInput': createMockElement('bidirectionalOtdrRouteInput'),
+    '#bidirectionalOtdrOriginInput': createMockElement('bidirectionalOtdrOriginInput'),
+    '#bidirectionalOtdrDestInput': createMockElement('bidirectionalOtdrDestInput'),
+    '#bidirectionalOtdrNotesInput': createMockElement('bidirectionalOtdrNotesInput'),
+    '#bidirectionalOtdrTrueLossReadout': createMockElement('bidirectionalOtdrTrueLossReadout'),
+    '#bidirectionalOtdrApparentAtoBReadout': createMockElement('bidirectionalOtdrApparentAtoBReadout'),
+    '#bidirectionalOtdrApparentBtoAReadout': createMockElement('bidirectionalOtdrApparentBtoAReadout'),
+    '#bidirectionalOtdrGainersReadout': createMockElement('bidirectionalOtdrGainersReadout'),
+    '#bidirectionalOtdrVerdictBadge': createMockElement('bidirectionalOtdrVerdictBadge'),
+    '#bidirectionalOtdrEventsTableBody': createMockElement('bidirectionalOtdrEventsTableBody'),
+    '#bidirectionalOtdrAddEventBtn': createMockElement('bidirectionalOtdrAddEventBtn'),
+    '#bidirectionalOtdrHistoryTableBody': createMockElement('bidirectionalOtdrHistoryTableBody'),
+    '#bidirectionalOtdrRecordCertBtn': createMockElement('bidirectionalOtdrRecordCertBtn'),
+    '#bidirectionalOtdrCopyReportBtn': createMockElement('bidirectionalOtdrCopyReportBtn'),
+    '#bidirectionalOtdrPrintA4Btn': createMockElement('bidirectionalOtdrPrintA4Btn'),
+    '#bidirectionalOtdrPrintThermalBtn': createMockElement('bidirectionalOtdrPrintThermalBtn'),
+    '#bidirectionalOtdrExportCsvBtn': createMockElement('bidirectionalOtdrExportCsvBtn'),
+    '#bidirectionalOtdrClearHistoryBtn': createMockElement('bidirectionalOtdrClearHistoryBtn')
+  };
+
+  elements['#bidirectionalOtdrSpanSlider'].value = '14.8';
+  elements['#bidirectionalOtdrWlSelect'].value = '1550';
+  elements['#bidirectionalOtdrPresetSelect'].value = 'ROUTE_BARADARI_TRUNK';
+
+  const mockRoot = {
+    querySelector(sel) { return elements[sel] || null; },
+    querySelectorAll(sel) {
+      if (sel === '[data-open-bidirectional-otdr]') return [];
+      return [];
+    }
+  };
+
+  const mockDoc = {
+    createElement(tag) { return createMockElement(`dyn-${tag}`); }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  let toastLog = [];
+  const controller = setupBidirectionalOtdrModal({
+    storage: mockStorage,
+    onToast: (msg) => toastLog.push(msg),
+    getCustomerData: () => ({ name: 'Naveed Akhtar', customerNumber: 'SH-5512', area: 'Baradari' }),
+    doc: mockDoc,
+    root: mockRoot
+  });
+
+  assert.ok(controller);
+
+  // Open modal
+  controller.open();
+  assert.equal(elements['#bidirectionalOtdrModal'].open, true);
+  assert.ok(elements['#bidirectionalOtdrTrueLossReadout'].textContent.includes('dB'));
+
+  // Test setReading
+  controller.setReading({ fiberLengthKm: 16.5, wavelengthNm: 1310 });
+  assert.equal(elements['#bidirectionalOtdrSpanSlider'].value, 16.5);
+  assert.equal(elements['#bidirectionalOtdrWlSelect'].value, 1310);
+
+  // Record cert
+  elements['#bidirectionalOtdrRecordCertBtn'].click();
+  assert.ok(toastLog.some(msg => msg.includes('Recorded OTDR Bidirectional QA Cert')));
+  assert.ok(store[BIDIRECTIONAL_OTDR_STORAGE_KEY]);
+
+  // Clear history
+  elements['#bidirectionalOtdrClearHistoryBtn'].click();
+  assert.ok(toastLog.some(msg => msg.includes('Cleared Bidirectional OTDR')));
+  assert.equal(store[BIDIRECTIONAL_OTDR_STORAGE_KEY], undefined);
+
+  // Close modal
+  controller.close();
+  assert.equal(elements['#bidirectionalOtdrModal'].open, false);
+});
+
+test('index.html and styles.css include bidirectional OTDR modal elements and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="openBidirectionalOtdrBtn"'));
+  assert.ok(html.includes('data-open-bidirectional-otdr'));
+  assert.ok(html.includes('id="bidirectionalOtdrModal"'));
+  assert.ok(html.includes('id="bidirectionalOtdrSvgContainer"'));
+  assert.ok(html.includes('id="bidirectionalOtdrTrueLossReadout"'));
+  assert.ok(html.includes('id="bidirectionalOtdrEventsTableBody"'));
+
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.bidirectional-otdr-modal-card'));
+  assert.ok(css.includes('.bidirectional-otdr-svg'));
+  assert.ok(css.includes('.bidirectional-otdr-svg-wrap'));
+});

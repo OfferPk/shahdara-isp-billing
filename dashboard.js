@@ -5530,4 +5530,26 @@ export {
   setupMclagModal
 } from './dashboard-mclag.js';
 
+export {
+  FLOWSPEC_CONSTANTS,
+  SHAHDARA_FLOWSPEC_GATEWAYS,
+  SHAHDARA_FLOWSPEC_RULES,
+  getFlowspecSelectedGateway,
+  setFlowspecSelectedGateway,
+  getFlowspecSelectedRule,
+  setFlowspecSelectedRule,
+  getFlowspecAttackVector,
+  setFlowspecAttackVector,
+  getFlowspecAttackVolumeGbps,
+  setFlowspecAttackVolumeGbps,
+  getFlowspecScrubCapacityGbps,
+  setFlowspecScrubCapacityGbps,
+  resetFlowspecSimState,
+  calculateFlowspecMitigation,
+  calculateFlowspecMetrics,
+  renderFlowspecDiagramSvg,
+  generateFlowspecReport,
+  setupFlowspecModal
+} from './dashboard-flowspec.js';
+
 

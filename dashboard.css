@@ -2241,6 +2241,61 @@
   border-color: #1b3d54;
 }
 
+.chart-card-flowspec {
+  background: var(--surface, #ffffff);
+}
+
+.flowspec-modal-card {
+  max-width: 960px;
+}
+
+.flowspec-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.fs-action-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.fs-action-drop {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.fs-action-rate_limit_10m,
+.fs-action-rate_limit_50m {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.fs-action-scrub_redirect {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.fs-action-dscp_remark {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+[data-theme="dark"] .chart-card-flowspec {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .flowspec-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
 
 
 

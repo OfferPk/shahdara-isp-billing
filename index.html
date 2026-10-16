@@ -683,6 +683,16 @@
             </div>
             <div id="dashboardMclagChart" class="chart-svg-container" role="img" aria-label="MC-LAG Dual-Chassis Redundancy Architecture Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-flowspec">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">BGP Flowspec DDoS Mitigation Matrix</h4>
+                <p class="chart-subtitle">RFC 5575 / 8955 dynamic edge rate-limiting, hardware TCAM filtering &amp; scrubbing</p>
+              </div>
+              <button id="dashboardOpenFlowspecModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Flowspec Diagnostics</button>
+            </div>
+            <div id="dashboardFlowspecChart" class="chart-svg-container" role="img" aria-label="BGP Flowspec Edge Mitigation Architecture Chart"></div>
+          </article>
         </div>
 
 
@@ -3267,6 +3277,94 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="mclagFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopyMclagReportBtn" class="primary-button" type="button">📋 Copy MC-LAG Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardFlowspecModal" class="dashboard-modal flowspec-modal" aria-labelledby="dashboardFlowspecModalTitle">
+        <div class="dashboard-modal-card flowspec-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">BORDER SECURITY · RFC 5575 &amp; RFC 8955</p>
+              <h3 id="dashboardFlowspecModalTitle">BGP Flowspec Edge DDoS Mitigation &amp; Rate-Limiting</h3>
+            </div>
+            <button id="dashboardFlowspecModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Dissemination of BGP Flow Specification rules, wire-speed TCAM hardware policers, scrubbing VRF redirection, and subscriber revenue protection.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="flowspecGwSelect">Monitored Border Gateway:</label>
+              <select id="flowspecGwSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="flowspecVectorSelect">DDoS Threat Vector:</label>
+              <select id="flowspecVectorSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="flowspecRuleSelect">Disseminated Flowspec Rule:</label>
+              <select id="flowspecRuleSelect" class="form-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="flowspecAttackSlider">Attack Ingress: <span id="flowspecAttackVal" class="sim-val-pill">45 Gbps</span></label>
+              <input type="range" id="flowspecAttackSlider" min="0" max="150" step="5" value="45" class="otdr-slider">
+            </div>
+            <div class="otdr-control-item">
+              <label for="flowspecScrubSlider">Scrubbing Center Cap: <span id="flowspecScrubVal" class="sim-val-pill">60 Gbps</span></label>
+              <input type="range" id="flowspecScrubSlider" min="10" max="100" step="5" value="60" class="otdr-slider">
+            </div>
+            <div class="otdr-control-item" style="align-self: flex-end;">
+              <button id="flowspecResetBtn" class="secondary-button" type="button">Reset Flowspec State</button>
+            </div>
+          </div>
+
+          <div class="otdr-kpi-summary-grid">
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">BORDER GATEWAY</span>
+              <span id="flowspecKpiGatewayName" class="ltv-kpi-val" style="font-size: 1.05rem;">Nayatel 100G Border</span>
+              <span class="ltv-kpi-sub">Shahdara Core Ingress</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">MITIGATION STATE</span>
+              <span id="flowspecKpiMitigationState" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">OPTIMAL</span>
+              <span class="ltv-kpi-sub">TCAM Wire-Speed Policer</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">MITIGATION EFFICIENCY</span>
+              <span id="flowspecKpiEffectiveness" class="ltv-kpi-val" style="color: #0284c7;">100% (45G drop)</span>
+              <span class="ltv-kpi-sub">Suppression Pacing</span>
+            </div>
+            <div class="otdr-kpi-card">
+              <span class="ltv-kpi-label">HEALTH &amp; REVENUE RISK</span>
+              <span id="flowspecStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="flowspecKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="flowspecModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="BGP Flowspec Architecture Diagram"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Disseminated Flowspec Rules &amp; TCAM Filter Table</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-register-table">
+              <thead>
+                <tr>
+                  <th>Rule ID</th>
+                  <th>Description</th>
+                  <th>Match Specification</th>
+                  <th>Action Policy</th>
+                  <th>TCAM Entries</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="flowspecRulesTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="flowspecFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopyFlowspecReportBtn" class="primary-button" type="button">📋 Copy Flowspec Briefing</button>
           </div>
         </div>
       </dialog>

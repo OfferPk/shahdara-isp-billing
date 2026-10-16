@@ -4985,3 +4985,333 @@ test('mobile GPS breadcrumbs UI elements are wired in index.html, nav.css, and a
   assert.match(appJs, /mobileGpsBreadcrumbsModalController/);
 });
 
+test('nav-opm-testing dBm and milliwatt conversions and insertion loss calculations', async () => {
+  const {
+    dBmToMilliwatts,
+    milliwattsToDbm,
+    calculateInsertionLoss,
+    calculateLinkLossBudget,
+    CONNECTOR_POLISH_TYPES,
+    CONTAMINATION_LEVELS
+  } = await import('../nav-opm-testing.js');
+
+  // dBm to mW
+  assert.equal(dBmToMilliwatts(0), 1.0);
+  assert.equal(dBmToMilliwatts(-10), 0.1);
+  assert.equal(dBmToMilliwatts(-20), 0.01);
+  assert.equal(dBmToMilliwatts(10), 10.0);
+
+  // mW to dBm
+  assert.equal(milliwattsToDbm(1.0), 0);
+  assert.equal(milliwattsToDbm(0.1), -10);
+  assert.equal(milliwattsToDbm(0), -70);
+  assert.equal(milliwattsToDbm(-5), -70);
+
+  // Insertion loss
+  assert.equal(calculateInsertionLoss(5, -20), 25);
+  assert.equal(calculateInsertionLoss(2.5, -18.5), 21);
+
+  // Link loss budget
+  const budgetClean = calculateLinkLossBudget(18.5, 'sc-apc', 'clean');
+  assert.equal(budgetClean.baseLossDb, 18.5);
+  assert.equal(budgetClean.connectorLossDb, 0.25);
+  assert.equal(budgetClean.contaminationPenaltyDb, 0.0);
+  assert.equal(budgetClean.totalLossDb, 18.75);
+
+  const budgetDirty = calculateLinkLossBudget(18.5, 'sc-upc', 'smudge');
+  assert.equal(budgetDirty.connectorLossDb, 0.35);
+  assert.equal(budgetDirty.contaminationPenaltyDb, 2.2);
+  assert.equal(budgetDirty.totalLossDb, 21.05);
+});
+
+test('nav-opm-testing evaluateOpmSignalGrade classifies GPON power thresholds correctly', async () => {
+  const {
+    evaluateOpmSignalGrade,
+    OPM_TEST_POINTS
+  } = await import('../nav-opm-testing.js');
+
+  // Grade classification
+  assert.equal(evaluateOpmSignalGrade(0).grade, 'OVERLOAD');
+  assert.equal(evaluateOpmSignalGrade(-19.5).grade, 'EXCELLENT');
+  assert.equal(evaluateOpmSignalGrade(-25.0).grade, 'ACCEPTABLE');
+  assert.equal(evaluateOpmSignalGrade(-27.5).grade, 'CRITICAL_LOW');
+  assert.equal(evaluateOpmSignalGrade(-35.0).grade, 'NO_LIGHT');
+  assert.equal(evaluateOpmSignalGrade(-55.0).grade, 'NO_LIGHT');
+
+  // OLT SFP port grade check
+  assert.equal(evaluateOpmSignalGrade(4.5, 'point-olt-sfp').grade, 'EXCELLENT');
+  assert.equal(evaluateOpmSignalGrade(0.5, 'point-olt-sfp').grade, 'CRITICAL_LOW');
+});
+
+test('nav-opm-testing offline localStorage test logs CRUD', async () => {
+  const {
+    getOpmTestLogsStore,
+    saveOpmTestLogsStore,
+    recordOpmTestLog,
+    clearOpmTestLogsStore,
+    OPM_TEST_LOGS_STORAGE_KEY
+  } = await import('../nav-opm-testing.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  assert.deepEqual(getOpmTestLogsStore(mockStorage), { logs: [] });
+
+  const reading1 = {
+    wavelengthNm: 1490,
+    testPointId: 'point-rosette-onu',
+    measuredPowerDbm: -18.2,
+    connectorType: 'sc-apc',
+    contamination: 'clean',
+    notes: 'ONT tested okay'
+  };
+
+  const logged1 = recordOpmTestLog(reading1, mockStorage);
+  assert.ok(logged1.id);
+  assert.equal(logged1.signalGrade, 'EXCELLENT');
+  assert.equal(logged1.pass, true);
+
+  const logs = getOpmTestLogsStore(mockStorage).logs;
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0].measuredPowerDbm, -18.2);
+
+  clearOpmTestLogsStore(mockStorage);
+  assert.deepEqual(getOpmTestLogsStore(mockStorage), { logs: [] });
+});
+
+test('nav-opm-testing generateOpmFieldReport and renderMobileOpmGaugeSvg produce valid field outputs', async () => {
+  const {
+    generateOpmFieldReport,
+    renderMobileOpmGaugeSvg,
+    OPM_TEST_POINTS
+  } = await import('../nav-opm-testing.js');
+
+  const testReading = {
+    wavelengthNm: 1490,
+    testPointId: 'point-rosette-onu',
+    measuredPowerDbm: -19.5,
+    connectorType: 'sc-apc',
+    contamination: 'clean',
+    notes: 'Subscriber drop verified'
+  };
+
+  const report = generateOpmFieldReport(testReading);
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL POWER METER (OPM) REPORT'));
+  assert.ok(report.includes('1490 nm'));
+  assert.ok(report.includes('-19.50 dBm'));
+  assert.ok(report.includes('Subscriber drop verified'));
+
+  const svg = renderMobileOpmGaugeSvg(testReading);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('SHD-OPM PRO'));
+  assert.ok(svg.includes('-19.50 dBm'));
+  assert.ok(svg.includes('1490 nm'));
+});
+
+test('mobile OPM testing UI elements are wired in index.html, nav.css, and app.js', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // Trigger buttons
+  assert.match(indexHtml, /id="navOpmTesterBtn"/);
+  assert.match(indexHtml, /data-nav-badge="opm-tester"/);
+  assert.match(indexHtml, /id="mobileMoreOpmTesterBtn"/);
+  assert.match(indexHtml, /id="actionSheetOpmTesterBtn"/);
+  assert.match(indexHtml, /id="speedDialOpmTesterBtn"/);
+
+  // Modal dialog & inputs
+  assert.match(indexHtml, /<dialog id="mobileOpmTestingModal"/);
+  assert.match(indexHtml, /id="opmWavelengthSelect"/);
+  assert.match(indexHtml, /id="opmTestPointSelect"/);
+  assert.match(indexHtml, /id="opmMeasuredPowerSlider"/);
+  assert.match(indexHtml, /id="opmMeasuredPowerInput"/);
+  assert.match(indexHtml, /id="opmConnectorSelect"/);
+  assert.match(indexHtml, /id="opmContaminationSelect"/);
+  assert.match(indexHtml, /id="opmGaugeSvgContainer"/);
+  assert.match(indexHtml, /id="opmRecordLogBtn"/);
+  assert.match(indexHtml, /id="opmCopyReportBtn"/);
+  assert.match(indexHtml, /id="opmFilterAreaBtn"/);
+  assert.match(indexHtml, /id="opmClearLogsBtn"/);
+
+  // Styles
+  assert.match(navCss, /\.opm-testing-modal/);
+  assert.match(navCss, /\.opm-gauge-svg/);
+  assert.match(navCss, /\.opm-log-item/);
+
+  // App.js
+  assert.match(appJs, /setupMobileOpmTestingModal/);
+  assert.match(appJs, /mobileOpmTestingModalController/);
+  assert.match(appJs, /action === 'opm-tester'/);
+});
+
+test('nav-opm-testing fiber attenuation, allowable drop distance, and return loss safety', async () => {
+  const {
+    calculateFiberAttenuation,
+    estimateMaxAllowableDropDistanceKm,
+    evaluateReturnLossSafety
+  } = await import('../nav-opm-testing.js');
+
+  // Attenuation: 1490 nm @ 0.22 dB/km
+  const atten1490 = calculateFiberAttenuation(1490, 5.0);
+  assert.equal(atten1490.wavelengthNm, 1490);
+  assert.equal(atten1490.standardLossDbPerKm, 0.22);
+  assert.equal(atten1490.lengthKm, 5.0);
+  assert.equal(atten1490.fiberLossDb, 1.1);
+
+  // Attenuation: 1310 nm @ 0.35 dB/km
+  const atten1310 = calculateFiberAttenuation(1310, 2.0);
+  assert.equal(atten1310.fiberLossDb, 0.7);
+
+  // Drop distance estimation
+  const distanceEst = estimateMaxAllowableDropDistanceKm({
+    launchPowerDbm: 3.0,
+    minReceiverSensitivityDbm: -27.0,
+    splitterLossDb: 24.7,
+    connectorLossDb: 2.0,
+    wavelengthNm: 1490
+  });
+
+  assert.equal(distanceEst.totalPowerBudgetDb, 30.0);
+  assert.equal(distanceEst.availableFiberLossDb, 3.3);
+  assert.equal(distanceEst.maxDistanceKm, 15.0);
+  assert.equal(distanceEst.maxDistanceMeters, 15000);
+
+  // Return loss safety evaluation
+  const safeApc = evaluateReturnLossSafety('sc-apc', 4.5);
+  assert.equal(safeApc.isHighRisk, false);
+  assert.equal(safeApc.returnLossDb, 65);
+  assert.ok(safeApc.statusText.includes('OPTIMAL'));
+
+  const riskyUpc = evaluateReturnLossSafety('sc-upc', 4.5);
+  assert.equal(riskyUpc.isHighRisk, true);
+  assert.equal(riskyUpc.returnLossDb, 52);
+  assert.ok(riskyUpc.statusText.includes('WARNING'));
+});
+
+test('setupMobileOpmTestingModal wires modal triggers, selects, inputs, and action buttons', async () => {
+  const { setupMobileOpmTestingModal } = await import('../nav-opm-testing.js');
+
+  let modalOpened = false;
+  let closeHandler = null;
+  let openHandler = null;
+  let waveChangeHandler = null;
+  let pointChangeHandler = null;
+  let sliderInputHandler = null;
+  let logClickHandler = null;
+  let clearClickHandler = null;
+  let copyClickHandler = null;
+  let filterClickHandler = null;
+
+  let toastMsg = null;
+  let filteredArea = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  const mockTriggerBtn = {
+    set onclick(fn) { openHandler = fn; }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'mobileOpmTestingModal': return mockModal;
+        case 'closeMobileOpmTestingModal': return { set onclick(fn) { closeHandler = fn; } };
+        case 'opmWavelengthSelect': return { value: '1490', set onchange(fn) { waveChangeHandler = fn; } };
+        case 'opmTestPointSelect': return { value: 'point-rosette-onu', set onchange(fn) { pointChangeHandler = fn; } };
+        case 'opmMeasuredPowerSlider': return { value: '-20.5', set oninput(fn) { sliderInputHandler = fn; } };
+        case 'opmMeasuredPowerInput': return { value: '-20.5', oninput: null };
+        case 'opmConnectorSelect': return { value: 'sc-apc', onchange: null };
+        case 'opmContaminationSelect': return { value: 'clean', onchange: null };
+        case 'opmTestNotesInput': return { value: 'Customer testing' };
+        case 'opmGaugeSvgContainer': return { innerHTML: '' };
+        case 'opmKpiSignalGrade': return { textContent: '', className: '', style: {} };
+        case 'opmKpiLinearMicroWatts': return { textContent: '' };
+        case 'opmKpiTotalLoss': return { textContent: '' };
+        case 'opmKpiCompliance': return { textContent: '', style: {} };
+        case 'opmRecordLogBtn': return { set onclick(fn) { logClickHandler = fn; } };
+        case 'opmClearLogsBtn': return { set onclick(fn) { clearClickHandler = fn; } };
+        case 'opmCopyReportBtn': return { set onclick(fn) { copyClickHandler = fn; } };
+        case 'opmFilterAreaBtn': return { set onclick(fn) { filterClickHandler = fn; } };
+        case 'opmLogsList': return { innerHTML: '' };
+        default: return null;
+      }
+    },
+    querySelectorAll: (selector) => {
+      if (selector === '[data-open-opm-tester]') {
+        return [mockTriggerBtn];
+      }
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupMobileOpmTestingModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMsg = msg; },
+      onFilterArea: (area) => { filteredArea = area; },
+      clipboard: {
+        writeText: async (text) => { copiedText = text; }
+      }
+    });
+
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.getCurrentReading, 'function');
+
+    // Trigger button opens modal
+    assert.equal(typeof openHandler, 'function');
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Close button closes modal
+    assert.equal(typeof closeHandler, 'function');
+    closeHandler();
+    assert.equal(modalOpened, false);
+
+    // Slider input changes reading
+    assert.equal(typeof sliderInputHandler, 'function');
+    sliderInputHandler({ target: { value: '-19.2' } });
+    assert.equal(controller.getCurrentReading().measuredPowerDbm, -19.2);
+
+    // Logging test reading
+    assert.equal(typeof logClickHandler, 'function');
+    logClickHandler();
+    assert.ok(toastMsg.includes('Logged -19.20 dBm reading'));
+
+    // Copying report
+    assert.equal(typeof copyClickHandler, 'function');
+    await copyClickHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - OPTICAL POWER METER (OPM) REPORT'));
+
+    // Filter area
+    assert.equal(typeof filterClickHandler, 'function');
+    filterClickHandler();
+    assert.equal(filteredArea, 'Jia Musa');
+
+    // Clear logs
+    assert.equal(typeof clearClickHandler, 'function');
+    clearClickHandler();
+    assert.equal(toastMsg, 'Cleared optical power test logs');
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

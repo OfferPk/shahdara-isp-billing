@@ -5881,8 +5881,25 @@ export {
   setupMobileGpsBreadcrumbsModal
 } from './nav-gps-tracking.js';
 
-
-
-
-
-
+export {
+  OPM_TEST_LOGS_STORAGE_KEY,
+  OPM_CALIBRATED_WAVELENGTHS,
+  OPM_TEST_POINTS,
+  CONNECTOR_POLISH_TYPES,
+  CONTAMINATION_LEVELS,
+  dBmToMilliwatts,
+  milliwattsToDbm,
+  calculateInsertionLoss,
+  evaluateOpmSignalGrade,
+  calculateLinkLossBudget,
+  getOpmTestLogsStore,
+  saveOpmTestLogsStore,
+  recordOpmTestLog,
+  clearOpmTestLogsStore,
+  generateOpmFieldReport,
+  renderMobileOpmGaugeSvg,
+  calculateFiberAttenuation,
+  estimateMaxAllowableDropDistanceKm,
+  evaluateReturnLossSafety,
+  setupMobileOpmTestingModal
+} from './nav-opm-testing.js';

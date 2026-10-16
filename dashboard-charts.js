@@ -9,6 +9,7 @@ import { calculateDuctJettingMetrics, setupDuctJettingModal, renderDuctJettingSv
 import { calculatePonDbaMetrics, setupPonDbaModal, renderPonDbaQueueSvg } from './dashboard-pon-dba.js';
 import { calculateFusionSplicerMetrics, setupFusionSplicerModal, renderFusionSplicerSvg } from './dashboard-splicer.js';
 import { calculateBgpPeeringMetrics, setupBgpRoutingModal, renderBgpRoutingConvergenceSvg } from './dashboard-bgp.js';
+import { calculateIptvMulticastMetrics, setupIptvMulticastModal, renderIptvMulticastSvg } from './dashboard-iptv.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3317,9 +3318,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupBgpRoutingModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const iptvEl = document.getElementById('dashboardIptvChart');
+  if (iptvEl) {
+    const iptvData = calculateIptvMulticastMetrics(state, { referenceDate });
+    iptvEl.innerHTML = renderIptvMulticastSvg(iptvData, { compact: true });
+  }
+
+  setupIptvMulticastModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg };
 
 

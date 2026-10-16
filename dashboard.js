@@ -5342,3 +5342,22 @@ export {
   generateBgpRoutingReport,
   setupBgpRoutingModal
 } from './dashboard-bgp.js';
+
+export {
+  SHAHDARA_IPTV_CHANNELS,
+  IPTV_CONSTANTS,
+  getIptvSelectedChannel,
+  setIptvSelectedChannel,
+  getIptvFastLeaveEnabled,
+  setIptvFastLeaveEnabled,
+  getIptvGopSizeSec,
+  setIptvGopSizeSec,
+  getIptvFccAssist,
+  setIptvFccAssist,
+  resetIptvSimState,
+  calculateZappingLatency,
+  calculateIptvMulticastMetrics,
+  renderIptvMulticastSvg,
+  generateIptvMulticastReport,
+  setupIptvMulticastModal
+} from './dashboard-iptv.js';

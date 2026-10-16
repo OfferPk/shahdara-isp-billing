@@ -199,7 +199,23 @@ import {
   calculateBgpPeeringMetrics,
   renderBgpRoutingConvergenceSvg,
   generateBgpRoutingReport,
-  setupBgpRoutingModal
+  setupBgpRoutingModal,
+  SHAHDARA_IPTV_CHANNELS,
+  IPTV_CONSTANTS,
+  getIptvSelectedChannel,
+  setIptvSelectedChannel,
+  getIptvFastLeaveEnabled,
+  setIptvFastLeaveEnabled,
+  getIptvGopSizeSec,
+  setIptvGopSizeSec,
+  getIptvFccAssist,
+  setIptvFccAssist,
+  resetIptvSimState,
+  calculateZappingLatency,
+  calculateIptvMulticastMetrics,
+  renderIptvMulticastSvg,
+  generateIptvMulticastReport,
+  setupIptvMulticastModal
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -7373,6 +7389,273 @@ test('setupBgpRoutingModal wires DOM controls, sliders, buttons, and callbacks c
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA CORE IP BACKBONE BGP PEERING & FLAP DAMPING AUDIT BRIEFING'));
     assert.equal(toastMessage, 'BGP routing and flap damping briefing copied to clipboard!');
+
+    // Test close
+    assert.ok(closeClickHandler !== null);
+    closeClickHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateZappingLatency calculates IGMP leave, join, keyframe GOP wait, and FCC acceleration', () => {
+  const channel = SHAHDARA_IPTV_CHANNELS[0];
+
+  // Test standard fast-leave with 1.5s GOP
+  const fastResult = calculateZappingLatency(channel, { fastLeaveEnabled: true, gopSec: 1.5, fccAssist: false });
+  assert.equal(fastResult.tLeave, IPTV_CONSTANTS.FAST_LEAVE_LATENCY_MS);
+  assert.equal(fastResult.tJoin, 110);
+  assert.equal(fastResult.tGop, 750); // (1.5 * 1000) / 2
+  assert.equal(fastResult.tBuffer, 140);
+  assert.equal(fastResult.rawZapMs, 45 + 110 + 750 + 140); // 1045 ms
+  assert.equal(fastResult.totalZapMs, 1045);
+
+  // Test query-timeout leave (fast leave disabled)
+  const slowLeaveResult = calculateZappingLatency(channel, { fastLeaveEnabled: false, gopSec: 1.5, fccAssist: false });
+  assert.equal(slowLeaveResult.tLeave, IPTV_CONSTANTS.QUERY_TIMEOUT_LEAVE_LATENCY_MS);
+  assert.equal(slowLeaveResult.totalZapMs, 950 + 110 + 750 + 140); // 1950 ms
+
+  // Test FCC acceleration enabled
+  const fccResult = calculateZappingLatency(channel, { fastLeaveEnabled: true, gopSec: 1.5, fccAssist: true });
+  assert.equal(fccResult.rawZapMs, 1045);
+  assert.equal(fccResult.totalZapMs, Math.round(1045 * IPTV_CONSTANTS.FCC_ACCELERATION_FACTOR)); // 397 ms
+});
+
+test('IPTV simulation state getters, setters, and reset functionality work correctly', () => {
+  resetIptvSimState();
+  assert.equal(getIptvSelectedChannel(), SHAHDARA_IPTV_CHANNELS[0].id);
+  assert.equal(getIptvFastLeaveEnabled(), true);
+  assert.equal(getIptvGopSizeSec(), null);
+  assert.equal(getIptvFccAssist(), false);
+
+  setIptvSelectedChannel('iptv-ptv-03');
+  assert.equal(getIptvSelectedChannel(), 'iptv-ptv-03');
+
+  setIptvFastLeaveEnabled(false);
+  assert.equal(getIptvFastLeaveEnabled(), false);
+
+  setIptvGopSizeSec(2.5);
+  assert.equal(getIptvGopSizeSec(), 2.5);
+
+  // Bounds checking
+  setIptvGopSizeSec(5.0);
+  assert.equal(getIptvGopSizeSec(), 3.0);
+  setIptvGopSizeSec(0.1);
+  assert.equal(getIptvGopSizeSec(), 0.5);
+
+  setIptvFccAssist(true);
+  assert.equal(getIptvFccAssist(), true);
+
+  resetIptvSimState();
+  assert.equal(getIptvSelectedChannel(), SHAHDARA_IPTV_CHANNELS[0].id);
+  assert.equal(getIptvFastLeaveEnabled(), true);
+  assert.equal(getIptvGopSizeSec(), null);
+  assert.equal(getIptvFccAssist(), false);
+});
+
+test('calculateIptvMulticastMetrics evaluates multicast channels, viewership, and subscriber exposure', () => {
+  resetIptvSimState();
+
+  const state = {
+    customers: [
+      { id: 'c1', name: 'Zahid Khan', area: 'Shahdara Town', isArchived: false },
+      { id: 'c2', name: 'Farhan Ali', area: 'Baradari Road', isArchived: false },
+      { id: 'c3', name: 'Tariq Mehmood', area: 'Vandala Road', isArchived: false }
+    ],
+    bills: [
+      { customerId: 'c1', balance: 3000 },
+      { customerId: 'c2', balance: 2500 },
+      { customerId: 'c3', balance: 1800 }
+    ]
+  };
+
+  const metrics = calculateIptvMulticastMetrics(state);
+  assert.equal(metrics.totalChannels, SHAHDARA_IPTV_CHANNELS.length);
+  assert.ok(metrics.totalActiveViewers >= 800);
+  assert.ok(metrics.totalMulticastBandwidthMbps >= 30);
+  assert.ok(metrics.avgZappingTimeMs > 0);
+
+  const ch = metrics.selectedChannel;
+  assert.equal(ch.id, SHAHDARA_IPTV_CHANNELS[0].id);
+  assert.ok(ch.linkedSubscribers >= 1);
+  assert.ok(ch.linkedDues >= 3000);
+
+  // Test simulation causing slow zapping with query-timeout leave
+  setIptvFastLeaveEnabled(false);
+  const slowMetrics = calculateIptvMulticastMetrics(state);
+  assert.ok(slowMetrics.degradedChannelsCount >= 1);
+  assert.ok(slowMetrics.totalDuesAtRisk >= 3000);
+
+  resetIptvSimState();
+});
+
+test('renderIptvMulticastSvg renders valid SVG for compact and modal displays', () => {
+  const metrics = calculateIptvMulticastMetrics({});
+
+  // Compact
+  const compactSvg = renderIptvMulticastSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('iptv-svg'));
+  assert.ok(compactSvg.includes('AVG ZAPPING TIME'));
+  assert.ok(compactSvg.includes('CONCURRENT VIEWERS'));
+  assert.ok(compactSvg.includes('STREAM BITRATE'));
+  assert.ok(compactSvg.includes('</svg>'));
+
+  // Detailed
+  const detailedSvg = renderIptvMulticastSvg(metrics, { compact: false });
+  assert.ok(detailedSvg.includes('<svg'));
+  assert.ok(detailedSvg.includes('iptv-svg-detailed'));
+  assert.ok(detailedSvg.includes('Channel Change Latency Sequence Breakdown'));
+  assert.ok(detailedSvg.includes('Fast Channel Change (FCC) Burst Assist'));
+  assert.ok(detailedSvg.includes('OLT Multicast Bandwidth Distribution'));
+  assert.ok(detailedSvg.includes('</svg>'));
+});
+
+test('generateIptvMulticastReport produces complete ASCII briefing text for NOC dispatch', () => {
+  const metrics = calculateIptvMulticastMetrics({});
+  const report = generateIptvMulticastReport(metrics, { referenceDate: '2026-10-16T12:00:00Z' });
+
+  assert.ok(report.includes('SHAHDARA DOWNSTREAM IPTV MULTICAST & ZAPPING AUDIT BRIEFING'));
+  assert.ok(report.includes('Total Multicast Channels:'));
+  assert.ok(report.includes('ZAPPING LATENCY PIPELINE BREAKDOWN:'));
+  assert.ok(report.includes('ALL SHAHDARA IPTV MULTICAST CHANNELS REGISTER:'));
+  assert.ok(report.includes('OPERATIONAL MITIGATION ACTIONS:'));
+});
+
+test('setupIptvMulticastModal wires DOM controls, checkboxes, sliders, and callbacks correctly', async () => {
+  resetIptvSimState();
+
+  let modalOpened = false;
+  let openClickHandler = null;
+  let closeClickHandler = null;
+  let resetClickHandler = null;
+  let fastLeaveChangeHandler = null;
+  let gopInputHandler = null;
+  let fccChangeHandler = null;
+  let channelChangeHandler = null;
+  let filterAreaClickHandler = null;
+  let copyClickHandler = null;
+
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockChannelSelect = {
+    options: [],
+    value: '',
+    appendChild: function(opt) { this.options.push(opt); },
+    onchange: null
+  };
+
+  const mockFastLeaveCheckbox = { checked: true, onchange: null };
+  const mockGopSlider = { value: '1.5', oninput: null };
+  const mockGopVal = { textContent: '' };
+  const mockFccCheckbox = { checked: false, onchange: null };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockKpiChannelName = { textContent: '' };
+  const mockKpiZappingTime = { textContent: '' };
+  const mockKpiViewers = { textContent: '' };
+  const mockKpiStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardIptvModal': return mockModal;
+        case 'dashboardOpenIptvModalBtn': return { set onclick(fn) { openClickHandler = fn; } };
+        case 'dashboardIptvModalCloseBtn': return { set onclick(fn) { closeClickHandler = fn; } };
+        case 'iptvChannelSelect': return mockChannelSelect;
+        case 'iptvFastLeaveCheckbox': return mockFastLeaveCheckbox;
+        case 'iptvGopSlider': return mockGopSlider;
+        case 'iptvGopVal': return mockGopVal;
+        case 'iptvFccCheckbox': return mockFccCheckbox;
+        case 'iptvResetSimBtn': return { set onclick(fn) { resetClickHandler = fn; } };
+        case 'iptvModalChartWrap': return mockChartWrap;
+        case 'iptvFilterAreaBtn': return { set onclick(fn) { filterAreaClickHandler = fn; } };
+        case 'dashboardCopyIptvReportBtn': return { set onclick(fn) { copyClickHandler = fn; } };
+        case 'iptvChannelsTableBody': return mockTableBody;
+        case 'iptvKpiChannelName': return mockKpiChannelName;
+        case 'iptvKpiZappingTime': return mockKpiZappingTime;
+        case 'iptvKpiViewers': return mockKpiViewers;
+        case 'iptvStatusBadge': return mockKpiStatusBadge;
+        case 'iptvKpiRevenueRisk': return mockKpiRevenueRisk;
+        default: return null;
+      }
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '', selected: false })
+  };
+
+  const state = { customers: [], bills: [] };
+
+  try {
+    setupIptvMulticastModal(state, {
+      referenceDate: '2026-10-16',
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Options populated
+    assert.equal(mockChannelSelect.options.length, SHAHDARA_IPTV_CHANNELS.length);
+
+    // Open modal
+    assert.ok(openClickHandler !== null);
+    openClickHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiChannelName.textContent.includes('Geo'));
+    assert.ok(mockChartWrap.innerHTML.includes('iptv-svg-detailed'));
+
+    // Toggle fast leave
+    assert.ok(mockFastLeaveCheckbox.onchange !== null);
+    mockFastLeaveCheckbox.checked = false;
+    mockFastLeaveCheckbox.onchange();
+    assert.equal(getIptvFastLeaveEnabled(), false);
+
+    // Change GOP
+    assert.ok(mockGopSlider.oninput !== null);
+    mockGopSlider.value = '2.0';
+    mockGopSlider.oninput();
+    assert.equal(getIptvGopSizeSec(), 2.0);
+    assert.equal(mockGopVal.textContent, '2.0s');
+
+    // Toggle FCC assist
+    assert.ok(mockFccCheckbox.onchange !== null);
+    mockFccCheckbox.checked = true;
+    mockFccCheckbox.onchange();
+    assert.equal(getIptvFccAssist(), true);
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getIptvFastLeaveEnabled(), true);
+    assert.equal(getIptvGopSizeSec(), null);
+    assert.equal(getIptvFccAssist(), false);
+
+    // Test filter area action
+    assert.ok(filterAreaClickHandler !== null);
+    filterAreaClickHandler();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyClickHandler !== null);
+    await copyClickHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA DOWNSTREAM IPTV MULTICAST & ZAPPING AUDIT BRIEFING'));
+    assert.equal(toastMessage, 'IPTV multicast and zapping briefing copied to clipboard!');
 
     // Test close
     assert.ok(closeClickHandler !== null);

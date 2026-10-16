@@ -5465,3 +5465,26 @@ export {
   setupSyncEModal
 } from './dashboard-synce.js';
 
+export {
+  SHAHDARA_ROADM_NODES,
+  SHAHDARA_WAVELENGTH_CHANNELS,
+  ROADM_CONSTANTS,
+  getRoadmSelectedNode,
+  setRoadmSelectedNode,
+  getRoadmSelectedChannel,
+  setRoadmSelectedChannel,
+  getRoadmSpanCondition,
+  setRoadmSpanCondition,
+  getRoadmSwitchingMode,
+  setRoadmSwitchingMode,
+  getRoadmVoaAttenuationDb,
+  setRoadmVoaAttenuationDb,
+  resetRoadmSimState,
+  calculateChannelOpticalLoss,
+  calculateRoadmMetrics,
+  renderRoadmOpticalSvg,
+  generateRoadmReport,
+  setupRoadmModal
+} from './dashboard-roadm.js';
+
+

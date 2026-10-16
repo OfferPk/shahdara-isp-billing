@@ -5571,4 +5571,21 @@ export {
   setupRamanModal
 } from './dashboard-raman.js';
 
-
+export {
+  SR_MPLS_CONSTANTS,
+  SHAHDARA_SR_LSP_TUNNELS,
+  getSrMplsSelectedTunnel,
+  setSrMplsSelectedTunnel,
+  getSrMplsOptimizationMetric,
+  setSrMplsOptimizationMetric,
+  getSrMplsPlaneMode,
+  setSrMplsPlaneMode,
+  getSrMplsInjectedCongestionPct,
+  setSrMplsInjectedCongestionPct,
+  resetSrMplsSimState,
+  calculateSrMplsDynamics,
+  calculateSrMplsMetrics,
+  renderSrMplsDiagramSvg,
+  generateSrMplsReport,
+  setupSrMplsModal
+} from './dashboard-sr-mpls.js';

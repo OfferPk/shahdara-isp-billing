@@ -5922,3 +5922,23 @@ export {
   renderMobileVflLaserSvg,
   setupMobileVflModal
 } from './nav-vfl-tracer.js';
+
+export {
+  FUSION_SPLICE_STORAGE_KEY,
+  FUSION_FIBER_TYPES,
+  FUSION_ALIGN_MODES,
+  FUSION_SLEEVE_TYPES,
+  FUSION_SLEEVE_STATUSES,
+  SPLICE_QUALITY_GRADES,
+  SHAHDARA_SPLICE_CLOSURES,
+  calculateEstimatedSpliceLoss,
+  evaluateSpliceQuality,
+  getSpliceAuditStore,
+  saveSpliceAuditStore,
+  recordSpliceAudit,
+  clearSpliceAuditStore,
+  renderMobileSpliceSvg,
+  generateSpliceWhatsAppReport,
+  setupMobileFusionSpliceModal
+} from './nav-fusion-splice.js';
+

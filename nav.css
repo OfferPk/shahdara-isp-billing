@@ -2945,4 +2945,335 @@ kbd {
   color: #d1fae5;
 }
 
+/* ==========================================================================
+   Technician Field Collection Route Sheet & Dispatcher (agent2 - shahdara-mobile-nav)
+   ========================================================================== */
+
+.route-modal-card {
+  max-width: 820px;
+  width: 100%;
+}
+
+.route-metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .route-metrics-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.route-metric-pill {
+  background: var(--bg-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.route-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.route-metric-value {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #182e2a);
+}
+
+.route-progress-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink, #182e2a);
+}
+
+.route-progress-track {
+  height: 8px;
+  background: var(--line, #e2ece7);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.route-progress-fill {
+  background: linear-gradient(90deg, #0e5b4d, #10b981);
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.route-controls-toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.4fr;
+  gap: 10px;
+  margin-top: 14px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+  .route-controls-toolbar {
+    grid-template-columns: 1fr;
+  }
+}
+
+.route-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-filter-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.route-select,
+.route-input {
+  padding: 8px 10px;
+  border: 1px solid var(--line, #c8dad2);
+  border-radius: 8px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font: 600 13px Manrope, system-ui, sans-serif;
+}
+
+.route-stops-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--bg-soft, #f8faf9);
+}
+
+.field-route-stops-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.route-card.is-collected {
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.route-card-left {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.route-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.route-card-stop-num {
+  font-weight: 800;
+  font-size: 11px;
+  background: var(--ink, #182e2a);
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.route-card.is-collected .route-card-stop-num {
+  background: #047857;
+}
+
+.route-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink, #182e2a);
+}
+
+.route-card-username {
+  font-size: 12px;
+  color: var(--muted, #60756c);
+}
+
+.route-card-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.route-card-addr {
+  color: var(--muted, #60756c);
+}
+
+.route-card-due {
+  color: var(--ink, #182e2a);
+}
+
+.route-card-contact-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.route-card-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.route-stop-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.route-stop-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #047857;
+  cursor: pointer;
+}
+
+.route-empty-state {
+  padding: 30px 16px;
+  text-align: center;
+}
+
+.route-empty-title {
+  font-weight: 800;
+  font-size: 15px;
+  color: #047857;
+  margin: 0 0 6px 0;
+}
+
+.route-empty-sub {
+  font-size: 13px;
+  color: var(--muted, #60756c);
+  margin: 0;
+}
+
+.route-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .route-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .route-card-right {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed var(--line, #e2ece7);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+  .route-modal-actions {
+    flex-direction: column;
+  }
+  .route-modal-actions button {
+    width: 100%;
+  }
+}
+
+/* Dark mode overrides */
+[data-theme="dark"] .route-metric-pill {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .route-metric-value {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .route-progress-header {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .route-progress-track {
+  background: #253d35;
+}
+
+[data-theme="dark"] .route-select,
+[data-theme="dark"] .route-input {
+  background: #192e27;
+  color: #e6edea;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .route-stops-container {
+  background: #0f1c17;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .route-card {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .route-card.is-collected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+[data-theme="dark"] .route-card-name {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .route-card-due {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .route-card-stop-num {
+  background: #253d35;
+}
+
+
 

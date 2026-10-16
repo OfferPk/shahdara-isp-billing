@@ -3032,6 +3032,221 @@ test('updateNavigationBadges calculates overdue and queue metrics with alert sty
   }
 });
 
+test('calculateFieldCollectionRoutes aggregates dues, ranks stops by smart priority, and filters by sector', async () => {
+  const { calculateFieldCollectionRoutes } = await import('../nav.js');
+
+  const memoryStore = new Map();
+  const mockStorage = {
+    getItem: (k) => memoryStore.get(k) || null,
+    setItem: (k, v) => memoryStore.set(k, String(v)),
+    removeItem: (k) => memoryStore.delete(k)
+  };
+
+  const sampleState = {
+    customers: [
+      {
+        id: 'cust-1',
+        name: 'Ali Raza',
+        username: 'aliraza',
+        phone: '03001234567',
+        address: 'House 12, Street 3',
+        area: 'Main Bazar',
+        status: 'active',
+        bills: [{ dueAmount: 2000, status: 'unpaid' }]
+      },
+      {
+        id: 'cust-2',
+        name: 'Bilal Khan',
+        username: 'bilalk',
+        phone: '03217654321',
+        address: 'Chowk Stop 4',
+        area: 'Chowk',
+        status: 'offline',
+        bills: [{ dueAmount: 1500, status: 'unpaid' }]
+      },
+      {
+        id: 'cust-3',
+        name: 'Hamza Tariq',
+        username: 'hamzat',
+        phone: '03339998877',
+        address: 'Main Bazar Block B',
+        area: 'Main Bazar',
+        status: 'active',
+        bills: [{ dueAmount: 4500, status: 'unpaid' }]
+      },
+      {
+        id: 'cust-4',
+        name: 'Zero Balance Customer',
+        username: 'zerob',
+        phone: '03000000000',
+        area: 'Main Bazar',
+        status: 'active',
+        bills: [{ dueAmount: 0, status: 'paid' }]
+      },
+      {
+        id: 'cust-5',
+        name: 'Archived Customer',
+        username: 'archived',
+        archived: true,
+        bills: [{ dueAmount: 9000, status: 'unpaid' }]
+      }
+    ]
+  };
+
+  const route = calculateFieldCollectionRoutes(sampleState, { storage: mockStorage, dateStr: '2026-10-16' });
+  assert.equal(route.totalStops, 3);
+  assert.equal(route.totalDue, 8000);
+  assert.equal(route.collectedStops, 0);
+  assert.equal(route.collectedAmount, 0);
+  assert.equal(route.pendingStops, 3);
+  assert.equal(route.pendingAmount, 8000);
+  assert.equal(route.completionRate, 0);
+  assert.deepEqual(route.allSectors, ['All', 'Chowk', 'Main Bazar']);
+
+  // cust-3 (4500) > cust-2 (1500+2500=4000) > cust-1 (2000)
+  assert.equal(route.stops[0].id, 'cust-3');
+  assert.equal(route.stops[1].id, 'cust-2');
+  assert.equal(route.stops[2].id, 'cust-1');
+
+  assert.equal(route.stops[0].whatsappPhone, '923339998877');
+  assert.equal(route.stops[0].phoneUrl, 'tel:03339998877');
+  assert.match(route.stops[0].mapsQueryUrl, /google\.com\/maps/);
+
+  const sectorRoute = calculateFieldCollectionRoutes(sampleState, { sector: 'Main Bazar', storage: mockStorage, dateStr: '2026-10-16' });
+  assert.equal(sectorRoute.totalStops, 2);
+  assert.equal(sectorRoute.totalDue, 6500);
+
+  const searched = calculateFieldCollectionRoutes(sampleState, { query: 'bilal', storage: mockStorage, dateStr: '2026-10-16' });
+  assert.equal(searched.totalStops, 1);
+  assert.equal(searched.stops[0].id, 'cust-2');
+});
+
+test('markRouteStopCollected, getFieldRouteProgress, and clearFieldRouteProgress persist progress and calculate completion metrics', async () => {
+  const { calculateFieldCollectionRoutes, markRouteStopCollected, getFieldRouteProgress, clearFieldRouteProgress } = await import('../nav.js');
+
+  const memoryStore = new Map();
+  const mockStorage = {
+    getItem: (k) => memoryStore.get(k) || null,
+    setItem: (k, v) => memoryStore.set(k, String(v)),
+    removeItem: (k) => memoryStore.delete(k)
+  };
+
+  const sampleState = {
+    customers: [
+      { id: 'c1', name: 'User 1', bills: [{ dueAmount: 1000, status: 'unpaid' }] },
+      { id: 'c2', name: 'User 2', bills: [{ dueAmount: 2000, status: 'unpaid' }] }
+    ]
+  };
+
+  markRouteStopCollected('c1', true, mockStorage, '2026-10-16');
+  const prog = getFieldRouteProgress(mockStorage, '2026-10-16');
+  assert.deepEqual(prog.collectedIds, ['c1']);
+
+  const route = calculateFieldCollectionRoutes(sampleState, { storage: mockStorage, dateStr: '2026-10-16' });
+  assert.equal(route.totalStops, 2);
+  assert.equal(route.collectedStops, 1);
+  assert.equal(route.collectedAmount, 1000);
+  assert.equal(route.pendingStops, 1);
+  assert.equal(route.pendingAmount, 2000);
+  assert.equal(route.completionRate, 50);
+
+  markRouteStopCollected('c2', true, mockStorage, '2026-10-16');
+  const routeAllDone = calculateFieldCollectionRoutes(sampleState, { storage: mockStorage, dateStr: '2026-10-16' });
+  assert.equal(routeAllDone.collectedStops, 2);
+  assert.equal(routeAllDone.collectedAmount, 3000);
+  assert.equal(routeAllDone.completionRate, 100);
+
+  markRouteStopCollected('c1', false, mockStorage, '2026-10-16');
+  const progUnmarked = getFieldRouteProgress(mockStorage, '2026-10-16');
+  assert.deepEqual(progUnmarked.collectedIds, ['c2']);
+
+  clearFieldRouteProgress(mockStorage, '2026-10-16');
+  const progCleared = getFieldRouteProgress(mockStorage, '2026-10-16');
+  assert.deepEqual(progCleared.collectedIds, []);
+});
+
+test('generateFieldRouteManifestText formats comprehensive dispatch text for field technicians', async () => {
+  const { generateFieldRouteManifestText } = await import('../nav.js');
+
+  const mockRouteData = {
+    date: '2026-10-16',
+    selectedSector: 'Main Bazar',
+    totalDue: 5500,
+    totalStops: 2,
+    collectedAmount: 2000,
+    collectedStops: 1,
+    pendingAmount: 3500,
+    pendingStops: 1,
+    completionRate: 50,
+    stops: [
+      {
+        stopNumber: 1,
+        isCollected: true,
+        name: 'Zahid Hussain',
+        username: 'zahidh',
+        totalDue: 2000,
+        phone: '03001112233',
+        address: 'House 5, Street 2',
+        sector: 'Main Bazar'
+      },
+      {
+        stopNumber: 2,
+        isCollected: false,
+        isOffline: true,
+        name: 'Usman Ghani',
+        username: 'usmang',
+        totalDue: 3500,
+        phone: '03214445566',
+        address: 'Near Water Tank',
+        sector: 'Main Bazar'
+      }
+    ]
+  };
+
+  const text = generateFieldRouteManifestText(mockRouteData);
+  assert.match(text, /SHAHDARA FIBER NET - FIELD COLLECTION DISPATCH/);
+  assert.match(text, /Date: 2026-10-16 \| 📍 Sector: Main Bazar/);
+  assert.match(text, /Target Dues: Rs\. 5,500 \(2 stops\)/);
+  assert.match(text, /Recovered: Rs\. 2,000 \(1\/2 stops - 50%\)/);
+  assert.match(text, /Pending: Rs\. 3,500 \(1 stops remaining\)/);
+  assert.match(text, /1\. ✅ \[COLLECTED\] Zahid Hussain/);
+  assert.match(text, /2\. 🔴 \[OFFLINE\] Usman Ghani/);
+  assert.match(text, /Due: Rs\. 3,500 \| 📞 03214445566/);
+});
+
+test('index.html, nav.css, and app.js wire Technician Field Route Sheet modal and navigation triggers', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  assert.match(indexHtml, /<dialog id="fieldRouteModal" class="modal route-modal"/);
+  assert.match(indexHtml, /id="fieldRouteCloseBtn"/);
+  assert.match(indexHtml, /id="routeSectorFilter"/);
+  assert.match(indexHtml, /id="routeSortFilter"/);
+  assert.match(indexHtml, /id="routeSearchInput"/);
+  assert.match(indexHtml, /id="fieldRouteStopsList"/);
+  assert.match(indexHtml, /id="routeMetricTarget"/);
+  assert.match(indexHtml, /id="routeMetricCollected"/);
+  assert.match(indexHtml, /id="shareRouteWhatsappBtn"/);
+  assert.match(indexHtml, /data-open-field-route/);
+  assert.match(indexHtml, /data-mobile-more="field-route"/);
+  assert.match(indexHtml, /data-sheet-action="field-route"/);
+  assert.match(indexHtml, /data-speed-action="field-route"/);
+
+  assert.match(navCss, /\.route-modal-card/);
+  assert.match(navCss, /\.route-metrics-bar/);
+  assert.match(navCss, /\.route-metric-pill/);
+  assert.match(navCss, /\.route-progress-track/);
+  assert.match(navCss, /\.route-card/);
+  assert.match(navCss, /\.route-card\.is-collected/);
+  assert.match(navCss, /\[data-theme="dark"\] \.route-card/);
+
+  assert.match(appJs, /setupFieldRouteSheet/);
+  assert.match(appJs, /fieldRouteSheetController/);
+  assert.match(appJs, /onFieldRouteSheet/);
+});
+
+
 
 
 

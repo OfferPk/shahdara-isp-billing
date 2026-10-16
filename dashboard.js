@@ -5552,4 +5552,23 @@ export {
   setupFlowspecModal
 } from './dashboard-flowspec.js';
 
+export {
+  RAMAN_CONSTANTS,
+  SHAHDARA_RAMAN_SPANS,
+  getRamanSelectedSpan,
+  setRamanSelectedSpan,
+  getRamanPumpScheme,
+  setRamanPumpScheme,
+  getRamanPumpWavelengthNm,
+  setRamanPumpWavelengthNm,
+  getRamanPumpPowerMw,
+  setRamanPumpPowerMw,
+  resetRamanSimState,
+  calculateRamanDynamics,
+  calculateRamanMetrics,
+  renderRamanDiagramSvg,
+  generateRamanReport,
+  setupRamanModal
+} from './dashboard-raman.js';
+
 

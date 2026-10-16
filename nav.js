@@ -6037,3 +6037,21 @@ export {
   generateFiberProbeWhatsAppReport,
   setupMobileFiberProbeModal
 } from './nav-fiber-probe.js';
+
+export {
+  SPLITTER_TREE_STORAGE_KEY,
+  BALANCED_SPLITTERS,
+  TAP_SPLITTERS,
+  ODN_CLASSES,
+  SHAHDARA_CASCADE_PRESETS,
+  calculateSplitterLoss as calculateSplitterTreeLoss,
+  calculateCascadedBranchBudget,
+  getSplitterTreeStore,
+  saveSplitterTreeStore,
+  recordSplitterTreeAudit,
+  clearSplitterTreeStore,
+  getDefaultSplitterTreeAudits,
+  renderMobileSplitterTreeSvg,
+  generateSplitterTreeWhatsAppReport,
+  setupMobileSplitterTreeModal
+} from './nav-splitter-tree.js';

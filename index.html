@@ -705,6 +705,16 @@
             </div>
             <div id="dashboardRamanChart" class="chart-svg-container" role="img" aria-label="Optical Fiber Raman Distributed Gain Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-sr-mpls">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier Segment Routing (SR-MPLS / SRv6) Matrix</h4>
+                <p class="chart-subtitle">RFC 8402 source routing, TI-LFA sub-50ms fast reroute, and low-latency LSP traffic engineering</p>
+              </div>
+              <button id="dashboardOpenSrMplsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Segment Routing Diagnostics</button>
+            </div>
+            <div id="dashboardSrMplsChart" class="chart-svg-container" role="img" aria-label="Carrier Segment Routing SR-MPLS Topology Chart"></div>
+          </article>
         </div>
 
 
@@ -3462,6 +3472,88 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="ramanFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="dashboardCopyRamanReportBtn" class="primary-button" type="button">📋 Copy Raman Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardSrMplsModal" class="dashboard-modal sr-mpls-modal" aria-labelledby="dashboardSrMplsModalTitle">
+        <div class="dashboard-modal-card sr-mpls-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <span class="eyebrow">METRO CORE &amp; AGGREGATION TRAFFIC ENGINEERING</span>
+              <h3 id="dashboardSrMplsModalTitle">Carrier Segment Routing (SR-MPLS / SRv6) LSP Matrix</h3>
+            </div>
+            <button id="dashboardSrMplsModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">x</button>
+          </div>
+          <p class="dashboard-modal-sub">RFC 8402 / RFC 8660 source-routed label switching, Node/Adj-SID steering, Topology-Independent Loop-Free Alternate (TI-LFA) sub-50ms protection switching, and latency SLA guarantees.</p>
+
+          <div class="sim-controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="srMplsTunnelSelect">Monitored SR-TE Tunnel:</label>
+              <select id="srMplsTunnelSelect" class="form-select"></select>
+            </div>
+            <div class="sim-control-group">
+              <label for="srMplsMetricSelect">Optimization Policy:</label>
+              <select id="srMplsMetricSelect" class="form-select"></select>
+            </div>
+            <div class="sim-control-group">
+              <label for="srMplsPlaneSelect">Data Plane Encapsulation:</label>
+              <select id="srMplsPlaneSelect" class="form-select"></select>
+            </div>
+            <div class="sim-control-group">
+              <label for="srMplsCongSlider">Injected Congestion / Load: <span id="srMplsCongVal" class="sim-val-pill">0%</span></label>
+              <input type="range" id="srMplsCongSlider" min="0" max="100" step="5" value="0" class="otdr-slider">
+            </div>
+            <div class="sim-control-group" style="display: flex; align-items: flex-end;">
+              <button id="srMplsResetBtn" class="secondary-button" type="button">Reset SR State</button>
+            </div>
+          </div>
+
+          <div class="ltv-kpis-row" style="margin-bottom: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">MONITORED TUNNEL</span>
+              <span id="srMplsKpiTunnelName" class="ltv-kpi-val" style="font-size: 1.05rem;">Primary Ring</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">ACTIVE RTT LATENCY</span>
+              <span id="srMplsKpiLatency" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">1.8 ms</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">LABEL STACK DEPTH</span>
+              <span id="srMplsKpiStack" class="ltv-kpi-val" style="color: #0284c7;">2 Labels</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">STATUS &amp; EXPOSURE</span>
+              <span id="srMplsStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+              <span id="srMplsKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="srMplsModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Segment Routing SR-MPLS TE Topology and Label Stack"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Metro Segment Routing Core Tunnels Register</h4>
+          <div class="table-container" style="max-height: 220px; overflow-y: auto;">
+            <table class="data-table" style="font-size: 0.85rem;">
+              <thead>
+                <tr>
+                  <th>LSP ID</th>
+                  <th>Path Identifier</th>
+                  <th>Path Endpoints</th>
+                  <th>Segment SIDs</th>
+                  <th>Latency</th>
+                  <th>Load / Capacity</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="srMplsTunnelsTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="srMplsFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="dashboardCopySrMplsReportBtn" class="primary-button" type="button">📋 Copy SR-TE Briefing</button>
           </div>
         </div>
       </dialog>

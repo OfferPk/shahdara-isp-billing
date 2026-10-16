@@ -6000,3 +6000,22 @@ export {
   generateFdtAllocationWhatsAppReport,
   setupMobileFdtAllocationModal
 } from './nav-fdt-allocation.js';
+
+export {
+  ONT_DIAGNOSTICS_STORAGE_KEY,
+  ONT_MODELS,
+  ONT_PRESETS,
+  evaluateOntRxPower,
+  evaluateOntTxPower,
+  evaluateOntLaserBias,
+  evaluateOntTemperature,
+  evaluateOntVoltage,
+  diagnoseOntHealth,
+  getOntDiagnosticsStore,
+  saveOntDiagnosticsStore,
+  recordOntDiagnosticLog,
+  clearOntDiagnosticsStore,
+  renderMobileOntDiagnosticsSvg,
+  generateOntDiagnosticsWhatsAppReport,
+  setupMobileOntDiagnosticsModal
+} from './nav-ont-diagnostics.js';

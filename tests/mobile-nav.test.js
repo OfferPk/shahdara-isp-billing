@@ -5639,3 +5639,419 @@ test('setupMobileVflModal wires modal triggers, selects, inputs, and action butt
     globalThis.document = origDoc;
   }
 });
+
+test('nav-fusion-splice.js catalogs and constants are properly defined', async () => {
+  const {
+    FUSION_SPLICE_STORAGE_KEY,
+    FUSION_FIBER_TYPES,
+    FUSION_ALIGN_MODES,
+    FUSION_SLEEVE_TYPES,
+    FUSION_SLEEVE_STATUSES,
+    SPLICE_QUALITY_GRADES,
+    SHAHDARA_SPLICE_CLOSURES
+  } = await import('../nav-fusion-splice.js');
+
+  assert.equal(FUSION_SPLICE_STORAGE_KEY, 'shahdara_fusion_splice_records_v1');
+  assert.ok(Array.isArray(FUSION_FIBER_TYPES));
+  assert.ok(FUSION_FIBER_TYPES.length >= 4);
+  assert.ok(FUSION_FIBER_TYPES.some(f => f.id === 'SM_G652D'));
+
+  assert.ok(Array.isArray(FUSION_ALIGN_MODES));
+  assert.ok(FUSION_ALIGN_MODES.some(a => a.id === 'PAS_CORE'));
+  assert.ok(FUSION_ALIGN_MODES.some(a => a.id === 'CLAD_FIXED'));
+
+  assert.ok(Array.isArray(FUSION_SLEEVE_TYPES));
+  assert.ok(FUSION_SLEEVE_TYPES.some(s => s.id === 'SLEEVE_60MM'));
+
+  assert.ok(FUSION_SLEEVE_STATUSES.CURED_SOLID.pass);
+  assert.ok(!FUSION_SLEEVE_STATUSES.BUBBLE_INCLUSION.pass);
+
+  assert.equal(SPLICE_QUALITY_GRADES.EXCELLENT.maxLoss, 0.02);
+  assert.equal(SPLICE_QUALITY_GRADES.GOOD.maxLoss, 0.05);
+  assert.ok(!SPLICE_QUALITY_GRADES.RE_SPLICE.pass);
+
+  assert.ok(Array.isArray(SHAHDARA_SPLICE_CLOSURES));
+  assert.ok(SHAHDARA_SPLICE_CLOSURES.length >= 8);
+  assert.ok(SHAHDARA_SPLICE_CLOSURES.some(c => c.area === 'Shahdara Town'));
+});
+
+test('nav-fusion-splice.js calculateEstimatedSpliceLoss models physics loss accurately', async () => {
+  const { calculateEstimatedSpliceLoss } = await import('../nav-fusion-splice.js');
+
+  // Baseline ideal alignment with 0 offset and 0 cleave
+  const idealLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0,
+    rightCleaveDeg: 0,
+    coreOffsetUm: 0,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE'
+  });
+  assert.ok(idealLoss <= 0.015);
+  assert.ok(idealLoss >= 0.005);
+
+  // Lateral core offset increases loss quadratically
+  const slightOffsetLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0.3,
+    rightCleaveDeg: 0.3,
+    coreOffsetUm: 0.2,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE'
+  });
+  const highOffsetLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0.3,
+    rightCleaveDeg: 0.3,
+    coreOffsetUm: 0.8,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE'
+  });
+  assert.ok(highOffsetLoss > slightOffsetLoss);
+
+  // Angular cleave mismatch increases loss
+  const matchedCleaveLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0.5,
+    rightCleaveDeg: 0.5,
+    coreOffsetUm: 0.1,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE'
+  });
+  const mismatchedCleaveLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0.2,
+    rightCleaveDeg: 1.8,
+    coreOffsetUm: 0.1,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE'
+  });
+  assert.ok(mismatchedCleaveLoss > matchedCleaveLoss);
+
+  // Fixed V-groove clad alignment has higher penalty than active PAS core alignment
+  const pasLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0.5,
+    rightCleaveDeg: 0.6,
+    coreOffsetUm: 0.2,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE'
+  });
+  const cladLoss = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 0.5,
+    rightCleaveDeg: 0.6,
+    coreOffsetUm: 0.2,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'CLAD_FIXED'
+  });
+  assert.ok(cladLoss > pasLoss);
+
+  // Clamped boundaries
+  const clampedMax = calculateEstimatedSpliceLoss({
+    leftCleaveDeg: 5.0,
+    rightCleaveDeg: 5.0,
+    coreOffsetUm: 2.5,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'CLAD_FIXED'
+  });
+  assert.ok(clampedMax <= 1.5);
+});
+
+test('nav-fusion-splice.js evaluateSpliceQuality grades splices and handles defects', async () => {
+  const { evaluateSpliceQuality, SPLICE_QUALITY_GRADES } = await import('../nav-fusion-splice.js');
+
+  // Excellent splice
+  const excellent = evaluateSpliceQuality(0.015, 0.4, 0.5, true, 'CURED_SOLID');
+  assert.equal(excellent.grade.id, SPLICE_QUALITY_GRADES.EXCELLENT.id);
+  assert.equal(excellent.overallPass, true);
+  assert.equal(excellent.warnings.length, 0);
+
+  // Good splice
+  const good = evaluateSpliceQuality(0.035, 0.6, 0.7, true, 'CURED_SOLID');
+  assert.equal(good.grade.id, SPLICE_QUALITY_GRADES.GOOD.id);
+  assert.equal(good.overallPass, true);
+
+  // Acceptable splice with advisory
+  const acceptable = evaluateSpliceQuality(0.065, 0.8, 0.9, true, 'CURED_SOLID');
+  assert.equal(acceptable.grade.id, SPLICE_QUALITY_GRADES.ACCEPTABLE.id);
+  assert.equal(acceptable.overallPass, true);
+  assert.ok(acceptable.warnings.some(w => w.includes('above optimum')));
+
+  // Marginal splice
+  const marginal = evaluateSpliceQuality(0.12, 1.0, 1.1, true, 'CURED_SOLID');
+  assert.equal(marginal.grade.id, SPLICE_QUALITY_GRADES.MARGINAL.id);
+  assert.equal(marginal.overallPass, false);
+
+  // High loss re-splice
+  const failLoss = evaluateSpliceQuality(0.25, 0.9, 0.9, true, 'CURED_SOLID');
+  assert.equal(failLoss.grade.id, SPLICE_QUALITY_GRADES.RE_SPLICE.id);
+  assert.equal(failLoss.overallPass, false);
+
+  // 200g proof tension test failure
+  const proofFail = evaluateSpliceQuality(0.018, 0.4, 0.4, false, 'CURED_SOLID');
+  assert.equal(proofFail.grade.id, SPLICE_QUALITY_GRADES.RE_SPLICE.id);
+  assert.equal(proofFail.overallPass, false);
+  assert.ok(proofFail.warnings.some(w => w.includes('200g mechanical proof')));
+
+  // Excessive cleave angle warning
+  const highCleave = evaluateSpliceQuality(0.03, 1.8, 0.5, true, 'CURED_SOLID');
+  assert.ok(highCleave.warnings.some(w => w.includes('High cleave angle detected')));
+  assert.ok(highCleave.recommendations.some(r => r.includes('cleaver')));
+
+  // Sleeve bubble inclusion defect
+  const bubbleDefect = evaluateSpliceQuality(0.02, 0.5, 0.5, true, 'BUBBLE_INCLUSION');
+  assert.equal(bubbleDefect.overallPass, false);
+  assert.ok(bubbleDefect.warnings.some(w => w.includes('Air Bubble')));
+});
+
+test('nav-fusion-splice.js localStorage audit store operations', async () => {
+  const {
+    FUSION_SPLICE_STORAGE_KEY,
+    getSpliceAuditStore,
+    saveSpliceAuditStore,
+    recordSpliceAudit,
+    clearSpliceAuditStore
+  } = await import('../nav-fusion-splice.js');
+
+  const memory = new Map();
+  const mockStorage = {
+    getItem: (key) => memory.get(key) || null,
+    setItem: (key, val) => memory.set(key, String(val)),
+    removeItem: (key) => memory.delete(key)
+  };
+
+  // Initially empty
+  assert.deepEqual(getSpliceAuditStore(mockStorage), []);
+
+  // Record a splice audit entry
+  const record1 = recordSpliceAudit({
+    closureId: 'clos-sh-01',
+    trayNumber: 1,
+    inboundCoreNumber: 3,
+    outboundCoreNumber: 3,
+    fiberTypeId: 'SM_G652D',
+    alignModeId: 'PAS_CORE',
+    sleeveTypeId: 'SLEEVE_60MM',
+    sleeveStatusId: 'CURED_SOLID',
+    leftCleaveDeg: 0.4,
+    rightCleaveDeg: 0.5,
+    coreOffsetUm: 0.1,
+    spliceLossDb: 0.019,
+    proofTestPassed: true,
+    linemanNotes: 'Pole SH-P-04 drop splice'
+  }, mockStorage);
+
+  assert.ok(record1.id.startsWith('splice-'));
+  assert.equal(record1.inboundCoreNumber, 3);
+  assert.equal(record1.inboundFiberName, 'Green');
+  assert.equal(record1.overallPass, true);
+
+  const stored = getSpliceAuditStore(mockStorage);
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].id, record1.id);
+
+  // Clear store
+  clearSpliceAuditStore(mockStorage);
+  assert.deepEqual(getSpliceAuditStore(mockStorage), []);
+});
+
+test('nav-fusion-splice.js renderMobileSpliceSvg produces comprehensive vector diagram', async () => {
+  const { renderMobileSpliceSvg } = await import('../nav-fusion-splice.js');
+
+  const svg = renderMobileSpliceSvg({
+    inboundCoreNumber: 1,
+    outboundCoreNumber: 2,
+    spliceLossDb: 0.024,
+    leftCleaveDeg: 0.5,
+    rightCleaveDeg: 0.6,
+    coreOffsetUm: 0.12,
+    proofTestPassed: true,
+    sleeveStatusId: 'CURED_SOLID'
+  });
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('fusion-splice-svg'));
+  assert.ok(svg.includes('V-GROOVE LEFT'));
+  assert.ok(svg.includes('V-GROOVE RIGHT'));
+  assert.ok(svg.includes('ESTIMATED ARC LOSS'));
+  assert.ok(svg.includes('0.024'));
+  assert.ok(svg.includes('200g PULL TENSION'));
+  assert.ok(svg.includes('PASS'));
+});
+
+test('nav-fusion-splice.js generateSpliceWhatsAppReport formats NOC dispatch report', async () => {
+  const { generateSpliceWhatsAppReport } = await import('../nav-fusion-splice.js');
+
+  const report = generateSpliceWhatsAppReport({
+    closureId: 'clos-bk-03',
+    trayNumber: 2,
+    inboundCoreNumber: 5,
+    outboundCoreNumber: 5,
+    fiberTypeId: 'BIF_G657A1',
+    alignModeId: 'PAS_CORE',
+    sleeveTypeId: 'SLEEVE_60MM',
+    sleeveStatusId: 'CURED_SOLID',
+    leftCleaveDeg: 0.4,
+    rightCleaveDeg: 0.5,
+    coreOffsetUm: 0.08,
+    spliceLossDb: 0.016,
+    proofTestPassed: true,
+    linemanNotes: 'Begum Kot crossing railway crossing fiber joint'
+  });
+
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL FIBER FUSION SPLICE AUDIT'));
+  assert.ok(report.includes('Begum Kot'));
+  assert.ok(report.includes('Tray: 2'));
+  assert.ok(report.includes('Slate'));
+  assert.ok(report.includes('0.016 dB'));
+  assert.ok(report.includes('APPROVED FOR SERVICE'));
+  assert.ok(report.includes('Begum Kot crossing railway crossing'));
+});
+
+test('nav-fusion-splice.js setupMobileFusionSpliceModal wires modal events and controls', async () => {
+  const { setupMobileFusionSpliceModal } = await import('../nav-fusion-splice.js');
+
+  let modalOpened = false;
+  let toastMsg = '';
+  let filteredArea = '';
+  let copiedText = '';
+
+  const memory = new Map();
+  const mockStorage = {
+    getItem: (key) => memory.get(key) || null,
+    setItem: (key, val) => memory.set(key, String(val)),
+    removeItem: (key) => memory.delete(key)
+  };
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: (name, val) => { if (name === 'open') modalOpened = true; },
+    removeAttribute: (name) => { if (name === 'open') modalOpened = false; }
+  };
+
+  let openHandler = null;
+  const mockTriggerBtn = {
+    set onclick(fn) { openHandler = fn; },
+    get onclick() { return openHandler; }
+  };
+
+  let closeHandler = null;
+  const mockCloseBtn = {
+    set onclick(fn) { closeHandler = fn; },
+    get onclick() { return closeHandler; }
+  };
+
+  let inboundSliderHandler = null;
+  const mockInboundSlider = {
+    value: '1',
+    set oninput(fn) { inboundSliderHandler = fn; },
+    get oninput() { return inboundSliderHandler; }
+  };
+
+  const mockInboundInput = { value: '1' };
+  const mockSvgContainer = { innerHTML: '' };
+  const mockLossDisplay = { textContent: '' };
+  const mockGradeBadge = { className: '', textContent: '' };
+  const mockWarningsContainer = { innerHTML: '' };
+  const mockHistoryTable = { innerHTML: '' };
+
+  let logClickHandler = null;
+  const mockRecordBtn = {
+    set onclick(fn) { logClickHandler = fn; },
+    get onclick() { return logClickHandler; }
+  };
+
+  let copyClickHandler = null;
+  const mockCopyBtn = {
+    set onclick(fn) { copyClickHandler = fn; },
+    get onclick() { return copyClickHandler; }
+  };
+
+  let filterClickHandler = null;
+  const mockFilterBtn = {
+    set onclick(fn) { filterClickHandler = fn; },
+    get onclick() { return filterClickHandler; }
+  };
+
+  let clearClickHandler = null;
+  const mockClearBtn = {
+    set onclick(fn) { clearClickHandler = fn; },
+    get onclick() { return clearClickHandler; }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'mobileFusionSpliceModal': return mockModal;
+        case 'mobileFusionSpliceModalCloseBtn': return mockCloseBtn;
+        case 'spliceInboundCoreSlider': return mockInboundSlider;
+        case 'spliceInboundCoreInput': return mockInboundInput;
+        case 'spliceSvgContainer': return mockSvgContainer;
+        case 'spliceLossDisplay': return mockLossDisplay;
+        case 'spliceGradeBadge': return mockGradeBadge;
+        case 'spliceWarningsContainer': return mockWarningsContainer;
+        case 'spliceHistoryTableBody': return mockHistoryTable;
+        case 'spliceRecordLogBtn': return mockRecordBtn;
+        case 'spliceCopyReportBtn': return mockCopyBtn;
+        case 'spliceFilterAreaBtn': return mockFilterBtn;
+        case 'spliceClearHistoryBtn': return mockClearBtn;
+        default: return null;
+      }
+    },
+    querySelectorAll: (selector) => {
+      if (selector === '[data-open-fusion-splice]') {
+        return [mockTriggerBtn];
+      }
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupMobileFusionSpliceModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMsg = msg; },
+      onFilterArea: (area) => { filteredArea = area; },
+      clipboard: {
+        writeText: async (text) => { copiedText = text; }
+      }
+    });
+
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.getCurrentReading, 'function');
+
+    // Trigger button opens modal
+    assert.equal(typeof openHandler, 'function');
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Close button closes modal
+    assert.equal(typeof closeHandler, 'function');
+    closeHandler();
+    assert.equal(modalOpened, false);
+
+    // Inbound slider changes reading
+    assert.equal(typeof inboundSliderHandler, 'function');
+    inboundSliderHandler({ target: { value: '6' } });
+    assert.equal(controller.getCurrentReading().inboundCoreNumber, 6);
+
+    // Logging test reading
+    assert.equal(typeof logClickHandler, 'function');
+    logClickHandler();
+    assert.ok(toastMsg.includes('Logged Fusion Splice Joint'));
+
+    // Copying report
+    assert.equal(typeof copyClickHandler, 'function');
+    await copyClickHandler();
+    assert.ok(copiedText.includes('FUSION SPLICE AUDIT'));
+
+    // Filter area
+    assert.equal(typeof filterClickHandler, 'function');
+    filterClickHandler();
+    assert.equal(filteredArea, 'Shahdara Town');
+
+    // Clear logs
+    assert.equal(typeof clearClickHandler, 'function');
+    clearClickHandler();
+    assert.equal(toastMsg, 'Cleared fusion splice audit log');
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+

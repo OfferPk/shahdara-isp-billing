@@ -4584,3 +4584,31 @@ kbd {
   background: #14221d;
   border-color: #243c33;
 }
+
+/* Field Technician Fusion Splice Joint Modal */
+.fusion-splice-modal {
+  max-width: 760px;
+  width: 95vw;
+}
+
+.fusion-splice-modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.fusion-splice-svg {
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+[data-theme="dark"] .fusion-splice-modal,
+[data-theme="dark"] .fusion-splice-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+

@@ -5960,4 +5960,25 @@ export {
   setupMobileWifiSurveyModal
 } from './nav-wifi-survey.js';
 
+export {
+  OPTICAL_BUDGET_STORAGE_KEY,
+  PON_OPTICAL_STANDARDS,
+  SPLITTER_LOSS_TABLE,
+  WAVELENGTH_ATTENUATION_TABLE,
+  BUDGET_QUALITY_GRADES,
+  SHAHDARA_FEEDER_PRESETS,
+  calculateFiberDistanceLoss,
+  calculateSplitterLoss,
+  calculateSplicesAndConnectorsLoss,
+  evaluateOpticalBudgetQuality,
+  calculateOpticalLinkBudget as calculateFieldOpticalBudget,
+  getOpticalBudgetStore,
+  saveOpticalBudgetStore,
+  recordOpticalBudgetCalculation,
+  clearOpticalBudgetStore,
+  renderMobileOpticalBudgetSvg,
+  generateOpticalBudgetWhatsAppReport,
+  setupMobileOpticalBudgetModal
+} from './nav-optical-budget.js';
+
 

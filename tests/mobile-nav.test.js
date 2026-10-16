@@ -6408,4 +6408,257 @@ test('nav-wifi-survey.js setupMobileWifiSurveyModal wires modal dialog and inter
   }
 });
 
+// ============================================================================
+// FIELD TECHNICIAN OPTICAL LINK LOSS BUDGET ASSISTANT TESTS
+// ============================================================================
+
+test('nav-optical-budget.js calculates ITU-T G.984 GPON Class C+ attenuation accurately', async () => {
+  const { calculateOpticalLinkBudget, evaluateOpticalBudgetQuality } = await import('../nav-optical-budget.js');
+
+  const budget = calculateOpticalLinkBudget({
+    ponStandardId: 'GPON_CLASS_C_PLUS',
+    wavelengthNm: '1490',
+    distanceMeters: 3500,
+    primarySplitter: '1:8',
+    secondarySplitter: '1:8',
+    fusionSplices: 4,
+    mechanicalSplices: 0,
+    connectorPairs: 4
+  });
+
+  assert.equal(budget.fiberLossDb, 0.98); // 3500m * 0.28 dB/km
+  assert.equal(budget.totalSplitterLossDb, 21.0); // 10.5 + 10.5
+  assert.equal(budget.jointLoss.totalJointLossDb, 1.72); // 4 * 0.08 + 4 * 0.35
+  assert.equal(budget.totalAttenuationDb, 23.7); // 0.98 + 21.0 + 1.72
+  assert.equal(budget.expectedRxPowerDbm, -18.7); // 5.0 - 23.7
+  assert.equal(budget.headroomMarginDb, 11.3); // -18.7 - (-30.0)
+  assert.equal(budget.evaluation.pass, true);
+  assert.equal(budget.evaluation.id, 'OPTIMAL_PASS');
+
+  const assessmentPass = evaluateOpticalBudgetQuality(-18.3, -30.0);
+  assert.equal(assessmentPass.id, 'OPTIMAL_PASS');
+  assert.equal(assessmentPass.pass, true);
+
+  const assessmentFail = evaluateOpticalBudgetQuality(-31.5, -30.0);
+  assert.equal(assessmentFail.id, 'CRITICAL_FAIL');
+  assert.equal(assessmentFail.pass, false);
+});
+
+test('nav-optical-budget.js handles XGS-PON and long-distance attenuation calculation', async () => {
+  const { calculateOpticalLinkBudget } = await import('../nav-optical-budget.js');
+
+  const xgsBudget = calculateOpticalLinkBudget({
+    ponStandardId: 'XGS_PON_CLASS_N1',
+    wavelengthNm: '1577',
+    distanceMeters: 12000,
+    primarySplitter: '1:4',
+    secondarySplitter: '1:16',
+    fusionSplices: 8,
+    mechanicalSplices: 0,
+    connectorPairs: 4
+  });
+
+  assert.equal(xgsBudget.fiberLossDb, 2.4); // 12000m * 0.20 dB/km
+  assert.equal(xgsBudget.primarySplitterLossDb, 7.2);
+  assert.equal(xgsBudget.secondarySplitterLossDb, 13.8);
+  assert.equal(xgsBudget.totalSplitterLossDb, 21.0);
+  assert.equal(xgsBudget.totalSubscribersPerPort, 64);
+  assert.ok(xgsBudget.totalAttenuationDb > 24.0);
+});
+
+test('nav-optical-budget.js generates valid waterfall SVG and WhatsApp lineworker report', async () => {
+  const { calculateOpticalLinkBudget, renderMobileOpticalBudgetSvg, generateOpticalBudgetWhatsAppReport } = await import('../nav-optical-budget.js');
+
+  const budget = calculateOpticalLinkBudget({
+    ponStandardId: 'GPON_CLASS_C_PLUS',
+    distanceMeters: 2800,
+    primarySplitter: '1:8',
+    secondarySplitter: '1:8'
+  });
+
+  const svg = renderMobileOpticalBudgetSvg(budget);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('viewBox="0 0 760 320"'));
+  assert.ok(svg.includes('Optical Power (dBm)'));
+  assert.ok(svg.includes('Fiber Span'));
+  assert.ok(svg.includes('Splitter 1'));
+
+  const report = generateOpticalBudgetWhatsAppReport(budget, {
+    customerName: 'Muhammad Tariq',
+    poleLocation: 'Saeed Park Pole 12'
+  });
+
+  assert.ok(report.includes('OPTICAL LINK BUDGET REPORT'));
+  assert.ok(report.includes('Muhammad Tariq'));
+  assert.ok(report.includes('Saeed Park Pole 12'));
+  assert.ok(report.includes('Total Link Attenuation:'));
+  assert.ok(report.includes('Expected Rx Power:'));
+});
+
+test('nav-optical-budget.js persists and retrieves audit records from local storage', async () => {
+  const { getOpticalBudgetStore, saveOpticalBudgetStore, recordOpticalBudgetCalculation, clearOpticalBudgetStore, OPTICAL_BUDGET_STORAGE_KEY } = await import('../nav-optical-budget.js');
+
+  const memoryStore = new Map();
+  const mockStorage = {
+    getItem: (k) => memoryStore.get(k) || null,
+    setItem: (k, v) => memoryStore.set(k, String(v)),
+    removeItem: (k) => memoryStore.delete(k)
+  };
+
+  assert.deepEqual(getOpticalBudgetStore(mockStorage), []);
+
+  const testEntry = {
+    distanceMeters: 2800,
+    expectedRxPowerDbm: -18.5,
+    headroomMarginDb: 8.5,
+    totalAttenuationDb: 23.5,
+    evaluation: { pass: true, id: 'OPTIMAL_PASS', badgeClass: 'badge-success' }
+  };
+
+  const saved = recordOpticalBudgetCalculation(testEntry, mockStorage);
+  assert.ok(saved.id.startsWith('opt-budget-'));
+  assert.ok(memoryStore.has(OPTICAL_BUDGET_STORAGE_KEY));
+
+  const loaded = getOpticalBudgetStore(mockStorage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].distanceMeters, 2800);
+
+  clearOpticalBudgetStore(mockStorage);
+  assert.deepEqual(getOpticalBudgetStore(mockStorage), []);
+});
+
+test('index.html and nav.css contain all optical budget assistant triggers and modal elements', () => {
+  // Navigation trigger hooks
+  assert.match(index, /id="navOpticalBudgetBtn"/);
+  assert.match(index, /data-open-optical-budget/);
+  assert.match(index, /id="mobileMoreOpticalBudgetBtn"/);
+  assert.match(index, /id="actionSheetOpticalBudgetBtn"/);
+  assert.match(index, /id="speedDialOpticalBudgetBtn"/);
+
+  // Dialog and control IDs
+  assert.match(index, /<dialog id="mobileOpticalBudgetModal"/);
+  assert.match(index, /id="mobileOpticalBudgetModalCloseBtn"/);
+  assert.match(index, /id="opticalBudgetPresetSelect"/);
+  assert.match(index, /id="opticalBudgetStandardSelect"/);
+  assert.match(index, /id="opticalBudgetWavelengthSelect"/);
+  assert.match(index, /id="opticalBudgetDistanceInput"/);
+  assert.match(index, /id="opticalBudgetPrimarySplitterSelect"/);
+  assert.match(index, /id="opticalBudgetSecondarySplitterSelect"/);
+  assert.match(index, /id="opticalBudgetFusionSpliceInput"/);
+  assert.match(index, /id="opticalBudgetMechSpliceInput"/);
+  assert.match(index, /id="opticalBudgetConnPairsInput"/);
+  assert.match(index, /id="opticalBudgetTxPowerInput"/);
+  assert.match(index, /id="opticalBudgetChartWrap"/);
+  assert.match(index, /id="opticalBudgetKpiRxPower"/);
+  assert.match(index, /id="opticalBudgetKpiMargin"/);
+  assert.match(index, /id="opticalBudgetKpiTotalLoss"/);
+  assert.match(index, /id="opticalBudgetKpiStatus"/);
+  assert.match(index, /id="opticalBudgetSaveRecordBtn"/);
+  assert.match(index, /id="opticalBudgetWhatsAppReportBtn"/);
+  assert.match(index, /id="opticalBudgetResetBtn"/);
+  assert.match(index, /id="opticalBudgetClearHistoryBtn"/);
+  assert.match(index, /id="opticalBudgetHistoryList"/);
+
+  // nav.css checks
+  const navCss = read('nav.css');
+  assert.match(navCss, /\.optical-budget-modal/);
+  assert.match(navCss, /\.optical-budget-kpis/);
+  assert.match(navCss, /\.optical-budget-svg/);
+  assert.match(navCss, /\.optical-budget-chart-wrap/);
+  assert.match(navCss, /\[data-theme="dark"\]\s*\.optical-budget-modal/);
+});
+
+test('setupMobileOpticalBudgetModal interacts cleanly with DOM events and modal actions', async () => {
+  const { setupMobileOpticalBudgetModal } = await import('../nav-optical-budget.js');
+
+  const listeners = new Map();
+  const createElement = (tag) => ({
+    tagName: tag.toUpperCase(),
+    value: '',
+    textContent: '',
+    innerHTML: '',
+    className: '',
+    hidden: false,
+    style: {},
+    addEventListener: (evt, fn) => {
+      listeners.set(evt, fn);
+    },
+    dispatchEvent: (e) => {
+      const fn = listeners.get(e.type);
+      if (fn) fn(e);
+    },
+    focus: () => {},
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    querySelectorAll: () => [],
+    appendChild: () => {}
+  });
+
+  const elements = {
+    mobileOpticalBudgetModal: { ...createElement('dialog'), open: false },
+    mobileOpticalBudgetModalCloseBtn: createElement('button'),
+    opticalBudgetPresetSelect: { ...createElement('select'), value: 'PRESET_SHAHDARA_TOWN' },
+    opticalBudgetStandardSelect: { ...createElement('select'), value: 'GPON_CLASS_B_PLUS' },
+    opticalBudgetWavelengthSelect: { ...createElement('select'), value: '1490' },
+    opticalBudgetDistanceInput: { ...createElement('input'), value: '2800' },
+    opticalBudgetPrimarySplitterSelect: { ...createElement('select'), value: '1:8' },
+    opticalBudgetSecondarySplitterSelect: { ...createElement('select'), value: '1:8' },
+    opticalBudgetFusionSpliceInput: { ...createElement('input'), value: '4' },
+    opticalBudgetMechSpliceInput: { ...createElement('input'), value: '0' },
+    opticalBudgetConnPairsInput: { ...createElement('input'), value: '2' },
+    opticalBudgetTxPowerInput: { ...createElement('input'), value: '' },
+    opticalBudgetChartWrap: createElement('div'),
+    opticalBudgetKpiRxPower: createElement('span'),
+    opticalBudgetKpiMargin: createElement('span'),
+    opticalBudgetKpiTotalLoss: createElement('span'),
+    opticalBudgetKpiStatus: createElement('span'),
+    opticalBudgetHistoryList: createElement('ul'),
+    opticalBudgetSaveRecordBtn: createElement('button'),
+    opticalBudgetWhatsAppReportBtn: createElement('button'),
+    opticalBudgetResetBtn: createElement('button'),
+    opticalBudgetClearHistoryBtn: createElement('button')
+  };
+
+  const triggerBtn = createElement('button');
+  let toastMessage = '';
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-optical-budget]') return [triggerBtn];
+      return [];
+    },
+    createElement: (tag) => createElement(tag)
+  };
+
+  try {
+    const controller = setupMobileOpticalBudgetModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.updateView, 'function');
+    assert.equal(typeof controller.renderHistory, 'function');
+    assert.equal(typeof controller.calculate, 'function');
+
+    // Trigger button should open modal
+    const calc = controller.calculate({ distanceMeters: 3000 });
+    assert.equal(calc.distanceMeters, 3000);
+    assert.ok(calc.totalAttenuationDb > 0);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+
+
 

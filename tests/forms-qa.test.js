@@ -11,7 +11,9 @@ import {
   ADJUSTMENT_VOUCHERS_KEY, ADJUSTMENT_CATEGORIES, calculateOutageCredit, validateAdjustmentVoucher, buildAdjustmentVoucherData, formatAdjustmentVoucherWhatsApp,
   generateAdjustmentLedgerCsv, generateAdjustmentVoucherHtml, getSavedAdjustmentVouchers, saveAdjustmentVoucher, setupAdjustmentVoucherModal,
   SERVICE_CONTRACTS_KEY, validatePakistanCnic, validateServiceContract, buildServiceContractData, getSavedServiceContracts, saveServiceContract,
-  formatServiceContractWhatsApp, generateServiceContractCsv, generateServiceContractHtml, setupServiceContractModal
+  formatServiceContractWhatsApp, generateServiceContractCsv, generateServiceContractHtml, setupServiceContractModal,
+  PAKISTAN_CNIC_PROVINCES, parsePakistaniCnicDetails, calculateKycComplianceAudit, filterKycComplianceRecords,
+  generateKycNoticeWhatsAppText, generateKycComplianceCsv, generateKycCompliancePrintHtml, setupKycComplianceModal
 } from '../form-validation.js';
 
 
@@ -2763,5 +2765,253 @@ test('filterDisputeClaims filters claims by status, category, and keyword search
   const noMatch = filterDisputeClaims(claims, { search: 'nonexistent query' });
   assert.equal(noMatch.length, 0);
 });
+
+// ============================================================================
+// PTA Regulatory KYC Compliance Register & CNIC Identity Audit Tests
+// ============================================================================
+
+test('parsePakistaniCnicDetails parses valid NADRA CNICs and resolves province and gender', () => {
+  // Punjab male (starts with 3, ends with odd digit)
+  const cnic1 = parsePakistaniCnicDetails('35202-1234567-1');
+  assert.equal(cnic1.valid, true);
+  assert.equal(cnic1.formatted, '35202-1234567-1');
+  assert.equal(cnic1.raw, '3520212345671');
+  assert.equal(cnic1.provinceCode, '3');
+  assert.match(cnic1.provinceName, /Punjab/);
+  assert.equal(cnic1.genderCode, '1');
+  assert.equal(cnic1.gender, 'Male');
+
+  // Sindh female (starts with 4, ends with even digit)
+  const cnic2 = parsePakistaniCnicDetails('42101-7654321-2');
+  assert.equal(cnic2.valid, true);
+  assert.equal(cnic2.provinceName, 'Sindh');
+  assert.equal(cnic2.gender, 'Female');
+
+  // KPK male (starts with 1)
+  const cnic3 = parsePakistaniCnicDetails('1730198765431');
+  assert.equal(cnic3.valid, true);
+  assert.equal(cnic3.formatted, '17301-9876543-1');
+  assert.match(cnic3.provinceName, /Khyber Pakhtunkhwa/);
+  assert.equal(cnic3.gender, 'Male');
+
+  // Balochistan female (starts with 5)
+  const cnic4 = parsePakistaniCnicDetails('54400-3333333-4');
+  assert.equal(cnic4.valid, true);
+  assert.equal(cnic4.provinceName, 'Balochistan');
+  assert.equal(cnic4.gender, 'Female');
+
+  // Islamabad Capital Territory (starts with 6)
+  const cnic5 = parsePakistaniCnicDetails('61101-5555555-5');
+  assert.equal(cnic5.valid, true);
+  assert.equal(cnic5.provinceName, 'Islamabad (ICT)');
+
+  // Gilgit-Baltistan / AJK (starts with 7)
+  const cnic6 = parsePakistaniCnicDetails('71501-8888888-7');
+  assert.equal(cnic6.valid, true);
+  assert.equal(cnic6.provinceName, 'Gilgit-Baltistan / AJK');
+});
+
+test('parsePakistaniCnicDetails detects invalid formats, missing values, and bad province digits', () => {
+  // Empty / null
+  const emptyRes = parsePakistaniCnicDetails('');
+  assert.equal(emptyRes.valid, false);
+  assert.match(emptyRes.reason, /No CNIC provided/i);
+
+  // Short length (11 digits)
+  const shortRes = parsePakistaniCnicDetails('35202-123456');
+  assert.equal(shortRes.valid, false);
+  assert.match(shortRes.reason, /13 numeric digits/i);
+
+  // Long length (15 digits)
+  const longRes = parsePakistaniCnicDetails('352021234567199');
+  assert.equal(longRes.valid, false);
+  assert.match(longRes.reason, /13 numeric digits/i);
+
+  // Invalid province prefix digit 0 or 8
+  const invalidProvince = parsePakistaniCnicDetails('85202-1234567-1');
+  assert.equal(invalidProvince.valid, false);
+  assert.match(invalidProvince.reason, /Invalid province identifier/i);
+
+  // Alphanumeric
+  const alphaRes = parsePakistaniCnicDetails('35202-ABCDEFG-1');
+  assert.equal(alphaRes.valid, false);
+});
+
+test('calculateKycComplianceAudit analyzes customer base and flags missing, invalid, and duplicate CNICs', () => {
+  const dummyState = {
+    customers: [
+      { id: 'c1', customerNumber: 1, name: 'Tariq Mehmood', cnic: '35202-1111111-1', phone: '03001111111', mohalla: 'Main Bazaar', archived: false },
+      { id: 'c2', customerNumber: 2, name: 'Nasir Iqbal', cnic: '35202-2222222-2', phone: '03002222222', mohalla: 'Kot Mohibbu', archived: false },
+      { id: 'c3', customerNumber: 3, name: 'Sajid Ali', cnic: '', phone: '03003333333', mohalla: 'Main Bazaar', archived: false }, // missing
+      { id: 'c4', customerNumber: 4, name: 'Rashid Khan', cnic: '12345', phone: '03004444444', mohalla: 'Saeed Park', archived: false }, // invalid
+      { id: 'c5', customerNumber: 5, name: 'Imran Ashraf', cnic: '35202-1111111-1', phone: '03005555555', mohalla: 'Main Bazaar', archived: false }, // duplicate of c1!
+      { id: 'c6', customerNumber: 6, name: 'Archived User', cnic: '', phone: '03006666666', mohalla: 'Other', archived: true } // archived
+    ]
+  };
+
+  const auditActive = calculateKycComplianceAudit(dummyState, { includeArchived: false });
+  assert.equal(auditActive.totalAudited, 5);
+  assert.equal(auditActive.missingCount, 1);
+  assert.equal(auditActive.invalidCount, 1);
+  assert.equal(auditActive.duplicateCount, 2); // c1 and c5 both flagged as duplicate
+  assert.equal(auditActive.compliantCount, 1); // only c2 is fully compliant unique
+  assert.equal(auditActive.complianceRate, 20.0); // 1 / 5 = 20%
+  assert.equal(auditActive.riskLevel, 'HIGH_RISK');
+
+  // Verify records structure
+  const recC1 = auditActive.records.find(r => r.customerId === 'c1');
+  assert.equal(recC1.status, 'DUPLICATE_CNIC');
+  assert.equal(recC1.isDuplicate, true);
+
+  const recC3 = auditActive.records.find(r => r.customerId === 'c3');
+  assert.equal(recC3.status, 'MISSING_CNIC');
+  assert.equal(recC3.statusLabel, 'Missing CNIC');
+
+  const recC4 = auditActive.records.find(r => r.customerId === 'c4');
+  assert.equal(recC4.status, 'INVALID_FORMAT');
+
+  // Include archived
+  const auditAll = calculateKycComplianceAudit(dummyState, { includeArchived: true });
+  assert.equal(auditAll.totalAudited, 6);
+  assert.equal(auditAll.missingCount, 2);
+
+  // Handles null / empty gracefully
+  const emptyAudit = calculateKycComplianceAudit(null);
+  assert.equal(emptyAudit.totalAudited, 0);
+  assert.equal(emptyAudit.complianceRate, 100);
+});
+
+test('calculateKycComplianceAudit rates risk levels properly (LOW, MODERATE, HIGH)', () => {
+  // 100% compliant -> LOW_RISK
+  const stateLow = {
+    customers: [
+      { id: 'c1', cnic: '35202-1111111-1', archived: false },
+      { id: 'c2', cnic: '35202-2222222-2', archived: false }
+    ]
+  };
+  const auditLow = calculateKycComplianceAudit(stateLow);
+  assert.equal(auditLow.complianceRate, 100);
+  assert.equal(auditLow.riskLevel, 'LOW_RISK');
+
+  // 80% compliant (4 out of 5) -> MODERATE_RISK
+  const stateMod = {
+    customers: [
+      { id: 'c1', cnic: '35202-1111111-1', archived: false },
+      { id: 'c2', cnic: '35202-2222222-2', archived: false },
+      { id: 'c3', cnic: '35202-3333333-3', archived: false },
+      { id: 'c4', cnic: '35202-4444444-4', archived: false },
+      { id: 'c5', cnic: '', archived: false } // 1 missing out of 5 = 80%
+    ]
+  };
+  const auditMod = calculateKycComplianceAudit(stateMod);
+  assert.equal(auditMod.complianceRate, 80);
+  assert.equal(auditMod.riskLevel, 'MODERATE_RISK');
+});
+
+test('filterKycComplianceRecords filters by status, sector, and search query', () => {
+  const records = [
+    { customerId: 'c1', customerNumber: 101, name: 'Muhammad Ali', phone: '03001234567', cnic: '35202-1111111-1', mohalla: 'Main Bazaar', status: 'COMPLIANT' },
+    { customerId: 'c2', customerNumber: 102, name: 'Usman Ghani', phone: '03217654321', cnic: '', mohalla: 'Kot Mohibbu', status: 'MISSING' },
+    { customerId: 'c3', customerNumber: 103, name: 'Kashif Mehmood', phone: '03459876543', cnic: '999', mohalla: 'Main Bazaar', status: 'INVALID' }
+  ];
+
+  assert.equal(filterKycComplianceRecords(records).length, 3);
+  assert.equal(filterKycComplianceRecords(records, { status: 'MISSING' }).length, 1);
+  assert.equal(filterKycComplianceRecords(records, { status: 'MISSING' })[0].customerId, 'c2');
+  assert.equal(filterKycComplianceRecords(records, { sector: 'Kot Mohibbu' }).length, 1);
+  assert.equal(filterKycComplianceRecords(records, { search: 'Kashif' }).length, 1);
+  assert.equal(filterKycComplianceRecords(records, { search: '0321' }).length, 1);
+  assert.equal(filterKycComplianceRecords(records, { search: '1111111' }).length, 1);
+  assert.equal(filterKycComplianceRecords(records, { search: 'nonexistent' }).length, 0);
+});
+
+test('generateKycNoticeWhatsAppText formats PTA compliance reminder message with Urdu & English', () => {
+  const customer = {
+    customerNumber: 42,
+    name: 'Asim Raza',
+    phone: '03009988776'
+  };
+
+  const text = generateKycNoticeWhatsAppText(customer);
+  assert.match(text, /PTA SUBSCRIBER IDENTITY VERIFICATION NOTICE/i);
+  assert.match(text, /Asim Raza/);
+  assert.match(text, /CNIC/);
+  assert.match(text, /Pakistan Telecommunication Authority|شاہدرہ/);
+
+  // Null input handles safely
+  assert.equal(generateKycNoticeWhatsAppText(null), '');
+});
+
+test('generateKycComplianceCsv and generateKycCompliancePrintHtml produce valid outputs', () => {
+  const auditData = {
+    generatedAt: '2026-10-16T09:00:00.000Z',
+    totalAudited: 2,
+    compliantCount: 1,
+    missingCount: 1,
+    invalidCount: 0,
+    duplicateCount: 0,
+    complianceRate: 50.0,
+    riskLevel: 'HIGH_RISK',
+    riskLabel: 'HIGH RISK (Immediate Rectification Required)',
+    provinces: { Punjab: 1 },
+    genderCount: { Male: 1, Female: 0, Unknown: 1 },
+    records: [
+      {
+        customerId: 'c1', customerNumber: 1, name: 'Ali Raza', phone: '03001234567',
+        mohalla: 'Main Bazaar', cnic: '35202-1111111-1', formattedCnic: '35202-1111111-1',
+        status: 'VERIFIED', statusLabel: 'Verified', province: 'Punjab', gender: 'Male', reason: 'Valid CNIC'
+      },
+      {
+        customerId: 'c2', customerNumber: 2, name: 'Bilal Ahmad', phone: '03217654321',
+        mohalla: 'Kot Mohibbu', cnic: '', formattedCnic: 'NOT_RECORDED',
+        status: 'MISSING_CNIC', statusLabel: 'Missing CNIC', province: 'Unknown', gender: 'Unknown', reason: 'No CNIC provided'
+      }
+    ]
+  };
+
+  const csv = generateKycComplianceCsv(auditData);
+  assert.match(csv, /CNIC Number/);
+  assert.match(csv, /Ali Raza/);
+  assert.match(csv, /35202-1111111-1/);
+  assert.match(csv, /Bilal Ahmad/);
+
+  const html = generateKycCompliancePrintHtml(auditData);
+  assert.match(html, /PTA Subscriber KYC Register/i);
+  assert.match(html, /Ali Raza/);
+  assert.match(html, /Kot Mohibbu/);
+  assert.match(html, /Audit Verified|HIGH RISK/);
+
+  // Edge cases
+  assert.equal(generateKycComplianceCsv(null), '');
+  assert.equal(generateKycCompliancePrintHtml(null), '');
+});
+
+test('DOM wiring: index.html contains KYC audit modal and button', () => {
+  assert.match(index, /id="openKycAuditBtn"/);
+  assert.match(index, /id="kycComplianceModal"/);
+  assert.match(index, /id="kycStatusFilter"/);
+  assert.match(index, /id="kycSectorFilter"/);
+  assert.match(index, /id="kycSearchInput"/);
+  assert.match(index, /id="downloadKycCsvBtn"/);
+  assert.match(index, /id="printKycRegisterBtn"/);
+  assert.match(index, /id="copyKycStatementBtn"/);
+  assert.match(index, /id="kycTableBody"/);
+});
+
+test('CSS styling: styles.css contains KYC modal styles and dark mode rules', () => {
+  assert.match(styles, /\.kyc-modal-card/);
+  assert.match(styles, /\.kyc-metrics-bar/);
+  assert.match(styles, /\.kyc-metric-pill/);
+  assert.match(styles, /\.kyc-controls-toolbar/);
+  assert.match(styles, /\.kyc-table-scroll/);
+  assert.match(styles, /\[data-theme="dark"\] \.kyc-modal-card/);
+});
+
+test('app.js exports and wires customerKycComplianceModalController', () => {
+  assert.match(app, /setupKycComplianceModal/);
+  assert.match(app, /customerKycComplianceModalController/);
+  assert.match(app, /openKycAuditBtn/);
+});
+
 
 

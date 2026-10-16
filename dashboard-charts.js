@@ -6,6 +6,7 @@ import { calculateAerialTensionMetrics, setupAerialTensionModal, renderAerialTen
 import { calculateMicrowaveLinkBudget, setupMicrowaveModal, renderMicrowaveLinkSvg } from './dashboard-microwave.js';
 import { calculateSpliceClosureMetrics, setupSpliceClosureModal, renderSpliceClosureSvg } from './dashboard-splice.js';
 import { calculateDuctJettingMetrics, setupDuctJettingModal, renderDuctJettingSvg } from './dashboard-jetting.js';
+import { calculatePonDbaMetrics, setupPonDbaModal, renderPonDbaQueueSvg } from './dashboard-pon-dba.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3290,9 +3291,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupDuctJettingModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const ponDbaEl = document.getElementById('dashboardPonDbaChart');
+  if (ponDbaEl) {
+    const ponDbaData = calculatePonDbaMetrics(state, { referenceDate });
+    ponDbaEl.innerHTML = renderPonDbaQueueSvg(ponDbaData, { compact: true });
+  }
+
+  setupPonDbaModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg };
 
 

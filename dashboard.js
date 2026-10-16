@@ -5289,3 +5289,21 @@ export {
   setJettingFriction,
   renderDuctJettingSvg
 } from './dashboard-jetting.js';
+
+export {
+  SHAHDARA_PON_PORTS,
+  getPonDbaSelectedPort,
+  setPonDbaSelectedPort,
+  getPonDbaMode,
+  setPonDbaMode,
+  getPonDbaConcurrency,
+  setPonDbaConcurrency,
+  getPonDbaCyclePeriod,
+  setPonDbaCyclePeriod,
+  calculateOpticalPropagationDelay,
+  calculateDbaQueueDynamics,
+  calculatePonDbaMetrics,
+  renderPonDbaQueueSvg,
+  generatePonDbaReport,
+  setupPonDbaModal
+} from './dashboard-pon-dba.js';

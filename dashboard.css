@@ -1927,6 +1927,32 @@
   border-color: #243c33;
 }
 
+/* OLT PON Port Dynamic Bandwidth Allocation (DBA) & Latency Queue Styles */
+.chart-card-pon-dba {
+  background: var(--surface, #ffffff);
+}
+
+.pon-dba-modal-card {
+  max-width: 960px;
+}
+
+.pon-dba-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-pon-dba {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .pon-dba-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
 .signal-tag {
   display: inline-block;
   padding: 2px 6px;

@@ -3445,8 +3445,330 @@ test('index.html, nav.css, and app.js wire Field Work Orders modal and navigatio
   assert.match(appJs, /fieldWorkOrderSheetController/);
 });
 
+test('Mobile offline sync conflict storage and lifecycle management', async () => {
+  const {
+    getSyncConflicts,
+    saveSyncConflicts,
+    recordSyncConflict,
+    resolveSyncConflict,
+    clearSyncConflicts
+  } = await import('../nav.js');
 
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
 
+  // Initially empty
+  assert.deepEqual(getSyncConflicts(mockStorage), []);
 
+  // Record a conflict
+  const c1 = recordSyncConflict({
+    type: 'payment_duplicate',
+    customerId: 'seed-001',
+    customerName: 'Muhammad Ali',
+    title: 'Duplicate Payment Offline Submission',
+    disputedPkr: 1500,
+    severity: 'critical'
+  }, mockStorage);
 
+  assert.ok(c1.id);
+  assert.equal(c1.status, 'pending');
+  assert.equal(getSyncConflicts(mockStorage).length, 1);
 
+  // Update existing conflict
+  const c1Updated = recordSyncConflict({
+    id: c1.id,
+    notes: 'Investigated by owner'
+  }, mockStorage);
+  assert.equal(c1Updated.notes, 'Investigated by owner');
+  assert.equal(getSyncConflicts(mockStorage).length, 1);
+
+  // Resolve conflict
+  const resolved = resolveSyncConflict(c1.id, 'smart_merge', mockStorage, {
+    resolvedBy: 'Hafiz',
+    resolutionNote: 'Merged partial offline credit'
+  });
+  assert.equal(resolved.status, 'resolved');
+  assert.equal(resolved.resolutionStrategy, 'smart_merge');
+  assert.equal(resolved.resolvedBy, 'Hafiz');
+
+  // Clear conflicts
+  clearSyncConflicts(mockStorage);
+  assert.deepEqual(getSyncConflicts(mockStorage), []);
+});
+
+test('detectSyncConflicts identifies ledger payment clashes, overpayments, and profile drift', async () => {
+  const { detectSyncConflicts } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const sampleState = {
+    customers: [
+      {
+        id: 'cust-101',
+        customerNumber: 101,
+        name: 'Usman Farooq',
+        mohalla: 'Main Bazar',
+        phone: '03001234567',
+        bills: [
+          { month: '2026-10', dueAmount: 1800, paidAmount: 1800, status: 'paid' }
+        ]
+      },
+      {
+        id: 'cust-102',
+        customerNumber: 102,
+        name: 'Zahid Mehmood',
+        mohalla: 'Chowk Shahdara',
+        phone: '03219876543',
+        bills: [
+          { month: '2026-10', dueAmount: 1500, paidAmount: 0, status: 'unpaid' }
+        ]
+      }
+    ]
+  };
+
+  // Add offline queue items creating conflicts:
+  // 1. Payment submission on already paid bill
+  // 2. Overpayment of 3500 on 1500 bill
+  // 3. Profile edit with different phone and mohalla
+  const offlineQueue = [
+    {
+      id: 'q-1',
+      action: 'record_payment',
+      customerId: 'cust-101',
+      month: '2026-10',
+      amount: 1800,
+      timestamp: '2026-10-16T08:30:00Z'
+    },
+    {
+      id: 'q-2',
+      action: 'record_payment',
+      customerId: 'cust-102',
+      month: '2026-10',
+      amount: 3500,
+      timestamp: '2026-10-16T08:45:00Z'
+    },
+    {
+      id: 'q-3',
+      action: 'update_customer',
+      customerId: 'cust-101',
+      phone: '03009998877',
+      mohalla: 'New Ravi Bridge',
+      timestamp: '2026-10-16T09:00:00Z'
+    }
+  ];
+  mockStorage.setItem('shahdara_offline_payment_queue', JSON.stringify(offlineQueue));
+
+  const result = detectSyncConflicts(sampleState, { storage: mockStorage });
+  assert.ok(result.conflicts.length >= 3);
+  assert.ok(result.summary.totalCount >= 3);
+  assert.ok(result.summary.totalDisputedPkr >= 3800);
+  assert.ok(result.summary.criticalCount >= 1);
+
+  // Test filter by critical
+  const criticalOnly = detectSyncConflicts(sampleState, { storage: mockStorage, filter: 'critical' });
+  assert.ok(criticalOnly.conflicts.every(c => c.severity === 'critical'));
+
+  // Test filter by query
+  const queryFiltered = detectSyncConflicts(sampleState, { storage: mockStorage, query: 'Zahid' });
+  assert.equal(queryFiltered.conflicts.length, 1);
+  assert.equal(queryFiltered.conflicts[0].customerName, 'Zahid Mehmood');
+});
+
+test('autoResolveSafeConflicts safely resolves low-risk profile update sync items', async () => {
+  const { autoResolveSafeConflicts, getSyncConflicts } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const sampleState = {
+    customers: [
+      {
+        id: 'cust-safe-1',
+        customerNumber: 201,
+        name: 'Tariq Butt',
+        phone: '', // Empty local phone -> safe to merge incoming
+        mohalla: 'Saeed Park',
+        bills: []
+      }
+    ]
+  };
+
+  const offlineQueue = [
+    {
+      id: 'q-safe-1',
+      action: 'update_customer',
+      customerId: 'cust-safe-1',
+      phone: '03125556677'
+    }
+  ];
+  mockStorage.setItem('shahdara_offline_payment_queue', JSON.stringify(offlineQueue));
+
+  const count = autoResolveSafeConflicts(sampleState, mockStorage);
+  assert.equal(count, 1);
+
+  const stored = getSyncConflicts(mockStorage);
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].status, 'resolved');
+  assert.equal(stored[0].resolutionStrategy, 'accept_incoming');
+});
+
+test('generateSyncConflictReport creates structured audit text for Shahdara ledger', async () => {
+  const { generateSyncConflictReport } = await import('../nav.js');
+
+  const mockConflictData = {
+    summary: {
+      totalCount: 2,
+      criticalCount: 1,
+      warningCount: 1,
+      totalDisputedPkr: 4500,
+      resolvedCount: 0,
+      resolutionRate: 0
+    },
+    conflicts: [
+      {
+        id: 'CONF-01',
+        customerName: 'Khurram Shehzad',
+        area: 'Main Bazar',
+        title: 'Duplicate Payment Collection',
+        severity: 'critical',
+        disputedPkr: 2000,
+        suggestedAction: 'Keep local settled record',
+        diff: {
+          local: { status: 'paid', paidPkr: 2000 },
+          incoming: { status: 'offline_submission', amountPkr: 2000 }
+        }
+      }
+    ]
+  };
+
+  const report = generateSyncConflictReport(mockConflictData);
+  assert.match(report, /SHAHDARA ISP — OFFLINE SYNC CONFLICT & RECONCILIATION AUDIT/);
+  assert.match(report, /Pending Conflicts: 2 \(1 Critical Duplicates\)/);
+  assert.match(report, /#CONF-01/);
+  assert.match(report, /Khurram Shehzad/);
+  assert.match(report, /CRITICAL/);
+  assert.match(report, /Suggested Action: Keep local settled record/);
+});
+
+test('setupSyncConflictModal wires interactive modal controls, filters, and resolution triggers', async () => {
+  const { setupSyncConflictModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const modalEl = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  };
+
+  const countPill = { textContent: '' };
+  const disputedPill = { textContent: '' };
+  const criticalPill = { textContent: '' };
+  const ratePill = { textContent: '' };
+  const listContainer = { innerHTML: '', querySelectorAll: () => [] };
+  const searchInput = { value: '', addEventListener: () => {}, dataset: {} };
+  const autoResolveBtn = { addEventListener: () => {}, dataset: {} };
+  const copyReportBtn = { addEventListener: () => {}, dataset: {} };
+  const closeBtn = { addEventListener: () => {}, dataset: {} };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'syncConflictModal') return modalEl;
+      if (id === 'syncConflictCloseBtn') return closeBtn;
+      if (id === 'conflictSearchInput') return searchInput;
+      if (id === 'syncConflictList') return listContainer;
+      if (id === 'conflictTotalCountVal') return countPill;
+      if (id === 'conflictDisputedPkrVal') return disputedPill;
+      if (id === 'conflictCriticalCountVal') return criticalPill;
+      if (id === 'conflictResolutionRateVal') return ratePill;
+      if (id === 'autoResolveSafeConflictsBtn') return autoResolveBtn;
+      if (id === 'copySyncConflictReportBtn') return copyReportBtn;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-sync-conflicts]') return [];
+      if (sel === '[data-conflict-filter]') return [];
+      if (sel.includes('[data-nav-badge=')) return [];
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupSyncConflictModal({
+      getState: () => ({ customers: [] }),
+      storage: mockStorage
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.recalculate, 'function');
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+
+    controller.open();
+    assert.equal(modalOpened, true);
+
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, nav.css, and app.js wire Mobile Offline Sync Conflict Resolver completely', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /<dialog id="syncConflictModal" class="modal sync-conflict-modal"/);
+  assert.match(indexHtml, /id="syncConflictCloseBtn"/);
+  assert.match(indexHtml, /id="conflictTotalCountVal"/);
+  assert.match(indexHtml, /id="conflictDisputedPkrVal"/);
+  assert.match(indexHtml, /id="conflictCriticalCountVal"/);
+  assert.match(indexHtml, /id="conflictResolutionRateVal"/);
+  assert.match(indexHtml, /id="conflictSearchInput"/);
+  assert.match(indexHtml, /id="syncConflictList"/);
+  assert.match(indexHtml, /id="autoResolveSafeConflictsBtn"/);
+  assert.match(indexHtml, /id="copySyncConflictReportBtn"/);
+
+  assert.match(indexHtml, /data-open-sync-conflicts/);
+  assert.match(indexHtml, /data-mobile-more="sync-conflicts"/);
+  assert.match(indexHtml, /data-sheet-action="sync-conflicts"/);
+  assert.match(indexHtml, /data-speed-action="sync-conflicts"/);
+  assert.match(indexHtml, /data-nav-badge="sync-conflicts"/);
+
+  // nav.css checks
+  assert.match(navCss, /\.sync-conflict-modal-card/);
+  assert.match(navCss, /\.conflict-metrics-bar/);
+  assert.match(navCss, /\.conflict-metric-pill/);
+  assert.match(navCss, /\.conflict-card/);
+  assert.match(navCss, /\.conflict-card\.is-critical/);
+  assert.match(navCss, /\.conflict-diff-grid/);
+  assert.match(navCss, /\.btn-conflict-action/);
+  assert.match(navCss, /\[data-theme="dark"\] \.conflict-card/);
+
+  // app.js checks
+  assert.match(appJs, /setupSyncConflictModal/);
+  assert.match(appJs, /syncConflictModalController/);
+});

@@ -203,6 +203,21 @@ export function updateNavigationBadges(state, options = {}) {
   }
   const pendingWorkOrders = workOrdersCount > 0 ? workOrdersCount : offlineCount;
 
+  let conflictsCount = 0;
+  if (typeof options.conflictsCount === 'number') {
+    conflictsCount = options.conflictsCount;
+  } else if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('shahdara_sync_conflicts_v1');
+      if (raw) {
+        const list = JSON.parse(raw);
+        if (Array.isArray(list)) {
+          conflictsCount = list.filter(c => c.status === 'pending').length;
+        }
+      }
+    } catch {}
+  }
+
   function setBadges(target, count, label, alertClass = false) {
     const badges = document.querySelectorAll(`[data-nav-badge="${target}"]`);
     badges.forEach(badge => {
@@ -223,7 +238,8 @@ export function updateNavigationBadges(state, options = {}) {
   setBadges('collection', overdueCount, 'subscribers with pending dues', overdueCount > 0);
   setBadges('field-route', overdueCount, 'stops pending collection', overdueCount > 0);
   setBadges('work-orders', pendingWorkOrders, 'active field work orders', pendingWorkOrders > 0);
-  setBadges('more', queueCount, 'offline queued items', queueCount > 0);
+  setBadges('sync-conflicts', conflictsCount, 'unresolved sync conflicts', conflictsCount > 0);
+  setBadges('more', (queueCount + conflictsCount), 'offline queued & conflict items', (queueCount + conflictsCount) > 0);
 
   return {
     totalCustomers,
@@ -232,6 +248,7 @@ export function updateNavigationBadges(state, options = {}) {
     expensesCount,
     inventoryCount,
     queueCount,
+    conflictsCount,
     fieldRoutePendingCount: overdueCount,
     workOrdersCount: pendingWorkOrders
   };
@@ -5111,6 +5128,638 @@ export function setupFieldWorkOrderSheet({
   return {
     recalculate: updateUi,
     getWorkOrderData: () => lastData,
+    open: () => {
+      updateUi();
+      if (typeof modal?.showModal === 'function') modal.showModal();
+      else if (modal) modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    },
+    setState: (newState) => {
+      currentState = newState;
+      updateUi();
+    }
+  };
+}
+
+/**
+ * =========================================================================
+ * Mobile Offline Sync Conflict Resolver & Parallel Field Receipt Reconciler
+ * =========================================================================
+ */
+
+export const SYNC_CONFLICT_STORAGE_KEY = 'shahdara_sync_conflicts_v1';
+
+export function getSyncConflicts(storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.getItem !== 'function') return [];
+  try {
+    const raw = store.getItem(SYNC_CONFLICT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveSyncConflicts(conflicts, storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.setItem !== 'function') return false;
+  try {
+    store.setItem(SYNC_CONFLICT_STORAGE_KEY, JSON.stringify(conflicts || []));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function recordSyncConflict(conflict = {}, storage) {
+  const list = getSyncConflicts(storage);
+  const now = new Date().toISOString();
+  const dateTag = now.slice(2, 10).replace(/-/g, '');
+  const randTag = Math.floor(1000 + Math.random() * 9000);
+  const id = conflict.id || `CONF-${dateTag}-${randTag}`;
+
+  const existingIdx = list.findIndex(c => c.id === id);
+  const existing = existingIdx !== -1 ? list[existingIdx] : {};
+
+  const entry = {
+    id,
+    type: conflict.type || existing.type || 'DUPLICATE_PAYMENT',
+    severity: conflict.severity || existing.severity || 'warning',
+    status: conflict.status || existing.status || 'pending',
+    title: conflict.title || existing.title || 'Sync Conflict',
+    customerId: conflict.customerId !== undefined ? conflict.customerId : (existing.customerId || null),
+    customerName: conflict.customerName || existing.customerName || 'Subscriber',
+    username: conflict.username || existing.username || '',
+    phone: conflict.phone !== undefined ? conflict.phone : (existing.phone || ''),
+    area: conflict.area || existing.area || 'Shahdara Town',
+    billMonth: conflict.billMonth !== undefined ? conflict.billMonth : (existing.billMonth || null),
+    disputedPkr: conflict.disputedPkr !== undefined ? Number(conflict.disputedPkr) : (existing.disputedPkr || 0),
+    diff: conflict.diff || existing.diff || { local: {}, incoming: {} },
+    suggestedAction: conflict.suggestedAction || existing.suggestedAction || 'smart_merge',
+    resolutionStrategy: conflict.resolutionStrategy !== undefined ? conflict.resolutionStrategy : (existing.resolutionStrategy || null),
+    resolvedAt: conflict.resolvedAt || existing.resolvedAt || null,
+    resolvedBy: conflict.resolvedBy || existing.resolvedBy || null,
+    resolutionNote: conflict.resolutionNote || existing.resolutionNote || null,
+    createdAt: conflict.createdAt || existing.createdAt || now,
+    ...existing,
+    ...conflict
+  };
+
+  if (existingIdx !== -1) {
+    list[existingIdx] = entry;
+  } else {
+    list.unshift(entry);
+  }
+
+  saveSyncConflicts(list, storage);
+  return entry;
+}
+
+export function resolveSyncConflict(conflictId, resolutionStrategy, storage, { resolvedBy = 'Counter Owner', resolutionNote = '' } = {}) {
+  const list = getSyncConflicts(storage);
+  const idx = list.findIndex(c => c.id === conflictId);
+  const now = new Date().toISOString();
+
+  let resolved;
+  if (idx !== -1) {
+    resolved = {
+      ...list[idx],
+      status: 'resolved',
+      resolutionStrategy,
+      resolvedAt: now,
+      resolvedBy,
+      resolutionNote: resolutionNote || `Resolved via ${resolutionStrategy}`
+    };
+    list[idx] = resolved;
+  } else {
+    resolved = {
+      id: conflictId,
+      status: 'resolved',
+      resolutionStrategy,
+      resolvedAt: now,
+      resolvedBy,
+      resolutionNote: resolutionNote || `Resolved via ${resolutionStrategy}`
+    };
+    list.unshift(resolved);
+  }
+
+  saveSyncConflicts(list, storage);
+  return resolved;
+}
+
+export function clearSyncConflicts(storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.removeItem !== 'function') return;
+  try {
+    store.removeItem(SYNC_CONFLICT_STORAGE_KEY);
+  } catch {}
+}
+
+export function detectSyncConflicts(state, options = {}) {
+  const storage = options.storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const filter = options.filter || 'all';
+  const query = (options.query || '').toLowerCase().trim();
+
+  let queue = [];
+  if (Array.isArray(options.pendingQueue)) {
+    queue = options.pendingQueue;
+  } else if (storage && typeof storage.getItem === 'function') {
+    try {
+      const raw = storage.getItem('shahdara_offline_payment_queue');
+      if (raw) queue = JSON.parse(raw);
+    } catch {}
+  }
+
+  const storedConflicts = getSyncConflicts(storage);
+  const detectedList = [...storedConflicts];
+
+  const customers = Array.isArray(state?.customers) ? state.customers.filter(c => !c.archived) : [];
+
+  for (const item of queue) {
+    if (!item) continue;
+    const cust = customers.find(c => c.id === item.customerId || (item.customerName && c.name?.toLowerCase() === item.customerName.toLowerCase()));
+    if (!cust) continue;
+
+    const itemMonth = item.billMonth || item.month;
+    const itemAmount = Number(item.amount || item.collectedAmount || 0);
+
+    // Check 1: Duplicate Payment for same bill month
+    if (itemMonth && Array.isArray(cust.bills)) {
+      const bill = cust.bills.find(b => b.month === itemMonth);
+      const isAlreadyPaid = bill && (bill.status === 'paid' || Number(bill.dueAmount || 0) === 0);
+      if (isAlreadyPaid) {
+        const conflictKey = `dup-${cust.id}-${itemMonth}`;
+        const alreadyInList = detectedList.some(c => c.id === conflictKey || (c.customerId === cust.id && c.billMonth === itemMonth && c.type === 'DUPLICATE_PAYMENT'));
+        if (!alreadyInList) {
+          detectedList.push({
+            id: conflictKey,
+            type: 'DUPLICATE_PAYMENT',
+            severity: 'critical',
+            status: 'pending',
+            title: `Duplicate Payment on Paid Bill (${itemMonth})`,
+            customerId: cust.id,
+            customerName: cust.name,
+            username: cust.username || '',
+            phone: cust.phone || '',
+            area: cust.area || cust.mohalla || 'Shahdara Town',
+            billMonth: itemMonth,
+            disputedPkr: itemAmount,
+            diff: {
+              local: {
+                billMonth: itemMonth,
+                status: 'Already Paid (Ledger Settled)',
+                dueAmount: 0,
+                collector: 'Shop Register'
+              },
+              incoming: {
+                billMonth: itemMonth,
+                amount: itemAmount,
+                method: item.method || 'Cash',
+                receiptId: item.receiptId || item.id || 'OFFLINE-TX',
+                collector: item.collectorName || 'Field Van Collector'
+              }
+            },
+            suggestedAction: 'smart_merge',
+            createdAt: item.createdAt || new Date().toISOString()
+          });
+        }
+      } else if (bill && itemAmount > Number(bill.dueAmount || bill.amount || 0)) {
+        // Check 2: Overpayment
+        const diffPkr = itemAmount - Number(bill.dueAmount || bill.amount || 0);
+        const conflictKey = `over-${cust.id}-${itemMonth}`;
+        const alreadyInList = detectedList.some(c => c.id === conflictKey || (c.customerId === cust.id && c.billMonth === itemMonth && c.type === 'OVERPAYMENT_EXCESS'));
+        if (!alreadyInList) {
+          detectedList.push({
+            id: conflictKey,
+            type: 'OVERPAYMENT_EXCESS',
+            severity: 'warning',
+            status: 'pending',
+            title: `Collection Exceeds Stored Balance (${itemMonth})`,
+            customerId: cust.id,
+            customerName: cust.name,
+            username: cust.username || '',
+            phone: cust.phone || '',
+            area: cust.area || cust.mohalla || 'Shahdara Town',
+            billMonth: itemMonth,
+            disputedPkr: diffPkr,
+            diff: {
+              local: {
+                billMonth: itemMonth,
+                expectedDue: Number(bill.dueAmount || bill.amount || 0),
+                packagePrice: cust.packagePrice || 1500
+              },
+              incoming: {
+                billMonth: itemMonth,
+                submittedAmount: itemAmount,
+                excessCarryForward: diffPkr,
+                method: item.method || 'Cash'
+              }
+            },
+            suggestedAction: 'accept_incoming',
+            createdAt: item.createdAt || new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    // Check 3: Profile Data Drift
+    if (item.phone && item.phone !== cust.phone) {
+      const conflictKey = `drift-phone-${cust.id}`;
+      const alreadyInList = detectedList.some(c => c.id === conflictKey);
+      if (!alreadyInList) {
+        detectedList.push({
+          id: conflictKey,
+          type: 'PROFILE_DATA_DRIFT',
+          severity: 'info',
+          status: 'pending',
+          title: 'Subscriber Mobile Number Drift',
+          customerId: cust.id,
+          customerName: cust.name,
+          username: cust.username || '',
+          phone: cust.phone || '',
+          area: cust.area || cust.mohalla || 'Shahdara Town',
+          billMonth: itemMonth || null,
+          disputedPkr: 0,
+          diff: {
+            local: {
+              phone: cust.phone,
+              address: cust.address || ''
+            },
+            incoming: {
+              phone: item.phone,
+              address: item.address || cust.address || ''
+            }
+          },
+          suggestedAction: 'accept_incoming',
+          createdAt: item.createdAt || new Date().toISOString()
+        });
+      }
+    }
+  }
+
+  // Filter items
+  const filtered = detectedList.filter(item => {
+    if (filter === 'critical' && item.severity !== 'critical') return false;
+    if (filter === 'payment' && item.type !== 'DUPLICATE_PAYMENT' && item.type !== 'OVERPAYMENT_EXCESS') return false;
+    if (filter === 'profile' && item.type !== 'PROFILE_DATA_DRIFT') return false;
+    if (filter === 'duplicate' && item.type !== 'DUPLICATE_PAYMENT') return false;
+    if (filter === 'overpayment' && item.type !== 'OVERPAYMENT_EXCESS') return false;
+    if (filter === 'drift' && item.type !== 'PROFILE_DATA_DRIFT') return false;
+    if (filter === 'resolved' && item.status !== 'resolved') return false;
+    if (filter !== 'resolved' && item.status === 'resolved' && filter !== 'all') return false;
+
+    if (query) {
+      const matchName = item.customerName?.toLowerCase().includes(query);
+      const matchPhone = item.phone?.toLowerCase().includes(query);
+      const matchArea = item.area?.toLowerCase().includes(query);
+      const matchTitle = item.title?.toLowerCase().includes(query);
+      if (!matchName && !matchPhone && !matchArea && !matchTitle) return false;
+    }
+    return true;
+  });
+
+  const pendingItems = detectedList.filter(c => c.status === 'pending');
+  const criticalCount = pendingItems.filter(c => c.severity === 'critical').length;
+  const warningCount = pendingItems.filter(c => c.severity === 'warning').length;
+  const driftCount = pendingItems.filter(c => c.type === 'PROFILE_DATA_DRIFT').length;
+  const resolvedCount = detectedList.filter(c => c.status === 'resolved').length;
+  const totalDisputedPkr = pendingItems.reduce((sum, c) => sum + (c.disputedPkr || 0), 0);
+  const autoResolvableCount = pendingItems.filter(c => c.severity !== 'critical').length;
+  const resolutionRate = detectedList.length > 0 ? Math.round((resolvedCount / detectedList.length) * 100) : 100;
+
+  return {
+    conflicts: filtered,
+    allConflicts: detectedList,
+    summary: {
+      totalCount: pendingItems.length,
+      allTotalCount: detectedList.length,
+      criticalCount,
+      warningCount,
+      driftCount,
+      resolvedCount,
+      totalDisputedPkr,
+      autoResolvableCount,
+      resolutionRate
+    }
+  };
+}
+
+export function autoResolveSafeConflicts(state, storage, options = {}) {
+  const data = detectSyncConflicts(state, { storage, pendingQueue: options.pendingQueue });
+  const pending = data.allConflicts.filter(c => c.status === 'pending' && c.severity !== 'critical');
+
+  let resolvedCount = 0;
+  for (const c of pending) {
+    resolveSyncConflict(c.id, c.suggestedAction || 'accept_incoming', storage, {
+      resolvedBy: 'Auto-Reconciliation Engine',
+      resolutionNote: 'Auto-resolved safe non-critical conflict'
+    });
+    resolvedCount++;
+  }
+  return resolvedCount;
+}
+
+export function generateSyncConflictReport(conflictData, options = {}) {
+  const data = conflictData || detectSyncConflicts();
+  const summary = data.summary || {};
+  const dateStr = options.dateStr || new Date().toISOString().slice(0, 10);
+
+  const lines = [
+    '================================================================',
+    'SHAHDARA ISP — OFFLINE SYNC CONFLICT & RECONCILIATION AUDIT',
+    '================================================================',
+    `Date: ${dateStr} PKT | Reconciliation Engine: Active`,
+    `Pending Conflicts: ${summary.totalCount} (${summary.criticalCount} Critical Duplicates)`,
+    `Disputed Ledger Volume: PKR ${(summary.totalDisputedPkr || 0).toLocaleString()}`,
+    `Reconciliation Rate: ${summary.resolutionRate}% (${summary.resolvedCount} Resolved)`,
+    '----------------------------------------------------------------',
+    'DISPUTED ITEMS & FIELD SUBMISSION BREAKDOWN:',
+    '----------------------------------------------------------------'
+  ];
+
+  if (!data.conflicts || data.conflicts.length === 0) {
+    lines.push('No pending sync conflicts recorded. All field receipts reconciled.');
+  } else {
+    data.conflicts.forEach((c, idx) => {
+      lines.push(
+        `${idx + 1}. [${c.severity.toUpperCase()}] *#${c.id}* — ${c.title}`,
+        `   Subscriber: ${c.customerName} (${c.area || 'Shahdara'}) | 📞 ${c.phone || 'N/A'}`,
+        `   Disputed Volume: PKR ${(c.disputedPkr || 0).toLocaleString()} | Status: ${c.status}`,
+        `   Suggested Action: ${c.suggestedAction} | Resolved: ${c.resolutionStrategy || 'Pending'}`
+      );
+    });
+  }
+
+  lines.push('');
+  lines.push('----------------------------------------------------------------');
+  lines.push('OWNER RECONCILIATION INSTRUCTIONS:');
+  lines.push('----------------------------------------------------------------');
+  lines.push('• Critical Duplicates: Verify physical cash collection with field collector before marking.');
+  lines.push('• Overpayments: Accepted incoming amounts are credited to subscriber account for next month.');
+  lines.push('• Profile Drift: Updated mobile numbers are synchronized automatically across all devices.');
+  lines.push('================================================================');
+
+  return lines.join('\n');
+}
+
+/**
+ * Controller for the Mobile Offline Sync Conflict Resolver Modal Dialog.
+ */
+export function setupSyncConflictModal({
+  getState,
+  storage,
+  onNavigateCustomer,
+  onToast,
+  clipboard
+} = {}) {
+  if (typeof document === 'undefined') return { recalculate: () => {}, open: () => {}, close: () => {} };
+
+  const modal = document.getElementById('syncConflictModal');
+  const closeBtn = document.getElementById('syncConflictCloseBtn');
+  const openBtns = document.querySelectorAll('[data-open-sync-conflicts]');
+
+  const filterBtns = document.querySelectorAll('[data-conflict-filter]');
+  const searchInput = document.getElementById('conflictSearchInput');
+  const listContainer = document.getElementById('syncConflictList');
+
+  const countPill = document.getElementById('conflictTotalCountVal');
+  const disputedPkrPill = document.getElementById('conflictDisputedPkrVal');
+  const criticalPill = document.getElementById('conflictCriticalCountVal');
+  const ratePill = document.getElementById('conflictResolutionRateVal');
+
+  const autoResolveBtn = document.getElementById('autoResolveSafeConflictsBtn');
+  const copyReportBtn = document.getElementById('copySyncConflictReportBtn');
+
+  let currentFilter = 'all';
+  let searchQuery = '';
+  let currentState = typeof getState === 'function' ? getState() : null;
+
+  function updateUi() {
+    const state = typeof getState === 'function' ? getState() : currentState;
+    const conflictData = detectSyncConflicts(state, {
+      storage,
+      filter: currentFilter,
+      query: searchQuery
+    });
+
+    const summary = conflictData.summary;
+
+    if (countPill) countPill.textContent = `${summary.totalCount} Pending`;
+    if (disputedPkrPill) disputedPkrPill.textContent = `PKR ${(summary.totalDisputedPkr || 0).toLocaleString()}`;
+    if (criticalPill) criticalPill.textContent = `${summary.criticalCount} Critical`;
+    if (ratePill) ratePill.textContent = `${summary.resolutionRate}% Done`;
+
+    updateNavigationBadges(state, { conflictsCount: summary.totalCount });
+
+    if (!listContainer) return conflictData;
+
+    if (!conflictData.conflicts || conflictData.conflicts.length === 0) {
+      listContainer.innerHTML = `
+        <div class="work-order-empty-state">
+          <span class="work-order-empty-icon">✨</span>
+          <h5 class="work-order-empty-title">All Sync Items Reconciled</h5>
+          <p class="work-order-empty-sub">No offline conflict submissions pending for Shahdara ledger.</p>
+        </div>
+      `;
+      return conflictData;
+    }
+
+    listContainer.innerHTML = conflictData.conflicts.map(c => {
+      const isResolved = c.status === 'resolved';
+      const isCritical = c.severity === 'critical';
+      const isWarning = c.severity === 'warning';
+
+      const cardClass = `conflict-card ${isResolved ? 'is-resolved' : (isCritical ? 'is-critical' : (isWarning ? 'is-warning' : ''))}`;
+
+      let localDiffHtml = '';
+      if (c.diff?.local) {
+        localDiffHtml = Object.entries(c.diff.local).map(([k, v]) => `<div><strong>${escapeXml(k)}:</strong> ${escapeXml(String(v))}</div>`).join('');
+      }
+
+      let incomingDiffHtml = '';
+      if (c.diff?.incoming) {
+        incomingDiffHtml = Object.entries(c.diff.incoming).map(([k, v]) => `<div><strong>${escapeXml(k)}:</strong> ${escapeXml(String(v))}</div>`).join('');
+      }
+
+      return `
+        <div class="${cardClass}" data-conflict-id="${escapeXml(c.id)}">
+          <div class="conflict-card-header">
+            <div class="conflict-card-title-group">
+              <span class="wo-card-ticket-id">#${escapeXml(c.id)}</span>
+              <span class="conflict-type-tag ${c.severity}">${escapeXml(c.type.replace(/_/g, ' '))}</span>
+              <h5 class="conflict-title">${escapeXml(c.title)}</h5>
+            </div>
+            <div class="conflict-card-meta">
+              <span class="conflict-subscriber-name">${escapeXml(c.customerName)}</span>
+              <span class="text-muted">(${escapeXml(c.area || 'Shahdara')})</span>
+              ${c.disputedPkr > 0 ? `<strong class="conflict-amount-pill">PKR ${c.disputedPkr.toLocaleString()}</strong>` : ''}
+            </div>
+          </div>
+
+          <div class="conflict-diff-grid">
+            <div class="diff-column diff-column-local">
+              <h6 class="diff-column-header">🏛️ Local Saved Ledger</h6>
+              <div class="diff-content">${localDiffHtml || 'No local record'}</div>
+            </div>
+            <div class="diff-column diff-column-incoming">
+              <h6 class="diff-column-header">📱 Incoming Offline Submission</h6>
+              <div class="diff-content">${incomingDiffHtml || 'No incoming payload'}</div>
+            </div>
+          </div>
+
+          <div class="conflict-card-footer">
+            <div class="conflict-status-info">
+              ${isResolved
+                ? `<span class="badge-resolved">✅ Resolved via ${escapeXml(c.resolutionStrategy)}</span>`
+                : `<span class="badge-pending">⚠️ Suggested: ${escapeXml(c.suggestedAction)}</span>`}
+            </div>
+            <div class="conflict-actions-group">
+              ${!isResolved ? `
+                <button type="button" class="btn-conflict-action btn-accept" data-resolve-id="${escapeXml(c.id)}" data-strategy="accept_incoming">Accept Incoming</button>
+                <button type="button" class="btn-conflict-action btn-keep" data-resolve-id="${escapeXml(c.id)}" data-strategy="keep_local">Keep Local</button>
+                <button type="button" class="btn-conflict-action btn-merge" data-resolve-id="${escapeXml(c.id)}" data-strategy="smart_merge">Smart Merge</button>
+              ` : `
+                <button type="button" class="btn-conflict-action btn-reopen" data-reopen-id="${escapeXml(c.id)}">Reopen</button>
+              `}
+              ${c.customerId && typeof onNavigateCustomer === 'function' ? `
+                <button type="button" class="btn-conflict-action btn-profile" data-nav-cust-id="${escapeXml(c.customerId)}">Profile</button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Wire conflict resolution buttons
+    listContainer.querySelectorAll('[data-resolve-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-resolve-id');
+        const strategy = btn.getAttribute('data-strategy');
+        resolveSyncConflict(id, strategy, storage, {
+          resolvedBy: 'Owner Console',
+          resolutionNote: `Manual resolution via ${strategy}`
+        });
+        triggerHaptic('success');
+        updateUi();
+        if (typeof onToast === 'function') onToast(`Conflict #${id} resolved using ${strategy}!`);
+      });
+    });
+
+    listContainer.querySelectorAll('[data-reopen-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-reopen-id');
+        recordSyncConflict({ id, status: 'pending', resolutionStrategy: null }, storage);
+        triggerHaptic('selection');
+        updateUi();
+        if (typeof onToast === 'function') onToast(`Conflict #${id} reopened.`);
+      });
+    });
+
+    listContainer.querySelectorAll('[data-nav-cust-id]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const custId = btn.getAttribute('data-nav-cust-id');
+        if (typeof onNavigateCustomer === 'function' && custId) {
+          if (typeof modal?.close === 'function') modal.close();
+          else if (modal) modal.removeAttribute('open');
+          onNavigateCustomer(custId);
+        }
+      });
+    });
+
+    return conflictData;
+  }
+
+  // Wire filter buttons
+  filterBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      currentFilter = btn.getAttribute('data-conflict-filter') || 'all';
+      triggerHaptic('selection');
+      updateUi();
+    });
+  });
+
+  // Wire search input
+  if (searchInput && !searchInput.dataset?.wiredConflict) {
+    if (searchInput.dataset) searchInput.dataset.wiredConflict = 'true';
+    searchInput.addEventListener('input', () => {
+      searchQuery = searchInput.value || '';
+      updateUi();
+    });
+  }
+
+  // Wire auto-resolve button
+  if (autoResolveBtn && !autoResolveBtn.dataset?.wiredConflict) {
+    if (autoResolveBtn.dataset) autoResolveBtn.dataset.wiredConflict = 'true';
+    autoResolveBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : currentState;
+      const count = autoResolveSafeConflicts(state, storage);
+      triggerHaptic('success');
+      updateUi();
+      if (typeof onToast === 'function') {
+        onToast(count > 0 ? `Auto-resolved ${count} safe sync conflicts!` : 'No safe conflicts eligible for auto-resolve.');
+      }
+    });
+  }
+
+  // Wire copy report button
+  if (copyReportBtn && !copyReportBtn.dataset?.wiredConflict) {
+    if (copyReportBtn.dataset) copyReportBtn.dataset.wiredConflict = 'true';
+    copyReportBtn.addEventListener('click', async () => {
+      const state = typeof getState === 'function' ? getState() : currentState;
+      const conflictData = detectSyncConflicts(state, { storage });
+      const text = generateSyncConflictReport(conflictData);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('Conflict report copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this browser.');
+      }
+    });
+  }
+
+  // Wire open buttons
+  openBtns.forEach(btn => {
+    if (!btn.dataset?.wiredConflictOpen) {
+      if (btn.dataset) btn.dataset.wiredConflictOpen = 'true';
+      btn.addEventListener('click', () => {
+        updateUi();
+        triggerHaptic('medium');
+        if (typeof modal?.showModal === 'function') modal.showModal();
+        else if (modal) modal.setAttribute('open', '');
+      });
+    }
+  });
+
+  // Wire close button
+  if (closeBtn && !closeBtn.dataset?.wiredConflict) {
+    if (closeBtn.dataset) closeBtn.dataset.wiredConflict = 'true';
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal?.close === 'function') modal.close();
+      else if (modal) modal.removeAttribute('open');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        if (typeof modal?.close === 'function') modal.close();
+        else modal.removeAttribute('open');
+      }
+    });
+  }
+
+  return {
+    recalculate: updateUi,
     open: () => {
       updateUi();
       if (typeof modal?.showModal === 'function') modal.showModal();

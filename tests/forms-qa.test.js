@@ -6324,3 +6324,490 @@ test('DOM and styling: index.html, styles.css, and app.js wire Fiber Feeder Disp
   assert.match(freshApp, /openDispersionCertBtn/);
 });
 
+/* ==========================================================================
+   CUSTOMER FIBER CABLE BENDING RADIUS & MACRO-BEND QA TEST SUITE
+   ========================================================================== */
+
+test('Bend loss catalogs: ITU-T fiber standards, wavelength multipliers, and verdicts are accurate', async () => {
+  const {
+    FIBER_BEND_STANDARDS,
+    WAVELENGTH_BEND_MULTIPLIERS,
+    ROUTING_CHECKLIST_ITEMS,
+    BEND_VERDICTS
+  } = await import('../form-validation.js');
+
+  assert.ok(FIBER_BEND_STANDARDS.G652D);
+  assert.ok(FIBER_BEND_STANDARDS.G657A1);
+  assert.ok(FIBER_BEND_STANDARDS.G657A2);
+  assert.ok(FIBER_BEND_STANDARDS.G657B3);
+
+  assert.equal(FIBER_BEND_STANDARDS.G652D.minRadiusMm, 30.0);
+  assert.equal(FIBER_BEND_STANDARDS.G657A1.minRadiusMm, 10.0);
+  assert.equal(FIBER_BEND_STANDARDS.G657A2.minRadiusMm, 7.5);
+  assert.equal(FIBER_BEND_STANDARDS.G657B3.minRadiusMm, 5.0);
+
+  // Wavelength sensitivity: 1625nm > 1577nm > 1550nm > 1490nm > 1310nm
+  assert.ok(WAVELENGTH_BEND_MULTIPLIERS['1625'].factor > WAVELENGTH_BEND_MULTIPLIERS['1577'].factor);
+  assert.ok(WAVELENGTH_BEND_MULTIPLIERS['1577'].factor > WAVELENGTH_BEND_MULTIPLIERS['1550'].factor);
+  assert.ok(WAVELENGTH_BEND_MULTIPLIERS['1550'].factor > WAVELENGTH_BEND_MULTIPLIERS['1490'].factor);
+  assert.ok(WAVELENGTH_BEND_MULTIPLIERS['1490'].factor > WAVELENGTH_BEND_MULTIPLIERS['1310'].factor);
+
+  assert.equal(ROUTING_CHECKLIST_ITEMS.length, 5);
+  assert.ok(BEND_VERDICTS.OPTIMAL_PASS);
+  assert.ok(BEND_VERDICTS.ACCEPTABLE_PASS);
+  assert.ok(BEND_VERDICTS.MARGINAL_WARNING);
+  assert.ok(BEND_VERDICTS.CRITICAL_MACROBEND_FAIL);
+});
+
+test('calculateMacroBendLoss models physics of bend-induced loss and wavelength differential', async () => {
+  const { calculateMacroBendLoss, BEND_VERDICTS } = await import('../form-validation.js');
+
+  // Compliant radius on G.657.A2 (R = 15mm, turns = 2, no stress, full checklist)
+  const safeRes = calculateMacroBendLoss({
+    fiberType: 'G657A2',
+    radiusMm: 15.0,
+    turnsCount: 2,
+    microBendStressIndex: 0,
+    checklist: { rosette_slack: true, wall_corners: true, clip_tension: true, entry_conduit: true, onu_pigtail: true }
+  });
+
+  assert.equal(safeRes.compliant, true);
+  assert.equal(safeRes.verdict.id, BEND_VERDICTS.OPTIMAL_PASS.id);
+  assert.ok(safeRes.loss1550Db < 0.25);
+  assert.ok(safeRes.loss1310Db <= safeRes.loss1550Db);
+  assert.ok(safeRes.loss1625Db >= safeRes.loss1550Db);
+  assert.ok(safeRes.differential1550_1310Db >= 0);
+
+  // Severe macro-bend on G.652.D (R = 10mm, turns = 3, well below 30mm minimum)
+  const severeRes = calculateMacroBendLoss({
+    fiberType: 'G652D',
+    radiusMm: 10.0,
+    turnsCount: 3,
+    microBendStressIndex: 0
+  });
+
+  assert.equal(severeRes.compliant, false);
+  assert.ok(severeRes.loss1550Db > 1.0, `Expected severe loss on 10mm G652D, got ${severeRes.loss1550Db}`);
+  assert.ok(severeRes.differential1550_1310Db > 0.8, 'Expected strong wavelength differential on severe macro-bend');
+  assert.equal(severeRes.verdict.id, BEND_VERDICTS.CRITICAL_MACROBEND_FAIL.id);
+
+  // Turns scaling: 4 turns should produce roughly double the macro-bend loss of 2 turns
+  const twoTurns = calculateMacroBendLoss({ fiberType: 'G657A1', radiusMm: 8.0, turnsCount: 2 });
+  const fourTurns = calculateMacroBendLoss({ fiberType: 'G657A1', radiusMm: 8.0, turnsCount: 4 });
+  assert.ok(fourTurns.loss1550Db > twoTurns.loss1550Db * 1.8);
+
+  // Micro-bend stress index addition
+  const noStress = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 15.0, microBendStressIndex: 0 });
+  const highStress = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 15.0, microBendStressIndex: 50 });
+  assert.ok(highStress.microBendPenaltyDb > 0.4);
+  assert.ok(highStress.loss1550Db > noStress.loss1550Db);
+
+  // Incomplete checklist triggers critical checklist verdict fail
+  const fullCheck = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 15.0, checklist: { rosette_slack: true, wall_corners: true, clip_tension: true, entry_conduit: true, onu_pigtail: true } });
+  const badCheck = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 15.0, checklist: { rosette_slack: false, wall_corners: false, clip_tension: true, entry_conduit: true, onu_pigtail: true } });
+  assert.equal(fullCheck.verdict.id, BEND_VERDICTS.OPTIMAL_PASS.id);
+  assert.equal(badCheck.criticalChecklistFailed, true);
+  assert.equal(badCheck.verdict.id, BEND_VERDICTS.CRITICAL_MACROBEND_FAIL.id);
+});
+
+test('validateBendLossCertInput handles valid and invalid parameter boundaries', async () => {
+  const { validateBendLossCertInput } = await import('../form-validation.js');
+
+  const v1 = validateBendLossCertInput({ customerName: 'Ahmad Khan', radiusMm: 15, turnsCount: 2, microBendStressIndex: 0, fiberType: 'G657A2' });
+  assert.equal(v1.valid, true);
+
+  const v2 = validateBendLossCertInput({ customerName: 'Ahmad Khan', radiusMm: 1, turnsCount: 2 }); // below 2.5mm
+  assert.equal(v2.valid, false);
+  assert.ok(v2.errors.radiusMm);
+
+  const v3 = validateBendLossCertInput({ customerName: 'Ahmad Khan', radiusMm: 15, turnsCount: 0 }); // turns < 1
+  assert.equal(v3.valid, false);
+  assert.ok(v3.errors.turnsCount);
+
+  const v4 = validateBendLossCertInput({ customerName: 'Ahmad Khan', radiusMm: 15, microBendStressIndex: 120 }); // index > 100
+  assert.equal(v4.valid, false);
+  assert.ok(v4.errors.microBendStressIndex);
+
+  const v5 = validateBendLossCertInput({ customerName: '', radiusMm: 15, turnsCount: 2, microBendStressIndex: 0 });
+  assert.equal(v5.valid, false);
+  assert.ok(v5.errors.customerName);
+});
+
+test('buildBendLossCertRecord generates formatted audit record with unique ID', async () => {
+  const { calculateMacroBendLoss, buildBendLossCertRecord } = await import('../form-validation.js');
+
+  const result = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 12.0, turnsCount: 1 });
+  const existing = [{ id: 'BND-202610-0001' }, { id: 'BND-202610-0002' }];
+
+  const record = buildBendLossCertRecord({
+    ...result,
+    customerNumber: 'CUST-8801',
+    customerName: 'Muhammad Tariq',
+    customerPhone: '+923001234567',
+    area: 'MOHALLA NAKAR',
+    technicianName: 'Lineman Bashir',
+    notes: 'Corner molding secured with clips.'
+  }, existing);
+
+  assert.match(record.id, /^BND-\d{6}-0003$/);
+  assert.equal(record.customerName, 'Muhammad Tariq');
+  assert.equal(record.customerNumber, 'CUST-8801');
+  assert.equal(record.area, 'MOHALLA NAKAR');
+  assert.equal(record.radiusMm, 12.0);
+  assert.equal(record.turnsCount, 1);
+  assert.ok(record.timestamp);
+});
+
+test('getSavedBendLossCerts and saveBendLossCert manage storage lifecycle and 100-item cap', async () => {
+  const { getSavedBendLossCerts, saveBendLossCert, clearBendLossCerts, BEND_LOSS_STORAGE_KEY } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] || null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedBendLossCerts(mockStorage), []);
+
+  // Save 105 items
+  for (let i = 1; i <= 105; i++) {
+    saveBendLossCert({ id: `BND-${String(i).padStart(4, '0')}`, customerName: `Cust ${i}`, radiusMm: 15 }, mockStorage);
+  }
+
+  const saved = getSavedBendLossCerts(mockStorage);
+  assert.equal(saved.length, 100);
+  assert.equal(saved[0].id, 'BND-0105'); // Most recent first
+  assert.equal(saved[99].id, 'BND-0006'); // FIFO cap
+
+  // Corrupted storage handling
+  mockStorage.setItem(BEND_LOSS_STORAGE_KEY, 'INVALID_JSON_CORRUPT');
+  assert.deepEqual(getSavedBendLossCerts(mockStorage), []);
+
+  // Clear
+  saveBendLossCert({ id: 'BND-0001', customerName: 'Test' }, mockStorage);
+  assert.equal(getSavedBendLossCerts(mockStorage).length, 1);
+  clearBendLossCerts(mockStorage);
+  assert.equal(getSavedBendLossCerts(mockStorage).length, 0);
+});
+
+test('renderBendLossAnalysisSvg generates SVG markup with radius mandrel and spectral bars', async () => {
+  const { calculateMacroBendLoss, renderBendLossAnalysisSvg } = await import('../form-validation.js');
+
+  const result = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 15.0, turnsCount: 2 });
+  const svg = renderBendLossAnalysisSvg(result);
+
+  assert.ok(svg.includes('<svg class="bend-loss-analysis-svg"'));
+  assert.ok(svg.includes('viewBox="0 0 760 300"'));
+  assert.ok(svg.includes('R = 15.0 mm'));
+  assert.ok(svg.includes('ITU-T G.657 FIBER BEND DYNAMICS'));
+  assert.ok(svg.includes('SPECTRAL LOSS DIFFERENTIAL'));
+  assert.ok(svg.includes('1310nm'));
+  assert.ok(svg.includes('1550nm'));
+  assert.ok(svg.includes('1625nm'));
+});
+
+test('formatBendLossCertWhatsApp generates rich field dispatch summary', async () => {
+  const { formatBendLossCertWhatsApp, BEND_VERDICTS } = await import('../form-validation.js');
+
+  const text = formatBendLossCertWhatsApp({
+    id: 'BND-0012',
+    timestamp: '2026-10-16T15:30:00Z',
+    technicianName: 'Lineman Farhan',
+    area: 'Shahdara Park',
+    customerName: 'Usman Ali',
+    customerNumber: '1042',
+    fiberType: 'G.657.A2',
+    radiusMm: 12.5,
+    turnsCount: 2,
+    microBendStressIndex: 10,
+    loss1310Db: 0.08,
+    loss1490Db: 0.16,
+    loss1550Db: 0.28,
+    loss1625Db: 0.72,
+    differential1550_1310Db: 0.20,
+    verdict: BEND_VERDICTS.OPTIMAL_PASS,
+    notes: 'Protected with wall cable clip.'
+  });
+
+  assert.ok(text.includes('SHAHDARA FIBER NET · BENDING RADIUS & MACRO-BEND QA REPORT'));
+  assert.ok(text.includes('BND-0012'));
+  assert.ok(text.includes('Usman Ali'));
+  assert.ok(text.includes('12.5 mm'));
+  assert.ok(text.includes('1310 nm'));
+  assert.ok(text.includes('1550 nm'));
+  assert.ok(text.includes('1625 nm'));
+  assert.ok(text.includes('Differential (1550 - 1310):* 0.2 dB') || text.includes('Differential (1550 - 1310):* 0.20 dB'));
+  assert.ok(text.includes('Protected with wall cable clip.'));
+});
+
+test('generateBendLossCertHtml renders dual printable A4 cert and 80mm POS thermal slip', async () => {
+  const { generateBendLossCertHtml, BEND_VERDICTS } = await import('../form-validation.js');
+
+  const cert = {
+    id: 'BND-0044',
+    timestamp: '2026-10-16T16:00:00Z',
+    customerName: 'Zahid Mehmood',
+    customerNumber: '1099',
+    customerPhone: '+923007654321',
+    area: 'Mohalla Charyaa',
+    fiberType: 'G.657.A2',
+    radiusMm: 14.0,
+    turnsCount: 1,
+    loss1310Db: 0.05,
+    loss1550Db: 0.18,
+    loss1625Db: 0.50,
+    differential1550_1310Db: 0.13,
+    verdict: BEND_VERDICTS.OPTIMAL_PASS,
+    technicianName: 'Lineman Aslam',
+    notes: 'Clean bend arc maintained.'
+  };
+
+  const sheetHtml = generateBendLossCertHtml(cert, { format: 'sheet' });
+  assert.ok(sheetHtml.includes('SHAHDARA ISP BROADBAND &amp; OPTICAL NETWORKS'));
+  assert.ok(sheetHtml.includes('OUTSIDE PLANT &amp; SUBSCRIBER PREMISES BEND LOSS QA CERTIFICATE'));
+  assert.ok(sheetHtml.includes('Zahid Mehmood'));
+  assert.ok(sheetHtml.includes('BND-0044'));
+  assert.ok(sheetHtml.includes('SUBSCRIBER DETAILS'));
+
+  const slipHtml = generateBendLossCertHtml(cert, { format: 'slip' });
+  assert.ok(slipHtml.includes('bend-thermal-slip'));
+  assert.ok(slipHtml.includes('BEND RADIUS &amp; MACRO-BEND QA'));
+  assert.ok(slipHtml.includes('14 mm'));
+});
+
+test('generateBendLossCertsCsv produces RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { generateBendLossCertsCsv, BEND_VERDICTS } = await import('../form-validation.js');
+
+  const emptyCsv = generateBendLossCertsCsv([]);
+  assert.ok(emptyCsv.startsWith('\uFEFFInspection_ID,Date,Customer_No,Customer_Name'));
+
+  const records = [
+    {
+      id: 'BND-0001',
+      timestamp: '2026-10-16T12:00:00Z',
+      customerNumber: '1001',
+      customerName: 'Ali Raza, Khan',
+      customerPhone: '+923001112233',
+      area: 'Shahdara Town',
+      fiberType: 'G657A2',
+      radiusMm: 15,
+      turnsCount: 2,
+      microBendStressIndex: 0,
+      loss1310Db: 0.05,
+      loss1550Db: 0.20,
+      differential1550_1310Db: 0.15,
+      verdict: BEND_VERDICTS.OPTIMAL_PASS,
+      technicianName: 'Lineman Tariq',
+      notes: 'Pass, good loop.'
+    }
+  ];
+
+  const csv = generateBendLossCertsCsv(records);
+  assert.ok(csv.startsWith('\uFEFFInspection_ID'));
+  assert.ok(csv.includes('"Ali Raza, Khan"'));
+  assert.ok(csv.includes('"Pass, good loop."'));
+  assert.ok(csv.includes('BND-0001'));
+});
+
+test('UI wiring, index.html, styles.css, app.js and modal integration for bend loss cert', async () => {
+  const freshIndex = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const freshApp = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const freshStyles = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
+
+  // Trigger button
+  assert.match(freshIndex, /id="openBendLossCertBtn"/);
+  assert.match(freshIndex, /data-open-bend-loss-cert/);
+
+  // Modal dialog and elements
+  assert.match(freshIndex, /id="bendLossCertModal"/);
+  assert.match(freshIndex, /id="bendLossCertModalTitle"/);
+  assert.match(freshIndex, /id="bendLossCertModalCloseBtn"/);
+  assert.match(freshIndex, /id="bendLossSvgContainer"/);
+  assert.match(freshIndex, /id="bendLoss1310Readout"/);
+  assert.match(freshIndex, /id="bendLoss1550Readout"/);
+  assert.match(freshIndex, /id="bendLossDiffReadout"/);
+  assert.match(freshIndex, /id="bendLossVerdictBadge"/);
+  assert.match(freshIndex, /id="bendLossFiberSelect"/);
+  assert.match(freshIndex, /id="bendLossRadiusSlider"/);
+  assert.match(freshIndex, /id="bendLossRadiusVal"/);
+  assert.match(freshIndex, /id="bendLossTurnsSlider"/);
+  assert.match(freshIndex, /id="bendLossTurnsVal"/);
+  assert.match(freshIndex, /id="bendLossStressSlider"/);
+  assert.match(freshIndex, /id="bendLossStressVal"/);
+  assert.match(freshIndex, /id="bendCheckRosette"/);
+  assert.match(freshIndex, /id="bendCheckCorners"/);
+  assert.match(freshIndex, /id="bendCheckClips"/);
+  assert.match(freshIndex, /id="bendCheckEntry"/);
+  assert.match(freshIndex, /id="bendCheckOnu"/);
+  assert.match(freshIndex, /id="bendLossNotesInput"/);
+  assert.match(freshIndex, /id="bendLossRecordCertBtn"/);
+  assert.match(freshIndex, /id="bendLossCopyReportBtn"/);
+  assert.match(freshIndex, /id="bendLossPrintA4Btn"/);
+  assert.match(freshIndex, /id="bendLossPrintThermalBtn"/);
+  assert.match(freshIndex, /id="bendLossExportCsvBtn"/);
+  assert.match(freshIndex, /id="bendLossClearHistoryBtn"/);
+  assert.match(freshIndex, /id="bendLossHistoryTableBody"/);
+
+  // Styles
+  assert.match(freshStyles, /\.bend-loss-cert-modal-card/);
+  assert.match(freshStyles, /\.bend-loss-analysis-svg/);
+  assert.match(freshStyles, /\[data-theme="dark"\] \.bend-loss-cert-modal-card/);
+
+  // App.js
+  assert.match(freshApp, /setupBendLossCertModal/);
+  assert.match(freshApp, /customerBendLossModalController/);
+  assert.match(freshApp, /openBendLossCertBtn/);
+});
+
+test('calculateRecommendedSlackLoopDimensions computes safe rosette cassette clearance', async () => {
+  const { calculateRecommendedSlackLoopDimensions } = await import('../form-validation.js');
+
+  // G.657.A2 inside standard 86x86mm Pakistani faceplate rosette
+  const rosetteA2 = calculateRecommendedSlackLoopDimensions({
+    fiberType: 'G657A2',
+    enclosureWidthMm: 86,
+    enclosureHeightMm: 86,
+    targetSlackLengthMeters: 1.0
+  });
+
+  assert.equal(rosetteA2.isCompatible, true);
+  assert.equal(rosetteA2.minRadiusMm, 7.5);
+  assert.equal(rosetteA2.minCoilDiameterMm, 15.0);
+  assert.ok(rosetteA2.recommendedTurns >= 10);
+  assert.ok(rosetteA2.actualSlackStoredMeters >= 0.8);
+  assert.ok(rosetteA2.advisory.includes('Enclosure accommodates safe'));
+
+  // G.652.D inside small 50x50mm micro surface box (violates 60mm diameter requirement)
+  const legacyMicro = calculateRecommendedSlackLoopDimensions({
+    fiberType: 'G652D',
+    enclosureWidthMm: 50,
+    enclosureHeightMm: 50
+  });
+
+  assert.equal(legacyMicro.isCompatible, false);
+  assert.equal(legacyMicro.minCoilDiameterMm, 60.0);
+  assert.ok(legacyMicro.advisory.includes('INCOMPATIBLE'));
+});
+
+test('setupBendLossCertModal operates safely in headless and interactive mock DOM environments', async () => {
+  const { setupBendLossCertModal, BEND_LOSS_STORAGE_KEY } = await import('../form-validation.js');
+
+  // 1. Headless test
+  const headless = setupBendLossCertModal({ document: null, storage: null });
+  assert.equal(typeof headless.open, 'function');
+  assert.equal(typeof headless.close, 'function');
+  assert.equal(typeof headless.getCurrentReading, 'function');
+  assert.equal(typeof headless.setReading, 'function');
+  headless.open();
+  headless.setReading({ radiusMm: 20 });
+  headless.close();
+
+  // 2. Interactive Mock DOM test
+  const listeners = {};
+  const createElement = (tag, id, type = 'text', val = '') => ({
+    tagName: tag.toUpperCase(),
+    id,
+    type,
+    value: val,
+    checked: true,
+    textContent: '',
+    innerHTML: '',
+    className: '',
+    open: false,
+    attributes: {},
+    setAttribute(k, v) { this.attributes[k] = v; if (k === 'open') this.open = true; },
+    removeAttribute(k) { delete this.attributes[k]; if (k === 'open') this.open = false; },
+    showModal() { this.open = true; },
+    close() { this.open = false; },
+    addEventListener(evt, fn) {
+      if (!listeners[id]) listeners[id] = {};
+      listeners[id][evt] = fn;
+    },
+    click() {
+      if (listeners[id] && listeners[id].click) listeners[id].click();
+    }
+  });
+
+  const domElements = {
+    bendLossCertModal: createElement('dialog', 'bendLossCertModal'),
+    bendLossCertModalCloseBtn: createElement('button', 'bendLossCertModalCloseBtn'),
+    bendLossFiberSelect: createElement('select', 'bendLossFiberSelect', 'select-one', 'G657A2'),
+    bendLossRadiusSlider: createElement('input', 'bendLossRadiusSlider', 'range', '15.0'),
+    bendLossRadiusVal: createElement('strong', 'bendLossRadiusVal'),
+    bendLossTurnsSlider: createElement('input', 'bendLossTurnsSlider', 'range', '2'),
+    bendLossTurnsVal: createElement('strong', 'bendLossTurnsVal'),
+    bendLossStressSlider: createElement('input', 'bendLossStressSlider', 'range', '0'),
+    bendLossStressVal: createElement('strong', 'bendLossStressVal'),
+    bendLossNotesInput: createElement('input', 'bendLossNotesInput', 'text', 'Clean bend routing'),
+    bendCheckRosette: createElement('input', 'bendCheckRosette', 'checkbox'),
+    bendCheckCorners: createElement('input', 'bendCheckCorners', 'checkbox'),
+    bendCheckClips: createElement('input', 'bendCheckClips', 'checkbox'),
+    bendCheckEntry: createElement('input', 'bendCheckEntry', 'checkbox'),
+    bendCheckOnu: createElement('input', 'bendCheckOnu', 'checkbox'),
+    bendLossSvgContainer: createElement('div', 'bendLossSvgContainer'),
+    bendLoss1310Readout: createElement('div', 'bendLoss1310Readout'),
+    bendLoss1550Readout: createElement('div', 'bendLoss1550Readout'),
+    bendLossDiffReadout: createElement('div', 'bendLossDiffReadout'),
+    bendLossVerdictBadge: createElement('span', 'bendLossVerdictBadge'),
+    bendLossRecordCertBtn: createElement('button', 'bendLossRecordCertBtn'),
+    bendLossCopyReportBtn: createElement('button', 'bendLossCopyReportBtn'),
+    bendLossPrintA4Btn: createElement('button', 'bendLossPrintA4Btn'),
+    bendLossPrintThermalBtn: createElement('button', 'bendLossPrintThermalBtn'),
+    bendLossExportCsvBtn: createElement('button', 'bendLossExportCsvBtn'),
+    bendLossClearHistoryBtn: createElement('button', 'bendLossClearHistoryBtn'),
+    bendLossHistoryTableBody: createElement('tbody', 'bendLossHistoryTableBody')
+  };
+
+  const mockDoc = {
+    getElementById(id) { return domElements[id] || null; },
+    querySelectorAll(sel) { return []; },
+    createElement(tag) { return createElement(tag, `mock-${tag}`); }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] || null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let toastMessage = '';
+  const controller = setupBendLossCertModal({
+    document: mockDoc,
+    storage: mockStorage,
+    onToast: (msg) => { toastMessage = msg; },
+    getCustomerData: () => ({ name: 'Rashid Khan', customerNumber: '2045', phone: '+923009988776', area: 'Shahdara' })
+  });
+
+  // Open with customer
+  controller.open({ name: 'Rashid Khan', customerNumber: '2045', phone: '+923009988776', area: 'Shahdara' });
+  assert.equal(domElements.bendLossCertModal.open, true);
+  assert.ok(domElements.bendLoss1310Readout.textContent.includes('dB'));
+  assert.ok(domElements.bendLoss1550Readout.textContent.includes('dB'));
+  assert.ok(domElements.bendLossVerdictBadge.textContent.includes('PASS'));
+
+  // Test setReading
+  controller.setReading({ radiusMm: 12.0, turnsCount: 3, fiberType: 'G657A1' });
+  assert.equal(domElements.bendLossRadiusSlider.value, 12);
+  assert.equal(domElements.bendLossTurnsSlider.value, 3);
+  assert.equal(domElements.bendLossFiberSelect.value, 'G657A1');
+
+  // Trigger record
+  domElements.bendLossRecordCertBtn.click();
+  assert.ok(toastMessage.includes('Recorded Macro-Bend QA Certificate'));
+  assert.ok(store[BEND_LOSS_STORAGE_KEY]);
+  assert.ok(domElements.bendLossHistoryTableBody.innerHTML.includes('Rashid Khan'));
+
+  // Clear history
+  domElements.bendLossClearHistoryBtn.click();
+  assert.ok(toastMessage.includes('Cleared'));
+  assert.equal(store[BEND_LOSS_STORAGE_KEY], undefined);
+
+  // Close
+  controller.close();
+  assert.equal(domElements.bendLossCertModal.open, false);
+});
+
+
+

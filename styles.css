@@ -5668,3 +5668,44 @@ html, body {
   }
 }
 
+.bend-loss-cert-modal-card {
+  max-width: 920px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.bend-loss-analysis-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+  width: 100%;
+  max-width: 640px;
+  display: block;
+  margin: 0 auto;
+}
+
+.bend-loss-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+[data-theme="dark"] .bend-loss-cert-modal-card {
+  background: #141e24;
+  border-color: #25333d;
+  color: #e8eef3;
+}
+
+@media print {
+  .bend-loss-cert-modal,
+  .bend-loss-cert-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+

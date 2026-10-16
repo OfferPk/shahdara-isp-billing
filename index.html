@@ -748,7 +748,18 @@
             </div>
             <div id="dashboardKerrChart" class="chart-svg-container" role="img" aria-label="Optical Fiber Kerr Nonlinear Effects and Spectral Intermodulation Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-mpls-te">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Core MPLS Traffic Engineering &amp; FRR Headroom Matrix</h4>
+                <p class="chart-subtitle">RFC 3209 RSVP-TE explicit LSP routing, RFC 4090 sub-50ms facility bypass &amp; unreserved bandwidth</p>
+              </div>
+              <button id="dashboardOpenMplsTeModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MPLS-TE Diagnostics</button>
+            </div>
+            <div id="dashboardMplsTeChart" class="chart-svg-container" role="img" aria-label="Core MPLS-TE Topology and Bandwidth Headroom Chart"></div>
+          </article>
         </div>
+
 
 
 
@@ -3850,6 +3861,86 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="kerrFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
             <button id="kerrCopyReportBtn" class="primary-button" type="button">📋 Copy Optical Kerr Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardMplsTeModal" class="dashboard-modal mpls-te-modal" aria-labelledby="dashboardMplsTeModalTitle">
+        <div class="dashboard-modal-card mpls-te-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <span class="eyebrow">CORE METRO MPLS-TE TRAFFIC ENGINEERING MATRIX</span>
+              <h3 id="dashboardMplsTeModalTitle">RSVP-TE Bandwidth Headroom &amp; Fast Reroute Protection</h3>
+            </div>
+            <button id="dashboardMplsTeModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+          <p class="dashboard-modal-sub">RFC 3209 RSVP-TE Explicit Route Objects (ERO), RFC 4090 Fast Reroute (FRR) facility bypass with sub-50ms Point of Local Repair (PLR), and multi-priority unreserved headroom accounting.</p>
+
+          <div class="sim-controls-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="mplsTeTunnelSelect">Target MPLS-TE LSP:</label>
+              <select id="mplsTeTunnelSelect" class="form-select">
+                <option value="te-lsp-shahdara-ravi-101">LSP 101: Shahdara NOC -> Ravi Siphon Express (10G)</option>
+                <option value="te-lsp-shahdara-kam-102">LSP 102: Shahdara NOC -> Kot Abdul Malik DIA (10G)</option>
+                <option value="te-lsp-shahdara-vandala-103">LSP 103: Shahdara NOC -> Vandala Dist (10G)</option>
+                <option value="te-lsp-baradari-transit-104">LSP 104: Baradari -> Ravi Metro Backbone (20G)</option>
+                <option value="te-lsp-sheikhupura-peering-105">LSP 105: Shahdara Core -> Sheikhupura IXP (40G)</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="mplsTeFrrSelect">Fast Reroute (FRR) Protection:</label>
+              <select id="mplsTeFrrSelect" class="form-select">
+                <option value="FACILITY_BYPASS">RFC 4090 Facility Bypass (MP Label Stacking)</option>
+                <option value="DETOUR_1TO1">RFC 4090 1:1 Detour (Dedicated Backup)</option>
+              </select>
+            </div>
+            <div class="sim-control-group">
+              <label for="mplsTeCongestionSlider">Traffic Surge Factor: <span id="mplsTeCongestionValueLabel" class="sim-val-pill">+0%</span></label>
+              <input type="range" id="mplsTeCongestionSlider" min="0" max="100" step="5" value="0" class="otdr-slider">
+            </div>
+            <div class="sim-control-group" style="display: flex; flex-direction: column; justify-content: center;">
+              <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem; margin-top: 8px;">
+                <input type="checkbox" id="mplsTeLinkCutCheck">
+                <span>Inject Primary Link Cut (Trigger FRR)</span>
+              </label>
+            </div>
+            <div class="sim-control-group" style="display: flex; align-items: flex-end;">
+              <button id="mplsTeResetSimBtn" class="secondary-button" type="button">Reset Simulation</button>
+            </div>
+          </div>
+
+          <div class="ltv-kpis-summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">BANDWIDTH UTILIZATION</span>
+              <span id="mplsTeStatUtil" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">65%</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">UNRESERVED HEADROOM</span>
+              <span id="mplsTeStatHeadroom" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">3500 Mbps</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">FRR FAILOVER TIME</span>
+              <span id="mplsTeStatLatency" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">42.5 ms</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">CAPACITY DEFICIT</span>
+              <span id="mplsTeStatDeficit" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0 Mbps</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">LSP HEALTH STATUS</span>
+              <span id="mplsTeStatStatus" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">OPTIMAL</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">REVENUE AT RISK</span>
+              <span id="mplsTeStatRevenue" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">PKR 0</span>
+            </div>
+          </div>
+
+          <div id="mplsTeModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="MPLS Traffic Engineering and Fast Reroute Protection Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="mplsTeFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+            <button id="mplsTeCopyReportBtn" class="primary-button" type="button">📋 Copy MPLS-TE Briefing</button>
           </div>
         </div>
       </dialog>

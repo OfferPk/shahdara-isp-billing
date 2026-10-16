@@ -5653,3 +5653,22 @@ export {
   generateKerrReport,
   setupKerrModal
 } from './dashboard-kerr.js';
+
+export {
+  MPLS_TE_CONSTANTS,
+  SHAHDARA_TE_TUNNELS,
+  getMplsTeSelectedTunnel,
+  setMplsTeSelectedTunnel,
+  getMplsTeFrrMode,
+  setMplsTeFrrMode,
+  getMplsTeCongestionPct,
+  setMplsTeCongestionPct,
+  getMplsTeLinkCutInjected,
+  setMplsTeLinkCutInjected,
+  resetMplsTeSimState,
+  calculateMplsTeDynamics,
+  calculateMplsTeMetrics,
+  renderMplsTeDiagramSvg,
+  generateMplsTeReport,
+  setupMplsTeModal
+} from './dashboard-mpls-te.js';

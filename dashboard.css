@@ -2421,6 +2421,32 @@
   border-color: #1e3a5f;
 }
 
+.chart-card-mpls-te {
+  background: var(--surface, #ffffff);
+}
+
+.mpls-te-modal-card {
+  max-width: 980px;
+}
+
+.mpls-te-diagram-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-mpls-te {
+  background: #0f172a;
+  border-color: #1e3a5f;
+}
+
+[data-theme="dark"] .mpls-te-modal-card {
+  background: #0b1329;
+  border-color: #1e3a5f;
+}
+
+
 
 
 

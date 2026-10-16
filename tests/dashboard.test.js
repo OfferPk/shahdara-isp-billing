@@ -465,8 +465,25 @@ import {
   calculateKerrMetrics,
   renderKerrDiagramSvg,
   generateKerrReport,
-  setupKerrModal
+  setupKerrModal,
+  MPLS_TE_CONSTANTS,
+  SHAHDARA_TE_TUNNELS,
+  getMplsTeSelectedTunnel,
+  setMplsTeSelectedTunnel,
+  getMplsTeFrrMode,
+  setMplsTeFrrMode,
+  getMplsTeCongestionPct,
+  setMplsTeCongestionPct,
+  getMplsTeLinkCutInjected,
+  setMplsTeLinkCutInjected,
+  resetMplsTeSimState,
+  calculateMplsTeDynamics,
+  calculateMplsTeMetrics,
+  renderMplsTeDiagramSvg,
+  generateMplsTeReport,
+  setupMplsTeModal
 } from '../dashboard.js';
+
 
 
 
@@ -12436,4 +12453,308 @@ test('Kerr simulation state getters, setters, and boundary constraints work corr
   assert.equal(getKerrLaunchPowerDbm(), 3.0);
   assert.equal(getKerrChannelCount(), 16);
   assert.equal(getKerrGridSpacingGhz(), 100);
+});
+
+test('calculateMplsTeDynamics computes accurate headroom, unreserved bandwidth, and FRR local repair failover', () => {
+  // Default LSP 101: Shahdara NOC -> Ravi Siphon Express (10G)
+  const d = calculateMplsTeDynamics({
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    frrMode: 'FACILITY_BYPASS',
+    congestionPct: 0,
+    isLinkCut: false
+  });
+
+  assert.equal(d.tunnel.id, 'te-lsp-shahdara-ravi-101');
+  assert.equal(d.activeCapacityMbps, 10000);
+  assert.equal(d.nominalReservedMbps, 6500);
+  assert.equal(d.activeTrafficLoadMbps, 6500);
+  assert.equal(d.unreservedHeadroomMbps, 3500);
+  assert.equal(d.utilizationPct, 65);
+  assert.equal(d.failoverLatencyMs, 42.5);
+  assert.equal(d.isProtectionActive, false);
+  assert.equal(d.capacityDeficitMbps, 0);
+  assert.equal(d.status, MPLS_TE_CONSTANTS.STATUS.OPTIMAL);
+
+  // Congestion surge (+50%)
+  const cong = calculateMplsTeDynamics({
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    congestionPct: 50,
+    isLinkCut: false
+  });
+  assert.ok(cong.dynamicCongestionMbps > 0);
+  assert.ok(cong.utilizationPct >= 75);
+  assert.equal(cong.status, MPLS_TE_CONSTANTS.STATUS.WARNING);
+
+  // Severe Congestion (+95%) -> Critical status
+  const crit = calculateMplsTeDynamics({
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    congestionPct: 95,
+    isLinkCut: false
+  });
+  assert.ok(crit.utilizationPct >= 90);
+  assert.equal(crit.status, MPLS_TE_CONSTANTS.STATUS.CRITICAL);
+
+  // Link Cut Injection (Failover to Backup Bypass Tunnel)
+  const cut = calculateMplsTeDynamics({
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    isLinkCut: true
+  });
+  assert.equal(cut.isProtectionActive, true);
+  assert.deepEqual(cut.activePath, cut.tunnel.backupBypassTunnel.backupEroHops);
+  assert.equal(cut.status, MPLS_TE_CONSTANTS.STATUS.WARNING);
+  assert.ok(cut.statusReason.includes('Link cut detected'));
+
+  // Detour 1:1 Mode
+  const detour = calculateMplsTeDynamics({
+    frrMode: 'DETOUR_1TO1'
+  });
+  assert.equal(detour.failoverLatencyMs, 48.0);
+
+  // Fallbacks for invalid inputs
+  const fallbacks = calculateMplsTeDynamics({ tunnelId: 'invalid-id' });
+  assert.equal(fallbacks.tunnel.id, MPLS_TE_CONSTANTS.DEFAULT_TUNNEL_ID);
+});
+
+test('calculateMplsTeMetrics correlates LSP protection with live subscriber revenue and area segmentation', () => {
+  let state = createInitialState(['User A', 'User B', 'User C', 'User D']);
+  state.customers[0].area = 'Ravi Siphon';
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].bills = [{ month: '2026-10', dueAmount: '3000' }];
+
+  state.customers[1].area = 'Shahdara Town';
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].bills = [{ month: '2026-10', dueAmount: '2000' }];
+
+  state.customers[2].area = 'Kot Abdul Malik';
+  state.customers[2].serviceStatus = 'offline';
+  state.customers[2].bills = [{ month: '2026-10', dueAmount: '1500' }];
+
+  state.customers[3].area = 'Outside Area';
+  state.customers[3].serviceStatus = 'active';
+  state.customers[3].bills = [{ month: '2026-10', dueAmount: '5000' }];
+
+  // Optimal status -> 0 revenue at risk
+  const opt = calculateMplsTeMetrics(state, {
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    congestionPct: 0,
+    isLinkCut: false
+  });
+  assert.equal(opt.totalLinkedSubscribers, 3);
+  assert.equal(opt.activeLinkedSubscribers, 2);
+  assert.equal(opt.monthlyRecurringRevenuePkr, 5000); // 3000 + 2000
+  assert.equal(opt.revenueAtRiskPkr, 0);
+
+  // Warning status -> 35% revenue at risk
+  const warn = calculateMplsTeMetrics(state, {
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    congestionPct: 50,
+    isLinkCut: false
+  });
+  assert.equal(warn.dynamics.status, MPLS_TE_CONSTANTS.STATUS.WARNING);
+  assert.equal(warn.revenueAtRiskPkr, Math.round(5000 * 0.35));
+
+  // Critical status -> 100% revenue at risk
+  const crit = calculateMplsTeMetrics(state, {
+    tunnelId: 'te-lsp-shahdara-ravi-101',
+    congestionPct: 95,
+    isLinkCut: false
+  });
+  assert.equal(crit.dynamics.status, MPLS_TE_CONSTANTS.STATUS.CRITICAL);
+  assert.equal(crit.revenueAtRiskPkr, 5000);
+});
+
+test('renderMplsTeDiagramSvg and generateMplsTeReport output valid diagrams and briefing reports', () => {
+  const metrics = calculateMplsTeMetrics({}, { tunnelId: 'te-lsp-shahdara-ravi-101' });
+
+  // Standard Diagram SVG
+  const svg = renderMplsTeDiagramSvg(metrics, { compact: false });
+  assert.ok(svg.includes('<svg'), 'Must produce an SVG tag');
+  assert.ok(svg.includes('mpls-te-diagram-svg'), 'Must have mpls-te-diagram-svg class');
+  assert.ok(svg.includes('Point of Local Repair (PLR)'), 'Must render PLR node');
+  assert.ok(svg.includes('Merge Point (MP)'), 'Must render MP node');
+  assert.ok(svg.includes('OPTIMAL'), 'Must display status badge');
+
+  // Compact Diagram SVG
+  const compactSvg = renderMplsTeDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('viewBox="0 0 720 300"'), 'Compact SVG uses 720x300 viewBox');
+
+  // Link Cut SVG representation
+  const cutMetrics = calculateMplsTeMetrics({}, { tunnelId: 'te-lsp-shahdara-ravi-101', isLinkCut: true });
+  const cutSvg = renderMplsTeDiagramSvg(cutMetrics, { compact: false });
+  assert.ok(cutSvg.includes('CUT FAULT'), 'Cut state must display cut fault label');
+
+  // Briefing Report
+  const report = generateMplsTeReport(metrics);
+  assert.ok(report.includes('SHAHDARA METRO MPLS-TE & FAST REROUTE (FRR) PROTECTION BRIEFING'));
+  assert.ok(report.includes('RFC 3209 (RSVP-TE) / RFC 4090'));
+  assert.ok(report.includes('BANDWIDTH ACCOUNTING & UNRESERVED HEADROOM'));
+  assert.ok(report.includes('RECOMMENDED ACTION'));
+});
+
+test('setupMplsTeModal wires interactive controls, slider updates, link cut toggle, filtering, and report copy', async () => {
+  let state = createInitialState(['Client X']);
+  state.customers[0].area = 'Ravi Siphon';
+  state.customers[0].serviceStatus = 'active';
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  };
+
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+  const mockTunnelSelect = { value: 'te-lsp-shahdara-ravi-101', onchange: null };
+  const mockFrrSelect = { value: 'FACILITY_BYPASS', onchange: null };
+  const mockCongestionSlider = { value: '0', oninput: null };
+  const mockCongestionLabel = { textContent: '' };
+  const mockLinkCutCheck = { checked: false, onchange: null };
+  const mockResetBtn = { onclick: null };
+
+  const mockStatUtil = { textContent: '', style: {} };
+  const mockStatHeadroom = { textContent: '', style: {} };
+  const mockStatLatency = { textContent: '', style: {} };
+  const mockStatDeficit = { textContent: '', style: {} };
+  const mockStatStatus = { textContent: '', style: {} };
+  const mockStatRevenue = { textContent: '', style: {} };
+
+  const mockDiagramContainer = { innerHTML: '' };
+  const mockDashboardChart = { innerHTML: '' };
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: id => {
+      switch (id) {
+        case 'dashboardMplsTeModal': return mockModal;
+        case 'dashboardOpenMplsTeModalBtn': return mockOpenBtn;
+        case 'dashboardMplsTeModalCloseBtn': return mockCloseBtn;
+        case 'mplsTeTunnelSelect': return mockTunnelSelect;
+        case 'mplsTeFrrSelect': return mockFrrSelect;
+        case 'mplsTeCongestionSlider': return mockCongestionSlider;
+        case 'mplsTeCongestionValueLabel': return mockCongestionLabel;
+        case 'mplsTeLinkCutCheck': return mockLinkCutCheck;
+        case 'mplsTeResetSimBtn': return mockResetBtn;
+        case 'mplsTeStatUtil': return mockStatUtil;
+        case 'mplsTeStatHeadroom': return mockStatHeadroom;
+        case 'mplsTeStatLatency': return mockStatLatency;
+        case 'mplsTeStatDeficit': return mockStatDeficit;
+        case 'mplsTeStatStatus': return mockStatStatus;
+        case 'mplsTeStatRevenue': return mockStatRevenue;
+        case 'mplsTeModalDiagramContainer': return mockDiagramContainer;
+        case 'dashboardMplsTeChart': return mockDashboardChart;
+        case 'mplsTeFilterAreaBtn': return mockFilterAreaBtn;
+        case 'mplsTeCopyReportBtn': return mockCopyReportBtn;
+        default: return null;
+      }
+    }
+  };
+
+  let filterAreaInvoked = null;
+  let toastMessage = null;
+  let copiedClipboardText = null;
+
+  try {
+    setupMplsTeModal(state, {
+      onFilterArea: area => { filterAreaInvoked = area; },
+      onToast: msg => { toastMessage = msg; },
+      clipboard: {
+        writeText: async txt => { copiedClipboardText = txt; }
+      }
+    });
+
+    // Test initial rendering
+    assert.ok(mockStatUtil.textContent.includes('%'));
+    assert.ok(mockDiagramContainer.innerHTML.includes('<svg'));
+    assert.ok(mockDashboardChart.innerHTML.includes('<svg'));
+
+    // Test congestion slider interaction
+    mockCongestionSlider.value = '40';
+    mockCongestionSlider.oninput();
+    assert.equal(getMplsTeCongestionPct(), 40);
+    assert.ok(mockCongestionLabel.textContent.includes('+40%'));
+
+    // Test link cut checkbox interaction
+    mockLinkCutCheck.checked = true;
+    mockLinkCutCheck.onchange();
+    assert.equal(getMplsTeLinkCutInjected(), true);
+
+    // Test FRR select interaction
+    mockFrrSelect.value = 'DETOUR_1TO1';
+    mockFrrSelect.onchange();
+    assert.equal(getMplsTeFrrMode(), 'DETOUR_1TO1');
+
+    // Test tunnel select interaction
+    mockTunnelSelect.value = 'te-lsp-shahdara-kam-102';
+    mockTunnelSelect.onchange();
+    assert.equal(getMplsTeSelectedTunnel(), 'te-lsp-shahdara-kam-102');
+
+    // Test reset button
+    mockResetBtn.onclick();
+    assert.equal(getMplsTeSelectedTunnel(), MPLS_TE_CONSTANTS.DEFAULT_TUNNEL_ID);
+    assert.equal(getMplsTeLinkCutInjected(), false);
+
+    // Test filter area action
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaInvoked, 'Ravi Siphon');
+    assert.ok(toastMessage.includes('Ravi Siphon'));
+
+    // Test copy report action
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedClipboardText.includes('MPLS-TE & FAST REROUTE'));
+    assert.ok(toastMessage.includes('copied to clipboard'));
+
+    // Test open and close modal
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    mockCloseBtn.onclick();
+    assert.equal(modalClosed, true);
+
+  } finally {
+    globalThis.document = originalDocument;
+    resetMplsTeSimState();
+  }
+});
+
+test('MPLS-TE simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetMplsTeSimState();
+  assert.equal(getMplsTeSelectedTunnel(), 'te-lsp-shahdara-ravi-101');
+
+  // Tunnel selection
+  setMplsTeSelectedTunnel('te-lsp-baradari-transit-104');
+  assert.equal(getMplsTeSelectedTunnel(), 'te-lsp-baradari-transit-104');
+  setMplsTeSelectedTunnel('non-existent-tunnel');
+  assert.equal(getMplsTeSelectedTunnel(), 'te-lsp-baradari-transit-104');
+
+  // FRR mode
+  setMplsTeFrrMode('DETOUR_1TO1');
+  assert.equal(getMplsTeFrrMode(), 'DETOUR_1TO1');
+  setMplsTeFrrMode('INVALID_MODE');
+  assert.equal(getMplsTeFrrMode(), 'DETOUR_1TO1');
+
+  // Congestion percentage clamping [0, 100]
+  setMplsTeCongestionPct(60);
+  assert.equal(getMplsTeCongestionPct(), 60);
+  setMplsTeCongestionPct(150); // out of range -> unchanged
+  assert.equal(getMplsTeCongestionPct(), 60);
+  setMplsTeCongestionPct(-10); // out of range -> unchanged
+  assert.equal(getMplsTeCongestionPct(), 60);
+
+  // Link cut toggle
+  setMplsTeLinkCutInjected(true);
+  assert.equal(getMplsTeLinkCutInjected(), true);
+  setMplsTeLinkCutInjected(false);
+  assert.equal(getMplsTeLinkCutInjected(), false);
+
+  // Reset to default
+  resetMplsTeSimState();
+  assert.equal(getMplsTeSelectedTunnel(), 'te-lsp-shahdara-ravi-101');
+  assert.equal(getMplsTeFrrMode(), 'FACILITY_BYPASS');
+  assert.equal(getMplsTeCongestionPct(), 0);
+  assert.equal(getMplsTeLinkCutInjected(), false);
 });

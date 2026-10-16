@@ -2688,4 +2688,350 @@ test('setupMobileActionSheet supports customer contextual metadata and bottom na
   }
 });
 
+test('updateNavigationBadges computes active customer counts, overdue alert badges, and offline queue badges', async () => {
+  const { updateNavigationBadges } = await import('../nav.js');
+
+  const state = {
+    customers: [
+      { id: 'c1', name: 'Zahid', archived: false, status: 'active', bills: [{ dueAmount: '2000', status: 'pending' }] },
+      { id: 'c2', name: 'Kashif', archived: false, status: 'offline', bills: [{ dueAmount: '0', status: 'paid' }] },
+      { id: 'c3', name: 'Noman', archived: false, status: 'active', bills: [] },
+      { id: 'c4', name: 'Archived User', archived: true, status: 'active', bills: [{ dueAmount: '5000', status: 'pending' }] }
+    ],
+    expenses: [{ id: 'e1', amount: 500 }],
+    inventoryItems: [{ id: 'i1', name: 'Patch Cord' }, { id: 'i2', name: 'ONU' }]
+  };
+
+  const badgeEls = new Map();
+  function makeBadge() {
+    const classes = new Set();
+    const attrs = new Map();
+    return {
+      textContent: '',
+      hidden: true,
+      classList: {
+        toggle(cls, val) { if (val) classes.add(cls); else classes.delete(cls); },
+        contains(cls) { return classes.has(cls); }
+      },
+      setAttribute(k, v) { attrs.set(k, v); },
+      getAttribute(k) { return attrs.get(k); }
+    };
+  }
+
+  const custBadge = makeBadge();
+  const collBadge = makeBadge();
+  const moreBadge = makeBadge();
+  const expBadge = makeBadge();
+  const invBadge = makeBadge();
+
+  badgeEls.set('customers', [custBadge]);
+  badgeEls.set('collection', [collBadge]);
+  badgeEls.set('more', [moreBadge]);
+  badgeEls.set('expenses', [expBadge]);
+  badgeEls.set('inventory', [invBadge]);
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    querySelectorAll(sel) {
+      const match = sel.match(/\[data-nav-badge="([^"]+)"\]/);
+      if (match && badgeEls.has(match[1])) return badgeEls.get(match[1]);
+      return [];
+    }
+  };
+
+  try {
+    const res = updateNavigationBadges(state, { offlineQueueCount: 3 });
+
+    assert.equal(res.totalCustomers, 3);
+    assert.equal(res.overdueCount, 1);
+    assert.equal(res.offlineCount, 1);
+    assert.equal(res.expensesCount, 1);
+    assert.equal(res.inventoryCount, 2);
+    assert.equal(res.queueCount, 3);
+
+    assert.equal(custBadge.textContent, '3');
+    assert.equal(custBadge.hidden, false);
+    assert.equal(collBadge.textContent, '1');
+    assert.equal(collBadge.hidden, false);
+    assert.equal(collBadge.classList.contains('badge-alert'), true);
+    assert.equal(moreBadge.textContent, '3');
+    assert.equal(moreBadge.hidden, false);
+    assert.equal(moreBadge.classList.contains('badge-alert'), true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('calculateOpticalLinkBudget calculates link loss, Rx power, and diagnostic tiers correctly', async () => {
+  const { calculateOpticalLinkBudget } = await import('../nav.js');
+
+  // Baseline standard GPON drop (2.0 km, 1:8 splitter, 4 connectors)
+  const base = calculateOpticalLinkBudget({ distanceKm: 2.0, splitterRatio: '1:8' });
+  assert.equal(base.distanceKm, 2.0);
+  assert.equal(base.splitterRatio, '1:8');
+  assert.equal(base.splitterLossDb, 10.5);
+  assert.equal(base.fiberLossDb, 0.7);
+  assert.equal(base.connectorsLossDb, 1.6);
+  assert.equal(base.estRxPowerDbm, -8.3);
+  assert.ok(base.linkMarginDb > 0);
+  assert.equal(base.diagnosisTier, 'Excellent Optical Signal');
+  assert.equal(base.badgeClass, 'status-good');
+
+  // High attenuation link with long distance (8 km) and high-density 1:32 splitter
+  const highLoss = calculateOpticalLinkBudget({
+    distanceKm: 8.0,
+    splitterRatio: '1:32',
+    oltTxPowerDbm: 3.0,
+    connectorsCount: 6,
+    spliceLossDb: 0.5
+  });
+  assert.equal(highLoss.splitterLossDb, 17.1);
+  assert.equal(highLoss.fiberLossDb, 2.8);
+  assert.equal(highLoss.connectorsLossDb, 3.0);
+  assert.equal(highLoss.estRxPowerDbm, -19.9);
+  assert.equal(highLoss.diagnosisTier, 'Excellent Optical Signal');
+
+  // Critical fault condition exceeding ONU sensitivity
+  const fault = calculateOpticalLinkBudget({
+    distanceKm: 25.0,
+    splitterRatio: '1:64',
+    oltTxPowerDbm: 2.0,
+    connectorsCount: 8,
+    spliceLossDb: 0.6
+  });
+  assert.ok(fault.estRxPowerDbm < -28.0);
+  assert.equal(fault.diagnosisTier, 'Critical Attenuation / Link Fault');
+  assert.equal(fault.badgeClass, 'status-danger');
+});
+
+test('calculateBandwidthThrottle computes CIR floor, throughput and latency ratings', async () => {
+  const { calculateBandwidthThrottle } = await import('../nav.js');
+
+  const res15 = calculateBandwidthThrottle({ speedMbps: 15, contentionRatio: 8, simulatedLatencyMs: 12 });
+  assert.equal(res15.speedMbps, 15);
+  assert.equal(res15.downloadRateKBps, 1920);
+  assert.equal(res15.downloadRateMBps, 1.88);
+  assert.equal(res15.peakCirMbps, 1.88);
+  assert.equal(res15.streams1080p, 3);
+  assert.equal(res15.simulatedLatencyMs, 12);
+  assert.equal(res15.latencyRating, 'Ultra-Low Latency (Local GPON Gateway)');
+  assert.equal(res15.latencyBadge, 'status-good');
+
+  const res50 = calculateBandwidthThrottle({ speedMbps: 50, contentionRatio: 4, simulatedLatencyMs: 42 });
+  assert.equal(res50.speedMbps, 50);
+  assert.equal(res50.peakCirMbps, 12.5);
+  assert.equal(res50.streams4k, 2);
+  assert.equal(res50.latencyBadge, 'status-warn');
+});
+
+test('generateFieldDiagnosticReportText generates formatted technician report', async () => {
+  const { calculateOpticalLinkBudget, calculateBandwidthThrottle, generateFieldDiagnosticReportText } = await import('../nav.js');
+
+  const opt = calculateOpticalLinkBudget({ distanceKm: 2.5, splitterRatio: '1:8' });
+  const bw = calculateBandwidthThrottle({ speedMbps: 25, contentionRatio: 8 });
+  const text = generateFieldDiagnosticReportText(opt, bw, {
+    customerName: 'Muhammad Rizwan',
+    area: 'Saeed Park Hub'
+  });
+
+  assert.ok(text.includes('SHAHDARA ISP - FIELD CONNECTIVITY DIAGNOSTIC REPORT'));
+  assert.ok(text.includes('Target: Muhammad Rizwan'));
+  assert.ok(text.includes('Location: Saeed Park Hub'));
+  assert.ok(text.includes('Distance from OLT: 2.5 km'));
+  assert.ok(text.includes('Splitter Ratio: 1:8'));
+  assert.ok(text.includes('Subscribed Package Speed: 25 Mbps'));
+  assert.ok(text.includes('Technician Signature:'));
+});
+
+test('setupFieldDiagnosticsModal wires inputs, recalculates on change, handles ping test and clipboard', async () => {
+  const { setupFieldDiagnosticsModal } = await import('../nav.js');
+
+  let modalOpened = false;
+  let closeCalled = false;
+  const inputListeners = new Map();
+  const clickListeners = new Map();
+
+  function makeEl(id, val = '') {
+    return {
+      id,
+      value: val,
+      textContent: '',
+      className: '',
+      dataset: {},
+      addEventListener: (ev, fn) => { inputListeners.set(`${id}:${ev}`, fn); }
+    };
+  }
+
+  const modal = {
+    id: 'fieldDiagnosticsModal',
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; closeCalled = true; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; closeCalled = true; },
+    addEventListener: () => {}
+  };
+
+  const openBtn = {
+    dataset: { openFieldDiagnostics: 'true' },
+    addEventListener: (ev, fn) => { clickListeners.set('open', fn); }
+  };
+  const closeBtn = {
+    id: 'fieldDiagnosticsCloseBtn',
+    dataset: {},
+    addEventListener: (ev, fn) => { clickListeners.set('close', fn); }
+  };
+  const copyBtn = {
+    id: 'copyFieldDiagnosticReportBtn',
+    dataset: {},
+    addEventListener: (ev, fn) => { clickListeners.set('copy', fn); }
+  };
+  const pingBtn = {
+    id: 'runPingTestBtn',
+    dataset: {},
+    addEventListener: (ev, fn) => { clickListeners.set('ping', fn); }
+  };
+
+  const distInput = makeEl('diagDistanceInput', '3.5');
+  const splitterSelect = makeEl('diagSplitterSelect', '1:8');
+  const speedSelect = makeEl('diagSpeedSelect', '25');
+  const contentionSelect = makeEl('diagContentionSelect', '8');
+
+  const rxPowerVal = makeEl('diagRxPowerVal');
+  const linkMarginVal = makeEl('diagLinkMarginVal');
+  const diagStatusBadge = makeEl('diagStatusBadge');
+  const diagAdviceText = makeEl('diagAdviceText');
+  const maxSpeedVal = makeEl('diagMaxSpeedVal');
+  const cirFloorVal = makeEl('diagCirFloorVal');
+  const pingVal = makeEl('diagPingVal');
+  const pingBadge = makeEl('diagPingBadge');
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      if (id === 'fieldDiagnosticsModal') return modal;
+      if (id === 'fieldDiagnosticsCloseBtn') return closeBtn;
+      if (id === 'copyFieldDiagnosticReportBtn') return copyBtn;
+      if (id === 'runPingTestBtn') return pingBtn;
+      if (id === 'diagDistanceInput') return distInput;
+      if (id === 'diagSplitterSelect') return splitterSelect;
+      if (id === 'diagSpeedSelect') return speedSelect;
+      if (id === 'diagContentionSelect') return contentionSelect;
+      if (id === 'diagRxPowerVal') return rxPowerVal;
+      if (id === 'diagLinkMarginVal') return linkMarginVal;
+      if (id === 'diagStatusBadge') return diagStatusBadge;
+      if (id === 'diagAdviceText') return diagAdviceText;
+      if (id === 'diagMaxSpeedVal') return maxSpeedVal;
+      if (id === 'diagCirFloorVal') return cirFloorVal;
+      if (id === 'diagPingVal') return pingVal;
+      if (id === 'diagPingBadge') return pingBadge;
+      return null;
+    },
+    querySelectorAll(sel) {
+      if (sel === '[data-open-field-diagnostics]') return [openBtn];
+      return [];
+    }
+  };
+
+  let toasted = null;
+  let copied = null;
+  const mockClipboard = { writeText: async (t) => { copied = t; } };
+
+  try {
+    const diag = setupFieldDiagnosticsModal({
+      onToast: (msg) => { toasted = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(clickListeners.has('open'));
+    clickListeners.get('open')();
+    assert.equal(modalOpened, true);
+
+    assert.ok(rxPowerVal.textContent.includes('dBm'));
+    assert.ok(linkMarginVal.textContent.includes('dB'));
+    assert.ok(maxSpeedVal.textContent.includes('MB/s'));
+
+    // Trigger ping
+    clickListeners.get('ping')();
+    assert.ok(toasted.includes('Gateway ping test complete'));
+
+    // Trigger copy
+    await clickListeners.get('copy')();
+    assert.ok(copied.includes('SHAHDARA ISP - FIELD CONNECTIVITY DIAGNOSTIC REPORT'));
+    assert.equal(toasted, 'Diagnostic report copied to clipboard!');
+
+    // Close
+    clickListeners.get('close')();
+    assert.equal(closeCalled, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('updateNavigationBadges calculates overdue and queue metrics with alert styles', async () => {
+  const { updateNavigationBadges } = await import('../nav.js');
+  const classListSet = () => {
+    const s = new Set();
+    return {
+      add: (c) => s.add(c),
+      remove: (c) => s.delete(c),
+      toggle: (c, v) => (v ?? !s.has(c)) ? s.add(c) : s.delete(c),
+      contains: (c) => s.has(c)
+    };
+  };
+
+  const createBadgeEl = () => ({
+    textContent: '0',
+    hidden: true,
+    classList: classListSet(),
+    attributes: new Map(),
+    setAttribute(k, v) { this.attributes.set(k, v); },
+    getAttribute(k) { return this.attributes.get(k); }
+  });
+
+  const collBadge = createBadgeEl();
+  const moreBadge = createBadgeEl();
+  const custBadge = createBadgeEl();
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    querySelectorAll(sel) {
+      if (sel === '[data-nav-badge="collection"]') return [collBadge];
+      if (sel === '[data-nav-badge="more"]') return [moreBadge];
+      if (sel === '[data-nav-badge="customers"]') return [custBadge];
+      return [];
+    }
+  };
+
+  try {
+    const state = {
+      customers: [
+        { id: 'c1', status: 'active', bills: [{ dueAmount: 1500, status: 'unpaid' }] },
+        { id: 'c2', status: 'offline', bills: [{ dueAmount: 0, status: 'paid' }] },
+        { id: 'c3', archived: true, bills: [{ dueAmount: 3000, status: 'unpaid' }] }
+      ],
+      expenses: [],
+      inventoryItems: []
+    };
+
+    const res = updateNavigationBadges(state, { offlineQueueCount: 3 });
+
+    assert.equal(res.totalCustomers, 2);
+    assert.equal(res.overdueCount, 1);
+    assert.equal(res.offlineCount, 1);
+    assert.equal(res.queueCount, 3);
+
+    assert.equal(collBadge.textContent, '1');
+    assert.equal(collBadge.hidden, false);
+    assert.equal(collBadge.classList.contains('badge-alert'), true);
+
+    assert.equal(moreBadge.textContent, '3');
+    assert.equal(moreBadge.hidden, false);
+    assert.equal(moreBadge.classList.contains('badge-alert'), true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+
+
 

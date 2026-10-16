@@ -1963,7 +1963,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="openSpliceInspectionBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-splice-inspection title="Fiber Optic Splicing &amp; Joint Enclosure QA Inspection Checklist">🔬 Splicing QA</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -4319,6 +4319,192 @@
       <!-- Action Footer -->
       <div class="modal-form-actions kyc-modal-actions">
         <button id="exportEquipmentRetrievalCsvBtn" class="secondary-button" type="button">📥 Export CSV Register</button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="spliceInspectionModal" class="modal splice-modal" aria-labelledby="spliceInspectionModalTitle">
+    <section class="modal-card splice-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">OUTSIDE PLANT QUALITY ASSURANCE</p>
+          <h2 id="spliceInspectionModalTitle">Fiber Optic Splicing &amp; Joint Enclosure QA Manifest</h2>
+          <p class="urdu-subheading" dir="rtl">فائبر اسپلائسنگ، جوائنٹ کلوزر کوالٹی ایکسیپٹنس و معائنہ چیک لسٹ</p>
+        </div>
+        <button id="spliceInspectionCloseBtn" class="close-button" type="button" aria-label="Close splicing inspection modal">×</button>
+      </div>
+
+      <!-- KPI Metrics Ribbon -->
+      <div class="splice-metrics-ribbon">
+        <div class="splice-kpi-card">
+          <span class="splice-kpi-label">Total Inspected</span>
+          <strong id="spliceKpiTotal" class="splice-kpi-val">0</strong>
+          <span class="splice-kpi-sub">Field Joint Closures</span>
+        </div>
+        <div class="splice-kpi-card">
+          <span class="splice-kpi-label">Certified Pass Rate</span>
+          <strong id="spliceKpiPassRate" class="splice-kpi-val highlight-green">100%</strong>
+          <span class="splice-kpi-sub">≤ 0.05 dB/joint Standard</span>
+        </div>
+        <div class="splice-kpi-card">
+          <span class="splice-kpi-label">Average Splice Loss</span>
+          <strong id="spliceKpiAvgLoss" class="splice-kpi-val highlight-blue">0.000 dB</strong>
+          <span class="splice-kpi-sub">Single-Mode G.652.D</span>
+        </div>
+        <div class="splice-kpi-card">
+          <span class="splice-kpi-label">Pending Rework</span>
+          <strong id="spliceKpiFailed" class="splice-kpi-val highlight-red">0 Rework</strong>
+          <span class="splice-kpi-sub">High Loss / Unsealed</span>
+        </div>
+      </div>
+
+      <!-- Splicing Intake Form -->
+      <form id="spliceInspectionForm" class="splice-form">
+        <div class="splice-form-grid">
+          <div class="form-group">
+            <label for="spliceEnclosureIdInput">Enclosure / Pole Identifier *</label>
+            <input id="spliceEnclosureIdInput" class="work-order-input" type="text" placeholder="e.g. FDH-WND-01 / Pole #14" required>
+          </div>
+          <div class="form-group">
+            <label for="spliceLocationInput">Location / Sector / Span *</label>
+            <input id="spliceLocationInput" class="work-order-input" type="text" placeholder="e.g. Vandala Road Main Bazaar" required>
+          </div>
+          <div class="form-group">
+            <label for="spliceInspectorInput">Lead Splicer / Inspector *</label>
+            <input id="spliceInspectorInput" class="work-order-input" type="text" placeholder="e.g. Tariq Mehmood" required>
+          </div>
+          <div class="form-group">
+            <label for="spliceDateInput">Inspection Date *</label>
+            <input id="spliceDateInput" class="work-order-input" type="date" required>
+          </div>
+          <div class="form-group">
+            <label for="spliceCategorySelect">Operation Category *</label>
+            <select id="spliceCategorySelect" class="work-order-input" required>
+              <option value="NEW_DEPLOYMENT" selected>New Feeder / Distribution Deployment</option>
+              <option value="CUT_REPAIR">Emergency Fiber Cut Splicing Repair</option>
+              <option value="SPLITTER_EXPANSION">Splitter Expansion / FAT Branching</option>
+              <option value="MAINTENANCE_AUDIT">Scheduled Maintenance &amp; Cleaning Audit</option>
+              <option value="WEATHER_RESTORATION">Monsoon / Wind Storm Recovery</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="spliceCoresInput">Cores Spliced (1 - 96) *</label>
+            <input id="spliceCoresInput" class="work-order-input" type="number" min="1" max="96" value="12" required>
+          </div>
+          <div class="form-group">
+            <label for="spliceLossInput">Average Splice Loss (dB/joint) *</label>
+            <input id="spliceLossInput" class="work-order-input" type="number" step="0.001" min="0.001" max="2.000" value="0.035" required>
+          </div>
+          <div class="form-group">
+            <label for="spliceInputPowerInput">Input Power (dBm, optional)</label>
+            <input id="spliceInputPowerInput" class="work-order-input" type="number" step="0.01" min="-40" max="15" placeholder="e.g. 4.50">
+          </div>
+          <div class="form-group">
+            <label for="spliceOutputPowerInput">Output Power (dBm, optional)</label>
+            <input id="spliceOutputPowerInput" class="work-order-input" type="number" step="0.01" min="-40" max="15" placeholder="e.g. 4.25">
+          </div>
+          <div class="form-group splice-loss-calc-group">
+            <span class="splice-calc-label">Calculated Insertion Loss:</span>
+            <strong id="spliceInsertionLossDisplay" class="splice-calc-val">—</strong>
+          </div>
+        </div>
+
+        <!-- Physical Enclosure QA Checklist -->
+        <fieldset class="splice-checklist-fieldset">
+          <legend class="splice-checklist-legend">Physical Enclosure Integrity Checklist (Check all that apply)</legend>
+          <div class="splice-checkbox-grid">
+            <label class="splice-checkbox-label">
+              <input id="spliceCheckSealed" type="checkbox" checked>
+              <span>Waterproof rubber gasket sealed &amp; mechanical clamp tightened against monsoon dust/water ingress</span>
+            </label>
+            <label class="splice-checkbox-label">
+              <input id="spliceCheckTrays" type="checkbox" checked>
+              <span>Splice trays organized, heat shrink sleeves locked &amp; bend radius &gt; 30mm maintained</span>
+            </label>
+            <label class="splice-checkbox-label">
+              <input id="spliceCheckTies" type="checkbox" checked>
+              <span>Strength member mechanical clamp secured &amp; armored ground bonding connected</span>
+            </label>
+            <label class="splice-checkbox-label">
+              <input id="spliceCheckLabeled" type="checkbox" checked>
+              <span>Drop pigtails and fiber buffer tubes labeled with subscriber ferrule tags</span>
+            </label>
+            <label class="splice-checkbox-label">
+              <input id="spliceCheckSilica" type="checkbox" checked>
+              <span>Fresh silica gel moisture absorbing desiccant pack installed inside closure</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Live Verdict Preview Box -->
+        <div class="splice-preview-box">
+          <div class="splice-preview-status">
+            <span>Automated QA Verdict Preview:</span>
+            <span id="spliceVerdictPreviewBadge" class="splice-status-badge status-passed">🟢 Certified Passed</span>
+          </div>
+          <div class="form-group" style="margin-top: 8px;">
+            <label for="spliceNotesInput">Splicer Observations &amp; Fiber Tube Notes (optional):</label>
+            <input id="spliceNotesInput" class="work-order-input" type="text" placeholder="e.g. Tube 1 Blue &amp; Orange fused cleanly; no microbends detected.">
+          </div>
+        </div>
+
+        <div class="modal-form-actions" style="margin-top: 12px;">
+          <button id="submitSpliceInspectionBtn" class="primary-button" type="submit">💾 Certify &amp; Save QA Manifest</button>
+        </div>
+      </form>
+
+      <!-- Inspection History Filters & Search -->
+      <div class="kyc-controls-toolbar" style="margin-top: 18px;">
+        <div class="kyc-filter-group">
+          <label for="spliceFilterVerdictSelect">Filter Verdict</label>
+          <select id="spliceFilterVerdictSelect" class="kyc-select">
+            <option value="all" selected>All Verdicts</option>
+            <option value="PASSED_CERTIFIED">🟢 Certified Passed (≤ 0.05 dB)</option>
+            <option value="CONDITIONAL_PASS">🟡 Conditional Pass (0.06 - 0.12 dB)</option>
+            <option value="FAILED_REWORK">🔴 Failed - Rework Required</option>
+          </select>
+        </div>
+        <div class="kyc-filter-group">
+          <label for="spliceFilterCategorySelect">Filter Category</label>
+          <select id="spliceFilterCategorySelect" class="kyc-select">
+            <option value="all" selected>All Categories</option>
+            <option value="NEW_DEPLOYMENT">New Deployment</option>
+            <option value="CUT_REPAIR">Cut Repair</option>
+            <option value="SPLITTER_EXPANSION">Splitter Expansion</option>
+            <option value="MAINTENANCE_AUDIT">Maintenance Audit</option>
+            <option value="WEATHER_RESTORATION">Weather Restoration</option>
+          </select>
+        </div>
+        <div class="kyc-filter-group kyc-search-group">
+          <label for="spliceSearchInput">Search Inspections</label>
+          <input id="spliceSearchInput" class="kyc-input" type="search" placeholder="Search ticket #, pole, area, inspector, notes...">
+        </div>
+      </div>
+
+      <!-- Splicing History Table -->
+      <div class="table-scroll" style="max-height: 280px; overflow-y: auto;">
+        <table class="data-table" aria-label="Fiber Splicing QA Inspection Table">
+          <thead>
+            <tr>
+              <th>Ticket #</th>
+              <th>Date</th>
+              <th>Enclosure / Pole</th>
+              <th>Category</th>
+              <th>Cores</th>
+              <th>Avg Loss</th>
+              <th>QA Verdict</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="spliceTableBody">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="modal-form-actions kyc-modal-actions" style="margin-top: 14px;">
+        <button id="spliceExportCsvBtn" class="secondary-button" type="button">📥 Export Splicing CSV Register</button>
       </div>
     </section>
   </dialog>

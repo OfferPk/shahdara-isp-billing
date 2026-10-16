@@ -34,7 +34,8 @@ import {
   setupServiceContractModal,
   setupDisputeClaimModal,
   setupKycComplianceModal,
-  setupEquipmentRetrievalModal
+  setupEquipmentRetrievalModal,
+  setupSpliceInspectionModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3216,6 +3217,7 @@ export let customerServiceContractModalController;
 export let customerDisputeModalController;
 export let customerKycComplianceModalController;
 export let customerEquipmentRetrievalModalController;
+export let customerSpliceInspectionModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3330,6 +3332,19 @@ if (typeof document !== 'undefined') {
     openEquipmentRetrievalBtn.addEventListener('click', () => {
       const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
       customerEquipmentRetrievalModalController?.open(cust);
+    });
+  }
+
+  customerSpliceInspectionModalController = setupSpliceInspectionModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openSpliceInspectionBtn = $('#openSpliceInspectionBtn');
+  if (openSpliceInspectionBtn) {
+    openSpliceInspectionBtn.addEventListener('click', () => {
+      customerSpliceInspectionModalController?.open();
     });
   }
 }

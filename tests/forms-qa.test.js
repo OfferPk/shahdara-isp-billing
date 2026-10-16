@@ -3467,3 +3467,486 @@ test('DOM and styling: index.html, styles.css, and app.js wire Equipment Retriev
   assert.match(appJs, /customerEquipmentRetrievalModalController/);
   assert.match(appJs, /openEquipmentRetrievalBtn/);
 });
+
+test('validateSpliceInspection validates required fields, core counts, and loss boundaries strictly', async () => {
+  const { validateSpliceInspection } = await import('../form-validation.js');
+
+  // Valid payload
+  const valid = validateSpliceInspection({
+    enclosureId: 'FDH-WND-01',
+    location: 'Wandala Road Main Chowk',
+    inspectorName: 'Umair Lead Splicer',
+    inspectionDate: '2026-10-16',
+    category: 'NEW_DEPLOYMENT',
+    coresCount: 24,
+    averageLossDb: 0.035,
+    inputPowerDbm: 4.50,
+    outputPowerDbm: 4.25,
+    checklist: {
+      closureSealed: true,
+      spliceTraysOrganized: true,
+      cableTiesSecured: true,
+      dropPigtailsLabeled: true,
+      silicaGelReplaced: true
+    },
+    notes: 'Fusion arc calibrated on Fujikura 88S.'
+  });
+
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+  assert.equal(valid.sanitized.enclosureId, 'FDH-WND-01');
+  assert.equal(valid.sanitized.coresCount, 24);
+  assert.equal(valid.sanitized.averageLossDb, 0.035);
+
+  // Invalid payload checks
+  const invalid = validateSpliceInspection({
+    enclosureId: '',
+    location: '',
+    inspectorName: 'A',
+    inspectionDate: 'invalid-date',
+    category: 'UNKNOWN_CATEGORY',
+    coresCount: 150,
+    averageLossDb: -0.5,
+    inputPowerDbm: 100
+  });
+
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 7);
+  assert.ok(invalid.errors.some(e => e.includes('Enclosure / Pole ID is required')));
+  assert.ok(invalid.errors.some(e => e.includes('Installation location')));
+  assert.ok(invalid.errors.some(e => e.includes('Lead Splicer')));
+  assert.ok(invalid.errors.some(e => e.includes('Valid inspection date')));
+  assert.ok(invalid.errors.some(e => e.includes('splicing operation category')));
+  assert.ok(invalid.errors.some(e => e.includes('cores spliced must be an integer')));
+  assert.ok(invalid.errors.some(e => e.includes('Average splice loss must be a positive number')));
+  assert.ok(invalid.errors.some(e => e.includes('Input optical power must be between')));
+});
+
+test('calculateSpliceInsertionLoss computes optical attenuation accurately', async () => {
+  const { calculateSpliceInsertionLoss } = await import('../form-validation.js');
+
+  assert.equal(calculateSpliceInsertionLoss(4.50, 4.20), 0.30);
+  assert.equal(calculateSpliceInsertionLoss(4.50, 4.50), 0);
+  assert.equal(calculateSpliceInsertionLoss(4.00, 4.50), 0); // clamped to non-negative
+  assert.equal(calculateSpliceInsertionLoss(null, 4.20), null);
+  assert.equal(calculateSpliceInsertionLoss('abc', 4.20), null);
+});
+
+test('determineSpliceVerdict classifies joint quality according to ITU-T and OSP standards', async () => {
+  const { determineSpliceVerdict } = await import('../form-validation.js');
+
+  // Case 1: ≤ 0.05 dB with enclosure sealed and trays organized -> Certified Passed
+  const v1 = determineSpliceVerdict(0.035, {
+    closureSealed: true,
+    spliceTraysOrganized: true,
+    cableTiesSecured: true
+  });
+  assert.equal(v1.verdict, 'PASSED_CERTIFIED');
+  assert.ok(v1.label.includes('Certified Passed'));
+  assert.equal(v1.statusClass, 'status-passed');
+
+  // Case 2: 0.08 dB with sealed enclosure -> Conditional Pass
+  const v2 = determineSpliceVerdict(0.085, { closureSealed: true });
+  assert.equal(v2.verdict, 'CONDITIONAL_PASS');
+  assert.ok(v2.label.includes('Conditional Pass'));
+  assert.equal(v2.statusClass, 'status-conditional');
+
+  // Case 3: > 0.12 dB -> Failed Rework Required
+  const v3 = determineSpliceVerdict(0.180, { closureSealed: true });
+  assert.equal(v3.verdict, 'FAILED_REWORK');
+  assert.ok(v3.label.includes('Failed - Rework Required'));
+  assert.equal(v3.statusClass, 'status-failed');
+
+  // Case 4: Excellent loss but unsealed enclosure -> Failed
+  const v4 = determineSpliceVerdict(0.025, { closureSealed: false });
+  assert.equal(v4.verdict, 'FAILED_REWORK');
+  assert.ok(v4.reason.includes('Enclosure rubber gasket not sealed'));
+});
+
+test('buildSpliceInspectionRecord constructs sequential inspection ticket with timestamps', async () => {
+  const { buildSpliceInspectionRecord } = await import('../form-validation.js');
+
+  const record = buildSpliceInspectionRecord({
+    enclosureId: 'FAT-BR-05',
+    location: 'Ravi Riverfront Bridge Mast',
+    inspectorName: 'Khurram Technician',
+    inspectionDate: '2026-10-16',
+    category: 'WEATHER_RESTORATION',
+    coresCount: 8,
+    averageLossDb: 0.040,
+    inputPowerDbm: 4.80,
+    outputPowerDbm: 4.30,
+    checklist: {
+      closureSealed: true,
+      spliceTraysOrganized: true,
+      cableTiesSecured: true,
+      dropPigtailsLabeled: true,
+      silicaGelReplaced: true
+    },
+    notes: 'Wind storm snapped drop cable respliced.'
+  });
+
+  assert.match(record.id, /^SPL-202610-\d{4}$/);
+  assert.equal(record.enclosureId, 'FAT-BR-05');
+  assert.equal(record.category, 'WEATHER_RESTORATION');
+  assert.equal(record.coresCount, 8);
+  assert.equal(record.averageLossDb, 0.040);
+  assert.equal(record.insertionLossDb, 0.50);
+  assert.equal(record.verdict, 'PASSED_CERTIFIED');
+  assert.ok(record.createdAt);
+});
+
+test('splice inspection storage functions manage local persistence, status updates, and clearing', async () => {
+  const {
+    getSavedSpliceInspections,
+    saveSpliceInspection,
+    updateSpliceInspectionStatus,
+    clearSpliceInspections,
+    buildSpliceInspectionRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedSpliceInspections(mockStorage), []);
+
+  const rec1 = buildSpliceInspectionRecord({
+    enclosureId: 'FDH-SPD-02',
+    location: 'Saeed Park Tubewell',
+    inspectorName: 'Farhan Lead',
+    inspectionDate: '2026-10-16',
+    category: 'CUT_REPAIR',
+    coresCount: 12,
+    averageLossDb: 0.150,
+    checklist: { closureSealed: true }
+  });
+
+  saveSpliceInspection(rec1, mockStorage);
+  let saved = getSavedSpliceInspections(mockStorage);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].id, rec1.id);
+  assert.equal(saved[0].verdict, 'FAILED_REWORK');
+
+  // Update status to passed after rework
+  const updated = updateSpliceInspectionStatus(rec1.id, 'PASSED_CERTIFIED', 'Re-spliced with zero bubbles.', mockStorage);
+  assert.ok(updated);
+  assert.equal(updated.verdict, 'PASSED_CERTIFIED');
+
+  saved = getSavedSpliceInspections(mockStorage);
+  assert.equal(saved[0].verdict, 'PASSED_CERTIFIED');
+  assert.ok(saved[0].notes.includes('Re-spliced with zero bubbles'));
+
+  clearSpliceInspections(mockStorage);
+  assert.deepEqual(getSavedSpliceInspections(mockStorage), []);
+});
+
+test('calculateSpliceInspectionMetrics aggregates KPIs and applies category/verdict/search filters', async () => {
+  const { calculateSpliceInspectionMetrics } = await import('../form-validation.js');
+
+  const mockRecords = [
+    { id: 'SPL-01', enclosureId: 'FDH-01', location: 'Wandala', category: 'NEW_DEPLOYMENT', coresCount: 12, averageLossDb: 0.030, verdict: 'PASSED_CERTIFIED' },
+    { id: 'SPL-02', enclosureId: 'FAT-02', location: 'Saeed Park', category: 'CUT_REPAIR', coresCount: 8, averageLossDb: 0.080, verdict: 'CONDITIONAL_PASS' },
+    { id: 'SPL-03', enclosureId: 'FAT-03', location: 'Jia Musa', category: 'CUT_REPAIR', coresCount: 24, averageLossDb: 0.160, verdict: 'FAILED_REWORK' }
+  ];
+
+  const metrics = calculateSpliceInspectionMetrics(mockRecords);
+  assert.equal(metrics.totalInspections, 3);
+  assert.equal(metrics.passedCount, 1);
+  assert.equal(metrics.conditionalCount, 1);
+  assert.equal(metrics.failedCount, 1);
+  assert.equal(metrics.passRatePct, 33);
+  assert.equal(metrics.totalCoresSpliced, 44);
+  assert.equal(metrics.reworkPendingCount, 1);
+  assert.equal(metrics.averageLossDb, 0.090);
+
+  // Filter by category
+  const cutRepairMetrics = calculateSpliceInspectionMetrics(mockRecords, { category: 'CUT_REPAIR' });
+  assert.equal(cutRepairMetrics.filteredRecords.length, 2);
+
+  // Filter by verdict
+  const failedMetrics = calculateSpliceInspectionMetrics(mockRecords, { verdict: 'FAILED_REWORK' });
+  assert.equal(failedMetrics.filteredRecords.length, 1);
+  assert.equal(failedMetrics.filteredRecords[0].id, 'SPL-03');
+
+  // Search query
+  const searchMetrics = calculateSpliceInspectionMetrics(mockRecords, { search: 'Jia Musa' });
+  assert.equal(searchMetrics.filteredRecords.length, 1);
+  assert.equal(searchMetrics.filteredRecords[0].enclosureId, 'FAT-03');
+});
+
+test('formatSpliceInspectionWhatsApp formats structured bilingual field notification text', async () => {
+  const { formatSpliceInspectionWhatsApp } = await import('../form-validation.js');
+
+  const record = {
+    id: 'SPL-202610-1234',
+    inspectionDate: '2026-10-16',
+    enclosureId: 'FDH-WND-01',
+    location: 'Wandala Road Main Chowk',
+    inspectorName: 'Umair Lead Splicer',
+    category: 'NEW_DEPLOYMENT',
+    coresCount: 24,
+    averageLossDb: 0.032,
+    inputPowerDbm: 4.50,
+    outputPowerDbm: 4.20,
+    insertionLossDb: 0.30,
+    verdict: 'PASSED_CERTIFIED',
+    verdictLabel: '🟢 Certified Passed (Loss ≤ 0.05 dB)',
+    checklist: {
+      closureSealed: true,
+      spliceTraysOrganized: true,
+      cableTiesSecured: true,
+      dropPigtailsLabeled: true,
+      silicaGelReplaced: true
+    },
+    notes: 'Fiber tube 1 & 2 verified.'
+  };
+
+  const text = formatSpliceInspectionWhatsApp(record);
+  assert.match(text, /SHAHDARA FIBER NETWORK — OSP SPLICING QA CERTIFICATE/);
+  assert.match(text, /SPL-202610-1234/);
+  assert.match(text, /FDH-WND-01/);
+  assert.match(text, /Wandala Road Main Chowk/);
+  assert.match(text, /Umair Lead Splicer/);
+  assert.match(text, /24 Cores/);
+  assert.match(text, /0.032 dB/);
+  assert.match(text, /Total Insertion Loss: 0.3 dB/);
+  assert.match(text, /Certified Passed/);
+  assert.match(text, /Closure Gasket Sealed: ✅/);
+  assert.match(text, /Fiber tube 1 & 2 verified/);
+});
+
+test('generateSpliceInspectionHtml creates standard A4 certificate and thermal 80mm slip', async () => {
+  const { generateSpliceInspectionHtml } = await import('../form-validation.js');
+
+  const record = {
+    id: 'SPL-202610-9876',
+    inspectionDate: '2026-10-16',
+    enclosureId: 'FDH-STN-04',
+    location: 'Shahdara Station Flyover Pillar',
+    inspectorName: 'Tariq Field Lead',
+    category: 'SPLITTER_EXPANSION',
+    coresCount: 16,
+    averageLossDb: 0.045,
+    inputPowerDbm: 4.80,
+    outputPowerDbm: 4.35,
+    insertionLossDb: 0.45,
+    verdict: 'PASSED_CERTIFIED',
+    verdictLabel: '🟢 Certified Passed',
+    checklist: {
+      closureSealed: true,
+      spliceTraysOrganized: true,
+      cableTiesSecured: true,
+      dropPigtailsLabeled: true,
+      silicaGelReplaced: true
+    },
+    notes: 'Expanded 1:16 PLC splitter on port 4.'
+  };
+
+  // Standard A4 Layout
+  const standardHtml = generateSpliceInspectionHtml(record, { format: 'standard' });
+  assert.match(standardHtml, /SHAHDARA FIBER NETWORK \(PVT\) LTD/);
+  assert.match(standardHtml, /SPL-202610-9876/);
+  assert.match(standardHtml, /FDH-STN-04/);
+  assert.match(standardHtml, /16 Cores/);
+  assert.match(standardHtml, /0.045 dB/);
+  assert.match(standardHtml, /Lead Splicer Signature/);
+  assert.match(standardHtml, /OSP QA Manager/);
+
+  // Thermal 80mm Layout
+  const thermalHtml = generateSpliceInspectionHtml(record, { format: 'thermal' });
+  assert.match(thermalHtml, /thermal-splice-slip/);
+  assert.match(thermalHtml, /SHAHDARA FIBER NET/);
+  assert.match(thermalHtml, /SPL-202610-9876/);
+  assert.match(thermalHtml, /Splicer Sign &amp; Date/);
+});
+
+test('generateSpliceInspectionCsv creates RFC-4180 compliant CSV export with UTF-8 BOM', async () => {
+  const { generateSpliceInspectionCsv } = await import('../form-validation.js');
+
+  const records = [
+    {
+      id: 'SPL-202610-1111',
+      inspectionDate: '2026-10-16',
+      enclosureId: 'FAT-JM-03',
+      location: 'Jia Musa Main Bazaar',
+      category: 'CUT_REPAIR',
+      coresCount: 8,
+      averageLossDb: 0.028,
+      inputPowerDbm: 4.20,
+      outputPowerDbm: 4.00,
+      insertionLossDb: 0.20,
+      checklist: {
+        closureSealed: true,
+        spliceTraysOrganized: true,
+        cableTiesSecured: true,
+        dropPigtailsLabeled: true,
+        silicaGelReplaced: true
+      },
+      verdict: 'PASSED_CERTIFIED',
+      inspectorName: 'Umair Lead',
+      notes: 'Road construction cut fixed.'
+    }
+  ];
+
+  const csv = generateSpliceInspectionCsv(records);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /Inspection ID,Date,Enclosure \/ Pole ID,Location/);
+  assert.match(csv, /SPL-202610-1111,2026-10-16,FAT-JM-03,"?Jia Musa Main Bazaar"?,CUT_REPAIR,8,0\.028/);
+  assert.match(csv, /PASS,PASS,PASS,PASS,PASS,PASSED_CERTIFIED,"?Umair Lead"?,"?Road construction cut fixed\.?"?/);
+});
+
+test('setupSpliceInspectionModal wires interactive modal controls, form submission, and live preview', async () => {
+  const { setupSpliceInspectionModal } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const modalEl = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  };
+
+  const closeBtn = { addEventListener: () => {} };
+  const formEl = { addEventListener: () => {}, reset: () => {} };
+  const enclosureInput = { value: 'FDH-WND-01' };
+  const locationInput = { value: 'Wandala Road' };
+  const inspectorInput = { value: 'Umair Lead' };
+  const dateInput = { value: '2026-10-16' };
+  const categorySelect = { value: 'NEW_DEPLOYMENT' };
+  const coresInput = { value: '12' };
+  const lossInput = { value: '0.035', addEventListener: () => {} };
+  const inputPowerInput = { value: '4.50', addEventListener: () => {} };
+  const outputPowerInput = { value: '4.25', addEventListener: () => {} };
+  const insertionLossDisplay = { textContent: '' };
+  const verdictPreviewBadge = { textContent: '', className: '' };
+  const notesInput = { value: 'Clean splice' };
+
+  const checkSealed = { checked: true, addEventListener: () => {} };
+  const checkTrays = { checked: true, addEventListener: () => {} };
+  const checkTies = { checked: true, addEventListener: () => {} };
+  const checkLabeled = { checked: true, addEventListener: () => {} };
+  const checkSilica = { checked: true, addEventListener: () => {} };
+
+  const kpiTotal = { textContent: '' };
+  const kpiPassRate = { textContent: '' };
+  const kpiAvgLoss = { textContent: '' };
+  const kpiFailed = { textContent: '' };
+
+  const filterVerdictSelect = { value: 'all', addEventListener: () => {} };
+  const filterCategorySelect = { value: 'all', addEventListener: () => {} };
+  const searchInput = { value: '', addEventListener: () => {} };
+  const tableBody = { innerHTML: '', querySelectorAll: () => [] };
+  const exportCsvBtn = { addEventListener: () => {} };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'spliceInspectionModal') return modalEl;
+      if (id === 'spliceInspectionCloseBtn') return closeBtn;
+      if (id === 'spliceInspectionForm') return formEl;
+      if (id === 'spliceEnclosureIdInput') return enclosureInput;
+      if (id === 'spliceLocationInput') return locationInput;
+      if (id === 'spliceInspectorInput') return inspectorInput;
+      if (id === 'spliceDateInput') return dateInput;
+      if (id === 'spliceCategorySelect') return categorySelect;
+      if (id === 'spliceCoresInput') return coresInput;
+      if (id === 'spliceLossInput') return lossInput;
+      if (id === 'spliceInputPowerInput') return inputPowerInput;
+      if (id === 'spliceOutputPowerInput') return outputPowerInput;
+      if (id === 'spliceInsertionLossDisplay') return insertionLossDisplay;
+      if (id === 'spliceVerdictPreviewBadge') return verdictPreviewBadge;
+      if (id === 'spliceNotesInput') return notesInput;
+      if (id === 'spliceCheckSealed') return checkSealed;
+      if (id === 'spliceCheckTrays') return checkTrays;
+      if (id === 'spliceCheckTies') return checkTies;
+      if (id === 'spliceCheckLabeled') return checkLabeled;
+      if (id === 'spliceCheckSilica') return checkSilica;
+      if (id === 'spliceKpiTotal') return kpiTotal;
+      if (id === 'spliceKpiPassRate') return kpiPassRate;
+      if (id === 'spliceKpiAvgLoss') return kpiAvgLoss;
+      if (id === 'spliceKpiFailed') return kpiFailed;
+      if (id === 'spliceFilterVerdictSelect') return filterVerdictSelect;
+      if (id === 'spliceFilterCategorySelect') return filterCategorySelect;
+      if (id === 'spliceSearchInput') return searchInput;
+      if (id === 'spliceTableBody') return tableBody;
+      if (id === 'spliceExportCsvBtn') return exportCsvBtn;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('[data-open-splice-inspection]')) return [];
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupSpliceInspectionModal({
+      getState: () => ({ customers: [] }),
+      storage: mockStorage
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.recalculate, 'function');
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+
+    controller.open();
+    assert.equal(modalOpened, true);
+
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Fiber Splicing QA Manifest completely', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /id="openSpliceInspectionBtn"/);
+  assert.match(indexHtml, /<dialog id="spliceInspectionModal" class="modal splice-modal"/);
+  assert.match(indexHtml, /id="spliceInspectionCloseBtn"/);
+  assert.match(indexHtml, /id="spliceKpiTotal"/);
+  assert.match(indexHtml, /id="spliceKpiPassRate"/);
+  assert.match(indexHtml, /id="spliceKpiAvgLoss"/);
+  assert.match(indexHtml, /id="spliceKpiFailed"/);
+  assert.match(indexHtml, /id="spliceInspectionForm"/);
+  assert.match(indexHtml, /id="spliceEnclosureIdInput"/);
+  assert.match(indexHtml, /id="spliceLocationInput"/);
+  assert.match(indexHtml, /id="spliceInspectorInput"/);
+  assert.match(indexHtml, /id="spliceCategorySelect"/);
+  assert.match(indexHtml, /id="spliceLossInput"/);
+  assert.match(indexHtml, /id="spliceInsertionLossDisplay"/);
+  assert.match(indexHtml, /id="spliceCheckSealed"/);
+  assert.match(indexHtml, /id="spliceVerdictPreviewBadge"/);
+  assert.match(indexHtml, /id="spliceTableBody"/);
+  assert.match(indexHtml, /id="spliceExportCsvBtn"/);
+
+  // styles.css checks
+  assert.match(stylesCss, /\.splice-modal-card/);
+  assert.match(stylesCss, /\.splice-metrics-ribbon/);
+  assert.match(stylesCss, /\.splice-kpi-card/);
+  assert.match(stylesCss, /\.splice-form/);
+  assert.match(stylesCss, /\.splice-form-grid/);
+  assert.match(stylesCss, /\.splice-checklist-fieldset/);
+  assert.match(stylesCss, /\.splice-status-badge/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.splice-modal-card/);
+
+  // app.js checks
+  assert.match(appJs, /setupSpliceInspectionModal/);
+  assert.match(appJs, /customerSpliceInspectionModalController/);
+  assert.match(appJs, /openSpliceInspectionBtn/);
+});

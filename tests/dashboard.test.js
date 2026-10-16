@@ -184,7 +184,22 @@ import {
   calculateFusionSplicerMetrics,
   renderFusionSplicerSvg,
   generateFusionSplicerReport,
-  setupFusionSplicerModal
+  setupFusionSplicerModal,
+  SHAHDARA_BGP_PEERS,
+  BGP_CONSTANTS,
+  getBgpSelectedPeer,
+  setBgpSelectedPeer,
+  getBgpFlapCount,
+  setBgpFlapCount,
+  getBgpSuppressThreshold,
+  setBgpSuppressThreshold,
+  resetBgpSimState,
+  calculateBgpFlapPenalty,
+  calculateRouteConvergenceTime,
+  calculateBgpPeeringMetrics,
+  renderBgpRoutingConvergenceSvg,
+  generateBgpRoutingReport,
+  setupBgpRoutingModal
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -7056,6 +7071,308 @@ test('setupFusionSplicerModal wires interactive controls, sliders, reset, filter
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA FTTH FUSION SPLICER ELECTRODE WEAR & ARC DIAGNOSTICS AUDIT'));
     assert.equal(toastMessage, 'Fusion splicer maintenance briefing copied to clipboard!');
+
+    // Test close
+    assert.ok(closeClickHandler !== null);
+    closeClickHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateBgpFlapPenalty calculates RFC 2439 exponential penalty decay and half-life dynamics', () => {
+  // Test zero flaps
+  const zeroResult = calculateBgpFlapPenalty(0, 0);
+  assert.equal(zeroResult.initialPenalty, 0);
+  assert.equal(zeroResult.currentPenalty, 0);
+  assert.equal(zeroResult.decayFactor, 1.0);
+
+  // Test 2 flaps at t = 0 min
+  const t0Result = calculateBgpFlapPenalty(2, 0, 15);
+  assert.equal(t0Result.initialPenalty, 2000);
+  assert.equal(t0Result.currentPenalty, 2000);
+  assert.equal(t0Result.decayFactor, 1.0);
+  assert.equal(t0Result.halfLifeMins, 15);
+
+  // Test 2 flaps after 1 half-life (15 min) -> penalty should halve to 1000
+  const t15Result = calculateBgpFlapPenalty(2, 15, 15);
+  assert.equal(t15Result.initialPenalty, 2000);
+  assert.equal(t15Result.currentPenalty, 1000);
+  assert.equal(t15Result.decayFactor, 0.5);
+
+  // Test 2 flaps after 2 half-lives (30 min) -> penalty should quarter to 500
+  const t30Result = calculateBgpFlapPenalty(2, 30, 15);
+  assert.equal(t30Result.initialPenalty, 2000);
+  assert.equal(t30Result.currentPenalty, 500);
+  assert.equal(t30Result.decayFactor, 0.25);
+
+  // Test 4 flaps after 45 min (3 half-lives) -> 4000 * 0.125 = 500
+  const t45Result = calculateBgpFlapPenalty(4, 45, 15);
+  assert.equal(t45Result.initialPenalty, 4000);
+  assert.equal(t45Result.currentPenalty, 500);
+
+  // Fallback / negative handling
+  const safeNeg = calculateBgpFlapPenalty(-5, -10, -3);
+  assert.equal(safeNeg.initialPenalty, 0);
+  assert.equal(safeNeg.currentPenalty, 0);
+});
+
+test('calculateRouteConvergenceTime scales with prefix count, CPU load, and TCAM usage', () => {
+  const baseTime = calculateRouteConvergenceTime(100000, 30, 60);
+  assert.ok(baseTime >= 12);
+
+  // Higher prefixes increase convergence time
+  const highPrefixTime = calculateRouteConvergenceTime(900000, 30, 60);
+  assert.ok(highPrefixTime > baseTime);
+
+  // Higher CPU increases convergence time
+  const highCpuTime = calculateRouteConvergenceTime(900000, 90, 60);
+  assert.ok(highCpuTime > highPrefixTime);
+
+  // Minimum floor
+  const minTime = calculateRouteConvergenceTime(0, 0, 0);
+  assert.equal(minTime, 12);
+});
+
+test('BGP simulation state getters, setters, and reset functionality work correctly', () => {
+  resetBgpSimState();
+  assert.equal(getBgpSelectedPeer(), SHAHDARA_BGP_PEERS[0].id);
+  assert.equal(getBgpFlapCount(), null);
+  assert.equal(getBgpSuppressThreshold(), BGP_CONSTANTS.DEFAULT_SUPPRESS_THRESHOLD);
+
+  setBgpSelectedPeer('bgp-ptcl-02');
+  assert.equal(getBgpSelectedPeer(), 'bgp-ptcl-02');
+
+  setBgpFlapCount(18);
+  assert.equal(getBgpFlapCount(), 18);
+
+  // Clamp limits for flap count
+  setBgpFlapCount(50);
+  assert.equal(getBgpFlapCount(), 30);
+  setBgpFlapCount(-10);
+  assert.equal(getBgpFlapCount(), 0);
+
+  // Threshold bounds
+  setBgpSuppressThreshold(3500);
+  assert.equal(getBgpSuppressThreshold(), 3500);
+  setBgpSuppressThreshold(9000);
+  assert.equal(getBgpSuppressThreshold(), 5000);
+  setBgpSuppressThreshold(500);
+  assert.equal(getBgpSuppressThreshold(), 1000);
+
+  // Reset
+  resetBgpSimState();
+  assert.equal(getBgpSelectedPeer(), SHAHDARA_BGP_PEERS[0].id);
+  assert.equal(getBgpFlapCount(), null);
+  assert.equal(getBgpSuppressThreshold(), BGP_CONSTANTS.DEFAULT_SUPPRESS_THRESHOLD);
+});
+
+test('calculateBgpPeeringMetrics evaluates peers, RPKI validation, and subscriber revenue exposure', () => {
+  resetBgpSimState();
+
+  const state = {
+    customers: [
+      { id: 'c1', name: 'Zahid Khan', area: 'Shahdara Town', isArchived: false },
+      { id: 'c2', name: 'Farhan Ali', area: 'Baradari Road', isArchived: false },
+      { id: 'c3', name: 'Tariq Mehmood', area: 'Vandala Road', isArchived: false },
+      { id: 'c4', name: 'Archived User', area: 'Shahdara Town', isArchived: true }
+    ],
+    bills: [
+      { customerId: 'c1', balance: 2500 },
+      { customerId: 'c2', balance: 4000 },
+      { customerId: 'c3', balance: 1800 }
+    ]
+  };
+
+  const metrics = calculateBgpPeeringMetrics(state);
+  assert.equal(metrics.totalPeers, SHAHDARA_BGP_PEERS.length);
+  assert.equal(metrics.establishedPeers, SHAHDARA_BGP_PEERS.length);
+  assert.ok(metrics.totalPrefixesReceived > 2000000);
+  assert.ok(metrics.totalLinkCapacityGbps >= 50);
+  assert.ok(metrics.overallRpkiValidPct >= 90 && metrics.overallRpkiValidPct <= 100);
+
+  // Check selected peer data
+  const p = metrics.selectedPeer;
+  assert.equal(p.id, SHAHDARA_BGP_PEERS[0].id);
+  assert.equal(p.name, SHAHDARA_BGP_PEERS[0].name);
+  assert.ok(p.linkedSubscribers >= 1);
+  assert.ok(p.linkedDues >= 2500);
+
+  // Test simulation override with high flap count causing suppression
+  setBgpFlapCount(25);
+  setBgpSuppressThreshold(2000);
+  const suppressedMetrics = calculateBgpPeeringMetrics(state);
+  assert.equal(suppressedMetrics.selectedPeer.isSuppressed, true);
+  assert.equal(suppressedMetrics.selectedPeer.healthTier, 'Suppressed');
+  assert.ok(suppressedMetrics.suppressedPeersCount >= 1);
+  assert.ok(suppressedMetrics.totalDuesAtRisk >= 2500);
+  assert.ok(suppressedMetrics.selectedPeer.minsUntilReuse > 0);
+
+  resetBgpSimState();
+});
+
+test('renderBgpRoutingConvergenceSvg renders clean, accessible SVG for both compact and modal modes', () => {
+  const metrics = calculateBgpPeeringMetrics({});
+
+  // Compact mode
+  const compactSvg = renderBgpRoutingConvergenceSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('bgp-svg'));
+  assert.ok(compactSvg.includes('FLAP PENALTY'));
+  assert.ok(compactSvg.includes('CONVERGENCE'));
+  assert.ok(compactSvg.includes('RPKI ROA'));
+  assert.ok(compactSvg.includes('</svg>'));
+
+  // Detailed mode
+  const detailedSvg = renderBgpRoutingConvergenceSvg(metrics, { compact: false });
+  assert.ok(detailedSvg.includes('<svg'));
+  assert.ok(detailedSvg.includes('bgp-svg-detailed'));
+  assert.ok(detailedSvg.includes('RFC 2439 Route Flap Penalty Decay Simulation'));
+  assert.ok(detailedSvg.includes('SUPPRESS'));
+  assert.ok(detailedSvg.includes('REUSE'));
+  assert.ok(detailedSvg.includes('TCAM FIB ROUTE TABLE OCCUPANCY'));
+  assert.ok(detailedSvg.includes('</svg>'));
+});
+
+test('generateBgpRoutingReport produces complete ASCII briefing text for NOC clipboard dispatch', () => {
+  const metrics = calculateBgpPeeringMetrics({});
+  const report = generateBgpRoutingReport(metrics, { referenceDate: '2026-10-16T12:00:00Z' });
+
+  assert.ok(report.includes('SHAHDARA CORE IP BACKBONE BGP PEERING & FLAP DAMPING AUDIT BRIEFING'));
+  assert.ok(report.includes('Local Border ASN: AS204555'));
+  assert.ok(report.includes('FLAP DAMPING METRICS (RFC 2439)'));
+  assert.ok(report.includes('ALL SHAHDARA BGP PEERS & CARRIERS REGISTER'));
+  assert.ok(report.includes('OPERATIONAL MITIGATION ACTIONS'));
+});
+
+test('setupBgpRoutingModal wires DOM controls, sliders, buttons, and callbacks correctly', async () => {
+  resetBgpSimState();
+
+  let modalOpened = false;
+  let openClickHandler = null;
+  let closeClickHandler = null;
+  let resetClickHandler = null;
+  let flapInputHandler = null;
+  let threshInputHandler = null;
+  let peerChangeHandler = null;
+  let filterAreaClickHandler = null;
+  let copyClickHandler = null;
+
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockPeerSelect = {
+    options: [],
+    value: '',
+    appendChild: function(opt) { this.options.push(opt); },
+    onchange: null
+  };
+
+  const mockFlapSlider = { value: '2', oninput: null };
+  const mockThreshSlider = { value: '2000', oninput: null };
+  const mockFlapVal = { textContent: '' };
+  const mockThreshVal = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  const mockKpiPeerName = { textContent: '' };
+  const mockKpiPenalty = { textContent: '' };
+  const mockKpiConvergence = { textContent: '' };
+  const mockKpiStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardBgpModal': return mockModal;
+        case 'dashboardOpenBgpModalBtn': return { set onclick(fn) { openClickHandler = fn; } };
+        case 'dashboardBgpModalCloseBtn': return { set onclick(fn) { closeClickHandler = fn; } };
+        case 'bgpPeerSelect': return mockPeerSelect;
+        case 'bgpFlapSlider': return mockFlapSlider;
+        case 'bgpFlapVal': return mockFlapVal;
+        case 'bgpThreshSlider': return mockThreshSlider;
+        case 'bgpThreshVal': return mockThreshVal;
+        case 'bgpResetSimBtn': return { set onclick(fn) { resetClickHandler = fn; } };
+        case 'bgpModalChartWrap': return mockChartWrap;
+        case 'bgpFilterAreaBtn': return { set onclick(fn) { filterAreaClickHandler = fn; } };
+        case 'dashboardCopyBgpReportBtn': return { set onclick(fn) { copyClickHandler = fn; } };
+        case 'bgpPeersTableBody': return mockTableBody;
+        case 'bgpKpiPeerName': return mockKpiPeerName;
+        case 'bgpKpiPenalty': return mockKpiPenalty;
+        case 'bgpKpiConvergence': return mockKpiConvergence;
+        case 'bgpStatusBadge': return mockKpiStatusBadge;
+        case 'bgpKpiRevenueRisk': return mockKpiRevenueRisk;
+        default: return null;
+      }
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '', selected: false })
+  };
+
+  const state = { customers: [], bills: [] };
+
+  try {
+    setupBgpRoutingModal(state, {
+      referenceDate: '2026-10-16',
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Verify peers populated
+    assert.equal(mockPeerSelect.options.length, SHAHDARA_BGP_PEERS.length);
+
+    // Open modal
+    assert.ok(openClickHandler !== null);
+    openClickHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiPeerName.textContent.includes('AS133929'));
+    assert.ok(mockChartWrap.innerHTML.includes('bgp-svg-detailed'));
+    assert.ok(mockTableBody.innerHTML.includes('AS133929'));
+
+    // Test flap slider input
+    assert.ok(mockFlapSlider.oninput !== null);
+    mockFlapSlider.value = '20';
+    mockFlapSlider.oninput();
+    assert.equal(getBgpFlapCount(), 20);
+    assert.equal(mockFlapVal.textContent, '20 flaps');
+
+    // Test threshold slider input
+    assert.ok(mockThreshSlider.oninput !== null);
+    mockThreshSlider.value = '3000';
+    mockThreshSlider.oninput();
+    assert.equal(getBgpSuppressThreshold(), 3000);
+    assert.equal(mockThreshVal.textContent, '3000 pts');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getBgpFlapCount(), null);
+    assert.equal(getBgpSuppressThreshold(), BGP_CONSTANTS.DEFAULT_SUPPRESS_THRESHOLD);
+
+    // Test filter area action
+    assert.ok(filterAreaClickHandler !== null);
+    filterAreaClickHandler();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyClickHandler !== null);
+    await copyClickHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA CORE IP BACKBONE BGP PEERING & FLAP DAMPING AUDIT BRIEFING'));
+    assert.equal(toastMessage, 'BGP routing and flap damping briefing copied to clipboard!');
 
     // Test close
     assert.ok(closeClickHandler !== null);

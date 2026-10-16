@@ -1979,6 +1979,32 @@
   border-color: #243c33;
 }
 
+/* Core BGP Peering & Route Flap Damping Styles */
+.chart-card-bgp {
+  background: var(--surface, #ffffff);
+}
+
+.bgp-modal-card {
+  max-width: 960px;
+}
+
+.bgp-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-bgp {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .bgp-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
 .signal-tag {
   display: inline-block;
   padding: 2px 6px;

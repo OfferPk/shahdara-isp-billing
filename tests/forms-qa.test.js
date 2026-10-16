@@ -5715,3 +5715,348 @@ test('DOM and styling: index.html, styles.css, and app.js wire ORL & Reflectance
   assert.match(freshApp, /customerOrlCertModalController/);
   assert.match(freshApp, /openOrlCertBtn/);
 });
+
+/* ==========================================================================
+   CUSTOMER PREMISES ONU DDMI TRANSCEIVER TELEMETRY & HARDWARE QA TEST SUITE
+   ========================================================================== */
+
+test('DDMI catalogs: transceiver standards and severity levels are valid and complete', async () => {
+  const { DDMI_TRANSCEIVER_TYPES, DDMI_SEVERITY_LEVELS } = await import('../form-validation.js');
+
+  assert.ok(DDMI_TRANSCEIVER_TYPES.GPON_CLASS_B_PLUS);
+  assert.ok(DDMI_TRANSCEIVER_TYPES.GPON_CLASS_C_PLUS);
+  assert.ok(DDMI_TRANSCEIVER_TYPES.XGSPON_N1_N2);
+  assert.ok(DDMI_TRANSCEIVER_TYPES.EPON_1000BASE_PX20);
+  assert.ok(DDMI_TRANSCEIVER_TYPES.BIDI_SFP_GE);
+
+  const gponB = DDMI_TRANSCEIVER_TYPES.GPON_CLASS_B_PLUS;
+  assert.equal(gponB.technology, 'GPON 2.488G / 1.244G');
+  assert.equal(gponB.standard, 'ITU-T G.984.2');
+  assert.equal(gponB.txWavelengthNm, 1310);
+  assert.equal(gponB.rxWavelengthNm, 1490);
+  assert.ok(gponB.txPowerRangeDbm.minWarn < gponB.txPowerRangeDbm.maxWarn);
+  assert.ok(gponB.rxPowerRangeDbm.minWarn < gponB.rxPowerRangeDbm.maxWarn);
+
+  assert.ok(DDMI_SEVERITY_LEVELS.OPTIMAL);
+  assert.ok(DDMI_SEVERITY_LEVELS.WARNING);
+  assert.ok(DDMI_SEVERITY_LEVELS.ALARM);
+  assert.ok(DDMI_SEVERITY_LEVELS.CRITICAL);
+});
+
+test('estimateLaserRulMonths Arrhenius model calculates physical life expectancy based on temperature and bias current', async () => {
+  const { estimateLaserRulMonths } = await import('../form-validation.js');
+
+  // Baseline at room temperature 25°C and 15mA nominal bias
+  const baselineLife = estimateLaserRulMonths(25, 15);
+  assert.equal(baselineLife, 60);
+
+  // Moderate temperature 45°C
+  const midLife = estimateLaserRulMonths(45, 15);
+  assert.ok(midLife < baselineLife);
+  assert.ok(midLife > 10);
+
+  // High stress: 75°C and 45mA bias current
+  const stressedLife = estimateLaserRulMonths(75, 45);
+  assert.ok(stressedLife < midLife);
+  assert.ok(stressedLife >= 1);
+
+  // Severe temperature clamp test (e.g. 100°C)
+  const extremeLife = estimateLaserRulMonths(100, 60);
+  assert.equal(extremeLife, 1);
+});
+
+test('evaluateDdmiTelemetry performs multi-channel threshold checks and health scoring', async () => {
+  const { evaluateDdmiTelemetry } = await import('../form-validation.js');
+
+  // 1. Pristine nominal telemetry on GPON Class B+
+  const pristine = evaluateDdmiTelemetry({
+    temperatureC: 40.0,
+    voltageV: 3.30,
+    txBiasCurrentMa: 15.0,
+    txPowerDbm: 2.5,
+    rxPowerDbm: -18.0,
+    transceiverTypeId: 'GPON_CLASS_B_PLUS'
+  });
+
+  assert.equal(pristine.pass, true);
+  assert.equal(pristine.verdict.label, 'CERTIFIED HEALTHY (Optimal Telemetry)');
+  assert.ok(pristine.scores.overall >= 95);
+  assert.equal(pristine.thresholds.temperature, 'NORMAL');
+  assert.equal(pristine.thresholds.voltage, 'NORMAL');
+  assert.equal(pristine.thresholds.txBias, 'NORMAL');
+  assert.equal(pristine.thresholds.txPower, 'NORMAL');
+  assert.equal(pristine.thresholds.rxPower, 'NORMAL');
+  assert.equal(pristine.warnings.length, 0);
+
+  // 2. High laser temperature warning (68°C)
+  const hot = evaluateDdmiTelemetry({
+    temperatureC: 68.0,
+    voltageV: 3.30,
+    txBiasCurrentMa: 15.0,
+    txPowerDbm: 2.5,
+    rxPowerDbm: -18.0,
+    transceiverTypeId: 'GPON_CLASS_B_PLUS'
+  });
+  assert.equal(hot.thresholds.temperature, 'WARN_HIGH');
+  assert.ok(hot.scores.temperature < pristine.scores.temperature);
+  assert.ok(hot.warnings.some(w => w.includes('temperature')));
+
+  // 3. Critical low optical Rx power (-32 dBm)
+  const deadLink = evaluateDdmiTelemetry({
+    temperatureC: 40.0,
+    voltageV: 3.30,
+    txBiasCurrentMa: 15.0,
+    txPowerDbm: 2.5,
+    rxPowerDbm: -32.0,
+    transceiverTypeId: 'GPON_CLASS_B_PLUS'
+  });
+  assert.equal(deadLink.pass, false);
+  assert.equal(deadLink.thresholds.rxPower, 'ALARM_LOW');
+  assert.ok(deadLink.scores.rxPower <= 20);
+  assert.equal(deadLink.verdict.label, 'CRITICAL ALARM (Hardware Replacement Required)');
+});
+
+test('buildDdmiCertRecord generates structured certification audit records', async () => {
+  const { buildDdmiCertRecord } = await import('../form-validation.js');
+
+  const record = buildDdmiCertRecord({
+    customerName: 'Muhammad Tariq',
+    customerId: 'CUST-042',
+    area: 'Saeed Park',
+    onuModel: 'Huawei HG8546M',
+    onuSerialNumber: 'HWTC-12345678',
+    transceiverTypeId: 'GPON_CLASS_B_PLUS',
+    temperatureC: 41.5,
+    voltageV: 3.31,
+    txBiasCurrentMa: 16.0,
+    txPowerDbm: 2.2,
+    rxPowerDbm: -19.4,
+    inspectedBy: 'Shahdara QA Inspector',
+    linemanNotes: 'Customer drop fiber spliced and verified.'
+  });
+
+  assert.ok(record.id.startsWith('DDMI-'));
+  assert.equal(record.customerName, 'Muhammad Tariq');
+  assert.equal(record.customerId, 'CUST-042');
+  assert.equal(record.area, 'Saeed Park');
+  assert.equal(record.temperatureC, 41.5);
+  assert.equal(record.voltageV, 3.31);
+  assert.equal(record.txBiasCurrentMa, 16.0);
+  assert.equal(record.txPowerDbm, 2.2);
+  assert.equal(record.rxPowerDbm, -19.4);
+  assert.equal(record.pass, true);
+  assert.ok(record.healthScore >= 90);
+  assert.ok(record.estimatedRulMonths > 0);
+});
+
+test('formatDdmiCertWhatsApp outputs bilingual English and Urdu summary for technicians', async () => {
+  const { buildDdmiCertRecord, formatDdmiCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildDdmiCertRecord({
+    customerName: 'Bashir Ahmed',
+    customerId: 'CUST-88',
+    area: 'Farrukhabad',
+    onuModel: 'ZTE F660',
+    onuSerialNumber: 'ZTEG-99887766',
+    transceiverTypeId: 'GPON_CLASS_B_PLUS',
+    temperatureC: 43.0,
+    voltageV: 3.30,
+    txBiasCurrentMa: 17.0,
+    txPowerDbm: 2.1,
+    rxPowerDbm: -19.0,
+    inspectedBy: 'Saad (Field Ops)',
+    linemanNotes: 'All optics in spec.'
+  });
+
+  const waText = formatDdmiCertWhatsApp(record);
+  assert.match(waText, /SHAHDARA ISP/);
+  assert.match(waText, /آپٹیکل ٹرانسیور تشخیصی رپورٹ/);
+  assert.match(waText, /Bashir Ahmed/);
+  assert.match(waText, /Farrukhabad/);
+  assert.match(waText, /43°C/);
+  assert.match(waText, /3\.3 V/);
+  assert.match(waText, /17 mA/);
+  assert.match(waText, /-19 dBm/);
+  assert.match(waText, /CERTIFIED HEALTHY/);
+});
+
+test('generateDdmiCertHtml produces standard A4 certificate and thermal 80mm slip', async () => {
+  const { buildDdmiCertRecord, generateDdmiCertHtml } = await import('../form-validation.js');
+
+  const record = buildDdmiCertRecord({
+    customerName: 'Imran Khan',
+    customerId: 'CUST-100',
+    area: 'Jia Musa',
+    onuModel: 'FiberHome AN5506',
+    onuSerialNumber: 'FHTT-55443322',
+    transceiverTypeId: 'GPON_CLASS_B_PLUS',
+    temperatureC: 39.0,
+    voltageV: 3.32,
+    txBiasCurrentMa: 14.5,
+    txPowerDbm: 2.8,
+    rxPowerDbm: -17.5,
+    inspectedBy: 'Shahdara ISP QA Tech'
+  });
+
+  const a4Html = generateDdmiCertHtml(record, 'standard');
+  assert.match(a4Html, /ddmi-a4-certificate/);
+  assert.match(a4Html, /SHAHDARA FIBER BROADBAND SERVICES/);
+  assert.match(a4Html, /CUST-100/);
+  assert.match(a4Html, /FiberHome AN5506/);
+  assert.match(a4Html, /Laser Diode Tx Bias Current/);
+
+  const thermalHtml = generateDdmiCertHtml(record, 'thermal');
+  assert.match(thermalHtml, /ddmi-thermal-slip/);
+  assert.match(thermalHtml, /ONU DDMI TELEMETRY SLIP/);
+  assert.match(thermalHtml, /FHTT-55443322/);
+});
+
+test('generateDdmiCertsCsv produces RFC-4180 export with UTF-8 BOM', async () => {
+  const { buildDdmiCertRecord, generateDdmiCertsCsv } = await import('../form-validation.js');
+
+  const rec1 = buildDdmiCertRecord({
+    customerName: 'Customer A, Shahdara',
+    customerId: 'CUST-001',
+    area: 'Shahdara Town',
+    onuModel: 'Huawei HG8546M',
+    onuSerialNumber: 'SN-001'
+  });
+
+  const rec2 = buildDdmiCertRecord({
+    customerName: 'Customer B',
+    customerId: 'CUST-002',
+    area: 'Qaiser Town',
+    onuModel: 'ZTE F609',
+    onuSerialNumber: 'SN-002'
+  });
+
+  const csv = generateDdmiCertsCsv([rec1, rec2]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /Certificate ID,Date \/ Time/);
+  assert.match(csv, /"Customer A, Shahdara"/);
+  assert.match(csv, /Customer B/);
+});
+
+test('renderDdmiTelemetrySvg renders pure vector 5-gauge dashboard with health readout', async () => {
+  const { buildDdmiCertRecord, renderDdmiTelemetrySvg } = await import('../form-validation.js');
+
+  const record = buildDdmiCertRecord({
+    customerName: 'Naveed Akhtar',
+    customerId: 'CUST-77',
+    area: 'Kot Mohibbu',
+    transceiverTypeId: 'GPON_CLASS_B_PLUS',
+    temperatureC: 44.0,
+    voltageV: 3.30,
+    txBiasCurrentMa: 18.0,
+    txPowerDbm: 2.3,
+    rxPowerDbm: -18.5
+  });
+
+  const svg = renderDdmiTelemetrySvg(record);
+  assert.match(svg, /<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg"/);
+  assert.match(svg, /ddmi-telemetry-svg/);
+  assert.match(svg, /TEMP/);
+  assert.match(svg, /VOLTAGE/);
+  assert.match(svg, /TX BIAS/);
+  assert.match(svg, /TX POWER/);
+  assert.match(svg, /RX POWER/);
+  assert.match(svg, /HEALTH INDEX/);
+  assert.match(svg, /EXPECTED LIFE/);
+});
+
+test('storage operations: saveDdmiCert, getSavedDdmiCerts, and clearDdmiCerts', async () => {
+  const { buildDdmiCertRecord, saveDdmiCert, getSavedDdmiCerts, clearDdmiCerts } = await import('../form-validation.js');
+
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); },
+    removeItem(k) { delete this._data[k]; }
+  };
+
+  assert.deepEqual(getSavedDdmiCerts(mockStorage), []);
+
+  const r1 = buildDdmiCertRecord({ customerName: 'User 1' });
+  const r2 = buildDdmiCertRecord({ customerName: 'User 2' });
+
+  saveDdmiCert(r1, mockStorage);
+  saveDdmiCert(r2, mockStorage);
+
+  const saved = getSavedDdmiCerts(mockStorage);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].customerName, 'User 2'); // newest first
+  assert.equal(saved[1].customerName, 'User 1');
+
+  clearDdmiCerts(mockStorage);
+  assert.deepEqual(getSavedDdmiCerts(mockStorage), []);
+});
+
+test('setupDdmiCertModal handles headless and mock environments safely', async () => {
+  const { setupDdmiCertModal } = await import('../form-validation.js');
+
+  const controller = setupDdmiCertModal({
+    document: null,
+    storage: null
+  });
+
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.getCurrentReading, 'function');
+  assert.equal(typeof controller.setReading, 'function');
+
+  // Calling without error
+  controller.open();
+  controller.setReading({ temperatureC: 45 });
+  controller.close();
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Customer ONU DDMI Telemetry QA Modal', () => {
+  const freshIndex = read('index.html');
+  const freshStyles = read('styles.css');
+  const freshApp = read('app.js');
+
+  // Trigger button in index.html
+  assert.match(freshIndex, /id="openDdmiCertBtn"/);
+  assert.match(freshIndex, /data-open-ddmi-cert/);
+
+  // Modal dialog & inputs in index.html
+  assert.match(freshIndex, /<dialog id="ddmiCertModal"/);
+  assert.match(freshIndex, /id="ddmiCertModalCloseBtn"/);
+  assert.match(freshIndex, /id="ddmiSvgContainer"/);
+  assert.match(freshIndex, /id="ddmiHealthDisplay"/);
+  assert.match(freshIndex, /id="ddmiVerdictBadge"/);
+  assert.match(freshIndex, /id="ddmiWarningsContainer"/);
+  assert.match(freshIndex, /id="ddmiCustomerNameInput"/);
+  assert.match(freshIndex, /id="ddmiAreaSelect"/);
+  assert.match(freshIndex, /id="ddmiOnuModelInput"/);
+  assert.match(freshIndex, /id="ddmiOnuSerialInput"/);
+  assert.match(freshIndex, /id="ddmiTransceiverTypeSelect"/);
+  assert.match(freshIndex, /id="ddmiTempSlider"/);
+  assert.match(freshIndex, /id="ddmiTempVal"/);
+  assert.match(freshIndex, /id="ddmiVoltSlider"/);
+  assert.match(freshIndex, /id="ddmiVoltVal"/);
+  assert.match(freshIndex, /id="ddmiBiasSlider"/);
+  assert.match(freshIndex, /id="ddmiBiasVal"/);
+  assert.match(freshIndex, /id="ddmiTxSlider"/);
+  assert.match(freshIndex, /id="ddmiTxVal"/);
+  assert.match(freshIndex, /id="ddmiRxSlider"/);
+  assert.match(freshIndex, /id="ddmiRxVal"/);
+  assert.match(freshIndex, /id="ddmiNotesInput"/);
+  assert.match(freshIndex, /id="ddmiRecordCertBtn"/);
+  assert.match(freshIndex, /id="ddmiCopyReportBtn"/);
+  assert.match(freshIndex, /id="ddmiPrintA4Btn"/);
+  assert.match(freshIndex, /id="ddmiPrintThermalBtn"/);
+  assert.match(freshIndex, /id="ddmiExportCsvBtn"/);
+  assert.match(freshIndex, /id="ddmiClearHistoryBtn"/);
+  assert.match(freshIndex, /id="ddmiHistoryTableBody"/);
+
+  // Styles
+  assert.match(freshStyles, /\.ddmi-cert-modal-card/);
+  assert.match(freshStyles, /\.ddmi-telemetry-svg/);
+  assert.match(freshStyles, /\[data-theme="dark"\] \.ddmi-cert-modal-card/);
+
+  // App.js
+  assert.match(freshApp, /setupDdmiCertModal/);
+  assert.match(freshApp, /customerDdmiCertModalController/);
+  assert.match(freshApp, /openDdmiCertBtn/);
+});

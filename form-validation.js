@@ -12060,3 +12060,25 @@ export {
   renderFerruleEndfaceSvg,
   setupOrlCertModal
 } from './qa-orl-reflectance.js';
+
+export {
+  DDMI_CERT_STORAGE_KEY,
+  DDMI_TRANSCEIVER_TYPES,
+  DDMI_STATUS_VERDICTS,
+  DDMI_SEVERITY_LEVELS,
+  estimateLaserRulMonths,
+  checkThreshold,
+  evaluateDdmiTelemetry,
+  buildDdmiCertRecord,
+  getSavedDdmiCerts,
+  saveDdmiCert,
+  updateDdmiCertStatus,
+  clearDdmiCerts,
+  calculateDdmiCertMetrics,
+  formatDdmiCertWhatsApp,
+  generateDdmiCertHtml,
+  generateDdmiCertsCsv,
+  renderDdmiTelemetrySvg,
+  setupDdmiCertModal
+} from './qa-ddmi-calibration.js';
+

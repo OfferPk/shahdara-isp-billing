@@ -61,6 +61,12 @@ import {
   generateDelinquencyPipelineReport,
   setupDelinquencyPipelineModal,
   renderDelinquencyPipelineSvg,
+  CPE_STANDARD_MODELS,
+  resolveSubscriberCpeModel,
+  calculateCpeAssetMetrics,
+  generateCpeAssetBriefing,
+  setupCpeAssetModal,
+  renderCpeAssetLifecycleSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -3707,6 +3713,264 @@ test('setupDelinquencyPipelineModal wires modal dialog and interactions correctl
     assert.equal(toastMessage, 'Delinquency recovery briefing copied to clipboard!');
 
     // Test close modal
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('resolveSubscriberCpeModel maps custom and tiered package speeds accurately', () => {
+  // Explicit custom model
+  const customSub = { cpeModel: 'Nokia G-140W-MD Dual Band ONT' };
+  const customRes = resolveSubscriberCpeModel(customSub);
+  assert.equal(customRes.modelName, 'Nokia G-140W-MD Dual Band ONT');
+
+  // Gigabit / high speed (>= 20 Mbps)
+  const gigaSub = { packageSpeed: '25 Mbps Gigabit Fiber' };
+  const gigaRes = resolveSubscriberCpeModel(gigaSub);
+  assert.equal(gigaRes.modelId, 'zte-f670l');
+  assert.equal(gigaRes.standardUnitCost, 6500);
+
+  // Mid speed (>= 10 Mbps)
+  const midSub = { packageSpeed: '12 Mbps Unlimited' };
+  const midRes = resolveSubscriberCpeModel(midSub);
+  assert.equal(midRes.modelId, 'huawei-hg8546m');
+  assert.equal(midRes.standardUnitCost, 4500);
+
+  // Standard speed (>= 5 Mbps)
+  const stdSub = { packageSpeed: '7 Mbps Standard' };
+  const stdRes = resolveSubscriberCpeModel(stdSub);
+  assert.equal(stdRes.modelId, 'fiberhome-an5506');
+
+  // Low speed (< 5 Mbps)
+  const lowSub = { packageSpeed: '2 Mbps Economy' };
+  const lowRes = resolveSubscriberCpeModel(lowSub);
+  assert.equal(lowRes.modelId, 'generic-onu');
+});
+
+test('calculateCpeAssetMetrics calculates equipment fleet breakdown, asset values, and health tiers', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  const emptyState = createInitialState([]);
+  const emptyMetrics = calculateCpeAssetMetrics(emptyState, { referenceDate: refDate, warehouseStockOverride: 0 });
+  assert.equal(emptyMetrics.totalCpeFleet, 0);
+  assert.equal(emptyMetrics.totalFleetValuePkr, 0);
+  assert.equal(emptyMetrics.fleetHealthStatus, 'No CPE Fleet Tracked');
+
+  let state = createInitialState(['Active Sub 1', 'Active Sub 2', 'Offline Sub 1', 'Offline Sub 2']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].packageSpeed = '25 Mbps';
+  state.customers[0].area = 'Main Bazaar';
+
+  state.customers[1].serviceStatus = 'active';
+  state.customers[1].packageSpeed = '10 Mbps';
+  state.customers[1].area = 'Wandala Road';
+
+  state.customers[2].serviceStatus = 'offline';
+  state.customers[2].packageSpeed = '5 Mbps';
+  state.customers[2].area = 'Main Bazaar';
+  state.customers[2].offlineDate = '2026-08-01'; // 76 days offline
+
+  state.customers[3].serviceStatus = 'offline';
+  state.customers[3].packageSpeed = '25 Mbps';
+  state.customers[3].area = 'Farooq Ganj';
+  state.customers[3].offlineDate = '2026-09-20'; // 26 days offline
+
+  const metrics = calculateCpeAssetMetrics(state, { referenceDate: refDate, warehouseStockOverride: 6 });
+
+  assert.equal(metrics.activeDeployedCount, 2);
+  assert.equal(metrics.dormantFieldCount, 2);
+  assert.equal(metrics.warehouseStock, 6);
+  assert.equal(metrics.totalCpeFleet, 2 + 2 + 6); // 10 units
+
+  // Active units value: Sub 0 (ZTE: 6500) + Sub 1 (Huawei: 4500) = 11000
+  assert.equal(metrics.activeFleetValuePkr, 11000);
+
+  // Dormant units value: Sub 2 (FiberHome: 3800) + Sub 3 (ZTE: 6500) = 10300
+  assert.equal(metrics.dormantCapitalAtRiskPkr, 10300);
+
+  // Active utilization: 2 / 10 = 20%
+  assert.equal(metrics.activeUtilizationPercent, 20);
+  // Dormant risk: 2 / 10 = 20% (between 12% and 25% -> Moderate Idle Asset Exposure)
+  assert.equal(metrics.dormantRiskPercent, 20);
+  assert.equal(metrics.fleetHealthStatus, 'Moderate Idle Asset Exposure');
+  assert.equal(metrics.fleetHealthBadgeClass, 'badge-stable');
+
+  // Retrieval candidates
+  assert.equal(metrics.retrievalCandidates.length, 2);
+  assert.equal(metrics.retrievalCandidates[0].name, 'Offline Sub 1'); // High priority (76 days offline)
+  assert.equal(metrics.retrievalCandidates[0].priority, 'High');
+
+  // Model distribution
+  assert.ok(metrics.modelDistribution.length >= 3);
+});
+
+test('calculateCpeAssetMetrics handles high equipment retrieval needed threshold and custom warehouse inventory', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Sub A', 'Sub B', 'Sub C']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[2].serviceStatus = 'offline';
+
+  // 2 out of 4 total (with warehouseStockOverride = 1) is 50% dormant -> High Equipment Retrieval Needed
+  const metrics = calculateCpeAssetMetrics(state, { referenceDate: refDate, warehouseStockOverride: 1 });
+  assert.equal(metrics.fleetHealthStatus, 'High Equipment Retrieval Needed');
+  assert.equal(metrics.fleetHealthBadgeClass, 'badge-contraction');
+
+  // Low dormant (< 12%)
+  const lowDormant = calculateCpeAssetMetrics(state, { referenceDate: refDate, warehouseStockOverride: 20 });
+  assert.equal(lowDormant.fleetHealthStatus, 'Optimal Asset Efficiency');
+  assert.equal(lowDormant.fleetHealthBadgeClass, 'badge-expansion');
+});
+
+test('generateCpeAssetBriefing outputs comprehensive plain-text operations report', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Arshad Khan', 'Bilal Hassan']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].packageSpeed = '15 Mbps';
+  state.customers[1].serviceStatus = 'offline';
+  state.customers[1].packageSpeed = '25 Mbps';
+  state.customers[1].area = 'Millat Park';
+
+  const metrics = calculateCpeAssetMetrics(state, { referenceDate: refDate, warehouseStockOverride: 8 });
+  const text = generateCpeAssetBriefing(metrics, refDate);
+
+  assert.ok(text.includes('SHAHDARA ISP - CPE & ONU ASSET LIFECYCLE AUDIT'));
+  assert.ok(text.includes('Total Tracked Units: 10'));
+  assert.ok(text.includes('Active Field Deployment: 1 units'));
+  assert.ok(text.includes('Dormant in Field (At Risk): 1 units'));
+  assert.ok(text.includes('Warehouse Spares: 8 tested units'));
+  assert.ok(text.includes('HARDWARE MODEL DISTRIBUTION'));
+  assert.ok(text.includes('HIGH-PRIORITY CPE RETRIEVAL MANIFEST'));
+  assert.ok(text.includes('Bilal Hassan'));
+  assert.ok(text.includes('Millat Park'));
+});
+
+test('renderCpeAssetLifecycleSvg renders accessible SVG chart for empty and populated states', () => {
+  const emptySvg = renderCpeAssetLifecycleSvg(null);
+  assert.ok(emptySvg.includes('No customer premises equipment tracked'));
+
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Customer Alpha']);
+  state.customers[0].serviceStatus = 'active';
+  state.customers[0].packageSpeed = '20 Mbps';
+
+  const metrics = calculateCpeAssetMetrics(state, { referenceDate: refDate });
+  const svg = renderCpeAssetLifecycleSvg(metrics);
+
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('Customer Premises Equipment CPE and ONU Asset Lifecycle Chart'));
+  assert.ok(svg.includes('CPE &amp; ONU Asset Fleet'));
+  assert.ok(svg.includes('Active Deployed'));
+  assert.ok(svg.includes('Dormant in Field'));
+  assert.ok(svg.includes('Warehouse Spares'));
+});
+
+test('setupCpeAssetModal wires dialog open, populate, filter, copy, and close actions', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  let filterCustomerCalledWith = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') openHandler = cb; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') closeHandler = cb; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') copyHandler = cb; }
+  };
+
+  const mockTotalFleetEl = { textContent: '' };
+  const mockTotalValueEl = { textContent: '' };
+  const mockActiveDeployEl = { textContent: '' };
+  const mockDormantRiskEl = { textContent: '' };
+  const mockStatusBadgeEl = { textContent: '', className: '' };
+  const mockRunwayEl = { textContent: '' };
+  const mockModelsTbody = { innerHTML: '' };
+  const mockRetrievalTbody = {
+    innerHTML: '',
+    querySelectorAll: (sel) => {
+      if (sel.includes('[data-cpe-filter-id]')) {
+        return [{
+          getAttribute: () => 'sub-456',
+          addEventListener: (evt, cb) => {
+            if (evt === 'click') cb();
+          }
+        }];
+      }
+      return [];
+    }
+  };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardCpeModal') return mockModal;
+      if (id === 'dashboardOpenCpeModalBtn') return mockOpenBtn;
+      if (id === 'dashboardCpeModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyCpeReportBtn') return mockCopyBtn;
+      if (id === 'cpeTotalFleetVal') return mockTotalFleetEl;
+      if (id === 'cpeTotalValueVal') return mockTotalValueEl;
+      if (id === 'cpeActiveDeployVal') return mockActiveDeployEl;
+      if (id === 'cpeDormantRiskVal') return mockDormantRiskEl;
+      if (id === 'cpeStatusBadge') return mockStatusBadgeEl;
+      if (id === 'cpeSparesRunwayVal') return mockRunwayEl;
+      if (id === 'cpeModelsTableBody') return mockModelsTbody;
+      if (id === 'cpeRetrievalTableBody') return mockRetrievalTbody;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  let state = createInitialState(['Offline User']);
+  state.customers[0].id = 'sub-456';
+  state.customers[0].serviceStatus = 'offline';
+  state.customers[0].packageSpeed = '15 Mbps';
+  state.customers[0].area = 'Main Bazaar';
+
+  try {
+    setupCpeAssetModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onFilterCustomer: (cid) => { filterCustomerCalledWith = cid; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.ok(mockTotalFleetEl.textContent.includes('Units'));
+    assert.ok(mockTotalValueEl.textContent.includes('PKR'));
+    assert.ok(mockModelsTbody.innerHTML.includes('Huawei EchoLife'));
+    assert.ok(mockRetrievalTbody.innerHTML.includes('Offline User'));
+
+    // Copy briefing
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - CPE & ONU ASSET LIFECYCLE AUDIT'));
+    assert.equal(toastMessage, 'CPE asset audit briefing copied to clipboard!');
+
+    // Close modal
     closeHandler();
     assert.equal(modalOpened, false);
   } finally {

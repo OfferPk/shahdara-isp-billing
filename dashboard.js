@@ -3912,6 +3912,458 @@ export function setupDelinquencyPipelineModal(state, { referenceDate = new Date(
   }
 }
 
+export const CPE_STANDARD_MODELS = [
+  {
+    modelId: 'huawei-hg8546m',
+    modelName: 'Huawei EchoLife HG8546M GPON',
+    category: 'Single-Band GPON ONT',
+    standardUnitCost: 4500,
+    minSpeedMbps: 10
+  },
+  {
+    modelId: 'zte-f670l',
+    modelName: 'ZTE F670L Dual-Band Gigabit XPON',
+    category: 'Dual-Band Gigabit XPON',
+    standardUnitCost: 6500,
+    minSpeedMbps: 20
+  },
+  {
+    modelId: 'fiberhome-an5506',
+    modelName: 'FiberHome AN5506 GPON ONT',
+    category: 'Gigabit GPON ONT',
+    standardUnitCost: 3800,
+    minSpeedMbps: 5
+  },
+  {
+    modelId: 'generic-onu',
+    modelName: 'Standard 1GE+WiFi Bridge ONU',
+    category: 'Entry-Level ONU',
+    standardUnitCost: 3200,
+    minSpeedMbps: 1
+  }
+];
+
+export function resolveSubscriberCpeModel(customer) {
+  if (customer.cpeModel && String(customer.cpeModel).trim()) {
+    const name = String(customer.cpeModel).trim();
+    const matched = CPE_STANDARD_MODELS.find(m => m.modelName.toLowerCase().includes(name.toLowerCase()));
+    if (matched) return matched;
+    return {
+      modelId: 'custom-model',
+      modelName: name,
+      category: 'Customer Specified',
+      standardUnitCost: 4500,
+      minSpeedMbps: 10
+    };
+  }
+
+  const pkg = String(customer.packageSpeed || '').toLowerCase();
+  let speedMbps = 5;
+  const match = pkg.match(/(\d+(?:\.\d+)?)\s*(?:mbps|m\b|g\b)/i);
+  if (match) {
+    speedMbps = parseFloat(match[1]);
+  } else if (pkg.includes('15mbps')) {
+    speedMbps = 15;
+  } else if (pkg.includes('3mbps')) {
+    speedMbps = 3;
+  }
+
+  if (speedMbps >= 20 || pkg.includes('gigabit') || pkg.includes('dual')) {
+    return CPE_STANDARD_MODELS[1]; // ZTE F670L
+  }
+  if (speedMbps >= 10) {
+    return CPE_STANDARD_MODELS[0]; // Huawei HG8546M
+  }
+  if (speedMbps >= 5) {
+    return CPE_STANDARD_MODELS[2]; // FiberHome AN5506
+  }
+  return CPE_STANDARD_MODELS[3]; // Generic
+}
+
+export function calculateCpeAssetMetrics(state, options = {}) {
+  const referenceDate = options.referenceDate ?? new Date();
+  const refTime = referenceDate.getTime();
+  const allocations = calculatePaymentAllocations(state);
+  const retainedMonths = new Set(monthsForHistory(referenceDate));
+
+  let activeDeployedCount = 0;
+  let dormantFieldCount = 0;
+  let unconfiguredCount = 0;
+
+  let activeFleetValuePkr = 0;
+  let dormantCapitalAtRiskPkr = 0;
+  let unconfiguredValuePkr = 0;
+
+  const modelCountMap = new Map();
+  for (const m of CPE_STANDARD_MODELS) {
+    modelCountMap.set(m.modelName, {
+      modelName: m.modelName,
+      category: m.category,
+      unitCost: m.standardUnitCost,
+      deployedCount: 0,
+      activeCount: 0,
+      dormantCount: 0,
+      totalValue: 0
+    });
+  }
+
+  const retrievalCandidates = [];
+  const areaCpeMap = new Map();
+
+  for (const c of (state?.customers ?? [])) {
+    if (c.archived) continue;
+
+    const cpe = resolveSubscriberCpeModel(c);
+    const unitCost = Number(options.customModelCosts?.[cpe.modelName] ?? cpe.standardUnitCost) || 4500;
+
+    let cpeStats = modelCountMap.get(cpe.modelName);
+    if (!cpeStats) {
+      cpeStats = {
+        modelName: cpe.modelName,
+        category: cpe.category,
+        unitCost,
+        deployedCount: 0,
+        activeCount: 0,
+        dormantCount: 0,
+        totalValue: 0
+      };
+      modelCountMap.set(cpe.modelName, cpeStats);
+    }
+
+    cpeStats.deployedCount++;
+    cpeStats.totalValue += unitCost;
+
+    const areaKey = c.area || 'Unassigned';
+    if (!areaCpeMap.has(areaKey)) {
+      areaCpeMap.set(areaKey, {
+        areaName: areaKey,
+        totalCpe: 0,
+        activeCpe: 0,
+        dormantCpe: 0,
+        dormantValue: 0
+      });
+    }
+    const areaStats = areaCpeMap.get(areaKey);
+    areaStats.totalCpe++;
+
+    let customerDueCents = 0;
+    let oldestBillDate = null;
+    for (const bill of (c.bills ?? [])) {
+      if (!retainedMonths.has(bill.month)) continue;
+      const alloc = allocations.forMonth?.(c.id, bill.month);
+      const balanceDueCents = alloc?.balanceDueCents ?? Math.round(Number(bill.amount || 0) * 100);
+      if (balanceDueCents > 0) {
+        customerDueCents += balanceDueCents;
+        const bDate = bill.dueDate ? new Date(bill.dueDate) : (bill.month ? new Date(`${bill.month}-10`) : null);
+        if (bDate && (!oldestBillDate || bDate < oldestBillDate)) {
+          oldestBillDate = bDate;
+        }
+      }
+    }
+    const totalDue = Math.round(customerDueCents / 100);
+
+    let daysDormant = 0;
+    if (c.offlineDate) {
+      const offTime = new Date(c.offlineDate).getTime();
+      if (!isNaN(offTime)) {
+        daysDormant = Math.max(1, Math.floor((refTime - offTime) / (1000 * 60 * 60 * 24)));
+      }
+    } else if (oldestBillDate && !isNaN(oldestBillDate.getTime())) {
+      daysDormant = Math.max(1, Math.floor((refTime - oldestBillDate.getTime()) / (1000 * 60 * 60 * 24)));
+    } else {
+      daysDormant = 14;
+    }
+
+    if (c.serviceStatus === 'active') {
+      activeDeployedCount++;
+      activeFleetValuePkr += unitCost;
+      cpeStats.activeCount++;
+      areaStats.activeCpe++;
+    } else if (c.serviceStatus === 'offline') {
+      dormantFieldCount++;
+      dormantCapitalAtRiskPkr += unitCost;
+      cpeStats.dormantCount++;
+      areaStats.dormantCpe++;
+      areaStats.dormantValue += unitCost;
+
+      retrievalCandidates.push({
+        id: c.id,
+        name: c.name || 'Unnamed',
+        customerNumber: c.customerNumber || '',
+        area: areaKey,
+        phone: c.phone || '',
+        package: c.packageSpeed || 'Unassigned',
+        cpeModel: cpe.modelName,
+        unitCost,
+        daysDormant,
+        balanceDue: totalDue,
+        priority: daysDormant >= 45 || totalDue > 3000 ? 'High' : 'Normal'
+      });
+    } else {
+      unconfiguredCount++;
+      unconfiguredValuePkr += unitCost;
+    }
+  }
+
+  let warehouseStock = 0;
+  let warehouseValuePkr = 0;
+  let damagedStock = 0;
+  let damagedValuePkr = 0;
+
+  if (typeof options.warehouseStockOverride === 'number') {
+    warehouseStock = options.warehouseStockOverride;
+    warehouseValuePkr = warehouseStock * 4500;
+  } else {
+    const invItems = state?.inventoryItems ?? [];
+    const onuItems = invItems.filter(item => {
+      const cat = String(item.category || '').toLowerCase();
+      const n = String(item.name || '').toLowerCase();
+      return cat.includes('onu') || cat.includes('cpe') || cat.includes('router') || cat.includes('ont') ||
+             n.includes('onu') || n.includes('router') || n.includes('ont');
+    });
+
+    if (onuItems.length > 0) {
+      for (const item of onuItems) {
+        const qty = Number(item.quantity) || 0;
+        const cost = Number(item.costPerUnit) || 4500;
+        if (item.status === 'damaged' || item.status === 'rma') {
+          damagedStock += qty;
+          damagedValuePkr += qty * cost;
+        } else {
+          warehouseStock += qty;
+          warehouseValuePkr += qty * cost;
+        }
+      }
+    } else {
+      warehouseStock = Math.max(6, Math.round(activeDeployedCount * 0.12));
+      warehouseValuePkr = warehouseStock * 4500;
+    }
+  }
+
+  const totalCpeFleet = activeDeployedCount + dormantFieldCount + unconfiguredCount + warehouseStock + damagedStock;
+  const totalFleetValuePkr = activeFleetValuePkr + dormantCapitalAtRiskPkr + unconfiguredValuePkr + warehouseValuePkr + damagedValuePkr;
+
+  const activeUtilizationPercent = totalCpeFleet > 0 ? Math.round((activeDeployedCount / totalCpeFleet) * 100) : 0;
+  const dormantRiskPercent = totalCpeFleet > 0 ? Math.round((dormantFieldCount / totalCpeFleet) * 100) : 0;
+  const warehouseSparesPercent = totalCpeFleet > 0 ? Math.round((warehouseStock / totalCpeFleet) * 100) : 0;
+
+  const estimatedWeeklyAdditions = Math.max(1, Math.round(activeDeployedCount * 0.02));
+  const sparesRunwayWeeks = Math.round(warehouseStock / estimatedWeeklyAdditions);
+
+  let fleetHealthStatus = 'Optimal Asset Efficiency';
+  let fleetHealthBadgeClass = 'badge-expansion';
+  if (totalCpeFleet === 0) {
+    fleetHealthStatus = 'No CPE Fleet Tracked';
+    fleetHealthBadgeClass = 'badge-expansion';
+  } else if (dormantRiskPercent >= 25) {
+    fleetHealthStatus = 'High Equipment Retrieval Needed';
+    fleetHealthBadgeClass = 'badge-contraction';
+  } else if (dormantRiskPercent >= 12) {
+    fleetHealthStatus = 'Moderate Idle Asset Exposure';
+    fleetHealthBadgeClass = 'badge-stable';
+  }
+
+  const modelDistribution = Array.from(modelCountMap.values())
+    .filter(m => m.deployedCount > 0)
+    .sort((a, b) => b.deployedCount - a.deployedCount);
+
+  retrievalCandidates.sort((a, b) => {
+    if (a.priority === 'High' && b.priority !== 'High') return -1;
+    if (a.priority !== 'High' && b.priority === 'High') return 1;
+    return b.daysDormant - a.daysDormant || b.balanceDue - a.balanceDue;
+  });
+
+  const areaBreakdown = Array.from(areaCpeMap.values())
+    .sort((a, b) => b.dormantValue - a.dormantValue || b.totalCpe - a.totalCpe);
+
+  return {
+    totalCpeFleet,
+    totalFleetValuePkr,
+    activeDeployedCount,
+    activeFleetValuePkr,
+    activeUtilizationPercent,
+    dormantFieldCount,
+    dormantCapitalAtRiskPkr,
+    dormantRiskPercent,
+    unconfiguredCount,
+    warehouseStock,
+    warehouseValuePkr,
+    warehouseSparesPercent,
+    damagedStock,
+    damagedValuePkr,
+    sparesRunwayWeeks,
+    fleetHealthStatus,
+    fleetHealthBadgeClass,
+    modelDistribution,
+    retrievalCandidates,
+    areaBreakdown
+  };
+}
+
+export function generateCpeAssetBriefing(cpeData, referenceDate = new Date()) {
+  const dateStr = referenceDate.toISOString().slice(0, 10);
+  const lines = [
+    `📡 SHAHDARA ISP - CPE & ONU ASSET LIFECYCLE AUDIT`,
+    `Generated: ${dateStr} PKT`,
+    `--------------------------------------------------`,
+    `[ ASSET FLEET OVERVIEW ]`,
+    `  Total Tracked Units: ${cpeData.totalCpeFleet}`,
+    `  Total Fleet Book Value: ${formatPKR(cpeData.totalFleetValuePkr)}`,
+    `  Active Field Deployment: ${cpeData.activeDeployedCount} units (${cpeData.activeUtilizationPercent}%) | Value: ${formatPKR(cpeData.activeFleetValuePkr)}`,
+    `  Dormant in Field (At Risk): ${cpeData.dormantFieldCount} units (${cpeData.dormantRiskPercent}%) | Capital at Risk: ${formatPKR(cpeData.dormantCapitalAtRiskPkr)}`,
+    `  Warehouse Spares: ${cpeData.warehouseStock} tested units (${cpeData.sparesRunwayWeeks} weeks deployment runway)`,
+    `  Damaged / RMA: ${cpeData.damagedStock} units`,
+    `  Fleet Health Status: ${cpeData.fleetHealthStatus}`,
+    ``,
+    `[ HARDWARE MODEL DISTRIBUTION ]`
+  ];
+
+  for (const m of cpeData.modelDistribution) {
+    lines.push(`  • ${m.modelName}: ${m.deployedCount} deployed (${m.activeCount} active, ${m.dormantCount} dormant) | Book: ${formatPKR(m.totalValue)}`);
+  }
+
+  lines.push(``);
+  lines.push(`[ HIGH-PRIORITY CPE RETRIEVAL MANIFEST ]`);
+  if (cpeData.retrievalCandidates.length === 0) {
+    lines.push(`  No dormant field equipment pending recovery.`);
+  } else {
+    cpeData.retrievalCandidates.slice(0, 8).forEach((sub, i) => {
+      lines.push(`  ${i + 1}. ${sub.name} (${sub.area}) - ${sub.phone || 'No phone'}`);
+      lines.push(`     Model: ${sub.cpeModel} (Est: ${formatPKR(sub.unitCost)}) | ${sub.daysDormant} days offline | Dues: ${formatPKR(sub.balanceDue)} [${sub.priority} Priority]`);
+    });
+  }
+
+  lines.push(`--------------------------------------------------`);
+  lines.push(`Shahdara ISP Field Network Operations & Asset Management`);
+  return lines.join('\n');
+}
+
+export function setupCpeAssetModal(state, { referenceDate = new Date(), onFilterCustomer, onToast, clipboard } = {}) {
+  if (typeof document === 'undefined' || typeof document.getElementById !== 'function') return;
+
+  const modal = document.getElementById('dashboardCpeModal');
+  const openBtn = document.getElementById('dashboardOpenCpeModalBtn');
+  const closeBtn = document.getElementById('dashboardCpeModalCloseBtn');
+  const retrievalTbody = document.getElementById('cpeRetrievalTableBody');
+  const modelsTbody = document.getElementById('cpeModelsTableBody');
+  const copyBtn = document.getElementById('dashboardCopyCpeReportBtn');
+
+  const totalFleetEl = document.getElementById('cpeTotalFleetVal');
+  const totalValueEl = document.getElementById('cpeTotalValueVal');
+  const activeDeployEl = document.getElementById('cpeActiveDeployVal');
+  const dormantRiskEl = document.getElementById('cpeDormantRiskVal');
+  const statusBadgeEl = document.getElementById('cpeStatusBadge');
+  const runwayEl = document.getElementById('cpeSparesRunwayVal');
+
+  if (!modal) return;
+
+  function populateAndOpen() {
+    const data = calculateCpeAssetMetrics(state, { referenceDate });
+
+    if (totalFleetEl) totalFleetEl.textContent = `${data.totalCpeFleet} Units`;
+    if (totalValueEl) totalValueEl.textContent = formatPKR(data.totalFleetValuePkr);
+    if (activeDeployEl) activeDeployEl.textContent = `${data.activeDeployedCount} Active (${data.activeUtilizationPercent}%)`;
+    if (dormantRiskEl) dormantRiskEl.textContent = formatPKR(data.dormantCapitalAtRiskPkr);
+    if (statusBadgeEl) {
+      statusBadgeEl.textContent = data.fleetHealthStatus;
+      statusBadgeEl.className = `sim-delta-badge ${data.fleetHealthBadgeClass}`;
+    }
+    if (runwayEl) runwayEl.textContent = `${data.warehouseStock} Spares (${data.sparesRunwayWeeks} wks runway)`;
+
+    if (modelsTbody) {
+      modelsTbody.innerHTML = data.modelDistribution.map(m => `
+        <tr>
+          <td><strong>${escapeXml(m.modelName)}</strong></td>
+          <td><span class="status-pill status-good">${escapeXml(m.category)}</span></td>
+          <td>${m.deployedCount}</td>
+          <td>${m.activeCount}</td>
+          <td style="color: ${m.dormantCount > 0 ? '#b91c1c' : 'inherit'}; font-weight: 700;">${m.dormantCount}</td>
+          <td>${formatPKR(m.unitCost)}</td>
+          <td><strong>${formatPKR(m.totalValue)}</strong></td>
+        </tr>
+      `).join('');
+    }
+
+    if (retrievalTbody) {
+      if (data.retrievalCandidates.length === 0) {
+        retrievalTbody.innerHTML = '<tr><td colspan="8" class="empty-cell">No dormant CPE equipment candidates for retrieval</td></tr>';
+      } else {
+        retrievalTbody.innerHTML = data.retrievalCandidates.map(sub => `
+          <tr>
+            <td><strong>${escapeXml(sub.name)}</strong></td>
+            <td>${escapeXml(sub.area)}</td>
+            <td>${escapeXml(sub.phone || '—')}</td>
+            <td>${escapeXml(sub.cpeModel)}</td>
+            <td><span class="status-pill ${sub.daysDormant >= 45 ? 'status-delinquent' : 'status-watchlist'}">${sub.daysDormant} days</span></td>
+            <td>${formatPKR(sub.balanceDue)}</td>
+            <td><span class="role-badge ${sub.priority === 'High' ? 'role-primary' : 'role-other'}">${sub.priority}</span></td>
+            <td>
+              <button class="small-action-btn" type="button" data-cpe-filter-id="${sub.id}">Locate</button>
+            </td>
+          </tr>
+        `).join('');
+
+        const filterBtns = retrievalTbody.querySelectorAll('[data-cpe-filter-id]');
+        filterBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            const cid = btn.getAttribute('data-cpe-filter-id');
+            if (typeof onFilterCustomer === 'function') {
+              onFilterCustomer(cid);
+              if (modal.close) modal.close();
+              else modal.removeAttribute('open');
+            }
+          });
+        });
+      }
+    }
+
+    if (modal.showModal) modal.showModal();
+    else modal.setAttribute('open', '');
+  }
+
+  if (openBtn && !openBtn.dataset?.wired) {
+    if (openBtn.dataset) openBtn.dataset.wired = 'true';
+    else if (openBtn.setAttribute) openBtn.setAttribute('data-wired', 'true');
+    openBtn.addEventListener('click', populateAndOpen);
+  }
+
+  if (closeBtn && !closeBtn.dataset?.wired) {
+    if (closeBtn.dataset) closeBtn.dataset.wired = 'true';
+    else if (closeBtn.setAttribute) closeBtn.setAttribute('data-wired', 'true');
+    closeBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  if (copyBtn && !copyBtn.dataset?.wired) {
+    if (copyBtn.dataset) copyBtn.dataset.wired = 'true';
+    else if (copyBtn.setAttribute) copyBtn.setAttribute('data-wired', 'true');
+    copyBtn.addEventListener('click', async () => {
+      const data = calculateCpeAssetMetrics(state, { referenceDate });
+      const text = generateCpeAssetBriefing(data, referenceDate);
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      if (clip && typeof clip.writeText === 'function') {
+        try {
+          await clip.writeText(text);
+          if (typeof onToast === 'function') onToast('CPE asset audit briefing copied to clipboard!');
+        } catch {
+          if (typeof onToast === 'function') onToast('Failed to copy to clipboard.');
+        }
+      } else if (typeof onToast === 'function') {
+        onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+}
+
 export {
   calculateMonthlyTrends,
   calculateDuesByArea,
@@ -3941,6 +4393,7 @@ export {
   renderBandwidthShapingSvg,
   renderFiberDistributionSvg,
   renderDelinquencyPipelineSvg,
+  renderCpeAssetLifecycleSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,

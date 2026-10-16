@@ -33,7 +33,8 @@ import {
   setupAdjustmentVoucherModal,
   setupServiceContractModal,
   setupDisputeClaimModal,
-  setupKycComplianceModal
+  setupKycComplianceModal,
+  setupEquipmentRetrievalModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3203,6 +3204,7 @@ export let customerAdjustmentModalController;
 export let customerServiceContractModalController;
 export let customerDisputeModalController;
 export let customerKycComplianceModalController;
+export let customerEquipmentRetrievalModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3293,6 +3295,30 @@ if (typeof document !== 'undefined') {
   if (openKycAuditBtn) {
     openKycAuditBtn.addEventListener('click', () => {
       customerKycComplianceModalController?.open();
+    });
+  }
+
+  customerEquipmentRetrievalModalController = setupEquipmentRetrievalModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg),
+    onNavigateCustomer: (cid) => {
+      switchView('customers');
+      selectCustomer(cid);
+    },
+    onEquipmentRetrieved: () => {
+      if (selectedCustomerId) {
+        renderCustomerDetail();
+        renderCustomers();
+      }
+    }
+  });
+
+  const openEquipmentRetrievalBtn = $('#openEquipmentRetrievalBtn');
+  if (openEquipmentRetrievalBtn) {
+    openEquipmentRetrievalBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      customerEquipmentRetrievalModalController?.open(cust);
     });
   }
 }

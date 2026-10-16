@@ -1763,7 +1763,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -3848,6 +3848,178 @@
         <button id="copyKycStatementBtn" class="secondary-button" type="button">📋 Copy Audit Statement</button>
         <button id="downloadKycCsvBtn" class="secondary-button" type="button">📥 Download CSV Report</button>
         <button id="printKycRegisterBtn" class="primary-button" type="button">🖨️ Print Regulatory Register</button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="equipmentRetrievalModal" class="modal equipment-retrieval-modal" aria-labelledby="retrievalModalTitle">
+    <section class="modal-card equipment-retrieval-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">HARDWARE CUSTODY &amp; ASSET RECOVERY · SHAHDARA FIELD OPS</p>
+          <h2 id="retrievalModalTitle">Subscriber Equipment Retrieval &amp; Return Manifest</h2>
+        </div>
+        <button id="closeEquipmentRetrievalBtn" class="close-button" type="button" aria-label="Close equipment retrieval modal">×</button>
+      </div>
+      <p class="section-intro">Track optical modem (ONT), router, and drop cable hardware recovery for disconnected or migrating subscribers, calculate security deposit refunds and damage deductions, and print official custody manifests.</p>
+
+      <!-- KPI Summary Ribbon -->
+      <div class="retrieval-metrics-bar">
+        <div class="retrieval-metric-pill">
+          <span class="retrieval-metric-label">Total Manifests</span>
+          <strong id="retrievalKpiTotal" class="retrieval-metric-value">0</strong>
+        </div>
+        <div class="retrieval-metric-pill">
+          <span class="retrieval-metric-label">Recovered &amp; Stored</span>
+          <strong id="retrievalKpiRecovered" class="retrieval-metric-value" style="color: #047857;">0</strong>
+        </div>
+        <div class="retrieval-metric-pill">
+          <span class="retrieval-metric-label">Pending Recovery</span>
+          <strong id="retrievalKpiPending" class="retrieval-metric-value" style="color: #d97706;">0</strong>
+        </div>
+        <div class="retrieval-metric-pill">
+          <span class="retrieval-metric-label">Recovery Rate</span>
+          <strong id="retrievalKpiRate" class="retrieval-metric-value" style="color: #047857;">100%</strong>
+        </div>
+      </div>
+
+      <!-- New Manifest Form Panel -->
+      <div class="retrieval-new-panel">
+        <h3 class="retrieval-panel-title">➕ Record New Hardware Retrieval Manifest</h3>
+        <form id="equipmentRetrievalForm">
+          <div class="retrieval-form-grid">
+            <div class="retrieval-form-field">
+              <label for="retrievalCustomerSelect">Subscriber Account *</label>
+              <select id="retrievalCustomerSelect" class="retrieval-select" required>
+                <option value="">-- Select Subscriber --</option>
+              </select>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalTypeSelect">Equipment Type *</label>
+              <select id="retrievalTypeSelect" class="retrieval-select" required>
+                <option value="ont_gpon" selected>GPON ONT / ONU Optical Modem</option>
+                <option value="wifi_router">Dual-Band Gigabit Wi-Fi Router</option>
+                <option value="fiber_patch_cord">SC/UPC Fiber Drop Patch Cord</option>
+                <option value="power_adapter">12V 1.5A/2A DC Power Adapter</option>
+              </select>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalModelInput">Brand &amp; Model</label>
+              <input id="retrievalModelInput" class="retrieval-input" type="text" value="Huawei EchoLife HG8546M" placeholder="e.g. Huawei HG8546M, TP-Link C6">
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalSerialInput">Serial Number (S/N) *</label>
+              <input id="retrievalSerialInput" class="retrieval-input font-mono" type="text" placeholder="e.g. 48575443ABCDEF01" required>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalConditionSelect">Physical Condition *</label>
+              <select id="retrievalConditionSelect" class="retrieval-select">
+                <option value="excellent">Excellent / Like New</option>
+                <option value="good" selected>Good Working Condition</option>
+                <option value="minor_wear">Minor Scratches / Working</option>
+                <option value="damaged_casing">Physical Casing Cracked / Damaged</option>
+                <option value="burnt_power_surge">Burnt Port / Power Surge Defective</option>
+                <option value="missing_parts">Missing Adapter / Incomplete Cable</option>
+              </select>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalStatusSelect">Retrieval Status *</label>
+              <select id="retrievalStatusSelect" class="retrieval-select">
+                <option value="retrieved" selected>Retrieved &amp; In Custody</option>
+                <option value="pending_retrieval">Pending Field Retrieval</option>
+                <option value="damaged_unusable">Damaged / Hardware Fault</option>
+                <option value="subscriber_purchased">Subscriber Purchased / Retained</option>
+                <option value="waived_unrecoverable">Unrecoverable / Waived</option>
+              </select>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalTechInput">Retrieving Technician *</label>
+              <input id="retrievalTechInput" class="retrieval-input" type="text" value="Umair Field Lead" required>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalDateInput">Recovery Date *</label>
+              <input id="retrievalDateInput" class="retrieval-input" type="date" required>
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalDepositInput">Security Deposit Held (PKR)</label>
+              <input id="retrievalDepositInput" class="retrieval-input" type="number" min="0" step="50" value="3000">
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalDamageInput">Damage Deduction (PKR)</label>
+              <input id="retrievalDamageInput" class="retrieval-input" type="number" min="0" step="50" value="0">
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalPenaltyInput">Missing Parts Penalty (PKR)</label>
+              <input id="retrievalPenaltyInput" class="retrieval-input" type="number" min="0" step="50" value="0">
+            </div>
+            <div class="retrieval-form-field">
+              <label for="retrievalArrearsInput">Monthly Dues Arrears Offset (PKR)</label>
+              <input id="retrievalArrearsInput" class="retrieval-input" type="number" min="0" step="50" value="0">
+            </div>
+            <div class="retrieval-form-field full-width">
+              <label for="retrievalNotesInput">Field Notes &amp; Custody Remarks</label>
+              <input id="retrievalNotesInput" class="retrieval-input" type="text" placeholder="e.g. Power adapter and drop cord retrieved intact from subscriber house.">
+            </div>
+          </div>
+
+          <!-- Real-Time Settlement Preview Box -->
+          <div class="retrieval-settlement-box">
+            <div class="retrieval-settlement-item">
+              <span class="retrieval-metric-label">Net Refund Payable to Subscriber</span>
+              <strong id="retrievalNetRefundVal" style="font-size: 15px; color: #047857;">PKR 3,000</strong>
+            </div>
+            <div class="retrieval-settlement-item">
+              <span class="retrieval-metric-label">Net Balance Due from Subscriber</span>
+              <strong id="retrievalNetDueVal" style="font-size: 15px; color: #b91c1c;">PKR 0</strong>
+            </div>
+            <button id="saveRetrievalManifestBtn" class="primary-button" type="submit">💾 Save &amp; Issue Manifest</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Filter Controls Toolbar -->
+      <div class="kyc-controls-toolbar">
+        <div class="kyc-filter-group">
+          <label for="retrievalFilterStatus">Filter by Status</label>
+          <select id="retrievalFilterStatus" class="kyc-select">
+            <option value="all" selected>All Manifests</option>
+            <option value="retrieved">Retrieved &amp; In Custody</option>
+            <option value="pending">Pending Field Retrieval</option>
+            <option value="damaged">Damaged / Unusable</option>
+            <option value="purchased">Subscriber Purchased</option>
+            <option value="waived">Waived / Unrecoverable</option>
+          </select>
+        </div>
+        <div class="kyc-filter-group kyc-search-group">
+          <label for="retrievalSearchInput">Search Manifests</label>
+          <input id="retrievalSearchInput" class="kyc-input" type="search" placeholder="Search manifest #, subscriber, serial, model, technician...">
+        </div>
+      </div>
+
+      <!-- Manifests History Table -->
+      <div class="table-scroll retrieval-table-scroll">
+        <table class="data-table" aria-label="Equipment Retrieval Manifest Table">
+          <thead>
+            <tr>
+              <th>Manifest #</th>
+              <th>Date</th>
+              <th>Subscriber</th>
+              <th>Hardware</th>
+              <th>Condition</th>
+              <th class="text-center">Status</th>
+              <th class="text-right">Settlement</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="equipmentRetrievalTableBody">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="modal-form-actions kyc-modal-actions">
+        <button id="exportEquipmentRetrievalCsvBtn" class="secondary-button" type="button">📥 Export CSV Register</button>
       </div>
     </section>
   </dialog>

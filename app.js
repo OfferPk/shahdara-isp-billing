@@ -37,7 +37,8 @@ import {
   setupEquipmentRetrievalModal,
   setupSpliceInspectionModal,
   setupPlanMigrationModal,
-  setupOpticalAcceptanceModal
+  setupOpticalAcceptanceModal,
+  setupDropSafetyInspectionModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3266,6 +3267,7 @@ export let customerEquipmentRetrievalModalController;
 export let customerSpliceInspectionModalController;
 export let customerPlanMigrationModalController;
 export let customerOpticalAcceptanceModalController;
+export let customerDropSafetyModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3433,6 +3435,20 @@ if (typeof document !== 'undefined') {
     openOpticalAcceptanceBtn.addEventListener('click', () => {
       const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
       customerOpticalAcceptanceModalController?.open(cust);
+    });
+  }
+
+  customerDropSafetyModalController = setupDropSafetyInspectionModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openDropInspectionBtn = $('#openDropInspectionBtn');
+  if (openDropInspectionBtn) {
+    openDropInspectionBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      customerDropSafetyModalController?.open(cust);
     });
   }
 }

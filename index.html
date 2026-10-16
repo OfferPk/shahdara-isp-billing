@@ -2525,7 +2525,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
-              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="openSpliceInspectionBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-splice-inspection title="Fiber Optic Splicing &amp; Joint Enclosure QA Inspection Checklist">🔬 Splicing QA</button><button id="openPlanMigrationBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-plan-migration title="Service Plan Migration &amp; Mid-Cycle Proration Voucher">⚡ Plan Migration</button><button id="openOpticalAcceptanceBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-optical-acceptance title="ONU Optical Power &amp; Link Loss Acceptance QA Certificate">📡 Optical QA</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
+              <div class="profile-action-group" role="group" aria-label="Customer quick actions"><button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button><button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button><button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button><button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button><button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button><button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button><button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 Agreement</button><button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button><button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button><button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button><button id="openSpliceInspectionBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-splice-inspection title="Fiber Optic Splicing &amp; Joint Enclosure QA Inspection Checklist">🔬 Splicing QA</button><button id="openPlanMigrationBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-plan-migration title="Service Plan Migration &amp; Mid-Cycle Proration Voucher">⚡ Plan Migration</button><button id="openOpticalAcceptanceBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-optical-acceptance title="ONU Optical Power &amp; Link Loss Acceptance QA Certificate">📡 Optical QA</button><button id="openDropInspectionBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-drop-inspection title="Subscriber Fiber Drop Cable Tension &amp; Grounding Safety QA Certificate">🏗️ Drop Safety QA</button><button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button><button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button><button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button></div>
               <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
@@ -5799,6 +5799,189 @@
 
       <div class="modal-form-actions kyc-modal-actions" style="margin-top: 14px;">
         <button id="opticalAcceptanceExportCsvBtn" class="secondary-button" type="button">📥 Export Optical QA CSV</button>
+      </div>
+    </section>
+  </dialog>
+
+  <dialog id="dropSafetyInspectionModal" class="modal kyc-modal drop-safety-modal" aria-labelledby="dropSafetyModalTitle">
+    <section class="modal-card kyc-modal-card drop-safety-modal-card" style="max-width: 900px;">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">OUTSIDE PLANT (OSP) · CIVIL &amp; ELECTRICAL SAFETY QA</p>
+          <h2 id="dropSafetyModalTitle">Drop Cable Tension &amp; Grounding Safety QA</h2>
+        </div>
+        <button id="closeDropSafetyModalBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+      </div>
+
+      <!-- Active Subscriber Header Banner -->
+      <div class="kyc-subscriber-banner">
+        <div class="kyc-sub-info">
+          <span class="kyc-sub-avatar">🏗️</span>
+          <div>
+            <h3 id="dropSubName" class="kyc-sub-name">Subscriber</h3>
+            <p id="dropSubArea" class="kyc-sub-meta">Network Wide</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Ribbon -->
+      <div class="kyc-kpi-ribbon">
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">TOTAL INSPECTIONS</span>
+          <span id="dropKpiTotal" class="kyc-kpi-val font-mono">0</span>
+        </div>
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">CERTIFIED SAFE</span>
+          <span id="dropKpiCert" class="kyc-kpi-val font-mono text-success">0</span>
+        </div>
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">PASS RATE</span>
+          <span id="dropKpiRate" class="kyc-kpi-val font-mono">100%</span>
+        </div>
+        <div class="kyc-kpi-card">
+          <span class="kyc-kpi-label">SAFETY HAZARDS</span>
+          <span id="dropKpiHazard" class="kyc-kpi-val font-mono text-danger">0</span>
+        </div>
+      </div>
+
+      <!-- Two-column Intake Form -->
+      <div class="mig-grid-layout" style="margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <!-- Left: Physical Anchoring & Span Dimensions -->
+        <div class="mig-card">
+          <h4 class="mig-section-title">Hardware Anchoring &amp; Dimensions</h4>
+
+          <div class="mig-form-row">
+            <label for="dropAnchorTypeSelect">Anchor Hardware</label>
+            <select id="dropAnchorTypeSelect" class="kyc-select">
+              <option value="J-Hook Tension Clamp" selected>J-Hook Tension Clamp</option>
+              <option value="Dead-End Helical Guy Grip">Dead-End Helical Guy Grip</option>
+              <option value="Span Clamp with Hook">Span Clamp with Hook</option>
+              <option value="Direct Wall Anchor Expansion Bolt">Direct Wall Anchor Expansion Bolt</option>
+              <option value="Porcelain Spool Insulator">Porcelain Spool Insulator</option>
+            </select>
+          </div>
+
+          <div class="mig-form-row">
+            <label for="dropSurfaceTypeSelect">Mounting Surface</label>
+            <select id="dropSurfaceTypeSelect" class="kyc-select">
+              <option value="Brick Wall / Plaster" selected>Brick Wall / Plaster</option>
+              <option value="RCC Roof Parapet">RCC Roof Parapet</option>
+              <option value="Galvanized Steel Pole">Galvanized Steel Pole</option>
+              <option value="Wood Mast / Purlin">Wood Mast / Purlin</option>
+            </select>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="mig-form-row">
+              <label for="dropSpanInput">Span Length (m)</label>
+              <input id="dropSpanInput" class="kyc-input" type="number" step="1" value="45">
+            </div>
+            <div class="mig-form-row">
+              <label for="dropSagInput">Mid-Span Sag (cm)</label>
+              <input id="dropSagInput" class="kyc-input" type="number" step="1" value="25">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="mig-form-row">
+              <label for="dropBendInput">Min Bend Radius (mm)</label>
+              <input id="dropBendInput" class="kyc-input" type="number" step="1" value="35">
+            </div>
+            <div class="mig-form-row">
+              <label for="dropGroundInput">Grounding (Ohms)</label>
+              <input id="dropGroundInput" class="kyc-input" type="number" step="0.5" value="5.0">
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Checklists, Safety Verdict & Actions -->
+        <div class="mig-card">
+          <h4 class="mig-section-title">Physical Safety &amp; Ingress Checklist</h4>
+
+          <div style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; margin-bottom: 8px;">
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input id="dropChkDripLoop" type="checkbox" checked>
+              <span>Drip loop at exterior wall entry</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input id="dropChkUvTies" type="checkbox" checked>
+              <span>UV-stabilized outdoor cable ties</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input id="dropChkConduit" type="checkbox" checked>
+              <span>Protective conduit sleeve in wall</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input id="dropChkSeal" type="checkbox" checked>
+              <span>Silicone weatherproof exterior seal</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px;">
+              <input id="dropChkArrester" type="checkbox" checked>
+              <span>Surge / lightning grounding clamp</span>
+            </label>
+          </div>
+
+          <!-- Real-time verdict & tension box -->
+          <div class="mig-settlement-card" style="margin-top: 10px;">
+            <div class="mig-settlement-header">
+              <span>Mechanical &amp; Civil Safety Verdict</span>
+              <span id="dropPreviewVerdictBadge" class="sim-delta-badge badge-success">Certified Safe &amp; Compliant</span>
+            </div>
+            <div style="font-size: 12px; margin-top: 4px;">
+              Tension Load: <strong id="dropPreviewTension" class="font-mono">75.0 N (70% margin)</strong>
+            </div>
+            <ul id="dropPreviewRecsList" style="margin: 4px 0 0; padding-left: 18px; font-size: 11px; color: #475569;">
+              <li>All ITU-T &amp; civil safety standards verified.</li>
+            </ul>
+          </div>
+
+          <div class="mig-form-actions" style="margin-top: 12px;">
+            <button id="dropSubmitBtn" class="primary-button" type="button">🏗️ Issue Safety Certificate</button>
+            <button id="dropCopyWhatsAppBtn" class="secondary-button" type="button">💬 Copy WhatsApp Slip</button>
+            <button id="dropPrintA4Btn" class="secondary-button" type="button">🖨️ Print A4 Cert</button>
+            <button id="dropPrintThermalBtn" class="secondary-button" type="button">🧾 80mm POS Slip</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History & Audit Table -->
+      <div class="kyc-controls-toolbar" style="margin-top: 18px;">
+        <div class="kyc-filter-group">
+          <label for="dropFilterVerdictSelect">Filter Verdict</label>
+          <select id="dropFilterVerdictSelect" class="kyc-select">
+            <option value="ALL" selected>All Safety Certificates</option>
+            <option value="CERTIFIED_PASS">✅ Certified Safe</option>
+            <option value="CONDITIONAL_PASS">⚠️ Conditional Pass</option>
+            <option value="FAILED_SAFETY_HAZARD">🔴 Safety Hazard</option>
+          </select>
+        </div>
+        <div class="kyc-filter-group kyc-search-group">
+          <label for="dropSearchInput">Search Certificates</label>
+          <input id="dropSearchInput" class="kyc-input" type="search" placeholder="Search cert ID, subscriber, area, anchor...">
+        </div>
+      </div>
+
+      <div class="table-scroll" style="max-height: 240px; overflow-y: auto;">
+        <table class="data-table" aria-label="Drop Cable Safety QA Registry">
+          <thead>
+            <tr>
+              <th>Certificate ID</th>
+              <th>Subscriber</th>
+              <th>Anchor Hardware</th>
+              <th>Tension (N)</th>
+              <th>Earthing (&Omega;)</th>
+              <th>QA Verdict</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dropHistoryTableBody">
+            <!-- Dynamically populated rows -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="modal-form-actions kyc-modal-actions" style="margin-top: 14px;">
+        <button id="dropExportCsvBtn" class="secondary-button" type="button">📥 Export Drop Safety CSV</button>
       </div>
     </section>
   </dialog>

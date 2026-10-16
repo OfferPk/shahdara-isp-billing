@@ -13372,3 +13372,297 @@ test('index.html and dashboard.css contain ITU-T G.8032 ERPS markup and styles',
   assert.ok(css.includes('.erps-svg'));
 });
 
+test('Y1731_OAM_CONSTANTS and SHAHDARA_Y1731_SERVICES contain valid specifications', async () => {
+  const { Y1731_OAM_CONSTANTS, SHAHDARA_Y1731_SERVICES } = await import('../dashboard.js');
+
+  assert.ok(Y1731_OAM_CONSTANTS.DEFAULT_SERVICE_ID);
+  assert.equal(Y1731_OAM_CONSTANTS.AVAILABILITY_STATES.AVAILABLE, 'AVAILABLE');
+  assert.equal(Y1731_OAM_CONSTANTS.AVAILABILITY_STATES.UNAVAILABLE, 'UNAVAILABLE');
+  assert.ok(Y1731_OAM_CONSTANTS.SLA_PROFILES.HIGH_CRITICAL);
+
+  assert.ok(Array.isArray(SHAHDARA_Y1731_SERVICES));
+  assert.equal(SHAHDARA_Y1731_SERVICES.length, 5);
+
+  SHAHDARA_Y1731_SERVICES.forEach(s => {
+    assert.ok(s.id);
+    assert.ok(s.name);
+    assert.ok(s.spanLengthKm > 0);
+    assert.ok(s.sourceMep && s.sourceMep.id);
+    assert.ok(s.targetMep && s.targetMep.id);
+    assert.ok(s.committedThroughputMbps > 0);
+    assert.ok(s.monthlyRevenuePkr > 0);
+  });
+});
+
+test('calculateY1731Dynamics computes microsecond frame delay and jitter in baseline', async () => {
+  const { calculateY1731Dynamics, SHAHDARA_Y1731_SERVICES } = await import('../dashboard.js');
+
+  const bankService = SHAHDARA_Y1731_SERVICES[0];
+  const dynamics = calculateY1731Dynamics(bankService);
+
+  assert.ok(dynamics.twoWayDelayMs > 0);
+  assert.ok(dynamics.oneWayDelayMs > 0);
+  assert.equal(dynamics.oneWayDelayMs, +(dynamics.twoWayDelayMs / 2).toFixed(4));
+
+  // Optical propagation assertions for 8.4 km SMF-28
+  assert.ok(dynamics.propagationDelay.oneWayUs > 35.0 && dynamics.propagationDelay.oneWayUs < 50.0);
+  assert.ok(dynamics.propagationDelay.hopsTransitDelayUs > 10.0);
+
+  // SLA assertions
+  assert.equal(dynamics.delayCompliant, true);
+  assert.equal(dynamics.jitterCompliant, true);
+  assert.equal(dynamics.flrCompliant, true);
+  assert.equal(dynamics.availabilityState, 'AVAILABLE');
+  assert.equal(dynamics.slaVerdict, 'SLA_COMPLIANT_OPTIMAL');
+  assert.equal(dynamics.penaltyCreditPct, 0);
+  assert.equal(dynamics.penaltyPkr, 0);
+
+  // Timestamps check
+  assert.ok(dynamics.timestamps.t1Us);
+  assert.ok(dynamics.timestamps.t2Us > dynamics.timestamps.t1Us);
+  assert.ok(dynamics.timestamps.t4Us > dynamics.timestamps.t3Us);
+});
+
+test('calculateY1731Dynamics with severe buffer congestion and loss triggers SLA violation', async () => {
+  const { calculateY1731Dynamics, SHAHDARA_Y1731_SERVICES } = await import('../dashboard.js');
+
+  const bankService = SHAHDARA_Y1731_SERVICES[0];
+  const dynamics = calculateY1731Dynamics(bankService, {
+    injectedQueueDelayMs: 12.0,
+    injectedLossPct: 1.5
+  });
+
+  assert.ok(dynamics.oneWayDelayMs > 6.0);
+  assert.equal(dynamics.delayCompliant, false);
+  assert.equal(dynamics.flrCompliant, false);
+  assert.equal(dynamics.availabilityState, 'DEGRADED');
+  assert.equal(dynamics.slaVerdict, 'SLA_VIOLATION_MARGINAL');
+  assert.equal(dynamics.penaltyCreditPct, 10);
+  assert.ok(dynamics.penaltyPkr > 0);
+});
+
+test('calculateY1731Dynamics with FLR >= 50% triggers UNAVAILABLE outage state', async () => {
+  const { calculateY1731Dynamics, SHAHDARA_Y1731_SERVICES } = await import('../dashboard.js');
+
+  const bankService = SHAHDARA_Y1731_SERVICES[0];
+  const dynamics = calculateY1731Dynamics(bankService, {
+    injectedLossPct: 58.5
+  });
+
+  assert.equal(dynamics.availabilityState, 'UNAVAILABLE');
+  assert.equal(dynamics.slaVerdict, 'SLA_BREACH_OUTAGE');
+  assert.equal(dynamics.penaltyCreditPct, 25);
+  assert.ok(dynamics.penaltyPkr > 0);
+  assert.ok(dynamics.lostFramesCount > 5000);
+});
+
+test('calculateY1731Metrics aggregates portfolio metrics and area customers', async () => {
+  const { calculateY1731Metrics } = await import('../dashboard.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', area: 'Shahdara Town', packagePrice: 3500, balance: 0, archived: false },
+      { id: 'c2', area: 'Baradari', packagePrice: 4000, balance: 1000, archived: false },
+      { id: 'c3', area: 'Begum Kot', packagePrice: 2500, balance: 0, archived: false },
+      { id: 'c4', area: 'Random Area', packagePrice: 2000, balance: 500, archived: false },
+      { id: 'c5', area: 'Shahdara Town', packagePrice: 3000, balance: 0, archived: true }
+    ]
+  };
+
+  const metrics = calculateY1731Metrics(mockState, {
+    serviceId: 'nbp-bank-core-oam'
+  });
+
+  assert.equal(metrics.totalServices, 5);
+  assert.ok(metrics.totalFiberSpanKm > 40);
+  assert.ok(metrics.totalSubscribers > 1000);
+  assert.ok(metrics.totalProtectedRevenuePkr > 4000000);
+  assert.equal(metrics.actualCustomersInArea, 3); // c1, c2, c3
+});
+
+test('renderY1731DiagramSvg outputs valid vector graphics in both light and dark modes', async () => {
+  const { calculateY1731Dynamics, renderY1731DiagramSvg, SHAHDARA_Y1731_SERVICES } = await import('../dashboard.js');
+
+  const service = SHAHDARA_Y1731_SERVICES[0];
+  const dynamics = calculateY1731Dynamics(service);
+
+  // 1. Dark Mode
+  const darkSvg = renderY1731DiagramSvg(dynamics, { isDarkMode: true });
+  assert.ok(darkSvg.includes('<svg'));
+  assert.ok(darkSvg.includes('class="y1731-svg"'));
+  assert.ok(darkSvg.includes('DMM Request'));
+  assert.ok(darkSvg.includes('DMR Response'));
+  assert.ok(darkSvg.includes('MEP-101'));
+  assert.ok(darkSvg.includes('MEP-102'));
+  assert.ok(darkSvg.includes('#0f172a'));
+
+  // 2. Light Mode
+  const lightSvg = renderY1731DiagramSvg(dynamics, { isDarkMode: false });
+  assert.ok(lightSvg.includes('#f8fafc'));
+  assert.ok(lightSvg.includes('Two-Way Frame Delay'));
+});
+
+test('generateY1731Report, exportY1731Json, and exportY1731Csv format data accurately', async () => {
+  const {
+    calculateY1731Dynamics,
+    generateY1731Report,
+    exportY1731Json,
+    exportY1731Csv,
+    SHAHDARA_Y1731_SERVICES
+  } = await import('../dashboard.js');
+
+  const service = SHAHDARA_Y1731_SERVICES[0];
+  const dynamics = calculateY1731Dynamics(service);
+
+  // 1. Text Report
+  const report = generateY1731Report(dynamics);
+  assert.ok(report.includes('SHAHDARA ISP CARRIER ETHERNET OAM & PM AUDIT REPORT'));
+  assert.ok(report.includes('1. CIRCUIT TOPOLOGY & MAINTENANCE DOMAIN'));
+  assert.ok(report.includes('2. FRAME DELAY & JITTER PERFORMANCE MONITORING'));
+  assert.ok(report.includes('3. SYNTHETIC LOSS MEASUREMENT & AVAILABILITY'));
+  assert.ok(report.includes('4. COMPONENT LATENCY STACK'));
+
+  // 2. JSON
+  const jsonStr = exportY1731Json(dynamics);
+  const parsed = JSON.parse(jsonStr);
+  assert.equal(parsed.standard, 'ITU-T Y.1731 / IEEE 802.1ag Carrier Ethernet OAM');
+  assert.equal(parsed.service.id, 'nbp-bank-core-oam');
+  assert.ok(parsed.performance.twoWayDelayMs > 0);
+
+  // 3. CSV
+  const csvStr = exportY1731Csv(dynamics);
+  assert.ok(csvStr.startsWith('Service_ID,Service_Name,Primary_Area'));
+  assert.ok(csvStr.includes('"nbp-bank-core-oam"'));
+  assert.ok(csvStr.includes('\r\n'));
+});
+
+test('setupY1731Modal binds DOM controls, slider, loss input, reset, and exports', async () => {
+  const { setupY1731Modal } = await import('../dashboard.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      open: false,
+      style: {},
+      addEventListener(evt, fn) {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      input() {
+        if (listeners['input']) listeners['input'].forEach(fn => fn({ type: 'input' }));
+      },
+      change() {
+        if (listeners['change']) listeners['change'].forEach(fn => fn({ type: 'change' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; }
+    };
+  }
+
+  const elements = {
+    dashboardY1731Modal: createMockEl('dashboardY1731Modal'),
+    dashboardOpenY1731ModalBtn: createMockEl('dashboardOpenY1731ModalBtn'),
+    dashboardY1731ModalCloseBtn: createMockEl('dashboardY1731ModalCloseBtn'),
+    dashboardY1731Chart: createMockEl('dashboardY1731Chart'),
+    y1731ServiceSelect: createMockEl('y1731ServiceSelect'),
+    y1731QueueDelaySlider: createMockEl('y1731QueueDelaySlider'),
+    y1731QueueDelayLabel: createMockEl('y1731QueueDelayLabel'),
+    y1731LossInput: createMockEl('y1731LossInput'),
+    y1731CcmSelect: createMockEl('y1731CcmSelect'),
+    y1731ResetBtn: createMockEl('y1731ResetBtn'),
+    y1731StatDelay: createMockEl('y1731StatDelay'),
+    y1731StatJitter: createMockEl('y1731StatJitter'),
+    y1731StatFlr: createMockEl('y1731StatFlr'),
+    y1731StatAvailability: createMockEl('y1731StatAvailability'),
+    y1731StatVerdict: createMockEl('y1731StatVerdict'),
+    y1731StatPenalty: createMockEl('y1731StatPenalty'),
+    y1731ModalDiagramContainer: createMockEl('y1731ModalDiagramContainer'),
+    y1731FilterAreaBtn: createMockEl('y1731FilterAreaBtn'),
+    y1731ExportJsonBtn: createMockEl('y1731ExportJsonBtn'),
+    y1731ExportCsvBtn: createMockEl('y1731ExportCsvBtn'),
+    y1731CopyReportBtn: createMockEl('y1731CopyReportBtn')
+  };
+
+  elements.y1731ServiceSelect.value = 'nbp-bank-core-oam';
+  elements.y1731QueueDelaySlider.value = '0.45';
+  elements.y1731LossInput.value = '0.0001';
+  elements.y1731CcmSelect.value = 'FAST_3_3MS';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupY1731Modal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardY1731Modal.open, true);
+  assert.ok(elements.y1731ModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardY1731Chart.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.y1731QueueDelaySlider.value = '5.0';
+  elements.y1731QueueDelaySlider.input();
+  assert.ok(elements.y1731QueueDelayLabel.textContent.includes('5.00 ms'));
+
+  // Test reset
+  elements.y1731ResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.y1731ExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('Clipboard'));
+  elements.y1731ExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('Clipboard'));
+
+  // Test filter area
+  elements.y1731FilterAreaBtn.click();
+  assert.equal(filterArea, 'Shahdara Town');
+
+  controller.close();
+  assert.equal(elements.dashboardY1731Modal.open, false);
+});
+
+test('index.html and dashboard.css contain Y.1731 OAM markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-y1731-oam'));
+  assert.ok(html.includes('id="dashboardY1731Chart"'));
+  assert.ok(html.includes('id="dashboardOpenY1731ModalBtn"'));
+  assert.ok(html.includes('id="dashboardY1731Modal"'));
+  assert.ok(html.includes('id="y1731ServiceSelect"'));
+  assert.ok(html.includes('id="y1731QueueDelaySlider"'));
+  assert.ok(html.includes('id="y1731LossInput"'));
+  assert.ok(html.includes('id="y1731CcmSelect"'));
+  assert.ok(html.includes('id="y1731ResetBtn"'));
+  assert.ok(html.includes('id="y1731ModalDiagramContainer"'));
+  assert.ok(html.includes('id="y1731ExportJsonBtn"'));
+  assert.ok(html.includes('id="y1731ExportCsvBtn"'));
+  assert.ok(html.includes('id="y1731CopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-y1731-oam'));
+  assert.ok(css.includes('.y1731-modal-card'));
+  assert.ok(css.includes('.y1731-svg'));
+});
+
+

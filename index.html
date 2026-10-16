@@ -780,6 +780,16 @@
             </div>
             <div id="dashboardErpsChart" class="chart-svg-container" role="img" aria-label="Metro Ethernet Ring Protection Topology and Switching Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-y1731-oam">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier Ethernet OAM &amp; PM (ITU-T Y.1731 / 802.1ag)</h4>
+                <p class="chart-subtitle">Microsecond two-way frame delay (DMM/DMR), delay variation (FDV), synthetic loss &amp; SLA availability</p>
+              </div>
+              <button id="dashboardOpenY1731ModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Y.1731 SLA Diagnostics</button>
+            </div>
+            <div id="dashboardY1731Chart" class="chart-svg-container" role="img" aria-label="Carrier Ethernet OAM and Performance Monitoring Chart"></div>
+          </article>
         </div>
 
 
@@ -4152,6 +4162,93 @@
               <button id="erpsExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="erpsCopyReportBtn" class="primary-button" type="button">📋 Copy ERPS Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardY1731Modal" class="dashboard-modal y1731-modal" aria-labelledby="dashboardY1731ModalTitle">
+        <div class="dashboard-modal-card y1731-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <h3 id="dashboardY1731ModalTitle">ITU-T Y.1731 / IEEE 802.1ag Carrier Ethernet OAM &amp; PM</h3>
+              <p class="modal-subtitle">Microsecond frame delay (DMM/DMR), delay variation (FDV), synthetic loss (SLM/SLR) &amp; SLA availability</p>
+            </div>
+            <button id="dashboardY1731ModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="form-group">
+              <label for="y1731ServiceSelect">Target Leased Line Circuit:</label>
+              <select id="y1731ServiceSelect" class="form-select">
+                <option value="nbp-bank-core-oam">National Bank Shahdara Branch Core (8.4 km, CoS 1)</option>
+                <option value="hospital-telemed-oam">Shahdara Hospital Telemedicine PACS (6.2 km, CoS 1)</option>
+                <option value="cellular-fronthaul-oam">Cellular 5G Macro Tower Front-Haul (12.8 km, 25G)</option>
+                <option value="b2b-plaza-agg-oam">Jia Musa Plaza Corporate Trunk (4.5 km, CoS 2)</option>
+                <option value="inter-olt-backbone-oam">Vandala-Baradari Inter-OLT Ring Interconnect (16.5 km, 100G)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="y1731QueueDelaySlider">Queue Buffer Delay: <span id="y1731QueueDelayLabel" class="sim-val-pill">0.45 ms</span></label>
+              <input type="range" id="y1731QueueDelaySlider" min="0" max="25" step="0.1" value="0.45" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="y1731LossInput">Synthetic Loss Ratio (FLR %):</label>
+              <input type="number" id="y1731LossInput" class="form-input" value="0.0001" min="0" max="100" step="0.0001">
+            </div>
+
+            <div class="form-group">
+              <label for="y1731CcmSelect">CCM / Probe Transmission Interval:</label>
+              <select id="y1731CcmSelect" class="form-select">
+                <option value="FAST_3_3MS">3.33 ms (Fast Protection / BFD)</option>
+                <option value="MEDIUM_10MS">10.0 ms (Metro Leased Line)</option>
+                <option value="STANDARD_100MS">100.0 ms (Corporate Broadband)</option>
+                <option value="SLOW_1S">1.0 s (Standard Fault Detection)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="y1731-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="y1731ResetBtn" class="secondary-button" type="button">🔄 Reset Baseline</button>
+          </div>
+
+          <div class="sim-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 8px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">One-Way Frame Delay</span>
+              <span id="y1731StatDelay" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.27 ms</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Packet Jitter (99th)</span>
+              <span id="y1731StatJitter" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.21 ms</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Synthetic Loss (FLR)</span>
+              <span id="y1731StatFlr" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.0001%</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Availability State</span>
+              <span id="y1731StatAvailability" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">AVAILABLE</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">SLA Overall Verdict</span>
+              <span id="y1731StatVerdict" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Full SLA Compliance</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Contractual Penalty</span>
+              <span id="y1731StatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0% (PKR 0)</span>
+            </div>
+          </div>
+
+          <div id="y1731ModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="ITU-T Y.1731 Carrier Ethernet OAM and Performance Monitoring Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="y1731FilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="y1731ExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="y1731ExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="y1731CopyReportBtn" class="primary-button" type="button">📋 Copy Y.1731 OAM Report</button>
           </div>
         </div>
       </dialog>

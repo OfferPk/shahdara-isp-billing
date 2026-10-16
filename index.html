@@ -513,6 +513,16 @@
             </div>
             <div id="dashboardSolarChart" class="chart-svg-container" role="img" aria-label="Solar Hybrid Inverter and Grid Load Shedding Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-aerial">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Aerial Fiber Pole Tension &amp; Catenary Sag</h4>
+                <p class="chart-subtitle">Wind gust aerodynamic drag, mid-span sag clearance, and pole mechanical load risk</p>
+              </div>
+              <button id="dashboardOpenAerialModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Pole Stress Diagnostics</button>
+            </div>
+            <div id="dashboardAerialChart" class="chart-svg-container" role="img" aria-label="Aerial Fiber Pole Tension and Sag Load Chart"></div>
+          </article>
         </div>
       </section>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
@@ -1701,6 +1711,96 @@
           <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
             <button id="solarFilterAreaBtn" class="secondary-button" type="button">Inspect Hub Subscribers</button>
             <button id="dashboardCopySolarReportBtn" class="primary-button" type="button">📋 Copy Solar Audit Briefing</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardAerialModal" class="dashboard-modal aerial-modal" aria-labelledby="dashboardAerialModalTitle">
+        <div class="dashboard-modal-card aerial-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow">OUTSIDE PLANT (OSP) MECHANICAL SAFETY</p>
+              <h3 id="dashboardAerialModalTitle">Aerial Fiber Pole Wind Tension &amp; Sag Estimator</h3>
+            </div>
+            <button id="dashboardAerialModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">×</button>
+          </div>
+          <p class="dashboard-modal-sub">Physics-based catenary sag, transverse wind pressure, ambient thermal contraction/expansion, and ground road clearance audit for Shahdara aerial fiber spans.</p>
+
+          <div class="otdr-controls-bar">
+            <div class="otdr-control-item">
+              <label for="aerialSectorSelect" class="otdr-control-label">Monitored Sector Corridor:</label>
+              <select id="aerialSectorSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item">
+              <label for="aerialCableSelect" class="otdr-control-label">Installed Fiber Cable:</label>
+              <select id="aerialCableSelect" class="otdr-select"></select>
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="aerialWindSlider" class="otdr-control-label">Wind Gust Speed:</label>
+                <span id="aerialWindVal" class="otdr-val-pill">35 km/h</span>
+              </div>
+              <input type="range" id="aerialWindSlider" min="0" max="120" step="5" value="35" class="otdr-range-slider" />
+            </div>
+            <div class="otdr-control-item otdr-slider-item">
+              <div class="otdr-slider-label-row">
+                <label for="aerialTempSlider" class="otdr-control-label">Ambient Temperature:</label>
+                <span id="aerialTempVal" class="otdr-val-pill">25°C</span>
+                <button id="aerialResetSimBtn" type="button" class="otdr-reset-btn">Reset</button>
+              </div>
+              <input type="range" id="aerialTempSlider" min="-10" max="55" step="1" value="25" class="otdr-range-slider" />
+            </div>
+          </div>
+
+          <div class="ltv-kpi-summary-grid">
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Sector &amp; Span Distance</span>
+              <span id="aerialKpiSectorName" class="ltv-kpi-value">Wandala Road (56m)</span>
+              <span class="ltv-kpi-sub">Pole Ground-line Moment</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Mid-Span Sag &amp; Road Clearance</span>
+              <span id="aerialKpiSagClearance" class="ltv-kpi-value">Sag 0.85m (Clear 6.35m)</span>
+              <span class="ltv-kpi-sub">Vertical Road Margin</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Support Clamp Tension</span>
+              <span id="aerialKpiTensionUts" class="ltv-kpi-value">865 N (18% UTS)</span>
+              <span class="ltv-kpi-sub">Tensile Load Ratio</span>
+            </div>
+            <div class="ltv-kpi-card">
+              <span class="ltv-kpi-label">Structural Health &amp; Revenue Risk</span>
+              <span id="aerialStatusBadge" class="sim-delta-badge badge-success">SAFE (OPTIMAL)</span>
+              <span id="aerialKpiRevenueRisk" class="ltv-kpi-sub">PKR 0 at risk</span>
+            </div>
+          </div>
+
+          <div id="aerialModalChartWrap" class="otdr-modal-chart-wrap" role="img" aria-label="Aerial Fiber Tension and Sag Diagram Display"></div>
+
+          <h4 class="modal-section-title" style="margin-top: 14px;">Shahdara Aerial Fiber Fleet Mechanical Register</h4>
+          <div class="modal-table-scroll-wrapper" style="margin-top: 6px; max-height: 220px;">
+            <table class="modal-table">
+              <thead>
+                <tr>
+                  <th>Corridor Sector</th>
+                  <th>Service Area</th>
+                  <th>Span (m)</th>
+                  <th>Mid Sag</th>
+                  <th>Clearance</th>
+                  <th>Tension</th>
+                  <th>UTS Load</th>
+                  <th>Mechanical Status</th>
+                </tr>
+              </thead>
+              <tbody id="aerialSectorsTableBody">
+                <!-- Populated dynamically -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; gap: 10px;">
+            <button id="aerialFilterAreaBtn" class="secondary-button" type="button">Inspect Sector Subscribers</button>
+            <button id="dashboardCopyAerialReportBtn" class="primary-button" type="button">📋 Copy Mechanical Audit Briefing</button>
           </div>
         </div>
       </dialog>

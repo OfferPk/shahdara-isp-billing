@@ -341,7 +341,25 @@ import {
   calculateMicroOtdrMetrics,
   renderMicroOtdrTraceSvg,
   generateMicroOtdrReport,
-  setupMicroOtdrModal
+  setupMicroOtdrModal,
+  MCLAG_CONSTANTS,
+  SHAHDARA_MCLAG_TRUNKS,
+  getMclagSelectedTrunk,
+  setMclagSelectedTrunk,
+  getMclagSelectedRole,
+  setMclagSelectedRole,
+  getMclagFailureScenario,
+  setMclagFailureScenario,
+  getMclagTrafficLoadGbps,
+  setMclagTrafficLoadGbps,
+  getMclagIccpIntervalMs,
+  setMclagIccpIntervalMs,
+  resetMclagSimState,
+  calculateTrunkForwardingDynamics,
+  calculateMclagMetrics,
+  renderMclagDiagramSvg,
+  generateMclagReport,
+  setupMclagModal
 } from '../dashboard.js';
 
 
@@ -9996,6 +10014,367 @@ test('Micro-OTDR state getters, setters, and boundary clamping work reliably', (
   assert.equal(getMicroOtdrPulseWidth(), 50);
   assert.equal(getMicroOtdrFaultPreset(), 'NORMAL');
   assert.equal(getMicroOtdrThresholdDbm(), -30.0);
+});
+
+test('MCLAG_CONSTANTS and SHAHDARA_MCLAG_TRUNKS have valid engineering specifications', () => {
+  assert.ok(Array.isArray(SHAHDARA_MCLAG_TRUNKS));
+  assert.equal(SHAHDARA_MCLAG_TRUNKS.length, 5);
+
+  for (const trunk of SHAHDARA_MCLAG_TRUNKS) {
+    assert.ok(trunk.id.startsWith('mclag-trunk-'));
+    assert.ok(trunk.name.length > 5);
+    assert.ok(trunk.role.length > 0);
+    assert.ok(trunk.primaryArea.length > 0);
+    assert.ok(Array.isArray(trunk.aliasAreas) && trunk.aliasAreas.length > 0);
+    assert.ok(trunk.bandwidthGbps >= 20);
+    assert.ok(trunk.memberLinksCount >= 2);
+    assert.ok(trunk.iclBandwidthGbps > 0);
+    assert.ok(trunk.defaultTrafficGbps > 0);
+    assert.ok(trunk.syncMacCount > 500);
+  }
+
+  assert.equal(MCLAG_CONSTANTS.ICCP_PORT, 8888);
+  assert.equal(MCLAG_CONSTANTS.LACP_VERSION, 2);
+  assert.ok(MCLAG_CONSTANTS.ICCP_INTERVALS_MS.includes(100));
+  assert.ok(MCLAG_CONSTANTS.FAILURE_SCENARIOS.NORMAL);
+  assert.ok(MCLAG_CONSTANTS.FAILURE_SCENARIOS.MEMBER_LINK_FAIL);
+  assert.ok(MCLAG_CONSTANTS.FAILURE_SCENARIOS.ICL_BREAK);
+  assert.ok(MCLAG_CONSTANTS.FAILURE_SCENARIOS.NODE_A_FAIL);
+});
+
+test('calculateTrunkForwardingDynamics models normal active-active, member link failover, ICL break, and chassis failure', () => {
+  const trunk = SHAHDARA_MCLAG_TRUNKS[0]; // 4x100GbE, 400Gbps, 2 links per chassis
+
+  // 1. Normal Dual-Active
+  const normalDyn = calculateTrunkForwardingDynamics(trunk, { scenario: 'NORMAL', trafficLoadGbps: 120 });
+  assert.equal(normalDyn.operationalState, 'ACTIVE-ACTIVE');
+  assert.equal(normalDyn.statusLevel, 'Optimal');
+  assert.equal(normalDyn.switchALinksUp, 2);
+  assert.equal(normalDyn.switchBLinksUp, 2);
+  assert.equal(normalDyn.activeLinksCount, 4);
+  assert.equal(normalDyn.iclLinkUp, true);
+  assert.equal(normalDyn.switchATrafficGbps, 60);
+  assert.equal(normalDyn.switchBTrafficGbps, 60);
+  assert.equal(normalDyn.iclBypassTrafficGbps, 0);
+  assert.equal(normalDyn.failoverTimeMs, 0);
+  assert.equal(normalDyn.packetLossPercent, 0.0);
+  assert.equal(normalDyn.memberLinks.length, 4);
+  assert.ok(normalDyn.memberLinks.every(l => l.isUp));
+
+  // 2. Member Link Failure on Switch A
+  const memberFailDyn = calculateTrunkForwardingDynamics(trunk, { scenario: 'MEMBER_LINK_FAIL', trafficLoadGbps: 120 });
+  assert.equal(memberFailDyn.operationalState, 'DEGRADED ACTIVE-ACTIVE');
+  assert.equal(memberFailDyn.statusLevel, 'Warning');
+  assert.equal(memberFailDyn.switchALinksUp, 1);
+  assert.equal(memberFailDyn.switchBLinksUp, 2);
+  assert.equal(memberFailDyn.activeLinksCount, 3);
+  assert.ok(memberFailDyn.iclBypassTrafficGbps > 0);
+  assert.equal(memberFailDyn.failoverTimeMs, 18);
+  assert.ok(memberFailDyn.packetLossPercent > 0 && memberFailDyn.packetLossPercent < 0.1);
+
+  // 3. ICL Peer Link Break (Split-Brain Prevention)
+  const iclBreakDyn = calculateTrunkForwardingDynamics(trunk, { scenario: 'ICL_BREAK', trafficLoadGbps: 120, iccpIntervalMs: 100 });
+  assert.equal(iclBreakDyn.operationalState, 'SPLIT-BRAIN ISOLATION');
+  assert.equal(iclBreakDyn.statusLevel, 'Critical');
+  assert.equal(iclBreakDyn.iclLinkUp, false);
+  assert.equal(iclBreakDyn.switchALinksUp, 2);
+  assert.equal(iclBreakDyn.switchBLinksUp, 0); // Standby node isolates ports
+  assert.equal(iclBreakDyn.switchATrafficGbps, 120);
+  assert.equal(iclBreakDyn.switchBTrafficGbps, 0);
+  assert.equal(iclBreakDyn.failoverTimeMs, 200);
+
+  // 4. Total Switch A Chassis Outage
+  const nodeAFailDyn = calculateTrunkForwardingDynamics(trunk, { scenario: 'NODE_A_FAIL', trafficLoadGbps: 120 });
+  assert.equal(nodeAFailDyn.operationalState, 'FAILOVER TO CHASSIS B');
+  assert.equal(nodeAFailDyn.statusLevel, 'Critical');
+  assert.equal(nodeAFailDyn.switchALinksUp, 0);
+  assert.equal(nodeAFailDyn.switchBLinksUp, 2);
+  assert.equal(nodeAFailDyn.switchATrafficGbps, 0);
+  assert.equal(nodeAFailDyn.switchBTrafficGbps, 120);
+  assert.equal(nodeAFailDyn.failoverTimeMs, 38);
+});
+
+test('calculateMclagMetrics correlates subscriber revenue exposure with failover state', () => {
+  const state = {
+    ...createInitialState(['MC-LAG Tech']),
+    customers: [
+      { id: 'c1', name: 'Shahdara Core Client 1', area: 'Shahdara Town', status: 'Active', packagePrice: 4000 },
+      { id: 'c2', name: 'Railway Road Enterprise', area: 'Railway Road', status: 'Active', packagePrice: 8000 },
+      { id: 'c3', name: 'Baradari Client', area: 'Baradari Road', status: 'Active', packagePrice: 3000 }
+    ]
+  };
+
+  // Normal scenario
+  const normalMetrics = calculateMclagMetrics(state, {
+    selectedTrunkId: 'mclag-trunk-01',
+    scenario: 'NORMAL',
+    trafficLoadGbps: 120
+  });
+
+  assert.equal(normalMetrics.selectedTrunk.id, 'mclag-trunk-01');
+  assert.equal(normalMetrics.totalAreaSubscribers, 2);
+  assert.equal(normalMetrics.activeSubscribers, 2);
+  assert.equal(normalMetrics.monthlyBilledRevenue, 12000); // 4000 + 8000
+  assert.equal(normalMetrics.affectedSubscribers, 0);
+  assert.equal(normalMetrics.monthlyRevenueAtRiskPkr, 0);
+  assert.equal(normalMetrics.revenueProtectionRate, 100.0);
+
+  // Member link failure
+  const memberFailMetrics = calculateMclagMetrics(state, {
+    selectedTrunkId: 'mclag-trunk-01',
+    scenario: 'MEMBER_LINK_FAIL',
+    trafficLoadGbps: 120
+  });
+  assert.equal(memberFailMetrics.monthlyRevenueAtRiskPkr, 0);
+  assert.equal(memberFailMetrics.revenueProtectionRate, 100.0);
+
+  // ICL Break scenario
+  const iclBreakMetrics = calculateMclagMetrics(state, {
+    selectedTrunkId: 'mclag-trunk-01',
+    scenario: 'ICL_BREAK',
+    trafficLoadGbps: 120
+  });
+  assert.ok(iclBreakMetrics.monthlyRevenueAtRiskPkr > 0);
+  assert.ok(iclBreakMetrics.affectedSubscribers > 0);
+  assert.ok(iclBreakMetrics.revenueProtectionRate < 100.0);
+
+  // Trunks summary check
+  assert.equal(normalMetrics.trunksSummary.length, 5);
+  const t1 = normalMetrics.trunksSummary.find(t => t.id === 'mclag-trunk-01');
+  assert.ok(t1);
+  assert.equal(t1.isSelected, true);
+});
+
+test('renderMclagDiagramSvg generates valid compact and modal SVG topology diagrams', () => {
+  const state = {
+    ...createInitialState(['MC-LAG Tech']),
+    customers: [
+      { id: 'c1', name: 'Client 1', area: 'Shahdara Town', status: 'Active', packagePrice: 4000 }
+    ]
+  };
+  const metrics = calculateMclagMetrics(state, { selectedTrunkId: 'mclag-trunk-01' });
+
+  // Compact SVG
+  const compactSvg = renderMclagDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="mclag-svg mclag-compact-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 560 220"'));
+  assert.ok(compactSvg.includes('CHASSIS A (Master)'));
+  assert.ok(compactSvg.includes('CHASSIS B (Peer)'));
+  assert.ok(compactSvg.includes('ICL (ICCP Sync)'));
+
+  // Full / Modal SVG
+  const modalSvg = renderMclagDiagramSvg(metrics, { compact: false });
+  assert.ok(modalSvg.includes('<svg class="mclag-svg mclag-modal-svg"'));
+  assert.ok(modalSvg.includes('viewBox="0 0 780 340"'));
+  assert.ok(modalSvg.includes('VIRTUAL CHASSIS DOMAIN'));
+  assert.ok(modalSvg.includes('REVENUE PROTECTION'));
+});
+
+test('generateMclagReport formats comprehensive MC-LAG engineering briefing report', () => {
+  const state = {
+    ...createInitialState(['MC-LAG Tech']),
+    customers: [
+      { id: 'c1', name: 'Client 1', area: 'Shahdara Town', status: 'Active', packagePrice: 4000 }
+    ]
+  };
+  const metrics = calculateMclagMetrics(state, {
+    selectedTrunkId: 'mclag-trunk-01',
+    scenario: 'MEMBER_LINK_FAIL'
+  });
+
+  const report = generateMclagReport(metrics);
+  assert.ok(report.includes('SHAHDARA ISP · MC-LAG DUAL-CHASSIS REDUNDANCY AUDIT BRIEFING'));
+  assert.ok(report.includes('RFC 7275 ICCP / IEEE 802.1AX ACTIVE-ACTIVE CLUSTER TELEMETRY'));
+  assert.ok(report.includes('Monitored Trunk: MC-LAG 01 Central Core Transit (4x100GbE)'));
+  assert.ok(report.includes('MEMBER INTERFACE STATUS & LACP STATE MACHINE'));
+  assert.ok(report.includes('SHAHDARA SUBSCRIBER REVENUE AT RISK'));
+  assert.ok(report.includes('NETWORK OPERATION RECOMMENDATION:'));
+  assert.ok(report.includes('Traffic is successfully bypassing via ICL'));
+});
+
+test('setupMclagModal wires interactive controls, selects, slider, reset button, and clipboard copy', async () => {
+  const state = {
+    ...createInitialState(['MC-LAG Tech']),
+    customers: [
+      { id: 'c1', name: 'Test Customer', area: 'Shahdara Town', status: 'Active', packagePrice: 4000 }
+    ]
+  };
+
+  let modalOpened = false;
+  let copiedText = '';
+  let toastMsg = '';
+  let filterAreaTarget = '';
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; }
+  };
+
+  const mockOpenBtn = { addEventListener: (evt, fn) => { mockOpenBtn.onclick = fn; } };
+  const mockCloseBtn = { addEventListener: (evt, fn) => { mockCloseBtn.onclick = fn; } };
+  const mockTrunkSelect = { options: [], value: 'mclag-trunk-01', appendChild: (opt) => mockTrunkSelect.options.push(opt), addEventListener: (evt, fn) => { mockTrunkSelect.onchange = fn; } };
+  const mockScenarioSelect = { options: [], value: 'NORMAL', appendChild: (opt) => mockScenarioSelect.options.push(opt), addEventListener: (evt, fn) => { mockScenarioSelect.onchange = fn; } };
+  const mockRoleSelect = { options: [], value: 'CLUSTER', appendChild: (opt) => mockRoleSelect.options.push(opt), addEventListener: (evt, fn) => { mockRoleSelect.onchange = fn; } };
+  const mockIccpSelect = { options: [], value: '100', appendChild: (opt) => mockIccpSelect.options.push(opt), addEventListener: (evt, fn) => { mockIccpSelect.onchange = fn; } };
+  const mockLoadSlider = { value: '120', addEventListener: (evt, fn) => { mockLoadSlider.oninput = fn; } };
+  const mockLoadVal = { textContent: '120 Gbps' };
+  const mockResetBtn = { addEventListener: (evt, fn) => { mockResetBtn.onclick = fn; } };
+  const mockKpiTrunkName = { textContent: '' };
+  const mockKpiState = { textContent: '', style: {} };
+  const mockKpiFailover = { textContent: '' };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+  const mockFilterAreaBtn = { addEventListener: (evt, fn) => { mockFilterAreaBtn.onclick = fn; } };
+  const mockCopyReportBtn = { addEventListener: (evt, fn) => { mockCopyReportBtn.onclick = fn; } };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementMap = {
+    'dashboardMclagModal': mockModal,
+    'dashboardOpenMclagModalBtn': mockOpenBtn,
+    'dashboardMclagModalCloseBtn': mockCloseBtn,
+    'mclagTrunkSelect': mockTrunkSelect,
+    'mclagScenarioSelect': mockScenarioSelect,
+    'mclagRoleSelect': mockRoleSelect,
+    'mclagIccpSelect': mockIccpSelect,
+    'mclagLoadSlider': mockLoadSlider,
+    'mclagLoadVal': mockLoadVal,
+    'mclagResetBtn': mockResetBtn,
+    'mclagKpiTrunkName': mockKpiTrunkName,
+    'mclagKpiState': mockKpiState,
+    'mclagKpiFailover': mockKpiFailover,
+    'mclagStatusBadge': mockStatusBadge,
+    'mclagKpiRevenueRisk': mockKpiRevenueRisk,
+    'mclagModalChartWrap': mockChartWrap,
+    'mclagLinksTableBody': mockTableBody,
+    'mclagFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyMclagReportBtn': mockCopyReportBtn,
+    'dashboardMclagChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elementMap[id] || null
+  };
+
+  try {
+    setupMclagModal(state, {
+      onFilterArea: (area) => { filterAreaTarget = area; },
+      onToast: (msg) => { toastMsg = msg; },
+      clipboard: {
+        writeText: async (txt) => { copiedText = txt; }
+      }
+    });
+
+    // Check initial render of card chart
+    assert.ok(mockCardChart.innerHTML.includes('mclag-svg'));
+
+    // Open modal
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiTrunkName.textContent.includes('MC-LAG 01'));
+    assert.ok(mockChartWrap.innerHTML.includes('mclag-svg'));
+    assert.ok(mockTableBody.innerHTML.includes('Te1/0/1'));
+
+    // Change trunk
+    mockTrunkSelect.value = 'mclag-trunk-02';
+    mockTrunkSelect.onchange({ target: { value: 'mclag-trunk-02' } });
+    assert.equal(getMclagSelectedTrunk(), 'mclag-trunk-02');
+
+    // Change scenario
+    mockScenarioSelect.value = 'MEMBER_LINK_FAIL';
+    mockScenarioSelect.onchange({ target: { value: 'MEMBER_LINK_FAIL' } });
+    assert.equal(getMclagFailureScenario(), 'MEMBER_LINK_FAIL');
+    assert.equal(mockStatusBadge.textContent, 'WARNING');
+
+    // Change role
+    mockRoleSelect.value = 'NODE_A';
+    mockRoleSelect.onchange({ target: { value: 'NODE_A' } });
+    assert.equal(getMclagSelectedRole(), 'NODE_A');
+
+    // Change load slider
+    mockLoadSlider.value = '150';
+    mockLoadSlider.oninput({ target: { value: '150' } });
+    assert.equal(getMclagTrafficLoadGbps(), 150);
+    assert.equal(mockLoadVal.textContent, '150 Gbps');
+
+    // Change ICCP interval
+    mockIccpSelect.value = '50';
+    mockIccpSelect.onchange({ target: { value: '50' } });
+    assert.equal(getMclagIccpIntervalMs(), 50);
+
+    // Reset button
+    assert.ok(mockResetBtn.onclick !== null);
+    mockResetBtn.onclick();
+    assert.equal(getMclagSelectedTrunk(), 'mclag-trunk-01');
+    assert.equal(getMclagFailureScenario(), 'NORMAL');
+    assert.equal(getMclagSelectedRole(), 'CLUSTER');
+    assert.equal(getMclagTrafficLoadGbps(), 120);
+    assert.equal(getMclagIccpIntervalMs(), 100);
+    assert.equal(toastMsg, 'MC-LAG simulation reset to dual-active baseline.');
+
+    // Filter area
+    assert.ok(mockFilterAreaBtn.onclick !== null);
+    mockFilterAreaBtn.onclick();
+    assert.equal(filterAreaTarget, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Copy report
+    assert.ok(mockCopyReportBtn.onclick !== null);
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('MC-LAG DUAL-CHASSIS REDUNDANCY AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'MC-LAG engineering briefing copied to clipboard!');
+
+    // Close button
+    assert.ok(mockCloseBtn.onclick !== null);
+    mockCloseBtn.onclick();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+    resetMclagSimState();
+  }
+});
+
+test('MC-LAG state getters, setters, and boundary clamping work reliably', () => {
+  resetMclagSimState();
+  assert.equal(getMclagSelectedTrunk(), 'mclag-trunk-01');
+
+  setMclagSelectedTrunk('mclag-trunk-03');
+  assert.equal(getMclagSelectedTrunk(), 'mclag-trunk-03');
+  setMclagSelectedTrunk('invalid-trunk');
+  assert.equal(getMclagSelectedTrunk(), 'mclag-trunk-03');
+
+  setMclagSelectedRole('NODE_B');
+  assert.equal(getMclagSelectedRole(), 'NODE_B');
+  setMclagSelectedRole('invalid-role');
+  assert.equal(getMclagSelectedRole(), 'NODE_B');
+
+  setMclagFailureScenario('ICL_BREAK');
+  assert.equal(getMclagFailureScenario(), 'ICL_BREAK');
+  setMclagFailureScenario('invalid-scenario');
+  assert.equal(getMclagFailureScenario(), 'ICL_BREAK');
+
+  setMclagTrafficLoadGbps(80);
+  assert.equal(getMclagTrafficLoadGbps(), 80);
+  setMclagTrafficLoadGbps(500); // Clamped to 350
+  assert.equal(getMclagTrafficLoadGbps(), 350);
+  setMclagTrafficLoadGbps(1); // Clamped to 5
+  assert.equal(getMclagTrafficLoadGbps(), 5);
+
+  setMclagIccpIntervalMs(500);
+  assert.equal(getMclagIccpIntervalMs(), 500);
+  setMclagIccpIntervalMs(9999);
+  assert.equal(getMclagIccpIntervalMs(), 500);
+
+  resetMclagSimState();
+  assert.equal(getMclagSelectedTrunk(), 'mclag-trunk-01');
+  assert.equal(getMclagSelectedRole(), 'CLUSTER');
+  assert.equal(getMclagFailureScenario(), 'NORMAL');
+  assert.equal(getMclagTrafficLoadGbps(), 120);
+  assert.equal(getMclagIccpIntervalMs(), 100);
 });
 
 

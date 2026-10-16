@@ -5509,4 +5509,25 @@ export {
   setupMicroOtdrModal
 } from './dashboard-micro-otdr.js';
 
+export {
+  MCLAG_CONSTANTS,
+  SHAHDARA_MCLAG_TRUNKS,
+  getMclagSelectedTrunk,
+  setMclagSelectedTrunk,
+  getMclagSelectedRole,
+  setMclagSelectedRole,
+  getMclagFailureScenario,
+  setMclagFailureScenario,
+  getMclagTrafficLoadGbps,
+  setMclagTrafficLoadGbps,
+  getMclagIccpIntervalMs,
+  setMclagIccpIntervalMs,
+  resetMclagSimState,
+  calculateTrunkForwardingDynamics,
+  calculateMclagMetrics,
+  renderMclagDiagramSvg,
+  generateMclagReport,
+  setupMclagModal
+} from './dashboard-mclag.js';
+
 

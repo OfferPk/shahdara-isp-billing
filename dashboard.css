@@ -2216,6 +2216,31 @@
   border-color: #1b3d54;
 }
 
+.chart-card-mclag {
+  background: var(--surface, #ffffff);
+}
+
+.mclag-modal-card {
+  max-width: 960px;
+}
+
+.mclag-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-mclag {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .mclag-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
 
 
 

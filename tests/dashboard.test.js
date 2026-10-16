@@ -170,7 +170,21 @@ import {
   calculatePonDbaMetrics,
   renderPonDbaQueueSvg,
   generatePonDbaReport,
-  setupPonDbaModal
+  setupPonDbaModal,
+  SHAHDARA_SPLICER_UNITS,
+  getSplicerSelectedUnit,
+  setSplicerSelectedUnit,
+  getSplicerArcCount,
+  setSplicerArcCount,
+  getSplicerCleaveAngle,
+  setSplicerCleaveAngle,
+  getSplicerCalibCurrent,
+  setSplicerCalibCurrent,
+  calculateElectrodeDynamics,
+  calculateFusionSplicerMetrics,
+  renderFusionSplicerSvg,
+  generateFusionSplicerReport,
+  setupFusionSplicerModal
 } from '../dashboard.js';
 import {
   calculateMonthlyTrends,
@@ -6691,6 +6705,357 @@ test('setupPonDbaModal wires interactive controls, sliders, reset, filter, and c
     assert.ok(copiedText !== null);
     assert.ok(copiedText.includes('SHAHDARA FTTH OLT PON PORT DBA & TDM LATENCY QUEUE AUDIT REPORT'));
     assert.equal(toastMessage, 'PON DBA latency diagnostics briefing copied to clipboard!');
+
+    // Test close
+    assert.ok(closeClickHandler !== null);
+    closeClickHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateElectrodeDynamics models wear percentage, insertion loss, and tensile proof strength', () => {
+  const kit = SHAHDARA_SPLICER_UNITS[0]; // Fujikura 88S+
+
+  // Low wear baseline
+  const lowWear = calculateElectrodeDynamics(kit, {
+    arcCount: 500,
+    cleaveAngleDeg: 0.35,
+    calibCurrentMa: 15.2,
+    totalBilledRevenue: 60000
+  });
+
+  assert.equal(lowWear.status, 'OPTIMAL');
+  assert.equal(lowWear.atRiskRevenue, 0);
+  assert.ok(lowWear.estimatedLossDb < 0.04);
+  assert.ok(lowWear.tensileProofN > 2.0);
+  assert.ok(lowWear.arcStabilityPct > 80);
+
+  // Moderate / Elevated wear
+  const elevated = calculateElectrodeDynamics(kit, {
+    arcCount: 3000,
+    cleaveAngleDeg: 0.95,
+    calibCurrentMa: 15.5,
+    totalBilledRevenue: 60000
+  });
+
+  assert.equal(elevated.status, 'ELEVATED');
+  assert.ok(elevated.atRiskRevenue > 0);
+  assert.ok(elevated.estimatedLossDb > lowWear.estimatedLossDb);
+
+  // Critical wear & high cleave angle error
+  const critical = calculateElectrodeDynamics(kit, {
+    arcCount: 3800,
+    cleaveAngleDeg: 2.10,
+    calibCurrentMa: 17.8,
+    totalBilledRevenue: 60000
+  });
+
+  assert.equal(critical.status, 'CRITICAL');
+  assert.equal(critical.atRiskRevenue, 60000);
+  assert.ok(critical.estimatedLossDb >= 0.10);
+  assert.ok(critical.tensileProofN < 1.7);
+  assert.ok(critical.cleaveRating.includes('Reject'));
+});
+
+test('calculateFusionSplicerMetrics correlates splicer kits with area subscribers and revenue', () => {
+  const state = {
+    customers: [
+      { id: 'c1', name: 'Zahid Khan', area: 'Shahdara Town', plan: 'Fiber 20M', planRate: 2000, status: 'Active' },
+      { id: 'c2', name: 'Hamza Tariq', area: 'Baradari Road', plan: 'Fiber 30M', planRate: 2500, status: 'Active' }
+    ],
+    bills: []
+  };
+
+  const metrics = calculateFusionSplicerMetrics(state, {
+    unitId: 'spl-vr-03',
+    arcCountOverride: 1500,
+    cleaveAngleOverride: 0.40,
+    calibCurrentOverride: 15.0,
+    referenceDate: '2026-10-16'
+  });
+
+  assert.equal(metrics.selectedUnit.id, 'spl-vr-03');
+  assert.equal(metrics.selectedDynamics.effectiveArcs, 1500);
+  assert.equal(metrics.selectedDynamics.effectiveAngle, 0.40);
+  assert.equal(metrics.selectedDynamics.effectiveCurrent, 15.0);
+  assert.equal(metrics.unitEvaluations.length, SHAHDARA_SPLICER_UNITS.length);
+  assert.equal(metrics.summary.totalKits, SHAHDARA_SPLICER_UNITS.length);
+});
+
+test('renderFusionSplicerSvg renders compact arc gauge and full alignment chamber', () => {
+  const dummyData = {
+    selectedUnit: SHAHDARA_SPLICER_UNITS[0],
+    selectedDynamics: {
+      status: 'OPTIMAL',
+      statusLabel: 'High Quality Splice',
+      badgeClass: 'badge-success',
+      effectiveArcs: 1850,
+      effectiveAngle: 0.45,
+      effectiveCurrent: 15.2,
+      wearPct: 46,
+      remainingArcs: 2150,
+      arcStabilityPct: 67,
+      estimatedLossDb: 0.024,
+      tensileProofN: 2.12,
+      cleaveRating: 'Excellent (< 0.5°)',
+      atRiskRevenue: 0
+    }
+  };
+
+  // Compact rendering
+  const compactSvg = renderFusionSplicerSvg(dummyData, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="chart-svg splicer-svg compact-svg"'));
+  assert.ok(compactSvg.includes('0.024 dB'));
+  assert.ok(compactSvg.includes('OPTIMAL'));
+  assert.ok(compactSvg.includes('Arc Stability'));
+
+  // Full modal rendering
+  const fullSvg = renderFusionSplicerSvg(dummyData, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="chart-svg splicer-svg full-svg"'));
+  assert.ok(fullSvg.includes('Dual-Camera Optical Alignment'));
+  assert.ok(fullSvg.includes('Arc Gap'));
+  assert.ok(fullSvg.includes('ITU-T Max Splice Loss Cap'));
+
+  // Empty data fallback
+  const emptySvg = renderFusionSplicerSvg(null);
+  assert.ok(emptySvg.includes('No fusion splicer telemetry recorded'));
+});
+
+test('generateFusionSplicerReport creates technician maintenance directives', () => {
+  const dummyData = {
+    selectedUnit: SHAHDARA_SPLICER_UNITS[0],
+    selectedEvaluation: { billedRevenue: 75000 },
+    selectedDynamics: {
+      status: 'CRITICAL',
+      statusLabel: 'Electrode Replace / Re-cleave Due',
+      effectiveArcs: 3800,
+      remainingArcs: 200,
+      wearPct: 95,
+      arcStabilityPct: 32,
+      effectiveAngle: 2.1,
+      cleaveRating: 'Reject / Re-cleave (> 1.8°)',
+      effectiveCurrent: 17.5,
+      estimatedLossDb: 0.125,
+      tensileProofN: 1.45,
+      atRiskRevenue: 75000
+    },
+    summary: {
+      totalKits: 6,
+      optimalKitsCount: 4,
+      elevatedKitsCount: 1,
+      criticalKitsCount: 1,
+      totalBilledRevenue: 450000,
+      totalAtRiskRevenue: 75000
+    },
+    unitEvaluations: [
+      {
+        unit: SHAHDARA_SPLICER_UNITS[0],
+        dynamics: {
+          effectiveArcs: 3800,
+          wearPct: 95,
+          effectiveAngle: 2.1,
+          estimatedLossDb: 0.125,
+          status: 'CRITICAL'
+        }
+      }
+    ]
+  };
+
+  const report = generateFusionSplicerReport(dummyData, '2026-10-16');
+  assert.ok(report.includes('SHAHDARA FTTH FUSION SPLICER ELECTRODE WEAR & ARC DIAGNOSTICS AUDIT'));
+  assert.ok(report.includes('Shahdara Town Central Kit #1'));
+  assert.ok(report.includes('URGENT'));
+  assert.ok(report.includes('Replace electrode pair immediately'));
+  assert.ok(report.includes('Rotate cleaver diamond blade'));
+});
+
+test('get/set state helpers validate unit, arc count, cleave angle, and calib current', () => {
+  setSplicerSelectedUnit('spl-vr-03');
+  assert.equal(getSplicerSelectedUnit(), 'spl-vr-03');
+  setSplicerSelectedUnit('invalid-unit');
+  assert.equal(getSplicerSelectedUnit(), 'spl-vr-03');
+
+  setSplicerArcCount(2400);
+  assert.equal(getSplicerArcCount(), 2400);
+  setSplicerArcCount(9999); // out of range
+  assert.equal(getSplicerArcCount(), null);
+
+  setSplicerCleaveAngle(1.25);
+  assert.equal(getSplicerCleaveAngle(), 1.25);
+  setSplicerCleaveAngle(5.0); // out of range
+  assert.equal(getSplicerCleaveAngle(), null);
+
+  setSplicerCalibCurrent(16.2);
+  assert.equal(getSplicerCalibCurrent(), 16.2);
+  setSplicerCalibCurrent(25.0); // out of range
+  assert.equal(getSplicerCalibCurrent(), null);
+});
+
+test('setupFusionSplicerModal wires interactive controls, sliders, reset, filter, and clipboard dispatch', async () => {
+  setSplicerSelectedUnit('spl-st-01');
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let filterAreaCalledWith = null;
+  let toastMessage = null;
+  let copiedText = null;
+
+  let openClickHandler = null;
+  let closeClickHandler = null;
+  let unitChangeHandler = null;
+  let arcInputHandler = null;
+  let angleInputHandler = null;
+  let resetClickHandler = null;
+  let filterAreaClickHandler = null;
+  let copyClickHandler = null;
+
+  const mockModal = {
+    dataset: {},
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: () => { modalOpened = true; },
+    removeAttribute: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') openClickHandler = fn; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') closeClickHandler = fn; }
+  };
+
+  const mockUnitSelect = {
+    options: [],
+    value: 'spl-st-01',
+    dataset: {},
+    appendChild: (opt) => mockUnitSelect.options.push(opt),
+    addEventListener: (evt, fn) => { if (evt === 'change') unitChangeHandler = fn; }
+  };
+
+  const mockArcSlider = {
+    value: '1850',
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'input') arcInputHandler = fn; }
+  };
+  const mockArcVal = { textContent: '' };
+
+  const mockAngleSlider = {
+    value: '0.45',
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'input') angleInputHandler = fn; }
+  };
+  const mockAngleVal = { textContent: '' };
+
+  const mockResetBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') resetClickHandler = fn; }
+  };
+
+  const mockFilterAreaBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') filterAreaClickHandler = fn; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, fn) => { if (evt === 'click') copyClickHandler = fn; }
+  };
+
+  const mockKpiUnitName = { textContent: '' };
+  const mockKpiLoss = { textContent: '' };
+  const mockKpiTensile = { textContent: '' };
+  const mockKpiStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+  const mockChartWrap = { innerHTML: '' };
+  const mockTableBody = { innerHTML: '' };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'dashboardSplicerModal': return mockModal;
+        case 'dashboardOpenSplicerModalBtn': return mockOpenBtn;
+        case 'dashboardSplicerModalCloseBtn': return mockCloseBtn;
+        case 'splicerUnitSelect': return mockUnitSelect;
+        case 'splicerArcSlider': return mockArcSlider;
+        case 'splicerArcVal': return mockArcVal;
+        case 'splicerAngleSlider': return mockAngleSlider;
+        case 'splicerAngleVal': return mockAngleVal;
+        case 'splicerResetSimBtn': return mockResetBtn;
+        case 'splicerFilterAreaBtn': return mockFilterAreaBtn;
+        case 'dashboardCopySplicerReportBtn': return mockCopyBtn;
+        case 'splicerKpiUnitName': return mockKpiUnitName;
+        case 'splicerKpiLoss': return mockKpiLoss;
+        case 'splicerKpiTensile': return mockKpiTensile;
+        case 'splicerStatusBadge': return mockKpiStatusBadge;
+        case 'splicerKpiRevenueRisk': return mockKpiRevenueRisk;
+        case 'splicerModalChartWrap': return mockChartWrap;
+        case 'splicerUnitsTableBody': return mockTableBody;
+        default: return null;
+      }
+    },
+    createElement: (tag) => ({ tag, value: '', textContent: '', selected: false })
+  };
+
+  const state = { customers: [], bills: [] };
+
+  try {
+    setupFusionSplicerModal(state, {
+      referenceDate: '2026-10-16',
+      onFilterArea: (area) => { filterAreaCalledWith = area; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    // Check options populated
+    assert.equal(mockUnitSelect.options.length, SHAHDARA_SPLICER_UNITS.length);
+
+    // Test open
+    assert.ok(openClickHandler !== null);
+    openClickHandler();
+    assert.equal(modalOpened, true);
+    assert.ok(mockKpiUnitName.textContent.includes('Shahdara Town'));
+    assert.ok(mockChartWrap.innerHTML.includes('splicer-svg'));
+
+    // Test arc slider input
+    assert.ok(arcInputHandler !== null);
+    mockArcSlider.value = '3200';
+    arcInputHandler();
+    assert.equal(getSplicerArcCount(), 3200);
+    assert.equal(mockArcVal.textContent, '3200 arcs');
+
+    // Test angle slider input
+    assert.ok(angleInputHandler !== null);
+    mockAngleSlider.value = '1.20';
+    angleInputHandler();
+    assert.equal(getSplicerCleaveAngle(), 1.20);
+    assert.equal(mockAngleVal.textContent, '1.20°');
+
+    // Test reset
+    assert.ok(resetClickHandler !== null);
+    resetClickHandler();
+    assert.equal(getSplicerArcCount(), null);
+    assert.equal(getSplicerCleaveAngle(), null);
+
+    // Test filter area action
+    assert.ok(filterAreaClickHandler !== null);
+    filterAreaClickHandler();
+    assert.equal(filterAreaCalledWith, 'Shahdara Town');
+    assert.equal(modalOpened, false);
+
+    // Test copy briefing
+    assert.ok(copyClickHandler !== null);
+    await copyClickHandler();
+    assert.ok(copiedText !== null);
+    assert.ok(copiedText.includes('SHAHDARA FTTH FUSION SPLICER ELECTRODE WEAR & ARC DIAGNOSTICS AUDIT'));
+    assert.equal(toastMessage, 'Fusion splicer maintenance briefing copied to clipboard!');
 
     // Test close
     assert.ok(closeClickHandler !== null);

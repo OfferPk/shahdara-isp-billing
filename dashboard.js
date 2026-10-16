@@ -5307,3 +5307,20 @@ export {
   generatePonDbaReport,
   setupPonDbaModal
 } from './dashboard-pon-dba.js';
+
+export {
+  SHAHDARA_SPLICER_UNITS,
+  getSplicerSelectedUnit,
+  setSplicerSelectedUnit,
+  getSplicerArcCount,
+  setSplicerArcCount,
+  getSplicerCleaveAngle,
+  setSplicerCleaveAngle,
+  getSplicerCalibCurrent,
+  setSplicerCalibCurrent,
+  calculateElectrodeDynamics,
+  calculateFusionSplicerMetrics,
+  renderFusionSplicerSvg,
+  generateFusionSplicerReport,
+  setupFusionSplicerModal
+} from './dashboard-splicer.js';

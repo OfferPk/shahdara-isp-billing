@@ -8886,3 +8886,298 @@ test('setupMobileOrlModal binds modal controls, updates calculations in real tim
     globalThis.document = origDoc;
   }
 });
+
+test('CLEAVER_MODELS, CLEAVE_DEFECT_TYPES and CLEAVE_ANGLE_SPEC define standard cleaver parameters', async () => {
+  const { CLEAVER_MODELS, CLEAVE_DEFECT_TYPES, CLEAVE_ANGLE_SPEC } = await import('../nav.js');
+
+  assert.ok(CLEAVER_MODELS.FUJIKURA_CT50);
+  assert.equal(CLEAVER_MODELS.FUJIKURA_CT50.totalPositions, 16);
+  assert.equal(CLEAVER_MODELS.FUJIKURA_CT50.heightLevels, 3);
+  assert.equal(CLEAVER_MODELS.FUJIKURA_CT50.cleavesPerPosition, 1250);
+
+  assert.ok(CLEAVER_MODELS.SUMITOMO_FC6S);
+  assert.equal(CLEAVER_MODELS.SUMITOMO_FC6S.totalPositions, 24);
+  assert.equal(CLEAVER_MODELS.SUMITOMO_FC6S.cleavesPerPosition, 2000);
+
+  assert.ok(CLEAVE_DEFECT_TYPES.PRISTINE);
+  assert.equal(CLEAVE_DEFECT_TYPES.PRISTINE.severity, 'PASS');
+  assert.ok(CLEAVE_DEFECT_TYPES.HACKLE_CHIP);
+  assert.equal(CLEAVE_DEFECT_TYPES.HACKLE_CHIP.severity, 'FAIL');
+  assert.ok(CLEAVE_DEFECT_TYPES.CORE_SHATTER);
+  assert.equal(CLEAVE_DEFECT_TYPES.CORE_SHATTER.severity, 'CRITICAL');
+
+  assert.equal(CLEAVE_ANGLE_SPEC.EXCELLENT_MAX_DEG, 0.5);
+  assert.equal(CLEAVE_ANGLE_SPEC.ACCEPTABLE_MAX_DEG, 1.0);
+});
+
+test('calculateCleaverPositionDynamics computes wear rate, remaining cleaves, and splice penalty', async () => {
+  const { calculateCleaverPositionDynamics } = await import('../nav.js');
+
+  // Case 1: Fresh Position 1, Pristine cleave
+  const fresh = calculateCleaverPositionDynamics({
+    modelId: 'FUJIKURA_CT50',
+    currentPosition: 1,
+    positionCleaves: 250,
+    measuredCleaveAngle: 0.3,
+    observedDefect: 'PRISTINE'
+  });
+
+  assert.equal(fresh.positionWearPct, 20.0);
+  assert.equal(fresh.positionRemainingCleaves, 1000);
+  assert.equal(fresh.cleaveQuality, 'PRISTINE_OPTIMAL');
+  assert.equal(fresh.spliceViability, 'PREMIUM_LOW_LOSS_SPLICE');
+  assert.equal(fresh.badgeColor, '#10b981');
+  assert.equal(fresh.nextPosition, 2);
+  assert.ok(fresh.estimatedSpliceLossDb < 0.15);
+
+  // Case 2: Worn Position, Hackle defect
+  const worn = calculateCleaverPositionDynamics({
+    modelId: 'FUJIKURA_CT50',
+    currentPosition: 5,
+    positionCleaves: 1200,
+    measuredCleaveAngle: 1.4,
+    observedDefect: 'HACKLE_CHIP'
+  });
+
+  assert.equal(worn.positionWearPct, 96.0);
+  assert.equal(worn.positionRemainingCleaves, 50);
+  assert.equal(worn.cleaveQuality, 'DEFECTIVE_OUT_OF_SPEC');
+  assert.equal(worn.spliceViability, 'REJECT_RECLEAVE_REQUIRED');
+  assert.equal(worn.badgeColor, '#ef4444');
+  assert.equal(worn.isPositionExhausted, true);
+  assert.ok(worn.recommendation.includes('ROTATE BLADE'));
+
+  // Case 3: Last Position Height Exhaustion
+  const heightExhausted = calculateCleaverPositionDynamics({
+    modelId: 'FUJIKURA_CT50',
+    currentPosition: 16,
+    currentHeight: 1,
+    positionCleaves: 1240,
+    measuredCleaveAngle: 1.5
+  });
+
+  assert.ok(heightExhausted.recommendation.includes('ADJUST HEIGHT'));
+  assert.ok(heightExhausted.recommendation.includes('Height Level 2'));
+});
+
+test('renderCleaverDialSvg outputs complete vector rotary dial with slots and angle bar', async () => {
+  const { calculateCleaverPositionDynamics, renderCleaverDialSvg } = await import('../nav.js');
+
+  const metrics = calculateCleaverPositionDynamics({
+    modelId: 'FUJIKURA_CT50',
+    currentPosition: 3,
+    positionCleaves: 500,
+    measuredCleaveAngle: 0.4
+  });
+
+  const fullSvg = renderCleaverDialSvg(metrics, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="cleaver-dial-svg"'));
+  assert.ok(fullSvg.includes('FIBER CLEAVER ROTARY BLADE WEAR'));
+  assert.ok(fullSvg.includes('#3')); // Current position #3
+  assert.ok(fullSvg.includes('40% Wear'));
+  assert.ok(fullSvg.includes('CLEAVE ANGLE TOLERANCE'));
+  assert.ok(fullSvg.includes('VERDICT: PRISTINE_OPTIMAL'));
+
+  const compactSvg = renderCleaverDialSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="cleaver-dial-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 500 260"'));
+});
+
+test('generateCleaverAuditReport and generateCleaverWhatsAppDispatch produce structured summaries', async () => {
+  const { calculateCleaverAuditMetrics, generateCleaverAuditReport, generateCleaverWhatsAppDispatch } = await import('../nav.js');
+
+  const metrics = calculateCleaverAuditMetrics({}, {
+    modelId: 'SUMITOMO_FC6S',
+    currentPosition: 7,
+    positionCleaves: 1800,
+    measuredCleaveAngle: 0.5,
+    technicianName: 'Tariq Lineman',
+    cleaverSerial: 'SMT-FC6S-9912',
+    targetArea: 'Baradari'
+  });
+
+  const report = generateCleaverAuditReport(metrics, { referenceDate: '2026-10-17' });
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL FIBER CLEAVER BLADE WEAR'));
+  assert.ok(report.includes('Sumitomo FC-6S'));
+  assert.ok(report.includes('Tariq Lineman'));
+  assert.ok(report.includes('Position #7 of 24'));
+  assert.ok(report.includes('0.5°'));
+
+  const waText = generateCleaverWhatsAppDispatch(metrics);
+  assert.ok(waText.includes('*SHAHDARA ISP - FIBER CLEAVER AUDIT*'));
+  assert.ok(waText.includes('Tariq Lineman'));
+  assert.ok(waText.includes('*#7* / 24'));
+  assert.ok(waText.includes('Baradari'));
+});
+
+test('loadCleaverAuditLog, saveCleaverAuditLog and clearCleaverAuditLog manage persistent storage', async () => {
+  const { loadCleaverAuditLog, saveCleaverAuditLog, clearCleaverAuditLog } = await import('../nav.js');
+
+  const testKey = 'shahdara_cleaver_test_key';
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const origLocal = globalThis.localStorage;
+  globalThis.localStorage = mockStorage;
+
+  try {
+    assert.deepEqual(loadCleaverAuditLog(testKey), []);
+
+    const record1 = { id: 1, position: 2, angle: 0.4 };
+    const saved1 = saveCleaverAuditLog(record1, testKey);
+    assert.equal(saved1.length, 1);
+    assert.equal(saved1[0].position, 2);
+
+    const record2 = { id: 2, position: 3, angle: 0.6 };
+    const saved2 = saveCleaverAuditLog(record2, testKey);
+    assert.equal(saved2.length, 2);
+    assert.equal(saved2[0].position, 3); // Prepends most recent
+
+    const { exportCleaverAuditsCsv } = await import('../nav.js');
+    const csv = exportCleaverAuditsCsv(saved2);
+    assert.ok(csv.includes('Timestamp,Model,Serial_Number'));
+    assert.ok(csv.includes('3,'));
+
+    clearCleaverAuditLog(testKey);
+    assert.deepEqual(loadCleaverAuditLog(testKey), []);
+  } finally {
+    globalThis.localStorage = origLocal;
+  }
+});
+
+test('setupMobileCleaverModal binds DOM controls, executes rotations, resets and exports', async () => {
+  const { setupMobileCleaverModal } = await import('../nav.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      textContent: '',
+      open: false,
+      style: {},
+      addEventListener(event, fn) {
+        listeners[event] = fn;
+      },
+      click() {
+        if (listeners['click']) listeners['click']();
+      },
+      input() {
+        if (listeners['input']) listeners['input']();
+      },
+      change() {
+        if (listeners['change']) listeners['change']();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    mobileCleaverModal: createMockEl('mobileCleaverModal'),
+    mobileCleaverModalCloseBtn: createMockEl('mobileCleaverModalCloseBtn'),
+    cleaverModelSelect: createMockEl('cleaverModelSelect'),
+    cleaverPositionSlider: createMockEl('cleaverPositionSlider'),
+    cleaverPositionLabel: createMockEl('cleaverPositionLabel'),
+    cleaverHeightSelect: createMockEl('cleaverHeightSelect'),
+    cleaverCountInput: createMockEl('cleaverCountInput'),
+    cleaverAngleInput: createMockEl('cleaverAngleInput'),
+    cleaverDefectSelect: createMockEl('cleaverDefectSelect'),
+    cleaverTechNameInput: createMockEl('cleaverTechNameInput'),
+    cleaverSerialInput: createMockEl('cleaverSerialInput'),
+    cleaverAreaSelect: createMockEl('cleaverAreaSelect'),
+    cleaverStatPosition: createMockEl('cleaverStatPosition'),
+    cleaverStatWear: createMockEl('cleaverStatWear'),
+    cleaverStatAngle: createMockEl('cleaverStatAngle'),
+    cleaverStatPenalty: createMockEl('cleaverStatPenalty'),
+    cleaverStatVerdict: createMockEl('cleaverStatVerdict'),
+    cleaverModalDiagramContainer: createMockEl('cleaverModalDiagramContainer'),
+    cleaverRotateNextBtn: createMockEl('cleaverRotateNextBtn'),
+    cleaverResetPositionBtn: createMockEl('cleaverResetPositionBtn'),
+    cleaverSaveAuditBtn: createMockEl('cleaverSaveAuditBtn'),
+    cleaverCopyReportBtn: createMockEl('cleaverCopyReportBtn'),
+    cleaverExportCsvBtn: createMockEl('cleaverExportCsvBtn'),
+    cleaverShareWhatsAppBtn: createMockEl('cleaverShareWhatsAppBtn'),
+    cleaverClearHistoryBtn: createMockEl('cleaverClearHistoryBtn'),
+    cleaverHistoryList: createMockEl('cleaverHistoryList')
+  };
+
+  elements.cleaverModelSelect.value = 'FUJIKURA_CT50';
+  elements.cleaverPositionSlider.value = '1';
+  elements.cleaverCountInput.value = '100';
+  elements.cleaverAngleInput.value = '0.4';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    querySelectorAll() {
+      return [];
+    }
+  };
+
+  let toastMsg = null;
+  const controller = setupMobileCleaverModal({}, {
+    document: mockDoc,
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.mobileCleaverModal.open, true);
+  assert.ok(elements.cleaverModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Test position rotation
+  elements.cleaverRotateNextBtn.click();
+  assert.equal(elements.cleaverPositionSlider.value, 2);
+  assert.ok(toastMsg.includes('Rotated cleaver wheel to Position #2'));
+
+  // Test reset position
+  elements.cleaverResetPositionBtn.click();
+  assert.equal(elements.cleaverCountInput.value, 0);
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test save audit
+  elements.cleaverSaveAuditBtn.click();
+  assert.ok(toastMsg.includes('Saved cleaver audit'));
+
+  // Test export CSV button
+  elements.cleaverExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('copied') || toastMsg.includes('Clipboard'));
+
+  // Test clear history button
+  elements.cleaverClearHistoryBtn.click();
+  assert.ok(toastMsg.includes('cleared'));
+
+  controller.close();
+  assert.equal(elements.mobileCleaverModal.open, false);
+});
+
+test('index.html contains mobile cleaver button and modal markup', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreCleaverBtn"'));
+  assert.ok(html.includes('id="mobileCleaverModal"'));
+  assert.ok(html.includes('id="cleaverModelSelect"'));
+  assert.ok(html.includes('id="cleaverPositionSlider"'));
+  assert.ok(html.includes('id="cleaverRotateNextBtn"'));
+  assert.ok(html.includes('id="cleaverModalDiagramContainer"'));
+  assert.ok(html.includes('id="cleaverExportCsvBtn"'));
+  assert.ok(html.includes('id="cleaverClearHistoryBtn"'));
+  assert.ok(html.includes('id="cleaverHistoryList"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.mobile-cleaver-modal'));
+  assert.ok(css.includes('.cleaver-card'));
+  assert.ok(css.includes('.cleaver-svg-wrap'));
+});

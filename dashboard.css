@@ -2614,4 +2614,27 @@
   border-color: #28443b;
 }
 
+/* Carrier MPLS Pseudowire (PW / VPWS) Styles */
+.chart-card-pseudowire {
+  background: var(--surface, #ffffff);
+}
+
+.pseudowire-modal-card {
+  max-width: 820px;
+  width: 95vw;
+}
+
+.pseudowire-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-pseudowire {
+  background: #182923;
+  border-color: #28443b;
+}
+
+
 

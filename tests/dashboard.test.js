@@ -13665,4 +13665,299 @@ test('index.html and dashboard.css contain Y.1731 OAM markup and styles', async 
   assert.ok(css.includes('.y1731-svg'));
 });
 
+test('PSEUDOWIRE_CONSTANTS and SHAHDARA_PSEUDOWIRE_SERVICES contain valid specifications', async () => {
+  const { PSEUDOWIRE_CONSTANTS, SHAHDARA_PSEUDOWIRE_SERVICES } = await import('../dashboard.js');
+
+  assert.ok(PSEUDOWIRE_CONSTANTS.DEFAULT_SERVICE_ID);
+  assert.equal(PSEUDOWIRE_CONSTANTS.STATUS.OPTIMAL, 'Optimal');
+  assert.equal(PSEUDOWIRE_CONSTANTS.STATUS.CRITICAL, 'Critical');
+  assert.equal(PSEUDOWIRE_CONSTANTS.CONTROL_WORD_SIZE_BYTES, 4);
+
+  assert.ok(Array.isArray(SHAHDARA_PSEUDOWIRE_SERVICES));
+  assert.equal(SHAHDARA_PSEUDOWIRE_SERVICES.length, 5);
+
+  SHAHDARA_PSEUDOWIRE_SERVICES.forEach(s => {
+    assert.ok(s.id);
+    assert.ok(s.name);
+    assert.ok(s.pwId > 0);
+    assert.ok(s.psnTunnelLabel > 0);
+    assert.ok(s.vcLabel > 0);
+    assert.ok(s.ingressPe);
+    assert.ok(s.egressPe);
+    assert.ok(s.bandwidthMbps > 0);
+    assert.ok(s.monthlyRevenuePkr > 0);
+  });
+});
+
+test('calculatePseudowireDynamics computes accurate encapsulation stack and playout buffer margins', async () => {
+  const { calculatePseudowireDynamics, SHAHDARA_PSEUDOWIRE_SERVICES } = await import('../dashboard.js');
+
+  const bankService = SHAHDARA_PSEUDOWIRE_SERVICES[0];
+
+  // 1. With Control Word
+  const withCw = calculatePseudowireDynamics(bankService, {
+    controlWordEnabled: true,
+    injectedJitterMs: 1.2,
+    bufferDepthMs: 5.0
+  });
+
+  assert.equal(withCw.controlWordEnabled, true);
+  assert.equal(withCw.stack.cwBytes, 4);
+  assert.equal(withCw.stack.totalMplsOverheadBytes, 12); // 4 (PSN) + 4 (VC) + 4 (CW)
+  assert.equal(withCw.stack.totalEncapsulationBytes, 26); // 12 + 14 (Eth)
+  assert.equal(withCw.bufferMarginMs, 3.8); // 5.0 - 1.2
+  assert.equal(withCw.status, 'Optimal');
+  assert.equal(withCw.telemetry.droppedOutOfOrderPct, 0);
+  assert.equal(withCw.telemetry.reorderRecoverySuccessPct, 100);
+  assert.equal(withCw.penaltyRebatePct, 0);
+
+  // 2. Without Control Word (Raw Mode)
+  const withoutCw = calculatePseudowireDynamics(bankService, {
+    controlWordEnabled: false,
+    injectedJitterMs: 1.2,
+    bufferDepthMs: 5.0
+  });
+
+  assert.equal(withoutCw.controlWordEnabled, false);
+  assert.equal(withoutCw.stack.cwBytes, 0);
+  assert.equal(withoutCw.stack.totalMplsOverheadBytes, 8); // 4 (PSN) + 4 (VC)
+  assert.equal(withoutCw.stack.totalEncapsulationBytes, 22); // 8 + 14
+  assert.ok(withoutCw.telemetry.droppedOutOfOrderPct > 0);
+  assert.equal(withoutCw.telemetry.reorderRecoverySuccessPct, 0);
+});
+
+test('calculatePseudowireDynamics with severe network jitter exceeding buffer depth', async () => {
+  const { calculatePseudowireDynamics, SHAHDARA_PSEUDOWIRE_SERVICES } = await import('../dashboard.js');
+
+  const bankService = SHAHDARA_PSEUDOWIRE_SERVICES[0];
+  const dynamics = calculatePseudowireDynamics(bankService, {
+    injectedJitterMs: 8.5,
+    bufferDepthMs: 3.0,
+    controlWordEnabled: true
+  });
+
+  assert.ok(dynamics.bufferMarginMs < 0);
+  assert.ok(dynamics.telemetry.underRunRatePct > 0);
+  assert.ok(dynamics.telemetry.droppedOutOfOrderPct > 0);
+  assert.ok(dynamics.status === 'Degraded' || dynamics.status === 'Critical');
+  assert.ok(dynamics.penaltyRebatePct > 0);
+  assert.ok(dynamics.penaltyPkr > 0);
+});
+
+test('calculatePseudowireMetrics aggregates portfolio bandwidth and area subscribers', async () => {
+  const { calculatePseudowireMetrics } = await import('../dashboard.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', area: 'Shahdara Town', packagePrice: 3500, balance: 0, archived: false },
+      { id: 'c2', area: 'Baradari', packagePrice: 4000, balance: 1000, archived: false },
+      { id: 'c3', area: 'Begum Kot', packagePrice: 2500, balance: 0, archived: false },
+      { id: 'c4', area: 'Random Area', packagePrice: 2000, balance: 500, archived: false },
+      { id: 'c5', area: 'Shahdara Town', packagePrice: 3000, balance: 0, archived: true }
+    ]
+  };
+
+  const metrics = calculatePseudowireMetrics(mockState, {
+    serviceId: 'nbp-bank-vpws'
+  });
+
+  assert.equal(metrics.totalServices, 5);
+  assert.ok(metrics.totalBandwidthMbps >= 2500);
+  assert.ok(metrics.totalSubscribers > 800);
+  assert.ok(metrics.totalRevenuePkr > 3000000);
+  assert.equal(metrics.actualCustomersInArea, 3); // c1, c2, c3
+});
+
+test('renderPseudowireDiagramSvg outputs valid vector graphics in light and dark modes', async () => {
+  const { calculatePseudowireDynamics, renderPseudowireDiagramSvg, SHAHDARA_PSEUDOWIRE_SERVICES } = await import('../dashboard.js');
+
+  const service = SHAHDARA_PSEUDOWIRE_SERVICES[0];
+  const dynamics = calculatePseudowireDynamics(service);
+
+  // 1. Dark Mode
+  const darkSvg = renderPseudowireDiagramSvg(dynamics, { isDarkMode: true });
+  assert.ok(darkSvg.includes('<svg'));
+  assert.ok(darkSvg.includes('class="pseudowire-svg"'));
+  assert.ok(darkSvg.includes('Outer PSN MPLS Transport Label'));
+  assert.ok(darkSvg.includes('Inner Pseudowire VC Label'));
+  assert.ok(darkSvg.includes('Pseudowire Control Word'));
+  assert.ok(darkSvg.includes('Playout Buffer Depth'));
+  assert.ok(darkSvg.includes('#0f172a'));
+
+  // 2. Light Mode without CW
+  const rawDynamics = calculatePseudowireDynamics(service, { controlWordEnabled: false });
+  const lightSvg = renderPseudowireDiagramSvg(rawDynamics, { isDarkMode: false });
+  assert.ok(lightSvg.includes('#f8fafc'));
+  assert.ok(lightSvg.includes('Control Word (CW) Disabled'));
+});
+
+test('generatePseudowireReport, exportPseudowireJson, and exportPseudowireCsv format data accurately', async () => {
+  const {
+    calculatePseudowireDynamics,
+    generatePseudowireReport,
+    exportPseudowireJson,
+    exportPseudowireCsv,
+    SHAHDARA_PSEUDOWIRE_SERVICES
+  } = await import('../dashboard.js');
+
+  const service = SHAHDARA_PSEUDOWIRE_SERVICES[0];
+  const dynamics = calculatePseudowireDynamics(service);
+
+  // 1. Text Report
+  const report = generatePseudowireReport(dynamics);
+  assert.ok(report.includes('SHAHDARA ISP CARRIER MPLS PSEUDOWIRE (VPWS) AUDIT REPORT'));
+  assert.ok(report.includes('1. PSEUDOWIRE CIRCUIT DEFINITIONS'));
+  assert.ok(report.includes('2. MPLS HEADER ENCAPSULATION STACK'));
+  assert.ok(report.includes('3. JITTER PLAYOUT BUFFER & SEQUENCE REORDERING'));
+
+  // 2. JSON
+  const jsonStr = exportPseudowireJson(dynamics);
+  const parsed = JSON.parse(jsonStr);
+  assert.equal(parsed.standard, 'RFC 4447 / RFC 3985 Carrier MPLS Pseudowire');
+  assert.equal(parsed.service.id, 'nbp-bank-vpws');
+  assert.equal(parsed.encapsulation.totalEncapsulationBytes, 26);
+
+  // 3. CSV
+  const csvStr = exportPseudowireCsv(dynamics);
+  assert.ok(csvStr.startsWith('Service_ID,Service_Name,PW_ID'));
+  assert.ok(csvStr.includes('"nbp-bank-vpws"'));
+  assert.ok(csvStr.includes('\r\n'));
+});
+
+test('setupPseudowireModal binds DOM controls, sliders, CW checkbox, reset, and exports', async () => {
+  const { setupPseudowireModal } = await import('../dashboard.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      textContent: '',
+      innerHTML: '',
+      open: false,
+      style: {},
+      addEventListener(evt, fn) {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      input() {
+        if (listeners['input']) listeners['input'].forEach(fn => fn({ type: 'input' }));
+      },
+      change() {
+        if (listeners['change']) listeners['change'].forEach(fn => fn({ type: 'change' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; }
+    };
+  }
+
+  const elements = {
+    dashboardPseudowireModal: createMockEl('dashboardPseudowireModal'),
+    dashboardOpenPseudowireModalBtn: createMockEl('dashboardOpenPseudowireModalBtn'),
+    dashboardPseudowireModalCloseBtn: createMockEl('dashboardPseudowireModalCloseBtn'),
+    dashboardPseudowireChart: createMockEl('dashboardPseudowireChart'),
+    pwServiceSelect: createMockEl('pwServiceSelect'),
+    pwJitterSlider: createMockEl('pwJitterSlider'),
+    pwJitterLabel: createMockEl('pwJitterLabel'),
+    pwBufferSlider: createMockEl('pwBufferSlider'),
+    pwBufferLabel: createMockEl('pwBufferLabel'),
+    pwCwCheck: createMockEl('pwCwCheck'),
+    pwResetBtn: createMockEl('pwResetBtn'),
+    pwStatStatus: createMockEl('pwStatStatus'),
+    pwStatMargin: createMockEl('pwStatMargin'),
+    pwStatReordered: createMockEl('pwStatReordered'),
+    pwStatRecovery: createMockEl('pwStatRecovery'),
+    pwStatOverhead: createMockEl('pwStatOverhead'),
+    pwStatPenalty: createMockEl('pwStatPenalty'),
+    pwModalDiagramContainer: createMockEl('pwModalDiagramContainer'),
+    pwFilterAreaBtn: createMockEl('pwFilterAreaBtn'),
+    pwExportJsonBtn: createMockEl('pwExportJsonBtn'),
+    pwExportCsvBtn: createMockEl('pwExportCsvBtn'),
+    pwCopyReportBtn: createMockEl('pwCopyReportBtn')
+  };
+
+  elements.pwServiceSelect.value = 'nbp-bank-vpws';
+  elements.pwJitterSlider.value = '1.2';
+  elements.pwBufferSlider.value = '5.0';
+  elements.pwCwCheck.checked = true;
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupPseudowireModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardPseudowireModal.open, true);
+  assert.ok(elements.pwModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardPseudowireChart.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.pwJitterSlider.value = '3.5';
+  elements.pwJitterSlider.input();
+  assert.ok(elements.pwJitterLabel.textContent.includes('3.5 ms'));
+
+  // Test CW checkbox toggle
+  elements.pwCwCheck.checked = false;
+  elements.pwCwCheck.change();
+
+  // Test reset
+  elements.pwResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.pwExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('Clipboard'));
+  elements.pwExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('Clipboard'));
+
+  // Test filter area
+  elements.pwFilterAreaBtn.click();
+  assert.equal(filterArea, 'Shahdara Town');
+
+  controller.close();
+  assert.equal(elements.dashboardPseudowireModal.open, false);
+});
+
+test('index.html and dashboard.css contain Pseudowire markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-pseudowire'));
+  assert.ok(html.includes('id="dashboardPseudowireChart"'));
+  assert.ok(html.includes('id="dashboardOpenPseudowireModalBtn"'));
+  assert.ok(html.includes('id="dashboardPseudowireModal"'));
+  assert.ok(html.includes('id="pwServiceSelect"'));
+  assert.ok(html.includes('id="pwJitterSlider"'));
+  assert.ok(html.includes('id="pwBufferSlider"'));
+  assert.ok(html.includes('id="pwCwCheck"'));
+  assert.ok(html.includes('id="pwResetBtn"'));
+  assert.ok(html.includes('id="pwModalDiagramContainer"'));
+  assert.ok(html.includes('id="pwExportJsonBtn"'));
+  assert.ok(html.includes('id="pwExportCsvBtn"'));
+  assert.ok(html.includes('id="pwCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-pseudowire'));
+  assert.ok(css.includes('.pseudowire-modal-card'));
+  assert.ok(css.includes('.pseudowire-svg'));
+});
+
+
 

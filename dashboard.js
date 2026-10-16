@@ -5324,3 +5324,21 @@ export {
   generateFusionSplicerReport,
   setupFusionSplicerModal
 } from './dashboard-splicer.js';
+
+export {
+  SHAHDARA_BGP_PEERS,
+  BGP_CONSTANTS,
+  getBgpSelectedPeer,
+  setBgpSelectedPeer,
+  getBgpFlapCount,
+  setBgpFlapCount,
+  getBgpSuppressThreshold,
+  setBgpSuppressThreshold,
+  resetBgpSimState,
+  calculateBgpFlapPenalty,
+  calculateRouteConvergenceTime,
+  calculateBgpPeeringMetrics,
+  renderBgpRoutingConvergenceSvg,
+  generateBgpRoutingReport,
+  setupBgpRoutingModal
+} from './dashboard-bgp.js';

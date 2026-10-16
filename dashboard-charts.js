@@ -8,6 +8,7 @@ import { calculateSpliceClosureMetrics, setupSpliceClosureModal, renderSpliceClo
 import { calculateDuctJettingMetrics, setupDuctJettingModal, renderDuctJettingSvg } from './dashboard-jetting.js';
 import { calculatePonDbaMetrics, setupPonDbaModal, renderPonDbaQueueSvg } from './dashboard-pon-dba.js';
 import { calculateFusionSplicerMetrics, setupFusionSplicerModal, renderFusionSplicerSvg } from './dashboard-splicer.js';
+import { calculateBgpPeeringMetrics, setupBgpRoutingModal, renderBgpRoutingConvergenceSvg } from './dashboard-bgp.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3308,9 +3309,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupFusionSplicerModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const bgpEl = document.getElementById('dashboardBgpChart');
+  if (bgpEl) {
+    const bgpData = calculateBgpPeeringMetrics(state, { referenceDate });
+    bgpEl.innerHTML = renderBgpRoutingConvergenceSvg(bgpData, { compact: true });
+  }
+
+  setupBgpRoutingModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg };
 
 

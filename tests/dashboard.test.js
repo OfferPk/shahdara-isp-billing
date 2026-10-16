@@ -13055,3 +13055,320 @@ test('index.html and dashboard.css contain Carrier Ethernet MEF markup and style
   assert.ok(css.includes('.mef-ethernet-modal-card'));
   assert.ok(css.includes('.mef-ethernet-svg'));
 });
+
+test('ERPS_CONSTANTS and SHAHDARA_ERPS_RINGS contain valid specifications', async () => {
+  const { ERPS_CONSTANTS, SHAHDARA_ERPS_RINGS } = await import('../dashboard.js');
+
+  assert.ok(ERPS_CONSTANTS.DEFAULT_RING_ID);
+  assert.equal(ERPS_CONSTANTS.BENCHMARK_MAX_SWITCHOVER_MS, 50.0);
+  assert.equal(ERPS_CONSTANTS.STATES.IDLE, 'IDLE');
+  assert.equal(ERPS_CONSTANTS.STATES.PROTECTION, 'PROTECTION');
+  assert.equal(ERPS_CONSTANTS.STATES.PENDING, 'PENDING');
+
+  assert.ok(Array.isArray(SHAHDARA_ERPS_RINGS));
+  assert.equal(SHAHDARA_ERPS_RINGS.length, 5);
+
+  SHAHDARA_ERPS_RINGS.forEach(ring => {
+    assert.ok(ring.id);
+    assert.ok(ring.name);
+    assert.ok(ring.totalCircumferenceKm > 0);
+    assert.ok(ring.nodes.length >= 4);
+    assert.ok(ring.spans.length >= 4);
+    assert.ok(ring.spans.some(s => s.isRpl));
+    assert.ok(ring.nodes.some(n => n.role === 'RPL Owner'));
+    assert.ok(ring.nodes.some(n => n.role === 'RPL Neighbor'));
+  });
+});
+
+test('calculateErpsDynamics computes sub-50ms switchover latency and timing breakdown in IDLE', async () => {
+  const { calculateErpsDynamics, SHAHDARA_ERPS_RINGS } = await import('../dashboard.js');
+
+  const baradariRing = SHAHDARA_ERPS_RINGS[0];
+  const dynamics = calculateErpsDynamics(baradariRing);
+
+  assert.equal(dynamics.currentState, 'IDLE');
+  assert.equal(dynamics.rplStatus, 'BLOCKED');
+  assert.equal(dynamics.failedSpanId, null);
+  assert.equal(dynamics.failedSpan, null);
+
+  // Timing breakdown assertions
+  const t = dynamics.timingBreakdown;
+  assert.equal(t.detectMs, 0.8); // Hardware LOS
+  assert.equal(t.genMs, 0.5); // R-APS generation
+  assert.ok(t.propMs > 0.05 && t.propMs < 0.2); // ~0.07 ms for 14.2 km
+  assert.ok(t.procMs > 0.01 && t.procMs < 0.05); // ~0.015 ms for 6 nodes
+  assert.ok(t.flushMs >= 0.5 && t.flushMs <= 6.0); // FDB flush
+  assert.ok(t.totalSwitchMs < 5.0); // Sub-5ms overall switchover in hardware mode
+
+  // Compliance assertions
+  assert.equal(dynamics.compliance.status, 'PASS');
+  assert.equal(dynamics.compliance.isSub50ms, true);
+  assert.ok(dynamics.compliance.marginMs > 40.0);
+  assert.ok(dynamics.rplProtectionOverheadPct > 0);
+});
+
+test('calculateErpsDynamics simulates fiber cut and activates PROTECTION state', async () => {
+  const { calculateErpsDynamics, SHAHDARA_ERPS_RINGS } = await import('../dashboard.js');
+
+  const ring = SHAHDARA_ERPS_RINGS[0];
+  const targetSpan = ring.spans[1]; // SPAN-02 (Hub-02 to Town Central)
+
+  const dynamics = calculateErpsDynamics(ring, {
+    failedSpanId: targetSpan.id
+  });
+
+  assert.equal(dynamics.currentState, 'PROTECTION');
+  assert.equal(dynamics.rplStatus, 'UNBLOCKED');
+  assert.equal(dynamics.failedSpanId, targetSpan.id);
+  assert.ok(dynamics.failedSpan);
+  assert.equal(dynamics.failedSpan.label, targetSpan.label);
+
+  assert.ok(dynamics.activeTrafficThroughputGbps > 0);
+  assert.ok(dynamics.lostMegabits > 0);
+  assert.ok(dynamics.lostFramesCount > 0);
+});
+
+test('calculateErpsDynamics with CFM 10ms CCM and PENDING state with WTR', async () => {
+  const { calculateErpsDynamics, SHAHDARA_ERPS_RINGS } = await import('../dashboard.js');
+
+  const ring = SHAHDARA_ERPS_RINGS[1]; // Jia Musa ring
+  const dynamics = calculateErpsDynamics(ring, {
+    detectionMode: 'cfm-10ms',
+    isPending: true,
+    wtrMinutes: 8
+  });
+
+  assert.equal(dynamics.currentState, 'PENDING');
+  assert.equal(dynamics.wtrMinutes, 8);
+  assert.equal(dynamics.timingBreakdown.detectMs, 30.0);
+  assert.ok(dynamics.timingBreakdown.totalSwitchMs > 30.0);
+  assert.ok(dynamics.compliance.isSub50ms);
+});
+
+test('calculateErpsMetrics aggregates portfolio statistics and area customers', async () => {
+  const { calculateErpsMetrics } = await import('../dashboard.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', area: 'Baradari', packagePrice: 3500, balance: 0, archived: false },
+      { id: 'c2', area: 'Shahdara Town', packagePrice: 4000, balance: 1000, archived: false },
+      { id: 'c3', area: 'Ravi Siphon', packagePrice: 2500, balance: 0, archived: false },
+      { id: 'c4', area: 'Unrelated Sector', packagePrice: 2000, balance: 500, archived: false },
+      { id: 'c5', area: 'Baradari', packagePrice: 3000, balance: 0, archived: true } // archived excluded
+    ]
+  };
+
+  const metrics = calculateErpsMetrics(mockState, {
+    ringId: 'shahdara-central-baradari'
+  });
+
+  assert.equal(metrics.totalRings, 5);
+  assert.ok(metrics.totalRingKm > 50);
+  assert.ok(metrics.totalSubscribers > 1500);
+  assert.ok(metrics.totalProtectedRevenuePkr > 5000000);
+  assert.equal(metrics.actualCustomersInArea, 3); // c1, c2, c3
+});
+
+test('renderErpsDiagramSvg outputs valid vector graphics in both light and dark modes', async () => {
+  const { calculateErpsDynamics, renderErpsDiagramSvg, SHAHDARA_ERPS_RINGS } = await import('../dashboard.js');
+
+  const ring = SHAHDARA_ERPS_RINGS[0];
+
+  // 1. Dark mode Idle diagram
+  const idleDynamics = calculateErpsDynamics(ring);
+  const darkSvg = renderErpsDiagramSvg(idleDynamics, { isDarkMode: true });
+  assert.ok(darkSvg.includes('<svg'));
+  assert.ok(darkSvg.includes('class="erps-svg"'));
+  assert.ok(darkSvg.includes('RPL (BLOCKED)'));
+  assert.ok(darkSvg.includes('ITU-T G.8032 Switchover Budget'));
+  assert.ok(darkSvg.includes('50ms Benchmark'));
+  assert.ok(darkSvg.includes('#0f172a'));
+
+  // 2. Light mode Protection diagram with simulated cut
+  const cutDynamics = calculateErpsDynamics(ring, { failedSpanId: ring.spans[2].id });
+  const lightSvg = renderErpsDiagramSvg(cutDynamics, { isDarkMode: false });
+  assert.ok(lightSvg.includes('SIGNAL FAIL'));
+  assert.ok(lightSvg.includes('RPL (UNBLOCKED)'));
+  assert.ok(lightSvg.includes('#f8fafc'));
+});
+
+test('generateErpsReport, exportErpsJson, and exportErpsCsv format data accurately', async () => {
+  const {
+    calculateErpsDynamics,
+    generateErpsReport,
+    exportErpsJson,
+    exportErpsCsv,
+    SHAHDARA_ERPS_RINGS
+  } = await import('../dashboard.js');
+
+  const ring = SHAHDARA_ERPS_RINGS[0];
+  const dynamics = calculateErpsDynamics(ring);
+
+  // 1. Audit Text Report
+  const report = generateErpsReport(dynamics);
+  assert.ok(report.includes('SHAHDARA ISP METRO OPTICAL NETWORK - ITU-T G.8032 ERPS AUDIT REPORT'));
+  assert.ok(report.includes('1. RING IDENTIFICATION & TOPOLOGY'));
+  assert.ok(report.includes('2. RPL CONFIGURATION & ROLES'));
+  assert.ok(report.includes('3. SUB-50MS PROTECTION SWITCHOVER BUDGET'));
+  assert.ok(report.includes('4. FAULT & TRAFFIC IMPACT ANALYSIS'));
+  assert.ok(report.includes('TOTAL SWITCHOVER TIME:'));
+
+  // 2. JSON Export
+  const jsonStr = exportErpsJson(dynamics);
+  const parsed = JSON.parse(jsonStr);
+  assert.equal(parsed.standard, 'ITU-T G.8032 / Y.1344 ERPS');
+  assert.equal(parsed.ring.id, 'shahdara-central-baradari');
+  assert.equal(parsed.state, 'IDLE');
+  assert.equal(parsed.rplStatus, 'BLOCKED');
+  assert.ok(parsed.timingBreakdown.totalSwitchMs > 0);
+
+  // 3. CSV Export
+  const csvStr = exportErpsCsv(dynamics);
+  assert.ok(csvStr.startsWith('Ring_ID,Ring_Name,Primary_Area'));
+  assert.ok(csvStr.includes('"shahdara-central-baradari"'));
+  assert.ok(csvStr.includes('"IDLE"'));
+  assert.ok(csvStr.includes('\r\n'));
+});
+
+test('setupErpsModal binds event handlers, simulates cuts, transitions states, and exports', async () => {
+  const { setupErpsModal } = await import('../dashboard.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      open: false,
+      style: {},
+      addEventListener(evt, fn) {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      input() {
+        if (listeners['input']) listeners['input'].forEach(fn => fn({ type: 'input' }));
+      },
+      change() {
+        if (listeners['change']) listeners['change'].forEach(fn => fn({ type: 'change' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; }
+    };
+  }
+
+  const elements = {
+    dashboardErpsModal: createMockEl('dashboardErpsModal'),
+    dashboardOpenErpsModalBtn: createMockEl('dashboardOpenErpsModalBtn'),
+    dashboardErpsModalCloseBtn: createMockEl('dashboardErpsModalCloseBtn'),
+    dashboardErpsChart: createMockEl('dashboardErpsChart'),
+    erpsRingSelect: createMockEl('erpsRingSelect'),
+    erpsSpanSelect: createMockEl('erpsSpanSelect'),
+    erpsDetectSelect: createMockEl('erpsDetectSelect'),
+    erpsWtrInput: createMockEl('erpsWtrInput'),
+    erpsInjectCutBtn: createMockEl('erpsInjectCutBtn'),
+    erpsRestoreBtn: createMockEl('erpsRestoreBtn'),
+    erpsClearBtn: createMockEl('erpsClearBtn'),
+    erpsStatState: createMockEl('erpsStatState'),
+    erpsStatSwitchTime: createMockEl('erpsStatSwitchTime'),
+    erpsStatCompliance: createMockEl('erpsStatCompliance'),
+    erpsStatRpl: createMockEl('erpsStatRpl'),
+    erpsStatLoss: createMockEl('erpsStatLoss'),
+    erpsStatSubscribers: createMockEl('erpsStatSubscribers'),
+    erpsModalDiagramContainer: createMockEl('erpsModalDiagramContainer'),
+    erpsFilterAreaBtn: createMockEl('erpsFilterAreaBtn'),
+    erpsExportJsonBtn: createMockEl('erpsExportJsonBtn'),
+    erpsExportCsvBtn: createMockEl('erpsExportCsvBtn'),
+    erpsCopyReportBtn: createMockEl('erpsCopyReportBtn')
+  };
+
+  elements.erpsRingSelect.value = 'shahdara-central-baradari';
+  elements.erpsDetectSelect.value = 'los';
+  elements.erpsWtrInput.value = '5';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupErpsModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardErpsModal.open, true);
+  assert.ok(elements.erpsModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardErpsChart.innerHTML.includes('<svg'));
+
+  // Test state in IDLE
+  assert.equal(elements.erpsStatState.textContent, 'IDLE');
+  assert.equal(elements.erpsStatRpl.textContent, 'BLOCKED');
+
+  // Test Inject Cut
+  elements.erpsInjectCutBtn.click();
+  assert.equal(elements.erpsStatState.textContent, 'PROTECTION');
+  assert.equal(elements.erpsStatRpl.textContent, 'UNBLOCKED');
+  assert.ok(toastMsg.includes('Simulated Fiber Cut injected'));
+
+  // Test Restore Link
+  elements.erpsRestoreBtn.click();
+  assert.equal(elements.erpsStatState.textContent, 'PENDING');
+  assert.ok(toastMsg.includes('ERPS transitioned to PENDING'));
+
+  // Test Clear / Reset to Idle
+  elements.erpsClearBtn.click();
+  assert.equal(elements.erpsStatState.textContent, 'IDLE');
+  assert.equal(elements.erpsStatRpl.textContent, 'BLOCKED');
+  assert.ok(toastMsg.includes('reset to normal IDLE'));
+
+  // Test Export buttons
+  elements.erpsExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('Clipboard'));
+  elements.erpsExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('Clipboard'));
+
+  // Test Filter Area
+  elements.erpsFilterAreaBtn.click();
+  assert.equal(filterArea, 'Baradari');
+
+  controller.close();
+  assert.equal(elements.dashboardErpsModal.open, false);
+});
+
+test('index.html and dashboard.css contain ITU-T G.8032 ERPS markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-erps-ring'));
+  assert.ok(html.includes('id="dashboardErpsChart"'));
+  assert.ok(html.includes('id="dashboardOpenErpsModalBtn"'));
+  assert.ok(html.includes('id="dashboardErpsModal"'));
+  assert.ok(html.includes('id="erpsRingSelect"'));
+  assert.ok(html.includes('id="erpsSpanSelect"'));
+  assert.ok(html.includes('id="erpsDetectSelect"'));
+  assert.ok(html.includes('id="erpsInjectCutBtn"'));
+  assert.ok(html.includes('id="erpsRestoreBtn"'));
+  assert.ok(html.includes('id="erpsClearBtn"'));
+  assert.ok(html.includes('id="erpsModalDiagramContainer"'));
+  assert.ok(html.includes('id="erpsExportJsonBtn"'));
+  assert.ok(html.includes('id="erpsExportCsvBtn"'));
+  assert.ok(html.includes('id="erpsCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-erps-ring'));
+  assert.ok(css.includes('.erps-modal-card'));
+  assert.ok(css.includes('.erps-svg'));
+});
+

@@ -15,6 +15,8 @@ import { calculateDwdmMetrics, setupDwdmModal, renderDwdmBudgetSvg } from './das
 import { calculateOscMetrics, setupOscModal, renderOscTelemetrySvg } from './dashboard-osc.js';
 import { calculateQinqMetrics, setupQinqModal, renderQinqTrunkSvg } from './dashboard-qinq.js';
 import { calculateSyncEMetrics, setupSyncEModal, renderSyncEClockSvg } from './dashboard-synce.js';
+import { calculateRoadmMetrics, setupRoadmModal, renderRoadmOpticalSvg } from './dashboard-roadm.js';
+
 
 
 
@@ -3376,8 +3378,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupSyncEModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const roadmEl = document.getElementById('dashboardRoadmChart');
+  if (roadmEl) {
+    const roadmData = calculateRoadmMetrics(state, { referenceDate });
+    roadmEl.innerHTML = renderRoadmOpticalSvg(roadmData, { compact: true });
+  }
+
+  setupRoadmModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg };
+
 

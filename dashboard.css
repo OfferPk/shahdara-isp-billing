@@ -2165,6 +2165,33 @@
   border-color: #1b3d54;
 }
 
+.chart-card-roadm {
+  background: var(--surface, #ffffff);
+}
+
+.roadm-modal-card {
+  max-width: 960px;
+}
+
+.roadm-compact-svg,
+.roadm-modal-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-roadm {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .roadm-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
+
 
 
 

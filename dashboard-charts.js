@@ -17,6 +17,7 @@ import { calculateQinqMetrics, setupQinqModal, renderQinqTrunkSvg } from './dash
 import { calculateSyncEMetrics, setupSyncEModal, renderSyncEClockSvg } from './dashboard-synce.js';
 import { calculateRoadmMetrics, setupRoadmModal, renderRoadmOpticalSvg } from './dashboard-roadm.js';
 import { calculateMicroOtdrMetrics, setupMicroOtdrModal, renderMicroOtdrTraceSvg } from './dashboard-micro-otdr.js';
+import { calculateMclagMetrics, setupMclagModal, renderMclagDiagramSvg } from './dashboard-mclag.js';
 
 
 
@@ -3395,9 +3396,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupMicroOtdrModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const mclagEl = document.getElementById('dashboardMclagChart');
+  if (mclagEl) {
+    const mclagData = calculateMclagMetrics(state, { referenceDate });
+    mclagEl.innerHTML = renderMclagDiagramSvg(mclagData, { compact: true });
+  }
+
+  setupMclagModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg, renderMclagDiagramSvg };
 
 

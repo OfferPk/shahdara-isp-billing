@@ -5942,3 +5942,22 @@ export {
   setupMobileFusionSpliceModal
 } from './nav-fusion-splice.js';
 
+export {
+  WIFI_SURVEY_STORAGE_KEY,
+  WIFI_FREQUENCY_BANDS,
+  WIFI_SIGNAL_GRADES,
+  OBSTACLE_TYPES,
+  SHAHDARA_ROOM_ZONES,
+  calculateEstimatedRssi,
+  calculateChannelInterferencePenalty,
+  evaluateWifiSignalQuality,
+  getWifiSurveyStore,
+  saveWifiSurveyStore,
+  recordWifiSurvey,
+  clearWifiSurveyStore,
+  renderMobileWifiSurveySvg,
+  generateWifiSurveyReport,
+  setupMobileWifiSurveyModal
+} from './nav-wifi-survey.js';
+
+

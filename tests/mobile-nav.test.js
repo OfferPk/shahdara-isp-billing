@@ -6055,3 +6055,357 @@ test('nav-fusion-splice.js setupMobileFusionSpliceModal wires modal events and c
   }
 });
 
+test('nav-wifi-survey.js catalogs and constants are properly defined', async () => {
+  const {
+    WIFI_SURVEY_STORAGE_KEY,
+    WIFI_FREQUENCY_BANDS,
+    WIFI_SIGNAL_GRADES,
+    OBSTACLE_TYPES,
+    SHAHDARA_ROOM_ZONES
+  } = await import('../nav-wifi-survey.js');
+
+  assert.equal(WIFI_SURVEY_STORAGE_KEY, 'shahdara_wifi_survey_logs_v1');
+  assert.ok(Array.isArray(WIFI_FREQUENCY_BANDS));
+  assert.equal(WIFI_FREQUENCY_BANDS.length, 2);
+  assert.ok(WIFI_FREQUENCY_BANDS.some(b => b.id === 'BAND_2_4GHZ'));
+  assert.ok(WIFI_FREQUENCY_BANDS.some(b => b.id === 'BAND_5GHZ'));
+
+  assert.ok(WIFI_SIGNAL_GRADES.EXCELLENT.pass);
+  assert.ok(WIFI_SIGNAL_GRADES.GOOD.pass);
+  assert.ok(!WIFI_SIGNAL_GRADES.WEAK.pass);
+  assert.ok(!WIFI_SIGNAL_GRADES.DEAD_ZONE.pass);
+
+  assert.ok(Array.isArray(OBSTACLE_TYPES));
+  assert.ok(OBSTACLE_TYPES.length >= 6);
+  assert.ok(OBSTACLE_TYPES.some(o => o.id === 'BRICK_SINGLE'));
+
+  assert.ok(Array.isArray(SHAHDARA_ROOM_ZONES));
+  assert.ok(SHAHDARA_ROOM_ZONES.length >= 5);
+  assert.ok(SHAHDARA_ROOM_ZONES.some(r => r.id === 'LIVING_ROOM'));
+});
+
+test('nav-wifi-survey.js calculateEstimatedRssi models FSPL and obstacle attenuation', async () => {
+  const { calculateEstimatedRssi } = await import('../nav-wifi-survey.js');
+
+  // Short line of sight distance (2m)
+  const closeRssi = calculateEstimatedRssi({
+    txPowerDbm: 20,
+    distanceMeters: 2,
+    frequencyGhz: 2.437,
+    obstacleLossDb: 0
+  });
+  assert.ok(closeRssi >= -50);
+
+  // Far distance (15m)
+  const farRssi = calculateEstimatedRssi({
+    txPowerDbm: 20,
+    distanceMeters: 15,
+    frequencyGhz: 2.437,
+    obstacleLossDb: 0
+  });
+  assert.ok(farRssi < closeRssi);
+
+  // Brick wall adds attenuation
+  const wallRssi = calculateEstimatedRssi({
+    txPowerDbm: 20,
+    distanceMeters: 5,
+    frequencyGhz: 2.437,
+    obstacleLossDb: 14 // Double brick
+  });
+  const openRssi = calculateEstimatedRssi({
+    txPowerDbm: 20,
+    distanceMeters: 5,
+    frequencyGhz: 2.437,
+    obstacleLossDb: 0
+  });
+  assert.ok(wallRssi < openRssi);
+
+  // 5 GHz experiences higher free space attenuation than 2.4 GHz
+  const rssi24 = calculateEstimatedRssi({ distanceMeters: 10, frequencyGhz: 2.437 });
+  const rssi5 = calculateEstimatedRssi({ distanceMeters: 10, frequencyGhz: 5.240 });
+  assert.ok(rssi5 < rssi24);
+});
+
+test('nav-wifi-survey.js calculateChannelInterferencePenalty handles overlapping channels', async () => {
+  const { calculateChannelInterferencePenalty } = await import('../nav-wifi-survey.js');
+
+  // Standard non-overlapping channel (Ch 6)
+  const ch6 = calculateChannelInterferencePenalty(6, 'BAND_2_4GHZ', 1);
+  assert.equal(ch6.isRecommended, true);
+
+  // Non-standard overlapping channel (Ch 3)
+  const ch3 = calculateChannelInterferencePenalty(3, 'BAND_2_4GHZ', 1);
+  assert.equal(ch3.isRecommended, false);
+  assert.ok(ch3.interferenceScore > ch6.interferenceScore);
+  assert.ok(ch3.penaltyDb > ch6.penaltyDb);
+
+  // More neighbor APs increase interference score
+  const crowded = calculateChannelInterferencePenalty(6, 'BAND_2_4GHZ', 5);
+  assert.ok(crowded.interferenceScore > ch6.interferenceScore);
+});
+
+test('nav-wifi-survey.js evaluateWifiSignalQuality grades signal and estimates PHY throughput', async () => {
+  const { evaluateWifiSignalQuality, WIFI_SIGNAL_GRADES } = await import('../nav-wifi-survey.js');
+
+  // Excellent signal
+  const excellent = evaluateWifiSignalQuality(-42, -95, 'BAND_5GHZ', 36, 1);
+  assert.equal(excellent.grade.id, WIFI_SIGNAL_GRADES.EXCELLENT.id);
+  assert.ok(excellent.estimatedThroughputMbps > 300);
+  assert.equal(excellent.warnings.length, 0);
+
+  // Fair signal
+  const fair = evaluateWifiSignalQuality(-72, -95, 'BAND_2_4GHZ', 6, 2);
+  assert.equal(fair.grade.id, WIFI_SIGNAL_GRADES.FAIR.id);
+
+  // Dead zone
+  const deadZone = evaluateWifiSignalQuality(-90, -95, 'BAND_2_4GHZ', 6, 4);
+  assert.equal(deadZone.grade.id, WIFI_SIGNAL_GRADES.DEAD_ZONE.id);
+  assert.equal(deadZone.grade.pass, false);
+  assert.ok(deadZone.warnings.some(w => w.includes('Severe signal attenuation')));
+  assert.ok(deadZone.recommendations.some(r => r.includes('Access Point')));
+});
+
+test('nav-wifi-survey.js localStorage audit store operations', async () => {
+  const {
+    WIFI_SURVEY_STORAGE_KEY,
+    getWifiSurveyStore,
+    saveWifiSurveyStore,
+    recordWifiSurvey,
+    clearWifiSurveyStore
+  } = await import('../nav-wifi-survey.js');
+
+  const memory = new Map();
+  const mockStorage = {
+    getItem: (key) => memory.get(key) || null,
+    setItem: (key, val) => memory.set(key, String(val)),
+    removeItem: (key) => memory.delete(key)
+  };
+
+  assert.deepEqual(getWifiSurveyStore(mockStorage), []);
+
+  const saved = recordWifiSurvey({
+    customerName: 'Tariq Mehmood',
+    area: 'Baradari Road',
+    roomId: 'GUEST_BAITHAK',
+    distanceMeters: 6,
+    obstacleId: 'BRICK_SINGLE',
+    bandId: 'BAND_2_4GHZ',
+    channelNumber: 1,
+    neighborApCount: 1,
+    rssiDbm: -58,
+    linemanNotes: 'Signal solid on 2.4GHz'
+  }, mockStorage);
+
+  assert.ok(saved.id.startsWith('wifi-'));
+  assert.equal(saved.customerName, 'Tariq Mehmood');
+  assert.equal(saved.channelNumber, 1);
+  assert.equal(saved.pass, true);
+
+  const list = getWifiSurveyStore(mockStorage);
+  assert.equal(list.length, 1);
+  assert.equal(list[0].id, saved.id);
+
+  clearWifiSurveyStore(mockStorage);
+  assert.deepEqual(getWifiSurveyStore(mockStorage), []);
+});
+
+test('nav-wifi-survey.js renderMobileWifiSurveySvg outputs vector graphics with RSSI gauge', async () => {
+  const { renderMobileWifiSurveySvg } = await import('../nav-wifi-survey.js');
+
+  const svg = renderMobileWifiSurveySvg({
+    rssiDbm: -55,
+    bandId: 'BAND_2_4GHZ',
+    channelNumber: 6,
+    neighborApCount: 2,
+    estimatedThroughputMbps: 95
+  });
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('wifi-survey-svg'));
+  assert.ok(svg.includes('IN-ROOM SIGNAL RSSI'));
+  assert.ok(svg.includes('-55 dBm'));
+  assert.ok(svg.includes('RADIO SPECTRUM: 2.4 GHz'));
+  assert.ok(svg.includes('Ch 6'));
+  assert.ok(svg.includes('PHY LINK SPEED'));
+});
+
+test('nav-wifi-survey.js generateWifiSurveyReport formats WhatsApp dispatch message', async () => {
+  const { generateWifiSurveyReport } = await import('../nav-wifi-survey.js');
+
+  const report = generateWifiSurveyReport({
+    customerName: 'Zahid Khan',
+    area: 'Begum Kot',
+    roomId: 'BEDROOM_2',
+    distanceMeters: 12,
+    obstacleId: 'CONCRETE_SLAB',
+    bandId: 'BAND_5GHZ',
+    channelNumber: 36,
+    neighborApCount: 1,
+    rssiDbm: -68,
+    linemanNotes: 'Customer requested 5GHz gaming setup'
+  });
+
+  assert.ok(report.includes('SHAHDARA ISP - IN-HOME WI-FI COVERAGE AUDIT'));
+  assert.ok(report.includes('Zahid Khan'));
+  assert.ok(report.includes('Begum Kot'));
+  assert.ok(report.includes('First Floor Upper Bedroom'));
+  assert.ok(report.includes('-68 dBm'));
+  assert.ok(report.includes('Customer requested 5GHz gaming setup'));
+});
+
+test('nav-wifi-survey.js setupMobileWifiSurveyModal wires modal dialog and interactions', async () => {
+  const { setupMobileWifiSurveyModal } = await import('../nav-wifi-survey.js');
+
+  let modalOpened = false;
+  let toastMsg = '';
+  let filteredArea = '';
+  let copiedText = '';
+
+  const memory = new Map();
+  const mockStorage = {
+    getItem: (key) => memory.get(key) || null,
+    setItem: (key, val) => memory.set(key, String(val)),
+    removeItem: (key) => memory.delete(key)
+  };
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    setAttribute: (name, val) => { if (name === 'open') modalOpened = true; },
+    removeAttribute: (name) => { if (name === 'open') modalOpened = false; }
+  };
+
+  let openHandler = null;
+  const mockTriggerBtn = {
+    set onclick(fn) { openHandler = fn; },
+    get onclick() { return openHandler; }
+  };
+
+  let closeHandler = null;
+  const mockCloseBtn = {
+    set onclick(fn) { closeHandler = fn; },
+    get onclick() { return closeHandler; }
+  };
+
+  let distanceSliderHandler = null;
+  const mockDistSlider = {
+    value: '2',
+    set oninput(fn) { distanceSliderHandler = fn; },
+    get oninput() { return distanceSliderHandler; }
+  };
+
+  const mockDistVal = { textContent: '' };
+  const mockSvgContainer = { innerHTML: '' };
+  const mockRssiDisplay = { textContent: '' };
+  const mockGradeBadge = { className: '', textContent: '' };
+  const mockWarningsContainer = { innerHTML: '' };
+  const mockHistoryTable = { innerHTML: '' };
+  const mockChannelSelect = { innerHTML: '', value: '6' };
+
+  let logClickHandler = null;
+  const mockRecordBtn = {
+    set onclick(fn) { logClickHandler = fn; },
+    get onclick() { return logClickHandler; }
+  };
+
+  let copyClickHandler = null;
+  const mockCopyBtn = {
+    set onclick(fn) { copyClickHandler = fn; },
+    get onclick() { return copyClickHandler; }
+  };
+
+  let filterClickHandler = null;
+  const mockFilterBtn = {
+    set onclick(fn) { filterClickHandler = fn; },
+    get onclick() { return filterClickHandler; }
+  };
+
+  let clearClickHandler = null;
+  const mockClearBtn = {
+    set onclick(fn) { clearClickHandler = fn; },
+    get onclick() { return clearClickHandler; }
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      switch (id) {
+        case 'mobileWifiSurveyModal': return mockModal;
+        case 'mobileWifiSurveyModalCloseBtn': return mockCloseBtn;
+        case 'wifiDistanceSlider': return mockDistSlider;
+        case 'wifiDistanceVal': return mockDistVal;
+        case 'wifiChannelSelect': return mockChannelSelect;
+        case 'wifiSvgContainer': return mockSvgContainer;
+        case 'wifiRssiDisplay': return mockRssiDisplay;
+        case 'wifiGradeBadge': return mockGradeBadge;
+        case 'wifiWarningsContainer': return mockWarningsContainer;
+        case 'wifiHistoryTableBody': return mockHistoryTable;
+        case 'wifiRecordLogBtn': return mockRecordBtn;
+        case 'wifiCopyReportBtn': return mockCopyBtn;
+        case 'wifiFilterAreaBtn': return mockFilterBtn;
+        case 'wifiClearHistoryBtn': return mockClearBtn;
+        default: return null;
+      }
+    },
+    querySelectorAll: (selector) => {
+      if (selector === '[data-open-wifi-survey]') {
+        return [mockTriggerBtn];
+      }
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupMobileWifiSurveyModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMsg = msg; },
+      onFilterArea: (area) => { filteredArea = area; },
+      clipboard: {
+        writeText: async (text) => { copiedText = text; }
+      }
+    });
+
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.getCurrentReading, 'function');
+
+    // Trigger button opens modal
+    assert.equal(typeof openHandler, 'function');
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    // Close button closes modal
+    assert.equal(typeof closeHandler, 'function');
+    closeHandler();
+    assert.equal(modalOpened, false);
+
+    // Distance slider change
+    assert.equal(typeof distanceSliderHandler, 'function');
+    distanceSliderHandler({ target: { value: '8' } });
+    assert.equal(controller.getCurrentReading().distanceMeters, 8);
+
+    // Logging test reading
+    assert.equal(typeof logClickHandler, 'function');
+    logClickHandler();
+    assert.ok(toastMsg.includes('Logged Wi-Fi Survey'));
+
+    // Copying report
+    assert.equal(typeof copyClickHandler, 'function');
+    await copyClickHandler();
+    assert.ok(copiedText.includes('WI-FI COVERAGE AUDIT'));
+
+    // Filter area
+    assert.equal(typeof filterClickHandler, 'function');
+    filterClickHandler();
+    assert.equal(filteredArea, 'Shahdara Town');
+
+    // Clear logs
+    assert.equal(typeof clearClickHandler, 'function');
+    clearClickHandler();
+    assert.equal(toastMsg, 'Cleared Wi-Fi survey logs');
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+

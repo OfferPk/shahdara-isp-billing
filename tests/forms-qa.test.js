@@ -3013,5 +3013,457 @@ test('app.js exports and wires customerKycComplianceModalController', () => {
   assert.match(app, /openKycAuditBtn/);
 });
 
+test('validateEquipmentRetrieval checks subscriber, equipment type, serial, status, technician, and non-negative amounts', async () => {
+  const { validateEquipmentRetrieval } = await import('../form-validation.js');
 
+  const valid = validateEquipmentRetrieval({
+    customerId: 'cust-1',
+    equipmentType: 'ont_gpon',
+    serialNumber: 'HG8546M-12345',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair Field Lead',
+    recoveryDate: '2026-10-16',
+    securityDepositHeld: 3000,
+    damageDeduction: 0,
+    unreturnedPenalty: 0
+  });
+  assert.equal(valid.valid, true);
+  assert.deepEqual(valid.errors, {});
 
+  const missingCust = validateEquipmentRetrieval({
+    customerId: '',
+    equipmentType: 'ont_gpon',
+    serialNumber: 'HG8546M-12345',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair',
+    recoveryDate: '2026-10-16'
+  });
+  assert.equal(missingCust.valid, false);
+  assert.match(missingCust.errors.customerId, /Subscriber selection/);
+
+  const invalidType = validateEquipmentRetrieval({
+    customerId: 'cust-1',
+    equipmentType: 'invalid_type_xyz',
+    serialNumber: '12345',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair',
+    recoveryDate: '2026-10-16'
+  });
+  assert.equal(invalidType.valid, false);
+  assert.match(invalidType.errors.equipmentType, /equipment type/);
+
+  const shortSerial = validateEquipmentRetrieval({
+    customerId: 'cust-1',
+    equipmentType: 'ont_gpon',
+    serialNumber: '12',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair',
+    recoveryDate: '2026-10-16'
+  });
+  assert.equal(shortSerial.valid, false);
+  assert.match(shortSerial.errors.serialNumber, /min 3 chars/);
+
+  const invalidDate = validateEquipmentRetrieval({
+    customerId: 'cust-1',
+    equipmentType: 'ont_gpon',
+    serialNumber: '12345',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair',
+    recoveryDate: 'not-a-date'
+  });
+  assert.equal(invalidDate.valid, false);
+  assert.match(invalidDate.errors.recoveryDate, /YYYY-MM-DD/);
+
+  const negAmount = validateEquipmentRetrieval({
+    customerId: 'cust-1',
+    equipmentType: 'ont_gpon',
+    serialNumber: '12345',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair',
+    recoveryDate: '2026-10-16',
+    securityDepositHeld: -500
+  });
+  assert.equal(negAmount.valid, false);
+  assert.match(negAmount.errors.securityDepositHeld, /negative/);
+});
+
+test('calculateEquipmentSettlement computes net refund, balance due, and balanced status', async () => {
+  const { calculateEquipmentSettlement } = await import('../form-validation.js');
+
+  // Case 1: Refund due to subscriber (Deposit 3000, damage 500 => Refund 2500)
+  const res1 = calculateEquipmentSettlement({
+    securityDepositHeld: 3000,
+    damageDeduction: 500,
+    unreturnedPenalty: 0,
+    monthlyArrears: 0
+  });
+  assert.equal(res1.securityDepositHeld, 3000);
+  assert.equal(res1.totalDeductions, 500);
+  assert.equal(res1.netRefundToSubscriber, 2500);
+  assert.equal(res1.netDueFromSubscriber, 0);
+  assert.equal(res1.isBalanced, false);
+
+  // Case 2: Balance due from subscriber (Deposit 3000, deductions 4500 => Due 1500)
+  const res2 = calculateEquipmentSettlement({
+    securityDepositHeld: 3000,
+    damageDeduction: 1000,
+    unreturnedPenalty: 1500,
+    monthlyArrears: 2000
+  });
+  assert.equal(res2.totalDeductions, 4500);
+  assert.equal(res2.netRefundToSubscriber, 0);
+  assert.equal(res2.netDueFromSubscriber, 1500);
+  assert.equal(res2.isBalanced, false);
+
+  // Case 3: Balanced ledger (Deposit 3000, deductions 3000 => Both 0)
+  const res3 = calculateEquipmentSettlement({
+    securityDepositHeld: 3000,
+    damageDeduction: 3000
+  });
+  assert.equal(res3.netRefundToSubscriber, 0);
+  assert.equal(res3.netDueFromSubscriber, 0);
+  assert.equal(res3.isBalanced, true);
+});
+
+test('buildEquipmentRetrievalRecord formats sequential manifest number and structured metadata', async () => {
+  const { buildEquipmentRetrievalRecord } = await import('../form-validation.js');
+
+  const customer = {
+    id: 'seed-005',
+    customerNumber: 5,
+    name: 'Tariq Butt',
+    phone: '03007654321',
+    area: 'Kot Mohibbu'
+  };
+
+  const rec = buildEquipmentRetrievalRecord({
+    customer,
+    equipmentType: 'ont_gpon',
+    brandModel: 'Huawei HG8546M',
+    serialNumber: 'SN48575443ABC1',
+    conditionRating: 'excellent',
+    retrievalStatus: 'retrieved',
+    technicianName: 'Umair Field Lead',
+    recoveryDate: '2026-10-16',
+    securityDepositHeld: 3500,
+    damageDeduction: 0,
+    existingCount: 3
+  });
+
+  assert.equal(rec.manifestNumber, 'RET-202610-0004');
+  assert.equal(rec.customerId, 'seed-005');
+  assert.equal(rec.customerName, 'Tariq Butt');
+  assert.equal(rec.equipmentType, 'ont_gpon');
+  assert.equal(rec.equipmentTypeLabel, 'GPON ONT / ONU Optical Modem');
+  assert.equal(rec.serialNumber, 'SN48575443ABC1');
+  assert.equal(rec.conditionRating, 'excellent');
+  assert.equal(rec.retrievalStatus, 'retrieved');
+  assert.equal(rec.settlement.netRefundToSubscriber, 3500);
+});
+
+test('equipment retrieval storage functions manage saved records and status updates safely', async () => {
+  const {
+    getSavedEquipmentRetrievals,
+    saveEquipmentRetrieval,
+    updateEquipmentRetrievalStatus,
+    clearEquipmentRetrievals
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedEquipmentRetrievals(mockStorage), []);
+
+  const record1 = {
+    id: 'ret-1',
+    manifestNumber: 'RET-202610-0001',
+    customerName: 'Khurram Shehzad',
+    equipmentTypeLabel: 'GPON ONT',
+    retrievalStatus: 'pending_retrieval',
+    settlement: { securityDepositHeld: 3000, netRefundToSubscriber: 3000 }
+  };
+
+  saveEquipmentRetrieval(record1, mockStorage);
+  assert.equal(getSavedEquipmentRetrievals(mockStorage).length, 1);
+
+  // Update status
+  const updated = updateEquipmentRetrievalStatus('RET-202610-0001', 'retrieved', mockStorage, {
+    updatedBy: 'NOC Manager',
+    note: 'Physically checked into store'
+  });
+  assert.equal(updated.retrievalStatus, 'retrieved');
+  assert.equal(updated.statusUpdatedBy, 'NOC Manager');
+
+  // Clear
+  clearEquipmentRetrievals(mockStorage);
+  assert.deepEqual(getSavedEquipmentRetrievals(mockStorage), []);
+});
+
+test('calculateEquipmentRetrievalMetrics aggregates counts, settlement amounts, and recovery rate', async () => {
+  const { calculateEquipmentRetrievalMetrics } = await import('../form-validation.js');
+
+  const sampleList = [
+    {
+      manifestNumber: 'RET-202610-0001',
+      customerName: 'Asim Raza',
+      customerPhone: '03001112233',
+      customerArea: 'Main Bazar',
+      retrievalStatus: 'retrieved',
+      settlement: { securityDepositHeld: 3000, netRefundToSubscriber: 3000, totalDeductions: 0 }
+    },
+    {
+      manifestNumber: 'RET-202610-0002',
+      customerName: 'Zahid Khan',
+      customerPhone: '03214445566',
+      customerArea: 'Chowk Shahdara',
+      retrievalStatus: 'pending_retrieval',
+      settlement: { securityDepositHeld: 3500, netRefundToSubscriber: 2500, totalDeductions: 1000 }
+    },
+    {
+      manifestNumber: 'RET-202610-0003',
+      customerName: 'Noman Butt',
+      customerPhone: '03337778899',
+      customerArea: 'Saeed Park',
+      retrievalStatus: 'damaged_unusable',
+      settlement: { securityDepositHeld: 3000, netRefundToSubscriber: 0, totalDeductions: 3000 }
+    }
+  ];
+
+  const res = calculateEquipmentRetrievalMetrics(sampleList);
+  assert.equal(res.metrics.totalCount, 3);
+  assert.equal(res.metrics.retrievedCount, 1);
+  assert.equal(res.metrics.pendingCount, 1);
+  assert.equal(res.metrics.damagedCount, 1);
+  assert.equal(res.metrics.totalDepositHeld, 9500);
+  assert.equal(res.metrics.totalRefunded, 5500);
+  assert.equal(res.metrics.totalDeductions, 4000);
+  assert.equal(res.metrics.recoveryRatePercent, 33);
+
+  // Filter by query
+  const queryRes = calculateEquipmentRetrievalMetrics(sampleList, { query: 'Zahid' });
+  assert.equal(queryRes.filtered.length, 1);
+  assert.equal(queryRes.filtered[0].customerName, 'Zahid Khan');
+
+  // Filter by status
+  const pendingRes = calculateEquipmentRetrievalMetrics(sampleList, { statusFilter: 'pending' });
+  assert.equal(pendingRes.filtered.length, 1);
+  assert.equal(pendingRes.filtered[0].retrievalStatus, 'pending_retrieval');
+});
+
+test('formatEquipmentRetrievalWhatsApp builds professional bilingual notification', async () => {
+  const { formatEquipmentRetrievalWhatsApp } = await import('../form-validation.js');
+
+  const record = {
+    manifestNumber: 'RET-202610-0012',
+    recoveryDate: '2026-10-16',
+    customerName: 'Muhammad Arshad',
+    customerNumber: 42,
+    customerArea: 'Main Bazar Shahdara',
+    customerPhone: '03001234567',
+    equipmentTypeLabel: 'GPON ONT / ONU Optical Modem',
+    brandModel: 'Huawei HG8546M',
+    serialNumber: '48575443ABC123',
+    conditionLabel: 'Good Working Condition',
+    retrievalStatusLabel: 'Retrieved & In Custody',
+    retrievalStatusLabelUrdu: 'موصول شدہ / برآمد',
+    technicianName: 'Umair Field Lead',
+    conditionNotes: 'Adapter intact',
+    settlement: {
+      securityDepositHeld: 3000,
+      damageDeduction: 0,
+      unreturnedPenalty: 0,
+      monthlyArrears: 0,
+      netRefundToSubscriber: 3000,
+      netDueFromSubscriber: 0
+    }
+  };
+
+  const text = formatEquipmentRetrievalWhatsApp(record);
+  assert.match(text, /SHAHDARA BROADBAND - HARDWARE RETRIEVAL MANIFEST/);
+  assert.match(text, /RET-202610-0012/);
+  assert.match(text, /Muhammad Arshad/);
+  assert.match(text, /Huawei HG8546M/);
+  assert.match(text, /48575443ABC123/);
+  assert.match(text, /NET REFUND PAYABLE TO SUBSCRIBER:\*\s+\*PKR 3,000\*/);
+  assert.match(text, /Umair Field Lead/);
+});
+
+test('generateEquipmentRetrievalHtml produces standard A4 and 80mm thermal slips', async () => {
+  const { generateEquipmentRetrievalHtml } = await import('../form-validation.js');
+
+  const record = {
+    manifestNumber: 'RET-202610-0015',
+    recoveryDate: '2026-10-16',
+    customerName: 'Sajid Mehmood',
+    customerNumber: 99,
+    customerArea: 'Chowk Shahdara',
+    customerPhone: '03219876543',
+    equipmentTypeLabel: 'GPON ONT',
+    brandModel: 'Huawei HG8546M',
+    serialNumber: 'HW8546M-999',
+    conditionLabel: 'Good Working Condition',
+    retrievalStatusLabel: 'Retrieved & In Custody',
+    technicianName: 'Umair Lead',
+    settlement: {
+      securityDepositHeld: 3000,
+      damageDeduction: 500,
+      totalDeductions: 500,
+      netRefundToSubscriber: 2500,
+      netDueFromSubscriber: 0
+    }
+  };
+
+  // Standard A4 layout
+  const a4 = generateEquipmentRetrievalHtml(record, { format: 'standard' });
+  assert.match(a4, /SUBSCRIBER EQUIPMENT CUSTODY &amp; RETRIEVAL MANIFEST/);
+  assert.match(a4, /RET-202610-0015/);
+  assert.match(a4, /Sajid Mehmood/);
+  assert.match(a4, /HW8546M-999/);
+  assert.match(a4, /PKR 2,500/);
+  assert.match(a4, /Umair Lead/);
+
+  // Thermal 80mm layout
+  const thermal = generateEquipmentRetrievalHtml(record, { format: 'thermal' });
+  assert.match(thermal, /thermal-receipt-container/);
+  assert.match(thermal, /SHAHDARA BROADBAND/);
+  assert.match(thermal, /RET-202610-0015/);
+  assert.match(thermal, /Refund Due: PKR 2,500/);
+});
+
+test('generateEquipmentRetrievalCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { generateEquipmentRetrievalCsv } = await import('../form-validation.js');
+
+  const records = [
+    {
+      manifestNumber: 'RET-202610-0001',
+      recoveryDate: '2026-10-16',
+      customerNumber: 1,
+      customerName: 'Ali Raza',
+      customerArea: 'Main Bazar',
+      customerPhone: '03001234567',
+      equipmentTypeLabel: 'GPON ONT',
+      brandModel: 'Huawei HG8546M',
+      serialNumber: 'SN-001',
+      conditionLabel: 'Like New',
+      retrievalStatusLabel: 'Retrieved',
+      technicianName: 'Umair',
+      settlement: { securityDepositHeld: 3000, netRefundToSubscriber: 3000 }
+    }
+  ];
+
+  const csv = generateEquipmentRetrievalCsv(records);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /"Manifest Number","Date"/);
+  assert.match(csv, /"RET-202610-0001"/);
+  assert.match(csv, /"Ali Raza"/);
+  assert.match(csv, /"SN-001"/);
+});
+
+test('setupEquipmentRetrievalModal wires form inputs, settlement calculator, and modal triggers', async () => {
+  const { setupEquipmentRetrievalModal } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const modalEl = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  };
+
+  const custSelect = { innerHTML: '', value: '', addEventListener: () => {} };
+  const depositInput = { value: '3000', addEventListener: () => {}, dataset: {} };
+  const damageInput = { value: '500', addEventListener: () => {}, dataset: {} };
+  const penaltyInput = { value: '0', addEventListener: () => {}, dataset: {} };
+  const arrearsInput = { value: '0', addEventListener: () => {}, dataset: {} };
+  const netRefundEl = { textContent: '' };
+  const netDueEl = { textContent: '' };
+  const tableBody = { innerHTML: '', addEventListener: () => {}, dataset: {} };
+  const statusFilter = { value: 'all', addEventListener: () => {}, dataset: {} };
+  const searchInput = { value: '', addEventListener: () => {}, dataset: {} };
+  const closeBtn = { addEventListener: () => {}, dataset: {} };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'equipmentRetrievalModal') return modalEl;
+      if (id === 'closeEquipmentRetrievalBtn') return closeBtn;
+      if (id === 'retrievalCustomerSelect') return custSelect;
+      if (id === 'retrievalDepositInput') return depositInput;
+      if (id === 'retrievalDamageInput') return damageInput;
+      if (id === 'retrievalPenaltyInput') return penaltyInput;
+      if (id === 'retrievalArrearsInput') return arrearsInput;
+      if (id === 'retrievalNetRefundVal') return netRefundEl;
+      if (id === 'retrievalNetDueVal') return netDueEl;
+      if (id === 'equipmentRetrievalTableBody') return tableBody;
+      if (id === 'retrievalFilterStatus') return statusFilter;
+      if (id === 'retrievalSearchInput') return searchInput;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-equipment-retrieval]') return [];
+      return [];
+    }
+  };
+
+  try {
+    const controller = setupEquipmentRetrievalModal({
+      getState: () => ({ customers: [{ id: 'c1', name: 'Zeeshan' }] }),
+      storage: mockStorage
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.recalculate, 'function');
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+
+    controller.open();
+    assert.equal(modalOpened, true);
+
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Equipment Retrieval Return Manifest completely', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // index.html checks
+  assert.match(indexHtml, /id="openEquipmentRetrievalBtn"/);
+  assert.match(indexHtml, /<dialog id="equipmentRetrievalModal" class="modal equipment-retrieval-modal"/);
+  assert.match(indexHtml, /id="closeEquipmentRetrievalBtn"/);
+  assert.match(indexHtml, /id="retrievalCustomerSelect"/);
+  assert.match(indexHtml, /id="retrievalTypeSelect"/);
+  assert.match(indexHtml, /id="retrievalSerialInput"/);
+  assert.match(indexHtml, /id="retrievalDepositInput"/);
+  assert.match(indexHtml, /id="retrievalNetRefundVal"/);
+  assert.match(indexHtml, /id="exportEquipmentRetrievalCsvBtn"/);
+  assert.match(indexHtml, /id="equipmentRetrievalTableBody"/);
+
+  // styles.css checks
+  assert.match(stylesCss, /\.equipment-retrieval-modal-card/);
+  assert.match(stylesCss, /\.retrieval-metrics-bar/);
+  assert.match(stylesCss, /\.retrieval-metric-pill/);
+  assert.match(stylesCss, /\.retrieval-form-grid/);
+  assert.match(stylesCss, /\.retrieval-settlement-box/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.equipment-retrieval-modal-card/);
+
+  // app.js checks
+  assert.match(appJs, /setupEquipmentRetrievalModal/);
+  assert.match(appJs, /customerEquipmentRetrievalModalController/);
+  assert.match(appJs, /openEquipmentRetrievalBtn/);
+});

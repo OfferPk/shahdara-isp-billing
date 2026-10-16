@@ -62,6 +62,7 @@
           <li class="nav-drawer-item"><button type="button" data-open-sync-conflicts><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg></span><span>Sync Conflicts</span><span id="navBadgeSyncConflicts" class="nav-drawer-badge" data-nav-badge="sync-conflicts" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-optical-map><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span><span>Optical Signal Map</span><span id="navBadgeOpticalMap" class="nav-drawer-badge" data-nav-badge="optical-map" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-van-transfer><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></span><span>Van Stock Transfer</span><span id="navBadgeVanTransfer" class="nav-drawer-badge" data-nav-badge="van-transfer" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navAerialAlertsBtn" data-open-aerial-alerts><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H7M19 12H5M16 19H8"/></svg></span><span>Aerial Sag Hazards</span><span id="navBadgeAerialAlerts" class="nav-drawer-badge" data-nav-badge="aerial-alerts" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -2287,7 +2288,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -2785,6 +2786,10 @@
         <span class="sheet-action-icon" aria-hidden="true">🚐</span>
         <span class="sheet-action-label">Van Stock</span>
       </button>
+      <button type="button" id="actionSheetAerialAlertsBtn" class="sheet-action-tile" data-sheet-action="aerial-alerts" data-open-aerial-alerts>
+        <span class="sheet-action-icon" aria-hidden="true">🗼</span>
+        <span class="sheet-action-label">Aerial Hazards</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -2861,6 +2866,10 @@
       <button type="button" class="speed-dial-action" data-speed-action="van-transfer" data-open-van-transfer role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">🚐</span>
         <span class="speed-action-label">Van Transfer</span>
+      </button>
+      <button type="button" id="speedDialAerialAlertsBtn" class="speed-dial-action" data-speed-action="aerial-alerts" data-open-aerial-alerts role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🗼</span>
+        <span class="speed-action-label">Aerial Hazards</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -3792,6 +3801,106 @@
         <div class="van-transfers-log-card">
           <h3 class="van-section-heading">Recent Transfers (Audit Trail)</h3>
           <ul id="vanRecentTransfersList" class="van-transfers-log-list"></ul>
+        </div>
+      </div>
+    </section>
+  </dialog>
+
+  <!-- Technician Aerial Fiber Pole Catenary Sag & Weather Hazard Dialog -->
+  <dialog id="aerialAlertsModal" class="modal aerial-alerts-modal" aria-labelledby="aerialAlertsModalTitle">
+    <section class="modal-card aerial-alerts-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">OUTSIDE PLANT (OSP) · AERIAL FIBER POLE HAZARDS</p>
+          <h2 id="aerialAlertsModalTitle">Aerial Fiber Catenary Sag &amp; Weather Hazard Inspector</h2>
+        </div>
+        <button id="aerialAlertsModalClose" class="close-button" type="button" aria-label="Close aerial hazards modal">×</button>
+      </div>
+
+      <!-- Sector Selector & Weather Presets -->
+      <div class="aerial-top-controls">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div class="van-selector-group" style="flex: 1; min-width: 240px;">
+            <label for="aerialSectorSelect"><strong>Aerial Corridor:</strong></label>
+            <select id="aerialSectorSelect" class="van-select-input"></select>
+          </div>
+          <div class="aerial-presets-row">
+            <span style="font-size: 11px; font-weight: 700; color: var(--muted, #64748b);">Weather Presets:</span>
+            <button id="aerialPresetStandard" type="button" class="weather-preset-btn">Standard (25°C)</button>
+            <button id="aerialPresetHeat" type="button" class="weather-preset-btn">Heatwave (46°C)</button>
+            <button id="aerialPresetStorm" type="button" class="weather-preset-btn">Windstorm (75 km/h)</button>
+          </div>
+        </div>
+
+        <div class="aerial-sliders-row">
+          <div class="aerial-slider-item">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <label for="aerialTempSlider"><strong>Ambient Temperature:</strong></label>
+              <span id="aerialTempVal" class="otdr-val-pill">28°C</span>
+            </div>
+            <input type="range" id="aerialTempSlider" min="10" max="50" step="1" value="28" class="otdr-range-slider" />
+          </div>
+          <div class="aerial-slider-item">
+            <div style="display: flex; justify-content: space-between; font-size: 11px;">
+              <label for="aerialWindSlider"><strong>Wind Speed:</strong></label>
+              <span id="aerialWindVal" class="otdr-val-pill">15 km/h</span>
+            </div>
+            <input type="range" id="aerialWindSlider" min="0" max="100" step="5" value="15" class="otdr-range-slider" />
+          </div>
+        </div>
+
+        <!-- KPI Ribbon -->
+        <div class="van-kpi-ribbon">
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">HAZARD LEVEL</span>
+            <span id="aerialKpiStatusBadge" class="sim-delta-badge badge-success">OPTIMAL</span>
+          </div>
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">NET ROAD CLEARANCE</span>
+            <span id="aerialKpiNetClearance" class="van-kpi-val">5.35 m (+0.15m)</span>
+          </div>
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">CATENARY SAG</span>
+            <span id="aerialKpiCatenarySag" class="van-kpi-val">0.85 m</span>
+          </div>
+          <div class="van-kpi-card">
+            <span class="van-kpi-label">DEAD-END TENSION</span>
+            <span id="aerialKpiPoleTension" class="van-kpi-val">1200 N</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Parabolic Catenary Profile SVG -->
+      <div id="aerialCatenaryChartWrap" class="aerial-catenary-chart-wrap" tabindex="0" role="region" aria-label="Aerial cable catenary sag profile diagram"></div>
+
+      <!-- Action buttons row -->
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+        <div style="display: flex; gap: 8px;">
+          <button id="aerialResolveHazardBtn" type="button" class="secondary-button">✅ Mark Inspected &amp; Tensioned</button>
+          <button id="aerialFilterAreaBtn" type="button" class="secondary-button">Inspect Area Customers</button>
+        </div>
+        <button id="aerialCopyDispatchBtn" type="button" class="primary-button">📋 Copy Lineman Dispatch Order</button>
+      </div>
+
+      <!-- Sector Register Table -->
+      <div class="van-stock-table-card">
+        <h3 class="van-section-heading">Shahdara Aerial Pole Infrastructure Inventory</h3>
+        <div class="modal-table-scroll-wrapper" style="max-height: 200px;">
+          <table class="van-stock-table">
+            <thead>
+              <tr>
+                <th>Corridor &amp; Assigned Lineman</th>
+                <th>Sector Area</th>
+                <th>Mid-Span Sag</th>
+                <th>Net Road Clearance</th>
+                <th>Pole Tension</th>
+                <th>Hazard Status</th>
+              </tr>
+            </thead>
+            <tbody id="aerialSectorsTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -1857,6 +1857,21 @@ let opticalSignalMapModalController = setupOpticalSignalMapModal({
 let vehicleTransferModalController = setupVehicleTransferModal({
   getState: () => state,
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
+  onToast: (msg) => toast(msg)
+});
+
+// Setup Aerial Fiber Pole Catenary Sag & Weather Hazard Field Inspection Modal
+let aerialAlertsModalController = setupAerialAlertsModal({
+  getState: () => state,
+  storage: typeof localStorage !== 'undefined' ? localStorage : null,
+  onFilterArea: (area) => {
+    switchView('customers');
+    const areaFilter = $('#customerAreaFilter');
+    if (areaFilter) {
+      areaFilter.value = area;
+      areaFilter.dispatchEvent(new Event('change'));
+    }
+  },
   onToast: (msg) => toast(msg)
 });
 

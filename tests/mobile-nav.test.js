@@ -4289,3 +4289,173 @@ test('index.html, nav.css, and app.js wire Technician Vehicle Inventory complete
   assert.match(appJs, /setupVehicleTransferModal/);
   assert.match(appJs, /vehicleTransferModalController/);
 });
+
+test('aerial alerts catenary sag physics models thermal elongation and wind loads accurately', async () => {
+  const { SHAHDARA_AERIAL_SECTORS, calculateCatenarySag } = await import('../nav.js');
+  
+  assert.ok(Array.isArray(SHAHDARA_AERIAL_SECTORS) && SHAHDARA_AERIAL_SECTORS.length >= 6);
+  const sector = SHAHDARA_AERIAL_SECTORS.find(s => s.id === 'aer-gt-01');
+  assert.ok(sector);
+
+  // Standard conditions: 25°C, 15 km/h
+  const standard = calculateCatenarySag(sector, { temperatureC: 25, windSpeedKmh: 15 });
+  assert.equal(typeof standard.effectiveSagM, 'number');
+  assert.equal(typeof standard.netClearanceM, 'number');
+  assert.equal(typeof standard.clearanceMarginM, 'number');
+  assert.equal(typeof standard.tensionN, 'number');
+  assert.ok(standard.effectiveSagM > 0);
+  assert.ok(standard.netClearanceM > 0);
+
+  // High temperature test (46°C): Sag must increase due to thermal expansion
+  const heatWave = calculateCatenarySag(sector, { temperatureC: 46, windSpeedKmh: 15 });
+  assert.ok(heatWave.effectiveSagM > standard.effectiveSagM, 'Heat wave must increase effective sag');
+  assert.ok(heatWave.netClearanceM < standard.netClearanceM, 'Heat wave must reduce road clearance');
+
+  // Severe storm test (75 km/h wind): Transverse wind load increases effective sag and pole tension
+  const storm = calculateCatenarySag(sector, { temperatureC: 25, windSpeedKmh: 75 });
+  assert.ok(storm.effectiveSagM > standard.effectiveSagM, 'Severe wind must increase effective sag');
+  assert.ok(storm.tensionN > standard.tensionN, 'Severe wind must increase anchor tension');
+
+  // Extreme combined heat and storm triggers CRITICAL status
+  const extreme = calculateCatenarySag(sector, { temperatureC: 50, windSpeedKmh: 85 });
+  assert.equal(extreme.status, 'CRITICAL');
+  assert.equal(extreme.badgeClass, 'badge-danger');
+});
+
+test('aerial alerts inspection persistence records and retrieves field actions', async () => {
+  const { getAerialInspectionsStore, recordAerialInspection, clearAerialInspectionsStore } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const initial = getAerialInspectionsStore(mockStorage);
+  assert.deepEqual(initial.inspections, {});
+
+  const updated = recordAerialInspection('aer-gt-01', {
+    inspector: 'Rashid Ali',
+    actionTaken: 'Tightened turnbuckle by 4 turns'
+  }, mockStorage);
+
+  assert.ok(updated);
+  assert.equal(updated.inspector, 'Rashid Ali');
+  assert.equal(updated.actionTaken, 'Tightened turnbuckle by 4 turns');
+  assert.ok(updated.resolvedAt);
+
+  // Verify retrieval
+  const retrieved = getAerialInspectionsStore(mockStorage);
+  assert.equal(retrieved.inspections['aer-gt-01'].inspector, 'Rashid Ali');
+
+  // Clear store
+  clearAerialInspectionsStore(mockStorage);
+  const cleared = getAerialInspectionsStore(mockStorage);
+  assert.deepEqual(cleared.inspections, {});
+});
+
+test('calculateAerialAlertsSummary aggregates sectors and accounts for resolved inspections', async () => {
+  const { calculateAerialAlertsSummary, recordAerialInspection, SHAHDARA_AERIAL_SECTORS } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const summary = calculateAerialAlertsSummary({}, {
+    storage: mockStorage,
+    temperatureC: 48,
+    windSpeedKmh: 40
+  });
+
+  assert.equal(summary.evaluations.length, SHAHDARA_AERIAL_SECTORS.length);
+  assert.equal(typeof summary.totalSectors, 'number');
+  assert.equal(typeof summary.criticalCount, 'number');
+  assert.equal(typeof summary.elevatedCount, 'number');
+  assert.equal(typeof summary.optimalCount, 'number');
+  assert.ok(summary.criticalCount > 0, 'Severe heat should cause critical sectors');
+  const initialBadge = summary.activeHazardBadgeCount;
+
+  // Resolving one sector should reduce active hazard badge count
+  const criticalSector = summary.evaluations.find(e => e.status === 'CRITICAL');
+  assert.ok(criticalSector);
+  recordAerialInspection(criticalSector.sector.id, { inspector: 'Crew 1', actionTaken: 'Re-tensioned' }, mockStorage);
+
+  const updatedSummary = calculateAerialAlertsSummary({}, {
+    storage: mockStorage,
+    temperatureC: 48,
+    windSpeedKmh: 40
+  });
+  assert.equal(updatedSummary.activeHazardBadgeCount, initialBadge - 1);
+});
+
+test('renderAerialCatenarySvg renders valid SVG with catenary curve and clearance line', async () => {
+  const { SHAHDARA_AERIAL_SECTORS, calculateCatenarySag, renderAerialCatenarySvg } = await import('../nav.js');
+
+  const sector = SHAHDARA_AERIAL_SECTORS[0];
+  const evalData = calculateCatenarySag(sector, { temperatureC: 30, windSpeedKmh: 20 });
+  const svg = renderAerialCatenarySvg(evalData);
+
+  assert.match(svg, /<svg class="aerial-catenary-svg"/);
+  assert.match(svg, /viewBox="0 0 720 260"/);
+  assert.match(svg, /<path d="M 110/);
+  assert.match(svg, /Min Clearance Limit/);
+  assert.match(svg, /Road Surface/);
+});
+
+test('generateAerialHazardWorkOrder formats WhatsApp dispatch message with emergency details', async () => {
+  const { SHAHDARA_AERIAL_SECTORS, calculateCatenarySag, generateAerialHazardWorkOrder } = await import('../nav.js');
+
+  const sector = SHAHDARA_AERIAL_SECTORS[0];
+  const evalData = calculateCatenarySag(sector, { temperatureC: 45, windSpeedKmh: 60 });
+  const text = generateAerialHazardWorkOrder(sector, evalData);
+
+  assert.match(text, /SHAHDARA FTTH AERIAL FIBER POLE/);
+  assert.match(text, new RegExp(sector.code));
+  assert.match(text, new RegExp(sector.name));
+  assert.match(text, /Mid-Span Catenary Sag:/);
+  assert.match(text, /Net Road Clearance:/);
+  assert.match(text, /Hazard Status:/);
+  assert.match(text, /Assigned Lineman Team:/);
+});
+
+test('aerial alerts UI components and controllers are properly wired across index.html, nav.css, and app.js', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  // Modal dialog and form elements in index.html
+  assert.match(indexHtml, /<dialog id="aerialAlertsModal" class="modal aerial-alerts-modal"/);
+  assert.match(indexHtml, /id="aerialAlertsModalClose"/);
+  assert.match(indexHtml, /id="aerialSectorSelect"/);
+  assert.match(indexHtml, /id="aerialPresetStandard"/);
+  assert.match(indexHtml, /id="aerialPresetHeat"/);
+  assert.match(indexHtml, /id="aerialPresetStorm"/);
+  assert.match(indexHtml, /id="aerialTempSlider"/);
+  assert.match(indexHtml, /id="aerialWindSlider"/);
+  assert.match(indexHtml, /id="aerialCatenaryChartWrap"/);
+  assert.match(indexHtml, /id="aerialSectorsTableBody"/);
+  assert.match(indexHtml, /id="aerialResolveHazardBtn"/);
+  assert.match(indexHtml, /id="aerialCopyDispatchBtn"/);
+  assert.match(indexHtml, /id="aerialFilterAreaBtn"/);
+
+  // Trigger elements in drawer, more menu, action sheet, speed dial
+  assert.match(indexHtml, /data-nav-badge="aerial-alerts"/);
+  assert.match(indexHtml, /id="mobileMoreAerialAlertsBtn"/);
+  assert.match(indexHtml, /id="actionSheetAerialAlertsBtn"/);
+  assert.match(indexHtml, /id="speedDialAerialAlertsBtn"/);
+
+  // CSS rules in nav.css
+  assert.match(navCss, /\.aerial-alerts-modal/);
+  assert.match(navCss, /\.aerial-alerts-modal-card/);
+  assert.match(navCss, /\.aerial-catenary-chart-card/);
+  assert.match(navCss, /\.aerial-sectors-table-card/);
+  assert.match(navCss, /\.weather-preset-btn/);
+
+  // app.js controller initialization
+  assert.match(appJs, /setupAerialAlertsModal/);
+  assert.match(appJs, /aerialAlertsModalController/);
+});

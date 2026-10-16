@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal, calculatePowerBackupMetrics, setupPowerBackupModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal, calculatePowerBackupMetrics, setupPowerBackupModal, calculateRouteDensityMetrics, setupRouteDensityModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2897,6 +2897,120 @@ export function renderPowerBackupSvg(powerData, options = {}) {
 }
 
 /**
+ * Renders pure SVG visualization for area collection route density,
+ * stop clustering yield, and collector pacing.
+ */
+export function renderRouteDensityMatrixSvg(densityData, options = {}) {
+  const width = options.width || 640;
+  const height = options.height || 260;
+
+  if (!densityData || !Array.isArray(densityData.areas) || densityData.areas.length === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
+        No delinquent collection route stops recorded
+      </text>
+    </svg>`;
+  }
+
+  const leftPad = 20;
+  const rightPad = 20;
+  const plotWidth = width - leftPad - rightPad;
+
+  let statusColor = '#047857';
+  if (densityData.fleetRoutingStatus.includes('Urgent')) statusColor = '#ef4444';
+  else if (densityData.fleetRoutingStatus.includes('Active')) statusColor = '#d97706';
+
+  const rows = densityData.areas.slice(0, 4);
+  const rowStartY = 42;
+  const rowH = 46;
+
+  const maxDues = Math.max(1, ...densityData.areas.map(a => a.totalOverdueAmount));
+  const maxStops = Math.max(1, ...densityData.areas.map(a => a.overdueCount));
+
+  const renderedRows = rows.map((a, i) => {
+    const y = rowStartY + i * rowH;
+
+    const duesBarWidth = 140;
+    const duesFillW = Math.max(4, Math.round((a.totalOverdueAmount / maxDues) * duesBarWidth));
+
+    const stopsBarWidth = 100;
+    const stopsFillW = Math.max(4, Math.round((a.overdueCount / maxStops) * stopsBarWidth));
+
+    const tierColor = a.priorityTier.includes('High') ? '#b91c1c' : (a.priorityTier.includes('Quick') ? '#047857' : '#64748b');
+    const tierBg = a.priorityTier.includes('High') ? 'rgba(185, 28, 28, 0.12)' : (a.priorityTier.includes('Quick') ? 'rgba(4, 120, 87, 0.12)' : 'rgba(100, 116, 139, 0.12)');
+
+    return `
+      <!-- Route Row ${i + 1} -->
+      <g transform="translate(${leftPad}, ${y})">
+        <!-- Row Background Card -->
+        <rect width="${plotWidth}" height="38" rx="6" fill="var(--bg-soft, #f8faf9)" stroke="var(--line, #e2ece7)" />
+
+        <!-- Area Title & Subs -->
+        <text x="10" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+          ${escapeXml(a.areaName)}
+        </text>
+        <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">
+          ${a.overdueCount} Stops · ~${formatPKR(a.avgTicketPerStop)}/stop
+        </text>
+
+        <!-- Density Tag -->
+        <rect x="175" y="10" width="75" height="18" rx="4" fill="${tierBg}" />
+        <text x="212" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="${tierColor}">
+          ${escapeXml(a.densityRating)}
+        </text>
+
+        <!-- Uncollected Dues Bar -->
+        <g transform="translate(260, 8)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+            TARGET: ${formatPKR(a.totalOverdueAmount)}
+          </text>
+          <rect y="11" width="${duesBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
+          <rect y="11" width="${duesFillW}" height="10" rx="3" fill="#b91c1c" />
+        </g>
+
+        <!-- Stop Density Bar -->
+        <g transform="translate(415, 8)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+            DENSITY: ${a.overdueCount} accounts
+          </text>
+          <rect y="11" width="${stopsBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
+          <rect y="11" width="${stopsFillW}" height="10" rx="3" fill="#047857" />
+        </g>
+
+        <!-- Dispatch Crew Pill -->
+        <rect x="525" y="9" width="67" height="20" rx="4" fill="var(--surface-sunken, #edf3f0)" />
+        <text x="558" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="var(--ink, #182e2a)">
+          ${a.recommendedCollectors} Crew (${a.estimatedRouteDays}d)
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${leftPad}, 20)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+        Field Route Density &amp; Collector Pacing Matrix
+      </text>
+      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Stops: <tspan font-weight="700" fill="var(--ink, #182e2a)">${densityData.totalDelinquentAccounts}</tspan> · Target: <tspan font-weight="700" fill="#b91c1c">${formatPKR(densityData.totalUncollectedDues)}</tspan> · Fleet: <tspan font-weight="700" fill="#047857">${densityData.totalRecommendedCollectors} Crew</tspan>
+      </text>
+    </g>
+
+    ${renderedRows}
+
+    <!-- Bottom Legend & Health Status -->
+    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Dispatch Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(densityData.fleetRoutingStatus)}</tspan> · Sectors: <tspan font-weight="700" fill="var(--ink, #182e2a)">${densityData.totalAreasTargeted}</tspan> · Daily Pacing: <tspan font-weight="700" fill="#047857">${formatPKR(densityData.dailyFleetRecoveryTargetPkr)}/day</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+/**
  * Orchestrates dashboard charts rendering into their DOM containers.
  */
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
@@ -3113,6 +3227,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupPowerBackupModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  const routeDensityEl = document.getElementById('dashboardRouteDensityChart');
+  if (routeDensityEl) {
+    const routeDensityData = calculateRouteDensityMetrics(state, { referenceDate });
+    routeDensityEl.innerHTML = renderRouteDensityMatrixSvg(routeDensityData);
+  }
+
+  setupRouteDensityModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

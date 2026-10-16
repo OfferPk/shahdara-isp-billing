@@ -1647,6 +1647,25 @@
   border-color: #243c33;
 }
 
+/* Route Density & Collector Pacing Styles */
+.chart-card-route-density {
+  background: var(--surface, #ffffff);
+}
+
+.route-density-modal-card {
+  max-width: 900px;
+}
+
+[data-theme="dark"] .chart-card-route-density {
+  background: #182923;
+  border-color: #28443b;
+}
+
+[data-theme="dark"] .route-density-modal-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
 .signal-tag {
   display: inline-block;
   padding: 2px 6px;

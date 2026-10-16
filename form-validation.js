@@ -12222,3 +12222,25 @@ export {
   calculateFusionArcQaMetrics,
   setupFusionArcQaModal
 } from './qa-fusion-splicer-arc.js';
+
+export {
+  STRIP_FORCE_QA_STORAGE_KEY,
+  STRIPPER_TOOLS,
+  FIBER_COATING_TYPES,
+  STRIP_QA_VERDICTS,
+  STRIP_FORCE_PRESETS,
+  calculateGriffithFractureStrength,
+  evaluateStripForceQa,
+  renderStripForceAnalysisSvg,
+  buildStripForceRecord,
+  generateStripForceCertId,
+  generateStripForceCertHtml,
+  formatStripForceCertWhatsApp,
+  generateStripForceCertsCsv,
+  getSavedStripForceCerts,
+  saveStripForceCert,
+  updateStripForceCertStatus,
+  clearStripForceCerts,
+  calculateStripForceMetrics,
+  setupStripForceQaModal
+} from './qa-coating-strip-force.js';

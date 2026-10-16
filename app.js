@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -1604,6 +1604,8 @@ mobileActionSheetController = setupMobileActionSheet({
       customerEnrollmentWizard?.open();
     } else if (action === 'field-diagnostics') {
       fieldDiagnosticsModalController?.open();
+    } else if (action === 'field-route') {
+      fieldRouteSheetController?.open();
     } else if (action === 'record-expense') {
       switchView('expenses');
       renderExpenses();
@@ -1796,6 +1798,22 @@ let fieldDiagnosticsModalController = setupFieldDiagnosticsModal({
   onToast: (msg) => toast(msg)
 });
 
+// Setup Technician Field Collection Route Sheet & Mobile Dispatcher
+let fieldRouteSheetController = setupFieldRouteSheet({
+  getState: () => state,
+  onNavigateCustomer: (customerId) => {
+    switchView('customers');
+    selectCustomer(customerId);
+  },
+  onCollectPayment: (customerId) => {
+    switchView('customers');
+    selectCustomer(customerId);
+    const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment') || $('#currentBillPaymentShortcut');
+    if (btn) btn.click();
+  },
+  onToast: (msg) => toast(msg)
+});
+
 // Setup Floating Mobile Speed Dial / Quick Action Dock
 setupMobileSpeedDial({
   onSearchRoster: () => {
@@ -1823,6 +1841,9 @@ setupMobileSpeedDial({
   },
   onFieldDiagnostics: () => {
     fieldDiagnosticsModalController?.open();
+  },
+  onFieldRouteSheet: () => {
+    fieldRouteSheetController?.open();
   },
   onReminders: () => {
     const btn = $('#openReminderModalBtn');

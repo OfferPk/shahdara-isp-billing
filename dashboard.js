@@ -5245,6 +5245,20 @@ export {
   renderAerialTensionSvg
 } from './dashboard-aerial.js';
 
+export {
+  SHAHDARA_MICROWAVE_LINKS,
+  calculateMicrowaveLinkBudget,
+  generateMicrowaveBriefingReport,
+  setupMicrowaveModal,
+  getMicrowaveSelectedLink,
+  setMicrowaveSelectedLink,
+  getMicrowaveRainRate,
+  setMicrowaveRainRate,
+  getMicrowaveFrequencyOverride,
+  setMicrowaveFrequencyOverride,
+  renderMicrowaveLinkSvg
+} from './dashboard-microwave.js';
+
 
 
 

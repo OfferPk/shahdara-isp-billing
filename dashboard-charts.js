@@ -3,6 +3,7 @@ import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaym
 import { calculateOtdrFaultMetrics, setupOtdrModal, renderOtdrTraceSvg } from './dashboard-otdr.js';
 import { calculateSolarInverterMetrics, setupSolarModal, renderSolarInverterSvg } from './dashboard-solar.js';
 import { calculateAerialTensionMetrics, setupAerialTensionModal, renderAerialTensionSvg } from './dashboard-aerial.js';
+import { calculateMicrowaveLinkBudget, setupMicrowaveModal, renderMicrowaveLinkSvg } from './dashboard-microwave.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -3263,9 +3264,17 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupAerialTensionModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const mwEl = document.getElementById('dashboardMicrowaveChart');
+  if (mwEl) {
+    const mwData = calculateMicrowaveLinkBudget(state, { referenceDate });
+    mwEl.innerHTML = renderMicrowaveLinkSvg(mwData);
+  }
+
+  setupMicrowaveModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
 
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg };
 
 

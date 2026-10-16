@@ -9,7 +9,9 @@ import {
   reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
   calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
   ADJUSTMENT_VOUCHERS_KEY, ADJUSTMENT_CATEGORIES, calculateOutageCredit, validateAdjustmentVoucher, buildAdjustmentVoucherData, formatAdjustmentVoucherWhatsApp,
-  generateAdjustmentLedgerCsv, generateAdjustmentVoucherHtml, getSavedAdjustmentVouchers, saveAdjustmentVoucher, setupAdjustmentVoucherModal
+  generateAdjustmentLedgerCsv, generateAdjustmentVoucherHtml, getSavedAdjustmentVouchers, saveAdjustmentVoucher, setupAdjustmentVoucherModal,
+  SERVICE_CONTRACTS_KEY, validatePakistanCnic, validateServiceContract, buildServiceContractData, getSavedServiceContracts, saveServiceContract,
+  formatServiceContractWhatsApp, generateServiceContractCsv, generateServiceContractHtml, setupServiceContractModal
 } from '../form-validation.js';
 
 
@@ -2002,3 +2004,401 @@ test('DOM & CSS integration for customer adjustment voucher modal', () => {
   assert.match(freshStyles, /\.adj-history-section/);
   assert.match(freshStyles, /\[data-theme="dark"\]\s+\.adjustment-modal/);
 });
+
+/* ==========================================================================
+   CUSTOMER SERVICE CONTRACT & BROADBAND AGREEMENT TEST SUITE
+   ========================================================================== */
+
+test('validatePakistanCnic validates 13-digit Pakistani national identity cards', () => {
+  // Valid unformatted 13 digits
+  const res1 = validatePakistanCnic('3520212345671');
+  assert.equal(res1.valid, true);
+  assert.equal(res1.formatted, '35202-1234567-1');
+  assert.equal(res1.raw, '3520212345671');
+
+  // Valid formatted with hyphens
+  const res2 = validatePakistanCnic('35202-7654321-9');
+  assert.equal(res2.valid, true);
+  assert.equal(res2.formatted, '35202-7654321-9');
+  assert.equal(res2.raw, '3520276543219');
+
+  // Invalid: missing or wrong lengths
+  assert.equal(validatePakistanCnic('').valid, false);
+  assert.equal(validatePakistanCnic(null).valid, false);
+  assert.equal(validatePakistanCnic('35202123456').valid, false); // 11 digits
+  assert.equal(validatePakistanCnic('352021234567890').valid, false); // 15 digits
+  assert.equal(validatePakistanCnic('abcdefghijklm').valid, false); // non-digits
+});
+
+test('validateServiceContract validates customer, fees, speed and technician fields', () => {
+  // Valid
+  const valid = validateServiceContract({
+    customerId: 'cust-10',
+    cnic: '35202-1234567-1',
+    packageSpeed: '15 Mbps Turbo',
+    monthlyRate: 1500,
+    installationFee: 1000,
+    securityDeposit: 1500,
+    technicianName: 'Umair Tech'
+  });
+  assert.equal(valid.valid, true);
+  assert.deepEqual(valid.errors, {});
+
+  // Missing customer
+  const noCust = validateServiceContract({ customerId: '', packageSpeed: '15 Mbps', monthlyRate: 1500, technicianName: 'Tech' });
+  assert.equal(noCust.valid, false);
+  assert.match(noCust.errors.customer, /select a subscriber/);
+
+  // Invalid CNIC
+  const badCnic = validateServiceContract({ customerId: 'c1', cnic: '123', packageSpeed: '15 Mbps', monthlyRate: 1500, technicianName: 'Tech' });
+  assert.equal(badCnic.valid, false);
+  assert.match(badCnic.errors.cnic, /13 digits/);
+
+  // Invalid monthly rate
+  const badRate = validateServiceContract({ customerId: 'c1', packageSpeed: '15 Mbps', monthlyRate: -50, technicianName: 'Tech' });
+  assert.equal(badRate.valid, false);
+  assert.match(badRate.errors.monthlyRate, /positive amount/);
+
+  // Missing technician
+  const noTech = validateServiceContract({ customerId: 'c1', packageSpeed: '15 Mbps', monthlyRate: 1500, technicianName: '' });
+  assert.equal(noTech.valid, false);
+  assert.match(noTech.errors.technicianName, /technician/);
+});
+
+test('buildServiceContractData builds sequential contract record with financial rollup and SLA', () => {
+  const customer = {
+    id: 'cust-88',
+    customerNumber: 88,
+    name: 'Mian Tariq',
+    phone: '03001234567',
+    area: 'Shahdara Town',
+    mohalla: 'Kot Mohibbu'
+  };
+
+  const contract = buildServiceContractData({
+    customer,
+    cnic: '35202-1234567-1',
+    packageSpeed: '25 Mbps Ultra',
+    monthlyRate: 2500,
+    installationFee: 1200,
+    securityDeposit: 1500,
+    ontModel: 'ZTE F660 GPON',
+    ontSerial: 'ZTEG-98765432',
+    dropCableMeters: 90,
+    opticalPowerDbm: -20.8,
+    contractMonths: 12,
+    startDate: '2026-10-16',
+    technicianName: 'Farhan Engineer',
+    notes: '2nd floor installation, aerial drop across main road',
+    existingContractsCount: 5
+  });
+
+  assert.equal(contract.agreementNumber, 'AGR-202610-0006');
+  assert.equal(contract.customer.name, 'Mian Tariq');
+  assert.equal(contract.customer.customerNumber, 88);
+  assert.equal(contract.cnic, '35202-1234567-1');
+  assert.equal(contract.packageSpeed, '25 Mbps Ultra');
+  assert.equal(contract.monthlyRate, 2500);
+  assert.equal(contract.installationFee, 1200);
+  assert.equal(contract.securityDeposit, 1500);
+  assert.equal(contract.totalInitialPayment, 5200); // 2500 + 1200 + 1500
+  assert.equal(contract.equipment.ontModel, 'ZTE F660 GPON');
+  assert.equal(contract.equipment.ontSerial, 'ZTEG-98765432');
+  assert.equal(contract.equipment.dropCableMeters, 90);
+  assert.equal(contract.equipment.opticalPowerDbm, -20.8);
+  assert.equal(contract.contractMonths, 12);
+  assert.equal(contract.startDate, '2026-10-16');
+  assert.match(contract.expiryDate, /2027-10/);
+  assert.equal(contract.slaTerms.faultResolutionHours, 24);
+  assert.equal(contract.slaTerms.billingCycleDay, 5);
+});
+
+test('getSavedServiceContracts and saveServiceContract persist and retrieve agreements', () => {
+  const mockStorage = {
+    data: {},
+    getItem(k) { return this.data[k] || null; },
+    setItem(k, v) { this.data[k] = String(v); }
+  };
+
+  assert.deepEqual(getSavedServiceContracts(mockStorage), []);
+
+  const c1 = { agreementNumber: 'AGR-001', customer: { id: 'c1' } };
+  const c2 = { agreementNumber: 'AGR-002', customer: { id: 'c2' } };
+
+  saveServiceContract(mockStorage, c1);
+  saveServiceContract(mockStorage, c2);
+
+  const all = getSavedServiceContracts(mockStorage);
+  assert.equal(all.length, 2);
+
+  const forC1 = getSavedServiceContracts(mockStorage, 'c1');
+  assert.equal(forC1.length, 1);
+  assert.equal(forC1[0].agreementNumber, 'AGR-001');
+});
+
+test('formatServiceContractWhatsApp formats bilingual notification text', () => {
+  const contract = {
+    agreementNumber: 'AGR-202610-0001',
+    startDate: '2026-10-16',
+    expiryDate: '2027-10-16',
+    contractMonths: 12,
+    customer: { name: 'Kashif Ali', customerNumber: 33, phone: '03211234567', area: 'Shahdara Mor' },
+    cnic: '35202-9876543-1',
+    packageSpeed: '15 Mbps Turbo',
+    monthlyRate: 1500,
+    installationFee: 1000,
+    securityDeposit: 1500,
+    totalInitialPayment: 4000,
+    equipment: { ontModel: 'Huawei HG8546M', ontSerial: 'HWTC-1234', dropCableMeters: 65, opticalPowerDbm: -21.5 },
+    technicianName: 'Umair Tech'
+  };
+
+  const text = formatServiceContractWhatsApp(contract);
+  assert.match(text, /AGR-202610-0001/);
+  assert.match(text, /معاہدہ انٹرنیٹ سروس/);
+  assert.match(text, /Kashif Ali/);
+  assert.match(text, /35202-9876543-1/);
+  assert.match(text, /15 Mbps Turbo/);
+  assert.match(text, /1,500/);
+  assert.match(text, /4,000/);
+  assert.match(text, /Huawei HG8546M/);
+  assert.match(text, /24-hour optical line support/);
+});
+
+test('generateServiceContractCsv produces valid RFC-4180 CSV export', () => {
+  const contracts = [
+    {
+      agreementNumber: 'AGR-202610-0001',
+      startDate: '2026-10-16',
+      expiryDate: '2027-10-16',
+      customer: { customerNumber: 22, name: 'Babar Azam', phone: '03001234567', area: 'Jia Musa' },
+      cnic: '35202-1234567-1',
+      packageSpeed: '25 Mbps',
+      monthlyRate: 2500,
+      installationFee: 1000,
+      securityDeposit: 1500,
+      totalInitialPayment: 5000,
+      equipment: { ontModel: 'GPON Router', ontSerial: 'SN12345', dropCableMeters: 80, opticalPowerDbm: -22.1 },
+      technicianName: 'Saad',
+      notes: 'Clean drop'
+    }
+  ];
+
+  const csv = generateServiceContractCsv(contracts);
+  assert.match(csv, /Agreement_No,Date,Expiry_Date,Customer_No,Customer_Name/);
+  assert.match(csv, /AGR-202610-0001,2026-10-16,2027-10-16,22,Babar Azam/);
+  assert.match(csv, /35202-1234567-1,Jia Musa,25 Mbps,2500,1000,1500,5000/);
+});
+
+test('generateServiceContractHtml produces A4 agreement and thermal work order slip', () => {
+  const contract = {
+    agreementNumber: 'AGR-202610-0001',
+    startDate: '2026-10-16',
+    expiryDate: '2027-10-16',
+    contractMonths: 12,
+    customer: { name: 'Imran Khan', customerNumber: 77, phone: '03009999999', area: 'Baradari Road' },
+    cnic: '35202-1111111-1',
+    packageSpeed: '50 Mbps Fiber Max',
+    monthlyRate: 3500,
+    installationFee: 1500,
+    securityDeposit: 2000,
+    totalInitialPayment: 7000,
+    equipment: { ontModel: 'Dual-Band Fiber Router', ontSerial: 'FBR-8888', dropCableMeters: 110, opticalPowerDbm: -19.5 },
+    technicianName: 'Lead Engineer'
+  };
+
+  const a4Html = generateServiceContractHtml(contract, { format: 'a4' });
+  assert.match(a4Html, /contract-a4-document/);
+  assert.match(a4Html, /SHAHDARA FIBER NETWORKS &amp; BROADBAND/);
+  assert.match(a4Html, /معاہدہ برائے فراہمی انٹرنیٹ سروس و سامان تنصیب/);
+  assert.match(a4Html, /AGR-202610-0001/);
+  assert.match(a4Html, /Imran Khan/);
+  assert.match(a4Html, /PKR 7,000/);
+  assert.match(a4Html, /Dual-Band Fiber Router/);
+  assert.match(a4Html, /terms-bilingual-grid/);
+  assert.match(a4Html, /Subscriber Signature/);
+
+  const slipHtml = generateServiceContractHtml(contract, { format: 'slip' });
+  assert.match(slipHtml, /contract-slip-document/);
+  assert.match(slipHtml, /SHAHDARA BROADBAND/);
+  assert.match(slipHtml, /Fiber Internet Work Order &amp; Agreement/);
+  assert.match(slipHtml, /Agr: AGR-202610-0001/);
+  assert.match(slipHtml, /Imran Khan/);
+  assert.match(slipHtml, /Total Paid:.*PKR 7,000/);
+});
+
+test('setupServiceContractModal controller binds DOM inputs, auto-masks CNIC, and issues agreements', () => {
+  const mockStorage = {
+    data: {},
+    getItem(k) { return this.data[k] || null; },
+    setItem(k, v) { this.data[k] = String(v); }
+  };
+
+  const toasts = [];
+  const createdAgreements = [];
+
+  const elements = {};
+  const createElement = (id, tag = 'div') => {
+    const el = {
+      id,
+      tagName: tag.toUpperCase(),
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      hidden: false,
+      dataset: {},
+      listeners: {},
+      addEventListener(evt, fn) {
+        if (!this.listeners[evt]) this.listeners[evt] = [];
+        this.listeners[evt].push(fn);
+      },
+      dispatchEvent(evt) {
+        const fns = this.listeners[evt.type] || [];
+        fns.forEach(fn => fn(evt));
+      },
+      querySelectorAll() { return []; },
+      setAttribute(k, v) { this[k] = v; },
+      removeAttribute(k) { delete this[k]; },
+      showModal() { this.open = true; },
+      close() { this.open = false; }
+    };
+    elements[id] = el;
+    return el;
+  };
+
+  createElement('customerServiceContractModal', 'dialog');
+  createElement('closeServiceContractModalBtn', 'button');
+  createElement('closeServiceContractSecondaryBtn', 'button');
+  createElement('submitServiceContractBtn', 'button');
+  createElement('printServiceContractA4Btn', 'button');
+  createElement('printServiceContractSlipBtn', 'button');
+  createElement('whatsappServiceContractBtn', 'button');
+  createElement('exportServiceContractCsvBtn', 'button');
+  createElement('contractCustName', 'strong');
+  createElement('contractCustPhone', 'span');
+  createElement('contractCustLocation', 'span');
+  createElement('contractCustCurrentPackage', 'span');
+  createElement('contractCnicInput', 'input');
+  createElement('contractPackageSelect', 'select');
+  createElement('contractMonthlyRateInput', 'input');
+  createElement('contractInstallFeeInput', 'input');
+  createElement('contractDepositInput', 'input');
+  createElement('contractOntModelInput', 'input');
+  createElement('contractOntSerialInput', 'input');
+  createElement('contractCableMetersInput', 'input');
+  createElement('contractOpticalPowerInput', 'input');
+  createElement('contractTenureSelect', 'select');
+  createElement('contractStartDateInput', 'input');
+  createElement('contractTechNameInput', 'input');
+  createElement('contractNotesInput', 'input');
+  createElement('contractPreviewAgrNumber', 'strong');
+  createElement('contractPreviewExpiry', 'strong');
+  createElement('contractPreviewTotalInitial', 'strong');
+  createElement('contractPreviewOntSummary', 'span');
+  createElement('contractCnicError', 'p');
+  elements.contractCnicError.hidden = true;
+  createElement('contractMonthlyRateError', 'p');
+  elements.contractMonthlyRateError.hidden = true;
+  createElement('contractTechError', 'p');
+  elements.contractTechError.hidden = true;
+  createElement('contractHistoryTableBody', 'tbody');
+
+  const oldDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) { return elements[id] || null; }
+  };
+
+  try {
+    const controller = setupServiceContractModal({
+      storage: mockStorage,
+      onToast: (msg) => toasts.push(msg),
+      onContractCreated: (c) => createdAgreements.push(c)
+    });
+
+    const mockCustomer = {
+      id: 'cust-77',
+      customerNumber: 77,
+      name: 'Nawaz Sharif',
+      phone: '03001234567',
+      area: 'Shahdara Town',
+      packageSpeed: '15 Mbps Turbo',
+      monthlySellingAmount: 1600
+    };
+
+    controller.open(mockCustomer);
+    assert.equal(elements.customerServiceContractModal.open, true);
+    assert.equal(elements.contractCustName.textContent, 'Nawaz Sharif');
+
+    // Test CNIC Masking
+    elements.contractCnicInput.value = '3520212345671';
+    elements.contractCnicInput.dispatchEvent({ type: 'input' });
+    assert.equal(elements.contractCnicInput.value, '35202-1234567-1');
+
+    // Submit valid agreement
+    elements.contractMonthlyRateInput.value = '1600';
+    elements.contractInstallFeeInput.value = '1000';
+    elements.contractDepositInput.value = '1500';
+    elements.contractTechNameInput.value = 'Rashid Tech';
+    elements.submitServiceContractBtn.dispatchEvent({ type: 'click' });
+
+    assert.equal(createdAgreements.length, 1);
+    assert.equal(createdAgreements[0].customer.name, 'Nawaz Sharif');
+    assert.equal(createdAgreements[0].cnic, '35202-1234567-1');
+    assert.equal(createdAgreements[0].totalInitialPayment, 4100);
+    assert.match(toasts.at(-1), /issued successfully/);
+
+    const saved = getSavedServiceContracts(mockStorage, 'cust-77');
+    assert.equal(saved.length, 1);
+
+    controller.close();
+    assert.equal(elements.customerServiceContractModal.open, false);
+  } finally {
+    globalThis.document = oldDoc;
+  }
+});
+
+test('DOM & CSS integration for service contract modal', () => {
+  const freshIndex = read('index.html');
+  const freshApp = read('app.js');
+  const freshStyles = read('styles.css');
+
+  // index.html
+  assert.match(freshIndex, /id="openServiceContractBtn"/);
+  assert.match(freshIndex, /id="customerServiceContractModal"/);
+  assert.match(freshIndex, /id="closeServiceContractModalBtn"/);
+  assert.match(freshIndex, /id="contractCustName"/);
+  assert.match(freshIndex, /id="contractCnicInput"/);
+  assert.match(freshIndex, /id="contractPackageSelect"/);
+  assert.match(freshIndex, /id="contractMonthlyRateInput"/);
+  assert.match(freshIndex, /id="contractInstallFeeInput"/);
+  assert.match(freshIndex, /id="contractDepositInput"/);
+  assert.match(freshIndex, /id="contractOntModelInput"/);
+  assert.match(freshIndex, /id="contractOntSerialInput"/);
+  assert.match(freshIndex, /id="contractCableMetersInput"/);
+  assert.match(freshIndex, /id="contractOpticalPowerInput"/);
+  assert.match(freshIndex, /id="contractTenureSelect"/);
+  assert.match(freshIndex, /id="contractStartDateInput"/);
+  assert.match(freshIndex, /id="contractTechNameInput"/);
+  assert.match(freshIndex, /id="contractNotesInput"/);
+  assert.match(freshIndex, /id="submitServiceContractBtn"/);
+  assert.match(freshIndex, /id="printServiceContractA4Btn"/);
+  assert.match(freshIndex, /id="printServiceContractSlipBtn"/);
+  assert.match(freshIndex, /id="whatsappServiceContractBtn"/);
+  assert.match(freshIndex, /id="exportServiceContractCsvBtn"/);
+  assert.match(freshIndex, /id="contractHistoryTableBody"/);
+
+  // app.js
+  assert.match(freshApp, /setupServiceContractModal/);
+  assert.match(freshApp, /customerServiceContractModalController/);
+  assert.match(freshApp, /#openServiceContractBtn/);
+
+  // styles.css
+  assert.match(freshStyles, /\.agreement-modal/);
+  assert.match(freshStyles, /\.contract-customer-ribbon/);
+  assert.match(freshStyles, /\.contract-grid/);
+  assert.match(freshStyles, /\.contract-col/);
+  assert.match(freshStyles, /\.contract-preview-box/);
+  assert.match(freshStyles, /\.contract-history-section/);
+  assert.match(freshStyles, /\[data-theme="dark"\]\s+\.agreement-modal/);
+});
+

@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal, calculateCpeAssetMetrics, setupCpeAssetModal, calculatePowerBackupMetrics, setupPowerBackupModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2782,6 +2782,121 @@ export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
 }
 
 /**
+ * Renders pure SVG chart showing distribution POP battery bank charge levels,
+ * generator fuel reserve gauges, and load-shedding backup runways.
+ */
+export function renderPowerBackupSvg(powerData, options = {}) {
+  const width = options.width || 640;
+  const height = options.height || 260;
+
+  if (!powerData || !Array.isArray(powerData.hubs) || powerData.hubs.length === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Power Outage and OLT Battery Health Chart">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
+        No distribution hub power telemetry recorded
+      </text>
+    </svg>`;
+  }
+
+  const leftPad = 20;
+  const rightPad = 20;
+  const plotWidth = width - leftPad - rightPad;
+
+  let statusColor = '#047857';
+  if (powerData.criticalHubsCount > 0) statusColor = '#ef4444';
+  else if (powerData.activeOutagesCount > 0) statusColor = '#d97706';
+
+  const rows = powerData.hubs.slice(0, 4);
+  const rowStartY = 42;
+  const rowH = 46;
+
+  const renderedRows = rows.map((h, i) => {
+    const y = rowStartY + i * rowH;
+    const battColor = h.batteryLevelPercent >= 70 ? '#047857' : (h.batteryLevelPercent >= 35 ? '#d97706' : '#ef4444');
+    const fuelColor = h.fuelReservePercent >= 50 ? '#0284c7' : (h.fuelReservePercent >= 25 ? '#d97706' : '#ef4444');
+
+    const battBarWidth = 140;
+    const battFillW = Math.max(4, Math.round((h.batteryLevelPercent / 100) * battBarWidth));
+
+    const fuelBarWidth = 110;
+    const fuelFillW = Math.max(4, Math.round((h.fuelReservePercent / 100) * fuelBarWidth));
+
+    const pwrClass = h.powerSource.includes('Mains') ? '#047857' : (h.powerSource.includes('Battery') ? '#d97706' : '#b91c1c');
+    const pwrBg = h.powerSource.includes('Mains') ? 'rgba(4, 120, 87, 0.12)' : (h.powerSource.includes('Battery') ? 'rgba(217, 119, 6, 0.12)' : 'rgba(185, 28, 28, 0.12)');
+
+    const shortName = escapeXml(h.name.replace('Shahdara Core NOC (Vandala Road)', 'Core NOC (Vandala)').replace('Distribution Hub', 'Hub').replace('Remote OLT Node', 'Node').replace('Sub-POP Node', 'Sub-POP'));
+
+    return `
+      <!-- Hub Row ${i + 1} -->
+      <g transform="translate(${leftPad}, ${y})">
+        <!-- Row Background Card -->
+        <rect width="${plotWidth}" height="38" rx="6" fill="var(--bg-soft, #f8faf9)" stroke="var(--line, #e2ece7)" />
+
+        <!-- Hub Title & Subs -->
+        <text x="10" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+          ${shortName}
+        </text>
+        <text x="10" y="29" font-family="'DM Sans', system-ui, sans-serif" font-size="9" fill="var(--muted, #71817c)">
+          ${h.activeSubscribers} Active Subs · ${h.inverterLoadWatts}W Load
+        </text>
+
+        <!-- Power Source Tag -->
+        <rect x="175" y="10" width="70" height="18" rx="4" fill="${pwrBg}" />
+        <text x="210" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="${pwrClass}">
+          ${escapeXml(h.powerSource.replace(' (LESCO)', ''))}
+        </text>
+
+        <!-- Battery Bar -->
+        <g transform="translate(255, 8)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+            BATT: ${h.batteryVoltage}V (${h.batteryLevelPercent}%) ~${h.batteryRunwayHours}h
+          </text>
+          <rect y="11" width="${battBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
+          <rect y="11" width="${battFillW}" height="10" rx="3" fill="${battColor}" />
+        </g>
+
+        <!-- Fuel Bar -->
+        <g transform="translate(410, 8)">
+          <text x="0" y="8" font-family="'DM Sans', system-ui, sans-serif" font-size="8" font-weight="600" fill="var(--muted, #71817c)">
+            GEN: ${h.generatorFuelLiters}L (${h.fuelReservePercent}%) ~${h.generatorRunwayHours}h
+          </text>
+          <rect y="11" width="${fuelBarWidth}" height="10" rx="3" fill="var(--line, #e2ece7)" />
+          <rect y="11" width="${fuelFillW}" height="10" rx="3" fill="${fuelColor}" />
+        </g>
+
+        <!-- Total Runway Pill -->
+        <rect x="530" y="9" width="62" height="20" rx="4" fill="var(--surface-sunken, #edf3f0)" />
+        <text x="561" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9" font-weight="700" fill="var(--ink, #182e2a)">
+          ${h.totalOutageRunwayHours}h Total
+        </text>
+      </g>
+    `;
+  }).join('');
+
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Power Outage and OLT Battery Health Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${leftPad}, 20)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+        Distribution POP Power &amp; Telecom Battery Telemetry
+      </text>
+      <text x="${plotWidth}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Fleet Battery: <tspan font-weight="700" fill="#047857">${powerData.totalBatteryCapacityKwh} kWh</tspan> · Fuel: <tspan font-weight="700" fill="#0284c7">${powerData.totalFuelReservesLiters}L</tspan> · Runway: <tspan font-weight="700" fill="${statusColor}">${powerData.combinedFleetRunwayHours}h</tspan>
+      </text>
+    </g>
+
+    ${renderedRows}
+
+    <!-- Bottom Legend & Health Status -->
+    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Grid Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(powerData.gridResilienceStatus)}</tspan> · Outages: <tspan font-weight="700" fill="var(--ink, #182e2a)">${powerData.activeOutagesCount}/${powerData.totalHubsMonitored}</tspan> · Emergency Burn: <tspan font-weight="700" fill="#b45309">${formatPKR(powerData.totalHourlyFuelCostPkr)}/hr</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+/**
  * Orchestrates dashboard charts rendering into their DOM containers.
  */
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
@@ -2990,6 +3105,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupCpeAssetModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  const powerEl = document.getElementById('dashboardPowerChart');
+  if (powerEl) {
+    const powerData = calculatePowerBackupMetrics(state, { referenceDate });
+    powerEl.innerHTML = renderPowerBackupSvg(powerData);
+  }
+
+  setupPowerBackupModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

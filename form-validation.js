@@ -9888,3 +9888,1122 @@ export function setupOpticalAcceptanceModal({
     }
   };
 }
+
+/* ==========================================================================
+   Subscriber Fiber Drop Cable Tension, Rooftop Routing & Grounding Safety QA Certificate (agent3)
+   ========================================================================== */
+
+export const DROP_INSPECTIONS_KEY = 'shahdara_drop_inspections_v1';
+
+export const DROP_ANCHOR_TYPES = [
+  'J-Hook Tension Clamp',
+  'Dead-End Helical Guy Grip',
+  'Span Clamp with Hook',
+  'Direct Wall Anchor Expansion Bolt',
+  'Porcelain Spool Insulator'
+];
+
+export const DROP_CABLE_TYPES = [
+  '1-Core Round Aerial Drop (Steel Messenger)',
+  '2-Core Bow-Type Flat Drop (FRP)',
+  '4-Core Self-Supporting Figure-8',
+  'Armored Direct Burial / Duct Drop'
+];
+
+export const DROP_SURFACE_TYPES = [
+  'Brick Wall / Plaster',
+  'RCC Roof Parapet',
+  'Galvanized Steel Pole',
+  'Wood Mast / Purlin'
+];
+
+export const DROP_SAFETY_VERDICTS = {
+  CERTIFIED_PASS: 'CERTIFIED_PASS',
+  CONDITIONAL_PASS: 'CONDITIONAL_PASS',
+  FAILED_SAFETY_HAZARD: 'FAILED_SAFETY_HAZARD'
+};
+
+/**
+ * Calculates catenary tension load on aerial fiber drop cable span.
+ * Formula: T = (w * L^2) / (8 * s) in Newtons.
+ * @param {number} spanMeters
+ * @param {number} sagCm
+ * @param {number} [cableWeightGPerM=35]
+ * @returns {{ tensionNewtons: number, safeWorkingLoadMarginPercent: number, isTensionSafe: boolean }}
+ */
+export function calculateDropTensionLoad(spanMeters, sagCm, cableWeightGPerM = 35) {
+  const span = Number(spanMeters) || 0;
+  const sagCmVal = Number(sagCm);
+  const sagMeters = sagCmVal / 100;
+  const weightKgM = (Math.max(1, Number(cableWeightGPerM) || 35)) / 1000;
+  const weightNM = weightKgM * 9.80665; // N/m
+
+  if (span <= 0 || isNaN(sagCmVal) || sagCmVal <= 0 || sagMeters <= 0) {
+    return {
+      tensionNewtons: 0,
+      horizontalTensionNewtons: 0,
+      safeWorkingLoadMarginPercent: 100,
+      isTensionSafe: true,
+      loadStatus: 'INVALID',
+      sagRatioPercent: 0
+    };
+  }
+
+  // Catenary tension: T = (w * L^2) / (8 * s)
+  const tension = (weightNM * Math.pow(span, 2)) / (8 * sagMeters);
+  const roundedTension = Math.round(tension * 10) / 10;
+  const swlMax = 250; // 250N safe continuous working load limit
+  const margin = Math.round(((swlMax - roundedTension) / swlMax) * 100);
+  const sagRatioPercent = span > 0 ? Math.round(((sagCmVal / (span * 100)) * 100) * 10) / 10 : 0;
+
+  let loadStatus = 'OPTIMAL';
+  if (roundedTension > 400) {
+    loadStatus = 'EXCESSIVE_TENSION';
+  } else if (sagRatioPercent > 2.5) {
+    loadStatus = 'EXCESSIVE_SAG';
+  }
+
+  return {
+    tensionNewtons: roundedTension,
+    horizontalTensionNewtons: roundedTension,
+    safeWorkingLoadMarginPercent: margin,
+    isTensionSafe: roundedTension <= swlMax,
+    loadStatus,
+    sagRatioPercent
+  };
+}
+
+/**
+ * Evaluates comprehensive civil, optical and electrical safety compliance for drop installation.
+ * @param {object} params
+ * @returns {{ verdict: string, verdictBadgeClass: string, verdictLabel: string, recommendations: string[], verdictKey: string, isHazard: boolean, hazards: string[], warnings: string[] }}
+ */
+export function evaluateDropSafetyCompliance(params = {}) {
+  const {
+    spanMeters = 0,
+    sagCm = 0,
+    tensionNewtons = 0,
+    bendRadiusMm = 30,
+    groundResistanceOhms = 5,
+    checklist = {}
+  } = params;
+
+  const recs = [];
+  let tension = Number(tensionNewtons) || 0;
+  if (!tension && spanMeters && sagCm) {
+    tension = calculateDropTensionLoad(spanMeters, sagCm).horizontalTensionNewtons;
+  }
+  const bend = Number(bendRadiusMm) || 0;
+  const ground = Number(groundResistanceOhms) || 0;
+  const clearance = Number(params.clearanceMeters ?? 2.0);
+  const electricalCrossing = !!params.electricalCrossing;
+  const anchorType = String(params.anchorType || '');
+  const surfaceType = String(params.surfaceType || '');
+  const groundingBonded = params.groundingBonded !== undefined
+    ? !!params.groundingBonded
+    : (checklist.lightningSurgeArrester !== false);
+  const dripLoop = params.dripLoopInstalled !== undefined
+    ? !!params.dripLoopInstalled
+    : (checklist.dripLoopInstalled !== false);
+  const uvProtected = params.uvConduitProtected !== undefined
+    ? !!params.uvConduitProtected
+    : (checklist.uvTiesSecured !== false);
+
+  const hasDripLoop = dripLoop;
+  const hasUvTies = uvProtected;
+  const hasConduit = checklist.wallConduitSleeve !== false;
+  const hasSeal = checklist.siliconeWeatherproofSeal !== false;
+  const hasSurgeGround = groundingBonded;
+
+  // Severe hazard checks
+  if (clearance < 0.6 || (electricalCrossing && clearance < 1.0)) {
+    recs.push('CRITICAL: Clearance from electrical distribution line is dangerously low (< 0.6m). Electrocution / arc flash hazard.');
+  }
+  if (anchorType.includes('Makeshift') || anchorType.includes('Direct Cable Tie') || surfaceType.includes('Loose') || surfaceType.includes('Wooden Rafter')) {
+    recs.push('CRITICAL: Makeshift anchoring hardware or unstable wooden/plaster surface. Pullout collapse hazard.');
+  }
+  if (tension > 600 || tension > 450) {
+    recs.push('CRITICAL: Tensile load exceeds safe working capacity (> 450N). Snap hazard under high wind.');
+  }
+  if (bend < 15 && bend > 0) {
+    recs.push('CRITICAL: Macro-bending radius is under 15mm. Immediate optical core breakage / severe attenuation hazard.');
+  }
+  if (ground > 50) {
+    recs.push('CRITICAL: Ground resistance > 50 Ohms exceeds lightning surge safety limit (target < 10 Ohms).');
+  }
+
+  if (recs.length > 0) {
+    return {
+      verdict: DROP_SAFETY_VERDICTS.FAILED_SAFETY_HAZARD,
+      verdictKey: 'FAILED_SAFETY_HAZARD',
+      verdictBadgeClass: 'badge-danger',
+      verdictLabel: 'Safety Hazard (Rectification Required)',
+      recommendations: recs,
+      hazards: recs,
+      warnings: [],
+      isHazard: true
+    };
+  }
+
+  // Conditional warnings
+  const condRecs = [];
+  if (tension > 250) {
+    condRecs.push('High mechanical tension (> 250N). Increase mid-span sag or add intermediate strain clamp.');
+  }
+  if (ground > 10 && ground <= 50) {
+    condRecs.push('Grounding resistance is 10-50 Ohms. Recommend deepening ground rod or chemical earthing salt.');
+  }
+  if (!dripLoop) {
+    condRecs.push('Water ingress drip loop omitted at exterior wall entry. Rainwater tracking towards ONT entry possible.');
+  }
+  if (!uvProtected) {
+    condRecs.push('Standard zip ties used without UV conduit sleeve. Sunlight degradation expected.');
+  }
+  if (!groundingBonded) {
+    condRecs.push('ONT electrical grounding not bonded to ground bus.');
+  }
+
+  if (condRecs.length > 0) {
+    return {
+      verdict: DROP_SAFETY_VERDICTS.CONDITIONAL_PASS,
+      verdictKey: 'CONDITIONAL_PASS',
+      verdictBadgeClass: 'badge-warning',
+      verdictLabel: 'Conditional Pass (Advisory Monitoring)',
+      recommendations: condRecs,
+      hazards: [],
+      warnings: condRecs,
+      isHazard: false
+    };
+  }
+
+  return {
+    verdict: DROP_SAFETY_VERDICTS.CERTIFIED_PASS,
+    verdictKey: 'CERTIFIED_PASS',
+    verdictBadgeClass: 'badge-success',
+    verdictLabel: 'Certified Safe & Compliant',
+    recommendations: ['All ITU-T & civil safety standards verified. Installation approved for service.'],
+    hazards: [],
+    warnings: [],
+    isHazard: false
+  };
+}
+
+/**
+ * Validates drop safety inspection form inputs.
+ * @param {object} data
+ * @returns {{ isValid: boolean, errors: Array<string> & object }}
+ */
+export function validateDropSafetyInspection(data = {}) {
+  const errors = {};
+
+  const span = Number(data.spanMeters);
+  if (isNaN(span) || span <= 0 || span > 300) {
+    errors.spanMeters = 'Span length must be between 1 and 300 meters.';
+  }
+
+  const sag = Number(data.sagCm);
+  if (isNaN(sag) || sag <= 0 || sag > 200) {
+    errors.sagCm = 'Mid-span sag must be between 1 and 200 cm.';
+  }
+
+  const inspector = data.inspectorName || data.technicianName;
+  if (!inspector || !String(inspector).trim()) {
+    errors.technicianName = 'Lead inspector / lineman name is required.';
+  }
+
+  const errorList = Object.values(errors);
+  const compositeErrors = Object.assign(errorList, errors);
+
+  return {
+    isValid: errorList.length === 0,
+    errors: compositeErrors
+  };
+}
+
+/**
+ * Builds a structured Drop Safety Inspection Record.
+ * @param {object} customer
+ * @param {object} formData
+ * @param {object} [options]
+ * @returns {object} Record with ID DRP-YYYYMM-XXXX
+ */
+export function buildDropInspectionRecord(customer = {}, formData = {}, options = {}) {
+  const d = options.now ? new Date(options.now) : new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const existing = options.sequence ? (options.sequence - 1) : (options.existingCount || 0);
+  const seq = String(existing + 1).padStart(4, '0');
+  const recordId = options.id || `DRP-${yyyy}${mm}-${seq}`;
+
+  const spanMeters = Number(formData.spanMeters) || 45;
+  const sagCm = Number(formData.sagCm) || 25;
+  const cableWeight = Number(formData.cableWeightGPerM) || 35;
+  const tensionInfo = calculateDropTensionLoad(spanMeters, sagCm, cableWeight);
+
+  const bendRadiusMm = Number(formData.bendRadiusMm) || 35;
+  const groundResistanceOhms = Number(formData.groundResistanceOhms) || 4.5;
+  const checklist = {
+    dripLoopInstalled: formData.dripLoopInstalled !== false,
+    uvTiesSecured: formData.uvTiesSecured !== false,
+    wallConduitSleeve: formData.wallConduitSleeve !== false,
+    siliconeWeatherproofSeal: formData.siliconeWeatherproofSeal !== false,
+    lightningSurgeArrester: formData.lightningSurgeArrester !== false
+  };
+
+  const evalCompliance = evaluateDropSafetyCompliance({
+    spanMeters,
+    sagCm,
+    tensionNewtons: tensionInfo.tensionNewtons,
+    bendRadiusMm,
+    groundResistanceOhms,
+    checklist,
+    anchorType: formData.anchorType,
+    surfaceType: formData.surfaceType,
+    clearanceMeters: formData.clearanceMeters,
+    electricalCrossing: formData.electricalCrossing,
+    groundingBonded: formData.groundingBonded,
+    dripLoopInstalled: formData.dripLoopInstalled,
+    uvConduitProtected: formData.uvConduitProtected
+  });
+
+  const inspector = formData.inspectorName || formData.technicianName || 'Field QA Lineman';
+
+  return {
+    id: recordId,
+    customerId: customer.id || '',
+    customerName: customer.name || 'Subscriber',
+    customerPhone: customer.phone || '',
+    customerArea: customer.area || 'Shahdara',
+    anchorType: formData.anchorType || 'J-Hook Tension Clamp',
+    cableType: formData.cableType || '1-Core Round Aerial Drop (Steel Messenger)',
+    surfaceType: formData.surfaceType || 'Brick Wall / Plaster',
+    spanMeters,
+    sagCm,
+    cableWeightGPerM: cableWeight,
+    tensionNewtons: tensionInfo.tensionNewtons,
+    safeWorkingLoadMarginPercent: tensionInfo.safeWorkingLoadMarginPercent,
+    isTensionSafe: tensionInfo.isTensionSafe,
+    bendRadiusMm,
+    groundResistanceOhms,
+    checklist,
+    verdict: evalCompliance.verdict,
+    verdictBadgeClass: evalCompliance.verdictBadgeClass,
+    verdictLabel: evalCompliance.verdictLabel,
+    recommendations: evalCompliance.recommendations,
+    technicianName: inspector,
+    inspectorName: inspector,
+    compliance: {
+      verdictKey: evalCompliance.verdict,
+      verdictLabel: evalCompliance.verdictLabel,
+      isHazard: evalCompliance.verdict === 'FAILED_SAFETY_HAZARD',
+      recommendations: evalCompliance.recommendations
+    },
+    tension: {
+      horizontalTensionNewtons: tensionInfo.tensionNewtons,
+      loadStatus: tensionInfo.isTensionSafe ? 'OPTIMAL' : 'EXCESSIVE_TENSION',
+      sagRatioPercent: tensionInfo.sagRatioPercent || ((sagCm / (spanMeters * 100)) * 100)
+    },
+    status: formData.status || 'ACTIVE',
+    inspectionDate: formData.inspectionDate || d.toISOString().slice(0, 10),
+    timestamp: d.toISOString(),
+    notes: formData.notes || ''
+  };
+}
+
+/**
+ * Resolves local storage safely in Node or Browser contexts.
+ */
+function resolveDropStorage(storage) {
+  if (storage) return storage;
+  if (typeof localStorage !== 'undefined') return localStorage;
+  return null;
+}
+
+/**
+ * Retrieves saved Drop Safety Inspection records from storage.
+ * @param {Storage} [storage]
+ * @param {string} [customerId]
+ * @returns {Array<object>}
+ */
+export function getSavedDropInspections(storage = null, customerId = null) {
+  const store = resolveDropStorage(storage);
+  if (!store) return [];
+  try {
+    const raw = store.getItem(DROP_INSPECTIONS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    if (customerId) {
+      return list.filter(r => r.customerId === customerId);
+    }
+    return list;
+  } catch (err) {
+    console.error('Failed to get saved drop inspections:', err);
+    return [];
+  }
+}
+
+/**
+ * Saves a new Drop Safety Inspection record into storage.
+ * @param {Storage} storage
+ * @param {object} record
+ * @returns {boolean} Success
+ */
+export function saveDropInspection(storage, record) {
+  const store = resolveDropStorage(storage);
+  if (!store || !record) return false;
+  try {
+    const list = getSavedDropInspections(store);
+    const existingIdx = list.findIndex(r => r.id === record.id);
+    if (existingIdx >= 0) {
+      list[existingIdx] = record;
+    } else {
+      list.unshift(record);
+    }
+    store.setItem(DROP_INSPECTIONS_KEY, JSON.stringify(list));
+    return true;
+  } catch (err) {
+    console.error('Failed to save drop inspection:', err);
+    return false;
+  }
+}
+
+/**
+ * Updates status of a drop inspection.
+ * @param {Storage} storage
+ * @param {string} recordId
+ * @param {string} newStatus
+ * @param {string} [notes]
+ * @returns {boolean}
+ */
+export function updateDropInspectionStatus(storage, recordId, newStatus, notes = '') {
+  const store = resolveDropStorage(storage);
+  if (!store || !recordId) return null;
+  try {
+    const list = getSavedDropInspections(store);
+    const item = list.find(r => r.id === recordId);
+    if (!item) return null;
+    item.status = newStatus;
+    if (newStatus === 'SAFETY_RECTIFIED') {
+      if (!item.compliance) item.compliance = {};
+      item.compliance.verdictLabel = 'Safety Rectified';
+      item.compliance.isHazard = false;
+    }
+    if (notes) {
+      item.notes = (item.notes ? `${item.notes} | ` : '') + notes;
+      item.remediationNotes = notes;
+    }
+    store.setItem(DROP_INSPECTIONS_KEY, JSON.stringify(list));
+    return item;
+  } catch (err) {
+    console.error('Failed to update drop inspection status:', err);
+    return null;
+  }
+}
+
+/**
+ * Clears saved drop inspections.
+ * @param {Storage} storage
+ * @returns {boolean}
+ */
+export function clearDropInspections(storage) {
+  const store = resolveDropStorage(storage);
+  if (!store) return false;
+  try {
+    store.removeItem(DROP_INSPECTIONS_KEY);
+    return true;
+  } catch (err) {
+    console.error('Failed to clear drop inspections:', err);
+    return false;
+  }
+}
+
+/**
+ * Aggregates summary KPIs from inspection records.
+ * @param {Array<object>} records
+ * @returns {object} Summary metrics
+ */
+export function calculateDropInspectionMetrics(records = []) {
+  if (!Array.isArray(records) || records.length === 0) {
+    return {
+      total: 0,
+      totalInspections: 0,
+      certifiedCount: 0,
+      conditionalCount: 0,
+      hazardCount: 0,
+      passRate: 100,
+      passRatePercent: 100,
+      averageSpanMeters: 0,
+      averageTensionNewtons: 0,
+      highTensionCount: 0
+    };
+  }
+
+  let cert = 0;
+  let cond = 0;
+  let haz = 0;
+  let totalSpan = 0;
+  let totalTension = 0;
+  let highTension = 0;
+
+  for (const r of records) {
+    const v = r.compliance?.verdictKey || r.verdict;
+    if (v === DROP_SAFETY_VERDICTS.CERTIFIED_PASS || v === 'CERTIFIED_PASS') cert++;
+    else if (v === DROP_SAFETY_VERDICTS.CONDITIONAL_PASS || v === 'CONDITIONAL_PASS') cond++;
+    else if (v === DROP_SAFETY_VERDICTS.FAILED_SAFETY_HAZARD || v === 'FAILED_SAFETY_HAZARD') haz++;
+
+    const span = (Number(r.spanMeters) || 0);
+    const tension = (Number(r.tensionNewtons) || Number(r.tension?.horizontalTensionNewtons) || 0);
+    totalSpan += span;
+    totalTension += tension;
+    if (tension > 250) highTension++;
+  }
+
+  const total = records.length;
+  const passRate = total > 0 ? Math.round((cert / total) * 100) : 100;
+  const passRatePercent = total > 0 ? Math.round(((cert + cond) / total) * 1000) / 10 : 100;
+
+  return {
+    total,
+    totalInspections: total,
+    certifiedCount: cert,
+    conditionalCount: cond,
+    hazardCount: haz,
+    passRate,
+    passRatePercent,
+    averageSpanMeters: total > 0 ? Math.round((totalSpan / total) * 10) / 10 : 0,
+    averageTensionNewtons: total > 0 ? Math.round((totalTension / total) * 10) / 10 : 0,
+    highTensionCount: highTension
+  };
+}
+
+/**
+ * Formats a bilingual WhatsApp dispatch notification.
+ * @param {object} record
+ * @returns {string} WhatsApp-ready text
+ */
+export function formatDropInspectionWhatsApp(record) {
+  if (!record) return '';
+  const vEmoji = record.verdict === DROP_SAFETY_VERDICTS.CERTIFIED_PASS ? '✅' : record.verdict === DROP_SAFETY_VERDICTS.CONDITIONAL_PASS ? '⚠️' : '🔴';
+
+  return `🏗️ *SHAHDARA ISP - DROP CABLE SAFETY QA CERTIFICATE*
+📄 *Certificate #:* ${record.id}
+👤 *Subscriber:* ${record.customerName} (${record.customerArea})
+📅 *Date:* ${record.inspectionDate}
+
+📐 *Engineering Specifications:*
+• Anchor: ${record.anchorType} on ${record.surfaceType}
+• Span Length: ${record.spanMeters}m | Mid-Span Sag: ${record.sagCm}cm
+• Calculated Tension: ${record.tensionNewtons} N (SWL Margin: ${record.safeWorkingLoadMarginPercent}%)
+• Min Bend Radius: ${record.bendRadiusMm} mm
+• Grounding Resistance: ${record.groundResistanceOhms} Ω
+
+🛡️ *Safety Checklist:*
+• Drip Loop: ${record.checklist?.dripLoopInstalled ? 'Yes ✅' : 'No ❌'}
+• UV Ties: ${record.checklist?.uvTiesSecured ? 'Yes ✅' : 'No ❌'}
+• Wall Conduit: ${record.checklist?.wallConduitSleeve ? 'Yes ✅' : 'No ❌'}
+• Silicone Seal: ${record.checklist?.siliconeWeatherproofSeal ? 'Yes ✅' : 'No ❌'}
+• Ground Arrester: ${record.checklist?.lightningSurgeArrester ? 'Yes ✅' : 'No ❌'}
+
+${vEmoji} *QA Verdict:* ${record.verdictLabel}
+👷 *Inspector:* ${record.technicianName}
+
+_Shahdara Outside Plant (OSP) Structural & Electrical Safety Compliance_`;
+}
+
+/**
+ * Generates printable HTML representation for Drop Cable Safety QA Inspection.
+ * @param {object} record
+ * @param {{ mode?: 'a4' | 'thermal' }} [options]
+ * @returns {string}
+ */
+export function generateDropInspectionHtml(record, { mode = 'a4' } = {}) {
+  if (!record) return '';
+
+  if (mode === 'thermal') {
+    return `
+      <div class="thermal-receipt drop-thermal-slip" style="width: 280px; font-family: monospace; font-size: 11px; padding: 10px; color: #000;">
+        <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
+          <h3 style="margin: 0; font-size: 14px;">SHAHDARA BROADBAND</h3>
+          <p style="margin: 2px 0;">DROP CABLE SAFETY SLIP</p>
+          <p style="margin: 0; font-size: 10px;">سرٹیفکیٹ کیبل تنصیب و ارتھنگ</p>
+          <div style="font-size: 10px; margin-top: 4px;"><strong>${escapeHtml(record.id)}</strong></div>
+        </div>
+
+        <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px;">
+          <div>Sub: <strong>${escapeHtml(record.customerName)}</strong></div>
+          <div>Area: ${escapeHtml(record.customerArea)}</div>
+          <div>Date: ${escapeHtml(record.inspectionDate)}</div>
+        </div>
+
+        <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px;">
+          <div>Span: <strong>${record.spanMeters}m</strong> | Sag: <strong>${record.sagCm}cm</strong></div>
+          <div>Tension: <strong>${record.tensionNewtons} N</strong> (${record.isTensionSafe ? 'Safe' : 'High'})</div>
+          <div>Bend: <strong>${record.bendRadiusMm}mm</strong></div>
+          <div>Earthing: <strong>${record.groundResistanceOhms} Ω</strong></div>
+        </div>
+
+        <div style="margin-bottom: 6px; border-bottom: 1px dashed #000; padding-bottom: 6px; text-align: center;">
+          <div style="font-weight: bold; font-size: 12px;">${escapeHtml(record.verdictLabel)}</div>
+          <div style="font-size: 9px; margin-top: 2px;">Tech: ${escapeHtml(record.technicianName)}</div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-top: 15px; font-size: 9px; text-align: center;">
+          <div style="border-top: 1px solid #000; width: 45%; padding-top: 2px;">Tech Sign</div>
+          <div style="border-top: 1px solid #000; width: 45%; padding-top: 2px;">Subscriber Sign</div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Formal A4 Certificate
+  return `
+    <div class="a4-document drop-a4-cert" style="max-width: 800px; margin: 0 auto; padding: 24px; font-family: system-ui, sans-serif; color: #0f172a; line-height: 1.4;">
+      <header style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 18px;">
+        <div>
+          <h2 style="margin: 0; color: #0369a1; font-size: 20px; font-weight: 800;">SHAHDARA FIBER BROADBAND SERVICES</h2>
+          <p style="margin: 3px 0 0; font-size: 12px; color: #475569;">Outside Plant (OSP) Engineering &amp; Civil Safety Quality Assurance Directorate</p>
+          <p style="margin: 3px 0 0; font-size: 13px; font-weight: bold; color: #0284c7; direction: rtl;">فائبر آپٹک ڈراپ کیبل تنصیب، کھنچاؤ اور حفاظتی سرٹیفکیٹ</p>
+        </div>
+        <div style="text-align: right;">
+          <span style="display: inline-block; background: #0284c7; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">QA CERTIFICATE</span>
+          <div style="font-family: monospace; font-weight: bold; font-size: 13px; margin-top: 4px;">${escapeHtml(record.id)}</div>
+          <div style="font-size: 11px; color: #64748b;">${escapeHtml(record.inspectionDate)}</div>
+        </div>
+      </header>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+        <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #f8fafc;">
+          <h4 style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: #0369a1; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">1. Subscriber &amp; Location Details</h4>
+          <table style="width: 100%; font-size: 12px;">
+            <tr><td style="color: #64748b; width: 130px;">Subscriber Name:</td><td><strong>${escapeHtml(record.customerName)}</strong></td></tr>
+            <tr><td style="color: #64748b;">Phone Number:</td><td>${escapeHtml(record.customerPhone || 'N/A')}</td></tr>
+            <tr><td style="color: #64748b;">Installation Area:</td><td>${escapeHtml(record.customerArea)}</td></tr>
+            <tr><td style="color: #64748b;">Surface Material:</td><td>${escapeHtml(record.surfaceType)}</td></tr>
+          </table>
+        </div>
+
+        <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; background: #f8fafc;">
+          <h4 style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: #0369a1; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">2. Hardware &amp; Anchor Specs</h4>
+          <table style="width: 100%; font-size: 12px;">
+            <tr><td style="color: #64748b; width: 130px;">Anchor Hardware:</td><td><strong>${escapeHtml(record.anchorType)}</strong></td></tr>
+            <tr><td style="color: #64748b;">Cable Specification:</td><td>${escapeHtml(record.cableType)}</td></tr>
+            <tr><td style="color: #64748b;">Span &amp; Sag:</td><td>${record.spanMeters}m span / ${record.sagCm}cm sag</td></tr>
+            <tr><td style="color: #64748b;">Calculated Tension:</td><td><strong>${record.tensionNewtons} N</strong> (${record.safeWorkingLoadMarginPercent}% margin)</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div style="border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 16px; background: #fff;">
+        <h4 style="margin: 0 0 8px; font-size: 12px; text-transform: uppercase; color: #0369a1; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">3. Physical Safety &amp; Electrical Protection Checklist</h4>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 12px;">
+          <div>Drip Loop Wall Entry: <strong>${record.checklist?.dripLoopInstalled ? '✅ Verified' : '❌ Missing'}</strong></div>
+          <div>UV-Stabilized Cable Ties: <strong>${record.checklist?.uvTiesSecured ? '✅ Verified' : '❌ Standard Ties'}</strong></div>
+          <div>Conduit Wall Sleeve: <strong>${record.checklist?.wallConduitSleeve ? '✅ Installed' : '❌ Omitted'}</strong></div>
+          <div>Silicone Seal Weatherproof: <strong>${record.checklist?.siliconeWeatherproofSeal ? '✅ Sealed' : '❌ Unsealed'}</strong></div>
+          <div>Lightning Ground Arrester: <strong>${record.checklist?.lightningSurgeArrester ? '✅ Connected' : '❌ Omitted'}</strong></div>
+          <div>Min Bend Radius: <strong>${record.bendRadiusMm} mm</strong> (Target &ge;30mm)</div>
+          <div>Ground Resistance: <strong>${record.groundResistanceOhms} &Omega;</strong> (Target &le;10&Omega;)</div>
+        </div>
+      </div>
+
+      <div style="border: 2px solid ${record.verdict === DROP_SAFETY_VERDICTS.CERTIFIED_PASS ? '#10b981' : record.verdict === DROP_SAFETY_VERDICTS.CONDITIONAL_PASS ? '#f59e0b' : '#ef4444'}; border-radius: 8px; padding: 14px; background: ${record.verdict === DROP_SAFETY_VERDICTS.CERTIFIED_PASS ? '#f0fdf4' : record.verdict === DROP_SAFETY_VERDICTS.CONDITIONAL_PASS ? '#fffbeb' : '#fef2f2'}; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <h4 style="margin: 0; font-size: 14px; font-weight: 800; color: #0f172a;">Quality &amp; Safety Compliance Verdict</h4>
+          <span style="font-weight: bold; font-size: 13px; color: ${record.verdict === DROP_SAFETY_VERDICTS.CERTIFIED_PASS ? '#059669' : record.verdict === DROP_SAFETY_VERDICTS.CONDITIONAL_PASS ? '#d97706' : '#dc2626'};">${escapeHtml(record.verdictLabel)}</span>
+        </div>
+        <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #334155;">
+          ${(record.recommendations || []).map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+        </ul>
+      </div>
+
+      <footer style="display: flex; justify-content: space-between; padding-top: 16px; border-top: 1px solid #cbd5e1; font-size: 11px; text-align: center;">
+        <div style="width: 200px;">
+          <div style="height: 40px; border-bottom: 1px solid #000; margin-bottom: 4px;"></div>
+          <strong>${escapeHtml(record.technicianName)}</strong>
+          <div style="color: #64748b;">Field QA Inspector</div>
+        </div>
+        <div style="width: 200px;">
+          <div style="height: 40px; border-bottom: 1px solid #000; margin-bottom: 4px;"></div>
+          <strong>${escapeHtml(record.customerName)}</strong>
+          <div style="color: #64748b;">Subscriber Sign-off</div>
+        </div>
+        <div style="width: 200px;">
+          <div style="height: 40px; border: 1px dashed #94a3b8; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #94a3b8; font-weight: bold; margin-bottom: 4px;">OFFICIAL STAMP</div>
+          <strong>Shahdara OSP Operations</strong>
+          <div style="color: #64748b;">Authorized QA Seal</div>
+        </div>
+      </footer>
+    </div>
+  `;
+}
+
+/**
+ * Generates RFC-4180 compliant CSV export of Drop Safety Inspection records.
+ * @param {Array<object>} records
+ * @returns {string} CSV with UTF-8 BOM
+ */
+export function generateDropInspectionsCsv(records = []) {
+  const headers = [
+    'Certificate ID',
+    'Customer ID',
+    'Subscriber Name',
+    'Area',
+    'Anchor Type',
+    'Surface Type',
+    'Span (m)',
+    'Sag (cm)',
+    'Tension (N)',
+    'Tension Safe',
+    'Bend Radius (mm)',
+    'Ground Resistance (Ohms)',
+    'Verdict',
+    'Inspector',
+    'Inspection Date',
+    'Status'
+  ];
+
+  const escapeCsv = (val) => {
+    const s = String(val ?? '').replace(/"/g, '""');
+    return `"${s}"`;
+  };
+
+  const rows = (records || []).map(r => [
+    escapeCsv(r.id),
+    escapeCsv(r.customerId),
+    escapeCsv(r.customerName),
+    escapeCsv(r.customerArea),
+    escapeCsv(r.anchorType),
+    escapeCsv(r.surfaceType),
+    escapeCsv(r.spanMeters),
+    escapeCsv(r.sagCm),
+    escapeCsv(r.tensionNewtons),
+    escapeCsv(r.isTensionSafe ? 'YES' : 'NO'),
+    escapeCsv(r.bendRadiusMm),
+    escapeCsv(r.groundResistanceOhms),
+    escapeCsv(r.verdict),
+    escapeCsv(r.technicianName),
+    escapeCsv(r.inspectionDate),
+    escapeCsv(r.status)
+  ].join(','));
+
+  return '\uFEFF' + [headers.map(h => `"${h}"`).join(','), ...rows].join('\r\n');
+}
+
+/**
+ * Sets up the interactive controller for `#dropSafetyInspectionModal`.
+ * @param {object} options
+ */
+export function setupDropSafetyInspectionModal(options = {}) {
+  const modal = options.modalElement || document.getElementById('dropSafetyInspectionModal');
+  if (!modal) return null;
+
+  const storage = options.storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const getState = options.getState || (() => ({}));
+  const onToast = options.onToast || console.log;
+
+  // Header and elements
+  const subNameEl = modal.querySelector('#dropSubName');
+  const subAreaEl = modal.querySelector('#dropSubArea');
+  const kpiTotal = modal.querySelector('#dropKpiTotal');
+  const kpiCert = modal.querySelector('#dropKpiCert');
+  const kpiRate = modal.querySelector('#dropKpiRate');
+  const kpiHazard = modal.querySelector('#dropKpiHazard');
+
+  // Form inputs
+  const anchorTypeSelect = modal.querySelector('#dropAnchorTypeSelect');
+  const surfaceTypeSelect = modal.querySelector('#dropSurfaceTypeSelect');
+  const spanInput = modal.querySelector('#dropSpanInput');
+  const sagInput = modal.querySelector('#dropSagInput');
+  const bendInput = modal.querySelector('#dropBendInput');
+  const groundInput = modal.querySelector('#dropGroundInput');
+  const techInput = modal.querySelector('#dropTechInput');
+  const notesInput = modal.querySelector('#dropNotesInput');
+
+  // Checkboxes
+  const chkDrip = modal.querySelector('#dropChkDripLoop');
+  const chkUv = modal.querySelector('#dropChkUvTies');
+  const chkConduit = modal.querySelector('#dropChkConduit');
+  const chkSeal = modal.querySelector('#dropChkSeal');
+  const chkArrester = modal.querySelector('#dropChkArrester');
+
+  // Live preview box
+  const previewTensionN = modal.querySelector('#dropPreviewTension');
+  const previewVerdictBadge = modal.querySelector('#dropPreviewVerdictBadge');
+  const previewRecsList = modal.querySelector('#dropPreviewRecsList');
+
+  // Table & filters
+  const filterVerdictSelect = modal.querySelector('#dropFilterVerdictSelect');
+  const searchInput = modal.querySelector('#dropSearchInput');
+  const tableBody = modal.querySelector('#dropHistoryTableBody');
+
+  // Actions
+  const submitBtn = modal.querySelector('#dropSubmitBtn');
+  const whatsappBtn = modal.querySelector('#dropCopyWhatsAppBtn');
+  const printA4Btn = modal.querySelector('#dropPrintA4Btn');
+  const printThermalBtn = modal.querySelector('#dropPrintThermalBtn');
+  const exportCsvBtn = modal.querySelector('#dropExportCsvBtn');
+  const closeBtn = modal.querySelector('#closeDropSafetyModalBtn');
+
+  let activeCustomer = null;
+
+  function setCustomerContext(cust) {
+    activeCustomer = cust || null;
+    if (subNameEl) subNameEl.textContent = activeCustomer ? activeCustomer.name : 'All Subscribers';
+    if (subAreaEl) subAreaEl.textContent = activeCustomer ? (activeCustomer.area || 'Shahdara') : 'Network Wide';
+    recalculateLivePreview();
+    renderList();
+    renderKpis();
+  }
+
+  function recalculateLivePreview() {
+    const span = Number(spanInput?.value) || 45;
+    const sag = Number(sagInput?.value) || 25;
+    const bend = Number(bendInput?.value) || 35;
+    const ground = Number(groundInput?.value) || 5;
+
+    const tensionInfo = calculateDropTensionLoad(span, sag);
+    if (previewTensionN) {
+      previewTensionN.textContent = `${tensionInfo.tensionNewtons} N (${tensionInfo.safeWorkingLoadMarginPercent}% margin)`;
+    }
+
+    const checklist = {
+      dripLoopInstalled: chkDrip ? chkDrip.checked : true,
+      uvTiesSecured: chkUv ? chkUv.checked : true,
+      wallConduitSleeve: chkConduit ? chkConduit.checked : true,
+      siliconeWeatherproofSeal: chkSeal ? chkSeal.checked : true,
+      lightningSurgeArrester: chkArrester ? chkArrester.checked : true
+    };
+
+    const comp = evaluateDropSafetyCompliance({
+      spanMeters: span,
+      sagCm: sag,
+      tensionNewtons: tensionInfo.tensionNewtons,
+      bendRadiusMm: bend,
+      groundResistanceOhms: ground,
+      checklist
+    });
+
+    if (previewVerdictBadge) {
+      previewVerdictBadge.className = `sim-delta-badge ${comp.verdictBadgeClass}`;
+      previewVerdictBadge.textContent = comp.verdictLabel;
+    }
+
+    if (previewRecsList) {
+      previewRecsList.innerHTML = comp.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('');
+    }
+  }
+
+  function renderKpis() {
+    const records = getSavedDropInspections(storage);
+    const metrics = calculateDropInspectionMetrics(records);
+
+    if (kpiTotal) kpiTotal.textContent = String(metrics.totalInspections);
+    if (kpiCert) kpiCert.textContent = String(metrics.certifiedCount);
+    if (kpiRate) kpiRate.textContent = `${metrics.passRatePercent}%`;
+    if (kpiHazard) kpiHazard.textContent = String(metrics.hazardCount);
+  }
+
+  function renderList() {
+    if (!tableBody) return;
+    const all = getSavedDropInspections(storage);
+    const vFilter = filterVerdictSelect ? filterVerdictSelect.value : 'ALL';
+    const q = (searchInput?.value || '').trim().toLowerCase();
+
+    const filtered = all.filter(r => {
+      if (vFilter !== 'ALL' && r.verdict !== vFilter) return false;
+      if (q) {
+        const text = `${r.id} ${r.customerName} ${r.customerArea} ${r.anchorType} ${r.technicianName}`.toLowerCase();
+        if (!text.includes(q)) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="7" class="text-center text-muted" style="padding:16px;">No drop safety inspections found matching filters.</td></tr>`;
+      return;
+    }
+
+    tableBody.innerHTML = filtered.map(r => `
+      <tr>
+        <td class="font-mono font-bold">${escapeHtml(r.id)}</td>
+        <td>
+          <div style="font-weight:600;">${escapeHtml(r.customerName)}</div>
+          <small class="text-muted">${escapeHtml(r.customerArea)}</small>
+        </td>
+        <td>
+          <div>${escapeHtml(r.anchorType)}</div>
+          <small class="text-muted">${r.spanMeters}m span / ${r.sagCm}cm sag</small>
+        </td>
+        <td class="font-mono">
+          <strong>${r.tensionNewtons} N</strong>
+        </td>
+        <td class="font-mono">
+          <span>${r.groundResistanceOhms} &Omega;</span>
+        </td>
+        <td>
+          <span class="sim-delta-badge ${r.verdictBadgeClass}">${escapeHtml(r.verdictLabel)}</span>
+        </td>
+        <td class="text-center">
+          <button type="button" class="action-btn-sm" data-action="print-a4" data-id="${r.id}" title="Print A4 Certificate">🖨️ A4</button>
+          <button type="button" class="action-btn-sm" data-action="print-slip" data-id="${r.id}" title="Print POS Slip">🧾 Slip</button>
+          <button type="button" class="action-btn-sm" data-action="whatsapp" data-id="${r.id}" title="Share WhatsApp">💬 WhatsApp</button>
+        </td>
+      </tr>
+    `).join('');
+
+    // Wire table actions
+    tableBody.querySelectorAll('[data-action="print-a4"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const rec = all.find(x => x.id === id);
+        if (rec) {
+          const html = generateDropInspectionHtml(rec, { mode: 'a4' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<html><head><title>${rec.id}</title></head><body>${html}</body></html>`);
+            win.document.close();
+            win.print();
+          }
+        }
+      });
+    });
+
+    tableBody.querySelectorAll('[data-action="print-slip"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const rec = all.find(x => x.id === id);
+        if (rec) {
+          const html = generateDropInspectionHtml(rec, { mode: 'thermal' });
+          const win = window.open('', '_blank');
+          if (win) {
+            win.document.write(`<html><head><title>${rec.id}</title></head><body>${html}</body></html>`);
+            win.document.close();
+            win.print();
+          }
+        }
+      });
+    });
+
+    tableBody.querySelectorAll('[data-action="whatsapp"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        const rec = all.find(x => x.id === id);
+        if (rec) {
+          const text = formatDropInspectionWhatsApp(rec);
+          if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+              onToast('WhatsApp notification copied to clipboard! Opening WhatsApp...');
+              window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            }).catch(() => {
+              window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            });
+          } else {
+            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+          }
+        }
+      });
+    });
+  }
+
+  // Bind input listeners for live preview
+  [spanInput, sagInput, bendInput, groundInput, chkDrip, chkUv, chkConduit, chkSeal, chkArrester].forEach(el => {
+    if (el) {
+      el.addEventListener('input', recalculateLivePreview);
+      el.addEventListener('change', recalculateLivePreview);
+    }
+  });
+
+  if (filterVerdictSelect) filterVerdictSelect.addEventListener('change', renderList);
+  if (searchInput) searchInput.addEventListener('input', renderList);
+
+  // Submit button
+  if (submitBtn) {
+    submitBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || { id: 'CUST-GEN-01', name: 'General Subscriber', area: 'Shahdara' };
+
+      const formData = {
+        anchorType: anchorTypeSelect?.value || 'J-Hook Tension Clamp',
+        surfaceType: surfaceTypeSelect?.value || 'Brick Wall / Plaster',
+        spanMeters: Number(spanInput?.value) || 45,
+        sagCm: Number(sagInput?.value) || 25,
+        cableWeightGPerM: 35,
+        bendRadiusMm: Number(bendInput?.value) || 35,
+        groundResistanceOhms: Number(groundInput?.value) || 5,
+        dripLoopInstalled: chkDrip ? chkDrip.checked : true,
+        uvTiesSecured: chkUv ? chkUv.checked : true,
+        wallConduitSleeve: chkConduit ? chkConduit.checked : true,
+        siliconeWeatherproofSeal: chkSeal ? chkSeal.checked : true,
+        lightningSurgeArrester: chkArrester ? chkArrester.checked : true,
+        technicianName: techInput?.value || 'Field QA Lineman',
+        notes: notesInput?.value || ''
+      };
+
+      const val = validateDropSafetyInspection({
+        customerId: cust.id,
+        spanMeters: formData.spanMeters,
+        sagCm: formData.sagCm,
+        bendRadiusMm: formData.bendRadiusMm,
+        groundResistanceOhms: formData.groundResistanceOhms,
+        technicianName: formData.technicianName
+      });
+
+      if (!val.isValid) {
+        alert('Validation error: ' + Object.values(val.errors).join(', '));
+        return;
+      }
+
+      const all = getSavedDropInspections(storage);
+      const record = buildDropInspectionRecord(cust, formData, { existingCount: all.length });
+      saveDropInspection(storage, record);
+
+      onToast(`Drop Safety QA Certificate #${record.id} issued!`);
+      renderList();
+      renderKpis();
+    });
+  }
+
+  // Copy WhatsApp
+  if (whatsappBtn) {
+    whatsappBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || { id: 'CUST-GEN-01', name: 'General Subscriber', area: 'Shahdara' };
+      const formData = {
+        anchorType: anchorTypeSelect?.value || 'J-Hook Tension Clamp',
+        surfaceType: surfaceTypeSelect?.value || 'Brick Wall / Plaster',
+        spanMeters: Number(spanInput?.value) || 45,
+        sagCm: Number(sagInput?.value) || 25,
+        bendRadiusMm: Number(bendInput?.value) || 35,
+        groundResistanceOhms: Number(groundInput?.value) || 5,
+        technicianName: techInput?.value || 'Field QA Lineman'
+      };
+      const record = buildDropInspectionRecord(cust, formData);
+      const text = formatDropInspectionWhatsApp(record);
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          onToast('WhatsApp notification copied to clipboard! Opening WhatsApp...');
+          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        }).catch(() => {
+          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        });
+      } else {
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+      }
+    });
+  }
+
+  // Print A4
+  if (printA4Btn) {
+    printA4Btn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || { id: 'CUST-GEN-01', name: 'General Subscriber', area: 'Shahdara' };
+      const formData = {
+        anchorType: anchorTypeSelect?.value || 'J-Hook Tension Clamp',
+        surfaceType: surfaceTypeSelect?.value || 'Brick Wall / Plaster',
+        spanMeters: Number(spanInput?.value) || 45,
+        sagCm: Number(sagInput?.value) || 25,
+        bendRadiusMm: Number(bendInput?.value) || 35,
+        groundResistanceOhms: Number(groundInput?.value) || 5,
+        technicianName: techInput?.value || 'Field QA Lineman'
+      };
+      const record = buildDropInspectionRecord(cust, formData);
+      const html = generateDropInspectionHtml(record, { mode: 'a4' });
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`<html><head><title>${record.id}</title></head><body>${html}</body></html>`);
+        win.document.close();
+        win.print();
+      }
+    });
+  }
+
+  // Print thermal
+  if (printThermalBtn) {
+    printThermalBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || { id: 'CUST-GEN-01', name: 'General Subscriber', area: 'Shahdara' };
+      const formData = {
+        anchorType: anchorTypeSelect?.value || 'J-Hook Tension Clamp',
+        surfaceType: surfaceTypeSelect?.value || 'Brick Wall / Plaster',
+        spanMeters: Number(spanInput?.value) || 45,
+        sagCm: Number(sagInput?.value) || 25,
+        bendRadiusMm: Number(bendInput?.value) || 35,
+        groundResistanceOhms: Number(groundInput?.value) || 5,
+        technicianName: techInput?.value || 'Field QA Lineman'
+      };
+      const record = buildDropInspectionRecord(cust, formData);
+      const html = generateDropInspectionHtml(record, { mode: 'thermal' });
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(`<html><head><title>${record.id}</title></head><body>${html}</body></html>`);
+        win.document.close();
+        win.print();
+      }
+    });
+  }
+
+  // Export CSV
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      const records = getSavedDropInspections(storage);
+      const csv = generateDropInspectionsCsv(records);
+      const filename = `shahdara_drop_safety_${new Date().toISOString().slice(0, 10)}.csv`;
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      onToast(`Exported ${filename}`);
+    });
+  }
+
+  // Trigger buttons
+  const openBtns = document.querySelectorAll('[data-open-drop-inspection], #openDropInspectionBtn');
+  openBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const cust = activeCustomer || state?.customers?.[0] || null;
+      setCustomerContext(cust);
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.setAttribute('open', '');
+    });
+  });
+
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      if (typeof modal.close === 'function') modal.close();
+      else modal.removeAttribute('open');
+    });
+  }
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      if (typeof modal.close === 'function') modal.close();
+      else modal.removeAttribute('open');
+    }
+  });
+
+  return {
+    open: (cust) => {
+      setCustomerContext(cust);
+      if (typeof modal.showModal === 'function') modal.showModal();
+      else modal.setAttribute('open', '');
+    },
+    close: () => {
+      if (typeof modal.close === 'function') modal.close();
+      else modal.removeAttribute('open');
+    },
+    setCustomer: setCustomerContext,
+    recalculate: () => {
+      recalculateLivePreview();
+      renderList();
+      renderKpis();
+    }
+  };
+}
+

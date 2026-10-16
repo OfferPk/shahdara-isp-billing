@@ -4620,3 +4620,388 @@ test('DOM and styling: index.html, styles.css, and app.js wire Optical QA Accept
   assert.match(appJs, /customerOpticalAcceptanceModalController/);
   assert.match(appJs, /openOpticalAcceptanceBtn/);
 });
+
+test('calculateDropTensionLoad accurately computes horizontal catenary tension and load rating', async () => {
+  const { calculateDropTensionLoad } = await import('../form-validation.js');
+
+  // Baseline 50m span, 50cm sag, 35 g/m cable
+  const normal = calculateDropTensionLoad(50, 50, 35);
+  assert.equal(typeof normal.horizontalTensionNewtons, 'number');
+  assert.ok(normal.horizontalTensionNewtons > 150 && normal.horizontalTensionNewtons < 300);
+  assert.equal(normal.loadStatus, 'OPTIMAL');
+  assert.equal(normal.sagRatioPercent, 1);
+
+  // Excessive tension (over-tightened: 120m span with only 15cm sag)
+  const overtightened = calculateDropTensionLoad(120, 15, 35);
+  assert.ok(overtightened.horizontalTensionNewtons > 600);
+  assert.equal(overtightened.loadStatus, 'EXCESSIVE_TENSION');
+
+  // Excessive sag (loose line: 40m span with 150cm sag)
+  const sagging = calculateDropTensionLoad(40, 150, 35);
+  assert.equal(sagging.loadStatus, 'EXCESSIVE_SAG');
+  assert.ok(sagging.sagRatioPercent > 2.5);
+
+  // Invalid / edge cases
+  const edgeZero = calculateDropTensionLoad(0, 50, 35);
+  assert.equal(edgeZero.horizontalTensionNewtons, 0);
+  assert.equal(edgeZero.loadStatus, 'INVALID');
+
+  const edgeNegativeSag = calculateDropTensionLoad(60, -10, 35);
+  assert.equal(edgeNegativeSag.horizontalTensionNewtons, 0);
+  assert.equal(edgeNegativeSag.loadStatus, 'INVALID');
+});
+
+test('evaluateDropSafetyCompliance determines safety verdicts across rooftop routing & grounding scenarios', async () => {
+  const { evaluateDropSafetyCompliance, DROP_SAFETY_VERDICTS } = await import('../form-validation.js');
+
+  // Full pass: adequate clearance, optimal tension, sturdy anchor, grounding intact
+  const passRes = evaluateDropSafetyCompliance({
+    spanMeters: 45,
+    sagCm: 45,
+    clearanceMeters: 1.8,
+    electricalCrossing: false,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Reinforced Concrete Column',
+    groundingBonded: true,
+    dripLoopInstalled: true,
+    uvConduitProtected: true
+  });
+  assert.equal(passRes.verdictKey, 'CERTIFIED_PASS');
+  assert.equal(passRes.isHazard, false);
+  assert.ok(passRes.hazards.length === 0);
+
+  // Critical Electrical Hazard: 0.3m clearance near 440V distribution lines
+  const elecRes = evaluateDropSafetyCompliance({
+    spanMeters: 55,
+    sagCm: 40,
+    clearanceMeters: 0.3,
+    electricalCrossing: true,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Reinforced Concrete Column',
+    groundingBonded: true,
+    dripLoopInstalled: true,
+    uvConduitProtected: true
+  });
+  assert.equal(elecRes.verdictKey, 'FAILED_SAFETY_HAZARD');
+  assert.equal(elecRes.isHazard, true);
+  assert.ok(elecRes.hazards.some(h => h.includes('Clearance from electrical')));
+
+  // Anchor Hazard: makeshift wire tie on flimsy wooden rafter
+  const anchorRes = evaluateDropSafetyCompliance({
+    spanMeters: 50,
+    sagCm: 50,
+    clearanceMeters: 1.5,
+    anchorType: 'Direct Cable Tie / Makeshift Wire',
+    surfaceType: 'Wooden Rafter / Perlin'
+  });
+  assert.equal(anchorRes.verdictKey, 'FAILED_SAFETY_HAZARD');
+  assert.ok(anchorRes.hazards.some(h => h.includes('Makeshift anchoring')));
+
+  // Excessive Tension Hazard (> 600N)
+  const tensionRes = evaluateDropSafetyCompliance({
+    spanMeters: 130,
+    sagCm: 15,
+    clearanceMeters: 2.0,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Reinforced Concrete Column',
+    groundingBonded: true,
+    dripLoopInstalled: true
+  });
+  assert.equal(tensionRes.verdictKey, 'FAILED_SAFETY_HAZARD');
+  assert.ok(tensionRes.hazards.some(h => h.includes('Tensile load')));
+
+  // Conditional Pass: Safe clearance and anchor, but missing drip loop and grounding bond
+  const condRes = evaluateDropSafetyCompliance({
+    spanMeters: 50,
+    sagCm: 50,
+    clearanceMeters: 1.5,
+    anchorType: 'Drive Hook (J-Hook)',
+    surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: false,
+    dripLoopInstalled: false,
+    uvConduitProtected: false
+  });
+  assert.equal(condRes.verdictKey, 'CONDITIONAL_PASS');
+  assert.equal(condRes.isHazard, false);
+  assert.ok(condRes.warnings.length >= 2);
+  assert.ok(condRes.warnings.some(w => w.includes('drip loop')));
+  assert.ok(condRes.warnings.some(w => w.includes('grounding')));
+});
+
+test('validateDropSafetyInspection and buildDropInspectionRecord enforce form validation and data structure', async () => {
+  const { validateDropSafetyInspection, buildDropInspectionRecord } = await import('../form-validation.js');
+
+  // Empty data validation failure
+  const invalid = validateDropSafetyInspection({});
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length > 0);
+
+  // Valid form data
+  const validForm = {
+    inspectorName: 'Umair Drop Specialist',
+    inspectionDate: '2026-10-16',
+    spanMeters: 50,
+    sagCm: 50,
+    cableWeightGPerM: 35,
+    cableType: '1-Core G.657.A2 Self-Supporting Drop (35 g/m)',
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Solid Red Brick Masonry',
+    clearanceMeters: 2.2,
+    electricalCrossing: false,
+    groundingBonded: true,
+    dripLoopInstalled: true,
+    uvConduitProtected: true,
+    opticalPowerDbm: -19.5,
+    notes: 'Rooftop line tied cleanly, clear from WAPDA distribution line.'
+  };
+
+  const valResult = validateDropSafetyInspection(validForm);
+  assert.equal(valResult.isValid, true);
+  assert.equal(valResult.errors.length, 0);
+
+  const customer = {
+    id: 'cust-drop-1',
+    name: 'Mian Aslam Khan',
+    phone: '03001234567',
+    customerNumber: 'PK-991',
+    area: 'Kot Mohibbu, Shahdara'
+  };
+
+  const record = buildDropInspectionRecord(customer, validForm, { now: '2026-10-16T15:00:00Z', sequence: 789 });
+  assert.equal(record.id, 'DRP-202610-0789');
+  assert.equal(record.customerId, 'cust-drop-1');
+  assert.equal(record.customerName, 'Mian Aslam Khan');
+  assert.equal(record.inspectorName, 'Umair Drop Specialist');
+  assert.equal(record.compliance.verdictKey, 'CERTIFIED_PASS');
+  assert.match(record.compliance.verdictLabel, /Certified Safe/);
+  assert.ok(record.tension.horizontalTensionNewtons > 150);
+});
+
+test('drop inspection persistence manages records, filtering and updates in storage', async () => {
+  const {
+    getSavedDropInspections,
+    saveDropInspection,
+    updateDropInspectionStatus,
+    clearDropInspections,
+    buildDropInspectionRecord
+  } = await import('../form-validation.js');
+
+  const mockStore = {};
+  const mockStorage = {
+    getItem: (key) => mockStore[key] || null,
+    setItem: (key, val) => { mockStore[key] = String(val); },
+    removeItem: (key) => { delete mockStore[key]; }
+  };
+
+  assert.deepEqual(getSavedDropInspections(mockStorage), []);
+
+  const cust1 = { id: 'c-1', name: 'Zahid Iqbal', customerNumber: '101', area: 'Main Bazaar' };
+  const cust2 = { id: 'c-2', name: 'Sajid Mehmood', customerNumber: '102', area: 'Baradari' };
+
+  const rec1 = buildDropInspectionRecord(cust1, {
+    inspectorName: 'Saad QA',
+    spanMeters: 40,
+    sagCm: 40,
+    clearanceMeters: 2.0,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: true,
+    dripLoopInstalled: true
+  }, { sequence: 101 });
+
+  const rec2 = buildDropInspectionRecord(cust2, {
+    inspectorName: 'Umair Field',
+    spanMeters: 80,
+    sagCm: 20,
+    clearanceMeters: 0.4,
+    electricalCrossing: true,
+    anchorType: 'Direct Cable Tie / Makeshift Wire',
+    surfaceType: 'Wooden Rafter / Perlin',
+    groundingBonded: false
+  }, { sequence: 102 });
+
+  saveDropInspection(mockStorage, rec1);
+  saveDropInspection(mockStorage, rec2);
+
+  const allRecords = getSavedDropInspections(mockStorage);
+  assert.equal(allRecords.length, 2);
+
+  // Filter by customer
+  const cust1Records = getSavedDropInspections(mockStorage, 'c-1');
+  assert.equal(cust1Records.length, 1);
+  assert.equal(cust1Records[0].customerId, 'c-1');
+
+  // Update status
+  const updated = updateDropInspectionStatus(mockStorage, rec2.id, 'SAFETY_RECTIFIED', 'Grounding rod bonded and cable rerouted');
+  assert.equal(updated.compliance.verdictLabel, 'Safety Rectified');
+  assert.equal(updated.remediationNotes, 'Grounding rod bonded and cable rerouted');
+
+  // Clear
+  clearDropInspections(mockStorage);
+  assert.deepEqual(getSavedDropInspections(mockStorage), []);
+});
+
+test('calculateDropInspectionMetrics computes QA safety KPIs accurately', async () => {
+  const { calculateDropInspectionMetrics, buildDropInspectionRecord } = await import('../form-validation.js');
+
+  const empty = calculateDropInspectionMetrics([]);
+  assert.equal(empty.total, 0);
+  assert.equal(empty.passRate, 100);
+
+  const recPass = buildDropInspectionRecord({ id: 'c-1' }, {
+    spanMeters: 40, sagCm: 40, clearanceMeters: 2.0,
+    anchorType: 'SS Tension Clamp + Eye Bolt', surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: true, dripLoopInstalled: true
+  }, { sequence: 1 });
+
+  const recHazard = buildDropInspectionRecord({ id: 'c-2' }, {
+    spanMeters: 100, sagCm: 15, clearanceMeters: 0.3, electricalCrossing: true,
+    anchorType: 'Direct Cable Tie / Makeshift Wire', surfaceType: 'Wooden Rafter / Perlin'
+  }, { sequence: 2 });
+
+  const recCond = buildDropInspectionRecord({ id: 'c-3' }, {
+    spanMeters: 50, sagCm: 50, clearanceMeters: 1.5,
+    anchorType: 'Drive Hook (J-Hook)', surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: false, dripLoopInstalled: false
+  }, { sequence: 3 });
+
+  const metrics = calculateDropInspectionMetrics([recPass, recHazard, recCond]);
+  assert.equal(metrics.total, 3);
+  assert.equal(metrics.certifiedCount, 1);
+  assert.equal(metrics.hazardCount, 1);
+  assert.equal(metrics.conditionalCount, 1);
+  assert.equal(metrics.passRate, 33);
+  assert.ok(metrics.averageSpanMeters > 0);
+  assert.ok(metrics.highTensionCount >= 1);
+});
+
+test('formatDropInspectionWhatsApp generates bilingual technician dispatch text', async () => {
+  const { formatDropInspectionWhatsApp, buildDropInspectionRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'c-wa', name: 'Farooq Ahmad', customerNumber: '332', area: 'Kot Mohibbu' };
+  const record = buildDropInspectionRecord(customer, {
+    inspectorName: 'Saad Lead QA',
+    spanMeters: 60,
+    sagCm: 60,
+    clearanceMeters: 1.8,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: true,
+    dripLoopInstalled: true,
+    notes: 'Rooftop anchor tested up to 25 kg load.'
+  }, { sequence: 888 });
+
+  const msg = formatDropInspectionWhatsApp(record);
+  assert.match(msg, /DROP CABLE SAFETY QA CERTIFICATE/);
+  assert.match(msg, /DRP-202610-0888/);
+  assert.match(msg, /Farooq Ahmad/);
+  assert.match(msg, /Kot Mohibbu/);
+  assert.match(msg, /QA Verdict/);
+  assert.match(msg, /Saad Lead QA/);
+  assert.match(msg, /Shahdara Outside Plant/);
+});
+
+test('generateDropInspectionHtml renders valid formal A4 certificate and 80mm thermal slip layouts', async () => {
+  const { generateDropInspectionHtml, buildDropInspectionRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'c-html', name: 'Tariq Butt', customerNumber: '445', area: 'Saeed Park' };
+  const record = buildDropInspectionRecord(customer, {
+    inspectorName: 'Umair Inspector',
+    spanMeters: 50,
+    sagCm: 50,
+    clearanceMeters: 1.9,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: true,
+    dripLoopInstalled: true,
+    opticalPowerDbm: -19.8
+  }, { sequence: 999 });
+
+  const a4 = generateDropInspectionHtml(record, { mode: 'a4' });
+  assert.match(a4, /drop-a4-cert/);
+  assert.match(a4, /DRP-202610-0999/);
+  assert.match(a4, /Tariq Butt/);
+  assert.match(a4, /Anchor Specs/);
+  assert.match(a4, /Calculated Tension:/);
+  assert.match(a4, /Umair Inspector/);
+
+  const thermal = generateDropInspectionHtml(record, { mode: 'thermal' });
+  assert.match(thermal, /drop-thermal-slip/);
+  assert.match(thermal, /DRP-202610-0999/);
+  assert.match(thermal, /Tariq Butt/);
+  assert.match(thermal, /Certified Safe/);
+});
+
+test('generateDropInspectionsCsv produces compliant RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { generateDropInspectionsCsv, buildDropInspectionRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'c-csv', name: 'Bashir "Contractor" & Sons', area: 'GT Road, Shahdara' };
+  const record = buildDropInspectionRecord(customer, {
+    inspectorName: 'Saad QA',
+    spanMeters: 45,
+    sagCm: 45,
+    clearanceMeters: 2.1,
+    anchorType: 'SS Tension Clamp + Eye Bolt',
+    surfaceType: 'Solid Red Brick Masonry',
+    groundingBonded: true,
+    dripLoopInstalled: true,
+    notes: 'Line crosses street, verified clear'
+  }, { sequence: 404 });
+
+  const csv = generateDropInspectionsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.match(csv, /"Certificate ID","Customer ID","Subscriber Name"/);
+  assert.match(csv, /"Bashir ""Contractor"" & Sons"/);
+  assert.match(csv, /"GT Road, Shahdara"/);
+  assert.match(csv, /DRP-202610-0404/);
+});
+
+test('DOM and styling: index.html, styles.css, and app.js wire Drop Tension & Safety QA Inspection', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // index.html triggers and dialog markup
+  assert.match(indexHtml, /id="openDropInspectionBtn"/);
+  assert.match(indexHtml, /data-open-drop-inspection/);
+  assert.match(indexHtml, /<dialog id="dropSafetyInspectionModal" class="[^"]*drop-safety-modal/);
+  assert.match(indexHtml, /id="closeDropSafetyModalBtn"/);
+  assert.match(indexHtml, /id="dropKpiTotal"/);
+  assert.match(indexHtml, /id="dropKpiCert"/);
+  assert.match(indexHtml, /id="dropKpiHazard"/);
+  assert.match(indexHtml, /id="dropKpiRate"/);
+  assert.match(indexHtml, /id="dropSubName"/);
+  assert.match(indexHtml, /id="dropSubArea"/);
+  assert.match(indexHtml, /id="dropAnchorTypeSelect"/);
+  assert.match(indexHtml, /id="dropSurfaceTypeSelect"/);
+  assert.match(indexHtml, /id="dropSpanInput"/);
+  assert.match(indexHtml, /id="dropSagInput"/);
+  assert.match(indexHtml, /id="dropBendInput"/);
+  assert.match(indexHtml, /id="dropGroundInput"/);
+  assert.match(indexHtml, /id="dropChkDripLoop"/);
+  assert.match(indexHtml, /id="dropChkUvTies"/);
+  assert.match(indexHtml, /id="dropChkConduit"/);
+  assert.match(indexHtml, /id="dropChkSeal"/);
+  assert.match(indexHtml, /id="dropChkArrester"/);
+  assert.match(indexHtml, /id="dropPreviewTension"/);
+  assert.match(indexHtml, /id="dropPreviewVerdictBadge"/);
+  assert.match(indexHtml, /id="dropSubmitBtn"/);
+  assert.match(indexHtml, /id="dropCopyWhatsAppBtn"/);
+  assert.match(indexHtml, /id="dropPrintA4Btn"/);
+  assert.match(indexHtml, /id="dropPrintThermalBtn"/);
+  assert.match(indexHtml, /id="dropExportCsvBtn"/);
+  assert.match(indexHtml, /id="dropFilterVerdictSelect"/);
+  assert.match(indexHtml, /id="dropSearchInput"/);
+  assert.match(indexHtml, /id="dropHistoryTableBody"/);
+
+  // styles.css styles
+  assert.match(stylesCss, /\.drop-safety-modal/);
+  assert.match(stylesCss, /\.drop-safety-modal-card/);
+  assert.match(stylesCss, /\[data-theme="dark"\] \.drop-safety-modal-card/);
+
+  // app.js controller integration
+  assert.match(appJs, /setupDropSafetyInspectionModal/);
+  assert.match(appJs, /customerDropSafetyModalController/);
+  assert.match(appJs, /openDropInspectionBtn/);
+});
+

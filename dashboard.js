@@ -5589,3 +5589,22 @@ export {
   generateSrMplsReport,
   setupSrMplsModal
 } from './dashboard-sr-mpls.js';
+
+export {
+  PMD_CONSTANTS,
+  SHAHDARA_PMD_SPANS,
+  getPmdSelectedSpan,
+  setPmdSelectedSpan,
+  getPmdSelectedBitrate,
+  setPmdSelectedBitrate,
+  getPmdSelectedEnv,
+  setPmdSelectedEnv,
+  getPmdInducedStrainPct,
+  setPmdInducedStrainPct,
+  resetPmdSimState,
+  calculatePmdDynamics,
+  calculatePmdMetrics,
+  renderPmdDiagramSvg,
+  generatePmdReport,
+  setupPmdModal
+} from './dashboard-pmd.js';

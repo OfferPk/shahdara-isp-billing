@@ -410,7 +410,23 @@ import {
   calculateSrMplsMetrics,
   renderSrMplsDiagramSvg,
   generateSrMplsReport,
-  setupSrMplsModal
+  setupSrMplsModal,
+  PMD_CONSTANTS,
+  SHAHDARA_PMD_SPANS,
+  getPmdSelectedSpan,
+  setPmdSelectedSpan,
+  getPmdSelectedBitrate,
+  setPmdSelectedBitrate,
+  getPmdSelectedEnv,
+  setPmdSelectedEnv,
+  getPmdInducedStrainPct,
+  setPmdInducedStrainPct,
+  resetPmdSimState,
+  calculatePmdDynamics,
+  calculatePmdMetrics,
+  renderPmdDiagramSvg,
+  generatePmdReport,
+  setupPmdModal
 } from '../dashboard.js';
 
 
@@ -11367,4 +11383,286 @@ test('SR-MPLS simulation state getters, setters, and boundary constraints work c
   assert.equal(getSrMplsInjectedCongestionPct(), 0);
 });
 
+test('calculatePmdDynamics calculates mean DGD, Maxwellian peak DGD, SOPMD, and OSNR penalties under direct detect vs coherent DSP', () => {
+  const span01 = SHAHDARA_PMD_SPANS[0];
 
+  // Baseline optimal condition (10G NRZ, Quiet Duct, 0% strain)
+  const baseline = calculatePmdDynamics(span01, '10G_NRZ', 'QUIET_DUCT', 0);
+  assert.equal(baseline.status, 'Optimal');
+  assert.equal(baseline.meanDgdPs, 0.39);
+  assert.equal(baseline.peakDgdPs, 1.25);
+  assert.ok(baseline.dgdMarginPs > 10.0); // 12.0 - 1.25
+  assert.equal(baseline.coherentDspCompensated, false);
+  assert.equal(baseline.outageMinutesPerYear, 0);
+
+  // Coherent 100G DP-QPSK on modern span
+  const coherentDyn = calculatePmdDynamics(span01, '100G_DP_QPSK', 'QUIET_DUCT', 0);
+  assert.equal(coherentDyn.coherentDspCompensated, true);
+  assert.equal(coherentDyn.maxDgdTolerancePs, 35.0);
+  assert.ok(coherentDyn.dgdMarginPs > 30.0);
+
+  // Severe aerial span with 80% induced strain triggering CRITICAL status on 10G NRZ
+  const span03 = SHAHDARA_PMD_SPANS[2]; // 58km legacy aerial 0.22 ps/sqrt(km)
+  const severeDyn = calculatePmdDynamics(span03, '10G_NRZ', 'AERIAL_SEVERE', 80);
+  assert.ok(severeDyn.peakDgdPs > severeDyn.maxDgdTolerancePs);
+  assert.equal(severeDyn.status, 'Critical');
+  assert.ok(severeDyn.dgdMarginPs < 0);
+  assert.ok(severeDyn.outageMinutesPerYear > 0);
+});
+
+test('calculatePmdMetrics correlates optical span with subscriber ledger, monthly billed revenue, and revenue at risk', () => {
+  let state = createInitialState(['PMD Cust 1', 'PMD Cust 2', 'PMD Remote']);
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '6000', status: 'pending' }, refDate);
+
+  state.customers[1].area = 'Kot Abdul Malik';
+  state.customers[1].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[1].id, { month: '2026-10', dueAmount: '4000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: '2000', date: '2026-10-06', method: 'Cash' }, refDate);
+
+  state.customers[2].area = 'Distant Village';
+  state.customers[2].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[2].id, { month: '2026-10', dueAmount: '3500', status: 'pending' }, refDate);
+
+  const metrics = calculatePmdMetrics(state, {
+    spanId: 'pmd-span-01',
+    bitrate: '10G_NRZ',
+    envCondition: 'QUIET_DUCT',
+    strainPct: 0
+  });
+
+  assert.equal(metrics.span.id, 'pmd-span-01');
+  assert.equal(metrics.subscriberCorrelation.totalSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.activeSubscribers, 2);
+  assert.equal(metrics.subscriberCorrelation.sectorMonthlyRevenue, 10000);
+  assert.equal(metrics.subscriberCorrelation.sectorTotalDues, 8000); // 6000 + (4000 - 2000)
+  assert.equal(metrics.subscriberCorrelation.revenueAtRisk, 0);
+
+  // Test empty state
+  const emptyMetrics = calculatePmdMetrics({ customers: [] }, { spanId: 'pmd-span-02' });
+  assert.equal(emptyMetrics.span.id, 'pmd-span-02');
+  assert.equal(emptyMetrics.subscriberCorrelation.totalSubscribers, 0);
+  assert.equal(emptyMetrics.subscriberCorrelation.sectorMonthlyRevenue, 0);
+});
+
+test('renderPmdDiagramSvg produces accessible and valid SVG with Maxwellian curve, threshold markers, and SLA gauges', () => {
+  let state = createInitialState(['Test Cust']);
+  const metrics = calculatePmdMetrics(state, {
+    spanId: 'pmd-span-01',
+    bitrate: '10G_NRZ',
+    envCondition: 'QUIET_DUCT',
+    strainPct: 20
+  });
+
+  const fullSvg = renderPmdDiagramSvg(metrics, { compact: false });
+  assert.ok(fullSvg.includes('<svg class="pmd-svg"'));
+  assert.ok(fullSvg.includes('DWDM POLARIZATION MODE DISPERSION (PMD / DGD - ITU-T G.650.2)'));
+  assert.ok(fullSvg.includes('Mean:'));
+  assert.ok(fullSvg.includes('SLA Limit: 12ps'));
+  assert.ok(fullSvg.includes('OSNR Penalty:'));
+
+  const compactSvg = renderPmdDiagramSvg(metrics, { compact: true });
+  assert.ok(compactSvg.includes('<svg class="pmd-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 540 280"'));
+
+  const fallbackSvg = renderPmdDiagramSvg(null);
+  assert.ok(fallbackSvg.includes('No Optical PMD metrics available.'));
+});
+
+test('generatePmdReport formats comprehensive ITU-T G.650.2 engineering briefing', () => {
+  let state = createInitialState(['Test Cust']);
+  const metrics = calculatePmdMetrics(state, {
+    spanId: 'pmd-span-01',
+    bitrate: '10G_NRZ',
+    envCondition: 'QUIET_DUCT',
+    strainPct: 15
+  });
+
+  const report = generatePmdReport(metrics);
+  assert.ok(report.includes('SHAHDARA ISP DWDM POLARIZATION MODE DISPERSION (PMD/DGD) AUDIT BRIEFING'));
+  assert.ok(report.includes('MONITORED FIBER SPAN:'));
+  assert.ok(report.includes('Mean DGD (<Delta tau>):'));
+  assert.ok(report.includes('Peak Instantaneous DGD:'));
+  assert.ok(report.includes('Transponder Tolerance:'));
+  assert.ok(report.includes('SUBSCRIBER & REVENUE CORRELATION:'));
+
+  assert.equal(generatePmdReport(null), 'No Optical PMD metrics available.');
+});
+
+test('setupPmdModal binds DOM events, handles input updates, resets state, filters area, and copies briefing', async () => {
+  let state = createInitialState(['PMD Modal Cust']);
+  state.customers[0].area = 'Shahdara Town';
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '5000', status: 'pending' }, new Date('2026-10-15T12:00:00+05:00'));
+
+  let modalOpened = false;
+  let modalClosed = false;
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    removeAttribute: () => {},
+    setAttribute: () => {},
+    onclick: null
+  };
+  const mockOpenBtn = { onclick: null };
+  const mockCloseBtn = { onclick: null };
+
+  const mockSpanSelect = { value: 'pmd-span-01', innerHTML: '', onchange: null };
+  const mockRateSelect = { value: '10G_NRZ', innerHTML: '', onchange: null };
+  const mockEnvSelect = { value: 'QUIET_DUCT', innerHTML: '', onchange: null };
+  const mockStrainSlider = { value: '0', oninput: null };
+  const mockStrainValPill = { textContent: '0%' };
+  const mockResetBtn = { onclick: null };
+
+  const mockKpiSpanName = { textContent: '' };
+  const mockKpiMeanDgd = { textContent: '', style: {} };
+  const mockKpiPeakDgd = { textContent: '', style: {} };
+  const mockStatusBadge = { textContent: '', className: '' };
+  const mockKpiRevenueRisk = { textContent: '' };
+
+  const mockChartWrap = { innerHTML: '' };
+  const mockSpansTableBody = { innerHTML: '' };
+
+  const mockFilterAreaBtn = { onclick: null };
+  const mockCopyReportBtn = { onclick: null };
+  const mockCardChart = { innerHTML: '' };
+
+  const elementRegistry = {
+    'dashboardPmdModal': mockModal,
+    'dashboardOpenPmdModalBtn': mockOpenBtn,
+    'dashboardPmdModalCloseBtn': mockCloseBtn,
+    'pmdSpanSelect': mockSpanSelect,
+    'pmdRateSelect': mockRateSelect,
+    'pmdEnvSelect': mockEnvSelect,
+    'pmdStrainSlider': mockStrainSlider,
+    'pmdStrainVal': mockStrainValPill,
+    'pmdResetBtn': mockResetBtn,
+    'pmdKpiSpanName': mockKpiSpanName,
+    'pmdKpiMeanDgd': mockKpiMeanDgd,
+    'pmdKpiPeakDgd': mockKpiPeakDgd,
+    'pmdStatusBadge': mockStatusBadge,
+    'pmdKpiRevenueRisk': mockKpiRevenueRisk,
+    'pmdModalChartWrap': mockChartWrap,
+    'pmdSpansTableBody': mockSpansTableBody,
+    'pmdFilterAreaBtn': mockFilterAreaBtn,
+    'dashboardCopyPmdReportBtn': mockCopyReportBtn,
+    'dashboardPmdChart': mockCardChart
+  };
+
+  const originalDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: id => elementRegistry[id] || null
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+  let copiedText = null;
+
+  try {
+    setupPmdModal(state, {
+      onFilterArea: area => { filteredArea = area; },
+      onToast: msg => { toastMsg = msg; },
+      clipboard: {
+        writeText: async text => { copiedText = text; }
+      }
+    });
+
+    // Verification of initial render
+    assert.ok(mockCardChart.innerHTML.includes('pmd-svg'));
+    assert.ok(mockChartWrap.innerHTML.includes('pmd-svg'));
+    assert.ok(mockSpansTableBody.innerHTML.includes('PMD-SPAN-01'));
+    assert.ok(mockKpiSpanName.textContent.includes('Central Core Trunk'));
+
+    // Test select change: Switch span to pmd-span-02
+    mockSpanSelect.value = 'pmd-span-02';
+    mockSpanSelect.onchange({ target: { value: 'pmd-span-02' } });
+    assert.equal(getPmdSelectedSpan(), 'pmd-span-02');
+    assert.equal(getPmdSelectedBitrate(), '100G_DP_QPSK');
+
+    // Test bitrate change: Switch to 40G_DP_QPSK
+    mockRateSelect.value = '40G_DP_QPSK';
+    mockRateSelect.onchange({ target: { value: '40G_DP_QPSK' } });
+    assert.equal(getPmdSelectedBitrate(), '40G_DP_QPSK');
+
+    // Test env condition change: Switch to AERIAL_SEVERE
+    mockEnvSelect.value = 'AERIAL_SEVERE';
+    mockEnvSelect.onchange({ target: { value: 'AERIAL_SEVERE' } });
+    assert.equal(getPmdSelectedEnv(), 'AERIAL_SEVERE');
+
+    // Test strain slider input: 60%
+    mockStrainSlider.oninput({ target: { value: 60 } });
+    assert.equal(getPmdInducedStrainPct(), 60);
+    assert.equal(mockStrainValPill.textContent, '60%');
+
+    // Test reset button
+    mockResetBtn.onclick();
+    assert.equal(getPmdSelectedSpan(), 'pmd-span-01');
+    assert.equal(getPmdSelectedBitrate(), '10G_NRZ');
+    assert.equal(getPmdSelectedEnv(), 'QUIET_DUCT');
+    assert.equal(getPmdInducedStrainPct(), 0);
+    assert.equal(toastMsg, 'Optical PMD simulation reset to baseline parameters.');
+
+    // Test filter area action
+    mockFilterAreaBtn.onclick();
+    assert.equal(filteredArea, 'Shahdara Town');
+    assert.equal(modalClosed, true);
+
+    // Test copy briefing action
+    await mockCopyReportBtn.onclick();
+    assert.ok(copiedText.includes('SHAHDARA ISP DWDM POLARIZATION MODE DISPERSION (PMD/DGD) AUDIT BRIEFING'));
+    assert.equal(toastMsg, 'Optical PMD/DGD briefing copied to clipboard!');
+
+    // Test open and close dialog
+    mockOpenBtn.onclick();
+    assert.equal(modalOpened, true);
+    mockCloseBtn.onclick();
+    assert.equal(modalClosed, true);
+
+  } finally {
+    globalThis.document = originalDocument;
+    resetPmdSimState();
+  }
+});
+
+test('PMD simulation state getters, setters, and boundary constraints work correctly', () => {
+  resetPmdSimState();
+  assert.equal(getPmdSelectedSpan(), 'pmd-span-01');
+
+  // Span selection
+  setPmdSelectedSpan('pmd-span-03');
+  assert.equal(getPmdSelectedSpan(), 'pmd-span-03');
+  assert.equal(getPmdSelectedBitrate(), '10G_NRZ');
+  assert.equal(getPmdSelectedEnv(), 'AERIAL_MODERATE');
+  setPmdSelectedSpan('non-existent-span');
+  assert.equal(getPmdSelectedSpan(), 'pmd-span-03');
+
+  // Bitrate selection
+  setPmdSelectedBitrate('200G_16QAM');
+  assert.equal(getPmdSelectedBitrate(), '200G_16QAM');
+  setPmdSelectedBitrate('INVALID_RATE');
+  assert.equal(getPmdSelectedBitrate(), '200G_16QAM');
+
+  // Env condition
+  setPmdSelectedEnv('AERIAL_SEVERE');
+  assert.equal(getPmdSelectedEnv(), 'AERIAL_SEVERE');
+  setPmdSelectedEnv('INVALID_ENV');
+  assert.equal(getPmdSelectedEnv(), 'AERIAL_SEVERE');
+
+  // Strain percentage clamping [0, 100]
+  setPmdInducedStrainPct(35);
+  assert.equal(getPmdInducedStrainPct(), 35);
+  setPmdInducedStrainPct(160); // clamped to 100
+  assert.equal(getPmdInducedStrainPct(), 100);
+  setPmdInducedStrainPct(-15); // clamped to 0
+  assert.equal(getPmdInducedStrainPct(), 0);
+
+  // Reset
+  resetPmdSimState();
+  assert.equal(getPmdSelectedSpan(), 'pmd-span-01');
+  assert.equal(getPmdSelectedBitrate(), '10G_NRZ');
+  assert.equal(getPmdSelectedEnv(), 'QUIET_DUCT');
+  assert.equal(getPmdInducedStrainPct(), 0);
+});

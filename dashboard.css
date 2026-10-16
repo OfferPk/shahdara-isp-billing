@@ -2346,6 +2346,31 @@
   border-color: #1b3d54;
 }
 
+.chart-card-pmd {
+  background: var(--surface, #ffffff);
+}
+
+.pmd-modal-card {
+  max-width: 960px;
+}
+
+.pmd-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-pmd {
+  background: #172635;
+  border-color: #1b3d54;
+}
+
+[data-theme="dark"] .pmd-modal-card {
+  background: #101c28;
+  border-color: #1b3d54;
+}
+
 
 
 

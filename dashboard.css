@@ -1619,6 +1619,15 @@
   max-width: 860px;
 }
 
+/* CPE Asset Lifecycle Styles */
+.chart-card-cpe {
+  background: var(--surface, #ffffff);
+}
+
+.cpe-modal-card {
+  max-width: 860px;
+}
+
 .signal-tag {
   display: inline-block;
   padding: 2px 6px;

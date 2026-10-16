@@ -2592,3 +2592,26 @@
   border-color: #28443b;
 }
 
+/* Carrier Ethernet OAM & PM (ITU-T Y.1731 / 802.1ag) Styles */
+.chart-card-y1731-oam {
+  background: var(--surface, #ffffff);
+}
+
+.y1731-modal-card {
+  max-width: 820px;
+  width: 95vw;
+}
+
+.y1731-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-y1731-oam {
+  background: #182923;
+  border-color: #28443b;
+}
+
+

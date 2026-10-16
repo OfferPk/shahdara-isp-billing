@@ -5697,3 +5697,16 @@ export {
   setupErpsModal
 } from './dashboard-erps.js';
 
+export {
+  Y1731_OAM_CONSTANTS,
+  SHAHDARA_Y1731_SERVICES,
+  calculateY1731Dynamics,
+  calculateY1731Metrics,
+  renderY1731DiagramSvg,
+  generateY1731Report,
+  exportY1731Json,
+  exportY1731Csv,
+  setupY1731Modal
+} from './dashboard-y1731-oam.js';
+
+

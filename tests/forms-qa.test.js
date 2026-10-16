@@ -8269,3 +8269,521 @@ test('setupFerruleGeometryModal binds DOM elements, handles presets, recalculate
   controller.close();
   assert.equal(elements.ferruleGeometryModal.open, false);
 });
+
+// ============================================================================
+// Optical Fiber Fusion Splicer Arc Discharge Plasma, Electrode Life & Proof-Test Tension QA Suite
+// Standards: IEC 61073-1, Telcordia GR-765-CORE Issue 1, ITU-T G.650.1, ITU-T G.652.D
+// ============================================================================
+
+test('SPLICER_MODELS, FIBER_TYPES, PROOF_TEST_STATUSES, and FUSION_ARC_PRESETS contain accurate metrology parameters', async () => {
+  const { SPLICER_MODELS, FIBER_TYPES, PROOF_TEST_STATUSES, QA_VERDICTS, FUSION_ARC_PRESETS } = await import('../form-validation.js');
+
+  assert.ok(SPLICER_MODELS['FUJIKURA_90S']);
+  assert.ok(SPLICER_MODELS['SUMITOMO_Z2C']);
+  assert.ok(SPLICER_MODELS['INNO_VIEW7']);
+  assert.ok(SPLICER_MODELS['SIGNALFIRE_AI9']);
+  assert.ok(SPLICER_MODELS['FUJIKURA_41S']);
+
+  assert.equal(SPLICER_MODELS['FUJIKURA_90S'].maxElectrodeCycles, 5000);
+  assert.equal(SPLICER_MODELS['SUMITOMO_Z2C'].maxElectrodeCycles, 6000);
+  assert.equal(SPLICER_MODELS['FUJIKURA_90S'].standardProofTensionN, 2.0);
+
+  assert.ok(FIBER_TYPES['G652D']);
+  assert.ok(FIBER_TYPES['G657A1']);
+  assert.ok(FIBER_TYPES['G657A2']);
+  assert.ok(FIBER_TYPES['G655']);
+  assert.ok(FIBER_TYPES['OM3_MMF']);
+
+  assert.equal(FIBER_TYPES['G652D'].modeFieldDiameterUm, 9.2);
+  assert.equal(FIBER_TYPES['G652D'].claddingDiameterUm, 125.0);
+
+  assert.ok(PROOF_TEST_STATUSES['PASSED_TENSILE_VERIFIED'].isPassing);
+  assert.ok(!PROOF_TEST_STATUSES['FAILED_TENSILE_FRACTURE'].isPassing);
+
+  assert.ok(QA_VERDICTS['TELCORDIA_GRADE_A'].isCompliant);
+  assert.ok(QA_VERDICTS['COMMERCIAL_PASS'].isCompliant);
+  assert.ok(!QA_VERDICTS['REJECT_RESPLICE_MANDATED'].isCompliant);
+
+  assert.ok(FUSION_ARC_PRESETS.PRESET_BARADARI_MAIN_FEEDER_GRADE_A);
+  assert.ok(FUSION_ARC_PRESETS.PRESET_BEGUM_KOT_HIGH_PRESSURE_SUMITOMO);
+  assert.ok(FUSION_ARC_PRESETS.PRESET_JIA_MUSA_WORN_ELECTRODE_WARNING);
+  assert.ok(FUSION_ARC_PRESETS.PRESET_RACHNA_TOWN_CLEAVE_TILT_FAIL);
+  assert.ok(FUSION_ARC_PRESETS.PRESET_VANDALA_ROAD_PROOF_SNAP_FRACTURE);
+});
+
+test('calculateElectrodeLife calculates wear odometer, status, and tip radius erosion accurately', async () => {
+  const { calculateElectrodeLife } = await import('../form-validation.js');
+
+  // Case 1: Brand new electrodes (500 / 5000)
+  const life1 = calculateElectrodeLife(500, 5000);
+  assert.equal(life1.dischargeCount, 500);
+  assert.equal(life1.maxCycles, 5000);
+  assert.equal(life1.remainingDischarges, 4500);
+  assert.equal(life1.remainingPercent, 90);
+  assert.equal(life1.status, 'OPTIMAL_PRISTINE');
+  assert.equal(life1.estimatedTipRadiusUm, 26.0); // 20 * (1 + 0.0006 * 500) = 26.0
+
+  // Case 2: Normal wear (3200 / 5000, 64% used)
+  const life2 = calculateElectrodeLife(3200, 5000);
+  assert.equal(life2.status, 'NORMAL_WEAR');
+  assert.equal(life2.remainingPercent, 36);
+
+  // Case 3: Maintenance due (4400 / 5000, 88% used)
+  const life3 = calculateElectrodeLife(4400, 5000);
+  assert.equal(life3.status, 'MAINTENANCE_DUE');
+
+  // Case 4: Expired (5200 / 5000)
+  const life4 = calculateElectrodeLife(5200, 5000);
+  assert.equal(life4.status, 'EXPIRED_REPLACE_MANDATORY');
+  assert.equal(life4.remainingPercent, 0);
+  assert.equal(life4.remainingDischarges, 0);
+});
+
+test('calculateArcCompensation computes temperature, barometric pressure, and humidity drive deltas', async () => {
+  const { calculateArcCompensation } = await import('../form-validation.js');
+
+  // Standard condition: 20°C, 1013.25 hPa, 50% RH
+  const compStd = calculateArcCompensation(20, 1013.25, 50, 100);
+  assert.equal(compStd.totalDeltaCurrentMa, 0);
+  assert.equal(compStd.arcPowerStepAdjustment, 0);
+  assert.equal(compStd.calibratedArcPower, 100);
+  assert.equal(compStd.condition, 'BALANCED_STABLE');
+
+  // Cold weather at high elevation/pressure drop: 10°C, 990 hPa, 70% RH
+  // deltaTemp = -0.04 * (10 - 20) = +0.40 mA
+  // deltaPress = 0.015 * (1013.25 - 990) = +0.34875 mA
+  // deltaHum = 0.010 * (70 - 50) = +0.20 mA
+  // Total ~ 0.95 mA -> step ~ 0.95 / 0.02 = 47.5 -> 48 steps
+  const compColdHigh = calculateArcCompensation(10, 990, 70, 100);
+  assert.ok(compColdHigh.totalDeltaCurrentMa > 0.8);
+  assert.ok(compColdHigh.arcPowerStepAdjustment > 40);
+  assert.ok(compColdHigh.calibratedArcPower > 140);
+  assert.equal(compColdHigh.condition, 'HIGH_POWER_COMPENSATION');
+
+  // Hot summer day: 42°C, 1015 hPa, 30% RH
+  const compHot = calculateArcCompensation(42, 1015, 30, 100);
+  assert.ok(compHot.totalDeltaCurrentMa < -0.8);
+  assert.ok(compHot.calibratedArcPower < 80);
+  assert.equal(compHot.condition, 'LOW_POWER_REDUCTION');
+});
+
+test('calculateSpliceLoss computes Marcuse core eccentricity and cleave angle tilt losses', async () => {
+  const { calculateSpliceLoss } = await import('../form-validation.js');
+
+  // Pristine joint: G.652.D (MFD 9.2um, w = 4.6um), 0.10um X, 0.10um Y, 0.4° and 0.5° cleave
+  const res = calculateSpliceLoss({
+    fiberTypeId: 'G652D',
+    coreOffsetXUm: 0.10,
+    coreOffsetYUm: 0.10,
+    cleaveAngleLeftDeg: 0.4,
+    cleaveAngleRightDeg: 0.5,
+    bubblePenaltyDb: 0.000
+  });
+
+  assert.equal(res.fiberTypeId, 'G652D');
+  assert.equal(res.netCoreOffsetUm, 0.141); // sqrt(0.01 + 0.01) = 0.1414
+  assert.ok(res.offsetLossDb > 0.003 && res.offsetLossDb < 0.006);
+  assert.equal(res.netTiltAngleDeg, 0.1);
+  assert.ok(res.totalSpliceLossDb > 0.010 && res.totalSpliceLossDb < 0.020);
+
+  // Severe offset and tilt: 0.8um offset, 2.5° cleave difference, 0.05 bubble
+  const resBad = calculateSpliceLoss({
+    fiberTypeId: 'G652D',
+    coreOffsetXUm: 0.8,
+    coreOffsetYUm: 0.6,
+    cleaveAngleLeftDeg: 3.0,
+    cleaveAngleRightDeg: 0.5,
+    bubblePenaltyDb: 0.05
+  });
+
+  assert.equal(resBad.netCoreOffsetUm, 1.0); // sqrt(0.64 + 0.36) = 1.0
+  assert.ok(resBad.offsetLossDb > 0.15); // 4.343 * (1.0 / 4.6)^2 ~ 0.205 dB
+  assert.ok(resBad.tiltLossDb > 0.08);
+  assert.equal(resBad.defectLossDb, 0.05);
+  assert.ok(resBad.totalSpliceLossDb > 0.30);
+});
+
+test('evaluateFusionSpliceQa correctly classifies Telcordia Grade A, Commercial Pass, and Re-Splice', async () => {
+  const { evaluateFusionSpliceQa } = await import('../form-validation.js');
+
+  // Grade A Master Splice
+  const evalGradeA = evaluateFusionSpliceQa({
+    splicerModelId: 'FUJIKURA_90S',
+    fiberTypeId: 'G652D',
+    dischargeCount: 450,
+    coreOffsetXUm: 0.10,
+    coreOffsetYUm: 0.08,
+    cleaveAngleLeftDeg: 0.4,
+    cleaveAngleRightDeg: 0.5,
+    proofTensionN: 2.10,
+    proofStatus: 'PASSED_TENSILE_VERIFIED'
+  });
+
+  assert.equal(evalGradeA.verdict.id, 'TELCORDIA_GRADE_A');
+  assert.ok(evalGradeA.isApproved);
+  assert.ok(evalGradeA.spliceLoss.totalSpliceLossDb <= 0.030);
+  assert.equal(evalGradeA.proofStressMpa, 171.1); // 2.10 * 81.49 = 171.129
+
+  // Commercial Pass
+  const evalComm = evaluateFusionSpliceQa({
+    splicerModelId: 'SUMITOMO_Z2C',
+    fiberTypeId: 'G657A1',
+    dischargeCount: 2200,
+    coreOffsetXUm: 0.28,
+    coreOffsetYUm: 0.22,
+    cleaveAngleLeftDeg: 0.9,
+    cleaveAngleRightDeg: 1.1,
+    proofTensionN: 1.96,
+    proofStatus: 'PASSED_TENSILE_VERIFIED'
+  });
+
+  assert.equal(evalComm.verdict.id, 'COMMERCIAL_PASS');
+  assert.ok(evalComm.isApproved);
+
+  // Rejected due to Tensile Fracture
+  const evalFracture = evaluateFusionSpliceQa({
+    splicerModelId: 'FUJIKURA_41S',
+    fiberTypeId: 'G652D',
+    dischargeCount: 1500,
+    coreOffsetXUm: 0.15,
+    coreOffsetYUm: 0.12,
+    proofTensionN: 1.96,
+    proofStatus: 'FAILED_TENSILE_FRACTURE'
+  });
+
+  assert.equal(evalFracture.verdict.id, 'REJECT_RESPLICE_MANDATED');
+  assert.ok(!evalFracture.isApproved);
+
+  // Rejected due to excessive cleave angle (> 2.0°)
+  const evalCleaveFail = evaluateFusionSpliceQa({
+    splicerModelId: 'SIGNALFIRE_AI9',
+    fiberTypeId: 'G657A2',
+    cleaveAngleLeftDeg: 2.8,
+    cleaveAngleRightDeg: 0.5,
+    proofTensionN: 2.0,
+    proofStatus: 'PASSED_TENSILE_VERIFIED'
+  });
+
+  assert.equal(evalCleaveFail.verdict.id, 'REJECT_RESPLICE_MANDATED');
+  assert.ok(!evalCleaveFail.isApproved);
+});
+
+test('renderFusionArcQaAnalysisSvg renders clean SVG markup with PAS alignment elements', async () => {
+  const { evaluateFusionSpliceQa, renderFusionArcQaAnalysisSvg } = await import('../form-validation.js');
+
+  const evaluation = evaluateFusionSpliceQa({
+    splicerModelId: 'FUJIKURA_90S',
+    fiberTypeId: 'G652D',
+    dischargeCount: 500,
+    coreOffsetXUm: 0.12,
+    coreOffsetYUm: 0.10,
+    cleaveAngleLeftDeg: 0.4,
+    cleaveAngleRightDeg: 0.5,
+    proofTensionN: 2.0,
+    proofStatus: 'PASSED_TENSILE_VERIFIED'
+  });
+
+  const svg = renderFusionArcQaAnalysisSvg(evaluation, { width: 760, height: 360 });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('PAS Core Alignment'));
+  assert.ok(svg.includes('Fiber A (Left)'));
+  assert.ok(svg.includes('Fiber B (Right)'));
+  assert.ok(svg.includes('plasmaGlow'));
+  assert.ok(svg.includes('plasmaFilter'));
+  assert.ok(svg.includes('CALIBRATED ARC POWER'));
+  assert.ok(svg.includes('ESTIMATED JOINT LOSS'));
+
+  // Test empty/null input fallback
+  const emptySvg = renderFusionArcQaAnalysisSvg(null);
+  assert.ok(emptySvg.includes('No Fusion QA Data'));
+});
+
+test('buildFusionArcQaRecord and generateFusionArcQaCertId generate structured immutable records', async () => {
+  const { buildFusionArcQaRecord, generateFusionArcQaCertId } = await import('../form-validation.js');
+
+  const id = generateFusionArcQaCertId('2026-10-17T04:00:00Z');
+  assert.match(id, /^FUS-202610-\d{4}$/);
+
+  const record = buildFusionArcQaRecord({
+    customer: { id: 'cust-77', name: 'Zain Ul Abideen', phone: '03021122334', mohalla: 'Jia Musa', zone: 'Zone-A' },
+    splicerModelId: 'FUJIKURA_90S',
+    splicerSerialNumber: 'F90S-PK-88241',
+    dischargeCount: 600,
+    technicianName: 'Umair Splicer',
+    notes: 'Fusion joint inside 24-core dome closure tray 1.'
+  });
+
+  assert.ok(record.id.startsWith('FUS-'));
+  assert.equal(record.customerName, 'Zain Ul Abideen');
+  assert.equal(record.customerArea, 'Jia Musa, Zone-A');
+  assert.equal(record.technicianName, 'Umair Splicer');
+  assert.equal(record.status, 'ACTIVE_CERTIFIED');
+  assert.ok(record.evaluation);
+  assert.equal(record.evaluation.splicerSerialNumber, 'F90S-PK-88241');
+});
+
+test('generateFusionArcQaCertHtml produces formal A4 and 80mm thermal receipt slips', async () => {
+  const { buildFusionArcQaRecord, generateFusionArcQaCertHtml } = await import('../form-validation.js');
+
+  const record = buildFusionArcQaRecord({
+    customer: { id: 'cust-10', name: 'Mian Aslam', phone: '03009988776', mohalla: 'Baradari' },
+    splicerModelId: 'FUJIKURA_90S',
+    dischargeCount: 450,
+    proofTensionN: 2.10,
+    proofStatus: 'PASSED_TENSILE_VERIFIED',
+    spliceLocation: 'Baradari Chowk ODF'
+  });
+
+  // Standard A4
+  const a4Html = generateFusionArcQaCertHtml(record, { format: 'standard' });
+  assert.ok(a4Html.includes('fusion-arc-qa-sheet'));
+  assert.ok(a4Html.includes('Shahdara ISP Network Operations'));
+  assert.ok(a4Html.includes('آپٹیکل فائبر فیوژن آرک کیلیبریشن و ٹینسائل کوالٹی سرٹیفکیٹ'));
+  assert.ok(a4Html.includes('Mian Aslam'));
+  assert.ok(a4Html.includes('Baradari Chowk ODF'));
+  assert.ok(a4Html.includes('PAS Core Alignment'));
+  assert.ok(a4Html.includes('Proof-Test Tensile Pull Load'));
+
+  // Thermal 80mm
+  const thermalHtml = generateFusionArcQaCertHtml(record, { format: 'thermal' });
+  assert.ok(thermalHtml.includes('fusion-arc-thermal-slip'));
+  assert.ok(thermalHtml.includes('FUSION SPLICER ARC QA SLIP'));
+  assert.ok(thermalHtml.includes('Shahdara ISP Network'));
+  assert.ok(thermalHtml.includes('Mian Aslam') || thermalHtml.includes('Baradari Chowk ODF'));
+  assert.ok(thermalHtml.includes('ESTIMATED LOSS:'));
+  assert.ok(thermalHtml.includes('PROOF TENSION:'));
+});
+
+test('formatFusionArcQaCertWhatsApp formats bilingual Urdu/English technician dispatch text', async () => {
+  const { buildFusionArcQaRecord, formatFusionArcQaCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildFusionArcQaRecord({
+    customer: { id: 'cust-20', name: 'Tariq Butt', phone: '03004455667', mohalla: 'Vandala Road' },
+    splicerModelId: 'SUMITOMO_Z2C',
+    splicerSerialNumber: 'SZ2C-99120',
+    dischargeCount: 1850,
+    spliceLocation: 'Vandala Road Sub-FAT #04',
+    proofTensionN: 1.98,
+    proofStatus: 'PASSED_TENSILE_VERIFIED'
+  });
+
+  const waText = formatFusionArcQaCertWhatsApp(record);
+  assert.ok(waText.includes('SHAHDARA ISP · FUSION SPLICER ARC QA CERTIFICATE'));
+  assert.ok(waText.includes('آپٹیکل فائبر فیوژن ویلڈنگ و کوالٹی رپورٹ'));
+  assert.ok(waText.includes('SZ2C-99120'));
+  assert.ok(waText.includes('Vandala Road Sub-FAT #04'));
+  assert.ok(waText.includes('جوائنٹ لاس (Insertion Loss):'));
+  assert.ok(waText.includes('1.98 N'));
+  assert.ok(waText.includes('✅'));
+
+  // Null input handles gracefully
+  assert.equal(formatFusionArcQaCertWhatsApp(null), '');
+});
+
+test('generateFusionArcQaCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { buildFusionArcQaRecord, generateFusionArcQaCertsCsv } = await import('../form-validation.js');
+
+  const r1 = buildFusionArcQaRecord({
+    customer: { id: 'c1', name: 'Bilal Ahmad', mohalla: 'Begum Kot' },
+    splicerModelId: 'FUJIKURA_90S',
+    splicerSerialNumber: 'F90S-PK-88241',
+    dischargeCount: 450,
+    notes: 'Clean joint, no bubbles.'
+  });
+
+  const r2 = buildFusionArcQaRecord({
+    customer: { id: 'c2', name: 'Shahid Mehmood', mohalla: 'Jia Musa' },
+    splicerModelId: 'INNO_VIEW7',
+    splicerSerialNumber: 'IV7-44021',
+    dischargeCount: 4150,
+    notes: 'Electrode oxidation noted, cleaning required.'
+  });
+
+  const csv = generateFusionArcQaCertsCsv([r1, r2]);
+  assert.ok(csv.startsWith('\uFEFF')); // UTF-8 BOM
+  assert.ok(csv.includes('Certificate_ID,Created_At,Customer_Name'));
+  assert.ok(csv.includes('Bilal Ahmad'));
+  assert.ok(csv.includes('Shahid Mehmood'));
+  assert.ok(csv.includes('F90S-PK-88241'));
+  assert.ok(csv.includes('IV7-44021'));
+  assert.ok(csv.includes('"Clean joint, no bubbles."'));
+});
+
+test('LocalStorage persistence methods and calculateFusionArcQaMetrics aggregate audit data', async () => {
+  const {
+    FUSION_ARC_QA_STORAGE_KEY,
+    getSavedFusionArcQaCerts,
+    saveFusionArcQaCert,
+    updateFusionArcQaCertStatus,
+    clearFusionArcQaCerts,
+    calculateFusionArcQaMetrics,
+    buildFusionArcQaRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedFusionArcQaCerts(mockStorage), []);
+
+  const r1 = buildFusionArcQaRecord({
+    id: 'FUS-202610-1001',
+    splicerModelId: 'FUJIKURA_90S',
+    coreOffsetXUm: 0.10,
+    coreOffsetYUm: 0.08,
+    proofTensionN: 2.10,
+    proofStatus: 'PASSED_TENSILE_VERIFIED'
+  });
+
+  const r2 = buildFusionArcQaRecord({
+    id: 'FUS-202610-1002',
+    splicerModelId: 'FUJIKURA_41S',
+    dischargeCount: 2900,
+    proofStatus: 'FAILED_TENSILE_FRACTURE'
+  });
+
+  saveFusionArcQaCert(r1, mockStorage);
+  saveFusionArcQaCert(r2, mockStorage);
+
+  const list = getSavedFusionArcQaCerts(mockStorage);
+  assert.equal(list.length, 2);
+
+  // Update status
+  updateFusionArcQaCertStatus('FUS-202610-1002', 'RESOLVED_RESPLICED', mockStorage);
+  const updatedList = getSavedFusionArcQaCerts(mockStorage);
+  const updatedItem = updatedList.find(r => r.id === 'FUS-202610-1002');
+  assert.equal(updatedItem.status, 'RESOLVED_RESPLICED');
+
+  // Metrics calculation
+  const metrics = calculateFusionArcQaMetrics(updatedList);
+  assert.equal(metrics.totalInspections, 2);
+  assert.equal(metrics.gradeACount, 1);
+  assert.equal(metrics.rejectedCount, 1);
+  assert.equal(metrics.fractureCount, 1);
+  assert.equal(metrics.complianceRatePercent, 50.0);
+
+  // Clear
+  clearFusionArcQaCerts(mockStorage);
+  assert.deepEqual(getSavedFusionArcQaCerts(mockStorage), []);
+});
+
+test('setupFusionArcQaModal initializes controller and binds DOM mock elements', async () => {
+  const { setupFusionArcQaModal } = await import('../form-validation.js');
+
+  function createMockEl(id) {
+    return {
+      id,
+      value: '',
+      innerHTML: '',
+      open: false,
+      listeners: {},
+      addEventListener(event, fn) {
+        if (!this.listeners[event]) this.listeners[event] = [];
+        this.listeners[event].push(fn);
+      },
+      dispatchEvent(event) {
+        const fns = this.listeners[event.type] || [];
+        fns.forEach(fn => fn(event));
+      },
+      click() {
+        this.dispatchEvent({ type: 'click' });
+      },
+      close() { this.open = false; },
+      showModal() { this.open = true; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      querySelectorAll() { return []; }
+    };
+  }
+
+  const elements = {
+    fusionArcQaModal: createMockEl('fusionArcQaModal'),
+    closeFusionArcQaBtn: createMockEl('closeFusionArcQaBtn'),
+    fusionArcPresetSelect: createMockEl('fusionArcPresetSelect'),
+    fusionArcSplicerSelect: createMockEl('fusionArcSplicerSelect'),
+    fusionArcFiberTypeSelect: createMockEl('fusionArcFiberTypeSelect'),
+    fusionArcSerialInput: createMockEl('fusionArcSerialInput'),
+    fusionArcLocationInput: createMockEl('fusionArcLocationInput'),
+    fusionArcTechnicianInput: createMockEl('fusionArcTechnicianInput'),
+    fusionArcDischargeInput: createMockEl('fusionArcDischargeInput'),
+    fusionArcTempInput: createMockEl('fusionArcTempInput'),
+    fusionArcPressureInput: createMockEl('fusionArcPressureInput'),
+    fusionArcHumidityInput: createMockEl('fusionArcHumidityInput'),
+    fusionArcOffsetXInput: createMockEl('fusionArcOffsetXInput'),
+    fusionArcOffsetYInput: createMockEl('fusionArcOffsetYInput'),
+    fusionArcCleaveLeftInput: createMockEl('fusionArcCleaveLeftInput'),
+    fusionArcCleaveRightInput: createMockEl('fusionArcCleaveRightInput'),
+    fusionArcProofTensionInput: createMockEl('fusionArcProofTensionInput'),
+    fusionArcProofStatusSelect: createMockEl('fusionArcProofStatusSelect'),
+    fusionArcBubblePenaltyInput: createMockEl('fusionArcBubblePenaltyInput'),
+    fusionArcNotesInput: createMockEl('fusionArcNotesInput'),
+    fusionArcSvgContainer: createMockEl('fusionArcSvgContainer'),
+    fusionArcHudRibbon: createMockEl('fusionArcHudRibbon'),
+    fusionArcHistoryTable: createMockEl('fusionArcHistoryTable'),
+    fusionArcHistoryTbody: createMockEl('fusionArcHistoryTbody'),
+    fusionArcSearchInput: createMockEl('fusionArcSearchInput'),
+    fusionArcStatusFilterSelect: createMockEl('fusionArcStatusFilterSelect'),
+    saveFusionArcCertBtn: createMockEl('saveFusionArcCertBtn'),
+    printFusionArcStandardBtn: createMockEl('printFusionArcStandardBtn'),
+    printFusionArcThermalBtn: createMockEl('printFusionArcThermalBtn'),
+    whatsAppFusionArcBtn: createMockEl('whatsAppFusionArcBtn'),
+    exportFusionArcCsvBtn: createMockEl('exportFusionArcCsvBtn')
+  };
+
+  elements.fusionArcSplicerSelect.value = 'FUJIKURA_90S';
+  elements.fusionArcFiberTypeSelect.value = 'G652D';
+  elements.fusionArcDischargeInput.value = '450';
+  elements.fusionArcTempInput.value = '22';
+  elements.fusionArcPressureInput.value = '1012';
+  elements.fusionArcHumidityInput.value = '45';
+  elements.fusionArcOffsetXInput.value = '0.12';
+  elements.fusionArcOffsetYInput.value = '0.08';
+  elements.fusionArcCleaveLeftInput.value = '0.4';
+  elements.fusionArcCleaveRightInput.value = '0.5';
+  elements.fusionArcProofTensionInput.value = '2.10';
+  elements.fusionArcProofStatusSelect.value = 'PASSED_TENSILE_VERIFIED';
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toastLog = [];
+  try {
+    const controller = setupFusionArcQaModal({
+      storage: mockStorage,
+      onToast: (msg) => toastLog.push(msg)
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.recalculate, 'function');
+    assert.equal(typeof controller.populateCustomer, 'function');
+    assert.equal(typeof controller.renderHistory, 'function');
+
+    assert.ok(elements.fusionArcSvgContainer.innerHTML.includes('<svg'));
+    assert.ok(elements.fusionArcHudRibbon.innerHTML.includes('Estimated Joint Loss'));
+
+    // Save action
+    elements.saveFusionArcCertBtn.click();
+    assert.ok(toastLog.some(msg => msg.includes('saved successfully')));
+
+    // Close button
+    elements.closeFusionArcQaBtn.click();
+    assert.equal(elements.fusionArcQaModal.open, false);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

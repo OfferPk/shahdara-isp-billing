@@ -5899,3 +5899,44 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* Optical Fiber Fusion Splicer Arc Discharge Plasma, Electrode Life & Proof-Test Tension QA Suite */
+.fusion-arc-qa-modal-card {
+  max-width: 960px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.fusion-arc-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.fusion-arc-svg-wrap svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+  width: 100%;
+  max-width: 820px;
+  display: block;
+  margin: 0 auto;
+}
+
+[data-theme="dark"] .fusion-arc-qa-modal-card {
+  background: #111a2e;
+  border-color: #1e293b;
+  color: #f1f5f9;
+}
+
+@media print {
+  .fusion-arc-qa-modal,
+  .fusion-arc-qa-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

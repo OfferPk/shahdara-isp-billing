@@ -47,7 +47,8 @@ import {
   setupDispersionCertModal,
   setupBendLossCertModal,
   setupBidirectionalOtdrModal,
-  setupOtdrDeadzoneModal
+  setupOtdrDeadzoneModal,
+  setupSplitterQaModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3390,6 +3391,7 @@ export let customerDispersionModalController;
 export let customerBendLossModalController;
 export let customerBidirectionalOtdrModalController;
 export let customerOtdrDeadzoneModalController;
+export let customerSplitterQaModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3699,6 +3701,26 @@ if (typeof document !== 'undefined') {
         }
         customerOtdrDeadzoneModalController?.recalculate();
         customerOtdrDeadzoneModalController?.renderHistory();
+      }
+    });
+  }
+
+  customerSplitterQaModalController = setupSplitterQaModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openSplitterQaBtn = $('#openSplitterQaBtn');
+  if (openSplitterQaBtn) {
+    openSplitterQaBtn.addEventListener('click', () => {
+      const modal = $('#splitterQaModal');
+      if (modal) {
+        if (typeof modal.showModal === 'function') {
+          modal.showModal();
+        } else {
+          modal.setAttribute('open', '');
+        }
+        customerSplitterQaModalController?.recalculate();
       }
     });
   }

@@ -7993,3 +7993,326 @@ test('nav-splitter-tree: setupMobileSplitterTreeModal lifecycle and UI interacti
     globalThis.document = origDoc;
   }
 });
+
+test('FIBER_STANDARDS, WAVELENGTH_BEND_FACTORS and SHAHDARA_MACRO_BEND_PRESETS definitions are valid', async () => {
+  const { FIBER_STANDARDS, WAVELENGTH_BEND_FACTORS, CABLE_CONSTRUCTIONS, SHAHDARA_MACRO_BEND_PRESETS } = await import('../nav.js');
+
+  assert.ok(FIBER_STANDARDS.G652D);
+  assert.equal(FIBER_STANDARDS.G652D.minSafeRadiusMm, 30.0);
+  assert.ok(FIBER_STANDARDS.G657A1);
+  assert.equal(FIBER_STANDARDS.G657A1.minSafeRadiusMm, 10.0);
+  assert.ok(FIBER_STANDARDS.G657A2);
+  assert.equal(FIBER_STANDARDS.G657A2.minSafeRadiusMm, 7.5);
+  assert.ok(FIBER_STANDARDS.G657B3);
+  assert.equal(FIBER_STANDARDS.G657B3.minSafeRadiusMm, 5.0);
+
+  assert.ok(WAVELENGTH_BEND_FACTORS[1310]);
+  assert.equal(WAVELENGTH_BEND_FACTORS[1310].factor, 1.0);
+  assert.ok(WAVELENGTH_BEND_FACTORS[1550].factor > WAVELENGTH_BEND_FACTORS[1490].factor);
+  assert.ok(WAVELENGTH_BEND_FACTORS[1577].factor > WAVELENGTH_BEND_FACTORS[1550].factor);
+
+  assert.ok(CABLE_CONSTRUCTIONS.ROUND_DROP_3MM);
+  assert.ok(CABLE_CONSTRUCTIONS.FLAT_BUTTERFLY_2X3);
+
+  assert.equal(SHAHDARA_MACRO_BEND_PRESETS.length, 4);
+  assert.ok(SHAHDARA_MACRO_BEND_PRESETS.some(p => p.id === 'PRESET_WINDOW_STAPLE'));
+  assert.ok(SHAHDARA_MACRO_BEND_PRESETS.some(p => p.id === 'PRESET_ROOFTOP_DRIP_LOOP'));
+});
+
+test('calculateMacroBendLoss accurately computes compliant vs severe macro-bend attenuation', async () => {
+  const { calculateMacroBendLoss } = await import('../nav.js');
+
+  // Compliant loop: R=35mm, G.657.A1, 1490nm
+  const safe = calculateMacroBendLoss({
+    fiberStandard: 'G657A1',
+    bendRadiusMm: 35.0,
+    turnCount: 1,
+    bendAngleDeg: 360,
+    wavelengthNm: 1490,
+    inputPowerDbm: -19.0
+  });
+
+  assert.equal(safe.status, 'COMPLIANT');
+  assert.equal(safe.mechanicalFractureRisk, false);
+  assert.ok(safe.totalMacroBendLossDb < 0.1);
+  assert.ok(safe.powerMarginDb > 8.0); // -19.0 - (-28.0) ~ 9dB margin
+
+  // Severe staple pinch: R=4mm, G.652.D SSMF (min 30mm)
+  const severe = calculateMacroBendLoss({
+    fiberStandard: 'G652D',
+    bendRadiusMm: 4.0,
+    turnCount: 1,
+    bendAngleDeg: 90,
+    wavelengthNm: 1490,
+    inputPowerDbm: -19.5
+  });
+
+  assert.equal(severe.status, 'CRITICAL_FAULT');
+  assert.equal(severe.mechanicalFractureRisk, true);
+  assert.ok(severe.totalMacroBendLossDb > 1.5);
+  assert.ok(severe.remediation.includes('URGENT'));
+
+  // Multi-turn cumulative loss
+  const twoTurns = calculateMacroBendLoss({
+    fiberStandard: 'G652D',
+    bendRadiusMm: 8.0,
+    turnCount: 2,
+    bendAngleDeg: 180,
+    wavelengthNm: 1490
+  });
+  const oneTurn = calculateMacroBendLoss({
+    fiberStandard: 'G652D',
+    bendRadiusMm: 8.0,
+    turnCount: 1,
+    bendAngleDeg: 180,
+    wavelengthNm: 1490
+  });
+  assert.equal(twoTurns.totalMacroBendLossDb, Number((oneTurn.totalMacroBendLossDb * 2).toFixed(2)));
+});
+
+test('calculateMacroBendLoss correctly identifies dual-wavelength differential macro-bend signature', async () => {
+  const { calculateMacroBendLoss } = await import('../nav.js');
+
+  const bend = calculateMacroBendLoss({
+    fiberStandard: 'G652D',
+    bendRadiusMm: 8.0,
+    turnCount: 1,
+    bendAngleDeg: 90
+  });
+
+  assert.ok(bend.multiWavelengthLosses[1550] > bend.multiWavelengthLosses[1310]);
+  assert.ok(bend.multiWavelengthLosses[1577] > bend.multiWavelengthLosses[1550]);
+  assert.ok(bend.hasMacroBendSignature);
+  assert.ok(bend.differential1550vs1310Db >= 0.5);
+});
+
+test('getMacroBendStore, saveMacroBendStore, recordMacroBendAudit and clearMacroBendStore manage audit history', async () => {
+  const { getMacroBendStore, recordMacroBendAudit, clearMacroBendStore, MACRO_BEND_STORAGE_KEY } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const initial = getMacroBendStore(mockStorage);
+  assert.ok(Array.isArray(initial));
+  assert.equal(initial.length, 2);
+
+  const newAudit = recordMacroBendAudit({
+    location: 'Shahdara Town - House #45',
+    technician: 'Imran Lineman',
+    fiberStandard: 'G657A1',
+    bendRadiusMm: 25.0,
+    totalMacroBendLossDb: 0.05,
+    differential1550vs1310Db: 0.08,
+    outputPowerDbm: -19.05,
+    status: 'COMPLIANT'
+  }, mockStorage);
+
+  assert.ok(newAudit.id.startsWith('mb-audit-'));
+  const updated = getMacroBendStore(mockStorage);
+  assert.equal(updated.length, 3);
+  assert.equal(updated[0].location, 'Shahdara Town - House #45');
+
+  clearMacroBendStore(mockStorage);
+  const cleared = getMacroBendStore(mockStorage);
+  assert.equal(cleared.length, 0);
+});
+
+test('renderMobileMacroBendSvg outputs valid SVG with visual bend mandrel and wavelength bars', async () => {
+  const { renderMobileMacroBendSvg, calculateMacroBendLoss } = await import('../nav.js');
+
+  const data = calculateMacroBendLoss({
+    fiberStandard: 'G652D',
+    bendRadiusMm: 4.0,
+    wavelengthNm: 1490
+  });
+
+  const svg = renderMobileMacroBendSvg(data);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('macro-bend-svg'));
+  assert.ok(svg.includes('R = 4 mm'));
+  assert.ok(svg.includes('G652D'));
+  assert.ok(svg.includes('CRITICAL FAULT'));
+  assert.ok(svg.includes('CORNER'));
+  assert.ok(svg.includes('WAVELENGTH LOSS'));
+  assert.ok(svg.includes('1310'));
+  assert.ok(svg.includes('1550'));
+  assert.ok(svg.includes('1577'));
+});
+
+test('generateMacroBendWhatsAppReport formats clear lineman field dispatch message', async () => {
+  const { generateMacroBendWhatsAppReport } = await import('../nav.js');
+
+  const report = generateMacroBendWhatsAppReport({
+    location: 'Main Bazaar Shahdara - Shop #14 Window Frame',
+    technician: 'Imran Lineman',
+    timestamp: '2026-10-16T18:30:00.000Z',
+    fiberStandard: 'G652D',
+    cableConstruction: 'ROUND_DROP_3MM',
+    bendRadiusMm: 4.0,
+    turnCount: 1,
+    bendAngleDeg: 90,
+    wavelengthNm: 1490,
+    totalMacroBendLossDb: 3.85,
+    differential1550vs1310Db: 3.25,
+    outputPowerDbm: -23.35,
+    status: 'CRITICAL_FAULT',
+    notes: 'Staple pinch relieved; patch cord replaced'
+  });
+
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL FIBER MACRO-BEND AUDIT'));
+  assert.ok(report.includes('MACRO-BEND OPTICAL LEAK DETECTED'));
+  assert.ok(report.includes('Main Bazaar Shahdara'));
+  assert.ok(report.includes('Imran Lineman'));
+  assert.ok(report.includes('4 mm'));
+  assert.ok(report.includes('3.85 dB'));
+  assert.ok(report.includes('3.25 dB'));
+  assert.ok(report.includes('Field Action Required:'));
+});
+
+test('setupMobileMacroBendModal binds DOM controls, updates real-time calculations, and handles events', async () => {
+  const { setupMobileMacroBendModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    onclick: null
+  };
+
+  const mockCloseBtn = { onclick: null };
+  const mockDrawerBtn = { onclick: null };
+  const mockSpeedDialBtn = { onclick: null };
+  const mockActionSheetBtn = { onclick: null };
+
+  const mockPresetSelect = { value: '', options: [{ value: '' }], innerHTML: '', onchange: null };
+  const mockStandardSelect = { value: 'G652D', onchange: null };
+  const mockCableSelect = { value: 'ROUND_DROP_3MM', onchange: null };
+  const mockWavelengthSelect = { value: '1490', onchange: null };
+  const mockRadiusSlider = { value: '30', oninput: null };
+  const mockRadiusValLabel = { textContent: '' };
+  const mockTurnSelect = { value: '1', onchange: null };
+  const mockAngleSelect = { value: '90', onchange: null };
+  const mockInputPowerInput = { value: '-19.0', oninput: null };
+  const mockLocationInput = { value: 'Shahdara Town - House #45' };
+  const mockTechInput = { value: 'Imran Lineman' };
+  const mockNotesInput = { value: 'Inspected' };
+
+  const mockSvgWrap = { innerHTML: '' };
+  const mockKpiLoss = { textContent: '' };
+  const mockKpiRx = { textContent: '' };
+  const mockKpiDiff = { textContent: '', style: {} };
+  const mockKpiStatus = { textContent: '', className: '' };
+  const mockRemediationText = { textContent: '', style: {} };
+  const mockHistoryList = { innerHTML: '' };
+
+  const mockSaveBtn = { onclick: null };
+  const mockWhatsappBtn = { onclick: null };
+  const mockClearHistoryBtn = { onclick: null };
+
+  const elements = {
+    mobileMacroBendModal: mockModal,
+    mobileMacroBendCloseBtn: mockCloseBtn,
+    navMacroBendBtn: mockDrawerBtn,
+    speedDialMacroBendBtn: mockSpeedDialBtn,
+    actionSheetMacroBendBtn: mockActionSheetBtn,
+    macroBendPresetSelect: mockPresetSelect,
+    macroBendStandardSelect: mockStandardSelect,
+    macroBendCableSelect: mockCableSelect,
+    macroBendWavelengthSelect: mockWavelengthSelect,
+    macroBendRadiusSlider: mockRadiusSlider,
+    macroBendRadiusVal: mockRadiusValLabel,
+    macroBendTurnSelect: mockTurnSelect,
+    macroBendAngleSelect: mockAngleSelect,
+    macroBendInputPower: mockInputPowerInput,
+    macroBendLocationInput: mockLocationInput,
+    macroBendTechInput: mockTechInput,
+    macroBendNotesInput: mockNotesInput,
+    macroBendSvgWrap: mockSvgWrap,
+    macroBendKpiLoss: mockKpiLoss,
+    macroBendKpiRx: mockKpiRx,
+    macroBendKpiDiff: mockKpiDiff,
+    macroBendKpiStatus: mockKpiStatus,
+    macroBendRemediationText: mockRemediationText,
+    macroBendHistoryList: mockHistoryList,
+    macroBendSaveBtn: mockSaveBtn,
+    macroBendWhatsappBtn: mockWhatsappBtn,
+    macroBendClearHistoryBtn: mockClearHistoryBtn
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null
+  };
+
+  let toastMessage = '';
+  let copiedText = '';
+
+  try {
+    const controller = setupMobileMacroBendModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (txt) => { copiedText = txt; }
+      }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.open, 'function');
+    assert.equal(typeof controller.close, 'function');
+    assert.equal(typeof controller.render, 'function');
+
+    // Initial render verification
+    assert.ok(mockSvgWrap.innerHTML.includes('macro-bend-svg'));
+    assert.ok(mockKpiLoss.textContent.includes('dB'));
+    assert.ok(mockHistoryList.innerHTML.includes('Shop #14'));
+
+    // Open and close
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+
+    // Preset select test
+    mockPresetSelect.value = 'PRESET_WINDOW_STAPLE';
+    mockPresetSelect.onchange({ target: { value: 'PRESET_WINDOW_STAPLE' } });
+    assert.equal(mockRadiusSlider.value, 4.0);
+    assert.ok(mockKpiStatus.textContent.includes('CRITICAL'));
+
+    // Slider test
+    mockRadiusSlider.value = '15';
+    mockRadiusSlider.oninput();
+    assert.equal(mockRadiusValLabel.textContent, '15 mm');
+
+    // Save button test
+    mockSaveBtn.onclick();
+    assert.ok(toastMessage.includes('Macro-bend audit successfully saved'));
+
+    // WhatsApp button test
+    await mockWhatsappBtn.onclick();
+    assert.ok(copiedText.includes('SHAHDARA ISP - OPTICAL FIBER MACRO-BEND AUDIT'));
+    assert.ok(toastMessage.includes('WhatsApp dispatch report copied'));
+
+    // Clear history button test
+    mockClearHistoryBtn.onclick();
+    assert.ok(toastMessage.includes('Macro-bend audit history cleared'));
+    assert.ok(mockHistoryList.innerHTML.includes('No macro-bend audits recorded'));
+
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

@@ -6055,3 +6055,20 @@ export {
   generateSplitterTreeWhatsAppReport,
   setupMobileSplitterTreeModal
 } from './nav-splitter-tree.js';
+
+export {
+  MACRO_BEND_STORAGE_KEY,
+  FIBER_STANDARDS,
+  WAVELENGTH_BEND_FACTORS,
+  CABLE_CONSTRUCTIONS,
+  SHAHDARA_MACRO_BEND_PRESETS,
+  calculateMacroBendLoss,
+  getMacroBendStore,
+  saveMacroBendStore,
+  recordMacroBendAudit,
+  clearMacroBendStore,
+  getDefaultMacroBendAudits,
+  renderMobileMacroBendSvg,
+  generateMacroBendWhatsAppReport,
+  setupMobileMacroBendModal
+} from './nav-macro-bend.js';

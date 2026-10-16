@@ -1,5 +1,5 @@
 import { monthsForHistory, buildMonthlyClosingSnapshot, calculatePaymentAllocations, formatPKR, calculateDashboard, derivedBillStatus, listTransactions } from './core.js';
-import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal } from './dashboard.js';
+import { calculateDashboardKpis, calculateCustomerHealthBreakdown, calculatePaymentMethodBreakdown, calculateChurnRiskAnalysis, calculateCustomerLtvCohorts, setupLtvCohortModal, calculateIncidentImpactMatrix, setupIncidentImpactModal, calculateCashflowProjections, setupProjectionScenarioModal, calculateUpstreamGatewayMetrics, setupUpstreamGatewayModal, calculateAcquisitionRoiMetrics, setupAcquisitionRoiModal, calculateBandwidthShapingMetrics, setupBandwidthShapingModal, calculateFiberDistributionMetrics, setupFiberDistributionModal, calculateDelinquencyRecoveryPipeline, setupDelinquencyPipelineModal } from './dashboard.js';
 
 const MONTH_SHORT_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const PKG_PALETTE = ['#0e5b4d', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
@@ -2595,6 +2595,91 @@ export function setupDashboardChartsEvents(state, referenceDate = new Date()) {
 }
 
 /**
+ * Renders an offline SVG funnel/aging escalation chart displaying delinquency stages,
+ * volume, expected recovery %, and pacing status.
+ */
+export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
+  const width = 560;
+  const height = 240;
+
+  if (!pipelineData || pipelineData.totalDelinquentAccounts === 0 || pipelineData.totalDelinquentDues === 0) {
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Delinquency Recovery Pipeline: Clean Ledger">
+      <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+      <g transform="translate(${width / 2}, 105)" text-anchor="middle">
+        <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
+        <path d="M-8 -2 L-2 4 L8 -6" stroke="#0e5b4d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+        <text y="24" class="chart-empty-title" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--ink, #182e2a)">No delinquent subscriber accounts</text>
+        <text y="42" class="chart-empty-subtitle" font-family="'DM Sans', system-ui, sans-serif" font-size="11" fill="var(--muted, #71817c)">All active customer accounts are settled with zero overdue aging receivables</text>
+      </g>
+    </svg>`;
+  }
+
+  const topPad = 36;
+  const bottomPad = 36;
+  const leftPad = 140;
+  const rightPad = 120;
+  const plotWidth = width - leftPad - rightPad;
+
+  const stages = pipelineData.stages || [];
+  const maxDues = Math.max(...stages.map(s => s.totalOverdueAmount), 1);
+  const rowHeight = Math.floor((height - topPad - bottomPad) / Math.max(stages.length, 1));
+  const barHeight = Math.min(20, Math.max(14, rowHeight - 12));
+
+  let statusColor = '#047857';
+  if (pipelineData.pipelineHealthStatus.includes('Critical')) statusColor = '#dc2626';
+  else if (pipelineData.pipelineHealthStatus.includes('Moderate')) statusColor = '#d97706';
+
+  const rowsSvg = stages.map((s, idx) => {
+    const yCenter = topPad + idx * rowHeight + rowHeight / 2;
+    const barY = Math.round(yCenter - barHeight / 2);
+
+    const barW = Math.max(8, Math.round((s.totalOverdueAmount / maxDues) * plotWidth));
+    const recoveryW = Math.round(barW * s.recoveryProbability);
+
+    return `
+      <text x="${leftPad - 12}" y="${yCenter + 4}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="600" fill="var(--ink, #182e2a)">
+        ${escapeXml(s.shortLabel)}
+      </text>
+
+      <rect x="${leftPad}" y="${barY}" width="${plotWidth}" height="${barHeight}" rx="4" fill="var(--bg-soft, #f1f5f3)" />
+
+      ${s.totalOverdueAmount > 0 ? `
+        <rect x="${leftPad}" y="${barY}" width="${barW}" height="${barHeight}" rx="4" fill="${s.color}" opacity="0.3" />
+        <rect x="${leftPad}" y="${barY}" width="${recoveryW}" height="${barHeight}" rx="4" fill="${s.color}" />
+      ` : ''}
+
+      <text x="${leftPad + barW + 8}" y="${yCenter + 4}" text-anchor="start" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--ink, #182e2a)">
+        ${s.subscriberCount} (${formatPKR(s.totalOverdueAmount)})
+      </text>
+    `;
+  }).join('');
+
+  const topArea = pipelineData.topDelinquentAreas[0];
+  const topAreaText = topArea ? `${escapeXml(topArea.areaName)} (${formatPKR(topArea.totalOverdue)})` : 'None';
+
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
+    <rect width="${width}" height="${height}" rx="10" fill="transparent" />
+
+    <g transform="translate(${leftPad}, 20)">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="10.5" font-weight="700" fill="var(--ink, #182e2a)">
+        Khata Wusooli &amp; Aging Pipeline
+      </text>
+      <text x="${plotWidth + rightPad - 10}" text-anchor="end" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="var(--muted, #71817c)">
+        Delinquent: <tspan font-weight="700" fill="var(--ink, #182e2a)">${pipelineData.totalDelinquentAccounts}</tspan> · Overdue: <tspan font-weight="700" fill="#dc2626">${formatPKR(pipelineData.totalDelinquentDues)}</tspan> · Net Exp: <tspan font-weight="700" fill="#047857">${formatPKR(pipelineData.totalExpectedRecovery)}</tspan>
+      </text>
+    </g>
+
+    ${rowsSvg}
+
+    <g transform="translate(${width / 2}, ${height - 10})" text-anchor="middle">
+      <text font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" font-weight="600" fill="var(--muted, #71817c)">
+        Pacing Target: <tspan font-weight="700" fill="var(--ink, #182e2a)">${formatPKR(pipelineData.dailyPacingTarget)}/day</tspan> · Status: <tspan font-weight="700" fill="${statusColor}">${escapeXml(pipelineData.pipelineHealthStatus)}</tspan> · Highest Dues Sector: <tspan font-weight="700" fill="var(--ink, #182e2a)">${topAreaText}</tspan>
+      </text>
+    </g>
+  </svg>`;
+}
+
+/**
  * Orchestrates dashboard charts rendering into their DOM containers.
  */
 export function renderDashboardCharts(state, referenceDate = new Date(), options = {}) {
@@ -2787,6 +2872,14 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupFiberDistributionModal(state, { referenceDate, onToast: options.onToast });
+
+  const delinquencyEl = document.getElementById('dashboardDelinquencyChart');
+  if (delinquencyEl) {
+    const delinquencyData = calculateDelinquencyRecoveryPipeline(state, referenceDate);
+    delinquencyEl.innerHTML = renderDelinquencyPipelineSvg(delinquencyData);
+  }
+
+  setupDelinquencyPipelineModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
   setupDashboardChartsEvents(state, referenceDate);
 }

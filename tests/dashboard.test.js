@@ -56,6 +56,11 @@ import {
   generateFiberDistributionReport,
   setupFiberDistributionModal,
   renderFiberDistributionSvg,
+  DELINQUENCY_STAGES,
+  calculateDelinquencyRecoveryPipeline,
+  generateDelinquencyPipelineReport,
+  setupDelinquencyPipelineModal,
+  renderDelinquencyPipelineSvg,
   setProjectionScenario,
   getProjectionScenario,
   setLtvMetric,
@@ -3440,6 +3445,268 @@ test('setupFiberDistributionModal wires dialog, filters, KPIs, and clipboard dis
     assert.ok(copiedText.includes('SHAHDARA ISP - FIBER DISTRIBUTION HUB & OPTICAL SPLITTER AUDIT'));
     assert.equal(toastMessage, 'Fiber distribution briefing copied to clipboard!');
 
+    closeHandler();
+    assert.equal(modalOpened, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+});
+
+test('calculateDelinquencyRecoveryPipeline handles empty and fully paid states gracefully', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  const emptyState = createInitialState([]);
+  const emptyRes = calculateDelinquencyRecoveryPipeline(emptyState, refDate);
+
+  assert.equal(emptyRes.totalDelinquentAccounts, 0);
+  assert.equal(emptyRes.totalDelinquentDues, 0);
+  assert.equal(emptyRes.totalExpectedRecovery, 0);
+  assert.equal(emptyRes.blendedRecoveryRatePercent, 0);
+  assert.equal(emptyRes.severeAtRiskAmount, 0);
+  assert.equal(emptyRes.pipelineHealthStatus, 'Clean Ledger (Zero Delinquency)');
+  assert.equal(emptyRes.pipelineHealthBadgeClass, 'badge-expansion');
+  assert.equal(emptyRes.dailyPacingTarget, 0);
+  assert.equal(emptyRes.stages.length, 4);
+  assert.equal(emptyRes.topDelinquentAreas.length, 0);
+  assert.equal(emptyRes.topDelinquentAccounts.length, 0);
+
+  // Test fully settled customer
+  let state = createInitialState(['Settled Sub']);
+  state.customers[0].serviceStatus = 'active';
+  state = saveBillMonth(state, state.customers[0].id, { month: '2026-10', dueAmount: '2000', status: 'pending' }, refDate);
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: '2000', date: '2026-10-09', method: 'Cash' }, refDate);
+
+  const settledRes = calculateDelinquencyRecoveryPipeline(state, refDate);
+  assert.equal(settledRes.totalDelinquentAccounts, 0);
+  assert.equal(settledRes.totalDelinquentDues, 0);
+  assert.equal(settledRes.pipelineHealthStatus, 'Clean Ledger (Zero Delinquency)');
+});
+
+test('calculateDelinquencyRecoveryPipeline categorizes overdue balances into stages accurately', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Grace Sub', 'Notice Sub', 'Suspension Sub', 'Severe Sub']);
+
+  // Grace: 5 days overdue (dueDate 2026-10-11)
+  state.customers[0].area = 'Main Bazaar';
+  state.customers[0].bills = [{ month: '2026-10', amount: 1500, dueDate: '2026-10-11' }];
+
+  // Notice: 14 days overdue (dueDate 2026-10-02)
+  state.customers[1].area = 'Wandala Road';
+  state.customers[1].bills = [{ month: '2026-09', amount: 2000, dueDate: '2026-10-02' }];
+
+  // Suspension risk: 30 days overdue (dueDate 2026-09-16)
+  state.customers[2].area = 'Main Bazaar';
+  state.customers[2].bills = [{ month: '2026-09', amount: 3000, dueDate: '2026-09-16' }];
+
+  // Severe: 60 days overdue (dueDate 2026-08-17)
+  state.customers[3].area = 'Farooq Ganj';
+  state.customers[3].bills = [{ month: '2026-08', amount: 4000, dueDate: '2026-08-17' }];
+
+  const res = calculateDelinquencyRecoveryPipeline(state, refDate);
+
+  assert.equal(res.totalDelinquentAccounts, 4);
+  assert.equal(res.totalDelinquentDues, 1500 + 2000 + 3000 + 4000); // 10500
+
+  const graceStage = res.stages.find(s => s.stageKey === 'grace');
+  assert.equal(graceStage.subscriberCount, 1);
+  assert.equal(graceStage.totalOverdueAmount, 1500);
+  assert.equal(graceStage.expectedRecoverableAmount, Math.round(1500 * 0.90)); // 1350
+
+  const noticeStage = res.stages.find(s => s.stageKey === 'notice');
+  assert.equal(noticeStage.subscriberCount, 1);
+  assert.equal(noticeStage.totalOverdueAmount, 2000);
+  assert.equal(noticeStage.expectedRecoverableAmount, Math.round(2000 * 0.70)); // 1400
+
+  const suspStage = res.stages.find(s => s.stageKey === 'suspension_risk');
+  assert.equal(suspStage.subscriberCount, 1);
+  assert.equal(suspStage.totalOverdueAmount, 3000);
+  assert.equal(suspStage.expectedRecoverableAmount, Math.round(3000 * 0.45)); // 1350
+
+  const severeStage = res.stages.find(s => s.stageKey === 'severe');
+  assert.equal(severeStage.subscriberCount, 1);
+  assert.equal(severeStage.totalOverdueAmount, 4000);
+  assert.equal(severeStage.expectedRecoverableAmount, Math.round(4000 * 0.15)); // 600
+
+  const expectedTotal = 1350 + 1400 + 1350 + 600; // 4700
+  assert.equal(res.totalExpectedRecovery, expectedTotal);
+  assert.equal(res.severeAtRiskAmount, 4000);
+
+  // Severe dues: 4000 / 10500 = 38.09% (>= 35%), so critical
+  assert.equal(res.pipelineHealthStatus, 'Critical Escalation Required');
+  assert.equal(res.pipelineHealthBadgeClass, 'badge-contraction');
+
+  // Daily target: 4700 / 30 = 157
+  assert.equal(res.dailyPacingTarget, Math.round(4700 / 30));
+
+  // Area aggregation: Main Bazaar has 1500 + 3000 = 4500
+  assert.equal(res.topDelinquentAreas[0].areaName, 'Main Bazaar');
+  assert.equal(res.topDelinquentAreas[0].totalOverdue, 4500);
+  assert.equal(res.topDelinquentAreas[0].delinquentAccounts, 2);
+
+  // Top delinquent accounts sorted by balanceDue desc
+  assert.equal(res.topDelinquentAccounts[0].balanceDue, 4000);
+  assert.equal(res.topDelinquentAccounts[0].name, 'Severe Sub');
+});
+
+test('calculateDelinquencyRecoveryPipeline evaluates moderate backlog and healthy pacing tiers', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Sub 1', 'Sub 2']);
+  state.customers[0].bills = [{ month: '2026-10', amount: 8000, dueDate: '2026-10-12' }]; // Grace (4 days)
+  state.customers[1].bills = [{ month: '2026-08', amount: 2000, dueDate: '2026-08-10' }]; // Severe (67 days)
+
+  // Total: 10000, Severe: 2000 (20% -> between 15% and 35%)
+  const modRes = calculateDelinquencyRecoveryPipeline(state, refDate);
+  assert.equal(modRes.pipelineHealthStatus, 'Moderate Delinquency Backlog');
+  assert.equal(modRes.pipelineHealthBadgeClass, 'badge-stable');
+
+  // Low severe (< 15%)
+  state.customers[0].bills = [{ month: '2026-10', amount: 9500, dueDate: '2026-10-12' }]; // Grace
+  state.customers[1].bills = [{ month: '2026-08', amount: 500, dueDate: '2026-08-10' }];  // Severe
+  const healthyRes = calculateDelinquencyRecoveryPipeline(state, refDate);
+  assert.equal(healthyRes.pipelineHealthStatus, 'Healthy Pacing');
+  assert.equal(healthyRes.pipelineHealthBadgeClass, 'badge-expansion');
+});
+
+test('generateDelinquencyPipelineReport outputs comprehensive plain-text operations briefing', () => {
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Tariq Mahmood', 'Zahid Ali']);
+  state.customers[0].area = 'Millat Park';
+  state.customers[0].bills = [{ month: '2026-10', amount: 1800, dueDate: '2026-10-12' }];
+  state.customers[1].area = 'Main Bazaar';
+  state.customers[1].bills = [{ month: '2026-08', amount: 3500, dueDate: '2026-08-15' }];
+
+  const data = calculateDelinquencyRecoveryPipeline(state, refDate);
+  const report = generateDelinquencyPipelineReport(data, refDate);
+
+  assert.ok(report.includes('SHAHDARA ISP - DELINQUENCY RECOVERY & ESCALATION BRIEFING'));
+  assert.ok(report.includes('Delinquent Accounts: 2'));
+  assert.ok(report.includes('Total Overdue Dues: PKR 5,300'));
+  assert.ok(report.includes('Grace Period (Gentle Reminder)'));
+  assert.ok(report.includes('Severe Delinquency Escalation'));
+  assert.ok(report.includes('Millat Park'));
+  assert.ok(report.includes('Zahid Ali'));
+  assert.ok(report.includes('Daily Collector Pacing Target:'));
+});
+
+test('renderDelinquencyPipelineSvg generates valid accessible SVG chart', () => {
+  const emptySvg = renderDelinquencyPipelineSvg(null);
+  assert.ok(emptySvg.includes('No delinquent subscriber accounts'));
+
+  const refDate = new Date('2026-10-16T12:00:00+05:00');
+  let state = createInitialState(['Sub X']);
+  state.customers[0].bills = [{ month: '2026-10', amount: 2500, dueDate: '2026-10-10' }];
+  const data = calculateDelinquencyRecoveryPipeline(state, refDate);
+
+  const svg = renderDelinquencyPipelineSvg(data);
+  assert.ok(svg.includes('role="img"'));
+  assert.ok(svg.includes('Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart'));
+  assert.ok(svg.includes('Khata Wusooli &amp; Aging Pipeline'));
+  assert.ok(svg.includes('Pacing Target:'));
+  assert.ok(svg.includes('Delinquent:'));
+});
+
+test('setupDelinquencyPipelineModal wires modal dialog and interactions correctly', async () => {
+  const originalDocument = globalThis.document;
+
+  let modalOpened = false;
+  let openHandler = null;
+  let closeHandler = null;
+  let copyHandler = null;
+  let filterCustomerCalledWith = null;
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalOpened = false; },
+    addEventListener: () => {}
+  };
+
+  const mockOpenBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') openHandler = cb; }
+  };
+
+  const mockCloseBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') closeHandler = cb; }
+  };
+
+  const mockCopyBtn = {
+    dataset: {},
+    addEventListener: (evt, cb) => { if (evt === 'click') copyHandler = cb; }
+  };
+
+  const mockTotalAccountsEl = { textContent: '' };
+  const mockTotalDuesEl = { textContent: '' };
+  const mockExpectedEl = { textContent: '' };
+  const mockRateEl = { textContent: '' };
+  const mockBadgeEl = { textContent: '', className: '' };
+  const mockDailyTargetEl = { textContent: '' };
+  const mockStageTbody = { innerHTML: '' };
+  const mockAccountsTbody = {
+    innerHTML: '',
+    querySelectorAll: (sel) => {
+      if (sel.includes('[data-delinquency-filter-id]')) {
+        return [{
+          getAttribute: () => 'cust-123',
+          addEventListener: (evt, cb) => {
+            if (evt === 'click') cb();
+          }
+        }];
+      }
+      return [];
+    }
+  };
+
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'dashboardDelinquencyModal') return mockModal;
+      if (id === 'dashboardOpenDelinquencyModalBtn') return mockOpenBtn;
+      if (id === 'dashboardDelinquencyModalCloseBtn') return mockCloseBtn;
+      if (id === 'dashboardCopyDelinquencyReportBtn') return mockCopyBtn;
+      if (id === 'delinquencyTotalAccountsVal') return mockTotalAccountsEl;
+      if (id === 'delinquencyTotalDuesVal') return mockTotalDuesEl;
+      if (id === 'delinquencyExpectedRecoveryVal') return mockExpectedEl;
+      if (id === 'delinquencyBlendedRateVal') return mockRateEl;
+      if (id === 'delinquencyStatusBadge') return mockBadgeEl;
+      if (id === 'delinquencyDailyTargetVal') return mockDailyTargetEl;
+      if (id === 'delinquencyStageTableBody') return mockStageTbody;
+      if (id === 'delinquencyAccountsTableBody') return mockAccountsTbody;
+      return null;
+    }
+  };
+
+  let toastMessage = null;
+  let copiedText = null;
+  const mockClipboard = {
+    writeText: async (t) => { copiedText = t; }
+  };
+
+  let state = createInitialState(['Muhammad Usman']);
+  state.customers[0].id = 'cust-123';
+  state.customers[0].bills = [{ month: '2026-09', amount: 2200, dueDate: '2026-09-10' }];
+
+  try {
+    setupDelinquencyPipelineModal(state, {
+      referenceDate: new Date('2026-10-16T12:00:00+05:00'),
+      onFilterCustomer: (cid) => { filterCustomerCalledWith = cid; },
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: mockClipboard
+    });
+
+    assert.ok(openHandler !== null);
+    openHandler();
+    assert.equal(modalOpened, true);
+
+    assert.equal(mockTotalAccountsEl.textContent, '1');
+    assert.ok(mockTotalDuesEl.textContent.includes('2,200'));
+    assert.ok(mockStageTbody.innerHTML.includes('Grace Period'));
+    assert.ok(mockAccountsTbody.innerHTML.includes('Muhammad Usman'));
+
+    // Test copy report
+    await copyHandler();
+    assert.ok(copiedText.includes('SHAHDARA ISP - DELINQUENCY RECOVERY & ESCALATION BRIEFING'));
+    assert.equal(toastMessage, 'Delinquency recovery briefing copied to clipboard!');
+
+    // Test close modal
     closeHandler();
     assert.equal(modalOpened, false);
   } finally {

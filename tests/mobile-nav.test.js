@@ -3246,6 +3246,206 @@ test('index.html, nav.css, and app.js wire Technician Field Route Sheet modal an
   assert.match(appJs, /onFieldRouteSheet/);
 });
 
+test('WORK_ORDER_CATEGORIES and WORK_ORDER_PRIORITIES provide structured metadata for field ops', async () => {
+  const { WORK_ORDER_CATEGORIES, WORK_ORDER_PRIORITIES } = await import('../nav.js');
+
+  assert.ok(WORK_ORDER_CATEGORIES.fiber_cut);
+  assert.equal(WORK_ORDER_CATEGORIES.fiber_cut.label, 'Red LOS / Fiber Break');
+  assert.equal(WORK_ORDER_CATEGORIES.fiber_cut.defaultPriority, 'urgent');
+
+  assert.ok(WORK_ORDER_CATEGORIES.low_signal);
+  assert.ok(WORK_ORDER_CATEGORIES.ont_fault);
+  assert.ok(WORK_ORDER_CATEGORIES.wifi_config);
+  assert.ok(WORK_ORDER_CATEGORIES.new_install);
+
+  assert.equal(WORK_ORDER_PRIORITIES.urgent.weight, 4);
+  assert.equal(WORK_ORDER_PRIORITIES.high.weight, 3);
+  assert.equal(WORK_ORDER_PRIORITIES.normal.weight, 2);
+  assert.equal(WORK_ORDER_PRIORITIES.low.weight, 1);
+});
+
+test('getFieldWorkOrders, saveFieldWorkOrders, and clearFieldWorkOrders manage localStorage persistence', async () => {
+  const { getFieldWorkOrders, saveFieldWorkOrders, clearFieldWorkOrders } = await import('../nav.js');
+
+  const store = new Map();
+  const mockStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k)
+  };
+
+  assert.deepEqual(getFieldWorkOrders(mockStorage), []);
+
+  const sample = [{ id: 'WO-1234', customerName: 'Ali Khan', status: 'open' }];
+  saveFieldWorkOrders(sample, mockStorage);
+  assert.deepEqual(getFieldWorkOrders(mockStorage), sample);
+
+  store.set('shahdara_field_work_orders_v1', 'invalid-json');
+  assert.deepEqual(getFieldWorkOrders(mockStorage), []);
+
+  saveFieldWorkOrders(sample, mockStorage);
+  clearFieldWorkOrders(mockStorage);
+  assert.deepEqual(getFieldWorkOrders(mockStorage), []);
+});
+
+test('createFieldWorkOrder and updateFieldWorkOrderStatus create, track, and resolve tickets', async () => {
+  const { createFieldWorkOrder, updateFieldWorkOrderStatus, getFieldWorkOrders } = await import('../nav.js');
+
+  const store = new Map();
+  const mockStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k)
+  };
+
+  const created = createFieldWorkOrder({
+    customerId: 'c101',
+    customerName: 'Muhammad Tariq',
+    username: 'tariqm',
+    phone: '03001234567',
+    area: 'Main Bazar',
+    address: 'Near Jamia Masjid',
+    category: 'fiber_cut',
+    priority: 'urgent',
+    assignedTech: 'Naveed Splicer',
+    notes: 'Fiber cut by municipal road excavation'
+  }, mockStorage, '2026-10-16T08:30:00Z');
+
+  assert.ok(created.id.startsWith('WO-261016-'));
+  assert.equal(created.customerName, 'Muhammad Tariq');
+  assert.equal(created.category, 'fiber_cut');
+  assert.equal(created.priority, 'urgent');
+  assert.equal(created.status, 'open');
+  assert.equal(created.history.length, 1);
+
+  const updated = updateFieldWorkOrderStatus(created.id, 'in_progress', 'Technician arrived on site with OTDR meter', mockStorage, '2026-10-16T08:45:00Z');
+  assert.equal(updated.status, 'in_progress');
+  assert.equal(updated.history.length, 2);
+
+  const resolved = updateFieldWorkOrderStatus(created.id, 'resolved', 'Fusion splice done. Power -18.5 dBm.', mockStorage, '2026-10-16T09:15:00Z');
+  assert.equal(resolved.status, 'resolved');
+  assert.equal(resolved.resolvedAt, '2026-10-16T09:15:00Z');
+  assert.equal(resolved.resolutionNotes, 'Fusion splice done. Power -18.5 dBm.');
+
+  const stored = getFieldWorkOrders(mockStorage);
+  assert.equal(stored[0].status, 'resolved');
+});
+
+test('calculateFieldWorkOrders synthesizes auto tickets for offline subscribers and calculates metrics', async () => {
+  const { calculateFieldWorkOrders } = await import('../nav.js');
+
+  const mockState = {
+    customers: [
+      { id: 'c1', name: 'Zahid Iqbal', username: 'zahid_iq', phone: '03009991122', area: 'Chowk Shahdara', status: 'active', archived: false },
+      { id: 'c2', name: 'Babar Azam', username: 'babar_a', phone: '03218882233', area: 'Main Bazar', address: 'Street 4', status: 'offline', archived: false },
+      { id: 'c3', name: 'Old User', username: 'old_u', phone: '03337773344', area: 'Main Bazar', status: 'offline', archived: true }
+    ]
+  };
+
+  const store = new Map();
+  const mockStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k)
+  };
+
+  const result = calculateFieldWorkOrders(mockState, { storage: mockStorage, nowStr: '2026-10-16' });
+  assert.equal(result.totalOrders, 1);
+  assert.equal(result.openOrders, 1);
+  assert.equal(result.urgentCount, 1);
+  assert.equal(result.orders.length, 1);
+
+  const autoOrder = result.orders[0];
+  assert.equal(autoOrder.customerId, 'c2');
+  assert.equal(autoOrder.customerName, 'Babar Azam');
+  assert.equal(autoOrder.isAutoGenerated, true);
+  assert.equal(autoOrder.priority, 'urgent');
+  assert.ok(autoOrder.phoneUrl.includes('03218882233') || autoOrder.phoneUrl.includes('923218882233'));
+  assert.ok(autoOrder.whatsappUrl.includes('wa.me/923218882233'));
+  assert.ok(autoOrder.mapsQueryUrl.includes('google.com/maps'));
+
+  const chowkResult = calculateFieldWorkOrders(mockState, { sector: 'Chowk Shahdara', storage: mockStorage });
+  assert.equal(chowkResult.orders.length, 0);
+
+  const mainBazarResult = calculateFieldWorkOrders(mockState, { sector: 'Main Bazar', storage: mockStorage });
+  assert.equal(mainBazarResult.orders.length, 1);
+});
+
+test('generateWorkOrderManifestText formats clean dispatch manifest for field staff', async () => {
+  const { generateWorkOrderManifestText } = await import('../nav.js');
+
+  const mockWoData = {
+    date: '2026-10-16',
+    selectedSector: 'Main Bazar',
+    openOrders: 2,
+    inProgressOrders: 1,
+    urgentCount: 1,
+    resolvedCount: 1,
+    resolutionRate: 25,
+    orders: [
+      {
+        id: 'WO-261016-1234',
+        customerName: 'Khurram Shehzad',
+        username: 'khurrams',
+        area: 'Main Bazar',
+        address: 'Shop 12, Main Road',
+        phone: '03001234567',
+        categoryLabel: 'Red LOS / Fiber Break',
+        priority: 'urgent',
+        status: 'open',
+        assignedTech: 'Naveed Splicer',
+        notes: 'Red LOS blinking on Huawei ONT'
+      }
+    ]
+  };
+
+  const text = generateWorkOrderManifestText(mockWoData);
+  assert.match(text, /SHAHDARA FIBER NET — FIELD WORK ORDER MANIFEST/);
+  assert.match(text, /Date: 2026-10-16 \| 📍 Sector: Main Bazar/);
+  assert.match(text, /Summary: 2 Open, 1 In Progress, 1 Urgent, 1 Resolved/);
+  assert.match(text, /1\. 🔴 \[URGENT\] \*#WO-261016-1234\* — Red LOS \/ Fiber Break/);
+  assert.match(text, /Khurram Shehzad \(@khurrams\)/);
+  assert.match(text, /📞 03001234567/);
+  assert.match(text, /Assigned: Naveed Splicer/);
+  assert.match(text, /Confirm fiber fusion splice optical power/);
+});
+
+test('index.html, nav.css, and app.js wire Field Work Orders modal and navigation triggers', () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+  const appJs = read('app.js');
+
+  assert.match(indexHtml, /<dialog id="fieldWorkOrderModal" class="modal work-order-modal"/);
+  assert.match(indexHtml, /id="fieldWorkOrderCloseBtn"/);
+  assert.match(indexHtml, /id="woSectorFilter"/);
+  assert.match(indexHtml, /id="woStatusFilter"/);
+  assert.match(indexHtml, /id="woPriorityFilter"/);
+  assert.match(indexHtml, /id="woSearchInput"/);
+  assert.match(indexHtml, /id="fieldWorkOrderList"/);
+  assert.match(indexHtml, /id="woNewTicketPanel"/);
+  assert.match(indexHtml, /id="woSubmitTicketBtn"/);
+  assert.match(indexHtml, /id="copyWorkOrderManifestBtn"/);
+  assert.match(indexHtml, /id="shareWorkOrderWhatsappBtn"/);
+
+  assert.match(indexHtml, /data-open-work-orders/);
+  assert.match(indexHtml, /data-mobile-more="work-orders"/);
+  assert.match(indexHtml, /data-sheet-action="work-orders"/);
+  assert.match(indexHtml, /data-speed-action="work-orders"/);
+  assert.match(indexHtml, /data-nav-badge="work-orders"/);
+
+  assert.match(navCss, /\.work-order-modal-card/);
+  assert.match(navCss, /\.work-order-metrics-bar/);
+  assert.match(navCss, /\.work-order-metric-pill/);
+  assert.match(navCss, /\.work-order-card/);
+  assert.match(navCss, /\.work-order-card\.is-urgent/);
+  assert.match(navCss, /\.work-order-new-panel/);
+  assert.match(navCss, /\[data-theme="dark"\] \.work-order-card/);
+
+  assert.match(appJs, /setupFieldWorkOrderSheet/);
+  assert.match(appJs, /fieldWorkOrderSheetController/);
+});
+
+
 
 
 

@@ -3275,5 +3275,378 @@ kbd {
   background: #253d35;
 }
 
+/* ==========================================================================
+   Field Technician Work Order & Service Dispatch Sheet (agent2)
+   ========================================================================== */
+
+.work-order-modal-card {
+  max-width: 840px;
+  width: 100%;
+}
+
+.work-order-metrics-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin: 14px 0 16px 0;
+}
+
+.work-order-metric-pill {
+  background: var(--surface-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.work-order-metric-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #60756c);
+}
+
+.work-order-metric-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #12211c);
+}
+
+.work-order-controls-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  align-items: flex-end;
+}
+
+.work-order-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 160px;
+}
+
+.work-order-filter-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+}
+
+.work-order-select,
+.work-order-input,
+.work-order-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #12211c);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.work-order-search-group {
+  flex: 2 1 220px;
+}
+
+.work-order-new-panel {
+  background: var(--surface-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  animation: navFadeIn 0.2s ease-out;
+}
+
+.work-order-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.work-order-panel-title {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 0;
+  color: var(--ink, #12211c);
+}
+
+.work-order-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.work-order-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.work-order-form-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.work-order-form-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #60756c);
+}
+
+.work-order-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.work-order-cards-container {
+  max-height: 420px;
+  overflow-y: auto;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 12px;
+  background: var(--surface, #ffffff);
+  padding: 10px;
+}
+
+.field-work-order-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.work-order-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  background: var(--surface-soft, #f8faf9);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  gap: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.work-order-card:hover {
+  border-color: #0e5b4d;
+}
+
+.work-order-card.is-urgent {
+  border-left: 4px solid #b91c1c;
+}
+
+.work-order-card.is-high {
+  border-left: 4px solid #d97706;
+}
+
+.work-order-card.is-resolved {
+  opacity: 0.75;
+  border-left: 4px solid #047857;
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.wo-card-top {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 auto;
+}
+
+.wo-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wo-card-ticket-id {
+  font-size: 12px;
+  font-weight: 800;
+  font-family: monospace;
+  color: #0e5b4d;
+}
+
+.wo-card-category {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink, #12211c);
+}
+
+.wo-card-subscriber {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wo-card-name {
+  font-size: 14px;
+  color: var(--ink, #12211c);
+}
+
+.wo-card-user {
+  font-size: 12px;
+  color: var(--muted, #60756c);
+}
+
+.wo-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted, #60756c);
+  flex-wrap: wrap;
+}
+
+.wo-card-notes {
+  font-size: 12px;
+  color: var(--ink, #12211c);
+  background: rgba(0, 0, 0, 0.03);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-top: 2px;
+}
+
+.wo-card-res-notes {
+  font-size: 12px;
+  color: #047857;
+  background: rgba(16, 185, 129, 0.08);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+.wo-card-contact-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.wo-card-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.work-order-empty-state {
+  padding: 30px 16px;
+  text-align: center;
+}
+
+.work-order-empty-title {
+  font-weight: 800;
+  font-size: 15px;
+  color: #047857;
+  margin: 0 0 6px 0;
+}
+
+.work-order-empty-sub {
+  font-size: 13px;
+  color: var(--muted, #60756c);
+  margin: 0;
+}
+
+.work-order-modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .work-order-metrics-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .work-order-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .work-order-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .wo-card-actions {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+    border-top: 1px dashed var(--line, #e2ece7);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+  .work-order-modal-actions {
+    flex-direction: column;
+  }
+  .work-order-modal-actions button {
+    width: 100%;
+  }
+}
+
+/* Dark mode overrides for work order sheet */
+[data-theme="dark"] .work-order-metric-pill {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .work-order-metric-value {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .work-order-select,
+[data-theme="dark"] .work-order-input,
+[data-theme="dark"] .work-order-textarea {
+  background: #192e27;
+  color: #e6edea;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .work-order-new-panel {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .work-order-panel-title {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .work-order-cards-container {
+  background: #0f1c17;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .work-order-card {
+  background: #14241e;
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .work-order-card.is-resolved {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+[data-theme="dark"] .wo-card-name,
+[data-theme="dark"] .wo-card-category {
+  color: #e6edea;
+}
+
+[data-theme="dark"] .wo-card-notes {
+  background: rgba(255, 255, 255, 0.05);
+  color: #c0d1ca;
+}
+
+[data-theme="dark"] .wo-card-ticket-id {
+  color: #34d399;
+}
+
+
 
 

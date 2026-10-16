@@ -58,6 +58,7 @@
           <li class="nav-drawer-item"><button type="button" data-nav-target="recovery"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 12l-4-4-4 4"/><path d="M12 16V8"/></svg></span><span>Dues Recovery</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-field-diagnostics><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4.93 4.93a10 10 0 0 1 14.14 0"/><path d="M7.76 7.76a6 6 0 0 1 8.48 0"/><circle cx="12" cy="12" r="2"/></svg></span><span>Field Diagnostics</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-open-field-route><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span><span>Field Route Sheet</span><span id="navBadgeRouteSheet" class="nav-drawer-badge" data-nav-badge="field-route" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-open-work-orders><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span><span>Field Work Orders</span><span id="navBadgeWorkOrders" class="nav-drawer-badge" data-nav-badge="work-orders" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -1521,7 +1522,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -2003,6 +2004,10 @@
         <span class="sheet-action-icon" aria-hidden="true">🗺️</span>
         <span class="sheet-action-label">Route Sheet</span>
       </button>
+      <button type="button" class="sheet-action-tile" data-sheet-action="work-orders" data-open-work-orders>
+        <span class="sheet-action-icon" aria-hidden="true">🛠️</span>
+        <span class="sheet-action-label">Work Orders</span>
+      </button>
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -2063,6 +2068,10 @@
       <button type="button" class="speed-dial-action" data-speed-action="field-route" data-open-field-route role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">🗺️</span>
         <span class="speed-action-label">Route Sheet</span>
+      </button>
+      <button type="button" class="speed-dial-action" data-speed-action="work-orders" data-open-work-orders role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">🛠️</span>
+        <span class="speed-action-label">Work Orders</span>
       </button>
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
@@ -2607,6 +2616,143 @@
       </div>
     </section>
   </dialog>
+
+  <dialog id="fieldWorkOrderModal" class="modal work-order-modal" aria-labelledby="fieldWorkOrderModalTitle">
+    <section class="modal-card work-order-modal-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FIELD OPS · TICKETING &amp; SERVICE DISPATCH</p>
+          <h2 id="fieldWorkOrderModalTitle">Field Work Orders &amp; Service Dispatch</h2>
+        </div>
+        <button id="fieldWorkOrderCloseBtn" class="close-button" type="button" aria-label="Close field work orders">×</button>
+      </div>
+      <p class="section-intro">Operational field work order dispatcher for technicians to log, track, and resolve physical fiber cuts, low optical signal, and subscriber equipment issues.</p>
+
+      <!-- KPI Summary Cards -->
+      <div class="work-order-metrics-bar">
+        <div class="work-order-metric-pill">
+          <span class="work-order-metric-label">Open Tickets</span>
+          <strong id="woMetricOpen" class="work-order-metric-value" style="color: #b91c1c;">0</strong>
+        </div>
+        <div class="work-order-metric-pill">
+          <span class="work-order-metric-label">In Progress</span>
+          <strong id="woMetricInProgress" class="work-order-metric-value" style="color: #d97706;">0</strong>
+        </div>
+        <div class="work-order-metric-pill">
+          <span class="work-order-metric-label">Urgent / Red LOS</span>
+          <strong id="woMetricUrgent" class="work-order-metric-value" style="color: #dc2626;">0</strong>
+        </div>
+        <div class="work-order-metric-pill">
+          <span class="work-order-metric-label">Resolved</span>
+          <strong id="woMetricResolved" class="work-order-metric-value" style="color: #047857;">0</strong>
+        </div>
+      </div>
+
+      <!-- Filter Controls Toolbar -->
+      <div class="work-order-controls-toolbar">
+        <div class="work-order-filter-group">
+          <label for="woSectorFilter">Sector / Area</label>
+          <select id="woSectorFilter" class="work-order-select">
+            <option value="All">All Sectors</option>
+          </select>
+        </div>
+        <div class="work-order-filter-group">
+          <label for="woStatusFilter">Status Filter</label>
+          <select id="woStatusFilter" class="work-order-select">
+            <option value="all">All Statuses</option>
+            <option value="urgent" selected>Urgent &amp; Active (Open + In Progress)</option>
+            <option value="open">Open Only</option>
+            <option value="in_progress">In Progress</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+        <div class="work-order-filter-group">
+          <label for="woPriorityFilter">Priority</label>
+          <select id="woPriorityFilter" class="work-order-select">
+            <option value="all">All Priorities</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="normal">Normal</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+        <div class="work-order-filter-group work-order-search-group">
+          <label for="woSearchInput">Search Tickets</label>
+          <input id="woSearchInput" class="work-order-input" type="search" placeholder="Search ticket #, customer, area, issue...">
+        </div>
+      </div>
+
+      <!-- Inline New Ticket Creator Form (Collapsible) -->
+      <div id="woNewTicketPanel" class="work-order-new-panel" hidden>
+        <div class="work-order-panel-header">
+          <h3 class="work-order-panel-title">Create New Field Service Ticket</h3>
+          <button id="woCloseNewTicketBtn" class="action-btn-sm" type="button">Cancel</button>
+        </div>
+        <form id="woNewTicketForm" class="work-order-form">
+          <div class="work-order-form-grid">
+            <div class="work-order-form-field">
+              <label for="woFormCustomer">Subscriber Account</label>
+              <select id="woFormCustomer" class="work-order-select" required>
+                <option value="">-- Select Subscriber --</option>
+              </select>
+            </div>
+            <div class="work-order-form-field">
+              <label for="woFormCategory">Issue Category</label>
+              <select id="woFormCategory" class="work-order-select">
+                <option value="fiber_cut">🔴 Red LOS / Fiber Cut</option>
+                <option value="low_signal">🟡 Low Optical Power / High Loss</option>
+                <option value="ont_fault">⚙️ ONT / ONU Hardware Fault</option>
+                <option value="wifi_config">📶 Wi-Fi Router Setup &amp; Password</option>
+                <option value="shift_line">📦 Shift / Relocate Connection</option>
+                <option value="new_install">🔌 New Drop Cable Installation</option>
+                <option value="speed_issue">⚡ Speed Degradation / Packet Loss</option>
+                <option value="other">📝 Other Service Request</option>
+              </select>
+            </div>
+            <div class="work-order-form-field">
+              <label for="woFormPriority">Priority</label>
+              <select id="woFormPriority" class="work-order-select">
+                <option value="urgent">Urgent (Immediate Dispatch)</option>
+                <option value="high" selected>High (Same-Day Resolution)</option>
+                <option value="normal">Normal (Routine Dispatch)</option>
+                <option value="low">Low (Scheduled Maintenance)</option>
+              </select>
+            </div>
+            <div class="work-order-form-field">
+              <label for="woFormTech">Assigned Technician</label>
+              <input id="woFormTech" class="work-order-input" type="text" value="Field Line Worker" placeholder="Technician name...">
+            </div>
+            <div class="work-order-form-field full-width">
+              <label for="woFormNotes">Field Notes &amp; Troubleshooting Details</label>
+              <textarea id="woFormNotes" class="work-order-textarea" rows="2" placeholder="Describe symptoms, splitter port, drop line details..."></textarea>
+            </div>
+          </div>
+          <div class="work-order-form-actions">
+            <button id="woSubmitTicketBtn" class="primary-button" type="submit">➕ Dispatch Field Ticket</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Work Orders Card List -->
+      <div class="work-order-cards-container">
+        <div id="fieldWorkOrderList" class="field-work-order-list" role="list">
+          <!-- Dynamically populated ticket cards -->
+        </div>
+        <div id="woEmptyState" class="work-order-empty-state" hidden>
+          <p class="work-order-empty-title">🎉 No open tickets in this sector!</p>
+          <p class="work-order-empty-sub">All network drop lines and subscriber ONTs are running cleanly.</p>
+        </div>
+      </div>
+
+      <!-- Action Footer -->
+      <div class="modal-form-actions work-order-modal-actions">
+        <button id="woToggleNewBtn" class="secondary-button" type="button">➕ New Field Ticket</button>
+        <button id="copyWorkOrderManifestBtn" class="secondary-button" type="button">📋 Copy Manifest</button>
+        <button id="shareWorkOrderWhatsappBtn" class="primary-button" type="button">💬 WhatsApp Dispatch</button>
+      </div>
+    </section>
+  </dialog>
+
   <dialog id="customerBillInvoiceModal" class="modal invoice-modal" aria-labelledby="billInvoiceModalTitle">
     <section class="invoice-modal-card">
       <div class="modal-heading">

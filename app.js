@@ -20,7 +20,7 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet } from './nav.js?v=1.10.0';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
@@ -1607,6 +1607,8 @@ mobileActionSheetController = setupMobileActionSheet({
       fieldDiagnosticsModalController?.open();
     } else if (action === 'field-route') {
       fieldRouteSheetController?.open();
+    } else if (action === 'work-orders') {
+      fieldWorkOrderSheetController?.open();
     } else if (action === 'record-expense') {
       switchView('expenses');
       renderExpenses();
@@ -1815,6 +1817,16 @@ let fieldRouteSheetController = setupFieldRouteSheet({
   onToast: (msg) => toast(msg)
 });
 
+// Setup Technician Field Work Orders & Customer Service Dispatch Sheet
+let fieldWorkOrderSheetController = setupFieldWorkOrderSheet({
+  getState: () => state,
+  onNavigateCustomer: (customerId) => {
+    switchView('customers');
+    selectCustomer(customerId);
+  },
+  onToast: (msg) => toast(msg)
+});
+
 // Setup Floating Mobile Speed Dial / Quick Action Dock
 setupMobileSpeedDial({
   onSearchRoster: () => {
@@ -1845,6 +1857,9 @@ setupMobileSpeedDial({
   },
   onFieldRouteSheet: () => {
     fieldRouteSheetController?.open();
+  },
+  onWorkOrders: () => {
+    fieldWorkOrderSheetController?.open();
   },
   onReminders: () => {
     const btn = $('#openReminderModalBtn');

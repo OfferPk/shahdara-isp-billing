@@ -74,6 +74,7 @@
           <li class="nav-drawer-item"><button type="button" id="navOntDiagnosticsBtn" data-open-ont-diagnostics><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="6" cy="12" r="1.5"/><circle cx="10" cy="12" r="1.5"/><circle cx="14" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></svg></span><span>ONT Diagnostics</span><span id="navBadgeOntDiagnostics" class="nav-drawer-badge" data-nav-badge="ont-diagnostics" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navFiberProbeBtn" data-open-fiber-probe><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg></span><span>Fiber Probe Scope</span><span id="navBadgeFiberProbe" class="nav-drawer-badge" data-nav-badge="fiber-probe" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navSplitterTreeBtn" data-open-splitter-tree><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v18M6 8h12M6 16h12M18 6v4M18 14v4"/></svg></span><span>Splitter Tree ODN</span><span id="navBadgeSplitterTree" class="nav-drawer-badge" data-nav-badge="splitter-tree" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navMacroBendBtn" data-open-macro-bend><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h7a8 8 0 0 0 8-8V4"/></svg></span><span>Macro-Bend Loss</span><span id="navBadgeMacroBend" class="nav-drawer-badge" data-nav-badge="macro-bend" hidden>0</span></button></li>
         </ul>
       </div>
     </nav>
@@ -3769,7 +3770,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection">Collection</button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button><button type="button" id="mobileMoreSplitterTreeBtn" data-mobile-more="splitter-tree" data-open-splitter-tree>Splitter Tree ODN</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button><button type="button" id="mobileMoreSplitterTreeBtn" data-mobile-more="splitter-tree" data-open-splitter-tree>Splitter Tree ODN</button><button type="button" id="mobileMoreMacroBendBtn" data-mobile-more="macro-bend" data-open-macro-bend>Macro-Bend Loss</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="expenses">Expenses</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -4315,6 +4316,11 @@
         <span class="sheet-action-icon" aria-hidden="true">🌴</span>
         <span class="sheet-action-label">Splitter Tree</span>
       </button>
+      <button type="button" id="actionSheetMacroBendBtn" class="sheet-action-tile" data-sheet-action="macro-bend" data-open-macro-bend>
+        <span class="sheet-action-icon" aria-hidden="true">⚡</span>
+        <span class="sheet-action-label">Macro-Bend</span>
+      </button>
+
       <button type="button" class="sheet-action-tile" data-sheet-action="record-expense">
         <span class="sheet-action-icon" aria-hidden="true">🧾</span>
         <span class="sheet-action-label">Record Expense</span>
@@ -4440,6 +4446,11 @@
         <span class="speed-action-icon" aria-hidden="true">🌴</span>
         <span class="speed-action-label">Splitter Tree</span>
       </button>
+      <button type="button" id="speedDialMacroBendBtn" class="speed-dial-action" data-speed-action="macro-bend" data-open-macro-bend role="menuitem">
+        <span class="speed-action-icon" aria-hidden="true">⚡</span>
+        <span class="speed-action-label">Macro-Bend</span>
+      </button>
+
       <button type="button" class="speed-dial-action" data-speed-action="reminders" role="menuitem">
         <span class="speed-action-icon" aria-hidden="true">💬</span>
         <span class="speed-action-label">Reminders</span>
@@ -6856,6 +6867,157 @@
       </div>
     </section>
   </dialog>
+
+  <!-- Mobile Field Fiber Patch Cord & Drop Cable Macro-Bend Modal -->
+  <dialog id="mobileMacroBendModal" class="modal macro-bend-modal" aria-labelledby="macroBendModalTitle">
+    <section class="macro-bend-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">ITU-T G.652.D / G.657 OPTICAL MACRO-BEND CURVATURE ATTENUATION</p>
+          <h2 id="macroBendModalTitle">Fiber Macro-Bend Loss Assistant</h2>
+        </div>
+        <button id="mobileMacroBendCloseBtn" class="close-button" type="button" aria-label="Close macro-bend modal">×</button>
+      </div>
+
+      <!-- Preset Selector Row -->
+      <div class="fdt-selector-row">
+        <div class="fdt-selector-group">
+          <label for="macroBendPresetSelect" style="font-size:12px;font-weight:700">Field Scenario Preset:</label>
+          <select id="macroBendPresetSelect" class="fdt-select" aria-label="Select Macro-Bend Preset">
+            <option value="">-- Choose Field Preset --</option>
+            <option value="PRESET_WINDOW_STAPLE">Window Corner Sharp Staple / Door Pinch (Fault)</option>
+            <option value="PRESET_FAT_POLE_PINCH">FAT Pole Cable Tie Over-Tightened Pinch</option>
+            <option value="PRESET_ROOFTOP_DRIP_LOOP">Rooftop Drip Loop Standard Installation</option>
+            <option value="PRESET_INDOOR_ONU_COIL">Indoor Customer ONU Wall-Plate Coil</option>
+          </select>
+        </div>
+        <div class="fdt-selector-group">
+          <label for="macroBendStandardSelect" style="font-size:12px;font-weight:700">Fiber Glass Standard:</label>
+          <select id="macroBendStandardSelect" class="fdt-select" aria-label="Select Fiber Standard">
+            <option value="G652D" selected>ITU-T G.652.D (Standard SSMF - Min 30mm)</option>
+            <option value="G657A1">ITU-T G.657.A1 (Bend-Insensitive - Min 10mm)</option>
+            <option value="G657A2">ITU-T G.657.A2 (Advanced BIF - Min 7.5mm)</option>
+            <option value="G657B3">ITU-T G.657.B3 (Ultra-BIF - Min 5mm)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- SVG Mandrel & Evanescent Wave Visualizer -->
+      <div id="macroBendSvgWrap" class="macro-bend-svg-wrap" role="img" aria-label="Interactive Optical Macro-Bend Wave Leakage Visualizer">
+        <!-- SVG rendered dynamically -->
+      </div>
+
+      <!-- Live Macro-Bend KPI Summary Strip -->
+      <div class="probe-summary-strip">
+        <div class="probe-metric">
+          <span class="metric-label">Macro-Bend Loss</span>
+          <span id="macroBendKpiLoss" class="metric-val">0.0 dB</span>
+        </div>
+        <div class="probe-metric">
+          <span class="metric-label">Estimated Rx Power</span>
+          <span id="macroBendKpiRx" class="metric-val text-pass">-19.0 dBm</span>
+        </div>
+        <div class="probe-metric">
+          <span class="metric-label">Δ1550-1310nm Signature</span>
+          <span id="macroBendKpiDiff" class="metric-val text-pass">+0.0 dB</span>
+        </div>
+        <div class="probe-metric">
+          <span class="metric-label">Bend Compliance</span>
+          <span id="macroBendKpiStatus" class="metric-val text-pass">COMPLIANT</span>
+        </div>
+      </div>
+
+      <!-- Remediation Banner -->
+      <div id="macroBendRemediationText" style="padding: 10px 14px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.85rem; font-weight: 600; color: #10b981;">
+        Installation complies with ITU-T bend radius limits. Safe for long-term transmission.
+      </div>
+
+      <!-- Parameters Configuration Form Grid -->
+      <section class="ont-form-grid" aria-label="Bend Geometry and Optical Parameters">
+        <div class="ont-form-group">
+          <label for="macroBendRadiusSlider">Bend Radius: <span id="macroBendRadiusVal" class="sim-val-pill" style="font-weight:700">30 mm</span></label>
+          <input id="macroBendRadiusSlider" type="range" min="2" max="50" step="1" value="30" class="otdr-slider" />
+        </div>
+
+        <div class="ont-form-group">
+          <label for="macroBendWavelengthSelect">Transmission Wavelength</label>
+          <select id="macroBendWavelengthSelect" class="fdt-select">
+            <option value="1310">1310 nm (GPON Upstream)</option>
+            <option value="1490" selected>1490 nm (GPON Downstream Rx)</option>
+            <option value="1550">1550 nm (RF Video / CWDM Overlay)</option>
+            <option value="1577">1577 nm (XGS-PON 10G Downstream)</option>
+          </select>
+        </div>
+
+        <div class="ont-form-group">
+          <label for="macroBendCableSelect">Drop Cable Structure</label>
+          <select id="macroBendCableSelect" class="fdt-select">
+            <option value="ROUND_DROP_3MM" selected>Round 3.0mm LSZH Drop</option>
+            <option value="FLAT_BUTTERFLY_2X3">Flat 2x3mm Bow-Type (Steel Wires)</option>
+            <option value="FIGURE8_AERIAL">Figure-8 Aerial with Messenger</option>
+            <option value="TIGHT_BUFFER_PIGTAIL">0.9mm Tight-Buffer Pigtail</option>
+          </select>
+        </div>
+
+        <div class="ont-form-group">
+          <label for="macroBendTurnSelect">Number of Bend Turns / Loops</label>
+          <select id="macroBendTurnSelect" class="fdt-select">
+            <option value="1" selected>1 Turn / Corner</option>
+            <option value="2">2 Turns</option>
+            <option value="3">3 Turns (Coiled in Cassette)</option>
+            <option value="5">5 Turns</option>
+            <option value="10">10 Turns (Mandrel Test)</option>
+          </select>
+        </div>
+
+        <div class="ont-form-group">
+          <label for="macroBendAngleSelect">Bend Angle</label>
+          <select id="macroBendAngleSelect" class="fdt-select">
+            <option value="90" selected>90° Corner Bend</option>
+            <option value="180">180° Hairpin U-Turn</option>
+            <option value="360">360° Full Drip Loop</option>
+          </select>
+        </div>
+
+        <div class="ont-form-group">
+          <label for="macroBendInputPower">Input Optical Power (dBm)</label>
+          <input id="macroBendInputPower" type="number" step="0.5" min="-30" max="10" value="-19.0" />
+        </div>
+      </section>
+
+      <!-- Field Route Metadata -->
+      <section class="probe-meta-grid" aria-label="Field Inspection Metadata">
+        <div class="probe-meta-group">
+          <label for="macroBendLocationInput">Subscriber Drop Location</label>
+          <input id="macroBendLocationInput" type="text" placeholder="e.g. Shahdara Town - House #45" value="Shahdara Town - House #45" />
+        </div>
+        <div class="probe-meta-group">
+          <label for="macroBendTechInput">Lineman Technician</label>
+          <input id="macroBendTechInput" type="text" placeholder="e.g. Imran Lineman" value="Imran Lineman" />
+        </div>
+        <div class="probe-meta-group">
+          <label for="macroBendNotesInput">Inspection Observation Notes</label>
+          <input id="macroBendNotesInput" type="text" placeholder="e.g. Cleat pinch relieved; tested OK" value="Verified bend compliance." />
+        </div>
+      </section>
+
+      <!-- Action Buttons -->
+      <div class="fdt-actions-row">
+        <button id="macroBendSaveBtn" type="button" class="btn-primary">💾 Save Bend Audit</button>
+        <button id="macroBendWhatsappBtn" type="button" class="btn-whatsapp">💬 WhatsApp Lineman Report</button>
+        <button id="macroBendClearHistoryBtn" type="button" class="btn-secondary" style="margin-left:auto">🗑️ Clear History</button>
+      </div>
+
+      <!-- Recent Bend Audits List -->
+      <div class="probe-history-section">
+        <h3 style="margin:0;font-size:13px;font-weight:700">Recent Macro-Bend Field Audits</h3>
+        <ul id="macroBendHistoryList" class="probe-history-list" role="feed" aria-label="Recent macro-bend field audits">
+          <!-- Dynamically populated entries -->
+        </ul>
+      </div>
+    </section>
+  </dialog>
+
 
 
   <dialog id="customerBillInvoiceModal" class="modal invoice-modal" aria-labelledby="billInvoiceModalTitle">

@@ -8604,3 +8604,285 @@ test('setupMobileAttenuatorModal binds modal controls, updates calculations in r
     globalThis.document = origDoc;
   }
 });
+
+/* ==========================================================================
+   Field Optical Return Loss (ORL) & Back-Reflection Assistant Tests
+   ========================================================================== */
+
+test('calculateOpticalReturnLoss accurately computes total ORL for clean all-APC ODN networks', async () => {
+  const { calculateOpticalReturnLoss } = await import('../nav.js');
+
+  const clean = calculateOpticalReturnLoss({
+    standardId: 'GPON_ITU_G984',
+    fiberLengthKm: 2.8,
+    fiberAttenuationPerKm: 0.35,
+    connectorIds: ['SC_APC_CLEAN', 'SC_APC_CLEAN', 'SC_APC_CLEAN']
+  });
+
+  assert.equal(clean.events.length, 3);
+  assert.ok(clean.totalOrlDb >= 32.0);
+  assert.equal(clean.status, 'OPTIMAL');
+  assert.ok(clean.orlMarginDb >= 0);
+  assert.equal(clean.hasMismatch, false);
+  assert.equal(clean.hasOpenEnd, false);
+});
+
+test('calculateOpticalReturnLoss detects catastrophic APC-UPC connector mismatch and open uncapped fiber', async () => {
+  const { calculateOpticalReturnLoss } = await import('../nav.js');
+
+  // Accidental APC in UPC mismatch
+  const mismatch = calculateOpticalReturnLoss({
+    standardId: 'GPON_ITU_G984',
+    fiberLengthKm: 1.2,
+    connectorIds: ['SC_APC_CLEAN', 'APC_UPC_MISMATCH', 'SC_APC_CLEAN']
+  });
+
+  assert.equal(mismatch.hasMismatch, true);
+  assert.equal(mismatch.status, 'CRITICAL_REFLECTANCE');
+  assert.equal(mismatch.worstEvent.connector.id, 'APC_UPC_MISMATCH');
+  assert.ok(mismatch.totalOrlDb < 25.0);
+  assert.ok(mismatch.message.includes('connector mismatch'));
+
+  // Uncapped open cleaved fiber end (Fresnel reflection)
+  const openEnd = calculateOpticalReturnLoss({
+    standardId: 'XGSPON_ITU_G9807',
+    fiberLengthKm: 0.8,
+    connectorIds: ['SC_APC_CLEAN', 'OPEN_CLEAVED_FIBER']
+  });
+
+  assert.equal(openEnd.hasOpenEnd, true);
+  assert.equal(openEnd.status, 'CRITICAL_REFLECTANCE');
+  assert.ok(openEnd.message.includes('Fresnel'));
+});
+
+test('calculateOpticalReturnLoss verifies standard thresholds across GPON, XGS-PON, and RF Video Overlay', async () => {
+  const { calculateOpticalReturnLoss, OPTICAL_NETWORK_STANDARDS } = await import('../nav.js');
+
+  assert.equal(OPTICAL_NETWORK_STANDARDS.GPON_ITU_G984.minOrlDb, 32.0);
+  assert.equal(OPTICAL_NETWORK_STANDARDS.XGSPON_ITU_G9807.minOrlDb, 32.0);
+  assert.equal(OPTICAL_NETWORK_STANDARDS.RF_VIDEO_OVERLAY.minOrlDb, 40.0);
+
+  // Test RF video overlay with UPC connector (should fail 40 dB standard)
+  const rf = calculateOpticalReturnLoss({
+    standardId: 'RF_VIDEO_OVERLAY',
+    fiberLengthKm: 3.0,
+    connectorIds: ['SC_APC_CLEAN', 'SC_UPC_CLEAN']
+  });
+
+  assert.ok(rf.totalOrlDb < 40.0);
+  assert.ok(rf.status === 'NON_COMPLIANT' || rf.status === 'CRITICAL_REFLECTANCE');
+});
+
+test('getOrlStore, saveOrlStore, recordOrlAudit, and clearOrlStore manage local audit records', async () => {
+  const { getOrlStore, recordOrlAudit, clearOrlStore } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const initial = getOrlStore(mockStorage);
+  assert.ok(Array.isArray(initial));
+  assert.ok(initial.length >= 2);
+
+  const updated = recordOrlAudit({
+    location: 'Shahdara Town - Main Bazaar',
+    technician: 'Imran Lineman',
+    standardId: 'GPON_ITU_G984',
+    standardName: 'ITU-T G.984.2 GPON',
+    fiberLengthKm: 2.8,
+    totalOrlDb: 36.2,
+    orlMarginDb: 4.2,
+    status: 'OPTIMAL',
+    notes: 'Pristine all-APC network.'
+  }, mockStorage);
+
+  assert.ok(Array.isArray(updated));
+  assert.equal(updated[0].location, 'Shahdara Town - Main Bazaar');
+  assert.equal(updated[0].totalOrlDb, 36.2);
+
+  clearOrlStore(mockStorage);
+  const cleared = getOrlStore(mockStorage);
+  assert.equal(cleared.length, 0);
+  assert.equal(store['shahdara_orl_audits_v1'], '[]');
+});
+
+test('renderMobileOrlSvg generates valid vector visualization with transmitter, back-reflection waves, and ORL gauge', async () => {
+  const { renderMobileOrlSvg, calculateOpticalReturnLoss } = await import('../nav.js');
+
+  const calc = calculateOpticalReturnLoss({
+    standardId: 'GPON_ITU_G984',
+    fiberLengthKm: 2.5,
+    connectorIds: ['SC_APC_CLEAN', 'SC_APC_CLEAN']
+  });
+
+  const svg = renderMobileOrlSvg(calc);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('orl-svg'));
+  assert.ok(svg.includes('OLT LASER'));
+  assert.ok(svg.includes('Back-Reflection'));
+  assert.ok(svg.includes('Cumulative ORL'));
+  assert.ok(svg.includes('MIN: 32 dB'));
+});
+
+test('generateOrlWhatsAppReport formats clean lineman field dispatch', async () => {
+  const { generateOrlWhatsAppReport } = await import('../nav.js');
+
+  const report = generateOrlWhatsAppReport({
+    location: 'Shahdara Town - Main Bazaar Commercial Feeder',
+    technician: 'Imran Lineman',
+    timestamp: '2026-10-17T01:15:00.000Z',
+    standardName: 'ITU-T G.984 GPON',
+    fiberLengthKm: 2.8,
+    totalOrlDb: 36.2,
+    status: 'OPTIMAL',
+    notes: 'All-APC clean network verified.'
+  });
+
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL RETURN LOSS (ORL) AUDIT'));
+  assert.ok(report.includes('Shahdara Town - Main Bazaar Commercial Feeder'));
+  assert.ok(report.includes('Imran Lineman'));
+  assert.ok(report.includes('36.2 dB'));
+  assert.ok(report.includes('PASS - OPTIMAL'));
+});
+
+test('setupMobileOrlModal binds modal controls, updates calculations in real time, and handles user interactions', async () => {
+  const { setupMobileOrlModal } = await import('../nav.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  let modalOpened = false;
+  let modalClosed = false;
+  let toastMessage = '';
+  let copiedText = '';
+
+  const mockModal = {
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    setAttribute: () => {},
+    removeAttribute: () => {},
+    onclick: null
+  };
+
+  const mockCloseBtn = { onclick: null };
+  const mockDrawerBtn = { onclick: null };
+  const mockSpeedDialBtn = { onclick: null };
+  const mockActionSheetBtn = { onclick: null };
+
+  const mockPresetSelect = { value: '', options: [{ value: '' }], onchange: null };
+  const mockStandardSelect = { value: 'GPON_ITU_G984', onchange: null };
+  const mockLengthSlider = { value: '2.0', oninput: null };
+  const mockLengthVal = { textContent: '' };
+  const mockConn1Select = { value: 'SC_APC_CLEAN', onchange: null };
+  const mockConn2Select = { value: 'SC_APC_CLEAN', onchange: null };
+  const mockConn3Select = { value: 'SC_APC_CLEAN', onchange: null };
+
+  const mockKpiOrl = { textContent: '', style: {} };
+  const mockKpiMargin = { textContent: '', style: {} };
+  const mockKpiWorst = { textContent: '', style: {} };
+  const mockKpiStatus = { textContent: '', style: {} };
+
+  const mockSvgWrap = { innerHTML: '' };
+  const mockRemediationText = { textContent: '', style: {} };
+
+  const mockLocationInput = { value: 'Shahdara Town - Main Bazaar' };
+  const mockTechInput = { value: 'Imran Lineman' };
+  const mockNotesInput = { value: 'Inspected' };
+
+  const mockSaveBtn = { onclick: null };
+  const mockWhatsappBtn = { onclick: null };
+  const mockClearHistoryBtn = { onclick: null };
+  const mockHistoryList = { innerHTML: '' };
+
+  const elements = {
+    mobileOrlModal: mockModal,
+    mobileOrlCloseBtn: mockCloseBtn,
+    navOrlBtn: mockDrawerBtn,
+    orlPresetSelect: mockPresetSelect,
+    orlStandardSelect: mockStandardSelect,
+    orlLengthSlider: mockLengthSlider,
+    orlLengthVal: mockLengthVal,
+    orlConn1Select: mockConn1Select,
+    orlConn2Select: mockConn2Select,
+    orlConn3Select: mockConn3Select,
+    orlKpiTotal: mockKpiOrl,
+    orlKpiMargin: mockKpiMargin,
+    orlKpiWorst: mockKpiWorst,
+    orlKpiStatus: mockKpiStatus,
+    orlSvgWrap: mockSvgWrap,
+    orlRemediationText: mockRemediationText,
+    orlLocationInput: mockLocationInput,
+    orlTechInput: mockTechInput,
+    orlNotesInput: mockNotesInput,
+    orlSaveBtn: mockSaveBtn,
+    orlWhatsappBtn: mockWhatsappBtn,
+    orlClearHistoryBtn: mockClearHistoryBtn,
+    orlHistoryList: mockHistoryList
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelector: (sel) => {
+      if (sel === '[data-open-orl]') return mockSpeedDialBtn;
+      if (sel === '[data-action-orl]') return mockActionSheetBtn;
+      return null;
+    },
+    addEventListener: () => {}
+  };
+
+  try {
+    const controller = setupMobileOrlModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; },
+      clipboard: {
+        writeText: async (t) => { copiedText = t; }
+      }
+    });
+
+    assert.ok(controller);
+    assert.ok(mockSvgWrap.innerHTML.includes('orl-svg'));
+    assert.ok(mockKpiOrl.textContent.includes('dB'));
+    assert.ok(mockHistoryList.innerHTML.includes('Shahdara Town'));
+
+    // Open & close modal
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+
+    // Test Preset Selection
+    mockPresetSelect.value = 'PRESET_FAT_CONNECTOR_MISMATCH';
+    mockPresetSelect.onchange();
+    assert.equal(mockConn2Select.value, 'APC_UPC_MISMATCH');
+    assert.ok(toastMessage.includes('Loaded preset'));
+
+    // Test Slider
+    mockLengthSlider.value = '5.0';
+    mockLengthSlider.oninput();
+    assert.equal(mockLengthVal.textContent, '5.0 km');
+
+    // Test Save Audit
+    mockSaveBtn.onclick();
+    assert.ok(toastMessage.includes('audit saved'));
+
+    // Test WhatsApp Report
+    await mockWhatsappBtn.onclick();
+    assert.ok(copiedText.includes('SHAHDARA ISP - OPTICAL RETURN LOSS'));
+    assert.ok(toastMessage.includes('WhatsApp audit report copied'));
+
+    // Test Clear History
+    mockClearHistoryBtn.onclick();
+    assert.ok(toastMessage.includes('audit history cleared'));
+    assert.ok(mockHistoryList.innerHTML.includes('No optical return loss audits recorded'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

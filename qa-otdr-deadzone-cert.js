@@ -997,25 +997,27 @@ export function setupOtdrDeadzoneModal(options = {}) {
   const storage = options.storage || (typeof localStorage !== 'undefined' ? localStorage : null);
   const onToast = typeof options.onToast === 'function' ? options.onToast : () => {};
   const clipboard = options.clipboard || (typeof navigator !== 'undefined' && navigator.clipboard ? navigator.clipboard : null);
+  const doc = options.doc || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return null;
 
-  const modal = document.getElementById('otdrDeadzoneModal');
+  const modal = doc.getElementById('otdrDeadzoneModal');
   if (!modal) return null;
 
-  const triggerBtn = document.getElementById('openOtdrDeadzoneBtn');
-  const closeBtn = document.getElementById('closeOtdrDeadzoneBtn');
-  const presetSelect = document.getElementById('otdrDeadzonePresetSelect');
-  const pulseSelect = document.getElementById('otdrDeadzonePulseSelect');
-  const wlSelect = document.getElementById('otdrDeadzoneWlSelect');
-  const launchInput = document.getElementById('otdrDeadzoneLaunchInput');
-  const tailInput = document.getElementById('otdrDeadzoneTailInput');
-  const svgContainer = document.getElementById('otdrDeadzoneSvgContainer');
-  const hudRibbon = document.getElementById('otdrDeadzoneHudRibbon');
-  const saveBtn = document.getElementById('saveOtdrDeadzoneCertBtn');
-  const printA4Btn = document.getElementById('printOtdrDeadzoneA4Btn');
-  const printThermalBtn = document.getElementById('printOtdrDeadzoneThermalBtn');
-  const whatsappBtn = document.getElementById('whatsappOtdrDeadzoneBtn');
-  const exportCsvBtn = document.getElementById('exportOtdrDeadzoneCsvBtn');
-  const historyTbody = document.getElementById('otdrDeadzoneHistoryTbody');
+  const triggerBtn = doc.getElementById('openOtdrDeadzoneBtn');
+  const closeBtn = doc.getElementById('closeOtdrDeadzoneBtn');
+  const presetSelect = doc.getElementById('otdrDeadzonePresetSelect');
+  const pulseSelect = doc.getElementById('otdrDeadzonePulseSelect');
+  const wlSelect = doc.getElementById('otdrDeadzoneWlSelect');
+  const launchInput = doc.getElementById('otdrDeadzoneLaunchInput');
+  const tailInput = doc.getElementById('otdrDeadzoneTailInput');
+  const svgContainer = doc.getElementById('otdrDeadzoneSvgContainer');
+  const hudRibbon = doc.getElementById('otdrDeadzoneHudRibbon');
+  const saveBtn = doc.getElementById('saveOtdrDeadzoneCertBtn');
+  const printA4Btn = doc.getElementById('printOtdrDeadzoneA4Btn');
+  const printThermalBtn = doc.getElementById('printOtdrDeadzoneThermalBtn');
+  const whatsappBtn = doc.getElementById('whatsappOtdrDeadzoneBtn');
+  const exportCsvBtn = doc.getElementById('exportOtdrDeadzoneCsvBtn');
+  const historyTbody = doc.getElementById('otdrDeadzoneHistoryTbody');
 
   let currentAnalysis = null;
 
@@ -1224,6 +1226,22 @@ export function setupOtdrDeadzoneModal(options = {}) {
   }
 
   return {
+    open(customer) {
+      if (typeof modal.showModal === 'function') {
+        modal.showModal();
+      } else {
+        modal.setAttribute('open', '');
+      }
+      recalculate();
+      renderHistory();
+    },
+    close() {
+      if (typeof modal.close === 'function') {
+        modal.close();
+      } else {
+        modal.removeAttribute('open');
+      }
+    },
     recalculate,
     renderHistory,
     getCurrentAnalysis: () => currentAnalysis

@@ -7493,3 +7493,87 @@ test('index.html and styles.css include OTDR Dead Zone QA modal elements and sty
   assert.ok(css.includes('.otdr-deadzone-trace-svg'));
   assert.ok(css.includes('.otdr-deadzone-svg-wrap'));
 });
+
+test('setupOtdrDeadzoneModal binds DOM elements, recalculates, and saves certificates', async () => {
+  const { setupOtdrDeadzoneModal, OTDR_DEADZONE_CERT_STORAGE_KEY } = await import('../form-validation.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      innerHTML: '',
+      open: false,
+      addEventListener(evt, fn) {
+        if (!listeners[evt]) listeners[evt] = [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      querySelectorAll() { return []; }
+    };
+  }
+
+  const elements = {
+    otdrDeadzoneModal: createMockEl('otdrDeadzoneModal'),
+    openOtdrDeadzoneBtn: createMockEl('openOtdrDeadzoneBtn'),
+    closeOtdrDeadzoneBtn: createMockEl('closeOtdrDeadzoneBtn'),
+    otdrDeadzonePresetSelect: createMockEl('otdrDeadzonePresetSelect'),
+    otdrDeadzonePulseSelect: createMockEl('otdrDeadzonePulseSelect'),
+    otdrDeadzoneWlSelect: createMockEl('otdrDeadzoneWlSelect'),
+    otdrDeadzoneLaunchInput: createMockEl('otdrDeadzoneLaunchInput'),
+    otdrDeadzoneTailInput: createMockEl('otdrDeadzoneTailInput'),
+    otdrDeadzoneSvgContainer: createMockEl('otdrDeadzoneSvgContainer'),
+    otdrDeadzoneHudRibbon: createMockEl('otdrDeadzoneHudRibbon'),
+    saveOtdrDeadzoneCertBtn: createMockEl('saveOtdrDeadzoneCertBtn'),
+    printOtdrDeadzoneA4Btn: createMockEl('printOtdrDeadzoneA4Btn'),
+    printThermalBtn: createMockEl('printOtdrDeadzoneThermalBtn'),
+    whatsappOtdrDeadzoneBtn: createMockEl('whatsappOtdrDeadzoneBtn'),
+    exportCsvBtn: createMockEl('exportOtdrDeadzoneCsvBtn'),
+    otdrDeadzoneHistoryTbody: createMockEl('otdrDeadzoneHistoryTbody')
+  };
+
+  elements.otdrDeadzonePresetSelect.value = 'SPAN_BARADARI_JIA_MUSA';
+  elements.otdrDeadzonePulseSelect.value = '10ns';
+  elements.otdrDeadzoneWlSelect.value = '1550';
+  elements.otdrDeadzoneLaunchInput.value = '500';
+  elements.otdrDeadzoneTailInput.value = '300';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toastLog = [];
+  const controller = setupOtdrDeadzoneModal({
+    storage: mockStorage,
+    doc: mockDoc,
+    onToast: (msg) => toastLog.push(msg)
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.otdrDeadzoneModal.open, true);
+  assert.ok(elements.otdrDeadzoneSvgContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.otdrDeadzoneHudRibbon.innerHTML.includes('Event Dead Zone'));
+
+  elements.saveOtdrDeadzoneCertBtn.click();
+  assert.ok(toastLog.some(msg => msg.includes('saved successfully')));
+  assert.ok(store[OTDR_DEADZONE_CERT_STORAGE_KEY]);
+
+  controller.close();
+  assert.equal(elements.otdrDeadzoneModal.open, false);
+});

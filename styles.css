@@ -5633,3 +5633,38 @@ html, body {
   }
 }
 
+.dispersion-cert-modal-card {
+  max-width: 920px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.dispersion-analysis-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.35));
+  width: 100%;
+  max-width: 640px;
+  display: block;
+  margin: 0 auto;
+}
+
+[data-theme="dark"] .dispersion-cert-modal-card {
+  background: #14241e;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+@media print {
+  .dispersion-cert-modal,
+  .dispersion-cert-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+

@@ -42,7 +42,8 @@ import {
   setupDropSafetyInspectionModal,
   setupEthernetCertModal,
   setupOrlCertModal,
-  setupDdmiCertModal
+  setupDdmiCertModal,
+  setupDispersionCertModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3339,6 +3340,7 @@ export let customerDropSafetyModalController;
 export let customerEthernetCertModalController;
 export let customerOrlCertModalController;
 export let customerDdmiCertModalController;
+export let customerDispersionModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3568,6 +3570,25 @@ if (typeof document !== 'undefined') {
         });
       }
       customerDdmiCertModalController?.open();
+    });
+  }
+
+  customerDispersionModalController = setupDispersionCertModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
+  const openDispersionCertBtn = $('#openDispersionCertBtn');
+  if (openDispersionCertBtn) {
+    openDispersionCertBtn.addEventListener('click', () => {
+      const cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+      if (cust && customerDispersionModalController) {
+        customerDispersionModalController.setReading({
+          feederRouteName: `Shahdara Trunk Span (${cust.area || 'Shahdara Town'})`,
+          destinationNode: `${cust.name || 'Subscriber Node'} Drop Demarcation`
+        });
+      }
+      customerDispersionModalController?.open();
     });
   }
 }

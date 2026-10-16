@@ -12082,3 +12082,21 @@ export {
   setupDdmiCertModal
 } from './qa-ddmi-calibration.js';
 
+export {
+  DISPERSION_STORAGE_KEY,
+  FIBER_DISPERSION_PROFILES,
+  BITRATE_DISPERSION_STANDARDS,
+  DISPERSION_SEVERITY_LEVELS,
+  calculateChromaticDispersionCoefficient,
+  evaluateLinkDispersion,
+  buildDispersionCertRecord,
+  saveDispersionCert,
+  getSavedDispersionCerts,
+  clearDispersionCerts,
+  formatDispersionCertWhatsApp,
+  generateDispersionCertsCsv,
+  generateDispersionCertHtml,
+  renderDispersionAnalysisSvg,
+  setupDispersionCertModal
+} from './qa-dispersion-inspection.js';
+

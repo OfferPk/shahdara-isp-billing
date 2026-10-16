@@ -7905,3 +7905,367 @@ test('setupSplitterQaModal binds DOM elements, handles presets, recalculates, an
   controller.close();
   assert.equal(elements.splitterQaModal.open, false);
 });
+
+// ============================================================================
+// Optical Connector Ferrule End-Face Geometric Interferometry & Durability QA
+// ============================================================================
+
+test('FERRULE_CONNECTOR_TYPES and FERRULE_GEOMETRY_PRESETS contain correct standards and specs', async () => {
+  const { FERRULE_CONNECTOR_TYPES, FERRULE_GEOMETRY_PRESETS } = await import('../form-validation.js');
+
+  assert.ok(FERRULE_CONNECTOR_TYPES['SC_APC']);
+  assert.ok(FERRULE_CONNECTOR_TYPES['SC_UPC']);
+  assert.ok(FERRULE_CONNECTOR_TYPES['LC_APC']);
+  assert.ok(FERRULE_CONNECTOR_TYPES['LC_UPC']);
+  assert.ok(FERRULE_CONNECTOR_TYPES['FC_APC']);
+  assert.ok(FERRULE_CONNECTOR_TYPES['FC_UPC']);
+
+  assert.equal(FERRULE_CONNECTOR_TYPES['SC_APC'].polish, 'APC');
+  assert.equal(FERRULE_CONNECTOR_TYPES['SC_APC'].nominalAngleDeg, 8.0);
+  assert.equal(FERRULE_CONNECTOR_TYPES['SC_APC'].ferruleDiameterMm, 2.5);
+  assert.equal(FERRULE_CONNECTOR_TYPES['LC_APC'].ferruleDiameterMm, 1.25);
+  assert.equal(FERRULE_CONNECTOR_TYPES['SC_UPC'].polish, 'UPC');
+  assert.equal(FERRULE_CONNECTOR_TYPES['SC_UPC'].nominalAngleDeg, 0.0);
+
+  assert.ok(FERRULE_GEOMETRY_PRESETS.PRESET_SHAHDARA_NOC_MASTER_APC);
+  assert.ok(FERRULE_GEOMETRY_PRESETS.PRESET_SHAHDARA_LOCAL_PIGTAIL_APEX_FAIL);
+  assert.ok(FERRULE_GEOMETRY_PRESETS.PRESET_SHAHDARA_XGSPON_ENTERPRISE_APC);
+  assert.ok(FERRULE_GEOMETRY_PRESETS.PRESET_SHAHDARA_OVERPOLISHED_UNDERCUT_FAIL);
+  assert.ok(FERRULE_GEOMETRY_PRESETS.PRESET_SHAHDARA_EXCESSIVE_RADIUS_FLAT_FAIL);
+});
+
+test('evaluateFerruleGeometry correctly evaluates Grade A master reference pass', async () => {
+  const { evaluateFerruleGeometry } = await import('../form-validation.js');
+
+  const res = evaluateFerruleGeometry({
+    connectorType: 'SC_APC',
+    rocMm: 8.4,
+    apexOffsetUm: 14.2,
+    fiberHeightNm: 18.0,
+    angleDeg: 8.04,
+    springForceN: 8.0,
+    matingCycles: 15
+  });
+
+  assert.equal(res.overallVerdict, 'PASS_GRADE_A');
+  assert.equal(res.verdictStatus, 'PASS');
+  assert.equal(res.isPhysicalContact, true);
+  assert.equal(res.airGapNm, 0);
+  assert.ok(res.domeDropNm > 0);
+  assert.ok(res.elasticCompNm > 0);
+  assert.ok(res.contactRadiusUm > 0);
+  assert.ok(res.hertzianStressMpa <= 1200);
+  assert.ok(res.estimatedIlDb <= 0.25);
+  assert.ok(res.estimatedOrlDb >= 65);
+});
+
+test('evaluateFerruleGeometry correctly flags local pigtail with excessive apex offset and air gap', async () => {
+  const { evaluateFerruleGeometry } = await import('../form-validation.js');
+
+  const res = evaluateFerruleGeometry({
+    connectorType: 'SC_UPC',
+    rocMm: 18.5,
+    apexOffsetUm: 74.8,
+    fiberHeightNm: -65.0,
+    angleDeg: 0.08,
+    springForceN: 7.5,
+    matingCycles: 2
+  });
+
+  assert.equal(res.overallVerdict, 'FAIL');
+  assert.equal(res.verdictStatus, 'FAIL');
+  assert.equal(res.isPhysicalContact, false);
+  assert.ok(res.airGapNm > 0);
+  assert.equal(res.isApexValid, false);
+  assert.equal(res.isFiberHeightValid, false);
+  assert.ok(res.diagnosticSummary.includes('Core Air Gap'));
+  assert.ok(res.diagnosticSummary.includes('Apex Offset'));
+});
+
+test('evaluateFerruleGeometry correctly flags over-polished undercut and excessive flatness', async () => {
+  const { evaluateFerruleGeometry } = await import('../form-validation.js');
+
+  // Overpolished undercut
+  const undercut = evaluateFerruleGeometry({
+    connectorType: 'FC_UPC',
+    rocMm: 9.1,
+    apexOffsetUm: 32.0,
+    fiberHeightNm: -135.0,
+    angleDeg: 0.12,
+    springForceN: 7.2
+  });
+  assert.equal(undercut.overallVerdict, 'FAIL');
+  assert.equal(undercut.isFiberHeightValid, false);
+  assert.ok(undercut.diagnosticSummary.includes('Excessive Undercut'));
+
+  // Flat ferrule (> 25mm)
+  const flat = evaluateFerruleGeometry({
+    connectorType: 'LC_UPC',
+    rocMm: 38.0,
+    apexOffsetUm: 42.0,
+    fiberHeightNm: -15.0,
+    angleDeg: 0.05,
+    springForceN: 5.5
+  });
+  assert.equal(flat.overallVerdict, 'FAIL');
+  assert.equal(flat.isRocValid, false);
+  assert.ok(flat.diagnosticSummary.includes('Excessive Flatness'));
+});
+
+test('renderFerruleGeometryAnalysisSvg outputs compliant SVG markup with cross section and fringes', async () => {
+  const { evaluateFerruleGeometry, renderFerruleGeometryAnalysisSvg } = await import('../form-validation.js');
+
+  const calc = evaluateFerruleGeometry({
+    connectorType: 'SC_APC',
+    rocMm: 8.0,
+    apexOffsetUm: 20.0,
+    fiberHeightNm: 10.0,
+    angleDeg: 8.0
+  });
+
+  const svg = renderFerruleGeometryAnalysisSvg(calc);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('ferruleCrossSection'));
+  assert.ok(svg.includes('interferometryHud'));
+  assert.ok(svg.includes('ZIRCONIA'));
+  assert.ok(svg.includes('INTERFERENCE FRINGES'));
+  assert.ok(svg.includes('FIBER HEIGHT PROFILE'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('buildFerruleGeometryRecord creates normalized record object', async () => {
+  const { buildFerruleGeometryRecord } = await import('../form-validation.js');
+
+  const record = buildFerruleGeometryRecord({
+    connectorType: 'SC_APC',
+    rocMm: 8.4,
+    apexOffsetUm: 14.2,
+    fiberHeightNm: 18.0,
+    serialNumber: 'SN-TEST-12345',
+    location: 'NOC Shelf 04',
+    inspectorName: 'Engr. Haris Tariq',
+    notes: 'Unit test note'
+  });
+
+  assert.ok(record.certId.startsWith('FG-QA-'));
+  assert.equal(record.connectorType, 'SC_APC');
+  assert.equal(record.serialNumber, 'SN-TEST-12345');
+  assert.equal(record.location, 'NOC Shelf 04');
+  assert.equal(record.inspectorName, 'Engr. Haris Tariq');
+  assert.equal(record.notes, 'Unit test note');
+  assert.equal(record.status, 'APPROVED');
+  assert.equal(record.verdictStatus, 'PASS');
+});
+
+test('generateFerruleGeometryCertHtml generates A4 and thermal formats', async () => {
+  const { buildFerruleGeometryRecord, generateFerruleGeometryCertHtml } = await import('../form-validation.js');
+
+  const record = buildFerruleGeometryRecord({
+    connectorType: 'SC_APC',
+    rocMm: 8.4,
+    apexOffsetUm: 14.2,
+    fiberHeightNm: 18.0,
+    serialNumber: 'SN-APC-001'
+  });
+
+  const a4 = generateFerruleGeometryCertHtml(record, { format: 'a4' });
+  assert.ok(a4.includes('SHAHDARA ISP METROLOGY LABORATORY'));
+  assert.ok(a4.includes(record.certId));
+  assert.ok(a4.includes('Telcordia GR-326-CORE'));
+
+  const thermal = generateFerruleGeometryCertHtml(record, { format: 'thermal' });
+  assert.ok(thermal.includes('FERRULE GEOMETRY QA SLIP'));
+  assert.ok(thermal.includes(record.certId));
+  assert.ok(thermal.includes('Radius Curv (R):'));
+});
+
+test('formatFerruleGeometryCertWhatsApp formats dispatch message', async () => {
+  const { buildFerruleGeometryRecord, formatFerruleGeometryCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildFerruleGeometryRecord({
+    connectorType: 'SC_APC',
+    rocMm: 8.4,
+    apexOffsetUm: 14.2,
+    fiberHeightNm: 18.0,
+    serialNumber: 'SN-APC-001',
+    inspectorName: 'Engr. Haris'
+  });
+
+  const wa = formatFerruleGeometryCertWhatsApp(record);
+  assert.ok(wa.includes('*SHAHDARA ISP - FERRULE GEOMETRY QA REPORT*'));
+  assert.ok(wa.includes(record.certId));
+  assert.ok(wa.includes('Engr. Haris'));
+  assert.ok(wa.includes('Curvature Radius (R):'));
+});
+
+test('generateFerruleGeometryCertsCsv exports compliant CSV', async () => {
+  const { buildFerruleGeometryRecord, generateFerruleGeometryCertsCsv } = await import('../form-validation.js');
+
+  const record1 = buildFerruleGeometryRecord({
+    connectorType: 'SC_APC',
+    rocMm: 8.4,
+    apexOffsetUm: 14.2,
+    fiberHeightNm: 18.0
+  });
+
+  const csv = generateFerruleGeometryCertsCsv([record1]);
+  assert.ok(csv.includes('Cert ID,Timestamp,Connector Type'));
+  assert.ok(csv.includes(record1.certId));
+  assert.ok(csv.includes('SC_APC'));
+});
+
+test('LocalStorage methods save, retrieve, update, and clear ferrule geometry certs', async () => {
+  const {
+    getSavedFerruleGeometryCerts,
+    saveFerruleGeometryCert,
+    updateFerruleGeometryCertStatus,
+    clearFerruleGeometryCerts,
+    calculateFerruleGeometryMetrics,
+    buildFerruleGeometryRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  assert.equal(getSavedFerruleGeometryCerts(mockStorage).length, 0);
+
+  const cert1 = buildFerruleGeometryRecord({ connectorType: 'SC_APC', rocMm: 8.4, apexOffsetUm: 14.2, fiberHeightNm: 18.0 });
+  const cert2 = buildFerruleGeometryRecord({ connectorType: 'SC_UPC', rocMm: 18.5, apexOffsetUm: 74.8, fiberHeightNm: -65.0 });
+
+  assert.equal(saveFerruleGeometryCert(cert1, mockStorage), true);
+  assert.equal(saveFerruleGeometryCert(cert2, mockStorage), true);
+
+  const saved = getSavedFerruleGeometryCerts(mockStorage);
+  assert.equal(saved.length, 2);
+
+  const metrics = calculateFerruleGeometryMetrics(saved);
+  assert.equal(metrics.total, 2);
+  assert.equal(metrics.passCount, 1);
+  assert.equal(metrics.failCount, 1);
+  assert.equal(metrics.passRatePercent, 50);
+
+  assert.equal(updateFerruleGeometryCertStatus(cert2.certId, 'RE-POLISHED_PASSED', mockStorage), true);
+  const updated = getSavedFerruleGeometryCerts(mockStorage);
+  assert.equal(updated.find(c => c.certId === cert2.certId).status, 'RE-POLISHED_PASSED');
+
+  assert.equal(clearFerruleGeometryCerts(mockStorage), true);
+  assert.equal(getSavedFerruleGeometryCerts(mockStorage).length, 0);
+});
+
+test('index.html and styles.css include Ferrule Geometry QA modal elements and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="openFerruleGeometryBtn"'));
+  assert.ok(html.includes('data-open-ferrule-geometry'));
+  assert.ok(html.includes('id="ferruleGeometryModal"'));
+  assert.ok(html.includes('id="ferruleGeometrySvgContainer"'));
+  assert.ok(html.includes('id="ferruleGeometryHudRibbon"'));
+  assert.ok(html.includes('id="ferruleGeometryPresetSelect"'));
+  assert.ok(html.includes('id="ferruleGeometryTypeSelect"'));
+  assert.ok(html.includes('id="ferruleGeometryRocInput"'));
+  assert.ok(html.includes('id="saveFerruleGeometryCertBtn"'));
+  assert.ok(html.includes('id="printFerruleGeometryA4Btn"'));
+
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.ferrule-geometry-modal-card'));
+  assert.ok(css.includes('.ferrule-geometry-svg'));
+  assert.ok(css.includes('.ferrule-geometry-svg-wrap'));
+});
+
+test('setupFerruleGeometryModal binds DOM elements, handles presets, recalculates, and saves certificates', async () => {
+  const { setupFerruleGeometryModal, FERRULE_GEOMETRY_CERT_STORAGE_KEY } = await import('../form-validation.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      innerHTML: '',
+      open: false,
+      addEventListener(evt, fn) {
+        if (!listeners[evt]) listeners[evt] = [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      querySelectorAll() { return []; }
+    };
+  }
+
+  const elements = {
+    ferruleGeometryModal: createMockEl('ferruleGeometryModal'),
+    openFerruleGeometryBtn: createMockEl('openFerruleGeometryBtn'),
+    closeFerruleGeometryBtn: createMockEl('closeFerruleGeometryBtn'),
+    ferruleGeometryPresetSelect: createMockEl('ferruleGeometryPresetSelect'),
+    ferruleGeometryTypeSelect: createMockEl('ferruleGeometryTypeSelect'),
+    ferruleGeometryRocInput: createMockEl('ferruleGeometryRocInput'),
+    ferruleGeometryApexInput: createMockEl('ferruleGeometryApexInput'),
+    ferruleGeometryFiberHeightInput: createMockEl('ferruleGeometryFiberHeightInput'),
+    ferruleGeometryAngleInput: createMockEl('ferruleGeometryAngleInput'),
+    ferruleGeometrySpringForceInput: createMockEl('ferruleGeometrySpringForceInput'),
+    ferruleGeometryCyclesInput: createMockEl('ferruleGeometryCyclesInput'),
+    ferruleGeometryLocationInput: createMockEl('ferruleGeometryLocationInput'),
+    ferruleGeometryTechInput: createMockEl('ferruleGeometryTechInput'),
+    ferruleGeometrySerialInput: createMockEl('ferruleGeometrySerialInput'),
+    ferruleGeometryNotesInput: createMockEl('ferruleGeometryNotesInput'),
+    ferruleGeometrySvgContainer: createMockEl('ferruleGeometrySvgContainer'),
+    ferruleGeometryHudRibbon: createMockEl('ferruleGeometryHudRibbon'),
+    saveFerruleGeometryCertBtn: createMockEl('saveFerruleGeometryCertBtn'),
+    printFerruleGeometryA4Btn: createMockEl('printFerruleGeometryA4Btn'),
+    printFerruleGeometryThermalBtn: createMockEl('printFerruleGeometryThermalBtn'),
+    whatsappFerruleGeometryBtn: createMockEl('whatsappFerruleGeometryBtn'),
+    exportFerruleGeometryCsvBtn: createMockEl('exportFerruleGeometryCsvBtn'),
+    ferruleGeometryHistoryTbody: createMockEl('ferruleGeometryHistoryTbody')
+  };
+
+  elements.ferruleGeometryTypeSelect.value = 'SC_APC';
+  elements.ferruleGeometryRocInput.value = '8.4';
+  elements.ferruleGeometryApexInput.value = '14.2';
+  elements.ferruleGeometryFiberHeightInput.value = '18';
+  elements.ferruleGeometryAngleInput.value = '8.04';
+  elements.ferruleGeometrySpringForceInput.value = '8.0';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toastLog = [];
+  const controller = setupFerruleGeometryModal({
+    storage: mockStorage,
+    doc: mockDoc,
+    document: mockDoc,
+    onToast: (msg) => toastLog.push(msg)
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.ferruleGeometryModal.open, true);
+  assert.ok(elements.ferruleGeometrySvgContainer.innerHTML.includes('<svg'));
+
+  elements.saveFerruleGeometryCertBtn.click();
+  assert.ok(toastLog.some(msg => msg.includes('saved successfully')));
+  assert.ok(store[FERRULE_GEOMETRY_CERT_STORAGE_KEY]);
+
+  controller.close();
+  assert.equal(elements.ferruleGeometryModal.open, false);
+});

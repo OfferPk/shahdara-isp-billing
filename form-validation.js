@@ -12179,3 +12179,21 @@ export {
   calculateSplitterQaMetrics,
   setupSplitterQaModal
 } from './qa-splitter-tolerance.js';
+
+export {
+  FERRULE_GEOMETRY_CERT_STORAGE_KEY,
+  FERRULE_CONNECTOR_TYPES,
+  FERRULE_GEOMETRY_PRESETS,
+  evaluateFerruleGeometry,
+  renderFerruleGeometryAnalysisSvg,
+  buildFerruleGeometryRecord,
+  generateFerruleGeometryCertHtml,
+  formatFerruleGeometryCertWhatsApp,
+  generateFerruleGeometryCertsCsv,
+  getSavedFerruleGeometryCerts,
+  saveFerruleGeometryCert,
+  updateFerruleGeometryCertStatus,
+  clearFerruleGeometryCerts,
+  calculateFerruleGeometryMetrics,
+  setupFerruleGeometryModal
+} from './qa-ferrule-geometry.js';

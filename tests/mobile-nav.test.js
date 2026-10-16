@@ -7401,3 +7401,311 @@ test('setupMobileOntDiagnosticsModal wires DOM controls and manages preset switc
     globalThis.document = origDoc;
   }
 });
+
+test('nav-fiber-probe: evaluateDefectZone correctly classifies radial distances into IEC zones', async () => {
+  const { evaluateDefectZone } = await import('../nav-fiber-probe.js');
+
+  // Core is 0 - 12.5µm radius
+  assert.equal(evaluateDefectZone(0, 0), 'ZONE_A');
+  assert.equal(evaluateDefectZone(5, 5), 'ZONE_A'); // sqrt(50) = 7.07µm <= 12.5
+  assert.equal(evaluateDefectZone(12, 0), 'ZONE_A');
+
+  // Cladding is 12.5 - 57.5µm radius
+  assert.equal(evaluateDefectZone(20, 20), 'ZONE_B'); // sqrt(800) = 28.28µm
+  assert.equal(evaluateDefectZone(50, 0), 'ZONE_B');
+
+  // Adhesive is 57.5 - 67.5µm radius
+  assert.equal(evaluateDefectZone(60, 0), 'ZONE_C');
+
+  // Ferrule is 67.5 - 125µm radius
+  assert.equal(evaluateDefectZone(100, 0), 'ZONE_D');
+
+  // Outside ferrule inspection boundary
+  assert.equal(evaluateDefectZone(150, 0), 'OUTSIDE');
+});
+
+test('nav-fiber-probe: evaluateIec61300Criteria evaluates pass/fail and penalty accurately', async () => {
+  const { evaluateIec61300Criteria, CONNECTOR_TYPES } = await import('../nav-fiber-probe.js');
+
+  // Pristine endface passes
+  const cleanEval = evaluateIec61300Criteria([], CONNECTOR_TYPES.SC_APC);
+  assert.equal(cleanEval.overallPass, true);
+  assert.equal(cleanEval.totalViolations, 0);
+  assert.equal(cleanEval.penaltyDb, 0);
+  assert.equal(cleanEval.estInsertionLossDb, 0.15);
+  assert.equal(cleanEval.estReturnLossDb, 65.0);
+
+  // Core scratch is critical fail
+  const coreDefects = [
+    { type: 'scratch', xUm: 3, yUm: 2, sizeUm: 2.0, lengthUm: 8.0, desc: 'Hairline core gouge' }
+  ];
+  const coreEval = evaluateIec61300Criteria(coreDefects, CONNECTOR_TYPES.SC_APC);
+  assert.equal(coreEval.overallPass, false);
+  assert.equal(coreEval.zones.ZONE_A.pass, false);
+  assert.ok(coreEval.totalViolations >= 1);
+  assert.ok(coreEval.penaltyDb > 0.5);
+  assert.ok(coreEval.estReturnLossDb < 45.0);
+
+  // Loose dust in cladding > 5µm fails
+  const cladDefects = [
+    { type: 'dust', xUm: 30, yUm: 0, sizeUm: 8.0, desc: 'Large silica dust speck' }
+  ];
+  const cladEval = evaluateIec61300Criteria(cladDefects, CONNECTOR_TYPES.SC_APC);
+  assert.equal(cladEval.overallPass, false);
+  assert.equal(cladEval.zones.ZONE_B.pass, false);
+
+  // Acceptable minor cladding blemishes pass
+  const minorClad = [
+    { type: 'scratch', xUm: 35, yUm: 10, sizeUm: 1.5, lengthUm: 10.0, desc: 'Faint cladding scratch' }
+  ];
+  const minorEval = evaluateIec61300Criteria(minorClad, CONNECTOR_TYPES.SC_APC);
+  assert.equal(minorEval.overallPass, true);
+});
+
+test('nav-fiber-probe: remediateConnectorCleaning cleans dust and oil but preserves physical scratches', async () => {
+  const { remediateConnectorCleaning } = await import('../nav-fiber-probe.js');
+
+  const mixedDefects = [
+    { id: 'd1', type: 'dust', xUm: 3, yUm: 3, sizeUm: 4.0, desc: 'Core dust particle' },
+    { id: 'd2', type: 'scratch', xUm: 40, yUm: 10, sizeUm: 2.0, desc: 'Cladding scratch gouge' },
+    { id: 'd3', type: 'oil', xUm: 80, yUm: 0, sizeUm: 15.0, desc: 'Lineman fingerprint oil' }
+  ];
+
+  const cleaned = remediateConnectorCleaning(mixedDefects, 'WET_DRY_IPA');
+  assert.equal(cleaned.length, 1);
+  assert.equal(cleaned[0].type, 'scratch');
+});
+
+test('nav-fiber-probe: storage methods save, retrieve, record, and clear audit logs', async () => {
+  const {
+    getFiberProbeStore,
+    clearFiberProbeStore,
+    recordFiberProbeAudit
+  } = await import('../nav-fiber-probe.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  // Initially loads default audits
+  const initial = getFiberProbeStore(mockStorage);
+  assert.ok(Array.isArray(initial));
+  assert.ok(initial.length > 0);
+
+  // Clear store
+  clearFiberProbeStore(mockStorage);
+  assert.deepEqual(getFiberProbeStore(mockStorage), []);
+
+  // Record audit
+  const newAudit = {
+    locationArea: 'Baghbanpura',
+    nodeTag: 'FAT-BAGH-02 Drop 1',
+    connectorType: 'SC_APC',
+    magnification: '400X',
+    grade: 'PASS',
+    totalViolations: 0,
+    insertionLossDb: 0.16,
+    returnLossDb: 64.5,
+    cleaned: true,
+    technician: 'Noman Field Tech'
+  };
+  const recorded = recordFiberProbeAudit(newAudit, mockStorage);
+  assert.equal(recorded.length, 1);
+  assert.equal(recorded[0].locationArea, 'Baghbanpura');
+  assert.ok(recorded[0].id.startsWith('PROBE-'));
+});
+
+test('nav-fiber-probe: renderMobileFiberProbeSvg produces valid SVG microscope view', async () => {
+  const { renderMobileFiberProbeSvg, evaluateIec61300Criteria, CONNECTOR_TYPES } = await import('../nav-fiber-probe.js');
+
+  const ev = evaluateIec61300Criteria([], CONNECTOR_TYPES.SC_APC);
+  const svg = renderMobileFiberProbeSvg(ev, {
+    connector: CONNECTOR_TYPES.SC_APC,
+    magnification: '400X'
+  });
+
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('IEC 61300-3-35 MICROSCOPE'));
+  assert.ok(svg.includes('Zone A: Core'));
+  assert.ok(svg.includes('PASS'));
+});
+
+test('nav-fiber-probe: generateFiberProbeWhatsAppReport generates detailed field dispatch message', async () => {
+  const { generateFiberProbeWhatsAppReport } = await import('../nav-fiber-probe.js');
+
+  const report = generateFiberProbeWhatsAppReport({
+    id: 'PROBE-20261016-01',
+    displayDate: 'Oct 16, 2026',
+    displayTime: '04:15 PM',
+    locationArea: 'Baradari Road',
+    nodeTag: 'FAT-BAR-01 Drop 4',
+    connectorType: 'SC_APC',
+    magnification: '400X',
+    grade: 'PASS',
+    totalViolations: 0,
+    insertionLossDb: 0.14,
+    returnLossDb: 66.2,
+    cleaned: true,
+    technician: 'Tariq Lineman'
+  });
+
+  assert.ok(report.includes('FIBER CONNECTOR PROBE REPORT'));
+  assert.ok(report.includes('Baradari Road'));
+  assert.ok(report.includes('FAT-BAR-01 Drop 4'));
+  assert.ok(report.includes('SC/APC'));
+  assert.ok(report.includes('GRADE: PASS'));
+  assert.ok(report.includes('0.14 dB'));
+});
+
+test('nav-fiber-probe: setupMobileFiberProbeModal lifecycle and UI interactions', async () => {
+  const { setupMobileFiberProbeModal } = await import('../nav-fiber-probe.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const listeners = new Map();
+  function makeMockElement(id, tag = 'div') {
+    return {
+      id,
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      open: false,
+      classList: {
+        add: () => {},
+        remove: () => {},
+        toggle: () => {},
+        contains: () => false
+      },
+      showModal: function() { this.open = true; },
+      close: function() { this.open = false; },
+      setAttribute: function(k, v) { if (k === 'open') this.open = true; },
+      removeAttribute: function(k) { if (k === 'open') this.open = false; },
+      addEventListener: function(event, fn) {
+        listeners.set(`${id}:${event}`, fn);
+      },
+      set onclick(fn) {
+        listeners.set(`${id}:click`, fn);
+      },
+      querySelectorAll: () => [],
+      querySelector: () => null
+    };
+  }
+
+  const modal = makeMockElement('mobileFiberProbeModal', 'dialog');
+  const closeBtn = makeMockElement('mobileFiberProbeCloseBtn', 'button');
+  const presetSelect = makeMockElement('fiberProbePresetSelect', 'select');
+  presetSelect.value = 'CORE_SCRATCH';
+  const magSelect = makeMockElement('fiberProbeMagSelect', 'select');
+  magSelect.value = '400X';
+  const cleanMethodSelect = makeMockElement('fiberProbeCleanMethodSelect', 'select');
+  cleanMethodSelect.value = 'WET_DRY_IPA';
+  const cleanBtn = makeMockElement('fiberProbeCleanBtn', 'button');
+  const reinspectBtn = makeMockElement('fiberProbeReinspectBtn', 'button');
+  const whatsappBtn = makeMockElement('fiberProbeWhatsappBtn', 'button');
+  const clearHistoryBtn = makeMockElement('fiberProbeClearHistoryBtn', 'button');
+  const svgContainer = makeMockElement('fiberProbeSvgContainer');
+  const coreStatus = makeMockElement('fiberProbeCoreStatus');
+  const cladStatus = makeMockElement('fiberProbeCladStatus');
+  const adhrStatus = makeMockElement('fiberProbeAdhrStatus');
+  const ferrStatus = makeMockElement('fiberProbeFerrStatus');
+  const overallBadge = makeMockElement('fiberProbeOverallBadge');
+  const ilPenalty = makeMockElement('fiberProbeIlPenalty');
+  const rlEst = makeMockElement('fiberProbeRlEst');
+  const remediationTip = makeMockElement('fiberProbeRemediationTip');
+  const locationInput = makeMockElement('fiberProbeLocationInput', 'input');
+  locationInput.value = 'Shahdara Town';
+  const nodeTagInput = makeMockElement('fiberProbeNodeTagInput', 'input');
+  nodeTagInput.value = 'FAT-SHA-01';
+  const techInput = makeMockElement('fiberProbeTechInput', 'input');
+  techInput.value = 'Ali Lineman';
+  const historyList = makeMockElement('fiberProbeHistoryList', 'ul');
+  const triggerBtn = makeMockElement('triggerBtn', 'button');
+
+  const elements = {
+    mobileFiberProbeModal: modal,
+    mobileFiberProbeCloseBtn: closeBtn,
+    fiberProbePresetSelect: presetSelect,
+    fiberProbeMagSelect: magSelect,
+    fiberProbeCleanMethodSelect: cleanMethodSelect,
+    fiberProbeCleanBtn: cleanBtn,
+    fiberProbeReinspectBtn: reinspectBtn,
+    fiberProbeWhatsappBtn: whatsappBtn,
+    fiberProbeClearHistoryBtn: clearHistoryBtn,
+    fiberProbeSvgContainer: svgContainer,
+    fiberProbeCoreStatus: coreStatus,
+    fiberProbeCladStatus: cladStatus,
+    fiberProbeAdhrStatus: adhrStatus,
+    fiberProbeFerrStatus: ferrStatus,
+    fiberProbeOverallBadge: overallBadge,
+    fiberProbeIlPenalty: ilPenalty,
+    fiberProbeRlEst: rlEst,
+    fiberProbeRemediationTip: remediationTip,
+    fiberProbeLocationInput: locationInput,
+    fiberProbeNodeTagInput: nodeTagInput,
+    fiberProbeTechInput: techInput,
+    fiberProbeHistoryList: historyList
+  };
+
+  let toastMessage = '';
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => elements[id] || null,
+    querySelectorAll: (sel) => {
+      if (sel === '[data-open-fiber-probe]') return [triggerBtn];
+      return [];
+    },
+    createElement: (tag) => makeMockElement('created', tag)
+  };
+
+  try {
+    const controller = setupMobileFiberProbeModal({
+      storage: mockStorage,
+      onToast: (msg) => { toastMessage = msg; }
+    });
+
+    assert.ok(controller);
+    assert.equal(typeof controller.openModal, 'function');
+    assert.equal(typeof controller.closeModal, 'function');
+    assert.equal(typeof controller.renderView, 'function');
+
+    // Trigger button opens modal
+    const triggerFn = listeners.get('triggerBtn:click');
+    if (triggerFn) triggerFn();
+    assert.ok(modal.open);
+
+    // Close button closes modal
+    const closeFn = listeners.get('mobileFiberProbeCloseBtn:click');
+    if (closeFn) closeFn();
+    assert.equal(modal.open, false);
+
+    // Open with preset
+    controller.openModal('PRISTINE_CLEAN');
+    assert.equal(overallBadge.textContent, 'PASS');
+
+    // Clean action
+    const cleanFn = listeners.get('fiberProbeCleanBtn:click');
+    if (cleanFn) cleanFn();
+    assert.ok(toastMessage.includes('cleaning'));
+
+    // Re-inspect action
+    const reinspectFn = listeners.get('fiberProbeReinspectBtn:click');
+    if (reinspectFn) reinspectFn();
+
+    // Clear history
+    const clearFn = listeners.get('fiberProbeClearHistoryBtn:click');
+    if (clearFn) clearFn();
+    assert.ok(toastMessage.includes('Cleared fiber probe'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});

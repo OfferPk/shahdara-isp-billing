@@ -7577,3 +7577,331 @@ test('setupOtdrDeadzoneModal binds DOM elements, recalculates, and saves certifi
   controller.close();
   assert.equal(elements.otdrDeadzoneModal.open, false);
 });
+
+test('calculateTheoreticalSplittingLoss computes 10*log10(N) dB accurately', async () => {
+  const { calculateTheoreticalSplittingLoss } = await import('../form-validation.js');
+  assert.equal(calculateTheoreticalSplittingLoss(1), 0.0);
+  assert.equal(calculateTheoreticalSplittingLoss(2), 3.01);
+  assert.equal(calculateTheoreticalSplittingLoss(4), 6.02);
+  assert.equal(calculateTheoreticalSplittingLoss(8), 9.03);
+  assert.equal(calculateTheoreticalSplittingLoss(16), 12.04);
+  assert.equal(calculateTheoreticalSplittingLoss(32), 15.05);
+  assert.equal(calculateTheoreticalSplittingLoss(64), 18.06);
+  assert.equal(calculateTheoreticalSplittingLoss(0), 0.0);
+});
+
+test('evaluateSplitterPorts evaluates 1:8 PLC splitter and handles exemplary inputs', async () => {
+  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const res = evaluateSplitterPorts({
+    splitterType: '1:8',
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.90, 10.05, 9.88, 9.95, 10.10, 9.80, 10.00]
+  });
+
+  assert.equal(res.splitterType, '1:8');
+  assert.equal(res.portCount, 8);
+  assert.equal(res.passCount, 8);
+  assert.equal(res.failHighCount, 0);
+  assert.equal(res.failLowCount, 0);
+  assert.equal(res.conditionalCount, 0);
+  assert.equal(res.uniformityStatus, 'PASS');
+  assert.ok(res.uniformityDeltaDb <= 0.80);
+  assert.equal(res.overallVerdict, 'CERTIFIED_CLASS_A');
+  assert.ok(res.excessLossDb >= 0.0);
+});
+
+test('evaluateSplitterPorts flags high loss and pinched ports', async () => {
+  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const res = evaluateSplitterPorts({
+    splitterType: '1:8',
+    inputPowerDbm: 3.0,
+    portLosses: [10.2, 10.3, 18.5, 10.1, 10.4, 10.2, 10.3, 10.2]
+  });
+
+  assert.equal(res.failHighCount, 1);
+  assert.equal(res.overallVerdict, 'REJECT_DEFECTIVE');
+  assert.equal(res.ports[2].status, 'FAILED_HIGH_LOSS');
+  assert.ok(res.ports[2].note.includes('Excessive attenuation'));
+});
+
+test('evaluateSplitterPorts flags unphysical low loss readings', async () => {
+  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const res = evaluateSplitterPorts({
+    splitterType: '1:8',
+    inputPowerDbm: 3.0,
+    portLosses: [9.8, 9.9, 5.0, 9.8, 9.9, 10.0, 9.8, 10.0]
+  });
+
+  assert.equal(res.failLowCount, 1);
+  assert.equal(res.overallVerdict, 'REJECT_DEFECTIVE');
+  assert.equal(res.ports[2].status, 'FAILED_LOW_LOSS');
+  assert.ok(res.ports[2].note.includes('theoretical limit'));
+});
+
+test('evaluateSplitterPorts handles asymmetrical tap couplers', async () => {
+  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const res = evaluateSplitterPorts({
+    splitterType: 'TAP_85_15',
+    inputPowerDbm: 2.5,
+    portLosses: [0.85, 8.60]
+  });
+
+  assert.equal(res.portCount, 2);
+  assert.equal(res.passCount, 2);
+  assert.equal(res.overallVerdict, 'CERTIFIED_CLASS_A');
+  assert.equal(res.ports[0].legName, 'Through (85%)');
+  assert.equal(res.ports[1].legName, 'Tap (15%)');
+});
+
+test('validateSplitterQaInput validates required fields correctly', async () => {
+  const { validateSplitterQaInput } = await import('../form-validation.js');
+  const invalid = validateSplitterQaInput({});
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.errors.location);
+  assert.ok(invalid.errors.technicianName);
+
+  const valid = validateSplitterQaInput({
+    splitterType: '1:8',
+    location: 'Baradari Hub FAT-08',
+    technicianName: 'Muhammad Rizwan',
+    inputPowerDbm: '3.5'
+  });
+  assert.equal(valid.valid, true);
+});
+
+test('buildSplitterQaRecord creates sequential cert IDs and preserves data', async () => {
+  const { buildSplitterQaRecord } = await import('../form-validation.js');
+  const existing = [{ certId: 'SPL-202610-0001' }, { certId: 'SPL-202610-0002' }];
+  const record = buildSplitterQaRecord({
+    splitterType: '1:8',
+    location: 'Baradari Hub FAT-08',
+    technicianName: 'Muhammad Rizwan',
+    wavelengthNm: 1550,
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
+  }, existing);
+
+  assert.equal(record.certId, 'SPL-202610-0003');
+  assert.equal(record.splitterType, '1:8');
+  assert.equal(record.evaluation.overallVerdict, 'CERTIFIED_CLASS_A');
+});
+
+test('renderSplitterQaAnalysisSvg returns valid SVG markup with bars and enclosure', async () => {
+  const { evaluateSplitterPorts, renderSplitterQaAnalysisSvg } = await import('../form-validation.js');
+  const ev = evaluateSplitterPorts({
+    splitterType: '1:8',
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
+  });
+
+  const svg = renderSplitterQaAnalysisSvg(ev);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('splitter-qa-svg'));
+  assert.ok(svg.includes('Theoretical Split:'));
+  assert.ok(svg.includes('Telcordia Limit:'));
+  assert.ok(svg.includes('Uniformity:'));
+  assert.ok(svg.includes('Excess Loss:'));
+});
+
+test('generateSplitterQaCertHtml generates both A4 and 80mm thermal formats', async () => {
+  const { buildSplitterQaRecord, generateSplitterQaCertHtml } = await import('../form-validation.js');
+  const record = buildSplitterQaRecord({
+    splitterType: '1:8',
+    location: 'Baradari Hub FAT-08',
+    technicianName: 'Muhammad Rizwan',
+    wavelengthNm: 1550,
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
+  });
+
+  const a4 = generateSplitterQaCertHtml(record, { format: 'a4' });
+  assert.ok(a4.includes('SHAHDARA BROADBAND ISP'));
+  assert.ok(a4.includes('Telcordia GR-1209-CORE'));
+  assert.ok(a4.includes('Channel Uniformity ΔU'));
+
+  const thermal = generateSplitterQaCertHtml(record, { format: 'thermal' });
+  assert.ok(thermal.includes('SHAHDARA ISP - OSP QA'));
+  assert.ok(thermal.includes('80mm auto'));
+  assert.ok(thermal.includes('PORT MEASUREMENTS:'));
+});
+
+test('formatSplitterQaCertWhatsApp formats bilingual dispatch notice', async () => {
+  const { buildSplitterQaRecord, formatSplitterQaCertWhatsApp } = await import('../form-validation.js');
+  const record = buildSplitterQaRecord({
+    splitterType: '1:8',
+    location: 'Baradari Hub FAT-08',
+    technicianName: 'Muhammad Rizwan',
+    wavelengthNm: 1550,
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
+  });
+
+  const wa = formatSplitterQaCertWhatsApp(record);
+  assert.ok(wa.includes('SHAHDARA ISP - OPTICAL SPLITTER QA ACCREDITATION'));
+  assert.ok(wa.includes('یونیفارمٹی'));
+  assert.ok(wa.includes('1:8 Balanced PLC Splitter'));
+});
+
+test('generateSplitterQaCertsCsv generates RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { buildSplitterQaRecord, generateSplitterQaCertsCsv } = await import('../form-validation.js');
+  const record = buildSplitterQaRecord({
+    splitterType: '1:8',
+    location: 'Baradari Hub FAT-08',
+    technicianName: 'Muhammad Rizwan',
+    wavelengthNm: 1550,
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
+  });
+
+  const csv = generateSplitterQaCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Certificate ID'));
+  assert.ok(csv.includes(record.certId));
+});
+
+test('getSavedSplitterQaCerts, saveSplitterQaCert, updateSplitterQaCertStatus, and calculateSplitterQaMetrics work correctly', async () => {
+  const {
+    SPLITTER_QA_STORAGE_KEY,
+    getSavedSplitterQaCerts,
+    saveSplitterQaCert,
+    updateSplitterQaCertStatus,
+    clearSplitterQaCerts,
+    calculateSplitterQaMetrics,
+    buildSplitterQaRecord
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const cert1 = buildSplitterQaRecord({ splitterType: '1:8', location: 'Baradari' });
+  cert1.certId = 'SPL-202610-0001';
+  const cert2 = buildSplitterQaRecord({ splitterType: '1:16', location: 'Vandala' });
+  cert2.certId = 'SPL-202610-0002';
+
+  assert.equal(saveSplitterQaCert(cert1, mockStorage), true);
+  assert.equal(saveSplitterQaCert(cert2, mockStorage), true);
+
+  const list = getSavedSplitterQaCerts(mockStorage);
+  assert.equal(list.length, 2);
+
+  assert.equal(updateSplitterQaCertStatus('SPL-202610-0001', 'CONDITIONAL_DEGRADED', mockStorage), true);
+  const updated = getSavedSplitterQaCerts(mockStorage);
+  assert.equal(updated.find(c => c.certId === 'SPL-202610-0001').evaluation.overallVerdict, 'CONDITIONAL_DEGRADED');
+
+  const metrics = calculateSplitterQaMetrics(updated);
+  assert.equal(metrics.total, 2);
+  assert.equal(metrics.conditional, 1);
+
+  assert.equal(clearSplitterQaCerts(mockStorage), true);
+  assert.equal(getSavedSplitterQaCerts(mockStorage).length, 0);
+});
+
+test('index.html and styles.css include Splitter QA modal elements and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="openSplitterQaBtn"'));
+  assert.ok(html.includes('data-open-splitter-qa'));
+  assert.ok(html.includes('id="splitterQaModal"'));
+  assert.ok(html.includes('id="splitterQaSvgContainer"'));
+  assert.ok(html.includes('id="splitterQaHudRibbon"'));
+  assert.ok(html.includes('id="splitterQaPortsGrid"'));
+  assert.ok(html.includes('id="saveSplitterQaCertBtn"'));
+  assert.ok(html.includes('id="printSplitterQaA4Btn"'));
+
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.splitter-qa-modal-card'));
+  assert.ok(css.includes('.splitter-qa-svg'));
+  assert.ok(css.includes('.splitter-qa-svg-wrap'));
+});
+
+test('setupSplitterQaModal binds DOM elements, handles presets, recalculates, and saves certificates', async () => {
+  const { setupSplitterQaModal, SPLITTER_QA_STORAGE_KEY } = await import('../form-validation.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      innerHTML: '',
+      open: false,
+      addEventListener(evt, fn) {
+        if (!listeners[evt]) listeners[evt] = [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; },
+      querySelectorAll() { return []; }
+    };
+  }
+
+  const elements = {
+    splitterQaModal: createMockEl('splitterQaModal'),
+    openSplitterQaBtn: createMockEl('openSplitterQaBtn'),
+    closeSplitterQaBtn: createMockEl('closeSplitterQaBtn'),
+    splitterQaPresetSelect: createMockEl('splitterQaPresetSelect'),
+    splitterQaTypeSelect: createMockEl('splitterQaTypeSelect'),
+    splitterQaInputPower: createMockEl('splitterQaInputPower'),
+    splitterQaWlSelect: createMockEl('splitterQaWlSelect'),
+    splitterQaLocation: createMockEl('splitterQaLocation'),
+    splitterQaTech: createMockEl('splitterQaTech'),
+    splitterQaSerial: createMockEl('splitterQaSerial'),
+    splitterQaNotes: createMockEl('splitterQaNotes'),
+    splitterQaPortsGrid: createMockEl('splitterQaPortsGrid'),
+    splitterQaSvgContainer: createMockEl('splitterQaSvgContainer'),
+    splitterQaHudRibbon: createMockEl('splitterQaHudRibbon'),
+    saveSplitterQaCertBtn: createMockEl('saveSplitterQaCertBtn'),
+    printSplitterQaA4Btn: createMockEl('printSplitterQaA4Btn'),
+    printSplitterQaThermalBtn: createMockEl('printSplitterQaThermalBtn'),
+    whatsappSplitterQaBtn: createMockEl('whatsappSplitterQaBtn'),
+    exportSplitterQaCsvBtn: createMockEl('exportSplitterQaCsvBtn'),
+    splitterQaHistoryTbody: createMockEl('splitterQaHistoryTbody')
+  };
+
+  elements.splitterQaTypeSelect.value = '1:8';
+  elements.splitterQaInputPower.value = '3.5';
+  elements.splitterQaLocation.value = 'Baradari Hub FAT-08';
+  elements.splitterQaTech.value = 'Muhammad Rizwan';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toastLog = [];
+  const controller = setupSplitterQaModal({
+    storage: mockStorage,
+    doc: mockDoc,
+    onToast: (msg) => toastLog.push(msg)
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.splitterQaModal.open, true);
+  assert.ok(elements.splitterQaSvgContainer.innerHTML.includes('<svg'));
+
+  elements.saveSplitterQaCertBtn.click();
+  assert.ok(toastLog.some(msg => msg.includes('saved successfully')));
+  assert.ok(store[SPLITTER_QA_STORAGE_KEY]);
+
+  controller.close();
+  assert.equal(elements.splitterQaModal.open, false);
+});

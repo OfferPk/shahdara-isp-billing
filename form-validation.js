@@ -12159,3 +12159,23 @@ export {
   calculateOtdrDeadzoneMetrics,
   setupOtdrDeadzoneModal
 } from './qa-otdr-deadzone-cert.js';
+
+export {
+  SPLITTER_QA_STORAGE_KEY,
+  SPLITTER_TYPES,
+  SPLITTER_QA_PRESETS,
+  calculateTheoreticalSplittingLoss,
+  evaluateSplitterPorts,
+  validateSplitterQaInput,
+  buildSplitterQaRecord,
+  renderSplitterQaAnalysisSvg,
+  generateSplitterQaCertHtml,
+  formatSplitterQaCertWhatsApp,
+  generateSplitterQaCertsCsv,
+  getSavedSplitterQaCerts,
+  saveSplitterQaCert,
+  updateSplitterQaCertStatus,
+  clearSplitterQaCerts,
+  calculateSplitterQaMetrics,
+  setupSplitterQaModal
+} from './qa-splitter-tolerance.js';

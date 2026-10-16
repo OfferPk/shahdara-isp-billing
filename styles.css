@@ -5788,3 +5788,73 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* PON PLC Splitter Insertion Loss, Uniformity & PDL QA Suite */
+.splitter-qa-modal-card {
+  max-width: 960px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.splitter-qa-svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+  width: 100%;
+  max-width: 820px;
+  display: block;
+  margin: 0 auto;
+}
+
+.splitter-qa-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.splitter-port-input-card {
+  background: var(--bg-card, #1e293b);
+  border: 1px solid var(--border, #334155);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.splitter-port-input-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted, #94a3b8);
+}
+
+.splitter-port-loss-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border, #334155);
+  background: var(--bg, #0f172a);
+  color: inherit;
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+[data-theme="dark"] .splitter-qa-modal-card {
+  background: #111a2e;
+  border-color: #1e293b;
+  color: #f1f5f9;
+}
+
+@media print {
+  .splitter-qa-modal,
+  .splitter-qa-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

@@ -2446,6 +2446,35 @@
   border-color: #1e3a5f;
 }
 
+.chart-card-mef-ethernet {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border, #e2e8f0);
+}
+
+.mef-ethernet-modal-card {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.mef-ethernet-svg {
+  width: 100%;
+  max-width: 840px;
+  margin: 0 auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-mef-ethernet {
+  background: #0f172a;
+  border-color: #1e3a5f;
+}
+
+[data-theme="dark"] .mef-ethernet-modal-card {
+  background: #0b1329;
+  border-color: #1e3a5f;
+}
+
+
 
 
 

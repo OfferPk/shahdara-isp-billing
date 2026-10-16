@@ -5672,3 +5672,15 @@ export {
   generateMplsTeReport,
   setupMplsTeModal
 } from './dashboard-mpls-te.js';
+
+export {
+  MEF_ETHERNET_CONSTANTS,
+  SHAHDARA_MEF_SERVICES,
+  calculateMefEthernetDynamics,
+  calculateMefEthernetMetrics,
+  renderMefCarrierEthernetSvg,
+  generateMefEthernetReport,
+  exportMefEthernetJson,
+  exportMefEthernetCsv,
+  setupMefEthernetModal
+} from './dashboard-mef-ethernet.js';

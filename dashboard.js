@@ -5200,6 +5200,20 @@ export {
   METHOD_COLORS
 } from './dashboard-charts.js';
 
+export {
+  SHAHDARA_FIBER_ROUTES,
+  calculateOtdrFaultMetrics,
+  generateOtdrReport,
+  setupOtdrModal,
+  getOtdrSelectedRoute,
+  setOtdrSelectedRoute,
+  getOtdrWavelength,
+  setOtdrWavelength,
+  getOtdrSimulatedDistance,
+  setOtdrSimulatedDistance,
+  renderOtdrTraceSvg
+} from './dashboard-otdr.js';
+
 
 
 

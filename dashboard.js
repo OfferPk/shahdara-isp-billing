@@ -5709,4 +5709,17 @@ export {
   setupY1731Modal
 } from './dashboard-y1731-oam.js';
 
+export {
+  PSEUDOWIRE_CONSTANTS,
+  SHAHDARA_PSEUDOWIRE_SERVICES,
+  calculatePseudowireDynamics,
+  calculatePseudowireMetrics,
+  renderPseudowireDiagramSvg,
+  generatePseudowireReport,
+  exportPseudowireJson,
+  exportPseudowireCsv,
+  setupPseudowireModal
+} from './dashboard-pseudowire.js';
+
+
 

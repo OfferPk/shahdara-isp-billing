@@ -3059,6 +3059,53 @@ kbd {
   font: 600 13px Manrope, system-ui, sans-serif;
 }
 
+.route-filter-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.route-filter-tab {
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.route-filter-tab:hover {
+  background: var(--bg-soft, #f8faf9);
+  border-color: var(--primary, #047857);
+}
+
+.route-filter-tab.is-active {
+  background: var(--primary, #047857);
+  color: #ffffff;
+  border-color: var(--primary, #047857);
+  box-shadow: 0 1px 3px rgba(4, 120, 87, 0.2);
+}
+
+[data-theme="dark"] .route-filter-tab {
+  background: #14241e;
+  border-color: #253d35;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .route-filter-tab.is-active {
+  background: #059669;
+  border-color: #059669;
+  color: #ffffff;
+}
+
 .route-stops-container {
   max-height: 400px;
   overflow-y: auto;

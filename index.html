@@ -7250,6 +7250,13 @@
         </div>
       </div>
 
+      <!-- Route Status Filter Tabs -->
+      <div class="route-filter-tabs" role="tablist" aria-label="Route collection status filter">
+        <button type="button" class="route-filter-tab is-active" data-route-tab="all" role="tab" aria-selected="true">All Stops</button>
+        <button type="button" class="route-filter-tab" data-route-tab="pending" role="tab" aria-selected="false">⏳ Pending</button>
+        <button type="button" class="route-filter-tab" data-route-tab="collected" role="tab" aria-selected="false">✅ Collected</button>
+      </div>
+
       <!-- Route Stops List -->
       <div class="route-stops-container">
         <div id="fieldRouteStopsList" class="field-route-stops-list" role="list">
@@ -7264,6 +7271,7 @@
       <!-- Action Footer -->
       <div class="modal-form-actions route-modal-actions">
         <button id="resetRouteProgressBtn" class="secondary-button" type="button" title="Reset collected status for today">↺ Reset Today's Route</button>
+        <button id="printRouteSlipBtn" class="secondary-button" type="button">🖨️ Print Route Slip</button>
         <button id="copyRouteManifestBtn" class="secondary-button" type="button">📋 Copy Manifest</button>
         <button id="shareRouteWhatsappBtn" class="primary-button" type="button">💬 WhatsApp Dispatch</button>
       </div>

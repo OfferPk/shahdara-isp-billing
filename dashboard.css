@@ -2746,6 +2746,80 @@
   border-color: #2c3e59;
 }
 
+/* Carrier Segment Routing over IPv6 (SRv6 / RFC 8986 / RFC 8754) Styles */
+.chart-card-srv6 {
+  background: var(--surface, #ffffff);
+}
+
+.srv6-modal-card {
+  max-width: 860px;
+  width: 95vw;
+}
+
+.srv6-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.srv6-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.srv6-stat-card {
+  background: var(--bg-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.srv6-stat-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #60756c);
+}
+
+.srv6-stat-val {
+  font: 800 15px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+}
+
+.srv6-stat-val.optimal {
+  color: var(--color-success, #10b981);
+}
+
+.srv6-stat-val.degraded {
+  color: var(--color-warning, #f59e0b);
+}
+
+.srv6-stat-val.critical {
+  color: var(--color-danger, #ef4444);
+}
+
+[data-theme="dark"] .chart-card-srv6 {
+  background: #182330;
+  border-color: #24354a;
+}
+
+[data-theme="dark"] .srv6-stat-card {
+  background: #14221d;
+  border-color: #243c33;
+}
+
+[data-theme="dark"] .srv6-stat-val {
+  color: #e5ece9;
+}
+
+
 
 
 

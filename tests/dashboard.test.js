@@ -17966,6 +17966,275 @@ test('index.html and dashboard.css contain all Coherent Optical Polarization bin
   assert.ok(css.includes('.polarization-svg'));
 });
 
+test('ROCEV2_CONSTANTS contains valid clusters, speeds, and lossless configuration thresholds', async () => {
+  const { ROCEV2_CONSTANTS } = await import('../dashboard.js');
+
+  assert.ok(ROCEV2_CONSTANTS);
+  assert.equal(ROCEV2_CONSTANTS.DEFAULT_LINK_SPEED_GBPS, 100);
+  assert.equal(ROCEV2_CONSTANTS.DEFAULT_PFC_PRIORITY, 3);
+  assert.equal(ROCEV2_CONSTANTS.DEFAULT_ECN_KMIN_KB, 150);
+  assert.equal(ROCEV2_CONSTANTS.DEFAULT_ECN_KMAX_KB, 600);
+  assert.equal(ROCEV2_CONSTANTS.DEFAULT_PFC_XOFF_KB, 800);
+  assert.equal(ROCEV2_CONSTANTS.DEFAULT_PFC_XON_KB, 500);
+
+  assert.ok(Array.isArray(ROCEV2_CONSTANTS.CLUSTERS));
+  assert.ok(ROCEV2_CONSTANTS.CLUSTERS.length >= 5);
+
+  const baradari = ROCEV2_CONSTANTS.CLUSTERS.find(c => c.id === 'baradari-ai-edge');
+  assert.ok(baradari);
+  assert.equal(baradari.linkSpeedGbps, 100);
+  assert.ok(baradari.connectedSubscribers > 0);
+  assert.ok(baradari.monthlyRevenueExposurePkr > 0);
+
+  const begumKot = ROCEV2_CONSTANTS.CLUSTERS.find(c => c.id === 'begum-kot-cran');
+  assert.ok(begumKot);
+  assert.equal(begumKot.linkSpeedGbps, 50);
+
+  const ravi = ROCEV2_CONSTANTS.CLUSTERS.find(c => c.id === 'ravi-siphon-core');
+  assert.ok(ravi);
+  assert.equal(ravi.linkSpeedGbps, 400);
+
+  assert.ok(ROCEV2_CONSTANTS.LINK_SPEEDS[25]);
+  assert.ok(ROCEV2_CONSTANTS.LINK_SPEEDS[50]);
+  assert.ok(ROCEV2_CONSTANTS.LINK_SPEEDS[100]);
+  assert.ok(ROCEV2_CONSTANTS.LINK_SPEEDS[400]);
+});
+
+test('RoCEv2 simulation state getters, setters, and reset functionality', async () => {
+  const {
+    getRocev2SelectedClusterId,
+    setRocev2SelectedClusterId,
+    getRocev2LinkSpeedGbps,
+    setRocev2LinkSpeedGbps,
+    getRocev2EcnKminKb,
+    setRocev2EcnKminKb,
+    getRocev2EcnKmaxKb,
+    setRocev2EcnKmaxKb,
+    getRocev2CongestionBurst,
+    setRocev2CongestionBurst,
+    resetRocev2SimState
+  } = await import('../dashboard.js');
+
+  resetRocev2SimState();
+  assert.equal(getRocev2SelectedClusterId(), 'baradari-ai-edge');
+  assert.equal(getRocev2LinkSpeedGbps(), 100);
+  assert.equal(getRocev2EcnKminKb(), 150);
+  assert.equal(getRocev2EcnKmaxKb(), 600);
+  assert.equal(getRocev2CongestionBurst(), false);
+
+  // Set cluster
+  setRocev2SelectedClusterId('begum-kot-cran');
+  assert.equal(getRocev2SelectedClusterId(), 'begum-kot-cran');
+  assert.equal(getRocev2LinkSpeedGbps(), 50);
+
+  // Reject invalid cluster
+  setRocev2SelectedClusterId('invalid-cluster-xyz');
+  assert.equal(getRocev2SelectedClusterId(), 'begum-kot-cran');
+
+  // Set speed
+  setRocev2LinkSpeedGbps(400);
+  assert.equal(getRocev2LinkSpeedGbps(), 400);
+  setRocev2LinkSpeedGbps(999); // invalid
+  assert.equal(getRocev2LinkSpeedGbps(), 400);
+
+  // Threshold adjustments
+  setRocev2EcnKminKb(200);
+  assert.equal(getRocev2EcnKminKb(), 200);
+  setRocev2EcnKmaxKb(550);
+  assert.equal(getRocev2EcnKmaxKb(), 550);
+
+  // Burst toggle
+  setRocev2CongestionBurst(true);
+  assert.equal(getRocev2CongestionBurst(), true);
+
+  // Reset
+  resetRocev2SimState();
+  assert.equal(getRocev2SelectedClusterId(), 'baradari-ai-edge');
+  assert.equal(getRocev2LinkSpeedGbps(), 100);
+  assert.equal(getRocev2CongestionBurst(), false);
+});
+
+test('calculateRocev2BufferHeadroom calculates propagation delay and required headroom accurately', async () => {
+  const { calculateRocev2BufferHeadroom } = await import('../dashboard.js');
+
+  // 100 Gbps, 50m cable, 9216B MTU
+  const headroom100G = calculateRocev2BufferHeadroom({
+    linkSpeedGbps: 100,
+    cableLengthMeters: 50,
+    switchLatencyNs: 450,
+    mtuBytes: 9216
+  });
+
+  // One-way delay: 50m * 5ns/m = 250ns
+  assert.equal(headroom100G.oneWayPropDelayNs, 250);
+  // RTT: 2 * 250 + 2 * 450 = 1400ns
+  assert.equal(headroom100G.roundTripTimeNs, 1400);
+  // Byte rate per ns for 100G: 100e9 / 8e9 = 12.5 bytes/ns
+  // In-flight bytes = 1400 * 12.5 = 17,500 bytes
+  assert.equal(headroom100G.inFlightFlightBytes, 17500);
+  assert.ok(headroom100G.requiredHeadroomBytes > 17500);
+  assert.ok(headroom100G.requiredHeadroomKb > 0);
+
+  // 400 Gbps should require significantly more headroom
+  const headroom400G = calculateRocev2BufferHeadroom({
+    linkSpeedGbps: 400,
+    cableLengthMeters: 50,
+    switchLatencyNs: 450,
+    mtuBytes: 9216
+  });
+
+  assert.ok(headroom400G.requiredHeadroomKb > headroom100G.requiredHeadroomKb);
+});
+
+test('evaluateRocev2Congestion evaluates ECN marking, PFC XOFF, and DCQCN rate reductions', async () => {
+  const { evaluateRocev2Congestion } = await import('../dashboard.js');
+
+  // 1. Normal flowing state below K_min (e.g. 100 KB <= 150 KB)
+  const normal = evaluateRocev2Congestion({
+    queueOccupancyKb: 100,
+    ecnKminKb: 150,
+    ecnKmaxKb: 600,
+    pfcXoffKb: 800,
+    pfcXonKb: 500,
+    linkSpeedGbps: 100
+  });
+
+  assert.equal(normal.ecnMarkingProb, 0);
+  assert.equal(normal.ecnMarkingPct, 0);
+  assert.equal(normal.pfcState, 'FLOWING');
+  assert.equal(normal.pfcActive, false);
+  assert.equal(normal.healthVerdict, 'OPTIMAL_LOSSLESS');
+  assert.equal(normal.currentEffectiveRateGbps, 100);
+
+  // 2. Congestion in ECN zone (e.g. 375 KB halfway between 150 and 600)
+  const ecn = evaluateRocev2Congestion({
+    queueOccupancyKb: 375,
+    ecnKminKb: 150,
+    ecnKmaxKb: 600,
+    pfcXoffKb: 800,
+    pfcXonKb: 500,
+    linkSpeedGbps: 100
+  });
+
+  assert.equal(ecn.ecnMarkingProb, 0.5);
+  assert.equal(ecn.ecnMarkingPct, 50);
+  assert.equal(ecn.pfcActive, false);
+  assert.equal(ecn.healthVerdict, 'ECN_MARKING_ACTIVE');
+  assert.ok(ecn.rateThrottlingPct > 0);
+  assert.ok(ecn.currentEffectiveRateGbps < 100);
+  assert.ok(ecn.queuingDelayUs > 0);
+
+  // 3. PFC XOFF trigger zone (e.g. 850 KB >= 800 KB)
+  const pfc = evaluateRocev2Congestion({
+    queueOccupancyKb: 850,
+    ecnKminKb: 150,
+    ecnKmaxKb: 600,
+    pfcXoffKb: 800,
+    pfcXonKb: 500,
+    linkSpeedGbps: 100
+  });
+
+  assert.equal(pfc.ecnMarkingProb, 1.0);
+  assert.equal(pfc.pfcState, 'PAUSE_TRIGGERED');
+  assert.equal(pfc.pfcActive, true);
+  assert.equal(pfc.healthVerdict, 'PFC_PAUSE_ACTIVE');
+  assert.ok(pfc.rateThrottlingPct >= 30);
+});
+
+test('calculateRocev2Metrics integrates state and burst simulation', async () => {
+  const { calculateRocev2Metrics, resetRocev2SimState } = await import('../dashboard.js');
+
+  resetRocev2SimState();
+  const mockState = {
+    customers: [
+      { id: 'c1', status: 'ACTIVE' },
+      { id: 'c2', status: 'ACTIVE' },
+      { id: 'c3', status: 'OFFLINE' }
+    ]
+  };
+
+  const metrics = calculateRocev2Metrics(mockState);
+  assert.ok(metrics.cluster);
+  assert.equal(metrics.cluster.id, 'baradari-ai-edge');
+  assert.equal(metrics.linkSpeedGbps, 100);
+  assert.equal(metrics.isBurst, false);
+  assert.equal(metrics.totalCustomers, 3);
+  assert.equal(metrics.activeCustomers, 2);
+  assert.ok(metrics.revenueExposureFormatted.includes('PKR'));
+
+  // Test with burst
+  const burstMetrics = calculateRocev2Metrics(mockState, { congestionBurst: true });
+  assert.equal(burstMetrics.isBurst, true);
+  assert.ok(burstMetrics.congestion.queueOccupancyKb > metrics.congestion.queueOccupancyKb);
+  assert.equal(burstMetrics.congestion.pfcActive, true);
+});
+
+test('renderRocev2DiagramSvg produces accessible vector SVG in full, compact, light and dark themes', async () => {
+  const { calculateRocev2Metrics, renderRocev2DiagramSvg, resetRocev2SimState } = await import('../dashboard.js');
+
+  resetRocev2SimState();
+  const metrics = calculateRocev2Metrics({});
+
+  // 1. Compact SVG
+  const compactSvg = renderRocev2DiagramSvg(metrics, { compact: true, isDark: false });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('viewBox="0 0 560 220"'));
+  assert.ok(compactSvg.includes('K_min'));
+  assert.ok(compactSvg.includes('XOFF'));
+  assert.ok(compactSvg.includes('EFFECTIVE THROUGHPUT'));
+
+  // 2. Full SVG in dark mode
+  const fullSvg = renderRocev2DiagramSvg(metrics, { compact: false, isDark: true });
+  assert.ok(fullSvg.includes('viewBox="0 0 780 310"'));
+  assert.ok(fullSvg.includes('#0f172a'));
+  assert.ok(fullSvg.includes('Packet Flow:'));
+  assert.ok(fullSvg.includes('PFC STATE'));
+});
+
+test('generateRocev2Report produces detailed plain-text Outside Plant audit report', async () => {
+  const { calculateRocev2Metrics, generateRocev2Report, resetRocev2SimState } = await import('../dashboard.js');
+
+  resetRocev2SimState();
+  const metrics = calculateRocev2Metrics({});
+  const report = generateRocev2Report(metrics);
+
+  assert.ok(report.includes('SHAHDARA ISP CARRIER NOC - ROCEV2 LOSSLESS FABRIC AUDIT REPORT'));
+  assert.ok(report.includes('FABRIC HEADROOM & PROPAGATION DYNAMICS'));
+  assert.ok(report.includes('QUEUE OCCUPANCY & CONGESTION THRESHOLDS'));
+  assert.ok(report.includes('PERFORMANCE & DCQCN RATE METRICS'));
+  assert.ok(report.includes('SUBSCRIBER SLA & REVENUE IMPACT'));
+  assert.ok(report.includes('Baradari Edge Data Center'));
+});
+
+test('index.html and dashboard.css contain all RoCEv2 Lossless Fabric bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardRocev2Chart"'));
+  assert.ok(html.includes('id="openDashboardRocev2Btn"'));
+  assert.ok(html.includes('id="dashboardRocev2Modal"'));
+  assert.ok(html.includes('id="dashboardRocev2CloseBtn"'));
+  assert.ok(html.includes('id="rocev2ClusterSelect"'));
+  assert.ok(html.includes('id="rocev2SpeedSelect"'));
+  assert.ok(html.includes('id="rocev2KminInput"'));
+  assert.ok(html.includes('id="rocev2KmaxInput"'));
+  assert.ok(html.includes('id="rocev2BurstBtn"'));
+  assert.ok(html.includes('id="rocev2ResetBtn"'));
+  assert.ok(html.includes('id="rocev2KpiVerdict"'));
+  assert.ok(html.includes('id="rocev2KpiRate"'));
+  assert.ok(html.includes('id="rocev2KpiLatency"'));
+  assert.ok(html.includes('id="rocev2KpiHeadroom"'));
+  assert.ok(html.includes('id="rocev2SvgContainer"'));
+  assert.ok(html.includes('id="rocev2ExportJsonBtn"'));
+  assert.ok(html.includes('id="rocev2ExportCsvBtn"'));
+  assert.ok(html.includes('id="rocev2CopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-rocev2'));
+  assert.ok(css.includes('.rocev2-modal-card'));
+});
+
 
 
 

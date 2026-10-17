@@ -3065,6 +3065,21 @@
   border-color: #24354a;
 }
 
+/* Carrier RoCEv2 Lossless Fabric & PFC Matrix Styles */
+.chart-card-rocev2 {
+  background: var(--surface, #ffffff);
+}
+
+.rocev2-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+[data-theme="dark"] .chart-card-rocev2 {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

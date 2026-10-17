@@ -6034,6 +6034,29 @@ export {
   setupPolarizationModal
 } from './dashboard-polarization-eq.js';
 
+export {
+  ROCEV2_CONSTANTS,
+  getRocev2SelectedClusterId,
+  setRocev2SelectedClusterId,
+  getRocev2LinkSpeedGbps,
+  setRocev2LinkSpeedGbps,
+  getRocev2EcnKminKb,
+  setRocev2EcnKminKb,
+  getRocev2EcnKmaxKb,
+  setRocev2EcnKmaxKb,
+  getRocev2CongestionBurst,
+  setRocev2CongestionBurst,
+  resetRocev2SimState,
+  calculateRocev2BufferHeadroom,
+  evaluateRocev2Congestion,
+  calculateRocev2Metrics,
+  renderRocev2DiagramSvg,
+  generateRocev2Report,
+  exportRocev2Json,
+  exportRocev2Csv,
+  setupRocev2Modal
+} from './dashboard-rocev2.js';
+
 
 
 

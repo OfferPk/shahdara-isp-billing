@@ -5811,6 +5811,32 @@ export {
   setupSrv6Modal
 } from './dashboard-srv6.js';
 
+export {
+  FLEX_ALGO_CONSTANTS,
+  SHAHDARA_FLEX_ALGOS,
+  getFlexAlgoSelectedId,
+  setFlexAlgoSelectedId,
+  getFlexAlgoTrafficLoadGbps,
+  setFlexAlgoTrafficLoadGbps,
+  getFlexAlgoExcludeMicrowave,
+  setFlexAlgoExcludeMicrowave,
+  getFlexAlgoExcludeSrlg,
+  setFlexAlgoExcludeSrlg,
+  getFlexAlgoStrictEncryption,
+  setFlexAlgoStrictEncryption,
+  resetFlexAlgoSimState,
+  calculateFlexAlgoPathLatency,
+  calculateFlexAlgoLatencyReduction,
+  calculateFlexAlgoDynamics,
+  calculateFlexAlgoMetrics,
+  renderFlexAlgoDiagramSvg,
+  generateFlexAlgoReport,
+  exportFlexAlgoJson,
+  exportFlexAlgoCsv,
+  setupFlexAlgoModal
+} from './dashboard-flex-algo.js';
+
+
 
 
 

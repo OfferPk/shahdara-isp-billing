@@ -2819,6 +2819,46 @@
   color: #e5ece9;
 }
 
+/* Carrier Segment Routing Flexible Algorithm (Flex-Algo - RFC 9350) Styles */
+.chart-card-flex-algo {
+  background: var(--surface, #ffffff);
+}
+
+.flex-algo-modal-card {
+  max-width: 860px;
+  width: 95vw;
+}
+
+.flex-algo-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.flex-algo-stat-val {
+  font: 800 15px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+}
+
+.flex-algo-stat-val.optimal {
+  color: var(--color-success, #10b981);
+}
+
+.flex-algo-stat-val.degraded {
+  color: var(--color-warning, #f59e0b);
+}
+
+.flex-algo-stat-val.critical {
+  color: var(--color-danger, #ef4444);
+}
+
+[data-theme="dark"] .chart-card-flex-algo {
+  background: #182330;
+  border-color: #24354a;
+}
+
+
 
 
 

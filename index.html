@@ -860,6 +860,16 @@
             </div>
             <div id="dashboardSrv6Chart" class="chart-svg-container" role="img" aria-label="Carrier Segment Routing over IPv6 Network Programming and Path MTU Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-flex-algo">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier Flex-Algo (RFC 9350 / 9351) Multi-Plane Matrix</h4>
+                <p class="chart-subtitle">Microsecond min-delay optimization, SRLG disjoint paths, optical express planes &amp; multi-topology telemetry</p>
+              </div>
+              <button id="dashboardOpenFlexAlgoModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Flex-Algo Diagnostics</button>
+            </div>
+            <div id="dashboardFlexAlgoChart" class="chart-svg-container" role="img" aria-label="Carrier Segment Routing Flexible Algorithm Multi Plane Routing Chart"></div>
+          </article>
         </div>
 
 
@@ -4919,6 +4929,87 @@
               <button id="srv6ExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="srv6CopyReportBtn" class="primary-button" type="button">📋 Copy SRv6 Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardFlexAlgoModal" class="dashboard-modal flex-algo-modal" aria-labelledby="dashboardFlexAlgoModalTitle">
+        <div class="dashboard-modal-card flex-algo-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardFlexAlgoModalTitle">Carrier Flex-Algo (RFC 9350 / 9351) Multi-Plane Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Microsecond min-delay optimization, SRLG disjoint paths, optical express planes &amp; multi-topology telemetry</p>
+            </div>
+            <button id="dashboardFlexAlgoModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="flexAlgoSelect">Target Flexible Algorithm:</label>
+              <select id="flexAlgoSelect" class="form-select">
+                <option value="128">Flex-Algo 128: Ultra-Low Latency Plane (Financial / 5G URLLC)</option>
+                <option value="129">Flex-Algo 129: High-Throughput Optical Express (CDN &amp; Video)</option>
+                <option value="130">Flex-Algo 130: Disjoint SRLG Underground Security Plane</option>
+                <option value="131">Flex-Algo 131: Green Energy Solar-Powered Routing Plane</option>
+                <option value="0">Default Algo 0: Standard IGP Shortest Path First (Broadband)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="flexAlgoLoadSlider">Plane Traffic Load: <span id="flexAlgoLoadLabel" class="sim-val-pill">8 Gbps</span></label>
+              <input type="range" id="flexAlgoLoadSlider" min="1" max="100" step="1" value="8" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group" style="display: flex; align-items: center; gap: 8px; padding-top: 18px;">
+              <input type="checkbox" id="flexAlgoSrlgToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+              <label for="flexAlgoSrlgToggle" style="cursor: pointer; font-size: 0.85rem; font-weight: 600;">Enforce SRLG Disjoint Path</label>
+            </div>
+
+            <div class="sim-control-group" style="display: flex; align-items: center; gap: 8px; padding-top: 18px;">
+              <input type="checkbox" id="flexAlgoMicrowaveToggle" checked style="width: 18px; height: 18px; cursor: pointer;">
+              <label for="flexAlgoMicrowaveToggle" style="cursor: pointer; font-size: 0.85rem; font-weight: 600;">Exclude Microwave Radio Hops</label>
+            </div>
+          </div>
+
+          <div class="flex-algo-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="flexAlgoResetBtn" class="secondary-button" type="button">🔄 Reset Flex-Algo Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Plane Health</span>
+              <span id="flexAlgoStatStatus" class="flex-algo-stat-val optimal">Optimal</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Path Latency</span>
+              <span id="flexAlgoStatLatency" class="flex-algo-stat-val">0.82 ms</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">SPF Reduction</span>
+              <span id="flexAlgoStatSavings" class="flex-algo-stat-val">66.5% vs SPF</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Plane Headroom</span>
+              <span id="flexAlgoStatHeadroom" class="flex-algo-stat-val">+12 Gbps</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">SRLG Security</span>
+              <span id="flexAlgoStatSrlg" class="flex-algo-stat-val">Disjoint Protected</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Total Capacity</span>
+              <span id="flexAlgoStatCapacity" class="flex-algo-stat-val">20 Gbps</span>
+            </div>
+          </div>
+
+          <div id="flexAlgoModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Segment Routing Flexible Algorithm Multi Plane Routing Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="flexAlgoFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="flexAlgoExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="flexAlgoExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="flexAlgoCopyReportBtn" class="primary-button" type="button">📋 Copy Flex-Algo Report</button>
           </div>
         </div>
       </dialog>

@@ -810,6 +810,16 @@
             </div>
             <div id="dashboardBfdChart" class="chart-svg-container" role="img" aria-label="Carrier BFD Protocol Heartbeat and Failover Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-vpls">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier MPLS VPLS (RFC 4761 / 4762) Multi-Point Matrix</h4>
+                <p class="chart-subtitle">Full-mesh pseudowires, split-horizon loop suppression, MAC learning table &amp; BUM flood policing</p>
+              </div>
+              <button id="dashboardOpenVplsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">VPLS Mesh Diagnostics</button>
+            </div>
+            <div id="dashboardVplsChart" class="chart-svg-container" role="img" aria-label="Carrier MPLS VPLS Mesh Topology and Loop Prevention Chart"></div>
+          </article>
         </div>
 
 
@@ -4443,6 +4453,98 @@
               <button id="bfdExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="bfdCopyReportBtn" class="primary-button" type="button">📋 Copy BFD Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardVplsModal" class="dashboard-modal vpls-modal" aria-labelledby="dashboardVplsModalTitle">
+        <div class="dashboard-modal-card vpls-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <h3 id="dashboardVplsModalTitle">Carrier MPLS VPLS (RFC 4761 / 4762) Peering Matrix</h3>
+              <p class="modal-subtitle">Full-mesh pseudowires, split-horizon loop suppression, MAC learning table &amp; BUM storm policing</p>
+            </div>
+            <button id="dashboardVplsModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="form-group">
+              <label for="vplsNetworkSelect">Target VPLS Network Instance:</label>
+              <select id="vplsNetworkSelect" class="form-select">
+                <option value="shahdara-civic-mesh">Punjab Civic Administration (BGP VPLS, 4 PEs, 6 PWs)</option>
+                <option value="banking-atm-vpls">Bank of Punjab / Allied Bank ATM (LDP VPLS, 3 PEs)</option>
+                <option value="hospital-health-cluster">District Health &amp; Radiology PACS (BGP VPLS, 3 PEs)</option>
+                <option value="education-campus-mesh">University Academic &amp; Research (LDP VPLS, 3 PEs)</option>
+                <option value="safe-cities-surveillance">Safe Cities Traffic Surveillance (BGP VPLS, 4 PEs, 6 PWs)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="vplsMacSlider">Learned MAC Entries: <span id="vplsMacLabel" class="sim-val-pill">2340</span></label>
+              <input type="range" id="vplsMacSlider" min="100" max="18000" step="100" value="2340" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="vplsAgingSlider">MAC Aging Timer: <span id="vplsAgingLabel" class="sim-val-pill">300s</span></label>
+              <input type="range" id="vplsAgingSlider" min="30" max="1200" step="30" value="300" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="vplsBumSlider">Ingress BUM Flood Rate: <span id="vplsBumLabel" class="sim-val-pill">10 Mbps</span></label>
+              <input type="range" id="vplsBumSlider" min="1" max="100" step="1" value="10" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="vplsFlapSlider">Injected MAC Flap Rate: <span id="vplsFlapLabel" class="sim-val-pill">0 moves/s</span></label>
+              <input type="range" id="vplsFlapSlider" min="0" max="20" step="1" value="0" class="otdr-slider">
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 22px;">
+              <input type="checkbox" id="vplsSplitHorizonCheck" checked>
+              <label for="vplsSplitHorizonCheck" style="margin: 0; cursor: pointer; font-weight: 600;">Enforce Split-Horizon Rule</label>
+            </div>
+          </div>
+
+          <div class="vpls-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="vplsResetBtn" class="secondary-button" type="button">🔄 Reset VPLS Baseline</button>
+          </div>
+
+          <div class="sim-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 8px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Instance Health</span>
+              <span id="vplsStatStatus" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Optimal</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Full-Mesh PWs</span>
+              <span id="vplsStatMesh" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">6 Mesh PWs</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">MAC Occupancy</span>
+              <span id="vplsStatMacUtil" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">28.6% (2340)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">BUM Replication</span>
+              <span id="vplsStatBum" class="ltv-kpi-val" style="color: #c084fc; font-size: 1.05rem;">30 Mbps</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">MAC Flap Rate</span>
+              <span id="vplsStatFlap" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0 moves/s</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">SLA Penalty Risk</span>
+              <span id="vplsStatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0% (PKR 0)</span>
+            </div>
+          </div>
+
+          <div id="vplsModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier VPLS Full-Mesh Architecture and MAC Dynamics"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="vplsFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="vplsExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="vplsExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="vplsCopyReportBtn" class="primary-button" type="button">📋 Copy VPLS Audit Report</button>
           </div>
         </div>
       </dialog>

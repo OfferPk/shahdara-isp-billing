@@ -5908,6 +5908,80 @@ export {
   setupMplsTpModal
 } from './dashboard-mpls-tp.js';
 
+export {
+  L3VPN_CONSTANTS,
+  SHAHDARA_L3VPN_VRFS,
+  getL3VpnSelectedVrfId,
+  setL3VpnSelectedVrfId,
+  getL3VpnPrefixInjectionOffset,
+  setL3VpnPrefixInjectionOffset,
+  getL3VpnSimulatedProtocol,
+  setL3VpnSimulatedProtocol,
+  getL3VpnSimulatedLeakTarget,
+  setL3VpnSimulatedLeakTarget,
+  resetL3VpnSimState,
+  calculateVrfPrefixCapacity,
+  calculateMplsLabelStack,
+  calculateShamLinkMetrics,
+  evaluateRouteTargetIsolation,
+  calculateL3VpnDynamics,
+  calculateL3VpnMetrics,
+  renderL3VpnDiagramSvg,
+  generateL3VpnReport,
+  exportL3VpnJson,
+  exportL3VpnCsv,
+  setupL3VpnModal
+} from './dashboard-l3vpn.js';
+
+export {
+  EDFA_CASCADE_CONSTANTS,
+  SHAHDARA_EDFA_LINKS,
+  getEdfaSelectedLinkId,
+  setEdfaSelectedLinkId,
+  getEdfaChannelsOverride,
+  setEdfaChannelsOverride,
+  getEdfaDgeEnabled,
+  setEdfaDgeEnabled,
+  getEdfaAgcModeCode,
+  setEdfaAgcModeCode,
+  getEdfaSimulatedChannelDrop,
+  setEdfaSimulatedChannelDrop,
+  resetEdfaSimState,
+  calculateCascadedOsnr,
+  calculateGainRipple,
+  calculateTransientSurge,
+  calculateEdfaCascadeDynamics,
+  calculateEdfaCascadeMetrics,
+  renderEdfaCascadeSvg,
+  generateEdfaCascadeReport,
+  exportEdfaCascadeJson,
+  exportEdfaCascadeCsv,
+  setupEdfaCascadeModal
+} from './dashboard-edfa-cascade.js';
+
+export {
+  PTP_TBC_CONSTANTS,
+  SHAHDARA_PTP_NODES,
+  getPtpSelectedNodeId,
+  setPtpSelectedNodeId,
+  getPtpAsymmetryCompensation,
+  setPtpAsymmetryCompensation,
+  getPtpSimulatedHoldover,
+  setPtpSimulatedHoldover,
+  getPtpSimulatedWanderNoise,
+  setPtpSimulatedWanderNoise,
+  resetPtpSimState,
+  calculateConstantTimeError,
+  calculateTimeErrorBudget,
+  calculatePtpTbcDynamics,
+  calculatePtpTbcMetrics,
+  renderPtpTbcDiagramSvg,
+  generatePtpTbcReport,
+  exportPtpTbcJson,
+  exportPtpTbcCsv,
+  setupPtpTbcModal
+} from './dashboard-ptp-tbc.js';
+
 
 
 

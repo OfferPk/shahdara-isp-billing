@@ -2955,6 +2955,72 @@
   border-color: #24354a;
 }
 
+/* Carrier BGP/MPLS IP VPN (L3VPN - RFC 4364) Styles */
+.chart-card-l3vpn {
+  background: var(--surface, #ffffff);
+}
+
+.l3vpn-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.l3vpn-svg-diagram {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-l3vpn {
+  background: #182330;
+  border-color: #24354a;
+}
+
+/* Carrier DWDM Cascaded EDFA Styles */
+.chart-card-edfa-cascade {
+  background: var(--surface, #ffffff);
+}
+
+.edfa-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.edfa-cascade-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-edfa-cascade {
+  background: #182330;
+  border-color: #24354a;
+}
+
+/* Carrier PTP IEEE 1588v2 Telecom Boundary Clock (T-BC) Styles */
+.chart-card-ptp-tbc {
+  background: var(--surface, #ffffff);
+}
+
+.ptp-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.ptp-tbc-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-ptp-tbc {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

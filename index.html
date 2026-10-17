@@ -287,6 +287,16 @@
           <p class="dashboard-charts-sub">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
         </div>
         <div class="dashboard-charts-grid">
+          <article class="dashboard-chart-card chart-card-target">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Monthly Collection vs Target</h4>
+                <p class="chart-subtitle">Target achievement, daily run-rate, and month-end projection</p>
+              </div>
+              <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Set / Manage Target</button>
+            </div>
+            <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge"></div>
+          </article>
           <article class="dashboard-chart-card chart-card-trend">
             <div class="chart-card-header chart-card-header-flex">
               <div>
@@ -18162,6 +18172,97 @@
 
       <footer class="billing-modal-footer">
         <button id="closeBillingCorrectnessSecondaryBtn" class="secondary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Monthly Collection vs Target Performance Dialog -->
+  <dialog id="collectionTargetModal" class="billing-modal collection-target-modal">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2>Monthly Collection vs Target Performance</h2>
+          <span class="urdu-subtitle">ماہانہ وصولی کا ہدف اور روزانہ کی رفتار</span>
+        </div>
+        <button id="closeCollectionTargetModalBtn" class="close-btn" type="button" aria-label="Close dialog">×</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- Configuration & Controls Bar -->
+        <div class="target-controls-bar">
+          <div class="target-control-item">
+            <label for="targetMonthSelect"><strong>Select Month:</strong></label>
+            <select id="targetMonthSelect" class="target-month-select"></select>
+          </div>
+          <div class="target-control-item target-input-group">
+            <label for="targetAmountInput"><strong>Target (PKR):</strong></label>
+            <div class="target-input-wrapper">
+              <input id="targetAmountInput" type="number" min="1000" step="5000" placeholder="e.g. 150000" />
+              <button id="saveTargetAmountBtn" class="primary-button" type="button">Save Target</button>
+              <button id="removeTargetAmountBtn" class="secondary-button" type="button" title="Remove target for selected month">Clear</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Target Presets -->
+        <div class="target-presets-row">
+          <span class="target-presets-label">Quick Presets:</span>
+          <button type="button" class="target-preset-chip" data-quick-target="100000">PKR 100K</button>
+          <button type="button" class="target-preset-chip" data-quick-target="150000">PKR 150K</button>
+          <button type="button" class="target-preset-chip" data-quick-target="200000">PKR 200K</button>
+          <button type="button" class="target-preset-chip" data-quick-target="250000">PKR 250K</button>
+          <button type="button" class="target-preset-chip" data-quick-target="billed">Match Billed Volume</button>
+        </div>
+
+        <!-- KPI Ribbon -->
+        <div class="target-kpi-ribbon">
+          <div class="target-kpi-card">
+            <div class="target-kpi-label">Monthly Target</div>
+            <div id="modalTargetVal" class="target-kpi-val">-</div>
+          </div>
+          <div class="target-kpi-card">
+            <div class="target-kpi-label">Actual Collected</div>
+            <div id="modalTargetCollectedVal" class="target-kpi-val" style="color:#0284c7;">-</div>
+          </div>
+          <div class="target-kpi-card">
+            <div class="target-kpi-label">Remaining to Collect</div>
+            <div id="modalTargetRemainingVal" class="target-kpi-val" style="color:#ea580c;">-</div>
+          </div>
+          <div class="target-kpi-card">
+            <div class="target-kpi-label">Req. Daily Run-Rate</div>
+            <div id="modalTargetRunRateVal" class="target-kpi-val" style="color:#10b981;">-</div>
+          </div>
+        </div>
+
+        <!-- SVG Gauge Container -->
+        <div id="targetGaugeContainer" class="target-gauge-card"></div>
+
+        <!-- History Ledger Section -->
+        <div class="target-history-section">
+          <h3>Past Months Target Performance Ledger</h3>
+          <div class="table-scroll-wrapper">
+            <table class="target-history-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Target</th>
+                  <th>Collected Cash</th>
+                  <th>Achievement</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="targetHistoryTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <button id="exportTargetCsvBtn" class="secondary-button" type="button">⬇ Export CSV</button>
+        <button id="shareTargetWhatsAppBtn" class="secondary-button" type="button">💬 Share WhatsApp</button>
+        <button id="printTargetA4Btn" class="secondary-button" type="button">🖨 Print A4</button>
+        <button id="printTargetPosBtn" class="secondary-button" type="button">🧾 Print POS</button>
+        <button id="closeCollectionTargetSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

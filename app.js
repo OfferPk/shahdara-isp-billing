@@ -70,6 +70,7 @@ import {
   setupThermalCyclingModal,
   setupBillingCorrectnessModal
 } from './form-validation.js?v=1.10.0';
+import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 
 
 
@@ -307,6 +308,7 @@ function renderDashboard() {
       if (bar && bar.setAttribute) bar.setAttribute('aria-valuenow', String(pct));
     }
   }
+  collectionTargetController?.refresh();
   setupDashboardQuickActions({
     onReceivePayment: () => { switchView('customers'); openPaymentEntry(); },
     onAddCustomer: () => {
@@ -3715,7 +3717,9 @@ export let customerSpectralAttenuationModalController;
 export let customerFoscSealModalController;
 export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
+export let collectionTargetController;
 if (typeof document !== 'undefined') {
+  collectionTargetController = setupCollectionTargetModal(state);
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -4497,6 +4501,11 @@ if (typeof document !== 'undefined') {
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
       onToast: (msg) => toast(msg)
     });
+  }
+
+  const targetModal = $('#collectionTargetModal');
+  if (targetModal && !collectionTargetController) {
+    collectionTargetController = setupCollectionTargetModal(state);
   }
 }
 

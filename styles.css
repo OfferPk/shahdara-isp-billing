@@ -6239,7 +6239,8 @@ html, body {
 #mechanicalSpliceSvgContainer,
 #adssSvgContainer,
 #armoredSvgContainer,
-#jettingSvgContainer {
+#jettingSvgContainer,
+#slittingSvgContainer {
   width: 100%;
   overflow-x: auto;
   border-radius: 8px;
@@ -6255,7 +6256,8 @@ html, body {
 #mechanicalSpliceSvgContainer svg,
 #adssSvgContainer svg,
 #armoredSvgContainer svg,
-#jettingSvgContainer svg {
+#jettingSvgContainer svg,
+#slittingSvgContainer svg {
   width: 100%;
   min-width: 580px;
   max-width: 820px;
@@ -6269,7 +6271,9 @@ html, body {
   #armoredCableCrushModal,
   #armoredCableCrushModal .dashboard-modal-card,
   #cableJettingModal,
-  #cableJettingModal .dashboard-modal-card {
+  #cableJettingModal .dashboard-modal-card,
+  #tubeSlittingAccessModal,
+  #tubeSlittingAccessModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;
@@ -6278,5 +6282,6 @@ html, body {
     max-width: 100% !important;
   }
 }
+
 
 

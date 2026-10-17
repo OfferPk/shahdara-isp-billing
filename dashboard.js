@@ -6152,6 +6152,16 @@ export {
   PNL_CATEGORY_PALETTE
 } from './dashboard-pnl.js';
 
+export {
+  calculateMomGrowth,
+  renderMomGrowthSvg,
+  generateMomGrowthCsv,
+  generateMomGrowthPrintHtml,
+  generateMomGrowthBriefing,
+  setupMomGrowthModal
+} from './dashboard-mom-growth.js';
+
+
 
 
 

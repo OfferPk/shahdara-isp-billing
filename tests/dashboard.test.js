@@ -18456,6 +18456,211 @@ test('index.html and dashboard.css contain all Optical Line Protection bindings'
   assert.ok(css.includes('.olp-modal-card'));
 });
 
+test('Monthly Collection vs Target Analytics & Run-Rate Forecasting Suite', async () => {
+  const {
+    COLLECTION_TARGETS_STORAGE_KEY,
+    getCollectionTargets,
+    getCollectionTarget,
+    setCollectionTarget,
+    removeCollectionTarget,
+    clearCollectionTargets,
+    calculateMonthDaysMetrics,
+    calculateCollectionTargetMetrics,
+    calculateCollectionTargetHistory,
+    renderCollectionTargetGaugeSvg,
+    formatCollectionTargetWhatsApp,
+    generateCollectionTargetsCsv,
+    generateCollectionTargetReportHtml,
+    setupCollectionTargetModal
+  } = await import('../dashboard-collection-target.js');
+
+  const { createInitialState, addCustomer, addPayment } = await import('../core.js');
+
+  // 1. Mock storage tests
+  const store = {};
+  const mockStorage = {
+    getItem: (key) => store[key] ?? null,
+    setItem: (key, val) => { store[key] = String(val); },
+    removeItem: (key) => { delete store[key]; },
+    clear: () => { Object.keys(store).forEach(k => delete store[k]); }
+  };
+
+  assert.equal(COLLECTION_TARGETS_STORAGE_KEY, 'shahdara_collection_targets');
+  assert.deepEqual(getCollectionTargets(mockStorage), {});
+  assert.equal(getCollectionTarget('2026-10', mockStorage), null);
+
+  // Set target
+  setCollectionTarget('2026-10', 150000, mockStorage);
+  assert.equal(getCollectionTarget('2026-10', mockStorage), 150000);
+
+  setCollectionTarget('2026-09', 120000, mockStorage);
+  assert.deepEqual(getCollectionTargets(mockStorage), { '2026-10': 150000, '2026-09': 120000 });
+
+  // Invalid targets reject
+  assert.throws(() => setCollectionTarget('invalid-month', 1000, mockStorage), /Invalid month format/);
+  assert.throws(() => setCollectionTarget('2026-10', -500, mockStorage), /positive numeric value/);
+  assert.throws(() => setCollectionTarget('2026-10', 0, mockStorage), /positive numeric value/);
+
+  // Remove target
+  removeCollectionTarget('2026-09', mockStorage);
+  assert.equal(getCollectionTarget('2026-09', mockStorage), null);
+
+  // Clear targets
+  clearCollectionTargets(mockStorage);
+  assert.deepEqual(getCollectionTargets(mockStorage), {});
+
+  // 2. Calendar days metrics calculation
+  const octMetrics = calculateMonthDaysMetrics('2026-10', new Date('2026-10-17T12:00:00+05:00'));
+  assert.equal(octMetrics.daysInMonth, 31);
+  assert.equal(octMetrics.currentDay, 17);
+  assert.equal(octMetrics.daysRemaining, 14);
+  assert.equal(octMetrics.isCurrentMonth, true);
+  assert.equal(octMetrics.isPastMonth, false);
+
+  const pastMetrics = calculateMonthDaysMetrics('2026-09', new Date('2026-10-17T12:00:00+05:00'));
+  assert.equal(pastMetrics.daysInMonth, 30);
+  assert.equal(pastMetrics.currentDay, 30);
+  assert.equal(pastMetrics.daysRemaining, 0);
+  assert.equal(pastMetrics.isPastMonth, true);
+
+  // 3. Collection Target Metrics with Ledger State
+  let state = createInitialState([]);
+  state = addCustomer(state, 'Subscriber One', new Date('2026-10-01T10:00:00+05:00'), {
+    monthlySellingAmount: 2000,
+    phone: '03001234567'
+  });
+  state = addCustomer(state, 'Subscriber Two', new Date('2026-10-01T10:00:00+05:00'), {
+    monthlySellingAmount: 3000,
+    phone: '03009876543'
+  });
+
+  const refDate = new Date('2026-10-17T12:00:00+05:00');
+
+  // Month without target
+  const noTargetMetrics = calculateCollectionTargetMetrics(state, '2026-10', { referenceDate: refDate, storage: mockStorage });
+  assert.equal(noTargetMetrics.hasTarget, false);
+  assert.equal(noTargetMetrics.target, null);
+  assert.equal(noTargetMetrics.statusBadge, 'No Target Set');
+
+  // Set target and test with collection
+  setCollectionTarget('2026-10', 10000, mockStorage);
+  // Record payment of 3,000
+  state = addPayment(state, state.customers[0].id, '2026-10', { amount: 2000, date: '2026-10-05', method: 'Cash' }, refDate);
+  state = addPayment(state, state.customers[1].id, '2026-10', { amount: 1000, date: '2026-10-10', method: 'Bank Transfer' }, refDate);
+
+  const targetMetrics = calculateCollectionTargetMetrics(state, '2026-10', { referenceDate: refDate, storage: mockStorage });
+  assert.equal(targetMetrics.hasTarget, true);
+  assert.equal(targetMetrics.target, 10000);
+  assert.equal(targetMetrics.collected, 3000);
+  assert.equal(targetMetrics.remaining, 7000);
+  assert.equal(targetMetrics.progressPercent, 30.0);
+  assert.equal(targetMetrics.isHit, false);
+  assert.equal(targetMetrics.daysRemaining, 14);
+  assert.equal(targetMetrics.requiredDailyRunRate, 500); // 7000 / 14 = 500
+  assert.ok(targetMetrics.actualDailyRunRate > 0);
+  assert.ok(targetMetrics.projectedMonthEnd >= 3000);
+  assert.ok(targetMetrics.statusBadge.includes('Pace'));
+
+  // Test target hit scenario
+  const hitMetrics = calculateCollectionTargetMetrics(state, '2026-10', { target: 2500, referenceDate: refDate });
+  assert.equal(hitMetrics.isHit, true);
+  assert.equal(hitMetrics.remaining, 0);
+  assert.equal(hitMetrics.surplusDeficit, 500);
+  assert.equal(hitMetrics.projectedStatus, 'TARGET_ACHIEVED');
+  assert.match(hitMetrics.statusBadge, /Target Reached/);
+
+  // Future month calculation
+  const futureDays = calculateMonthDaysMetrics('2026-11', refDate);
+  assert.equal(futureDays.daysInMonth, 30);
+  assert.equal(futureDays.currentDay, 0);
+  assert.equal(futureDays.daysRemaining, 30);
+  assert.equal(futureDays.isFutureMonth, true);
+
+  const futureMetrics = calculateCollectionTargetMetrics(state, '2026-11', { target: 12000, referenceDate: refDate });
+  assert.equal(futureMetrics.hasTarget, true);
+  assert.equal(futureMetrics.target, 12000);
+  assert.equal(futureMetrics.remaining, 12000);
+  assert.equal(futureMetrics.requiredDailyRunRate, 400); // 12000 / 30 = 400
+  assert.equal(futureMetrics.projectedStatus, 'PLANNED');
+
+  // Leap year and non-leap February day counts
+  assert.equal(calculateMonthDaysMetrics('2028-02', refDate).daysInMonth, 29);
+  assert.equal(calculateMonthDaysMetrics('2027-02', refDate).daysInMonth, 28);
+
+  // 4. Historical Hit/Miss Calculation
+  setCollectionTarget('2026-09', 5000, mockStorage);
+  const history = calculateCollectionTargetHistory(state, { monthsCount: 6, referenceDate: refDate, storage: mockStorage });
+  assert.ok(history.rows.length >= 6);
+  assert.ok(history.summary.targetedMonthsCount >= 2);
+  assert.equal(typeof history.summary.totalTargetedPkr, 'number');
+  assert.equal(typeof history.summary.totalCollectedPkr, 'number');
+
+  // 5. Visualizer & Document Generators
+  const svgHit = renderCollectionTargetGaugeSvg(hitMetrics);
+  assert.ok(svgHit.includes('<svg'));
+  assert.ok(svgHit.includes('120%'));
+  assert.ok(svgHit.includes('REQUIRED RUN-RATE'));
+  assert.ok(svgHit.includes('PROJECTED END'));
+
+  const svgNoTarget = renderCollectionTargetGaugeSvg(noTargetMetrics);
+  assert.ok(svgNoTarget.includes('<svg'));
+  assert.ok(svgNoTarget.includes('No Collection Target Set'));
+
+  const waText = formatCollectionTargetWhatsApp(targetMetrics, history);
+  assert.ok(waText.includes('SHAHDARA ISP'));
+  assert.ok(waText.includes('Monthly Target: PKR 10,000'));
+  assert.ok(waText.includes('Required Daily Run-Rate: PKR 500 / day'));
+  assert.ok(waText.includes('اردو خلاصہ'));
+
+  const csv = generateCollectionTargetsCsv(history);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('"Month","Month Name","Target (PKR)"'));
+  assert.ok(csv.includes('"2026-10"'));
+
+  const a4Html = generateCollectionTargetReportHtml(targetMetrics, history, 'a4');
+  assert.ok(a4Html.includes('Monthly Collection Target &amp; Daily Run-Rate Performance Audit'));
+  assert.ok(a4Html.includes('PKR 10,000'));
+
+  const posHtml = generateCollectionTargetReportHtml(targetMetrics, history, 'pos');
+  assert.ok(posHtml.includes('Collection Target Slip'));
+  assert.ok(posHtml.includes('80mm auto'));
+
+  // 6. DOM & markup bindings
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="openCollectionTargetBtn"'), 'Button to open modal exists');
+  assert.ok(html.includes('id="dashboardTargetChart"'), 'Chart card container exists');
+  assert.ok(html.includes('id="collectionTargetModal"'), 'Target modal dialog exists');
+  assert.ok(html.includes('id="targetMonthSelect"'), 'Month select element exists');
+  assert.ok(html.includes('id="targetAmountInput"'), 'Target amount input exists');
+  assert.ok(html.includes('id="saveTargetAmountBtn"'), 'Save target button exists');
+  assert.ok(html.includes('id="removeTargetAmountBtn"'), 'Remove target button exists');
+  assert.ok(html.includes('id="modalTargetVal"'), 'Target KPI val exists');
+  assert.ok(html.includes('id="modalTargetCollectedVal"'), 'Collected KPI val exists');
+  assert.ok(html.includes('id="modalTargetRemainingVal"'), 'Remaining KPI val exists');
+  assert.ok(html.includes('id="modalTargetRunRateVal"'), 'Run-rate KPI val exists');
+  assert.ok(html.includes('id="targetGaugeContainer"'), 'Modal SVG container exists');
+  assert.ok(html.includes('id="targetHistoryTableBody"'), 'History table body exists');
+  assert.ok(html.includes('id="exportTargetCsvBtn"'), 'Export CSV button exists');
+  assert.ok(html.includes('id="shareTargetWhatsAppBtn"'), 'WhatsApp button exists');
+  assert.ok(html.includes('id="printTargetA4Btn"'), 'Print A4 button exists');
+  assert.ok(html.includes('id="printTargetPosBtn"'), 'Print POS button exists');
+
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-target'));
+  assert.ok(css.includes('.collection-target-modal'));
+  assert.ok(css.includes('.target-kpi-ribbon'));
+  assert.ok(css.includes('.target-status-badge'));
+  assert.ok(css.includes('[data-theme="dark"] .collection-target-modal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupCollectionTargetModal'));
+  assert.ok(app.includes('collectionTargetController'));
+});
+
+
 
 
 

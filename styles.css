@@ -6283,7 +6283,9 @@ html, body {
   #conduitPullingModal,
   #conduitPullingModal .dashboard-modal-card,
   #spectralAttenuationModal,
-  #spectralAttenuationModal .dashboard-modal-card {
+  #spectralAttenuationModal .dashboard-modal-card,
+  #foscSealModal,
+  #foscSealModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;

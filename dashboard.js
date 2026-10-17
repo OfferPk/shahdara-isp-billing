@@ -6141,6 +6141,17 @@ export {
   describeDonutArc
 } from './dashboard-package-revenue.js';
 
+export {
+  calculatePnlAnalytics,
+  renderPnlChartSvg,
+  renderExpenseCategoryDonutSvg,
+  generatePnlCsv,
+  generatePnlPrintHtml,
+  generatePnlBriefing,
+  setupPnlModal,
+  PNL_CATEGORY_PALETTE
+} from './dashboard-pnl.js';
+
 
 
 

@@ -291,6 +291,15 @@
             <span class="quick-action-sub">Mix, Donut &amp; ARPU</span>
           </span>
         </button>
+        <button id="quickActionPnl" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">P&amp;L Statement</span>
+            <span class="quick-action-sub">Cash vs Expenses</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -6334,7 +6343,7 @@
           <figure class="chart-card"><figcaption><h3>Collection trend</h3><p>Actual receipt-date cash alongside service-month bill snapshots; these are different date bases.</p></figcaption><div id="revenueCollectionChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span class="legend-billed">Billed revenue</span><span class="legend-cash">Cash collection</span></p></figure>
           <figure class="chart-card"><figcaption><h3>Pending trend</h3><p>Recorded priced bills less actual receipts and sequential credit through each PKT month-end; current month is through today.</p></figcaption><div id="outstandingChart" class="chart-host" aria-live="polite"></div></figure>
           <figure class="chart-card"><figcaption><h3>Customer growth</h3><p>New connections from recorded dates; dated active count excludes the undated roster.</p></figcaption><div id="growthChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span class="legend-billed">New connections</span><span class="legend-cash">Dated active count</span></p></figure>
-          <figure class="chart-card"><figcaption><h3>Income vs expense</h3><p>Actual cash receipts vs dated expense entries. Provider estimates and inventory book value are excluded.</p></figcaption><div id="incomeExpenseChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span id="incomeLegend" class="legend-income">Cash income</span><span id="expenseLegend" class="legend-expense">Recorded expense</span></p></figure>
+          <figure class="chart-card"><figcaption><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3>Income vs expense</h3><p>Actual cash receipts vs dated expense entries. Provider estimates and inventory book value are excluded.</p></div><div><button id="openPnlModalBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📊 Full P&amp;L Statement Suite</button></div></div></figcaption><div id="incomeExpenseChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span id="incomeLegend" class="legend-income">Cash income</span><span id="expenseLegend" class="legend-expense">Recorded expense</span></p></figure>
           <figure class="chart-card"><figcaption><h3>Expense trend</h3><p>Only dated expense entries saved in this device; missing months are not described as proof of zero spending.</p></figcaption><div id="expenseTrendChart" class="chart-host" aria-live="polite"></div></figure>
           <figure class="chart-card"><figcaption><h3>Cash profit trend</h3><p>Actual receipt-date collection minus recorded dated expenses; not accrual or inventory-adjusted profit.</p></figcaption><div id="profitTrendChart" class="chart-host" aria-live="polite"></div></figure>
           <section class="chart-card online-card" aria-labelledby="onlineSnapshotHeading"><h3 id="onlineSnapshotHeading">Online vs offline · current manual snapshot</h3><div id="onlineSnapshot" class="online-snapshot"></div><p class="chart-caption">Not-set statuses are excluded from the percentage denominator. No network monitoring is performed.</p></section>
@@ -19047,6 +19056,124 @@
           <button id="packageRevenuePrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
         </div>
         <button id="closePackageRevenueSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Income vs Expense (Profit & Loss Statement) Suite Dialog -->
+  <dialog id="pnlModal" class="billing-modal pnl-modal" aria-labelledby="pnlModalTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">INCOME VS EXPENSE (P&amp;L) SUITE</div>
+          <h2 id="pnlModalTitle">Profit &amp; Loss Statement &amp; Cashflow Analytics</h2>
+          <span class="urdu-subtitle">ماہانہ آمدن، اخراجات، خالص منافع اور زمرہ جات کا تفصیلی تجزیہ</span>
+        </div>
+        <button id="closePnlModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- KPI Metric Cards Grid -->
+        <div class="pnl-kpi-grid">
+          <div class="pnl-kpi-card">
+            <span class="pnl-kpi-label">Total Cash Inflow</span>
+            <span id="pnlKpiIncome" class="pnl-kpi-value" style="color: #10b981;">PKR 0</span>
+            <span class="pnl-kpi-sub">Actual payments collected</span>
+          </div>
+          <div class="pnl-kpi-card">
+            <span class="pnl-kpi-label">Total Cash Outflow</span>
+            <span id="pnlKpiExpenses" class="pnl-kpi-value" style="color: #ef4444;">PKR 0</span>
+            <span class="pnl-kpi-sub">Dated recorded expenses</span>
+          </div>
+          <div class="pnl-kpi-card">
+            <span class="pnl-kpi-label">Net Cash Profit</span>
+            <span id="pnlKpiProfit" class="pnl-kpi-value" style="color: #6366f1;">PKR 0</span>
+            <span class="pnl-kpi-sub">Inflow minus outflow</span>
+          </div>
+          <div class="pnl-kpi-card">
+            <span class="pnl-kpi-label">Cumulative Margin</span>
+            <span id="pnlKpiMargin" class="pnl-kpi-value" style="color: #8b5cf6;">0%</span>
+            <span class="pnl-kpi-sub">Net profit margin %</span>
+          </div>
+          <div class="pnl-kpi-card">
+            <span class="pnl-kpi-label">Operating Exp Ratio</span>
+            <span id="pnlKpiOer" class="pnl-kpi-value" style="color: #f59e0b;">0%</span>
+            <span class="pnl-kpi-sub">Expenses / Inflow %</span>
+          </div>
+        </div>
+
+        <!-- Filter Controls Toolbar -->
+        <div class="defaulters-toolbar-container" style="margin-top: 16px;">
+          <div class="defaulters-filter-controls" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div class="defaulter-select-box">
+              <label for="pnlMonthSelect" class="sr-only">Billing Month</label>
+              <select id="pnlMonthSelect" class="defaulter-month-select" aria-label="Select Month">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div class="pnl-window-toggle" style="display: flex; gap: 4px; font-size: 11px;">
+              <button id="pnlWindow6Btn" type="button" class="btn-sm active" style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color, #cbd5e1); background: var(--accent, #0e5b4d); color: #fff; cursor: pointer;">6 Months</button>
+              <button id="pnlWindow12Btn" type="button" class="btn-sm" style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color, #cbd5e1); background: var(--card-bg, #fff); color: var(--text-color, #0f172a); cursor: pointer;">12 Months</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dual Chart Panel: P&L Bars + Category Donut -->
+        <div class="pnl-dual-panel">
+          <div class="pnl-chart-box">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h4 class="modal-section-title" style="margin: 0; font-size: 13px;">Cash Income vs Expenses &amp; Net Profit Trend</h4>
+              <div style="display: flex; gap: 10px; font-size: 11px; align-items: center;">
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #10b981; border-radius: 2px;"></span> Income</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #ef4444; border-radius: 2px;"></span> Expense</span>
+                <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #6366f1; border-radius: 50%;"></span> Net Profit</span>
+              </div>
+            </div>
+            <div id="pnlChartContainer" class="chart-svg-container" style="min-height: 250px;" role="img" aria-label="Income vs expense trend chart"></div>
+          </div>
+
+          <div class="pnl-donut-box">
+            <h4 class="modal-section-title" style="margin: 0 0 8px 0; font-size: 13px;">Expense Category Breakdown</h4>
+            <div id="pnlCategoryDonutContainer" class="chart-svg-container" style="min-height: 200px;" role="img" aria-label="Expense categories breakdown chart"></div>
+            <div id="pnlCategoriesList" style="max-height: 140px; overflow-y: auto; margin-top: 8px;">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly Financial Performance Table -->
+        <div class="modal-table-scroll-wrapper" style="margin-top: 16px; max-height: 320px; overflow-y: auto;">
+          <table class="data-table pnl-table" style="width: 100%; font-size: 12px;">
+            <thead>
+              <tr>
+                <th data-sort-pnl="month" style="cursor: pointer;" tabindex="0" role="button">Month ⇅</th>
+                <th data-sort-pnl="income" style="text-align: right; cursor: pointer;" tabindex="0" role="button">Cash Income (PKR) ⇅</th>
+                <th data-sort-pnl="expenses" style="text-align: right; cursor: pointer;" tabindex="0" role="button">Expenses (PKR) ⇅</th>
+                <th data-sort-pnl="netProfit" style="text-align: right; cursor: pointer;" tabindex="0" role="button">Net Cash Profit (PKR) ⇅</th>
+                <th data-sort-pnl="profitMargin" style="text-align: center; cursor: pointer;" tabindex="0" role="button">Margin % ⇅</th>
+                <th data-sort-pnl="expenseRatio" style="text-align: center; cursor: pointer;" tabindex="0" role="button">Expense Ratio % ⇅</th>
+                <th style="text-align: center;">Receipts / Entries</th>
+                <th style="text-align: center;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="pnlTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+          <p id="pnlEmptyState" class="empty-state" hidden style="text-align: center; padding: 24px; color: var(--text-muted, #64748b);">
+            No financial records found in the selected period.
+          </p>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="pnlExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+          <button id="pnlCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
+          <button id="pnlPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
+          <button id="pnlPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
+        </div>
+        <button id="closePnlSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

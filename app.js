@@ -82,6 +82,7 @@ import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
+import { setupPnlModal } from './dashboard-pnl.js';
 
 
 
@@ -99,6 +100,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
+export let pnlModalController = null;
 export let lateFeeModalController = null;
 let state;
 try {
@@ -4166,6 +4168,9 @@ if (typeof document !== 'undefined') {
     },
     onToast: (msg) => toast(msg)
   });
+  pnlModalController = setupPnlModal(() => state, {
+    onToast: (msg) => toast(msg)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -5045,6 +5050,12 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const pnlModal = $('#pnlModal');
+  if (pnlModal && !pnlModalController) {
+    pnlModalController = setupPnlModal(() => state, {
+      onToast: (msg) => toast(msg)
+    });
+  }
 
   const lateFeeModal = $('#lateFeeManagerModal');
   if (lateFeeModal && !lateFeeModalController) {

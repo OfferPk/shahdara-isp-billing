@@ -9438,3 +9438,100 @@ html, body {
     margin: 8px 0 10px;
   }
 }
+
+/* ==========================================================================
+   Income vs Expense (P&L) Suite Modal Styles
+   ========================================================================== */
+.pnl-modal {
+  max-width: 980px;
+  width: 95vw;
+}
+
+.pnl-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.pnl-kpi-card {
+  background: var(--bg-surface, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.pnl-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.04em;
+}
+
+.pnl-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 4px 0 2px 0;
+  color: var(--text-color, #0f172a);
+}
+
+.pnl-kpi-sub {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+.pnl-dual-panel {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (min-width: 860px) {
+  .pnl-dual-panel {
+    grid-template-columns: 3fr 2fr;
+  }
+}
+
+.pnl-chart-box, .pnl-donut-box {
+  background: var(--bg-surface, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.pnl-window-toggle button.active {
+  background: var(--accent, #0e5b4d) !important;
+  color: #fff !important;
+}
+
+[data-theme="dark"] .pnl-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .pnl-kpi-card,
+[data-theme="dark"] .pnl-chart-box,
+[data-theme="dark"] .pnl-donut-box {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .pnl-table th {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .pnl-table td {
+  border-color: #334155;
+}
+
+@media (max-width: 640px) {
+  .pnl-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

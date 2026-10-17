@@ -9390,3 +9390,51 @@ html, body {
   color: #f28b82;
   border-color: #ea4335;
 }
+
+/* Backup Controls Polish, Mobile Grid Balance & Modal Resilience */
+.csv-import-options .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
+  user-select: none;
+}
+.csv-import-options input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--primary, #0e5b4d);
+}
+.csv-preview-table-wrap {
+  -webkit-overflow-scrolling: touch;
+}
+.csv-preview-table {
+  min-width: 580px;
+}
+
+[data-theme="dark"] .backup-modal .modal-actions {
+  background: var(--bg-surface, #1e293b);
+}
+[data-theme="dark"] .backup-preview-summary {
+  background: #1e293b;
+  border-color: #334155;
+  color: #a7f3d0;
+}
+[data-theme="dark"] .backup-merge-rule {
+  color: #94a3b8;
+}
+[data-theme="dark"] .backup-conflict-list {
+  color: #fde047;
+}
+
+@media (max-width: 620px) {
+  .backup-actions #verifyStorageIntegrityBtn,
+  .backup-controls-panel .backup-actions #verifyStorageIntegrityBtn {
+    grid-column: 1 / -1;
+  }
+  .csv-preview-table-wrap {
+    max-height: 220px;
+    margin: 8px 0 10px;
+  }
+}

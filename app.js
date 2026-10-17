@@ -1226,6 +1226,12 @@ $('#jsonBackupFileInput').addEventListener('change', async event => {
 function closeBackupDialog() { pendingBackupPreview = null; $('#jsonBackupDialog').close(); }
 document.querySelectorAll('[data-close-backup-dialog]').forEach(button => button.addEventListener('click', closeBackupDialog));
 $('#cancelJsonBackupButton').addEventListener('click', closeBackupDialog);
+$('#jsonBackupDialog')?.addEventListener('click', (e) => {
+  if (e.target === $('#jsonBackupDialog')) closeBackupDialog();
+});
+$('#jsonBackupDialog')?.addEventListener('cancel', () => {
+  pendingBackupPreview = null;
+});
 $('#applyJsonBackupButton').addEventListener('click', () => {
   if (!pendingBackupPreview?.canApply) return;
   try {
@@ -1339,6 +1345,12 @@ $('#customerCsvFileInput')?.addEventListener('change', async (event) => {
 
 document.querySelectorAll('[data-close-csv-dialog]').forEach(btn => btn.addEventListener('click', closeCsvImportDialog));
 $('#cancelCsvImportButton')?.addEventListener('click', closeCsvImportDialog);
+$('#csvImportDialog')?.addEventListener('click', (e) => {
+  if (e.target === $('#csvImportDialog')) closeCsvImportDialog();
+});
+$('#csvImportDialog')?.addEventListener('cancel', () => {
+  pendingCsvImportPreview = null;
+});
 
 $('#applyCsvImportButton')?.addEventListener('click', () => {
   if (!pendingCsvImportPreview?.canApply) return;
@@ -1672,6 +1684,9 @@ $('#duplicateCustomerMatches').addEventListener('click', event => {
   selectCustomer(customerId);
 });
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $('#addCustomerDialog').close()));
+$('#addCustomerDialog')?.addEventListener('click', (e) => {
+  if (e.target === $('#addCustomerDialog')) $('#addCustomerDialog').close();
+});
 $('#saveMohallaButton').addEventListener('click', () => {
   if (!selectedCustomer()) return;
   const current = selectedCustomer();

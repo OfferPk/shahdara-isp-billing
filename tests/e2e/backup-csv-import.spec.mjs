@@ -74,10 +74,8 @@ test.describe('Backup Hardening & CSV Customer Import E2E Verification', () => {
     await expect(toast).toContainText(/Successfully imported/);
   });
 
-  test('responsive verification: zero horizontal scroll at 390px mobile viewport', async ({ page, isMobile }) => {
-    if (isMobile) {
-      await page.setViewportSize({ width: 390, height: 844 });
-    }
+  test('responsive verification: zero horizontal scroll at 390px mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
     await page.locator('#backupControlsToggle').click();
@@ -97,5 +95,84 @@ test.describe('Backup Hardening & CSV Customer Import E2E Verification', () => {
     if (importBtnBox) {
       expect(importBtnBox.height).toBeGreaterThanOrEqual(40);
     }
+
+    // Verify #verifyStorageIntegrityBtn spans full width in 2-column mobile grid
+    const integrityBtn = page.locator('#verifyStorageIntegrityBtn');
+    await expect(integrityBtn).toBeVisible();
+    const gridColumn = await integrityBtn.evaluate(el => window.getComputedStyle(el).gridColumn);
+    expect(gridColumn).toContain('1 / -1');
+  });
+
+  test('csv import dialog dismissal via close button, escape key, and backdrop click', async ({ page }) => {
+    await page.goto('/');
+
+    await page.locator('#backupControlsToggle').click();
+    await expect(page.locator('#backupControls')).toBeVisible();
+
+    const sampleCsv = 'Customer Name,Phone\nTest User,03001234567';
+    const fileInput = page.locator('#customerCsvFileInput');
+
+    // 1. Dismiss via close button
+    await fileInput.setInputFiles({
+      name: 'test1.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(sampleCsv, 'utf-8')
+    });
+    const dialog = page.locator('#csvImportDialog');
+    await expect(dialog).toBeVisible();
+    await page.locator('[data-close-csv-dialog]').click();
+    await expect(dialog).not.toBeVisible();
+
+    // 2. Dismiss via Escape key
+    await fileInput.setInputFiles({
+      name: 'test2.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(sampleCsv, 'utf-8')
+    });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+
+    // 3. Dismiss via backdrop click
+    await fileInput.setInputFiles({
+      name: 'test3.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(sampleCsv, 'utf-8')
+    });
+    await expect(dialog).toBeVisible();
+    // Dispatch click directly on dialog backdrop element
+    await dialog.evaluate(el => {
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    await expect(dialog).not.toBeVisible();
+  });
+
+  test('dark theme styling verification for backup modals', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+
+    await page.locator('#backupControlsToggle').click();
+    await expect(page.locator('#backupControls')).toBeVisible();
+
+    const sampleCsv = 'Customer Name,Phone\nDark User,03009999999';
+    await page.locator('#customerCsvFileInput').setInputFiles({
+      name: 'dark_test.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(sampleCsv, 'utf-8')
+    });
+
+    const dialog = page.locator('#csvImportDialog');
+    await expect(dialog).toBeVisible();
+
+    // Check modal actions background in dark mode
+    const actionsBg = await page.locator('#csvImportDialog .modal-actions').evaluate(
+      el => window.getComputedStyle(el).backgroundColor
+    );
+    // Should NOT be plain white rgb(255, 255, 255)
+    expect(actionsBg).not.toBe('rgb(255, 255, 255)');
+
+    await page.locator('#cancelCsvImportButton').click();
+    await expect(dialog).not.toBeVisible();
   });
 });
+

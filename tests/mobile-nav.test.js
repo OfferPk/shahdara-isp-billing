@@ -14598,3 +14598,232 @@ test('bilingual English / Urdu UI localization engine and RTL layout support (ag
   assert.ok(appJs.includes('setupLanguageToggle'));
   assert.ok(appJs.includes('languageController'));
 });
+
+test('Pending Actions Center & Collection Promises Suite (agent2 - Backlog Item 7)', async () => {
+  const {
+    COLLECTION_PROMISES_STORAGE_KEY,
+    getPendingActionsDateString,
+    getCollectionPromises,
+    saveCollectionPromise,
+    fulfillCollectionPromise,
+    cancelCollectionPromise,
+    rescheduleCollectionPromise,
+    clearCollectionPromises,
+    getPendingActionsSummary,
+    markAllReceiptsSharedInQueue,
+    generatePendingActionsDigest,
+    updatePendingActionsBadges,
+    setupPendingActionsModal
+  } = await import('../nav-pending-actions.js');
+  const { markReceiptShared, clearSharedReceipts } = await import('../nav-quick-profile.js');
+  const { updateNavigationBadges } = await import('../nav.js');
+
+  const store = new Map();
+  const mockStorage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k)
+  };
+
+  // 1. Date string helper
+  const today = getPendingActionsDateString();
+  assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
+
+  // 2. Collection Promises CRUD
+  clearCollectionPromises(mockStorage);
+  assert.deepEqual(getCollectionPromises(mockStorage), []);
+
+  const p1 = saveCollectionPromise({
+    customerId: 'cust-101',
+    customerNumber: 101,
+    customerName: 'Muhammad Arshad',
+    phone: '03001234567',
+    area: 'Kot Mohibbu',
+    promisedDate: '2026-10-18',
+    promisedAmount: 2500,
+    note: 'Will pay tomorrow after 6pm'
+  }, mockStorage);
+
+  assert.ok(p1.id.startsWith('prom-'));
+  assert.equal(p1.customerName, 'Muhammad Arshad');
+  assert.equal(p1.status, 'pending');
+
+  const p2 = saveCollectionPromise({
+    customerId: 'cust-102',
+    customerNumber: 102,
+    customerName: 'Tariq Butt',
+    phone: '03217654321',
+    area: 'Chowk Shahdara',
+    promisedDate: '2026-10-16', // overdue
+    promisedAmount: 1800,
+    note: 'Shop closed yesterday'
+  }, mockStorage);
+
+  const list = getCollectionPromises(mockStorage);
+  assert.equal(list.length, 2);
+  assert.equal(list[0].id, p2.id); // sorted ascending by date (2026-10-16 before 2026-10-18)
+
+  // Reschedule p2
+  const rescheduled = rescheduleCollectionPromise(p2.id, '2026-10-19', mockStorage);
+  assert.equal(rescheduled.promisedDate, '2026-10-19');
+  assert.equal(rescheduled.previousPromisedDate, '2026-10-16');
+
+  // Cancel p1 with reason
+  const cancelled = cancelCollectionPromise(p1.id, 'Customer moved out', mockStorage);
+  assert.equal(cancelled.status, 'cancelled');
+  assert.equal(cancelled.cancelledReason, 'Customer moved out');
+
+  // Fulfill rescheduled p2
+  const fulfilled = fulfillCollectionPromise(p2.id, 'pay-rec-999', mockStorage);
+  assert.equal(fulfilled.status, 'fulfilled');
+  assert.equal(fulfilled.fulfilledPaymentId, 'pay-rec-999');
+
+  // 3. getPendingActionsSummary with mock billing state
+  clearCollectionPromises(mockStorage);
+  clearSharedReceipts(mockStorage);
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-1',
+        customerNumber: 1,
+        name: 'Usman Ali',
+        phone: '03001112233',
+        area: 'Main Bazaar',
+        bills: [
+          {
+            id: 'bill-1',
+            month: '2026-10',
+            dueAmount: 2000,
+            dueDate: '2026-10-05',
+            status: 'paid',
+            payments: [
+              {
+                id: 'pay-001',
+                date: '2026-10-17',
+                amount: 2000,
+                method: 'cash',
+                paidBy: 'Self'
+              }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'cust-2',
+        customerNumber: 2,
+        name: 'Zahid Khan',
+        phone: '03334445566',
+        area: 'Rehman Park',
+        bills: [
+          {
+            id: 'bill-2',
+            month: '2026-10',
+            dueAmount: 3000,
+            dueDate: '2026-10-05',
+            status: 'partial',
+            payments: [
+              {
+                id: 'pay-002',
+                date: '2026-10-16',
+                amount: 1500,
+                method: 'easypaisa',
+                paidBy: 'Brother'
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  // Add a promise due today
+  saveCollectionPromise({
+    customerId: 'cust-2',
+    customerNumber: 2,
+    customerName: 'Zahid Khan',
+    phone: '03334445566',
+    area: 'Rehman Park',
+    promisedDate: '2026-10-17', // today in reference
+    promisedAmount: 1500,
+    note: 'Remaining balance promise'
+  }, mockStorage);
+
+  // Set offline payment queue
+  mockStorage.setItem('shahdara_offline_payment_queue', JSON.stringify([
+    { id: 'off-1', action: 'record_payment', summary: 'Offline Rs. 1,000 for #3', status: 'pending' }
+  ]));
+
+  const summary = getPendingActionsSummary(mockState, {
+    storage: mockStorage,
+    todayString: '2026-10-17'
+  });
+
+  // Both payments are unshared initially
+  assert.equal(summary.counts.unsharedReceipts, 2);
+  assert.equal(summary.counts.promisesDue, 1);
+  assert.equal(summary.counts.offlineQueue, 1);
+  assert.equal(summary.counts.total, 4);
+
+  // 4. Mark one receipt shared and verify count decreases
+  markReceiptShared('pay-001', { method: 'whatsapp' }, mockStorage);
+  const summaryAfterOneShared = getPendingActionsSummary(mockState, {
+    storage: mockStorage,
+    todayString: '2026-10-17'
+  });
+  assert.equal(summaryAfterOneShared.counts.unsharedReceipts, 1);
+  assert.equal(summaryAfterOneShared.unsharedReceipts[0].paymentId, 'pay-002');
+
+  // 5. Bulk mark all remaining receipts shared
+  const bulkMarked = markAllReceiptsSharedInQueue(summaryAfterOneShared.unsharedReceipts, mockStorage);
+  assert.equal(bulkMarked, 1);
+
+  const summaryAfterAllShared = getPendingActionsSummary(mockState, {
+    storage: mockStorage,
+    todayString: '2026-10-17'
+  });
+  assert.equal(summaryAfterAllShared.counts.unsharedReceipts, 0);
+
+  // 6. Plain-text digests (English & Urdu)
+  const digestEn = generatePendingActionsDigest(summary, { language: 'en' });
+  assert.ok(digestEn.includes('SHAHDARA FIBER NET - PENDING ACTIONS CENTER'));
+  assert.ok(digestEn.includes('UNSHARED WHATSAPP RECEIPTS (2)'));
+  assert.ok(digestEn.includes('COLLECTION PROMISES DUE (1)'));
+  assert.ok(digestEn.includes('Zahid Khan'));
+
+  const digestUr = generatePendingActionsDigest(summary, { language: 'ur' });
+  assert.ok(digestUr.includes('ایکشن سینٹر سمری'));
+  assert.ok(digestUr.includes('غیر ارسال شدہ واٹس ایپ رسیدیں (2)'));
+  assert.ok(digestUr.includes('ادائیگی کے وعدے / فالو اپ (1)'));
+
+  // 7. Navigation badges integration
+  const navBadgeRes = updateNavigationBadges(mockState, {
+    pendingActionsCount: summary.counts.total
+  });
+  assert.equal(navBadgeRes.pendingActionsCount, 4);
+
+  // 8. HTML and CSS markups verification
+  const indexHtml = read('index.html');
+  assert.ok(indexHtml.includes('id="topbarPendingActionsBtn"'));
+  assert.ok(indexHtml.includes('id="topbarPendingBadge"'));
+  assert.ok(indexHtml.includes('id="navPendingActionsBtn"'));
+  assert.ok(indexHtml.includes('id="navBadgePendingActions"'));
+  assert.ok(indexHtml.includes('id="pendingActionsModal"'));
+  assert.ok(indexHtml.includes('id="pendingActionsListContainer"'));
+  assert.ok(indexHtml.includes('id="toggleSchedulePromiseFormBtn"'));
+  assert.ok(indexHtml.includes('id="pendingPromiseForm"'));
+
+  const navCss = read('nav.css');
+  assert.ok(navCss.includes('.topbar-pending-btn'));
+  assert.ok(navCss.includes('.topbar-pending-badge'));
+  assert.ok(navCss.includes('.pending-actions-modal'));
+  assert.ok(navCss.includes('.pending-actions-card'));
+  assert.ok(navCss.includes('.pending-actions-tab'));
+  assert.ok(navCss.includes('.pending-action-card'));
+
+  const appJs = read('app.js');
+  assert.ok(appJs.includes('setupPendingActionsModal'));
+  assert.ok(appJs.includes('pendingActionsController'));
+  assert.ok(appJs.includes('topbarPendingActionsBtn'));
+  assert.ok(appJs.includes('navPendingActionsBtn'));
+});

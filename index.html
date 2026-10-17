@@ -44,6 +44,7 @@
           <li class="nav-drawer-item"><button type="button" data-nav-target="customers" aria-current="page"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Customers</span><span id="navBadgeCustomers" class="nav-drawer-badge" data-nav-badge="customers" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="transactions"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span><span>Transactions</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="reports"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span>Monthly Report</span></button></li>
+          <li class="nav-drawer-item"><button type="button" id="navPendingActionsBtn" data-open-pending-actions><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span data-i18n="drawer_pending_actions">Pending Actions</span><span id="navBadgePendingActions" class="nav-drawer-badge" data-nav-badge="pending-actions" hidden>0</span></button></li>
         </ul>
       </div>
       <div>
@@ -120,6 +121,10 @@
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
+      </button>
+      <button id="topbarPendingActionsBtn" class="topbar-pending-btn" type="button" aria-label="Pending Actions Center" title="Pending Actions Center" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="topbarPendingBadge" class="topbar-pending-badge" data-nav-badge="pending-actions" hidden>0</span>
       </button>
       <button id="shortcutsHelpButton" class="shortcuts-help-button" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -18995,6 +19000,100 @@
           <button id="packageRevenuePrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
         </div>
         <button id="closePackageRevenueSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Pending Actions Center Dialog (agent2 - shahdara-mobile-nav) -->
+  <dialog id="pendingActionsModal" class="modal pending-actions-modal" aria-labelledby="pendingActionsTitle">
+    <div class="pending-actions-card">
+      <header class="pending-actions-header">
+        <div class="pending-actions-header-info">
+          <p class="eyebrow" data-i18n="pending_actions_subtitle">OPERATIONAL TASK QUEUE</p>
+          <div class="pending-actions-title-row">
+            <h2 id="pendingActionsTitle" data-i18n="pending_actions_title">Pending Actions Center</h2>
+            <span id="pendingActionsTotalBadge" class="pending-total-badge">0 Pending</span>
+          </div>
+        </div>
+        <button id="closePendingActionsModalBtn" class="modal-close-btn" type="button" aria-label="Close pending actions">✕</button>
+      </header>
+
+      <div class="pending-actions-toolbar">
+        <div class="pending-actions-tabs" role="tablist" aria-label="Filter pending actions">
+          <button type="button" class="pending-actions-tab active" data-pending-tab="all" role="tab" aria-selected="true">
+            <span data-i18n="pending_tab_all">All</span>
+            <span id="pendingTabAllCount" class="tab-count-pill">0</span>
+          </button>
+          <button type="button" class="pending-actions-tab" data-pending-tab="receipts" role="tab" aria-selected="false">
+            <span data-i18n="pending_tab_receipts">Receipts</span>
+            <span id="pendingTabReceiptsCount" class="tab-count-pill">0</span>
+          </button>
+          <button type="button" class="pending-actions-tab" data-pending-tab="promises" role="tab" aria-selected="false">
+            <span data-i18n="pending_tab_promises">Promises</span>
+            <span id="pendingTabPromisesCount" class="tab-count-pill">0</span>
+          </button>
+          <button type="button" class="pending-actions-tab" data-pending-tab="offline" role="tab" aria-selected="false">
+            <span data-i18n="pending_tab_offline">Offline</span>
+            <span id="pendingTabOfflineCount" class="tab-count-pill">0</span>
+          </button>
+        </div>
+        <div class="pending-actions-quick-tools">
+          <button id="toggleSchedulePromiseFormBtn" type="button" class="btn-tool-secondary" data-i18n="pending_new_promise">
+            + Schedule Promise
+          </button>
+          <button id="pendingActionsMarkAllSharedBtn" type="button" class="btn-tool-secondary" data-i18n="pending_share_all" hidden>
+            ✓ Mark All Shared
+          </button>
+        </div>
+      </div>
+
+      <!-- Schedule Promise Collapsible Form -->
+      <div id="pendingPromiseFormContainer" class="pending-promise-form-container" hidden>
+        <form id="pendingPromiseForm" class="pending-promise-form">
+          <div class="form-row">
+            <label for="promiseCustomerSelect">Subscriber</label>
+            <select id="promiseCustomerSelect" required class="input-select">
+              <option value="">-- Choose Customer --</option>
+            </select>
+          </div>
+          <div class="form-row form-row-2col">
+            <div>
+              <label for="promiseDateInput">Promised Date (PKT)</label>
+              <input id="promiseDateInput" type="date" required class="input-date">
+            </div>
+            <div>
+              <label for="promiseAmountInput">Promised Amount (PKR)</label>
+              <input id="promiseAmountInput" type="number" min="0" step="50" placeholder="e.g. 2000" class="input-number">
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="promiseNoteInput">Follow-up Note (e.g. Salary day, shop evening)</label>
+            <input id="promiseNoteInput" type="text" maxlength="120" placeholder="Collector note..." class="input-text">
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="primary-button">Save Promise</button>
+            <button id="cancelPromiseFormBtn" type="button" class="secondary-button">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="pendingActionsListContainer" class="pending-actions-list" role="region" aria-label="Pending actions list" tabindex="0">
+        <!-- Populated dynamically -->
+      </div>
+
+      <div id="pendingActionsEmptyState" class="pending-actions-empty" hidden>
+        <div class="empty-icon">✓</div>
+        <h3 data-i18n="pending_no_actions">All Pending Actions Clear!</h3>
+        <p>All receipts are dispatched on WhatsApp, follow-up promises completed, and offline queue is synced.</p>
+      </div>
+
+      <footer class="pending-actions-footer">
+        <button id="pendingActionsCopyDigestBtn" class="secondary-button" type="button" data-i18n="pending_copy_digest">
+          📋 Copy Action List
+        </button>
+        <button id="closePendingActionsSecondaryBtn" class="primary-button" type="button" data-i18n="close">
+          Close
+        </button>
       </footer>
     </div>
   </dialog>

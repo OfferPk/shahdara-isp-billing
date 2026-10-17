@@ -167,7 +167,8 @@ export function setupNavigationDrawer({
  * Updates live badges on navigation drawer and mobile bottom nav items.
  */
 export function updateNavigationBadges(state, options = {}) {
-  if (!state || typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return;
+  if (!state) return;
+  const hasDoc = typeof document !== 'undefined' && typeof document.querySelectorAll === 'function';
 
   const customers = Array.isArray(state.customers) ? state.customers : [];
   const totalCustomers = customers.filter(c => !c.archived).length;
@@ -230,6 +231,7 @@ export function updateNavigationBadges(state, options = {}) {
   }
 
   function setBadges(target, count, label, alertClass = false) {
+    if (!hasDoc) return;
     const badges = document.querySelectorAll(`[data-nav-badge="${target}"]`);
     badges.forEach(badge => {
       badge.textContent = count > 99 ? '99+' : String(count);
@@ -250,6 +252,23 @@ export function updateNavigationBadges(state, options = {}) {
   setBadges('field-route', overdueCount, 'stops pending collection', overdueCount > 0);
   setBadges('work-orders', pendingWorkOrders, 'active field work orders', pendingWorkOrders > 0);
   setBadges('sync-conflicts', conflictsCount, 'unresolved sync conflicts', conflictsCount > 0);
+
+  let pendingActionsCount = 0;
+  if (typeof options.pendingActionsCount === 'number') {
+    pendingActionsCount = options.pendingActionsCount;
+  } else if (typeof localStorage !== 'undefined') {
+    try {
+      const rawProm = localStorage.getItem('shahdara_collection_promises_v1');
+      if (rawProm) {
+        const promises = JSON.parse(rawProm);
+        if (Array.isArray(promises)) {
+          const today = new Date().toISOString().slice(0, 10);
+          pendingActionsCount += promises.filter(p => p.status === 'pending' && p.promisedDate <= today).length;
+        }
+      }
+    } catch {}
+  }
+  setBadges('pending-actions', pendingActionsCount, 'pending operational actions', pendingActionsCount > 0);
 
   let opticalAlertCount = 0;
   if (typeof options.opticalAlertCount === 'number') {
@@ -276,7 +295,8 @@ export function updateNavigationBadges(state, options = {}) {
     opticalAlertCount,
     otdrAlertCount,
     fieldRoutePendingCount: overdueCount,
-    workOrdersCount: pendingWorkOrders
+    workOrdersCount: pendingWorkOrders,
+    pendingActionsCount
   };
 }
 
@@ -6019,6 +6039,22 @@ export {
   renderLanguageToggleBtnHtml,
   setupLanguageToggle
 } from './nav-language.js';
+
+export {
+  COLLECTION_PROMISES_STORAGE_KEY,
+  getTodayDateString as getPendingActionsDateString,
+  getCollectionPromises,
+  saveCollectionPromise,
+  fulfillCollectionPromise,
+  cancelCollectionPromise,
+  rescheduleCollectionPromise,
+  clearCollectionPromises,
+  getPendingActionsSummary,
+  markAllReceiptsSharedInQueue,
+  generatePendingActionsDigest,
+  updatePendingActionsBadges,
+  setupPendingActionsModal
+} from './nav-pending-actions.js';
 
 
 

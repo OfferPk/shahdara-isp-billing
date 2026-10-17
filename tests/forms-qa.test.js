@@ -11902,3 +11902,247 @@ test('DOM & CSS integration for Outside Plant Aerial ADSS Sag & Tension QA Suite
   assert.ok(stylesCss.includes('#adssSagTensionModal'));
   assert.ok(stylesCss.includes('#adssSvgContainer'));
 });
+
+test('calculateImpactEnergyJoules calculates falling tup gravitational impact energy', async () => {
+  const { calculateImpactEnergyJoules } = await import('../form-validation.js');
+
+  // 2.0 kg tup dropped from 0.5m: E = 2.0 * 9.80665 * 0.5 = 9.81 Joules
+  const e1 = calculateImpactEnergyJoules(2.0, 0.5);
+  assert.ok(Math.abs(e1 - 9.81) < 0.05, `Expected ~9.81 J, got ${e1}`);
+
+  // 1.0 kg from 0.4m: E = 3.92 J
+  const e2 = calculateImpactEnergyJoules(1.0, 0.4);
+  assert.ok(Math.abs(e2 - 3.92) < 0.05, `Expected ~3.92 J, got ${e2}`);
+
+  // 4.0 kg from 0.5m: E = 19.61 J
+  const e3 = calculateImpactEnergyJoules(4.0, 0.5);
+  assert.ok(Math.abs(e3 - 19.61) < 0.05, `Expected ~19.61 J, got ${e3}`);
+});
+
+test('calculateRadialCrushDeflection computes deformation and remaining buffer clearance', async () => {
+  const { calculateRadialCrushDeflection } = await import('../form-validation.js');
+
+  // 12mm cable, stiffness 1.0, 2000 N load -> deflection = (2000 / 2000) * 1.0 = 1.0mm
+  const def = calculateRadialCrushDeflection(2000.0, 12.0, 1.0);
+  assert.equal(def.deflectionMm, 1.0);
+  assert.ok(Math.abs(def.percentDeformation - 8.3) < 0.2);
+  assert.ok(def.remainingBufferClearanceMm > 0);
+
+  // Stiffer armor (SWA, stiffness 1.85) -> lower deflection
+  const defSwa = calculateRadialCrushDeflection(2000.0, 12.0, 1.85);
+  assert.ok(defSwa.deflectionMm < def.deflectionMm);
+});
+
+test('calculateInducedCrushLossDb evaluates optical attenuation according to IEC Method E3', async () => {
+  const { calculateInducedCrushLossDb } = await import('../form-validation.js');
+
+  // Low load (50% of rating) -> 0.01 dB baseline
+  assert.equal(calculateInducedCrushLossDb(1500.0, 3000.0), 0.01);
+
+  // Rated load (100% of rating) -> exactly 0.05 dB allowable residual limit
+  const lossRated = calculateInducedCrushLossDb(3000.0, 3000.0);
+  assert.equal(lossRated, 0.05);
+
+  // Moderate overload (120% of rating) -> loss increases above 0.05 dB
+  const lossOverload = calculateInducedCrushLossDb(3600.0, 3000.0);
+  assert.ok(lossOverload > 0.05 && lossOverload < 0.15);
+
+  // Severe overload (200% of rating) -> excessive attenuation (> 0.2 dB)
+  const lossSevere = calculateInducedCrushLossDb(6000.0, 3000.0);
+  assert.ok(lossSevere > 0.3);
+});
+
+test('evaluateBurialDepthCompliance checks municipal depth safety factors', async () => {
+  const { evaluateBurialDepthCompliance } = await import('../form-validation.js');
+
+  // 1.3m depth vs 1.2m required -> compliant with positive margin
+  const c1 = evaluateBurialDepthCompliance(1.3, 1.2);
+  assert.equal(c1.isCompliant, true);
+  assert.equal(c1.depthMarginM, 0.1);
+  assert.ok(c1.safetyFactor > 1.0);
+
+  // 0.6m depth vs 1.0m required -> shallow defect
+  const c2 = evaluateBurialDepthCompliance(0.6, 1.0);
+  assert.equal(c2.isCompliant, false);
+  assert.equal(c2.depthMarginM, -0.4);
+  assert.equal(c2.safetyFactor, 0.6);
+});
+
+test('evaluateArmoredCableCrush evaluates field spans and generates appropriate verdicts', async () => {
+  const { evaluateArmoredCableCrush, SHAH_ARMORED_PRESETS } = await import('../form-validation.js');
+
+  // GT Road heavy truck preset (CST, 2800 N < 3000 N, 1.3m depth, slab fitted) -> CERTIFIED_OPTIMAL
+  const repGt = evaluateArmoredCableCrush(SHAH_ARMORED_PRESETS.PRESET_GT_ROAD_HEAVY_TRUCK);
+  assert.equal(repGt.crushSafe, true);
+  assert.equal(repGt.impactSafe, true);
+  assert.ok(repGt.inducedLossDb <= 0.05);
+  assert.equal(repGt.verdict.id, 'CERTIFIED_OPTIMAL');
+
+  // Unarmored cable in direct bury overload (1900 N > 800 N rating, shallow 0.5m) -> FAILED_CRUSH_OVERLOAD
+  const repFail = evaluateArmoredCableCrush(SHAH_ARMORED_PRESETS.PRESET_BEGUM_KOT_SHALLOW_UNARMORED);
+  assert.equal(repFail.crushSafe, false);
+  assert.equal(repFail.impactSafe, false);
+  assert.equal(repFail.verdict.id, 'FAILED_CRUSH_OVERLOAD');
+  assert.ok(repFail.deficiencyList.some(d => d.includes('exceeds armor rating')));
+});
+
+test('validateArmoredCableCrushInput validates form fields and physical boundaries', async () => {
+  const { validateArmoredCableCrushInput } = await import('../form-validation.js');
+
+  const valid = validateArmoredCableCrushInput({
+    customer: 'Shahdara Trunk Node',
+    route: 'G.T. Road Km 12',
+    appliedCrushLoadNPer100mm: 2500,
+    burialDepthM: 1.2,
+    tupMassKg: 2.0
+  });
+  assert.equal(valid.valid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateArmoredCableCrushInput({
+    customer: '',
+    route: '',
+    appliedCrushLoadNPer100mm: 50,
+    burialDepthM: -1,
+    tupMassKg: 0
+  });
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.errors.length >= 4);
+});
+
+test('buildArmoredCableCrushRecord, LocalStorage persistence and metrics management', async () => {
+  const {
+    buildArmoredCableCrushRecord,
+    saveArmoredCableCrushCert,
+    getSavedArmoredCableCrushCerts,
+    updateArmoredCableCrushCertStatus,
+    clearArmoredCableCrushCerts,
+    calculateArmoredCableCrushMetrics,
+    SHAH_ARMORED_PRESETS
+  } = await import('../form-validation.js');
+
+  clearArmoredCableCrushCerts();
+  assert.deepEqual(getSavedArmoredCableCrushCerts(), []);
+
+  const p = SHAH_ARMORED_PRESETS.PRESET_GT_ROAD_HEAVY_TRUCK;
+  const rec = buildArmoredCableCrushRecord(p);
+  assert.ok(rec.certId.startsWith('ARM-'));
+  assert.equal(rec.customer, p.customer);
+
+  saveArmoredCableCrushCert(rec);
+  const saved = getSavedArmoredCableCrushCerts();
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].certId, rec.certId);
+
+  updateArmoredCableCrushCertStatus(rec.certId, 'RESOLVED');
+  const savedUp = getSavedArmoredCableCrushCerts();
+  assert.equal(savedUp[0].status, 'RESOLVED');
+
+  const metrics = calculateArmoredCableCrushMetrics(savedUp);
+  assert.equal(metrics.totalInspections, 1);
+  assert.equal(metrics.passRatePercent, 100.0);
+  assert.equal(metrics.avgBurialDepthM, p.burialDepthM);
+
+  clearArmoredCableCrushCerts();
+});
+
+test('renderArmoredCableCrushSvg generates valid SVG markup with concentric layers and crush plates', async () => {
+  const { evaluateArmoredCableCrush, renderArmoredCableCrushSvg, SHAH_ARMORED_PRESETS } = await import('../form-validation.js');
+
+  const analysis = evaluateArmoredCableCrush(SHAH_ARMORED_PRESETS.PRESET_GT_ROAD_HEAVY_TRUCK);
+  const svg = renderArmoredCableCrushSvg(analysis);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('class="armored-cable-crush-svg"'));
+  assert.ok(svg.includes('100mm COMPRESSIVE CRUSH HEAD'));
+  assert.ok(svg.includes('RIGID BASE ANVIL BEDDING'));
+  assert.ok(svg.includes('ARMORED CABLE CRUSH &amp; IMPACT METROLOGY'));
+  assert.ok(svg.includes('Induced Micro-Bending Loss:'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateArmoredCableCrushCertHtml, formatArmoredCableCrushCertWhatsApp, and CSV export', async () => {
+  const {
+    buildArmoredCableCrushRecord,
+    generateArmoredCableCrushCertHtml,
+    formatArmoredCableCrushCertWhatsApp,
+    generateArmoredCableCrushCertsCsv,
+    SHAH_ARMORED_PRESETS
+  } = await import('../form-validation.js');
+
+  const rec = buildArmoredCableCrushRecord(SHAH_ARMORED_PRESETS.PRESET_RAVI_SIPHON_CANAL_CROSSING);
+
+  const a4Html = generateArmoredCableCrushCertHtml(rec, { format: 'a4' });
+  assert.ok(a4Html.includes('Armored Cable Crush &amp; Impact QA Certificate'));
+  assert.ok(a4Html.includes(rec.certId));
+  assert.ok(a4Html.includes('Double Steel Tape Armor'));
+
+  const thermalHtml = generateArmoredCableCrushCertHtml(rec, { format: 'thermal' });
+  assert.ok(thermalHtml.includes('ARMORED CABLE CRUSH &amp; IMPACT SLIP'));
+  assert.ok(thermalHtml.includes(rec.certId));
+
+  const waText = formatArmoredCableCrushCertWhatsApp(rec);
+  assert.ok(waText.includes('SHAHDARA ISP · ARMORED CABLE CRUSH & IMPACT QA'));
+  assert.ok(waText.includes(rec.certId));
+  assert.ok(waText.includes('Inspector:'));
+
+  const csv = generateArmoredCableCrushCertsCsv([rec]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Certificate ID,Date,Customer,Route / Trench'));
+  assert.ok(csv.includes(rec.certId));
+});
+
+test('SHAH_ARMORED_PRESETS catalog contains required field configurations', async () => {
+  const { SHAH_ARMORED_PRESETS, ARMOR_TYPES, BURIAL_ENVIRONMENTS } = await import('../form-validation.js');
+
+  const keys = Object.keys(SHAH_ARMORED_PRESETS);
+  assert.equal(keys.length, 5);
+
+  keys.forEach(k => {
+    const p = SHAH_ARMORED_PRESETS[k];
+    assert.ok(p.id);
+    assert.ok(p.customer);
+    assert.ok(p.route);
+    assert.ok(ARMOR_TYPES[p.armorTypeId]);
+    assert.ok(BURIAL_ENVIRONMENTS[p.environmentId]);
+    assert.ok(p.appliedCrushLoadNPer100mm > 0);
+    assert.ok(p.burialDepthM > 0);
+  });
+});
+
+test('DOM & CSS integration for Outside Plant Armored Cable Crush & Impact QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openArmoredCableCrushBtn"'));
+  assert.ok(indexHtml.includes('id="armoredCableCrushModal"'));
+  assert.ok(indexHtml.includes('id="armoredPresetSelect"'));
+  assert.ok(indexHtml.includes('id="armoredCustInput"'));
+  assert.ok(indexHtml.includes('id="armoredRouteInput"'));
+  assert.ok(indexHtml.includes('id="armoredTypeSelect"'));
+  assert.ok(indexHtml.includes('id="armoredEnvSelect"'));
+  assert.ok(indexHtml.includes('id="armoredCrushLoadInput"'));
+  assert.ok(indexHtml.includes('id="armoredTupMassInput"'));
+  assert.ok(indexHtml.includes('id="armoredTupDropInput"'));
+  assert.ok(indexHtml.includes('id="armoredDepthInput"'));
+  assert.ok(indexHtml.includes('id="armoredOdInput"'));
+  assert.ok(indexHtml.includes('id="armoredSlabCheckbox"'));
+  assert.ok(indexHtml.includes('id="armoredSaveCertBtn"'));
+  assert.ok(indexHtml.includes('id="armoredPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="armoredPrintThermalBtn"'));
+  assert.ok(indexHtml.includes('id="armoredCopyWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="armoredExportCsvBtn"'));
+  assert.ok(indexHtml.includes('id="armoredSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupArmoredCableCrushModal'));
+  assert.ok(appJs.includes('customerArmoredCableCrushModalController'));
+  assert.ok(appJs.includes('#openArmoredCableCrushBtn'));
+  assert.ok(appJs.includes('#armoredCableCrushModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#armoredCableCrushModal'));
+  assert.ok(stylesCss.includes('#armoredSvgContainer'));
+});

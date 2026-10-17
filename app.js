@@ -59,7 +59,8 @@ import {
   setupOtdrGhostArtifactModal,
   setupRibbonSpliceQaModal,
   setupFastConnectorQaModal,
-  setupAdssSagTensionModal
+  setupAdssSagTensionModal,
+  setupArmoredCableCrushModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3507,6 +3508,7 @@ export let customerOtdrGhostArtifactModalController;
 export let customerRibbonSpliceQaModalController;
 export let customerFastConnectorQaModalController;
 export let customerAdssSagTensionModalController;
+export let customerArmoredCableCrushModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4078,6 +4080,34 @@ if (typeof document !== 'undefined') {
           }
         }
         adssModal.showModal();
+      }
+    });
+  }
+
+  const armoredModal = $('#armoredCableCrushModal');
+  const openArmoredCableCrushBtn = $('#openArmoredCableCrushBtn');
+  if (armoredModal) {
+    customerArmoredCableCrushModalController = setupArmoredCableCrushModal({
+      state,
+      dialogElement: armoredModal,
+      triggerButton: openArmoredCableCrushBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openArmoredCableCrushBtn) {
+    openArmoredCableCrushBtn.addEventListener('click', () => {
+      if (armoredModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#armoredCustInput');
+            if (custInput) custInput.value = c.name || 'Subscriber';
+            const routeInput = $('#armoredRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Trench Route to Demarcation`;
+          }
+        }
+        armoredModal.showModal();
       }
     });
   }

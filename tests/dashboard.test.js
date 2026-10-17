@@ -17444,6 +17444,296 @@ test('index.html and dashboard.css contain all PTP T-BC modal, card, and style b
   assert.ok(css.includes('.ptp-tbc-svg'));
 });
 
+test('dashboard-rpki constants and gateway/prefix catalogs are complete and valid', async () => {
+  const {
+    RPKI_CONSTANTS,
+    SHAHDARA_RPKI_GATEWAYS,
+    SHAHDARA_RPKI_PREFIXES
+  } = await import('../dashboard.js');
+
+  assert.ok(RPKI_CONSTANTS.DEFAULT_GATEWAY_ID);
+  assert.ok(RPKI_CONSTANTS.SUPPRESS_THRESHOLD === 2000);
+  assert.ok(RPKI_CONSTANTS.REUSE_THRESHOLD === 750);
+  assert.ok(RPKI_CONSTANTS.HALF_LIFE_MINUTES === 15);
+  assert.ok(RPKI_CONSTANTS.HIJACK_MODES.NORMAL);
+  assert.ok(RPKI_CONSTANTS.HIJACK_MODES.ORIGIN_MISMATCH);
+  assert.ok(RPKI_CONSTANTS.ROV_POLICIES.DROP_INVALID);
+  assert.ok(RPKI_CONSTANTS.ROV_POLICIES.PREFERENCE_DEMOTE);
+
+  assert.ok(Array.isArray(SHAHDARA_RPKI_GATEWAYS));
+  assert.ok(SHAHDARA_RPKI_GATEWAYS.length >= 5);
+  const nayatel = SHAHDARA_RPKI_GATEWAYS.find(g => g.id === 'rpki-gw-nayatel');
+  assert.ok(nayatel);
+  assert.ok(nayatel.totalRoasInCache > 400000);
+  assert.ok(nayatel.rtrProtocolVersion.includes('RFC 8210'));
+
+  assert.ok(Array.isArray(SHAHDARA_RPKI_PREFIXES));
+  assert.ok(SHAHDARA_RPKI_PREFIXES.length >= 5);
+  const shahdaraAgg = SHAHDARA_RPKI_PREFIXES.find(p => p.id === 'prefix-shahdara-agg');
+  assert.ok(shahdaraAgg);
+  assert.equal(shahdaraAgg.authoritativeAsn, 133829);
+  assert.equal(shahdaraAgg.maxPrefixLength, 22);
+});
+
+test('dashboard-rpki state getters, setters and resets work reliably', async () => {
+  const {
+    getRpkiSelectedGatewayId,
+    setRpkiSelectedGatewayId,
+    getRpkiSelectedPrefixId,
+    setRpkiSelectedPrefixId,
+    getRpkiHijackSimulationMode,
+    setRpkiHijackSimulationMode,
+    getRpkiRovPolicyMode,
+    setRpkiRovPolicyMode,
+    getRpkiFlapsPerMinute,
+    setRpkiFlapsPerMinute,
+    getRpkiElapsedFlapMinutes,
+    setRpkiElapsedFlapMinutes,
+    resetRpkiSimState
+  } = await import('../dashboard.js');
+
+  resetRpkiSimState();
+  assert.equal(getRpkiSelectedGatewayId(), 'rpki-gw-nayatel');
+  assert.equal(getRpkiSelectedPrefixId(), 'prefix-shahdara-agg');
+  assert.equal(getRpkiHijackSimulationMode(), 'NORMAL');
+  assert.equal(getRpkiRovPolicyMode(), 'DROP_INVALID');
+  assert.equal(getRpkiFlapsPerMinute(), 0);
+  assert.equal(getRpkiElapsedFlapMinutes(), 0);
+
+  setRpkiSelectedGatewayId('rpki-gw-ptcl');
+  assert.equal(getRpkiSelectedGatewayId(), 'rpki-gw-ptcl');
+
+  setRpkiSelectedPrefixId('prefix-tw-subsea');
+  assert.equal(getRpkiSelectedPrefixId(), 'prefix-tw-subsea');
+
+  setRpkiHijackSimulationMode('ORIGIN_MISMATCH');
+  assert.equal(getRpkiHijackSimulationMode(), 'ORIGIN_MISMATCH');
+
+  setRpkiRovPolicyMode('PREFERENCE_DEMOTE');
+  assert.equal(getRpkiRovPolicyMode(), 'PREFERENCE_DEMOTE');
+
+  setRpkiFlapsPerMinute(4);
+  assert.equal(getRpkiFlapsPerMinute(), 4);
+
+  setRpkiElapsedFlapMinutes(30);
+  assert.equal(getRpkiElapsedFlapMinutes(), 30);
+
+  resetRpkiSimState();
+  assert.equal(getRpkiSelectedGatewayId(), 'rpki-gw-nayatel');
+  assert.equal(getRpkiFlapsPerMinute(), 0);
+});
+
+test('calculateRouteFlapDamping accurately computes penalty, suppression, and exponential decay', async () => {
+  const { calculateRouteFlapDamping } = await import('../dashboard.js');
+
+  // Baseline zero flaps
+  const base = calculateRouteFlapDamping(0, 0);
+  assert.equal(base.initialPenalty, 0);
+  assert.equal(base.currentPenalty, 0);
+  assert.equal(base.isDamped, false);
+  assert.equal(base.dampingStatus, 'UNSUPPRESSED');
+  assert.equal(base.minutesToReuse, 0);
+
+  // 3 flaps/min (Initial penalty = 3000 pts > 2000 suppress threshold -> DAMPED)
+  const damped = calculateRouteFlapDamping(3, 0);
+  assert.equal(damped.initialPenalty, 3000);
+  assert.equal(damped.currentPenalty, 3000);
+  assert.equal(damped.isDamped, true);
+  assert.equal(damped.dampingStatus, 'DAMPED (Suppressed)');
+  assert.ok(damped.minutesToReuse > 0);
+
+  // After 15 minutes (1 half-life), penalty should decay to half (1500 pts < 2000 suppress, but > 750 reuse)
+  const halfDecayed = calculateRouteFlapDamping(3, 15);
+  assert.equal(halfDecayed.currentPenalty, 1500);
+  assert.equal(halfDecayed.isDamped, false);
+  assert.equal(halfDecayed.isReusePending, true);
+  assert.equal(halfDecayed.dampingStatus, 'REUSE_PENDING');
+
+  // After 30 minutes (2 half-lives), penalty should decay to a quarter (750 pts = reuse threshold)
+  const reuseDecayed = calculateRouteFlapDamping(3, 30);
+  assert.equal(reuseDecayed.currentPenalty, 750);
+  assert.equal(reuseDecayed.isDamped, false);
+  assert.equal(reuseDecayed.minutesToReuse, 0);
+  assert.equal(reuseDecayed.dampingStatus, 'UNSUPPRESSED');
+});
+
+test('calculateRovValidationState correctly handles VALID, INVALID (ASN/Length), and NOT_FOUND states under different policies', async () => {
+  const { calculateRovValidationState, SHAHDARA_RPKI_PREFIXES } = await import('../dashboard.js');
+
+  const prefix = SHAHDARA_RPKI_PREFIXES.find(p => p.id === 'prefix-shahdara-agg');
+
+  // 1. Legitimate normal announcement
+  const validResult = calculateRovValidationState(prefix, 'NORMAL', 'DROP_INVALID');
+  assert.equal(validResult.rovState, 'VALID');
+  assert.equal(validResult.isValid, true);
+  assert.equal(validResult.isInvalid, false);
+  assert.equal(validResult.fibForwardingAction, 'INSTALLED');
+  assert.equal(validResult.localPreference, 100);
+
+  // 2. Origin ASN Mismatch with DROP policy
+  const hijackDrop = calculateRovValidationState(prefix, 'ORIGIN_MISMATCH', 'DROP_INVALID');
+  assert.equal(hijackDrop.rovState, 'INVALID (ASN Mismatch)');
+  assert.equal(hijackDrop.isInvalid, true);
+  assert.equal(hijackDrop.announcedAsn, 65530);
+  assert.equal(hijackDrop.fibForwardingAction, 'DROPPED');
+  assert.equal(hijackDrop.localPreference, 0);
+
+  // 3. Origin ASN Mismatch with PREFERENCE_DEMOTE policy
+  const hijackDemote = calculateRovValidationState(prefix, 'ORIGIN_MISMATCH', 'PREFERENCE_DEMOTE');
+  assert.equal(hijackDemote.fibForwardingAction, 'DEMOTED');
+  assert.equal(hijackDemote.localPreference, 50);
+
+  // 4. Origin ASN Mismatch with AUDIT_LOG_ONLY policy
+  const hijackAudit = calculateRovValidationState(prefix, 'ORIGIN_MISMATCH', 'AUDIT_LOG_ONLY');
+  assert.equal(hijackAudit.fibForwardingAction, 'INSTALLED');
+  assert.equal(hijackAudit.localPreference, 100);
+
+  // 5. Max-Length Exceeded (De-aggregation)
+  const lengthExceeded = calculateRovValidationState(prefix, 'MAX_LENGTH_EXCEEDED', 'DROP_INVALID');
+  assert.equal(lengthExceeded.rovState, 'INVALID (Max-Length Exceeded)');
+  assert.equal(lengthExceeded.announcedLength, 24);
+  assert.equal(lengthExceeded.fibForwardingAction, 'DROPPED');
+
+  // 6. Uncovered Prefix (Not Found)
+  const notFound = calculateRovValidationState(prefix, 'UNCOVERED_PREFIX', 'DROP_INVALID');
+  assert.equal(notFound.rovState, 'NOT_FOUND (Unknown)');
+  assert.equal(notFound.isNotFound, true);
+  assert.equal(notFound.fibForwardingAction, 'INSTALLED');
+  assert.equal(notFound.localPreference, 100);
+});
+
+test('calculateRpkiMetrics correlates BGP routing state with subscriber ledger and revenue', async () => {
+  const { calculateRpkiMetrics, resetRpkiSimState } = await import('../dashboard.js');
+
+  resetRpkiSimState();
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-1',
+        name: 'Shahdara Town Fiber Subscriber',
+        area: 'Shahdara Town',
+        serviceStatus: 'active',
+        bills: [{ month: '2026-10', dueAmount: 3000, paidAmount: 3000, payments: [{ amount: 3000 }] }]
+      },
+      {
+        id: 'cust-2',
+        name: 'Old Town Commercial User',
+        area: 'Old Town',
+        serviceStatus: 'active',
+        bills: [{ month: '2026-10', dueAmount: 5000, paidAmount: 0, payments: [] }]
+      },
+      {
+        id: 'cust-3',
+        name: 'Vandala Road User (Different Sector)',
+        area: 'Vandala Road',
+        serviceStatus: 'active',
+        bills: [{ month: '2026-10', dueAmount: 4000, paidAmount: 4000, payments: [{ amount: 4000 }] }]
+      }
+    ]
+  };
+
+  // Normal optimal metrics
+  const normal = calculateRpkiMetrics(mockState, {
+    gatewayId: 'rpki-gw-nayatel',
+    hijackMode: 'NORMAL',
+    flapsPerMinute: 0
+  });
+
+  assert.equal(normal.subscriberCorrelation.totalSubscribers, 2); // cust-1 and cust-2 match Nayatel's sector
+  assert.equal(normal.subscriberCorrelation.sectorMonthlyRevenue, 8000);
+  assert.equal(normal.subscriberCorrelation.sectorTotalDues, 5000);
+  assert.equal(normal.subscriberCorrelation.revenueAtRisk, 0); // 0 risk when normal
+  assert.equal(normal.dynamics.isTrafficForwarded, true);
+
+  // Critical metrics (flapping route damped)
+  const damped = calculateRpkiMetrics(mockState, {
+    gatewayId: 'rpki-gw-nayatel',
+    hijackMode: 'NORMAL',
+    flapsPerMinute: 4
+  });
+
+  assert.equal(damped.dynamics.damping.isDamped, true);
+  assert.equal(damped.dynamics.overallStatus, 'Critical');
+  assert.equal(damped.dynamics.isTrafficForwarded, false);
+  assert.ok(damped.subscriberCorrelation.revenueAtRisk > 0);
+});
+
+test('renderRpkiDiagramSvg produces complete vector SVG diagram in compact, full, light and dark modes', async () => {
+  const { calculateRpkiMetrics, renderRpkiDiagramSvg, resetRpkiSimState } = await import('../dashboard.js');
+
+  resetRpkiSimState();
+  const metrics = calculateRpkiMetrics({}, { flapsPerMinute: 3, elapsedFlapMinutes: 10 });
+
+  // 1. Compact SVG (dashboard card)
+  const compactSvg = renderRpkiDiagramSvg(metrics, { compact: true, isDark: true });
+  assert.ok(compactSvg.includes('<svg class="rpki-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 560 280"'));
+  assert.ok(compactSvg.includes('Trust Anchor (TAL)'));
+  assert.ok(compactSvg.includes('RTR Cache Engine'));
+  assert.ok(compactSvg.includes('Border BGP FIB'));
+  assert.ok(compactSvg.includes('RFC 2439 Route Flap Damping'));
+  assert.ok(compactSvg.includes('SUPPRESS THRESHOLD'));
+  assert.ok(compactSvg.includes('REUSE THRESHOLD'));
+
+  // 2. Full SVG (modal dialog)
+  const fullSvg = renderRpkiDiagramSvg(metrics, { compact: false, isDark: false });
+  assert.ok(fullSvg.includes('viewBox="0 0 860 380"'));
+  assert.ok(fullSvg.includes('#f8fafc')); // light background
+
+  // 3. Null metrics fallback
+  const emptySvg = renderRpkiDiagramSvg(null);
+  assert.ok(emptySvg.includes('No RPKI metrics available'));
+});
+
+test('generateRpkiReport produces formal BGP RPKI ROV and Flap Damping audit text', async () => {
+  const { calculateRpkiMetrics, generateRpkiReport, resetRpkiSimState } = await import('../dashboard.js');
+
+  resetRpkiSimState();
+  const metrics = calculateRpkiMetrics({});
+  const report = generateRpkiReport(metrics);
+
+  assert.ok(report.includes('SHAHDARA ISP BGP RPKI ROUTE ORIGIN VALIDATION & ROUTE FLAP DAMPING AUDIT REPORT'));
+  assert.ok(report.includes('RFC 6811'));
+  assert.ok(report.includes('RFC 8210 (RTR)'));
+  assert.ok(report.includes('RFC 2439 (Route Flap Damping)'));
+  assert.ok(report.includes('Gateway Router:'));
+  assert.ok(report.includes('ROV Cryptographic Status: VALID'));
+  assert.ok(report.includes('NOC INCIDENT REMEDIATION RECOMMENDATION'));
+});
+
+test('index.html and dashboard.css contain all RPKI ROV and Flap Damping bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardRpkiChart"'));
+  assert.ok(html.includes('id="dashboardOpenRpkiModalBtn"'));
+  assert.ok(html.includes('id="dashboardRpkiModal"'));
+  assert.ok(html.includes('id="dashboardRpkiModalCloseBtn"'));
+  assert.ok(html.includes('id="rpkiGwSelect"'));
+  assert.ok(html.includes('id="rpkiPrefixSelect"'));
+  assert.ok(html.includes('id="rpkiHijackSelect"'));
+  assert.ok(html.includes('id="rpkiPolicySelect"'));
+  assert.ok(html.includes('id="rpkiFlapRange"'));
+  assert.ok(html.includes('id="rpkiElapsedRange"'));
+  assert.ok(html.includes('id="rpkiResetBtn"'));
+  assert.ok(html.includes('id="rpkiStatRovState"'));
+  assert.ok(html.includes('id="rpkiStatFibAction"'));
+  assert.ok(html.includes('id="rpkiStatPenalty"'));
+  assert.ok(html.includes('id="rpkiStatFlapStatus"'));
+  assert.ok(html.includes('id="rpkiStatRevenueRisk"'));
+  assert.ok(html.includes('id="dashboardRpkiModalSvgContainer"'));
+  assert.ok(html.includes('id="rpkiExportJsonBtn"'));
+  assert.ok(html.includes('id="rpkiExportCsvBtn"'));
+  assert.ok(html.includes('id="rpkiCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-rpki'));
+  assert.ok(css.includes('.rpki-modal-card'));
+  assert.ok(css.includes('.rpki-svg'));
+});
+
 
 
 

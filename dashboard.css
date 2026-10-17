@@ -3021,6 +3021,28 @@
   border-color: #24354a;
 }
 
+/* Carrier BGP Route Origin Validation (ROV / RFC 6811) & Flap Damping Styles */
+.chart-card-rpki {
+  background: var(--surface, #ffffff);
+}
+
+.rpki-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.rpki-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-rpki {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

@@ -930,6 +930,16 @@
             </div>
             <div id="dashboardPtpTbcChart" class="chart-svg-container" role="img" aria-label="Carrier PTP Telecom Boundary Clock Phase Synchronization Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-rpki">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier BGP Route Origin Validation (ROV / RFC 6811) &amp; Flap Damping Matrix</h4>
+                <p class="chart-subtitle">RPKI cryptographically signed ROA verification, prefix hijack mitigation &amp; RFC 2439 penalty decay</p>
+              </div>
+              <button id="dashboardOpenRpkiModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">RPKI Diagnostics</button>
+            </div>
+            <div id="dashboardRpkiChart" class="chart-svg-container" role="img" aria-label="Carrier BGP Route Origin Validation and Flap Damping Chart"></div>
+          </article>
         </div>
 
 
@@ -5568,6 +5578,107 @@
               <button id="ptpExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="ptpCopyReportBtn" class="primary-button" type="button">📋 Copy PTP T-BC Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardRpkiModal" class="dashboard-modal rpki-modal" aria-labelledby="dashboardRpkiModalTitle">
+        <div class="dashboard-modal-card rpki-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardRpkiModalTitle">Carrier BGP Route Origin Validation (ROV / RFC 6811) &amp; Flap Damping Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Cryptographic ROA validation, prefix hijack defense &amp; RFC 2439 penalty decay</p>
+            </div>
+            <button id="dashboardRpkiModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="rpkiGwSelect">Target BGP Border Gateway:</label>
+              <select id="rpkiGwSelect" class="form-select">
+                <option value="rpki-gw-nayatel">Nayatel 100G Border Gateway (AS23945 · Routinator 3000)</option>
+                <option value="rpki-gw-ptcl">PTCL Metro 40G Aggregation (AS17557 · Fort Validator)</option>
+                <option value="rpki-gw-transworld">Transworld 40G Commercial Gateway (AS38264 · rpki-client)</option>
+                <option value="rpki-gw-stormfiber">StormFiber 20G Redundant Border (AS133829 · OctoRPKI)</option>
+                <option value="rpki-gw-wateen">Wateen 20G Enterprise Core (AS36107 · StayRTR)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rpkiPrefixSelect">Evaluated Route Prefix:</label>
+              <select id="rpkiPrefixSelect" class="form-select">
+                <option value="prefix-shahdara-agg">182.180.0.0/19 (Shahdara Metro ISP Core Aggregate)</option>
+                <option value="prefix-ptcl-metro">116.71.0.0/16 (PTCL Lahore Metro Broadband Pool)</option>
+                <option value="prefix-nayatel-fiber">175.107.0.0/18 (Nayatel Fiber Transit &amp; FTTH)</option>
+                <option value="prefix-tw-subsea">202.163.64.0/20 (Transworld Subsea International Transit)</option>
+                <option value="prefix-cloud-edge">103.255.4.0/22 (Lahore IX Cloud Edge Peering)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rpkiHijackSelect">Prefix Announcement Condition:</label>
+              <select id="rpkiHijackSelect" class="form-select">
+                <option value="NORMAL">Legitimate Announcement (Valid AS &amp; Length)</option>
+                <option value="ORIGIN_MISMATCH">Prefix Hijack (Attacker AS 65530 Announcement)</option>
+                <option value="MAX_LENGTH_EXCEEDED">Unauthorized Subnet De-aggregation (Length &gt; MaxLength)</option>
+                <option value="UNCOVERED_PREFIX">Unsigned Legacy Route (Not Found / No ROA)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rpkiPolicySelect">Router Ingress ROV Policy:</label>
+              <select id="rpkiPolicySelect" class="form-select">
+                <option value="DROP_INVALID">Strict RFC 6811 Drop (Drop Invalid from Ingress BGP RIB)</option>
+                <option value="PREFERENCE_DEMOTE">BGP Local-Preference Demote (Lower LocPref 100 &rarr; 50)</option>
+                <option value="AUDIT_LOG_ONLY">Permissive Audit-Only (Install into FIB and Log Warning)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rpkiFlapRange">Route Flap Rate: <span id="rpkiFlapValLabel" style="font-weight: 700; color: #3b82f6;">0 flaps/m</span></label>
+              <input type="range" id="rpkiFlapRange" min="0" max="12" step="1" value="0" class="form-range" style="width: 100%;">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rpkiElapsedRange">Elapsed Decay Time: <span id="rpkiElapsedValLabel" style="font-weight: 700; color: #3b82f6;">0 min</span></label>
+              <input type="range" id="rpkiElapsedRange" min="0" max="60" step="5" value="0" class="form-range" style="width: 100%;">
+            </div>
+          </div>
+
+          <div class="mpls-tp-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="rpkiResetBtn" class="secondary-button" type="button">🔄 Reset RPKI Simulation Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">ROV Validation State</span>
+              <span id="rpkiStatRovState" class="optical-evm-stat-val optimal">VALID</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Hardware FIB Disposition</span>
+              <span id="rpkiStatFibAction" class="optical-evm-stat-val optimal">INSTALLED (LocPref 100)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Flap Damping Penalty</span>
+              <span id="rpkiStatPenalty" class="optical-evm-stat-val optimal">0 pts (Ready)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Damping State</span>
+              <span id="rpkiStatFlapStatus" class="optical-evm-stat-val optimal">UNSUPPRESSED</span>
+            </div>
+            <div class="srv6-stat-card" style="grid-column: span 2;">
+              <span class="srv6-stat-label">Revenue at Exposure / Risk</span>
+              <span id="rpkiStatRevenueRisk" class="optical-evm-stat-val optimal">PKR 0</span>
+            </div>
+          </div>
+
+          <div id="dashboardRpkiModalSvgContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier BGP Route Origin Validation and Flap Damping Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="rpkiExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="rpkiExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="rpkiCopyReportBtn" class="primary-button" type="button">📋 Copy RPKI ROV Audit Report</button>
           </div>
         </div>
       </dialog>

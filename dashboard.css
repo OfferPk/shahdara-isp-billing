@@ -2680,6 +2680,28 @@
   border-color: #28443b;
 }
 
+/* Brillouin Sensing (BOTDA / ITU-T G.650.2) DTSS Styles */
+.chart-card-botda {
+  background: var(--surface, #ffffff);
+}
+
+.botda-modal-card {
+  max-width: 840px;
+  width: 95vw;
+}
+
+.botda-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-botda {
+  background: #1e2433;
+  border-color: #2b3a55;
+}
+
 
 
 

@@ -5745,6 +5745,21 @@ export {
   setupVplsModal
 } from './dashboard-vpls.js';
 
+export {
+  BOTDA_CONSTANTS,
+  SHAHDARA_BOTDA_ROUTES,
+  calculateSpatialResolutionMeters,
+  calculateBfsShiftMhz,
+  calculateBgsLinewidthMhz,
+  calculateBotdaDynamics,
+  calculateBotdaMetrics,
+  renderBotdaDiagramSvg,
+  generateBotdaReport,
+  exportBotdaJson,
+  exportBotdaCsv,
+  setupBotdaModal
+} from './dashboard-botda.js';
+
 
 
 

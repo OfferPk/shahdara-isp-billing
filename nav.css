@@ -776,6 +776,10 @@ kbd {
   transition: transform 0.26s cubic-bezier(0.16, 1, 0.3, 1);
   padding: 12px 18px 24px;
   max-width: 560px;
+  max-height: 82vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   margin: 0 auto;
 }
 

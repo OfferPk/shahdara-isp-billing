@@ -14556,6 +14556,315 @@ test('index.html and dashboard.css contain Carrier VPLS markup and styles', asyn
   assert.ok(css.includes('.vpls-svg'));
 });
 
+test('calculateSpatialResolutionMeters, calculateBfsShiftMhz, and calculateBgsLinewidthMhz compute accurate physics', async () => {
+  const {
+    calculateSpatialResolutionMeters,
+    calculateBfsShiftMhz,
+    calculateBgsLinewidthMhz,
+    BOTDA_CONSTANTS
+  } = await import('../dashboard.js');
+
+  // 1. Spatial Resolution Delta_z = (c * tau) / (2 * n_g)
+  // For 30 ns: (299792458 * 30e-9) / (2 * 1.4682) = 8.99377 / 2.9364 = 3.06 m
+  const res30 = calculateSpatialResolutionMeters(30);
+  assert.equal(res30, 3.06);
+
+  // For 10 ns: ~1.02 m
+  const res10 = calculateSpatialResolutionMeters(10);
+  assert.equal(res10, 1.02);
+
+  // 2. Brillouin Frequency Shift
+  // At 20°C and 0 ue: Delta_nu = 0, absolute = 10.850 GHz
+  const baseShift = calculateBfsShiftMhz(20.0, 0);
+  assert.equal(baseShift.thermalShiftMhz, 0);
+  assert.equal(baseShift.strainShiftMhz, 0);
+  assert.equal(baseShift.totalShiftMhz, 0);
+  assert.equal(baseShift.absoluteBfsGhz, 10.850);
+
+  // At 30°C (+10°C) and 500 ue:
+  // thermal = 10 * 1.07 = 10.70 MHz
+  // strain = 500 * 0.048 = 24.00 MHz
+  // total = 34.70 MHz
+  // absolute = 10.850 + 0.0347 = 10.8847 GHz
+  const testShift = calculateBfsShiftMhz(30.0, 500);
+  assert.equal(testShift.thermalShiftMhz, 10.7);
+  assert.equal(testShift.strainShiftMhz, 24.0);
+  assert.equal(testShift.totalShiftMhz, 34.7);
+  assert.equal(testShift.absoluteBfsGhz, 10.8847);
+
+  // 3. Convolved Linewidth Broadening
+  const width30 = calculateBgsLinewidthMhz(30);
+  const width10 = calculateBgsLinewidthMhz(10);
+  assert.ok(width10 > width30, 'Shorter pulse must broaden the Brillouin gain spectrum');
+  assert.ok(width30 >= BOTDA_CONSTANTS.NATURAL_FWHM_MHZ);
+});
+
+test('calculateBotdaDynamics accurately evaluates route tension, hotspots, and fatigue lifecycle', async () => {
+  const {
+    calculateBotdaDynamics,
+    SHAHDARA_BOTDA_ROUTES,
+    BOTDA_CONSTANTS
+  } = await import('../dashboard.js');
+
+  const route = SHAHDARA_BOTDA_ROUTES[0]; // Ravi Siphon ADSS
+  const dynamics = calculateBotdaDynamics(route);
+
+  assert.equal(dynamics.routeId, 'ravi-siphon-aerial');
+  assert.equal(dynamics.lengthKm, 14.8);
+  assert.equal(dynamics.subscribersCount, 420);
+  assert.ok(dynamics.evaluatedHotspots.length >= 2);
+
+  // Hotspot #1 is Ravi River Mid-Channel Pylon at 880 ue (optimal/safe since < 1200 ue)
+  assert.equal(dynamics.maxStrainObserved, 880);
+  assert.equal(dynamics.status, BOTDA_CONSTANTS.STATUS.OPTIMAL);
+  assert.equal(dynamics.penaltyRebatePct, 0);
+  assert.equal(dynamics.penaltyPkr, 0);
+
+  // Apply tension offset: +400 ue -> 880 + 400 = 1280 ue (> 1200 safe threshold -> Elevated Strain)
+  const elevatedDynamics = calculateBotdaDynamics(route, { strainOffsetUstrain: 400 });
+  assert.equal(elevatedDynamics.maxStrainObserved, 1280);
+  assert.equal(elevatedDynamics.status, BOTDA_CONSTANTS.STATUS.ELEVATED_STRAIN);
+  assert.equal(elevatedDynamics.penaltyRebatePct, 10);
+  assert.ok(elevatedDynamics.penaltyPkr > 0);
+
+  // Apply critical tension offset: +1200 ue -> 880 + 1200 = 2080 ue (> 2000 critical threshold)
+  const critDynamics = calculateBotdaDynamics(route, { strainOffsetUstrain: 1200 });
+  assert.equal(critDynamics.maxStrainObserved, 2080);
+  assert.equal(critDynamics.status, BOTDA_CONSTANTS.STATUS.CRITICAL);
+  assert.equal(critDynamics.penaltyRebatePct, 25);
+  assert.ok(critDynamics.estimatedLifespanYears < 2.0);
+
+  // Apply thermal offset: +20°C -> Begum Kot Substation duct hotspot exceeds 40°C
+  const begumKotRoute = SHAHDARA_BOTDA_ROUTES[1];
+  const thermalDynamics = calculateBotdaDynamics(begumKotRoute, { tempOffsetC: 5 });
+  assert.ok(thermalDynamics.maxTempObserved >= 40.0);
+  assert.equal(thermalDynamics.status, BOTDA_CONSTANTS.STATUS.THERMAL_ANOMALY);
+});
+
+test('calculateBotdaMetrics aggregates fleet telemetry across all Shahdara fiber routes', async () => {
+  const { calculateBotdaMetrics, SHAHDARA_BOTDA_ROUTES } = await import('../dashboard.js');
+
+  const metrics = calculateBotdaMetrics(SHAHDARA_BOTDA_ROUTES);
+
+  assert.equal(metrics.totalRoutes, 5);
+  assert.ok(metrics.totalLengthKm > 70);
+  assert.ok(metrics.totalSubscribers > 2500);
+  assert.ok(metrics.totalRevenuePkr > 9000000);
+  assert.ok(metrics.totalHotspotsCount >= 8);
+  assert.ok(metrics.meanMaxStrain > 0);
+  assert.ok(metrics.overallIntegrityPct >= 0);
+  assert.equal(metrics.evaluatedRoutes.length, 5);
+});
+
+test('renderBotdaDiagramSvg outputs valid SVG for compact card and expanded modal', async () => {
+  const { calculateBotdaDynamics, renderBotdaDiagramSvg, SHAHDARA_BOTDA_ROUTES } = await import('../dashboard.js');
+
+  const route = SHAHDARA_BOTDA_ROUTES[0];
+  const dynamics = calculateBotdaDynamics(route);
+
+  // 1. Compact card SVG
+  const compactSvg = renderBotdaDiagramSvg(dynamics, { isCompact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('botda-compact-svg'));
+  assert.ok(compactSvg.includes('BFS Peak:'));
+  assert.ok(compactSvg.includes('MAX STRAIN'));
+  assert.ok(compactSvg.includes('SPATIAL RESOLUTION'));
+  assert.ok(compactSvg.includes('EST. FATIGUE LIFE'));
+
+  // 2. Expanded detailed SVG
+  const expandedSvg = renderBotdaDiagramSvg(dynamics, { isCompact: false });
+  assert.ok(expandedSvg.includes('<svg'));
+  assert.ok(expandedSvg.includes('botda-expanded-svg'));
+  assert.ok(expandedSvg.includes('BRILLOUIN GAIN SPECTRUM'));
+  assert.ok(expandedSvg.includes('DISTRIBUTED STRAIN &amp; HOTSPOT PROFILE'));
+  assert.ok(expandedSvg.includes('CRITICAL 2000 µε'));
+  assert.ok(expandedSvg.includes('CAUTION 1200 µε'));
+  assert.ok(expandedSvg.includes('Longitudinal Optical Distance'));
+});
+
+test('generateBotdaReport, exportBotdaJson, and exportBotdaCsv produce formatted telemetry exports', async () => {
+  const {
+    calculateBotdaDynamics,
+    calculateBotdaMetrics,
+    generateBotdaReport,
+    exportBotdaJson,
+    exportBotdaCsv,
+    SHAHDARA_BOTDA_ROUTES
+  } = await import('../dashboard.js');
+
+  const route = SHAHDARA_BOTDA_ROUTES[0];
+  const dynamics = calculateBotdaDynamics(route);
+  const metrics = calculateBotdaMetrics(SHAHDARA_BOTDA_ROUTES);
+
+  // 1. Audit Text Report
+  const report = generateBotdaReport(dynamics, metrics);
+  assert.ok(report.includes('BRILLOUIN DISTRIBUTED TEMPERATURE & STRAIN (BOTDA) AUDIT REPORT'));
+  assert.ok(report.includes('ITU-T G.650.2 / IEC 60794-1-21 / IEC 61757-1-1'));
+  assert.ok(report.includes(dynamics.routeName));
+  assert.ok(report.includes('Spatial Resolution (Δz)'));
+  assert.ok(report.includes('Worst Hotspot Anchor'));
+
+  // 2. JSON Export
+  const json = exportBotdaJson(dynamics, metrics);
+  const parsed = JSON.parse(json);
+  assert.equal(parsed.currentRoute.routeId, route.id);
+  assert.equal(parsed.fleetSummary.totalRoutes, 5);
+  assert.ok(parsed.metadata.standards.includes('ITU-T G.650.2'));
+
+  // 3. CSV Export
+  const csv = exportBotdaCsv(dynamics, metrics);
+  assert.ok(csv.includes('Route_Code,Route_Name,Cable_Type'));
+  assert.ok(csv.includes('BOTDA-RTE-01'));
+  assert.ok(csv.includes('Ravi Siphon River Crossing & ADSS Aerial Feeder'));
+});
+
+test('setupBotdaModal wires controls, updates SVG charts, and handles user interactions', async () => {
+  const { setupBotdaModal } = await import('../dashboard.js');
+
+  const listeners = {};
+  function createMockEl(id) {
+    listeners[id] = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      addEventListener(event, fn) {
+        listeners[id][event] = fn;
+      },
+      click() {
+        if (listeners[id].click) listeners[id].click();
+      },
+      input() {
+        if (listeners[id].input) listeners[id].input();
+      },
+      change() {
+        if (listeners[id].change) listeners[id].change();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      },
+      setAttribute(k, v) {
+        if (k === 'open') this.open = true;
+      },
+      removeAttribute(k) {
+        if (k === 'open') this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    dashboardBotdaModal: createMockEl('dashboardBotdaModal'),
+    dashboardOpenBotdaModalBtn: createMockEl('dashboardOpenBotdaModalBtn'),
+    dashboardBotdaModalCloseBtn: createMockEl('dashboardBotdaModalCloseBtn'),
+    dashboardBotdaChart: createMockEl('dashboardBotdaChart'),
+    botdaRouteSelect: createMockEl('botdaRouteSelect'),
+    botdaPulseSlider: createMockEl('botdaPulseSlider'),
+    botdaPulseLabel: createMockEl('botdaPulseLabel'),
+    botdaStrainSlider: createMockEl('botdaStrainSlider'),
+    botdaStrainLabel: createMockEl('botdaStrainLabel'),
+    botdaTempSlider: createMockEl('botdaTempSlider'),
+    botdaTempLabel: createMockEl('botdaTempLabel'),
+    botdaResetBtn: createMockEl('botdaResetBtn'),
+    botdaStatStatus: createMockEl('botdaStatStatus'),
+    botdaStatBfs: createMockEl('botdaStatBfs'),
+    botdaStatMaxStrain: createMockEl('botdaStatMaxStrain'),
+    botdaStatSpatialRes: createMockEl('botdaStatSpatialRes'),
+    botdaStatFatigueLife: createMockEl('botdaStatFatigueLife'),
+    botdaStatPenalty: createMockEl('botdaStatPenalty'),
+    botdaModalDiagramContainer: createMockEl('botdaModalDiagramContainer'),
+    botdaFilterAreaBtn: createMockEl('botdaFilterAreaBtn'),
+    botdaExportJsonBtn: createMockEl('botdaExportJsonBtn'),
+    botdaExportCsvBtn: createMockEl('botdaExportCsvBtn'),
+    botdaCopyReportBtn: createMockEl('botdaCopyReportBtn')
+  };
+
+  elements.botdaRouteSelect.value = 'ravi-siphon-aerial';
+  elements.botdaPulseSlider.value = '30';
+  elements.botdaStrainSlider.value = '0';
+  elements.botdaTempSlider.value = '0';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupBotdaModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardBotdaModal.open, true);
+  assert.ok(elements.botdaModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardBotdaChart.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.botdaStrainSlider.value = '500';
+  elements.botdaStrainSlider.input();
+  assert.ok(elements.botdaStrainLabel.textContent.includes('500'));
+
+  // Test pulse slider adjustment
+  elements.botdaPulseSlider.value = '50';
+  elements.botdaPulseSlider.input();
+  assert.ok(elements.botdaPulseLabel.textContent.includes('50 ns'));
+
+  // Test reset
+  elements.botdaResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.botdaExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('clipboard'));
+  elements.botdaExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('clipboard'));
+  elements.botdaCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.botdaFilterAreaBtn.click();
+  assert.equal(filterArea, 'Ravi Siphon');
+
+  controller.close();
+  assert.equal(elements.dashboardBotdaModal.open, false);
+});
+
+test('index.html and dashboard.css contain Brillouin BOTDA sensing markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-botda'));
+  assert.ok(html.includes('id="dashboardBotdaChart"'));
+  assert.ok(html.includes('id="dashboardOpenBotdaModalBtn"'));
+  assert.ok(html.includes('id="dashboardBotdaModal"'));
+  assert.ok(html.includes('id="botdaRouteSelect"'));
+  assert.ok(html.includes('id="botdaPulseSlider"'));
+  assert.ok(html.includes('id="botdaStrainSlider"'));
+  assert.ok(html.includes('id="botdaTempSlider"'));
+  assert.ok(html.includes('id="botdaResetBtn"'));
+  assert.ok(html.includes('id="botdaModalDiagramContainer"'));
+  assert.ok(html.includes('id="botdaExportJsonBtn"'));
+  assert.ok(html.includes('id="botdaExportCsvBtn"'));
+  assert.ok(html.includes('id="botdaCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-botda'));
+  assert.ok(css.includes('.botda-modal-card'));
+  assert.ok(css.includes('.botda-svg'));
+});
+
 
 
 

@@ -820,6 +820,16 @@
             </div>
             <div id="dashboardVplsChart" class="chart-svg-container" role="img" aria-label="Carrier MPLS VPLS Mesh Topology and Loop Prevention Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-botda">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Brillouin Sensing (BOTDA / ITU-T G.650.2) DTSS Matrix</h4>
+                <p class="chart-subtitle">Distributed temperature and strain sensing, Lorentzian BGS shift, river crossing sag &amp; mechanical fatigue life</p>
+              </div>
+              <button id="dashboardOpenBotdaModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">BOTDA Sensing Diagnostics</button>
+            </div>
+            <div id="dashboardBotdaChart" class="chart-svg-container" role="img" aria-label="Brillouin Optical Time Domain Distributed Temperature and Strain Sensing Chart"></div>
+          </article>
         </div>
 
 
@@ -4545,6 +4555,87 @@
               <button id="vplsExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="vplsCopyReportBtn" class="primary-button" type="button">📋 Copy VPLS Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardBotdaModal" class="dashboard-modal botda-modal" aria-labelledby="dashboardBotdaModalTitle">
+        <div class="dashboard-modal-card botda-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardBotdaModalTitle">Brillouin Distributed Temperature &amp; Strain Analysis (ITU-T G.650.2)</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Continuous longitudinal fiber strain monitoring, acoustic phonon resonance &amp; microcrack prevention</p>
+            </div>
+            <button id="dashboardBotdaModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="botdaRouteSelect">Monitored Fiber Route:</label>
+              <select id="botdaRouteSelect" class="form-select">
+                <option value="ravi-siphon-aerial">Ravi Siphon River Crossing ADSS (14.8 km, 96F)</option>
+                <option value="begum-kot-underground">Begum Kot Industrial Trunk &amp; Power Duct (18.2 km, 144F)</option>
+                <option value="vandala-railway-aerial">Vandala Railway Right-of-Way Feeder (11.5 km, 72F)</option>
+                <option value="kala-khatai-express">Kala Khatai Highway High-Tension Span (22.4 km, 96F)</option>
+                <option value="shahdara-town-metro">Shahdara Town Dense Commercial Metro (9.6 km, 288F)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="botdaPulseSlider">Pump Pulse Width: <span id="botdaPulseLabel" class="sim-val-pill">30 ns (3.06 m)</span></label>
+              <input type="range" id="botdaPulseSlider" min="10" max="100" step="5" value="30" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="botdaStrainSlider">Injected Span Tension: <span id="botdaStrainLabel" class="sim-val-pill">+0 µε</span></label>
+              <input type="range" id="botdaStrainSlider" min="-300" max="1500" step="50" value="0" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="botdaTempSlider">Thermal Offset: <span id="botdaTempLabel" class="sim-val-pill">+0 °C</span></label>
+              <input type="range" id="botdaTempSlider" min="-15" max="25" step="1" value="0" class="otdr-slider">
+            </div>
+          </div>
+
+          <div class="botda-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="botdaResetBtn" class="secondary-button" type="button">🔄 Reset BOTDA Baseline</button>
+          </div>
+
+          <div class="sim-kpi-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Route Status</span>
+              <span id="botdaStatStatus" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Optimal Integrity</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Brillouin Peak (BFS)</span>
+              <span id="botdaStatBfs" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">10.855 GHz</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Max Peak Strain</span>
+              <span id="botdaStatMaxStrain" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">880 µε (44.0%)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Spatial Resolution</span>
+              <span id="botdaStatSpatialRes" class="ltv-kpi-val" style="color: #a78bfa; font-size: 1.05rem;">3.06 m (Δz)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Est. Fatigue Life</span>
+              <span id="botdaStatFatigueLife" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">30.0 Years</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">SLA Penalty Risk</span>
+              <span id="botdaStatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0% (PKR 0)</span>
+            </div>
+          </div>
+
+          <div id="botdaModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Brillouin Optical Time Domain Distributed Sensing Spectrum and Strain Profile"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="botdaFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="botdaExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="botdaExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="botdaCopyReportBtn" class="primary-button" type="button">📋 Copy BOTDA Audit Report</button>
           </div>
         </div>
       </dialog>

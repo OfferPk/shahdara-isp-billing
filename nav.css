@@ -6107,13 +6107,21 @@ kbd {
   height: auto;
 }
 
-.mobile-talkset-modal {
+.mobile-talkset-modal,
+.mobile-wdm-spectrum-modal,
+.mobile-midspan-access-modal,
+.mobile-power-logger-modal,
+.mobile-drop-retention-modal {
   max-width: 860px;
   width: 95%;
   border-radius: 16px;
 }
 
-[data-theme="dark"] .mobile-talkset-modal {
+[data-theme="dark"] .mobile-talkset-modal,
+[data-theme="dark"] .mobile-wdm-spectrum-modal,
+[data-theme="dark"] .mobile-midspan-access-modal,
+[data-theme="dark"] .mobile-power-logger-modal,
+[data-theme="dark"] .mobile-drop-retention-modal {
   background: #090d16;
   border-color: #1e3a5f;
 }
@@ -6124,6 +6132,7 @@ kbd {
     gap: 12px;
   }
 }
+
 
 
 

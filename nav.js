@@ -6249,3 +6249,63 @@ export {
   setupMobileFiberTalksetModal
 } from './nav-fiber-talkset.js';
 
+export {
+  WDM_SPECTRUM_STORAGE_KEY,
+  WDM_GRIDS,
+  WDM_PRESETS,
+  calculateChromaticDispersion,
+  calculateWdmSpectrumMetrics,
+  renderWdmSpectrumSvg,
+  formatWdmSpectrumWhatsApp,
+  generateWdmSpectrumCsv,
+  loadWdmSpectrumAuditLog,
+  saveWdmSpectrumAuditLog,
+  clearWdmSpectrumAuditLog,
+  setupMobileWdmSpectrumModal
+} from './nav-wdm-spectrum.js';
+
+export {
+  MIDSPAN_ACCESS_STORAGE_KEY,
+  MIDSPAN_CABLE_CONSTRUCTIONS,
+  SLITTER_TOOL_TYPES,
+  MIDSPAN_PRESETS,
+  calculateMidspanAccessMetrics,
+  renderMidspanAccessSvg,
+  formatMidspanAccessWhatsApp,
+  generateMidspanAccessCsv,
+  loadMidspanAccessAuditLog,
+  saveMidspanAccessAuditLog,
+  clearMidspanAccessAuditLog,
+  setupMobileMidspanAccessModal
+} from './nav-midspan-access.js';
+
+export {
+  POWER_LOGGER_STORAGE_KEY,
+  POWER_LOGGER_PRESETS,
+  calculatePowerLoggerMetrics,
+  renderPowerLoggerSvg,
+  formatPowerLoggerWhatsApp,
+  generatePowerLoggerCsv,
+  loadPowerLoggerAuditLog,
+  savePowerLoggerAuditLog,
+  clearPowerLoggerAuditLog,
+  setupMobilePowerLoggerModal
+} from './nav-power-logger.js';
+
+export {
+  DROP_RETENTION_STORAGE_KEY,
+  RETENTION_CLAMP_TYPES,
+  RETENTION_CABLE_TYPES,
+  RETENTION_PRESETS,
+  calculateDropRetentionMetrics,
+  renderDropRetentionSvg,
+  formatDropRetentionWhatsApp,
+  generateDropRetentionCsv,
+  loadDropRetentionAuditLog,
+  saveDropRetentionAuditLog,
+  clearDropRetentionAuditLog,
+  setupMobileDropRetentionModal
+} from './nav-drop-retention.js';
+
+
+

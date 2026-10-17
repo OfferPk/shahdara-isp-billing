@@ -11368,4 +11368,692 @@ test('index.html, nav.css, and app.js correctly integrate Mobile Fiber Optic Tal
   assert.ok(app.includes('mobileFiberTalksetModalController'));
 });
 
+test('calculateChromaticDispersion computes SMF-28 G.652.D dispersion accurately', async () => {
+  const { calculateChromaticDispersion } = await import('../nav.js');
+
+  const d1310 = calculateChromaticDispersion(1310);
+  assert.ok(Math.abs(d1310) < 1.0, `Expected near zero dispersion at 1310nm, got ${d1310}`);
+
+  const d1490 = calculateChromaticDispersion(1490);
+  assert.ok(d1490 > 10.0 && d1490 < 15.0, `Expected ~12-14 ps/(nm*km) at 1490nm, got ${d1490}`);
+
+  const d1550 = calculateChromaticDispersion(1550);
+  assert.ok(d1550 > 15.0 && d1550 < 19.0, `Expected ~17 ps/(nm*km) at 1550nm, got ${d1550}`);
+
+  const d1610 = calculateChromaticDispersion(1610);
+  assert.ok(d1610 > 19.0 && d1610 < 23.0, `Expected ~20-22 ps/(nm*km) at 1610nm, got ${d1610}`);
+});
+
+test('calculateWdmSpectrumMetrics evaluates CWDM & DWDM channel powers, ripple, OSNR, and compliance', async () => {
+  const { calculateWdmSpectrumMetrics } = await import('../nav.js');
+
+  // Test empty channels
+  const empty = calculateWdmSpectrumMetrics({ channels: [] });
+  assert.equal(empty.status, 'FAIL');
+  assert.equal(empty.channelCount, 0);
+
+  // Test optimal CWDM 8-channel ring
+  const cwdm = calculateWdmSpectrumMetrics({
+    gridType: 'CWDM_18CH',
+    noiseFloorDbm: -45.0,
+    resolutionBwNm: 0.1,
+    channels: [
+      { channelId: '1470', measuredWavelengthNm: 1470.1, powerDbm: -3.0 },
+      { channelId: '1490', measuredWavelengthNm: 1490.0, powerDbm: -3.2 },
+      { channelId: '1510', measuredWavelengthNm: 1510.2, powerDbm: -3.5 },
+      { channelId: '1530', measuredWavelengthNm: 1530.1, powerDbm: -3.4 },
+      { channelId: '1550', measuredWavelengthNm: 1550.0, powerDbm: -3.0 },
+      { channelId: '1570', measuredWavelengthNm: 1570.2, powerDbm: -3.3 },
+      { channelId: '1590', measuredWavelengthNm: 1589.9, powerDbm: -3.6 },
+      { channelId: '1610', measuredWavelengthNm: 1610.1, powerDbm: -4.0 }
+    ]
+  });
+
+  assert.equal(cwdm.status, 'PASS');
+  assert.equal(cwdm.channelCount, 8);
+  assert.equal(cwdm.powerRippleDb, 1.0);
+  assert.ok(cwdm.avgOsnrDb > 40.0);
+  assert.ok(cwdm.totalPowerDbm > 5.0 && cwdm.totalPowerDbm < 7.0);
+  assert.equal(cwdm.maxDriftNm, 0.2);
+
+  // Test DWDM with severe tilt hazard
+  const tiltHazard = calculateWdmSpectrumMetrics({
+    gridType: 'DWDM_100GHZ',
+    noiseFloorDbm: -35.0,
+    resolutionBwNm: 0.1,
+    channels: [
+      { channelId: 'C21', measuredWavelengthNm: 1560.60, powerDbm: +2.0 },
+      { channelId: 'C28', measuredWavelengthNm: 1554.94, powerDbm: -1.0 },
+      { channelId: 'C36', measuredWavelengthNm: 1548.51, powerDbm: -4.0 },
+      { channelId: 'C44', measuredWavelengthNm: 1542.14, powerDbm: -8.5 }
+    ]
+  });
+
+  assert.equal(tiltHazard.status, 'FAIL');
+  assert.equal(tiltHazard.powerRippleDb, 10.5); // +2.0 - (-8.5) = 10.5 dB ripple > 4.5 dB
+});
+
+test('renderWdmSpectrumSvg generates accessible SVG with bars, labels, and noise floor', async () => {
+  const { calculateWdmSpectrumMetrics, renderWdmSpectrumSvg } = await import('../nav.js');
+
+  const metrics = calculateWdmSpectrumMetrics({
+    gridType: 'CWDM_18CH',
+    noiseFloorDbm: -45.0,
+    channels: [
+      { channelId: '1310', measuredWavelengthNm: 1310.0, powerDbm: 0.0 },
+      { channelId: '1550', measuredWavelengthNm: 1550.0, powerDbm: -2.0 }
+    ]
+  });
+
+  const svg = renderWdmSpectrumSvg(metrics, { width: 700, height: 260 });
+  assert.ok(svg.includes('<svg viewBox="0 0 700 260"'));
+  assert.ok(svg.includes('Noise Floor: -45 dBm'));
+  assert.ok(svg.includes('data-channel-id="1310"'));
+  assert.ok(svg.includes('data-channel-id="1550"'));
+  assert.ok(svg.includes('1310nm'));
+  assert.ok(svg.includes('1550nm'));
+});
+
+test('formatWdmSpectrumWhatsApp, generateWdmSpectrumCsv, and audit log manage storage', async () => {
+  const {
+    calculateWdmSpectrumMetrics,
+    formatWdmSpectrumWhatsApp,
+    generateWdmSpectrumCsv,
+    loadWdmSpectrumAuditLog,
+    saveWdmSpectrumAuditLog,
+    clearWdmSpectrumAuditLog
+  } = await import('../nav.js');
+
+  const metrics = calculateWdmSpectrumMetrics({
+    gridType: 'CWDM_18CH',
+    channels: [{ channelId: '1550', measuredWavelengthNm: 1550.1, powerDbm: -3.5 }]
+  });
+
+  const record = {
+    id: 'WDM-TEST-1',
+    timestamp: '2026-10-17T08:45:00.000Z',
+    area: 'Shahdara Town',
+    gridType: 'CWDM_18CH',
+    technician: 'Noman Tariq',
+    notes: 'Routine test',
+    metrics
+  };
+
+  const text = formatWdmSpectrumWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA ISP - OPTICAL WDM SPECTRUM REPORT'));
+  assert.ok(text.includes('Shahdara Town'));
+  assert.ok(text.includes('Noman Tariq'));
+
+  const csv = generateWdmSpectrumCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('WDM-TEST-1'));
+  assert.ok(csv.includes('Shahdara Town'));
+
+  const mockStore = {};
+  const mockStorage = {
+    getItem: (k) => mockStore[k] || null,
+    setItem: (k, v) => { mockStore[k] = String(v); },
+    removeItem: (k) => { delete mockStore[k]; }
+  };
+
+  saveWdmSpectrumAuditLog([record], mockStorage);
+  const loaded = loadWdmSpectrumAuditLog(mockStorage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'WDM-TEST-1');
+
+  clearWdmSpectrumAuditLog(mockStorage);
+  assert.equal(loadWdmSpectrumAuditLog(mockStorage).length, 0);
+});
+
+test('setupMobileWdmSpectrumModal wires interactions, presets, and calculations', async () => {
+  const { setupMobileWdmSpectrumModal } = await import('../nav.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobileWdmSpectrumModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('calculateMidspanAccessMetrics computes optimal blade depth, clearance, and macro-bend penalties', async () => {
+  const { calculateMidspanAccessMetrics } = await import('../nav.js');
+
+  // Optimal mid-span shave
+  const safe = calculateMidspanAccessMetrics({
+    cableType: 'STRANDED_LOOSE_TUBE',
+    slitterTool: 'ROTARY_MICROMETER',
+    totalCores: 48,
+    bufferTubeCount: 4,
+    tappedTubeIndex: 1,
+    tappedCoreCount: 12,
+    tubeOuterDiameterMm: 2.2,
+    tubeWallThicknessMm: 0.40,
+    bladeDepthMm: 0.34,
+    slackLoopRadiusMm: 38.0
+  });
+
+  assert.equal(safe.status, 'PASS');
+  assert.equal(safe.coresPerTube, 12);
+  assert.equal(safe.expressCoreCount, 36);
+  assert.equal(safe.expressTubeCount, 3);
+  assert.equal(safe.optimalBladeDepthMm, 0.34);
+  assert.equal(safe.clearanceMicrons, 60);
+  assert.equal(safe.isBladeTooDeep, false);
+  assert.equal(safe.macroBendPenaltyDb, 0.0);
+
+  // Over-depth blade hazard
+  const hazard = calculateMidspanAccessMetrics({
+    cableType: 'STRANDED_LOOSE_TUBE',
+    tubeWallThicknessMm: 0.40,
+    bladeDepthMm: 0.42, // deeper than wall thickness!
+    slackLoopRadiusMm: 20.0 // violated bend radius!
+  });
+
+  assert.equal(hazard.status, 'FAIL');
+  assert.equal(hazard.isBladeTooDeep, true);
+  assert.equal(hazard.isBendRadiusViolated, true);
+  assert.ok(hazard.macroBendPenaltyDb > 0.0);
+});
+
+test('renderMidspanAccessSvg generates cutaway diagram with sheath, express loop, and blade callout', async () => {
+  const { calculateMidspanAccessMetrics, renderMidspanAccessSvg } = await import('../nav.js');
+
+  const metrics = calculateMidspanAccessMetrics({
+    cableType: 'STRANDED_LOOSE_TUBE',
+    totalCores: 48,
+    tappedCoreCount: 12,
+    slackLoopRadiusMm: 38.0
+  });
+
+  const svg = renderMidspanAccessSvg(metrics, { width: 700, height: 260 });
+  assert.ok(svg.includes('<svg viewBox="0 0 700 260"'));
+  assert.ok(svg.includes('CABLE INLET'));
+  assert.ok(svg.includes('EXPRESS OUTLET'));
+  assert.ok(svg.includes('CENTRAL FRP/STEEL STRENGTH MEMBER'));
+  assert.ok(svg.includes('Express Uncut Tubes'));
+  assert.ok(svg.includes('Tapped 12 Fibers'));
+});
+
+test('formatMidspanAccessWhatsApp, generateMidspanAccessCsv, and audit log manage storage', async () => {
+  const {
+    calculateMidspanAccessMetrics,
+    formatMidspanAccessWhatsApp,
+    generateMidspanAccessCsv,
+    loadMidspanAccessAuditLog,
+    saveMidspanAccessAuditLog,
+    clearMidspanAccessAuditLog
+  } = await import('../nav.js');
+
+  const metrics = calculateMidspanAccessMetrics({
+    cableType: 'STRANDED_LOOSE_TUBE',
+    totalCores: 48,
+    tappedCoreCount: 12
+  });
+
+  const record = {
+    id: 'MID-TEST-1',
+    timestamp: '2026-10-17T08:46:00.000Z',
+    area: 'Shahdara Town',
+    cableType: 'STRANDED_LOOSE_TUBE',
+    slitterTool: 'ROTARY_MICROMETER',
+    technician: 'Rashid Mahmood',
+    notes: 'Mid-span splice',
+    metrics
+  };
+
+  const text = formatMidspanAccessWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA ISP - MID-SPAN BUFFER TUBE ACCESS REPORT'));
+  assert.ok(text.includes('Shahdara Town'));
+  assert.ok(text.includes('Rashid Mahmood'));
+
+  const csv = generateMidspanAccessCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('MID-TEST-1'));
+
+  const mockStore = {};
+  const mockStorage = {
+    getItem: (k) => mockStore[k] || null,
+    setItem: (k, v) => { mockStore[k] = String(v); },
+    removeItem: (k) => { delete mockStore[k]; }
+  };
+
+  saveMidspanAccessAuditLog([record], mockStorage);
+  const loaded = loadMidspanAccessAuditLog(mockStorage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'MID-TEST-1');
+
+  clearMidspanAccessAuditLog(mockStorage);
+  assert.equal(loadMidspanAccessAuditLog(mockStorage).length, 0);
+});
+
+test('setupMobileMidspanAccessModal wires interactions, presets, and calculations', async () => {
+  const { setupMobileMidspanAccessModal } = await import('../nav.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobileMidspanAccessModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('calculatePowerLoggerMetrics computes power stability, ripple, sigma, and flapping transients', async () => {
+  const { calculatePowerLoggerMetrics } = await import('../nav.js');
+
+  // Empty telemetry
+  const empty = calculatePowerLoggerMetrics({ samplesDbm: [] });
+  assert.equal(empty.status, 'FAIL');
+  assert.equal(empty.sampleCount, 0);
+
+  // Stable GPON link
+  const stable = calculatePowerLoggerMetrics({
+    samplesDbm: [-19.2, -19.1, -19.3, -19.2, -19.2, -19.1, -19.3, -19.2],
+    samplingIntervalSec: 1.0,
+    receiverSensitivityDbm: -27.0
+  });
+
+  assert.equal(stable.status, 'PASS');
+  assert.equal(stable.sampleCount, 8);
+  assert.equal(stable.durationSec, 7.0);
+  assert.equal(stable.avgPowerDbm, -19.2);
+  assert.equal(stable.powerRippleDb, 0.2);
+  assert.ok(stable.stdDevDb < 0.1);
+  assert.equal(stable.flappingEventsCount, 0);
+  assert.equal(stable.dropoutsCount, 0);
+
+  // Severe flapping & sensitivity dropouts
+  const flapping = calculatePowerLoggerMetrics({
+    samplesDbm: [-18.0, -18.2, -28.5, -28.9, -18.1, -29.0], // Jumps >= 1.5dB and drops < -27.0dBm
+    samplingIntervalSec: 1.0,
+    receiverSensitivityDbm: -27.0
+  });
+
+  assert.equal(flapping.status, 'FAIL');
+  assert.ok(flapping.flappingEventsCount >= 3);
+  assert.ok(flapping.dropoutsCount >= 3);
+  assert.equal(flapping.powerRippleDb, 11.0);
+});
+
+test('renderPowerLoggerSvg generates oscilloscope strip-chart with sensitivity lines and markers', async () => {
+  const { calculatePowerLoggerMetrics, renderPowerLoggerSvg } = await import('../nav.js');
+
+  const metrics = calculatePowerLoggerMetrics({
+    samplesDbm: [-19.0, -19.2, -28.0, -19.1],
+    samplingIntervalSec: 1.0,
+    receiverSensitivityDbm: -27.0
+  });
+
+  const svg = renderPowerLoggerSvg(metrics, { width: 700, height: 260 });
+  assert.ok(svg.includes('<svg viewBox="0 0 700 260"'));
+  assert.ok(svg.includes('ONT Sensitivity Limit: -27 dBm'));
+  assert.ok(svg.includes('Avg:'));
+  assert.ok(svg.includes('DROP'));
+  assert.ok(svg.includes('FLAP'));
+});
+
+test('formatPowerLoggerWhatsApp, generatePowerLoggerCsv, and audit log manage storage', async () => {
+  const {
+    calculatePowerLoggerMetrics,
+    formatPowerLoggerWhatsApp,
+    generatePowerLoggerCsv,
+    loadPowerLoggerAuditLog,
+    savePowerLoggerAuditLog,
+    clearPowerLoggerAuditLog
+  } = await import('../nav.js');
+
+  const metrics = calculatePowerLoggerMetrics({
+    samplesDbm: [-19.2, -19.1, -19.3]
+  });
+
+  const record = {
+    id: 'PWR-TEST-1',
+    timestamp: '2026-10-17T08:47:00.000Z',
+    area: 'Shahdara Town',
+    wavelengthNm: 1490,
+    technician: 'Noman Tariq',
+    notes: 'Power telemetry test',
+    metrics
+  };
+
+  const text = formatPowerLoggerWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA ISP - OPTICAL POWER LOG & FLAPPING REPORT'));
+  assert.ok(text.includes('Shahdara Town'));
+  assert.ok(text.includes('Noman Tariq'));
+
+  const csv = generatePowerLoggerCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('PWR-TEST-1'));
+
+  const mockStore = {};
+  const mockStorage = {
+    getItem: (k) => mockStore[k] || null,
+    setItem: (k, v) => { mockStore[k] = String(v); },
+    removeItem: (k) => { delete mockStore[k]; }
+  };
+
+  savePowerLoggerAuditLog([record], mockStorage);
+  const loaded = loadPowerLoggerAuditLog(mockStorage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'PWR-TEST-1');
+
+  clearPowerLoggerAuditLog(mockStorage);
+  assert.equal(loadPowerLoggerAuditLog(mockStorage).length, 0);
+});
+
+test('setupMobilePowerLoggerModal wires interactions, presets, and calculations', async () => {
+  const { setupMobilePowerLoggerModal } = await import('../nav.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobilePowerLoggerModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, styles.css, nav.css, and app.js correctly integrate WDM spectrum, midspan access, and power logger assistants', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreWdmSpectrumBtn"'));
+  assert.ok(html.includes('id="mobileWdmSpectrumModal"'));
+  assert.ok(html.includes('id="wdmPresetSelect"'));
+  assert.ok(html.includes('id="wdmSvgContainer"'));
+
+  assert.ok(html.includes('id="mobileMoreMidspanAccessBtn"'));
+  assert.ok(html.includes('id="mobileMidspanAccessModal"'));
+  assert.ok(html.includes('id="midspanPresetSelect"'));
+  assert.ok(html.includes('id="midspanSvgContainer"'));
+
+  assert.ok(html.includes('id="mobileMorePowerLoggerBtn"'));
+  assert.ok(html.includes('id="mobilePowerLoggerModal"'));
+  assert.ok(html.includes('id="powerLoggerPresetSelect"'));
+  assert.ok(html.includes('id="powerLoggerSvgContainer"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.mobile-wdm-spectrum-modal'));
+  assert.ok(navCss.includes('.mobile-midspan-access-modal'));
+  assert.ok(navCss.includes('.mobile-power-logger-modal'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#wdmSvgContainer'));
+  assert.ok(stylesCss.includes('#midspanSvgContainer'));
+  assert.ok(stylesCss.includes('#powerLoggerSvgContainer'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileWdmSpectrumModal'));
+  assert.ok(app.includes('mobileWdmSpectrumModalController'));
+  assert.ok(app.includes('setupMobileMidspanAccessModal'));
+  assert.ok(app.includes('mobileMidspanAccessModalController'));
+  assert.ok(app.includes('setupMobilePowerLoggerModal'));
+  assert.ok(app.includes('mobilePowerLoggerModalController'));
+});
+
+test('calculateDropRetentionMetrics calculates catenary tension, wind load, strain, and safety factors', async () => {
+  const { calculateDropRetentionMetrics } = await import('../nav.js');
+
+  // Standard safe span
+  const safe = calculateDropRetentionMetrics({
+    cableType: 'FLAT_DROP_2X5',
+    clampType: 'WEDGE_DROP_CLAMP',
+    spanLengthM: 45.0,
+    midspanSagM: 0.65,
+    windSpeedKmh: 40.0
+  });
+
+  assert.equal(safe.status, 'PASS');
+  assert.ok(safe.totalTensionN > 80 && safe.totalTensionN < 160);
+  assert.ok(safe.strainPercent < 0.33);
+  assert.ok(safe.clampHoldingFactor > 1.4);
+  assert.ok(safe.clampSlipFactor > 2.0);
+
+  // Severe over-tension hazard (flat drop over 90m span with tight 0.3m sag)
+  const hazard = calculateDropRetentionMetrics({
+    cableType: 'FLAT_DROP_2X5',
+    clampType: 'WEDGE_DROP_CLAMP',
+    spanLengthM: 90.0,
+    midspanSagM: 0.30,
+    windSpeedKmh: 60.0
+  });
+
+  assert.equal(hazard.status, 'FAIL');
+  assert.ok(hazard.totalTensionN > 300); // Exceeds 200N limit
+});
+
+test('renderDropRetentionSvg generates pure vector SVG with pole, clamp, and catenary curve', async () => {
+  const { calculateDropRetentionMetrics, renderDropRetentionSvg } = await import('../nav.js');
+
+  const metrics = calculateDropRetentionMetrics({
+    cableType: 'FLAT_DROP_2X5',
+    spanLengthM: 45.0,
+    midspanSagM: 0.65
+  });
+
+  const svg = renderDropRetentionSvg(metrics, { width: 700, height: 260 });
+  assert.ok(svg.includes('<svg viewBox="0 0 700 260"'));
+  assert.ok(svg.includes('UTILITY POLE'));
+  assert.ok(svg.includes('FAR POLE'));
+  assert.ok(svg.includes('Tension:'));
+  assert.ok(svg.includes('Fiber Elastic Strain:'));
+});
+
+test('formatDropRetentionWhatsApp, generateDropRetentionCsv, and audit log manage storage', async () => {
+  const {
+    calculateDropRetentionMetrics,
+    formatDropRetentionWhatsApp,
+    generateDropRetentionCsv,
+    loadDropRetentionAuditLog,
+    saveDropRetentionAuditLog,
+    clearDropRetentionAuditLog
+  } = await import('../nav.js');
+
+  const metrics = calculateDropRetentionMetrics({
+    cableType: 'FLAT_DROP_2X5',
+    spanLengthM: 45.0
+  });
+
+  const record = {
+    id: 'RET-TEST-1',
+    timestamp: '2026-10-17T08:52:00.000Z',
+    area: 'Shahdara Town',
+    cableType: 'FLAT_DROP_2X5',
+    clampType: 'WEDGE_DROP_CLAMP',
+    technician: 'Rashid Mahmood',
+    notes: 'Pole span test',
+    metrics
+  };
+
+  const text = formatDropRetentionWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA ISP - DROP CABLE RETENTION & TENSION REPORT'));
+  assert.ok(text.includes('Shahdara Town'));
+  assert.ok(text.includes('Rashid Mahmood'));
+
+  const csv = generateDropRetentionCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('RET-TEST-1'));
+
+  const mockStore = {};
+  const mockStorage = {
+    getItem: (k) => mockStore[k] || null,
+    setItem: (k, v) => { mockStore[k] = String(v); },
+    removeItem: (k) => { delete mockStore[k]; }
+  };
+
+  saveDropRetentionAuditLog([record], mockStorage);
+  const loaded = loadDropRetentionAuditLog(mockStorage);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'RET-TEST-1');
+
+  clearDropRetentionAuditLog(mockStorage);
+  assert.equal(loadDropRetentionAuditLog(mockStorage).length, 0);
+});
+
+test('setupMobileDropRetentionModal wires interactions, presets, and calculations', async () => {
+  const { setupMobileDropRetentionModal } = await import('../nav.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobileDropRetentionModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, styles.css, nav.css, and app.js correctly integrate Drop Retention Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreDropRetentionBtn"'));
+  assert.ok(html.includes('id="mobileDropRetentionModal"'));
+  assert.ok(html.includes('id="dropRetentionPresetSelect"'));
+  assert.ok(html.includes('id="dropRetentionSvgContainer"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.mobile-drop-retention-modal'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#dropRetentionSvgContainer'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileDropRetentionModal'));
+  assert.ok(app.includes('mobileDropRetentionModalController'));
+});
+
+
+
 

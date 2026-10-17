@@ -6108,6 +6108,16 @@ export {
   setupDuesAgingModal
 } from './dashboard-dues-aging.js';
 
+export {
+  calculateTopDefaulters,
+  buildDefaulterWhatsAppMessage,
+  renderTopDefaultersSvg,
+  generateTopDefaultersCsv,
+  generateTopDefaultersPrintHtml,
+  generateTopDefaultersBriefing,
+  setupTopDefaultersModal
+} from './dashboard-top-defaulters.js';
+
 
 
 

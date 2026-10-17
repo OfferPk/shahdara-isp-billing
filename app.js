@@ -78,6 +78,7 @@ import {
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
+import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 
 
 
@@ -3892,10 +3893,18 @@ export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
 export let collectionTargetController;
 export let duesAgingController;
+export let topDefaultersModalController;
 export let lateFeeModalController;
 if (typeof document !== 'undefined') {
   collectionTargetController = setupCollectionTargetModal(state);
   duesAgingController = setupDuesAgingModal(state, {
+    onFilterCustomer: (customerId) => {
+      selectCustomer(customerId);
+      switchView('customers');
+    },
+    onToast: (msg) => toast(msg)
+  });
+  topDefaultersModalController = setupTopDefaultersModal(() => state, {
     onFilterCustomer: (customerId) => {
       selectCustomer(customerId);
       switchView('customers');
@@ -4732,6 +4741,17 @@ if (typeof document !== 'undefined') {
   const duesAgingModal = $('#duesAgingModal');
   if (duesAgingModal && !duesAgingController) {
     duesAgingController = setupDuesAgingModal(state, {
+      onFilterCustomer: (customerId) => {
+        selectCustomer(customerId);
+        switchView('customers');
+      },
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  const topDefaultersModal = $('#topDefaultersModal');
+  if (topDefaultersModal && !topDefaultersModalController) {
+    topDefaultersModalController = setupTopDefaultersModal(() => state, {
       onFilterCustomer: (customerId) => {
         selectCustomer(customerId);
         switchView('customers');

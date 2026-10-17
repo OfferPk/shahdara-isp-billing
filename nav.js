@@ -6352,7 +6352,35 @@ export {
   setupMobileMechanicalSpliceModal
 } from './nav-mechanical-splice.js';
 
+export {
+  FIBER_MICROSCOPE_STORAGE_KEY,
+  INSPECTION_ZONES,
+  MICROSCOPE_PRESETS,
+  evaluateConnectorSurface,
+  renderMicroscopeSvg,
+  saveMicroscopeAuditRecord,
+  loadMicroscopeAuditRecords,
+  clearMicroscopeAuditRecords,
+  exportMicroscopeCsv,
+  formatMicroscopeWhatsAppText,
+  setupMobileFiberMicroscopeModal
+} from './nav-fiber-microscope.js';
 
-
-
-
+export {
+  CONNECTOR_CLEANING_STORAGE_KEY,
+  CLEANER_TOOL_STATE_STORAGE_KEY,
+  CLEANING_TOOLS,
+  CONTAMINATION_TYPES,
+  CLEANING_PRESETS,
+  evaluateCleaningProtocol,
+  renderCleaningSvg,
+  saveCleaningRecord,
+  loadCleaningRecords,
+  clearCleaningRecords,
+  loadToolCounters,
+  decrementToolCounter,
+  resetToolCounter,
+  exportCleaningCsv,
+  formatCleaningWhatsAppText,
+  setupMobileConnectorCleaningModal
+} from './nav-connector-cleaning.js';

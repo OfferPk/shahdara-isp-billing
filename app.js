@@ -766,7 +766,7 @@ function renderTransactions() {
   let transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
 
   if (transactionMethodFilter !== 'all') {
-    transactions = transactions.filter(tx => tx.method === transactionMethodFilter);
+    transactions = transactions.filter(tx => String(tx.method || '').toLowerCase() === transactionMethodFilter.toLowerCase());
   }
 
   const total = listTransactions(state).length;
@@ -853,7 +853,7 @@ function renderMonthlyReport() {
     const pendingSources = row.pendingCreditSources.map(source => `${monthName(source.originMonth)} receipt ${humanDate(source.paymentDate)} (${source.method}, original ${formatAmount(source.receiptAmount)}): ${formatAmount(source.amountCents / 100)} still available`).join('; ');
     const creditSummary = `Applied to bill ${formatAmount(row.creditApplied)} · forwarded from selected bill ${formatAmount(row.creditForwarded)} · customer-wide unused prepaid balance ${formatAmount(row.creditPending)} (not cash; valid indefinitely)${creditSources ? ` · Applied sources: ${creditSources}` : ''}${pendingSources ? ` · Waiting sources: ${pendingSources}` : ''}`;
     const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[row.serviceStatus] ?? 'Not set';
-    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ' · Archived' : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">Service (manual): ${serviceLabel} · Package / speed: ${escapeHtml(speed)} · ISP/provider: ${escapeHtml(provider)}</span></div><div class="report-cell"><span class="report-cell-label">Monthly sale (PKR)</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(monthName(row.month))} bill (PKR)</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">Optional due date (PKT)</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">Actual amount received (PKR)</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">Balance due (PKR)</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell"><span class="report-cell-label">Auto-credit (PKR, not cash)</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell"><span class="report-cell-label">Billing status</span><span class="report-status report-status-${row.status}">${reportStatusLabel(row.status)}</span></div></li>`;
+    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ' · Archived' : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">Service (manual): ${serviceLabel} · Package / speed: ${escapeHtml(speed)} · ISP/provider: ${escapeHtml(provider)}</span></div><div class="report-cell"><span class="report-cell-label">Monthly sale (PKR)</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(monthName(row.month))} bill (PKR)</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">Optional due date (PKT)</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">Actual amount received (PKR)</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">Balance due (PKR)</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell report-credit-cell"><span class="report-cell-label">Auto-credit (PKR, not cash)</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell report-status-cell"><span class="report-cell-label">Billing status</span><span class="report-status report-status-${row.status}">${reportStatusLabel(row.status)}</span></div></li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
 }
@@ -3220,7 +3220,7 @@ $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
   let txs = listTransactions(state, { customerQuery: searchQuery(), date, recencyDays });
   if (transactionMethodFilter !== 'all') {
-    txs = txs.filter(tx => tx.method === transactionMethodFilter);
+    txs = txs.filter(tx => String(tx.method || '').toLowerCase() === transactionMethodFilter.toLowerCase());
   }
   const headers = [
     { key: 'customerNumber', label: 'Customer #' },

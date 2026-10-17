@@ -716,8 +716,10 @@ export function setupTopDefaultersModal(state, {
   let activeState = state;
   const getState = () => (typeof activeState === 'function' ? activeState() : activeState);
 
-  const openBtn = document.getElementById('dashboardOpenTopDefaultersBtn') ||
-                  document.getElementById('quickActionTopDefaulters');
+  const openTriggers = [
+    document.getElementById('dashboardOpenTopDefaultersBtn'),
+    document.getElementById('quickActionTopDefaulters')
+  ].filter(Boolean);
   const closeBtn = document.getElementById('closeTopDefaultersModalBtn');
   const closeSecondaryBtn = document.getElementById('closeTopDefaultersSecondaryBtn');
 
@@ -935,13 +937,13 @@ export function setupTopDefaultersModal(state, {
   }
 
   // Open & Close
-  if (openBtn) {
-    openBtn.addEventListener('click', () => {
+  openTriggers.forEach(btn => {
+    btn.addEventListener('click', () => {
       if (modal.showModal) modal.showModal();
       else modal.hidden = false;
       renderContent();
     });
-  }
+  });
 
   if (closeBtn) closeBtn.addEventListener('click', () => { modal.close?.() || (modal.hidden = true); });
   if (closeSecondaryBtn) closeSecondaryBtn.addEventListener('click', () => { modal.close?.() || (modal.hidden = true); });

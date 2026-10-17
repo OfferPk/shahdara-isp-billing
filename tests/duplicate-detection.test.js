@@ -88,3 +88,26 @@ test('owner can add a same-name customer only with an explicit duplicate overrid
   assert.equal(state.customers.length, 1, 'the prior immutable state is unchanged');
   assert.equal(original.address, 'Original Fixture Road', 'the matched record is not overwritten');
 });
+
+test('CNIC normalization detects duplicate identity cards with or without formatting', () => {
+  const result = findPossibleDuplicateCustomers([
+    saved({ id: 'cust-1', name: 'Zahid Khan', cnic: '35201-1234567-1' }),
+    saved({ id: 'cust-2', name: 'Bilal Butt', cnic: '35202-7654321-2' })
+  ], { name: 'Completely Different Name', cnic: '3520112345671' });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].customer.id, 'cust-1');
+  assert.ok(result[0].reasons.some(r => r.field === 'cnic' && r.type === 'exact'));
+
+  // ExcludeId skips matching the customer being edited
+  const selfEditResult = findPossibleDuplicateCustomers([
+    saved({ id: 'cust-1', name: 'Zahid Khan', cnic: '35201-1234567-1' })
+  ], { customerId: 'cust-1', name: 'Zahid Khan Edited', cnic: '35201-1234567-1' });
+  assert.equal(selfEditResult.length, 0);
+
+  // Different CNIC does not match
+  const noMatch = findPossibleDuplicateCustomers([
+    saved({ id: 'cust-1', name: 'Zahid Khan', cnic: '35201-1234567-1' })
+  ], { name: 'Other', cnic: '35201-9999999-9' });
+  assert.equal(noMatch.length, 0);
+});
+

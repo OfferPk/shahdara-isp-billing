@@ -3530,6 +3530,65 @@ export function validatePakistanCnic(cnic) {
 }
 
 /**
+ * Validates a Pakistani CNIC string for customer profiles and forms.
+ * Supports optional or required validation, providing inline message tips and formatting.
+ * @param {string} cnic
+ * @param {{ required?: boolean }} [options]
+ * @returns {{ valid: boolean, empty: boolean, formatted: string, raw: string, tip?: boolean, message: string }}
+ */
+export function validateCustomerCnic(cnic, options = { required: false }) {
+  if (!cnic || typeof cnic !== 'string' || !cnic.trim()) {
+    if (options?.required) {
+      return { valid: false, empty: true, formatted: '', raw: '', tip: false, message: 'CNIC is required (13 digits).' };
+    }
+    return { valid: true, empty: true, formatted: '', raw: '', message: '' };
+  }
+  const clean = cnic.replace(/[^0-9]/g, '');
+  if (clean.length === 13) {
+    const formatted = `${clean.slice(0, 5)}-${clean.slice(5, 12)}-${clean.slice(12, 13)}`;
+    return {
+      valid: true,
+      empty: false,
+      formatted,
+      raw: clean,
+      message: `✓ Valid Pakistani CNIC (${formatted})`
+    };
+  }
+  if (clean.length < 13) {
+    return {
+      valid: false,
+      empty: false,
+      formatted: cnic.trim(),
+      raw: clean,
+      tip: true,
+      message: `Incomplete CNIC (${clean.length}/13 digits, expected XXXXX-XXXXXXX-X).`
+    };
+  }
+  return {
+    valid: false,
+    empty: false,
+    formatted: cnic.trim(),
+    raw: clean,
+    tip: false,
+    message: `CNIC is too long (${clean.length}/13 digits, expected 13 digits).`
+  };
+}
+
+/**
+ * Formats a CNIC for display with standard hyphens (XXXXX-XXXXXXX-X).
+ * @param {string} cnic
+ * @returns {string}
+ */
+export function formatCnicDisplay(cnic) {
+  if (!cnic) return '';
+  const clean = String(cnic).replace(/[^0-9]/g, '');
+  if (clean.length === 13) {
+    return `${clean.slice(0, 5)}-${clean.slice(5, 12)}-${clean.slice(12)}`;
+  }
+  return String(cnic).trim();
+}
+
+/**
  * Validates Service Contract agreement form fields.
  * @param {Object} data
  * @returns {{ valid: boolean, errors: Object }}

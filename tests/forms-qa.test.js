@@ -10,7 +10,7 @@ import {
   calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
   ADJUSTMENT_VOUCHERS_KEY, ADJUSTMENT_CATEGORIES, calculateOutageCredit, validateAdjustmentVoucher, buildAdjustmentVoucherData, formatAdjustmentVoucherWhatsApp,
   generateAdjustmentLedgerCsv, generateAdjustmentVoucherHtml, getSavedAdjustmentVouchers, saveAdjustmentVoucher, setupAdjustmentVoucherModal,
-  SERVICE_CONTRACTS_KEY, validatePakistanCnic, validateServiceContract, buildServiceContractData, getSavedServiceContracts, saveServiceContract,
+  SERVICE_CONTRACTS_KEY, validatePakistanCnic, validateCustomerCnic, formatCnicDisplay, validateServiceContract, buildServiceContractData, getSavedServiceContracts, saveServiceContract,
   formatServiceContractWhatsApp, generateServiceContractCsv, generateServiceContractHtml, setupServiceContractModal,
   PAKISTAN_CNIC_PROVINCES, parsePakistaniCnicDetails, calculateKycComplianceAudit, filterKycComplianceRecords,
   generateKycNoticeWhatsAppText, generateKycComplianceCsv, generateKycCompliancePrintHtml, setupKycComplianceModal
@@ -14315,5 +14315,82 @@ test('DOM & CSS integration for Billing Correctness & Ledger Reconciliation QA S
   assert.ok(freshStyles.includes('.audit-svg-card'), 'SVG card styled');
   assert.ok(freshStyles.includes('[data-theme="dark"] .billing-correctness-modal'), 'Dark theme support exists');
 });
+
+test('Customer Add/Edit Form Validation, Pakistani Phone & CNIC Verification & No Data Loss QA Suite', async () => {
+  const { addCustomer, updateCustomerProfile, createInitialState } = await import('../core.js');
+  const { findPossibleDuplicateCustomers } = await import('../duplicate-detection.js');
+
+  // 1. validateCustomerCnic
+  const emptyRes = validateCustomerCnic('');
+  assert.equal(emptyRes.valid, true);
+  assert.equal(emptyRes.empty, true);
+
+  const reqRes = validateCustomerCnic('', { required: true });
+  assert.equal(reqRes.valid, false);
+  assert.match(reqRes.message, /CNIC is required/);
+
+  const validRes = validateCustomerCnic('3520112345671');
+  assert.equal(validRes.valid, true);
+  assert.equal(validRes.formatted, '35201-1234567-1');
+  assert.match(validRes.message, /Valid Pakistani CNIC/);
+
+  const incompleteRes = validateCustomerCnic('35201');
+  assert.equal(incompleteRes.valid, false);
+  assert.equal(incompleteRes.tip, true);
+  assert.match(incompleteRes.message, /Incomplete CNIC \(5\/13 digits/);
+
+  const tooLongRes = validateCustomerCnic('352011234567199');
+  assert.equal(tooLongRes.valid, false);
+  assert.match(tooLongRes.message, /too long/);
+
+  // 2. formatCnicDisplay
+  assert.equal(formatCnicDisplay('3520112345671'), '35201-1234567-1');
+  assert.equal(formatCnicDisplay('35201-1234567-1'), '35201-1234567-1');
+  assert.equal(formatCnicDisplay(''), '');
+  assert.equal(formatCnicDisplay(null), '');
+
+  // 3. Customer CNIC persistence in core.js
+  let state = createInitialState([]);
+  state = addCustomer(state, 'Tariq Mehmood', new Date('2026-10-17T12:00:00+05:00'), {
+    phone: '03001234567',
+    cnic: '35201-1234567-1',
+    address: 'Main Bazar Shahdara',
+    mohalla: 'MOHALLA HAVELI'
+  });
+  const added = state.customers[0];
+  assert.equal(added.cnic, '35201-1234567-1');
+  assert.equal(added.phone, '03001234567');
+
+  state = updateCustomerProfile(state, added.id, {
+    cnic: '35202-9999999-3',
+    phone: '+92 300 7654321'
+  }, new Date('2026-10-17T12:05:00+05:00'));
+  const updated = state.customers[0];
+  assert.equal(updated.cnic, '35202-9999999-3');
+  assert.equal(updated.phone, '+92 300 7654321');
+
+  // 4. Duplicate matching on CNIC and Phone
+  const dupMatches = findPossibleDuplicateCustomers(state.customers, {
+    name: 'Different Customer',
+    cnic: '3520299999993'
+  });
+  assert.equal(dupMatches.length, 1);
+  assert.ok(dupMatches[0].reasons.some(r => r.field === 'cnic'));
+
+  // 5. DOM & markup validation
+  const freshIndex = read('index.html');
+  const freshApp = read('app.js');
+  const freshStyles = read('styles.css');
+
+  assert.ok(freshIndex.includes('id="newCustomerCnic"'), 'Add customer dialog contains newCustomerCnic');
+  assert.ok(freshIndex.includes('id="newCustomerCnicHint"'), 'Add customer dialog contains newCustomerCnicHint');
+  assert.ok(freshIndex.includes('id="cnicInput"'), 'Customer profile form contains cnicInput');
+  assert.ok(freshIndex.includes('id="cnicValidationHint"'), 'Customer profile form contains cnicValidationHint');
+  assert.ok(freshStyles.includes('.cnic-validation-hint'), 'Styles include .cnic-validation-hint');
+  assert.ok(freshApp.includes('wireCnicValidationHelper'), 'app.js includes wireCnicValidationHelper');
+  assert.ok(freshApp.includes('wireCnicInputMask'), 'app.js includes wireCnicInputMask');
+  assert.ok(freshApp.includes('validateCustomerCnic'), 'app.js imports and uses validateCustomerCnic');
+});
+
 
 

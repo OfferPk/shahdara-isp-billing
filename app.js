@@ -26,7 +26,7 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 
 
 import {
-  validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
+  validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
@@ -866,10 +866,12 @@ function customerLifetimeValueMarkup(lifetime) {
 }
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
+  const cnic = String(customer.cnic ?? '').trim();
   const phoneTargets = contactActionTargets(phone);
   const phoneActions = phoneTargets ? `<span class="profile-contact-actions" aria-label="Contact shortcuts"><a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">Call</a>${phoneTargets.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>` : ''}</span>` : '';
   const phoneHint = phoneTargets?.whatsapp ? '' : '<p class="profile-contact-note">Save a full international number including its country code (for example, +923001234567) to enable WhatsApp receipt drafts. No country code is guessed.</p>';
   const fields = [
+    ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set'],
     ['Area / mohalla', customer.mohalla || 'Not set'],
     ['Zone', customer.zone || 'Not set'],
     ['Address', customer.address || 'Not set'],
@@ -929,6 +931,7 @@ function renderDetail() {
   $('#addressInput').value = customer.address ?? '';
   $('#customerNotesInput').value = customer.notes ?? '';
   $('#phoneInput').value = customer.phone ?? '';
+  if ($('#cnicInput')) $('#cnicInput').value = customer.cnic ?? '';
   $('#ispProviderInput').value = customer.ispProvider ?? '';
   $('#packageSpeedInput').value = customer.packageSpeed ?? '';
   $('#monthlyPurchaseCostInput').value = customer.monthlyPurchaseCost ?? '';
@@ -1368,6 +1371,7 @@ function resetDuplicateReview() {
 function renderDuplicateReview(matches) {
   $('#duplicateCustomerMatches').innerHTML = matches.map(({ customer, reasons }) => {
     const savedDetails = [
+      customer.cnic || customer.customerCnic ? `CNIC: ${formatCnicDisplay(customer.cnic || customer.customerCnic)}` : '',
       customer.phone || customer.customerPhone ? `Phone: ${customer.phone || customer.customerPhone}` : '',
       customer.address || customer.customerAddress ? `Address: ${customer.address || customer.customerAddress}` : '',
       customer.mohalla ? `Mohalla / area: ${customer.mohalla}` : '',
@@ -1384,7 +1388,8 @@ function renderDuplicateReview(matches) {
 function saveNewCustomer(allowDuplicateName = false) {
   const details = {
     name:$('#newCustomerName').value,
-    phone:$('#newCustomerPhone').value,
+    cnic:$('#newCustomerCnic') ? $('#newCustomerCnic').value.trim() : '',
+    phone:$('#newCustomerPhone').value.trim(),
     address:$('#newCustomerAddress').value,
     mohalla:$('#newCustomerMohalla').value,
     zone:$('#newCustomerZone').value
@@ -1398,6 +1403,27 @@ function saveNewCustomer(allowDuplicateName = false) {
     return;
   }
   details.name = nameValidation.cleanName;
+  if (details.phone) {
+    const phoneVal = validatePakistanPhone(details.phone);
+    if (!phoneVal.valid && !phoneVal.tip) {
+      const errorBox = $('#addCustomerError');
+      errorBox.textContent = phoneVal.message || 'Please enter a valid Pakistani phone number (e.g. 03001234567 or +923001234567).';
+      errorBox.hidden = false;
+      $('#newCustomerPhone').focus();
+      return;
+    }
+  }
+  if (details.cnic) {
+    const cnicVal = validateCustomerCnic(details.cnic);
+    if (!cnicVal.valid) {
+      const errorBox = $('#addCustomerError');
+      errorBox.textContent = cnicVal.message || 'Please enter a valid 13-digit Pakistani CNIC (e.g. 35201-1234567-1).';
+      errorBox.hidden = false;
+      $('#newCustomerCnic').focus();
+      return;
+    }
+    details.cnic = cnicVal.formatted;
+  }
   try {
     const matches = findPossibleDuplicateCustomers(state.customers, details);
     if (matches.length && !allowDuplicateName) {
@@ -1451,9 +1477,49 @@ $('#duplicateCustomerMatches').addEventListener('click', event => {
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $('#addCustomerDialog').close()));
 $('#saveMohallaButton').addEventListener('click', () => {
   if (!selectedCustomer()) return;
+  const current = selectedCustomer();
+  const phoneVal = $('#phoneInput').value.trim();
+  const cnicVal = $('#cnicInput') ? $('#cnicInput').value.trim() : '';
+
+  if (phoneVal) {
+    const checkPhone = validatePakistanPhone(phoneVal);
+    if (!checkPhone.valid && !checkPhone.tip) {
+      toast(checkPhone.message || 'Invalid Pakistani phone number.');
+      $('#phoneInput').focus();
+      return;
+    }
+  }
+
+  let formattedCnic = cnicVal;
+  if (cnicVal) {
+    const checkCnic = validateCustomerCnic(cnicVal);
+    if (!checkCnic.valid) {
+      toast(checkCnic.message || 'Invalid CNIC (13 digits required).');
+      $('#cnicInput').focus();
+      return;
+    }
+    formattedCnic = checkCnic.formatted;
+  }
+
+  if (phoneVal || formattedCnic) {
+    const matches = findPossibleDuplicateCustomers(state.customers, {
+      customerId: current.id,
+      phone: phoneVal,
+      cnic: formattedCnic
+    });
+    const exactDuplicates = matches.filter(m => m.reasons.some(r => (r.field === 'phone' || r.field === 'cnic') && r.type === 'exact'));
+    if (exactDuplicates.length > 0) {
+      const dup = exactDuplicates[0];
+      const reasonLabel = dup.reasons.find(r => (r.field === 'cnic' || r.field === 'phone') && r.type === 'exact')?.label || 'matches another customer';
+      const confirmed = window.confirm(`Warning: This ${reasonLabel} matches existing Customer #${dup.customer.customerNumber} (${dup.customer.name}). Save anyway?`);
+      if (!confirmed) return;
+    }
+  }
+
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
-      mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:$('#phoneInput').value,
+      mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:phoneVal,
+      cnic: formattedCnic,
       ispProvider:$('#ispProviderInput').value,
       serviceStatus:$('#serviceStatusInput').value,
       packageSpeed:$('#packageSpeedInput').value, monthlyPurchaseCost:$('#monthlyPurchaseCostInput').value,
@@ -2794,6 +2860,53 @@ const profilePhoneEl = $('#phoneInput');
 if (profilePhoneEl) wirePhoneInputMask(profilePhoneEl);
 const newCustPhoneEl = $('#newCustomerPhone');
 if (newCustPhoneEl) wirePhoneInputMask(newCustPhoneEl);
+
+function wireCnicValidationHelper(inputId,hintId){
+  const input=$(inputId);
+  const hint=$(hintId);
+  if(!input||!hint)return;
+  const update=()=>{
+    const val=input.value;
+    const res=validateCustomerCnic(val);
+    if(res.empty){
+      hint.textContent='';
+      hint.className='cnic-validation-hint';
+      input.removeAttribute('aria-invalid');
+    }else if(res.valid){
+      hint.textContent=res.message;
+      hint.className='cnic-validation-hint '+(res.tip?'tip':'valid');
+      input.removeAttribute('aria-invalid');
+    }else{
+      hint.textContent=res.message;
+      hint.className='cnic-validation-hint '+(res.tip?'tip':'invalid');
+      if(!res.tip)input.setAttribute('aria-invalid','true');
+      else input.removeAttribute('aria-invalid');
+    }
+  };
+  input.addEventListener('input',update);
+}
+function wireCnicInputMask(inputEl){
+  if(!inputEl)return;
+  inputEl.addEventListener('input',()=>{
+    const raw=inputEl.value;
+    const digits=raw.replace(/\D/g,'').slice(0,13);
+    let formatted=digits;
+    if(digits.length>12){
+      formatted=`${digits.slice(0,5)}-${digits.slice(5,12)}-${digits.slice(12)}`;
+    }else if(digits.length>5){
+      formatted=`${digits.slice(0,5)}-${digits.slice(5)}`;
+    }
+    if(formatted!==raw&&raw.length>=formatted.length-1){
+      inputEl.value=formatted;
+    }
+  });
+}
+wireCnicValidationHelper('#cnicInput','#cnicValidationHint');
+wireCnicValidationHelper('#newCustomerCnic','#newCustomerCnicHint');
+const profileCnicEl = $('#cnicInput');
+if (profileCnicEl) wireCnicInputMask(profileCnicEl);
+const newCustCnicEl = $('#newCustomerCnic');
+if (newCustCnicEl) wireCnicInputMask(newCustCnicEl);
 ['#monthlySellingAmountInput','#monthlyPurchaseCostInput','#expenseAmount','#movementQuantity','#inventoryMinimum','#inventoryUnitCost'].forEach(sel=>{
   const node=$(sel);
   if(!node)return;

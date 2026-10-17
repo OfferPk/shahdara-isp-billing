@@ -54,7 +54,8 @@ import {
   setupFusionArcQaModal,
   setupStripForceQaModal,
   setupSpliceMfdOffsetModal,
-  setupSpliceSleeveCureModal
+  setupSpliceSleeveCureModal,
+  setupFiberCleaveQualityModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3453,6 +3454,7 @@ export let customerFusionArcQaModalController;
 export let customerStripForceQaModalController;
 export let customerSpliceMfdOffsetModalController;
 export let customerSpliceSleeveCureModalController;
+export let customerFiberCleaveQualityModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3896,6 +3898,29 @@ if (typeof document !== 'undefined') {
           if (c) customerSpliceSleeveCureModalController?.populateCustomer(c);
         }
         customerSpliceSleeveCureModalController?.recalculate();
+      }
+    });
+  }
+
+  const cleaveModal = $('#fiberCleaveQualityModal');
+  const openFiberCleaveQualityBtn = $('#openFiberCleaveQualityBtn');
+  if (cleaveModal) {
+    customerFiberCleaveQualityModalController = setupFiberCleaveQualityModal({
+      dialogElement: cleaveModal,
+      triggerButton: openFiberCleaveQualityBtn,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openFiberCleaveQualityBtn) {
+    openFiberCleaveQualityBtn.addEventListener('click', () => {
+      if (cleaveModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) customerFiberCleaveQualityModalController?.populateCustomer(c);
+        }
+        customerFiberCleaveQualityModalController?.recalculate();
       }
     });
   }

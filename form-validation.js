@@ -12389,3 +12389,33 @@ export {
   generateFastConnectorCertsCsv,
   setupFastConnectorQaModal
 } from './qa-fast-connector.js';
+
+export {
+  ADSS_SAG_TENSION_STORAGE_KEY,
+  ADSS_CABLE_TYPES,
+  ADSS_ENV_CONDITIONS,
+  CROSSING_CLASSES,
+  ADSS_VERDICTS,
+  SHAH_ADSS_PRESETS,
+  calculateWindPressure,
+  calculateAerodynamicWindForce,
+  calculateResultantUnitLoad,
+  calculateMidspanSag,
+  calculateMaxCableTension,
+  calculateEverydayStressPercent,
+  calculateMaxWorkingTensionPercent,
+  calculateAeolianFrequencyAndDampers,
+  evaluateAdssSagTension,
+  validateAdssSagTensionInput,
+  buildAdssSagTensionRecord,
+  getSavedAdssSagTensionCerts,
+  saveAdssSagTensionCert,
+  updateAdssSagTensionCertStatus,
+  clearAdssSagTensionCerts,
+  calculateAdssSagTensionMetrics,
+  renderAdssSagTensionSvg,
+  generateAdssSagTensionCertHtml,
+  formatAdssSagTensionCertWhatsApp,
+  generateAdssSagTensionCertsCsv,
+  setupAdssSagTensionModal
+} from './qa-adss-sag-tension.js';

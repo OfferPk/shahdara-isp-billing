@@ -6233,7 +6233,8 @@ html, body {
 #wdmSvgContainer,
 #midspanSvgContainer,
 #powerLoggerSvgContainer,
-#dropRetentionSvgContainer {
+#dropRetentionSvgContainer,
+#adssSvgContainer {
   width: 100%;
   overflow-x: auto;
   border-radius: 8px;
@@ -6243,11 +6244,24 @@ html, body {
 #wdmSvgContainer svg,
 #midspanSvgContainer svg,
 #powerLoggerSvgContainer svg,
-#dropRetentionSvgContainer svg {
+#dropRetentionSvgContainer svg,
+#adssSvgContainer svg {
   width: 100%;
   min-width: 580px;
   max-width: 820px;
   display: block;
   margin: 0 auto;
+}
+
+@media print {
+  #adssSagTensionModal,
+  #adssSagTensionModal .dashboard-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
 }
 

@@ -52,7 +52,8 @@ import {
   setupSplitterQaModal,
   setupFerruleGeometryModal,
   setupFusionArcQaModal,
-  setupStripForceQaModal
+  setupStripForceQaModal,
+  setupSpliceMfdOffsetModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3437,6 +3438,7 @@ export let customerSplitterQaModalController;
 export let customerFerruleGeometryModalController;
 export let customerFusionArcQaModalController;
 export let customerStripForceQaModalController;
+export let customerSpliceMfdOffsetModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3834,6 +3836,29 @@ if (typeof document !== 'undefined') {
           if (c) customerStripForceQaModalController?.populateCustomer(c);
         }
         customerStripForceQaModalController?.recalculate();
+      }
+    });
+  }
+
+  const spliceModal = $('#spliceMfdOffsetModal');
+  const openSpliceMfdOffsetBtn = $('#openSpliceMfdOffsetBtn');
+  if (spliceModal) {
+    customerSpliceMfdOffsetModalController = setupSpliceMfdOffsetModal({
+      dialogElement: spliceModal,
+      triggerButton: openSpliceMfdOffsetBtn,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openSpliceMfdOffsetBtn) {
+    openSpliceMfdOffsetBtn.addEventListener('click', () => {
+      if (spliceModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) customerSpliceMfdOffsetModalController?.populateCustomer(c);
+        }
+        customerSpliceMfdOffsetModalController?.recalculate();
       }
     });
   }

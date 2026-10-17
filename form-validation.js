@@ -12244,3 +12244,30 @@ export {
   calculateStripForceMetrics,
   setupStripForceQaModal
 } from './qa-coating-strip-force.js';
+
+export {
+  SPLICE_MFD_OFFSET_STORAGE_KEY,
+  FIBER_PROFILES,
+  SPLICER_ALIGNMENT_TYPES,
+  OPERATING_WAVELENGTHS,
+  TELCORDIA_SPLICE_VERDICTS,
+  SHAH_SPLICE_PRESETS,
+  calculateMfdMismatchLoss,
+  calculateLateralOffsetLoss,
+  calculateAngularTiltLoss,
+  calculateNetCoreOffset,
+  determineSpliceQualityVerdict,
+  evaluateSpliceLoss,
+  renderSpliceMfdOffsetSvg,
+  validateSpliceMfdOffset,
+  buildSpliceMfdOffsetRecord,
+  getSavedSpliceMfdOffsetCerts,
+  saveSpliceMfdOffsetCert,
+  updateSpliceMfdOffsetCertStatus,
+  clearSpliceMfdOffsetCerts,
+  calculateSpliceMfdOffsetMetrics,
+  generateSpliceMfdOffsetCertHtml,
+  formatSpliceMfdOffsetCertWhatsApp,
+  generateSpliceMfdOffsetCertsCsv,
+  setupSpliceMfdOffsetModal
+} from './qa-splice-mfd-offset.js';

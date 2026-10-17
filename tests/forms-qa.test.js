@@ -9217,3 +9217,525 @@ test('setupStripForceQaModal initializes controller and binds DOM mock elements'
     globalThis.document = origDoc;
   }
 });
+
+// ============================================================================
+// OPTICAL FIBER FUSION SPLICE CORE ALIGNMENT, MFD & LATERAL OFFSET QA SUITE TESTS
+// ============================================================================
+
+test('qa-splice-mfd-offset constants and lookup structures are well-formed', async () => {
+  const {
+    FIBER_PROFILES,
+    SPLICER_ALIGNMENT_TYPES,
+    OPERATING_WAVELENGTHS,
+    TELCORDIA_SPLICE_VERDICTS,
+    SHAH_SPLICE_PRESETS
+  } = await import('../form-validation.js');
+
+  // Verify fiber profiles
+  assert.ok(FIBER_PROFILES.ITU_G652D);
+  assert.equal(FIBER_PROFILES.ITU_G652D.nominalCoreDiameterUm, 8.2);
+  assert.equal(FIBER_PROFILES.ITU_G652D.nominalMfd1310Um, 9.2);
+  assert.equal(FIBER_PROFILES.ITU_G652D.nominalMfd1550Um, 10.4);
+
+  assert.ok(FIBER_PROFILES.ITU_G657A2);
+  assert.equal(FIBER_PROFILES.ITU_G657A2.nominalMfd1310Um, 8.6);
+
+  assert.ok(FIBER_PROFILES.ITU_G655_NZDSF);
+  assert.equal(FIBER_PROFILES.ITU_G655_NZDSF.nominalMfd1550Um, 8.4);
+
+  assert.ok(FIBER_PROFILES.LEGACY_AERIAL);
+  assert.equal(FIBER_PROFILES.LEGACY_AERIAL.typicalConcentricityErrorUm, 0.85);
+
+  // Splicer alignment technologies
+  assert.ok(SPLICER_ALIGNMENT_TYPES.CORE_PAS);
+  assert.equal(SPLICER_ALIGNMENT_TYPES.CORE_PAS.eccentricityCompensationFactor, 0.10);
+  assert.ok(SPLICER_ALIGNMENT_TYPES.FIXED_VGROOVE);
+  assert.equal(SPLICER_ALIGNMENT_TYPES.FIXED_VGROOVE.eccentricityCompensationFactor, 1.00);
+
+  // Wavelengths
+  assert.ok(OPERATING_WAVELENGTHS['1310']);
+  assert.ok(OPERATING_WAVELENGTHS['1550']);
+  assert.ok(OPERATING_WAVELENGTHS['1490']);
+  assert.ok(OPERATING_WAVELENGTHS['1577']);
+
+  // Telcordia verdicts
+  assert.equal(TELCORDIA_SPLICE_VERDICTS.GRADE_A_EXCELLENT.maxLossDb, 0.03);
+  assert.equal(TELCORDIA_SPLICE_VERDICTS.GRADE_B_PASS.maxLossDb, 0.08);
+  assert.equal(TELCORDIA_SPLICE_VERDICTS.GRADE_C_CONDITIONAL.maxLossDb, 0.15);
+  assert.equal(TELCORDIA_SPLICE_VERDICTS.REJECT_RESPLICE_MANDATED.code, 'REJECT');
+
+  // Presets
+  assert.ok(SHAH_SPLICE_PRESETS.BARADARI_NOC_TRUNK);
+  assert.ok(SHAH_SPLICE_PRESETS.VANDALA_DROP_TRANSITION);
+  assert.ok(SHAH_SPLICE_PRESETS.BEGUM_KOT_HIGH_TILT_FAIL);
+});
+
+test('calculateMfdMismatchLoss correctly applies Gaussian Marcuse formulation', async () => {
+  const { calculateMfdMismatchLoss } = await import('../form-validation.js');
+
+  // Identical MFD -> 0 dB
+  assert.equal(calculateMfdMismatchLoss(9.2, 9.2), 0);
+  assert.equal(calculateMfdMismatchLoss(10.4, 10.4), 0);
+
+  // Symmetry: L(w1, w2) === L(w2, w1)
+  const lossForward = calculateMfdMismatchLoss(9.2, 10.4);
+  const lossReverse = calculateMfdMismatchLoss(10.4, 9.2);
+  assert.ok(lossForward > 0);
+  assert.equal(lossForward, lossReverse);
+
+  // Substantial MFD difference: 7.8 vs 10.4
+  const largeLoss = calculateMfdMismatchLoss(7.8, 10.4);
+  assert.ok(largeLoss > lossForward);
+  assert.ok(largeLoss > 0.05);
+
+  // Boundary checks: 0 or negative
+  assert.equal(calculateMfdMismatchLoss(0, 9.2), 0);
+  assert.equal(calculateMfdMismatchLoss(-5, 9.2), 0);
+});
+
+test('calculateLateralOffsetLoss correctly computes quadratic radial displacement penalty', async () => {
+  const { calculateLateralOffsetLoss } = await import('../form-validation.js');
+
+  // Zero offset -> 0 loss
+  assert.equal(calculateLateralOffsetLoss(0, 9.2, 9.2), 0);
+
+  // Small offset 0.1 µm
+  const loss01 = calculateLateralOffsetLoss(0.1, 9.2, 9.2);
+  assert.ok(loss01 > 0);
+  assert.ok(loss01 < 0.01);
+
+  // Doubling offset quadruples loss (quadratic d^2)
+  const loss02 = calculateLateralOffsetLoss(0.2, 9.2, 9.2);
+  const ratio = loss02 / loss01;
+  assert.ok(Math.abs(ratio - 4.0) < 0.2);
+
+  // Severe offset 1.0 µm
+  const loss10 = calculateLateralOffsetLoss(1.0, 9.2, 9.2);
+  assert.ok(loss10 > 0.15); // > 0.15 dB reject threshold
+});
+
+test('calculateAngularTiltLoss computes cleave angle misalignment with wavelength scaling', async () => {
+  const { calculateAngularTiltLoss } = await import('../form-validation.js');
+
+  // Zero tilt -> 0 loss
+  assert.equal(calculateAngularTiltLoss(0, 9.2, 9.2, 1310), 0);
+
+  // Small tilt 0.25 deg
+  const loss1310 = calculateAngularTiltLoss(0.25, 9.2, 9.2, 1310);
+  assert.ok(loss1310 > 0);
+  assert.ok(loss1310 < 0.03);
+
+  // At longer wavelength (1550nm vs 1310nm), angular tilt loss decreases as 1 / lambda^2
+  const loss1550 = calculateAngularTiltLoss(0.25, 9.2, 9.2, 1550);
+  assert.ok(loss1550 < loss1310);
+
+  // Excessive tilt 2.0 deg
+  const lossHigh = calculateAngularTiltLoss(2.0, 9.2, 9.2, 1310);
+  assert.ok(lossHigh > 0.15); // Out of spec
+});
+
+test('calculateNetCoreOffset distinguishes Core PAS compensation from Fixed V-Groove', async () => {
+  const { calculateNetCoreOffset } = await import('../form-validation.js');
+
+  // With Core PAS: 90% of eccentricity is compensated
+  const pasOffset = calculateNetCoreOffset({
+    leftEccentricityUm: 0.85,
+    rightEccentricityUm: 0.35,
+    splicerType: 'CORE_PAS',
+    residualOffsetUm: 0.10,
+    alignmentAngleDeg: 60
+  });
+
+  // With Fixed V-Groove: full eccentricity vector difference remains
+  const vgrooveOffset = calculateNetCoreOffset({
+    leftEccentricityUm: 0.85,
+    rightEccentricityUm: 0.35,
+    splicerType: 'FIXED_VGROOVE',
+    residualOffsetUm: 0.10,
+    alignmentAngleDeg: 60
+  });
+
+  assert.ok(pasOffset < vgrooveOffset);
+  assert.ok(vgrooveOffset > 0.5);
+  assert.ok(pasOffset < 0.2);
+});
+
+test('determineSpliceQualityVerdict classifies Telcordia GR-765-CORE thresholds', async () => {
+  const { determineSpliceQualityVerdict } = await import('../form-validation.js');
+
+  const gradeA = determineSpliceQualityVerdict(0.021);
+  assert.equal(gradeA.code, 'GRADE_A');
+
+  const gradeB = determineSpliceQualityVerdict(0.065);
+  assert.equal(gradeB.code, 'GRADE_B');
+
+  const gradeC = determineSpliceQualityVerdict(0.125);
+  assert.equal(gradeC.code, 'GRADE_C');
+
+  const reject = determineSpliceQualityVerdict(0.210);
+  assert.equal(reject.code, 'REJECT');
+});
+
+test('evaluateSpliceLoss performs full joint decomposition across presets', async () => {
+  const { evaluateSpliceLoss } = await import('../form-validation.js');
+
+  // Baradari NOC Trunk (Grade A)
+  const baradari = evaluateSpliceLoss({
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G652D',
+    splicerType: 'CORE_PAS',
+    wavelength: '1310',
+    leftEccentricityUm: 0.20,
+    rightEccentricityUm: 0.20,
+    tiltAngleDeg: 0.25,
+    alignmentAngleDeg: 30,
+    residualOffsetUm: 0.08
+  });
+
+  assert.equal(baradari.isIdenticalFibers, true);
+  assert.equal(baradari.lossMfdDb, 0);
+  assert.ok(baradari.totalLossDb <= 0.03);
+  assert.equal(baradari.verdict.code, 'GRADE_A');
+  assert.equal(baradari.isTelcordiaCompliant, true);
+
+  // Dissimilar Fiber Transition: G.655 NZ-DSF to G.652.D
+  const dissimilar = evaluateSpliceLoss({
+    leftFiberType: 'ITU_G655_NZDSF',
+    rightFiberType: 'ITU_G652D',
+    splicerType: 'CORE_PAS',
+    wavelength: '1550',
+    leftEccentricityUm: 0.22,
+    rightEccentricityUm: 0.25,
+    tiltAngleDeg: 0.30
+  });
+
+  assert.equal(dissimilar.isIdenticalFibers, false);
+  assert.ok(dissimilar.lossMfdDb > 0.02);
+  assert.equal(dissimilar.dominantFactor, 'MFD_MISMATCH');
+
+  // High Tilt Defect Splicing
+  const highTilt = evaluateSpliceLoss({
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G652D',
+    splicerType: 'ACTIVE_CLAD',
+    tiltAngleDeg: 1.85
+  });
+
+  assert.ok(highTilt.totalLossDb > 0.15);
+  assert.equal(highTilt.verdict.code, 'REJECT');
+  assert.equal(highTilt.isTelcordiaCompliant, false);
+  assert.equal(highTilt.dominantFactor, 'ANGULAR_TILT');
+});
+
+test('validateSpliceMfdOffset enforces valid types, angles, and eccentricity boundaries', async () => {
+  const { validateSpliceMfdOffset } = await import('../form-validation.js');
+
+  const valid = validateSpliceMfdOffset({
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G657A1',
+    splicerType: 'CORE_PAS',
+    tiltAngleDeg: 0.45,
+    leftEccentricityUm: 0.30,
+    rightEccentricityUm: 0.25
+  });
+  assert.equal(valid.isValid, true);
+  assert.deepEqual(valid.errors, {});
+
+  const badFiber = validateSpliceMfdOffset({
+    leftFiberType: 'UNKNOWN_PLASTIC_FIBER',
+    rightFiberType: 'ITU_G652D',
+    splicerType: 'CORE_PAS',
+    tiltAngleDeg: 0.45
+  });
+  assert.equal(badFiber.isValid, false);
+  assert.ok(badFiber.errors.leftFiberType);
+
+  const badTilt = validateSpliceMfdOffset({
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G652D',
+    splicerType: 'CORE_PAS',
+    tiltAngleDeg: 15.0
+  });
+  assert.equal(badTilt.isValid, false);
+  assert.ok(badTilt.errors.tiltAngleDeg);
+});
+
+test('buildSpliceMfdOffsetRecord constructs structured immutable record with SMFD prefix', async () => {
+  const { buildSpliceMfdOffsetRecord } = await import('../form-validation.js');
+
+  const record = buildSpliceMfdOffsetRecord({
+    customer: {
+      id: 'cust-101',
+      name: 'Tariq Butt',
+      phone: '0301-7654321',
+      zone: 'Vandala Road'
+    },
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G657A2',
+    splicerType: 'ACTIVE_CLAD',
+    wavelength: '1490',
+    tiltAngleDeg: 0.35,
+    technicianName: 'Sajjad Ali',
+    location: 'FAT-09 Pole Mount'
+  });
+
+  assert.ok(record.id.startsWith('SMFD-'));
+  assert.equal(record.customer.name, 'Tariq Butt');
+  assert.equal(record.leftFiberType, 'ITU_G652D');
+  assert.equal(record.rightFiberType, 'ITU_G657A2');
+  assert.ok(record.totalLossDb >= 0);
+  assert.ok(record.createdAt);
+  assert.ok(record.verdict.code);
+});
+
+test('renderSpliceMfdOffsetSvg outputs valid pure-vector SVG markup', async () => {
+  const { evaluateSpliceLoss, renderSpliceMfdOffsetSvg } = await import('../form-validation.js');
+
+  const analysis = evaluateSpliceLoss({
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G657A2',
+    splicerType: 'CORE_PAS',
+    tiltAngleDeg: 0.45
+  });
+
+  const svg = renderSpliceMfdOffsetSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('viewBox="0 0 760 340"'));
+  assert.ok(svg.includes('id="leftFiber"'));
+  assert.ok(svg.includes('id="rightFiber"'));
+  assert.ok(svg.includes('Joint Interface'));
+  assert.ok(svg.includes('α_MFD:'));
+  assert.ok(svg.includes('α_Offset:'));
+  assert.ok(svg.includes('α_Tilt:'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateSpliceMfdOffsetCertHtml produces formal A4 and 80mm thermal POS formats', async () => {
+  const { buildSpliceMfdOffsetRecord, generateSpliceMfdOffsetCertHtml } = await import('../form-validation.js');
+
+  const record = buildSpliceMfdOffsetRecord({
+    customer: { name: 'Chaudhry Akram', phone: '0321-4455667', zone: 'Jia Musa' },
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G657A1',
+    splicerType: 'CORE_PAS',
+    tiltAngleDeg: 0.25,
+    technicianName: 'Engr. Imran Malik',
+    location: 'Jia Musa Commercial Joint #03'
+  });
+
+  // A4 formal accreditation
+  const a4Html = generateSpliceMfdOffsetCertHtml(record, { format: 'A4' });
+  assert.ok(a4Html.includes('FUSION SPLICE CORE GEOMETRY & LOSS ACCREDITATION'));
+  assert.ok(a4Html.includes('SHAHDARA BROADBAND FIBER NETWORK'));
+  assert.ok(a4Html.includes(record.id));
+  assert.ok(a4Html.includes('ITU-T G.650.1 / GR-765-CORE'));
+  assert.ok(a4Html.includes('Chaudhry Akram'));
+  assert.ok(a4Html.includes('Total Modeled Loss'));
+
+  // 80mm POS Thermal Slip
+  const posHtml = generateSpliceMfdOffsetCertHtml(record, { format: 'POS' });
+  assert.ok(posHtml.includes('80mm auto'));
+  assert.ok(posHtml.includes('FUSION SPLICE QA SLIP'));
+  assert.ok(posHtml.includes(record.id));
+  assert.ok(posHtml.includes('α_MFD:'));
+  assert.ok(posHtml.includes('KEEP FOR JOINT RECORDS'));
+});
+
+test('formatSpliceMfdOffsetCertWhatsApp produces bilingual Urdu & English technician dispatch notice', async () => {
+  const { buildSpliceMfdOffsetRecord, formatSpliceMfdOffsetCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildSpliceMfdOffsetRecord({
+    customer: { name: 'Dr. Zahid', zone: 'Baradari' },
+    leftFiberType: 'ITU_G652D',
+    rightFiberType: 'ITU_G652D',
+    splicerType: 'CORE_PAS',
+    tiltAngleDeg: 0.20,
+    technicianName: 'Muhammad Rizwan',
+    location: 'Baradari Feeder FAT #01'
+  });
+
+  const text = formatSpliceMfdOffsetCertWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA FIBER NET - FUSION SPLICE QA CERTIFICATE'));
+  assert.ok(text.includes(record.id));
+  assert.ok(text.includes('Muhammad Rizwan'));
+  assert.ok(text.includes('TOTAL INSERTION LOSS:'));
+  assert.ok(text.includes('اردو رزلٹ:'));
+  assert.ok(text.includes('042-37900000'));
+});
+
+test('generateSpliceMfdOffsetCertsCsv generates compliant RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { buildSpliceMfdOffsetRecord, generateSpliceMfdOffsetCertsCsv } = await import('../form-validation.js');
+
+  const r1 = buildSpliceMfdOffsetRecord({ location: 'Site Alpha', leftFiberType: 'ITU_G652D', rightFiberType: 'ITU_G652D' });
+  const r2 = buildSpliceMfdOffsetRecord({ location: 'Site Beta, with comma', leftFiberType: 'ITU_G652D', rightFiberType: 'ITU_G657A2' });
+
+  const csv = generateSpliceMfdOffsetCertsCsv([r1, r2]);
+  assert.ok(csv.startsWith('\uFEFF')); // UTF-8 BOM
+  assert.ok(csv.includes('Certificate ID,Date,Customer Name'));
+  assert.ok(csv.includes(r1.id));
+  assert.ok(csv.includes('"Site Beta, with comma"')); // RFC-4180 quoting
+});
+
+test('localStorage CRUD operations and calculateSpliceMfdOffsetMetrics function accurately', async () => {
+  const {
+    buildSpliceMfdOffsetRecord,
+    getSavedSpliceMfdOffsetCerts,
+    saveSpliceMfdOffsetCert,
+    updateSpliceMfdOffsetCertStatus,
+    clearSpliceMfdOffsetCerts,
+    calculateSpliceMfdOffsetMetrics
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  // Initially empty
+  assert.deepEqual(getSavedSpliceMfdOffsetCerts(mockStorage), []);
+
+  const r1 = buildSpliceMfdOffsetRecord({ tiltAngleDeg: 0.20 }); // Grade A
+  const r2 = buildSpliceMfdOffsetRecord({ tiltAngleDeg: 1.85 }); // Reject
+
+  assert.equal(saveSpliceMfdOffsetCert(r1, mockStorage), true);
+  assert.equal(saveSpliceMfdOffsetCert(r2, mockStorage), true);
+
+  const saved = getSavedSpliceMfdOffsetCerts(mockStorage);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].id, r2.id); // unshift order
+
+  // Update status
+  const updated = updateSpliceMfdOffsetCertStatus(r1.id, 'RESOLVED_RE_SPLICED', mockStorage);
+  assert.equal(updated, true);
+  const reloaded = getSavedSpliceMfdOffsetCerts(mockStorage);
+  assert.equal(reloaded.find(x => x.id === r1.id).status, 'RESOLVED_RE_SPLICED');
+
+  // Metrics
+  const metrics = calculateSpliceMfdOffsetMetrics(reloaded);
+  assert.equal(metrics.total, 2);
+  assert.ok(metrics.passRatePercent >= 50);
+  assert.ok(metrics.avgLossDb > 0);
+
+  // Clear
+  clearSpliceMfdOffsetCerts(mockStorage);
+  assert.deepEqual(getSavedSpliceMfdOffsetCerts(mockStorage), []);
+});
+
+test('setupSpliceMfdOffsetModal wires full interactive modal lifecycle', async () => {
+  const { setupSpliceMfdOffsetModal } = await import('../form-validation.js');
+
+  function createMockEl(tag = 'div') {
+    const el = {
+      tagName: tag.toUpperCase(),
+      children: [],
+      classList: new Set(),
+      className: '',
+      style: {},
+      value: '',
+      innerHTML: '',
+      textContent: '',
+      attributes: {},
+      listeners: {},
+      addEventListener(evt, fn) {
+        if (!this.listeners[evt]) this.listeners[evt] = [];
+        this.listeners[evt].push(fn);
+      },
+      click() {
+        if (this.listeners.click) this.listeners.click.forEach(fn => fn({ target: this }));
+      },
+      dispatchEvent(evt) {
+        if (this.listeners[evt.type]) this.listeners[evt.type].forEach(fn => fn(evt));
+      },
+      appendChild(child) {
+        this.children.push(child);
+        return child;
+      },
+      querySelector(selector) {
+        return this._childrenMap ? this._childrenMap[selector] || null : null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      setAttribute(k, v) { this.attributes[k] = v; },
+      removeAttribute(k) { delete this.attributes[k]; }
+    };
+    return el;
+  }
+
+  const dialog = createMockEl('dialog');
+  const elements = {
+    '#spliceLeftFiberSelect': createMockEl('select'),
+    '#spliceRightFiberSelect': createMockEl('select'),
+    '#spliceSplicerSelect': createMockEl('select'),
+    '#spliceWavelengthSelect': createMockEl('select'),
+    '#splicePresetSelect': createMockEl('select'),
+    '#spliceTiltInput': createMockEl('input'),
+    '#spliceTiltValBadge': createMockEl('span'),
+    '#spliceLeftEccInput': createMockEl('input'),
+    '#spliceRightEccInput': createMockEl('input'),
+    '#spliceTechnicianInput': createMockEl('input'),
+    '#spliceLocationInput': createMockEl('input'),
+    '#spliceNotesInput': createMockEl('input'),
+    '#spliceSvgContainer': createMockEl('div'),
+    '#spliceTotalLossBadge': createMockEl('div'),
+    '#spliceVerdictPill': createMockEl('div'),
+    '#spliceMfdLossBadge': createMockEl('div'),
+    '#spliceOffsetLossBadge': createMockEl('div'),
+    '#spliceTiltLossBadge': createMockEl('div'),
+    '#spliceHistoryTbody': createMockEl('tbody'),
+    '#spliceHistorySearch': createMockEl('input'),
+    '#spliceHistoryVerdictFilter': createMockEl('select'),
+    '#spliceSaveCertBtn': createMockEl('button'),
+    '#splicePrintA4Btn': createMockEl('button'),
+    '#splicePrintPosBtn': createMockEl('button'),
+    '#spliceExportCsvBtn': createMockEl('button'),
+    '#spliceWhatsAppBtn': createMockEl('button'),
+    '#spliceCloseBtn': createMockEl('button')
+  };
+  dialog._childrenMap = elements;
+
+  const trigger = createMockEl('button');
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toasts = [];
+  const controller = setupSpliceMfdOffsetModal({
+    dialogElement: dialog,
+    triggerButton: trigger,
+    storage: mockStorage,
+    onToast: (msg) => toasts.push(msg)
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.recalculate, 'function');
+  assert.equal(typeof controller.populateCustomer, 'function');
+  assert.equal(typeof controller.renderHistory, 'function');
+
+  // Verify options were populated
+  assert.ok(elements['#spliceLeftFiberSelect'].children.length > 0);
+  assert.ok(elements['#spliceRightFiberSelect'].children.length > 0);
+  assert.ok(elements['#spliceSplicerSelect'].children.length > 0);
+  assert.ok(elements['#splicePresetSelect'].children.length > 0);
+
+  // Recalculate creates SVG
+  const analysis = controller.recalculate();
+  assert.ok(analysis.totalLossDb >= 0);
+  assert.ok(elements['#spliceSvgContainer'].innerHTML.includes('<svg'));
+
+  // Save cert
+  elements['#spliceSaveCertBtn'].click();
+  assert.ok(toasts.some(t => t.includes('Saved Splice Certificate')));
+
+  // History rendered
+  assert.ok(elements['#spliceHistoryTbody'].innerHTML.includes('SMFD-'));
+
+  // Customer population
+  controller.populateCustomer({ name: 'Malik Usman', mohalla: 'Vandala Road' });
+  assert.ok(elements['#spliceLocationInput'].value.includes('Malik Usman'));
+});

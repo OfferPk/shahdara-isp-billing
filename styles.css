@@ -2623,8 +2623,9 @@ html, body {
   margin-bottom: 6px;
 }
 
-/* Thermal POS 80mm Print Mode */
-.thermal-receipt-button {
+/* Thermal POS 80mm & 58mm Print Buttons */
+.thermal-receipt-button,
+.thermal58-receipt-button {
   font-size: 11px;
   padding: 4px 8px;
   background: #f1f5f9;
@@ -2632,10 +2633,63 @@ html, body {
   border-radius: 4px;
   color: #334155;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.thermal-receipt-button:hover {
+.thermal-receipt-button:hover,
+.thermal58-receipt-button:hover {
   background: #e2e8f0;
+}
+
+[data-theme="dark"] .thermal-receipt-button,
+[data-theme="dark"] .thermal58-receipt-button {
+  background: #1e382f;
+  border-color: #2b5245;
+  color: #d1fae5;
+}
+
+[data-theme="dark"] .thermal-receipt-button:hover,
+[data-theme="dark"] .thermal58-receipt-button:hover {
+  background: #284c40;
+}
+
+.receipt-urdu-notice {
+  margin: 16px 0;
+  padding: 10px 14px;
+  background: var(--surface-sunken, #f0fdf4);
+  border: 1px solid var(--line, #bbf7d0);
+  border-radius: 8px;
+  color: var(--ink, #166534);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.receipt-signatures {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 32px;
+  padding-top: 16px;
+  gap: 24px;
+}
+
+.receipt-sig-box {
+  flex: 1;
+  border-top: 1px solid #94a3b8;
+  padding-top: 6px;
+  text-align: center;
+  font-size: 11px;
+  color: #475569;
+}
+
+.receipt-num-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 11px;
+  font-family: monospace;
 }
 
 /* Dark Theme Overrides for Statement Modal */
@@ -2736,14 +2790,17 @@ html, body {
     background: transparent !important;
   }
 
-  body.printing-thermal #receiptPrintArea {
+  /* Thermal POS 80mm Print Mode */
+  body.printing-thermal #receiptPrintArea,
+  body.printing-thermal-80 #receiptPrintArea {
     width: 76mm !important;
     max-width: 76mm !important;
     margin: 0 auto !important;
     padding: 2mm !important;
     background: #fff !important;
   }
-  body.printing-thermal .receipt-sheet.thermal-receipt {
+  body.printing-thermal .receipt-sheet.thermal-receipt,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt {
     width: 76mm !important;
     max-width: 76mm !important;
     padding: 0 !important;
@@ -2753,29 +2810,88 @@ html, body {
     line-height: 1.25 !important;
     color: #000 !important;
   }
-  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-head {
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-head,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt .receipt-head {
     text-align: center !important;
     border-bottom: 1px dashed #000 !important;
     padding-bottom: 4px !important;
     margin-bottom: 6px !important;
   }
-  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-fields {
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-fields,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt .receipt-fields {
     border-bottom: 1px dashed #000 !important;
     padding-bottom: 6px !important;
     margin-bottom: 6px !important;
   }
-  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-field {
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-field,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt .receipt-field {
     display: flex !important;
     justify-content: space-between !important;
     font-size: 11px !important;
   }
   body.printing-thermal .receipt-sheet.thermal-receipt .receipt-reminder,
-  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-terms {
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-terms,
+  body.printing-thermal .receipt-sheet.thermal-receipt .receipt-urdu-notice,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt .receipt-reminder,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt .receipt-terms,
+  body.printing-thermal-80 .receipt-sheet.thermal-receipt .receipt-urdu-notice {
     font-size: 9px !important;
     text-align: center !important;
     border-top: 1px dashed #000 !important;
     padding-top: 4px !important;
     margin-top: 4px !important;
+  }
+
+  /* Thermal POS 58mm Mobile Bluetooth Print Mode */
+  body.printing-thermal-58 #receiptPrintArea {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    margin: 0 auto !important;
+    padding: 1mm !important;
+    background: #fff !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt {
+    width: 48mm !important;
+    max-width: 48mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-size: 9.5px !important;
+    line-height: 1.2 !important;
+    color: #000 !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-head {
+    text-align: center !important;
+    border-bottom: 1px dashed #000 !important;
+    padding-bottom: 3px !important;
+    margin-bottom: 4px !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-head .receipt-brand {
+    font-size: 11px !important;
+    font-weight: 800 !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-head .receipt-subbrand {
+    font-size: 9px !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-fields {
+    border-bottom: 1px dashed #000 !important;
+    padding-bottom: 4px !important;
+    margin-bottom: 4px !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-field {
+    display: flex !important;
+    justify-content: space-between !important;
+    font-size: 9px !important;
+    margin-bottom: 1px !important;
+  }
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-reminder,
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-terms,
+  body.printing-thermal-58 .receipt-sheet.thermal-receipt .receipt-urdu-notice {
+    font-size: 8px !important;
+    text-align: center !important;
+    border-top: 1px dashed #000 !important;
+    padding-top: 3px !important;
+    margin-top: 3px !important;
   }
 }
 

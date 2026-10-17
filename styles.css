@@ -8742,4 +8742,40 @@ html, body {
   color: #e2e8f0;
 }
 
+/* ==========================================================================
+   Area-Wise Collections & Recovery Analysis Modal Styles
+   ========================================================================== */
+.area-collections-modal {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.area-col-row.area-col-mohalla td,
+.area-col-row.area-col-zone td {
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.defaulter-month-select,
+.defaulter-level-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--card-bg, #ffffff);
+  color: var(--text-color, #0f172a);
+}
+
+[data-theme="dark"] .area-collections-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .defaulter-month-select,
+[data-theme="dark"] .defaulter-level-select {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+
 

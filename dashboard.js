@@ -6118,6 +6118,18 @@ export {
   setupTopDefaultersModal
 } from './dashboard-top-defaulters.js';
 
+export {
+  calculateAreaWiseCollections,
+  renderAreaCollectionsSvg,
+  generateAreaCollectionsCsv,
+  generateAreaCollectionsPrintHtml,
+  generateAreaCollectionsBriefing,
+  setupAreaCollectionsModal,
+  resolveCustomerLocation,
+  getAreaDescriptors
+} from './dashboard-area-collections.js';
+
+
 
 
 

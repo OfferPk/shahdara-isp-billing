@@ -164,7 +164,7 @@ function readableLabel(value) {
   };
   return normalizedText(value).split(' ').map(word=>word.split(/([-–—/])/u).map(part=>/^[-–—/]$/u.test(part)?part:readableWord(part)).join('')).join(' ');
 }
-function canonicalLocation(value) {
+export function canonicalLocation(value) {
   const text=normalizedText(value); return text?{key:comparisonKey(text),label:readableLabel(text)}:null;
 }
 export function canonicalPackage(value) {

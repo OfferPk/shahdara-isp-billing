@@ -2955,6 +2955,28 @@
   border-color: #24354a;
 }
 
+/* Carrier BGP/MPLS IP VPN (L3VPN - RFC 4364) Styles */
+.chart-card-l3vpn {
+  background: var(--surface, #ffffff);
+}
+
+.l3vpn-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.l3vpn-svg-diagram {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-l3vpn {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

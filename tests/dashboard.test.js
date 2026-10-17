@@ -16944,6 +16944,202 @@ test('index.html and dashboard.css contain MPLS-TP markup and styles', async () 
   assert.ok(css.includes('.mpls-tp-action-bar'));
 });
 
+test('calculateVrfPrefixCapacity correctly evaluates utilization, headroom, and warning/critical thresholds', async () => {
+  const { calculateVrfPrefixCapacity } = await import('../dashboard.js');
+
+  const normal = calculateVrfPrefixCapacity(150, 500);
+  assert.equal(normal.activePrefixes, 150);
+  assert.equal(normal.maxPrefixes, 500);
+  assert.equal(normal.headroom, 350);
+  assert.equal(normal.utilizationPercent, 30.0);
+  assert.equal(normal.statusLevel, 'nominal');
+
+  const warning = calculateVrfPrefixCapacity(380, 500);
+  assert.equal(warning.headroom, 120);
+  assert.equal(warning.utilizationPercent, 76.0);
+  assert.equal(warning.statusLevel, 'warning');
+
+  const critical = calculateVrfPrefixCapacity(460, 500);
+  assert.equal(critical.headroom, 40);
+  assert.equal(critical.utilizationPercent, 92.0);
+  assert.equal(critical.statusLevel, 'critical');
+
+  const overflow = calculateVrfPrefixCapacity(520, 500);
+  assert.equal(overflow.headroom, 0);
+  assert.equal(overflow.utilizationPercent, 104.0);
+  assert.equal(overflow.statusLevel, 'critical');
+});
+
+test('calculateMplsLabelStack accurately computes 2-level MPLS label overhead and MTU', async () => {
+  const { calculateMplsLabelStack } = await import('../dashboard.js');
+
+  const stack = calculateMplsLabelStack(1001, 20101, 1500);
+  assert.equal(stack.transportLabel, 1001);
+  assert.equal(stack.vpnLabel, 20101);
+  assert.equal(stack.outerLabelBytes, 4);
+  assert.equal(stack.innerLabelBytes, 4);
+  assert.equal(stack.totalMplsOverheadBytes, 8);
+  assert.equal(stack.requiredMtu, 1508);
+  assert.equal(stack.totalFrameBytes, 1526); // 1500 + 14 (Eth) + 8 (MPLS) + 4 (CRC)
+  assert.ok(stack.payloadEfficiencyPercent > 98.0);
+});
+
+test('calculateShamLinkMetrics and evaluateRouteTargetIsolation validate OSPF cost and VRF security', async () => {
+  const { calculateShamLinkMetrics, evaluateRouteTargetIsolation, SHAHDARA_L3VPN_VRFS } = await import('../dashboard.js');
+
+  const optimalSham = calculateShamLinkMetrics(50, 200);
+  assert.equal(optimalSham.isOptimal, true);
+  assert.equal(optimalSham.costMargin, 150);
+  assert.ok(optimalSham.recommendation.includes('properly calibrated'));
+
+  const badSham = calculateShamLinkMetrics(250, 100);
+  assert.equal(badSham.isOptimal, false);
+  assert.ok(badSham.recommendation.includes('Misconfiguration'));
+
+  const vrfHbl = SHAHDARA_L3VPN_VRFS[0]; // vrf-hbl-banking
+  const vrfRavi = SHAHDARA_L3VPN_VRFS[2]; // vrf-ravi-health
+
+  // Normal: HBL and Ravi Health must be completely isolated
+  const normalIsolation = evaluateRouteTargetIsolation(vrfHbl, vrfRavi);
+  assert.equal(normalIsolation.isIsolated, true);
+  assert.equal(normalIsolation.intersectingCommunities.length, 0);
+
+  // Injected leak: simulate HBL importing Ravi Health's RT
+  const leakedIsolation = evaluateRouteTargetIsolation(vrfHbl, vrfRavi, 'target:65001:103');
+  assert.equal(leakedIsolation.isIsolated, false);
+  assert.deepEqual(leakedIsolation.intersectingCommunities, ['target:65001:103']);
+});
+
+test('calculateL3VpnDynamics handles default VRF, prefix injection, route leak, and aggregates', async () => {
+  const {
+    calculateL3VpnDynamics,
+    setL3VpnSelectedVrfId,
+    setL3VpnPrefixInjectionOffset,
+    setL3VpnSimulatedProtocol,
+    setL3VpnSimulatedLeakTarget,
+    resetL3VpnSimState,
+    L3VPN_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetL3VpnSimState();
+  const dynNormal = calculateL3VpnDynamics();
+  assert.equal(dynNormal.selectedVrf.id, 'vrf-hbl-banking');
+  assert.equal(dynNormal.selectedVrf.rd, '65001:101');
+  assert.equal(dynNormal.severity, 'nominal');
+  assert.equal(dynNormal.overallStatus, L3VPN_CONSTANTS.STATUS.OPTIMAL);
+  assert.equal(dynNormal.hasUnauthorizedLeak, false);
+
+  // Test route injection triggering warning and critical thresholds
+  setL3VpnPrefixInjectionOffset(250); // 142 + 250 = 392 / 500 (78.4% -> Warning)
+  const dynWarning = calculateL3VpnDynamics();
+  assert.equal(dynWarning.prefixCapacity.statusLevel, 'warning');
+  assert.equal(dynWarning.severity, 'warning');
+  assert.equal(dynWarning.overallStatus, L3VPN_CONSTANTS.STATUS.WARNING_CAPACITY);
+
+  setL3VpnPrefixInjectionOffset(320); // 142 + 320 = 462 / 500 (92.4% -> Critical)
+  const dynCritical = calculateL3VpnDynamics();
+  assert.equal(dynCritical.prefixCapacity.statusLevel, 'critical');
+  assert.equal(dynCritical.severity, 'critical');
+  assert.equal(dynCritical.overallStatus, L3VPN_CONSTANTS.STATUS.CRITICAL_CAPACITY);
+
+  // Test unauthorized route leak simulation
+  resetL3VpnSimState();
+  setL3VpnSimulatedLeakTarget('target:65001:102'); // Inject CCTV RT into HBL Banking VRF
+  const dynLeak = calculateL3VpnDynamics();
+  assert.equal(dynLeak.hasUnauthorizedLeak, true);
+  assert.equal(dynLeak.severity, 'critical');
+  assert.equal(dynLeak.overallStatus, L3VPN_CONSTANTS.STATUS.LEAK_DETECTED);
+
+  // Test protocol override
+  resetL3VpnSimState();
+  setL3VpnSimulatedProtocol('STATIC_BFD');
+  const dynBfd = calculateL3VpnDynamics();
+  assert.equal(dynBfd.protocolInfo.code, 'STATIC_BFD');
+  assert.equal(dynBfd.protocolInfo.convergenceMs, 30);
+
+  // Check carrier-wide aggregates
+  assert.equal(dynNormal.aggregates.totalVrfs, 5);
+  assert.equal(dynNormal.aggregates.totalSubscribedSites, 108);
+  assert.ok(dynNormal.aggregates.totalMonthlyRevenue >= 22000000);
+  assert.equal(dynNormal.aggregates.totalBandwidthGbps, 15.8);
+  assert.ok(dynNormal.aggregates.totalActivePrefixes > 2000);
+
+  resetL3VpnSimState();
+});
+
+test('calculateL3VpnMetrics computes fast summary metrics', async () => {
+  const { calculateL3VpnMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateL3VpnMetrics();
+  assert.ok(metrics.vrfName.includes('Habib Bank Limited'));
+  assert.equal(metrics.rd, '65001:101');
+  assert.equal(metrics.activePrefixes, 142);
+  assert.equal(metrics.maxPrefixes, 500);
+  assert.equal(metrics.utilizationPercent, 28.4);
+  assert.equal(metrics.severity, 'nominal');
+  assert.ok(metrics.totalMonthlyRevenue >= 22000000);
+  assert.equal(metrics.totalSites, 108);
+});
+
+test('renderL3VpnDiagramSvg generates pure-vector SVG markup for both light and dark mode', async () => {
+  const { renderL3VpnDiagramSvg, calculateL3VpnDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateL3VpnDynamics();
+  const svgLight = renderL3VpnDiagramSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
+  assert.ok(svgLight.includes('class="l3vpn-svg-diagram"'));
+  assert.ok(svgLight.includes('CE-Site A (Branch)'));
+  assert.ok(svgLight.includes('PE-1 (Baradari Hub)'));
+  assert.ok(svgLight.includes('MPLS Core (P Routers)'));
+  assert.ok(svgLight.includes('PE-2 (Begum Kot)'));
+  assert.ok(svgLight.includes('CE-Site B (HQ / DC)'));
+  assert.ok(svgLight.includes('Outer LDP: 1001 (4B)'));
+  assert.ok(svgLight.includes('Inner VPN: 20101 (4B)'));
+  assert.ok(svgLight.includes('PREFIX CAPACITY &amp; HEADROOM'));
+  assert.ok(svgLight.includes('ROUTE TARGET (RT) ISOLATION'));
+
+  const svgDark = renderL3VpnDiagramSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // dark background
+});
+
+test('generateL3VpnReport produces telecommunications carrier audit text', async () => {
+  const { generateL3VpnReport, calculateL3VpnDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateL3VpnDynamics();
+  const report = generateL3VpnReport(dyn);
+  assert.ok(report.includes('SHAHDARA ISP CARRIER BGP/MPLS IP VPN (L3VPN) AUDIT REPORT'));
+  assert.ok(report.includes('RFC 4364 / RFC 4659'));
+  assert.ok(report.includes('Route Distinguisher:  65001:101'));
+  assert.ok(report.includes('Route Target Export:  target:65001:101'));
+  assert.ok(report.includes('Transport Label (LDP): 1001'));
+  assert.ok(report.includes('VPN Label (MP-BGP):   20101'));
+  assert.ok(report.includes('Total Active VRFs:    5'));
+});
+
+test('index.html and dashboard.css contain all necessary L3VPN modal, card, and style bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardL3VpnChart"'));
+  assert.ok(html.includes('id="dashboardOpenL3VpnModalBtn"'));
+  assert.ok(html.includes('id="dashboardL3VpnModal"'));
+  assert.ok(html.includes('id="l3vpnVrfSelect"'));
+  assert.ok(html.includes('id="l3vpnProtoSelect"'));
+  assert.ok(html.includes('id="l3vpnPrefixRange"'));
+  assert.ok(html.includes('id="l3vpnSimLeakSelect"'));
+  assert.ok(html.includes('id="l3vpnResetBtn"'));
+  assert.ok(html.includes('id="dashboardL3VpnModalSvgContainer"'));
+  assert.ok(html.includes('id="l3vpnExportJsonBtn"'));
+  assert.ok(html.includes('id="l3vpnExportCsvBtn"'));
+  assert.ok(html.includes('id="l3vpnCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-l3vpn'));
+  assert.ok(css.includes('.l3vpn-modal-card'));
+  assert.ok(css.includes('.l3vpn-svg-diagram'));
+});
+
 
 
 

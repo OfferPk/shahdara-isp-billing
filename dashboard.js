@@ -5908,6 +5908,31 @@ export {
   setupMplsTpModal
 } from './dashboard-mpls-tp.js';
 
+export {
+  L3VPN_CONSTANTS,
+  SHAHDARA_L3VPN_VRFS,
+  getL3VpnSelectedVrfId,
+  setL3VpnSelectedVrfId,
+  getL3VpnPrefixInjectionOffset,
+  setL3VpnPrefixInjectionOffset,
+  getL3VpnSimulatedProtocol,
+  setL3VpnSimulatedProtocol,
+  getL3VpnSimulatedLeakTarget,
+  setL3VpnSimulatedLeakTarget,
+  resetL3VpnSimState,
+  calculateVrfPrefixCapacity,
+  calculateMplsLabelStack,
+  calculateShamLinkMetrics,
+  evaluateRouteTargetIsolation,
+  calculateL3VpnDynamics,
+  calculateL3VpnMetrics,
+  renderL3VpnDiagramSvg,
+  generateL3VpnReport,
+  exportL3VpnJson,
+  exportL3VpnCsv,
+  setupL3VpnModal
+} from './dashboard-l3vpn.js';
+
 
 
 

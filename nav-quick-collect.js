@@ -893,8 +893,8 @@ export function setupQuickCollectModal({
     }
   });
 
-  // Wire bottom nav Collection tab triggers
-  document.querySelectorAll('[data-mobile-nav="collection"]').forEach(btn => {
+  // Wire bottom nav & More menu Collection tab triggers
+  document.querySelectorAll('[data-mobile-nav="collection"], [data-mobile-more="collection"]').forEach(btn => {
     if (btn.dataset.wiredQuickCollect) return;
     btn.dataset.wiredQuickCollect = 'true';
     btn.addEventListener('click', (e) => {

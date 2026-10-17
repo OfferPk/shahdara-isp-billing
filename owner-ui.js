@@ -201,7 +201,12 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   }));
   document.querySelectorAll('[data-mobile-more]').forEach(button=>button.addEventListener('click',()=>{
     const action=button.dataset.mobileMore;$('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');
-    if(action==='assistant'){switchView('customers');$('#ownerCommandCenter').scrollIntoView({behavior:'smooth',block:'center'});}
+    document.querySelectorAll('[data-mobile-more]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));
+    if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}}
+    else if(action==='bills'||action==='reports'){switchView('reports');renderMonthlyReport();$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='backup'){const p=$('#backupControls');if(p){p.hidden=false;$('#backupControlsToggle')?.setAttribute('aria-expanded','true');p.scrollIntoView({behavior:'smooth',block:'center'});}}
+    else if(action==='assistant'){switchView('customers');$('#ownerCommandCenter').scrollIntoView({behavior:'smooth',block:'center'});}
     else if(action==='alerts'){switchView('reports');$('#smartAlertsPanel').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='recovery'){switchView('reports');$('#duesRecoveryPanel').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='analytics'){switchView('analytics');renderAnalytics();$('#analyticsView').scrollIntoView({behavior:'smooth',block:'start'});}

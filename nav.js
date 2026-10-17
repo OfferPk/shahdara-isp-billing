@@ -6234,3 +6234,18 @@ export {
   setupMobileSlsToneModal
 } from './nav-stabilized-light-source.js';
 
+export {
+  FIBER_TALKSET_STORAGE_KEY,
+  TALKSET_UNITS,
+  TALKSET_SPLITTER_OPTIONS,
+  TALKSET_PRESETS,
+  calculateFiberTalksetMetrics,
+  renderFiberTalksetSvg,
+  formatFiberTalksetWhatsApp,
+  loadFiberTalksetAuditLog,
+  saveFiberTalksetAuditLog,
+  clearFiberTalksetAuditLog,
+  generateFiberTalksetCsv,
+  setupMobileFiberTalksetModal
+} from './nav-fiber-talkset.js';
+

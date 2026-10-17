@@ -309,6 +309,15 @@
             <span class="quick-action-sub">Cash vs Expenses</span>
           </span>
         </button>
+        <button id="quickActionMomGrowth" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">MoM Growth</span>
+            <span class="quick-action-sub">Trajectory &amp; Churn</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -6352,7 +6361,7 @@
         <div class="phase3-chart-grid">
           <figure class="chart-card"><figcaption><h3>Collection trend</h3><p>Actual receipt-date cash alongside service-month bill snapshots; these are different date bases.</p></figcaption><div id="revenueCollectionChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span class="legend-billed">Billed revenue</span><span class="legend-cash">Cash collection</span></p></figure>
           <figure class="chart-card"><figcaption><h3>Pending trend</h3><p>Recorded priced bills less actual receipts and sequential credit through each PKT month-end; current month is through today.</p></figcaption><div id="outstandingChart" class="chart-host" aria-live="polite"></div></figure>
-          <figure class="chart-card"><figcaption><h3>Customer growth</h3><p>New connections from recorded dates; dated active count excludes the undated roster.</p></figcaption><div id="growthChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span class="legend-billed">New connections</span><span class="legend-cash">Dated active count</span></p></figure>
+          <figure class="chart-card"><figcaption><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3>Customer growth</h3><p>New connections from recorded dates; dated active count excludes the undated roster.</p></div><div><button id="openMomGrowthModalBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📈 MoM Growth &amp; Momentum</button></div></div></figcaption><div id="growthChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span class="legend-billed">New connections</span><span class="legend-cash">Dated active count</span></p></figure>
           <figure class="chart-card"><figcaption><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3>Income vs expense</h3><p>Actual cash receipts vs dated expense entries. Provider estimates and inventory book value are excluded.</p></div><div><button id="openPnlModalBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📊 Full P&amp;L Statement Suite</button></div></div></figcaption><div id="incomeExpenseChart" class="chart-host" aria-live="polite"></div><p class="chart-legend"><span id="incomeLegend" class="legend-income">Cash income</span><span id="expenseLegend" class="legend-expense">Recorded expense</span></p></figure>
           <figure class="chart-card"><figcaption><h3>Expense trend</h3><p>Only dated expense entries saved in this device; missing months are not described as proof of zero spending.</p></figcaption><div id="expenseTrendChart" class="chart-host" aria-live="polite"></div></figure>
           <figure class="chart-card"><figcaption><h3>Cash profit trend</h3><p>Actual receipt-date collection minus recorded dated expenses; not accrual or inventory-adjusted profit.</p></figcaption><div id="profitTrendChart" class="chart-host" aria-live="polite"></div></figure>
@@ -19315,6 +19324,112 @@
           <button id="pnlPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
         </div>
         <button id="closePnlSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Month-over-Month Growth & Business Momentum Suite Dialog -->
+  <dialog id="momGrowthModal" class="billing-modal mom-growth-modal" aria-labelledby="momGrowthModalTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">BUSINESS TRACTION &amp; MOMENTUM SUITE</div>
+          <h2 id="momGrowthModalTitle">Month-over-Month (MoM) Growth &amp; Trajectory</h2>
+          <span class="urdu-subtitle">ماہ بہ ماہ کسٹمرز اضافہ، آمدنی میں تبدیلی، اخراجات اور کاروباری رفتار کا مکمل جائزہ</span>
+        </div>
+        <button id="closeMomGrowthModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- KPI Metric Cards Grid -->
+        <div class="mom-kpi-grid">
+          <div class="mom-kpi-card">
+            <span class="mom-kpi-label">Active Subscribers</span>
+            <span id="momKpiSubscribers" class="mom-kpi-value" style="color: #0e5b4d;">0</span>
+            <span id="momKpiSubscribersDelta" class="mom-kpi-delta">+0% MoM</span>
+          </div>
+          <div class="mom-kpi-card">
+            <span class="mom-kpi-label">Billed Revenue</span>
+            <span id="momKpiBilled" class="mom-kpi-value" style="color: #2563eb;">PKR 0</span>
+            <span id="momKpiBilledDelta" class="mom-kpi-delta">+0% MoM</span>
+          </div>
+          <div class="mom-kpi-card">
+            <span class="mom-kpi-label">Cash Collected</span>
+            <span id="momKpiCollected" class="mom-kpi-value" style="color: #10b981;">PKR 0</span>
+            <span id="momKpiCollectedDelta" class="mom-kpi-delta">+0% MoM</span>
+          </div>
+          <div class="mom-kpi-card">
+            <span class="mom-kpi-label">Net Cash Profit</span>
+            <span id="momKpiProfit" class="mom-kpi-value" style="color: #6366f1;">PKR 0</span>
+            <span id="momKpiProfitDelta" class="mom-kpi-delta">+0% MoM</span>
+          </div>
+          <div class="mom-kpi-card mom-kpi-momentum-card">
+            <span class="mom-kpi-label">Business Momentum</span>
+            <span id="momKpiMomentumBadge" class="mom-momentum-pill" style="background: #10b981; color: #fff;">Steady Growth</span>
+            <span class="mom-kpi-sub">Overall ISP Traction</span>
+          </div>
+        </div>
+
+        <!-- Filter Controls Toolbar -->
+        <div class="mom-growth-toolbar" style="margin-top: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div class="defaulter-select-box">
+              <label for="momGrowthMonthSelect" class="sr-only">Evaluation Month</label>
+              <select id="momGrowthMonthSelect" class="defaulter-month-select" aria-label="Select Evaluation Month">
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+            <div id="momGrowthWindowToggle" class="mom-window-toggle" style="display: flex; gap: 4px; font-size: 11px;">
+              <button type="button" class="btn-sm" data-window="3" style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color, #cbd5e1); background: var(--card-bg, #fff); color: var(--text-color, #0f172a); cursor: pointer;">3 Months</button>
+              <button type="button" class="btn-sm active" data-window="6" style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color, #cbd5e1); background: var(--accent, #0e5b4d); color: #fff; cursor: pointer;">6 Months</button>
+              <button type="button" class="btn-sm" data-window="12" style="padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border-color, #cbd5e1); background: var(--card-bg, #fff); color: var(--text-color, #0f172a); cursor: pointer;">12 Months</button>
+            </div>
+          </div>
+          <div class="chart-legend" style="margin: 0; display: flex; gap: 10px; font-size: 11px;">
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #0e5b4d; border-radius: 2px;"></span> Billed</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #10b981; border-radius: 2px;"></span> Cash</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #ef4444; border-radius: 2px;"></span> Expenses</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; background: #6366f1; border-radius: 50%;"></span> Profit</span>
+          </div>
+        </div>
+
+        <!-- SVG Visualizer -->
+        <div id="momGrowthSvgContainer" class="chart-svg-container" style="margin-top: 12px; min-height: 280px; overflow-x: auto;" role="img" aria-label="Month-over-Month growth and trajectory chart">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Multi-Month Comparison Table -->
+        <div class="modal-table-scroll-wrapper" style="margin-top: 16px; max-height: 280px; overflow-y: auto;">
+          <table class="data-table mom-growth-table" style="width: 100%; font-size: 12px;">
+            <thead>
+              <tr>
+                <th style="padding: 8px 10px;">Month</th>
+                <th style="padding: 8px 10px; text-align: right;">Active Subs (MoM Δ)</th>
+                <th style="padding: 8px 10px; text-align: right;">New</th>
+                <th style="padding: 8px 10px; text-align: right;">Churn</th>
+                <th style="padding: 8px 10px; text-align: right;">Billed (PKR)</th>
+                <th style="padding: 8px 10px; text-align: right;">Collected (PKR)</th>
+                <th style="padding: 8px 10px; text-align: right;">Cash MoM %</th>
+                <th style="padding: 8px 10px; text-align: right;">Expenses</th>
+                <th style="padding: 8px 10px; text-align: right;">Net Profit</th>
+                <th style="padding: 8px 10px; text-align: right;">Efficiency %</th>
+              </tr>
+            </thead>
+            <tbody id="momGrowthTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="exportMomGrowthCsvBtn" class="secondary-button" type="button">📥 Export CSV (RFC-4180)</button>
+          <button id="shareMomGrowthWhatsAppBtn" class="secondary-button" type="button">📱 WhatsApp Briefing</button>
+          <button id="printMomGrowthA4Btn" class="secondary-button" type="button">📄 Print A4 Review</button>
+          <button id="printMomGrowthPosBtn" class="secondary-button" type="button">🧾 Thermal 80mm Slip</button>
+        </div>
+        <button id="closeMomGrowthSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

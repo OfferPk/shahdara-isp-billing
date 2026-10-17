@@ -9739,3 +9739,448 @@ test('setupSpliceMfdOffsetModal wires full interactive modal lifecycle', async (
   controller.populateCustomer({ name: 'Malik Usman', mohalla: 'Vandala Road' });
   assert.ok(elements['#spliceLocationInput'].value.includes('Malik Usman'));
 });
+
+// ============================================================================
+// OPTICAL FIBER SPLICE SLEEVE HEAT-SHRINK CURE & TENSILE RETENTION QA TESTS
+// ============================================================================
+
+test('qa-splice-sleeve-cure constants and schema structures are valid', async () => {
+  const {
+    SLEEVE_TYPES,
+    HOT_MELT_ADHESIVES,
+    TUBE_CONDITIONS,
+    SLEEVE_QA_VERDICTS,
+    SHAH_SLEEVE_PRESETS
+  } = await import('../form-validation.js');
+
+  // Sleeve types
+  assert.ok(SLEEVE_TYPES.SLEEVE_60MM_STANDARD);
+  assert.equal(SLEEVE_TYPES.SLEEVE_60MM_STANDARD.nominalLengthMm, 60.0);
+  assert.equal(SLEEVE_TYPES.SLEEVE_60MM_STANDARD.telcordiaMinTensileN, 100);
+
+  assert.ok(SLEEVE_TYPES.SLEEVE_40MM_SLIM);
+  assert.equal(SLEEVE_TYPES.SLEEVE_40MM_SLIM.nominalLengthMm, 40.0);
+
+  assert.ok(SLEEVE_TYPES.SLEEVE_25MM_MICRO);
+  assert.equal(SLEEVE_TYPES.SLEEVE_25MM_MICRO.nominalLengthMm, 25.0);
+
+  assert.ok(SLEEVE_TYPES.SLEEVE_60MM_DIELECTRIC);
+
+  // Hot melt polymers
+  assert.ok(HOT_MELT_ADHESIVES.EVA_STANDARD);
+  assert.equal(HOT_MELT_ADHESIVES.EVA_STANDARD.nominalMeltingPointC, 98);
+
+  assert.ok(HOT_MELT_ADHESIVES.POLYOLEFIN_HIGH_FLOW);
+  assert.equal(HOT_MELT_ADHESIVES.POLYOLEFIN_HIGH_FLOW.nominalMeltingPointC, 115);
+
+  // Verdicts
+  assert.equal(SLEEVE_QA_VERDICTS.OPTIMAL_CERTIFIED.code, 'OPTIMAL');
+  assert.equal(SLEEVE_QA_VERDICTS.COMPLIANT_STANDARD.code, 'COMPLIANT');
+  assert.equal(SLEEVE_QA_VERDICTS.CONDITIONAL_REHEAT.code, 'REHEAT_DUE');
+  assert.equal(SLEEVE_QA_VERDICTS.REJECT_RE_SLEEVE.code, 'RE_SLEEVE');
+
+  // Presets
+  assert.ok(SHAH_SLEEVE_PRESETS.BARADARI_EXCHANGE_60MM);
+  assert.ok(SHAH_SLEEVE_PRESETS.VANDALA_SLIM_40MM);
+  assert.ok(SHAH_SLEEVE_PRESETS.JIA_MUSA_UNDER_CURED);
+  assert.ok(SHAH_SLEEVE_PRESETS.BEGUM_KOT_OVERHEATED_CHAR);
+});
+
+test('calculateCureThermalEnergy evaluates oven thermodynamics and ambient loss compensation', async () => {
+  const { calculateCureThermalEnergy, SLEEVE_TYPES, HOT_MELT_ADHESIVES } = await import('../form-validation.js');
+
+  const sleeve = SLEEVE_TYPES.SLEEVE_60MM_STANDARD;
+  const eva = HOT_MELT_ADHESIVES.EVA_STANDARD;
+
+  // Perfect target parameters at 25°C ambient
+  const nominal = calculateCureThermalEnergy(sleeve.targetCureTempC, sleeve.targetCureTimeSec, 25, sleeve, eva);
+  assert.ok(Math.abs(nominal - 1.0) < 0.05);
+
+  // Under-cure: lower temperature and shortened duration
+  const underCure = calculateCureThermalEnergy(160, 14, 25, sleeve, eva);
+  assert.ok(underCure < 0.60);
+
+  // Over-cure: high temp and prolonged cycle
+  const overCure = calculateCureThermalEnergy(245, 50, 25, sleeve, eva);
+  assert.ok(overCure > 1.50);
+
+  // Cold ambient (e.g. 5°C winter in Shahdara) vs warm ambient (40°C summer)
+  const coldRatio = calculateCureThermalEnergy(200, 28, 5, sleeve, eva);
+  const hotRatio = calculateCureThermalEnergy(200, 28, 40, sleeve, eva);
+  assert.ok(coldRatio < hotRatio);
+});
+
+test('calculateVoidMicroBendPenalty models localized stress over the fusion core junction', async () => {
+  const { calculateVoidMicroBendPenalty } = await import('../form-validation.js');
+
+  // Zero bubble -> 0 dB
+  assert.equal(calculateVoidMicroBendPenalty(0, 0), 0);
+
+  // Bubble directly over splice (dist == 0) produces highest micro-bending
+  const penaltyOverSplice = calculateVoidMicroBendPenalty(0.4, 0);
+  assert.ok(penaltyOverSplice > 0.01);
+
+  // Same bubble located far away at peripheral edge (dist == 15mm) has decayed negligible effect
+  const penaltyPeripheral = calculateVoidMicroBendPenalty(0.4, 15);
+  assert.ok(penaltyPeripheral < penaltyOverSplice);
+  assert.ok(penaltyPeripheral < 0.005);
+});
+
+test('calculateAxialTensileRetention evaluates mechanical pull proof retention under IEC 61073-1', async () => {
+  const { calculateAxialTensileRetention, SLEEVE_TYPES } = await import('../form-validation.js');
+
+  const sleeve = SLEEVE_TYPES.SLEEVE_60MM_STANDARD;
+
+  // Ideal cure with complete meniscus and pristine tube
+  const ideal = calculateAxialTensileRetention(sleeve, 1.0, true, 5);
+  assert.ok(ideal >= 120);
+
+  // Incomplete meniscus seal penalty
+  const noMeniscus = calculateAxialTensileRetention(sleeve, 1.0, false, 5);
+  assert.ok(noMeniscus < ideal);
+  assert.ok(ideal - noMeniscus >= 15);
+
+  // Severely degraded / charred tube condition penalty
+  const charred = calculateAxialTensileRetention(sleeve, 1.0, true, 1);
+  assert.ok(charred < ideal);
+  assert.ok(ideal - charred >= 20);
+});
+
+test('evaluateSleeveCureQa performs comprehensive evaluation across field scenarios', async () => {
+  const { evaluateSleeveCureQa } = await import('../form-validation.js');
+
+  // Baradari Exchange Nominal
+  const baradari = evaluateSleeveCureQa({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    adhesiveType: 'EVA_STANDARD',
+    ovenTempC: 205,
+    cureTimeSec: 28,
+    ambientTempC: 24,
+    bubbleCount: 0,
+    maxBubbleDiamMm: 0,
+    hasMeniscusSeal: true
+  });
+  assert.equal(baradari.verdict.code, 'OPTIMAL');
+  assert.equal(baradari.isTelcordiaCompliant, true);
+  assert.ok(baradari.tensileRetentionN >= 115);
+
+  // Jia Musa Under-Cured Winter Joint
+  const jiaMusa = evaluateSleeveCureQa({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 170,
+    cureTimeSec: 16,
+    ambientTempC: 7,
+    hasMeniscusSeal: false
+  });
+  assert.equal(jiaMusa.verdict.code, 'REHEAT_DUE');
+
+  // Begum Kot Scorched / Charred Reject
+  const begumKot = evaluateSleeveCureQa({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 245,
+    cureTimeSec: 52,
+    outerTubeCondition: 'CHARRED_EMBRITTLED',
+    isBubbleOverSplice: true,
+    maxBubbleDiamMm: 0.85
+  });
+  assert.equal(begumKot.verdict.code, 'RE_SLEEVE');
+  assert.equal(begumKot.isTelcordiaCompliant, false);
+});
+
+test('validateSpliceSleeveCure validates temperature, duration, and bubble inputs', async () => {
+  const { validateSpliceSleeveCure } = await import('../form-validation.js');
+
+  const valid = validateSpliceSleeveCure({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 200,
+    cureTimeSec: 28,
+    maxBubbleDiamMm: 0.2
+  });
+  assert.equal(valid.isValid, true);
+  assert.deepEqual(valid.errors, {});
+
+  const badTemp = validateSpliceSleeveCure({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 350,
+    cureTimeSec: 28
+  });
+  assert.equal(badTemp.isValid, false);
+  assert.ok(badTemp.errors.ovenTempC);
+
+  const badTime = validateSpliceSleeveCure({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 200,
+    cureTimeSec: 120
+  });
+  assert.equal(badTime.isValid, false);
+  assert.ok(badTime.errors.cureTimeSec);
+});
+
+test('buildSpliceSleeveCureRecord constructs structured immutable record with SCUR prefix', async () => {
+  const { buildSpliceSleeveCureRecord } = await import('../form-validation.js');
+
+  const record = buildSpliceSleeveCureRecord({
+    customer: { name: 'Mian Aslam', phone: '0300-1122334', zone: 'Begum Kot' },
+    sleeveType: 'SLEEVE_40MM_SLIM',
+    ovenTempC: 195,
+    cureTimeSec: 18,
+    technicianName: 'Umair Optical Tech',
+    location: 'FAT Pole 14'
+  });
+
+  assert.ok(record.id.startsWith('SCUR-'));
+  assert.equal(record.customer.name, 'Mian Aslam');
+  assert.equal(record.sleeveType, 'SLEEVE_40MM_SLIM');
+  assert.ok(record.tensileRetentionN > 0);
+  assert.ok(record.createdAt);
+  assert.ok(record.verdict.code);
+});
+
+test('renderSpliceSleeveCureSvg produces valid pure-vector SVG markup', async () => {
+  const { evaluateSleeveCureQa, renderSpliceSleeveCureSvg } = await import('../form-validation.js');
+
+  const analysis = evaluateSleeveCureQa({
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 200,
+    cureTimeSec: 28,
+    hasMeniscusSeal: true
+  });
+
+  const svg = renderSpliceSleeveCureSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('viewBox="0 0 760 340"'));
+  assert.ok(svg.includes('id="sleeveAssembly"'));
+  assert.ok(svg.includes('Fusion Joint Core'));
+  assert.ok(svg.includes('Meniscus OK'));
+  assert.ok(svg.includes('Tensile Retention:'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateSpliceSleeveCureCertHtml produces formal A4 and 80mm thermal POS formats', async () => {
+  const { buildSpliceSleeveCureRecord, generateSpliceSleeveCureCertHtml } = await import('../form-validation.js');
+
+  const record = buildSpliceSleeveCureRecord({
+    customer: { name: 'Shahid Mehmood', phone: '0333-8899001', zone: 'Baradari' },
+    sleeveType: 'SLEEVE_60MM_STANDARD',
+    ovenTempC: 205,
+    cureTimeSec: 28,
+    technicianName: 'Engr. Imran Malik',
+    location: 'ODF Rack 01'
+  });
+
+  // A4 formal accreditation
+  const a4Html = generateSpliceSleeveCureCertHtml(record, { format: 'A4' });
+  assert.ok(a4Html.includes('OPTICAL FUSION SPLICE PROTECTOR CURE & TENSILE RETENTION CERTIFICATE'));
+  assert.ok(a4Html.includes('SHAHDARA BROADBAND FIBER NETWORK'));
+  assert.ok(a4Html.includes(record.id));
+  assert.ok(a4Html.includes('Telcordia GR-1380-CORE / IEC 61073-1'));
+  assert.ok(a4Html.includes('Shahid Mehmood'));
+  assert.ok(a4Html.includes('Axial Tensile Proof Retention'));
+
+  // 80mm POS Thermal Slip
+  const posHtml = generateSpliceSleeveCureCertHtml(record, { format: 'POS' });
+  assert.ok(posHtml.includes('80mm auto'));
+  assert.ok(posHtml.includes('SPLICE PROTECTOR CURE SLIP'));
+  assert.ok(posHtml.includes(record.id));
+  assert.ok(posHtml.includes('Tensile Hold:'));
+  assert.ok(posHtml.includes('KEEP IN CLOSURE TRAY'));
+});
+
+test('formatSpliceSleeveCureCertWhatsApp produces bilingual Urdu & English technician dispatch notice', async () => {
+  const { buildSpliceSleeveCureRecord, formatSpliceSleeveCureCertWhatsApp } = await import('../form-validation.js');
+
+  const record = buildSpliceSleeveCureRecord({
+    customer: { name: 'Kashif Ali', zone: 'Vandala Road' },
+    sleeveType: 'SLEEVE_40MM_SLIM',
+    ovenTempC: 195,
+    cureTimeSec: 18,
+    technicianName: 'Tariq Mehmood',
+    location: 'FAT Joint #08'
+  });
+
+  const text = formatSpliceSleeveCureCertWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA FIBER NET - SPLICE SLEEVE CURE QA CERTIFICATE'));
+  assert.ok(text.includes(record.id));
+  assert.ok(text.includes('Tariq Mehmood'));
+  assert.ok(text.includes('Tensile Hold:'));
+  assert.ok(text.includes('اردو رزلٹ:'));
+  assert.ok(text.includes('042-37900000'));
+});
+
+test('generateSpliceSleeveCureCertsCsv generates compliant RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { buildSpliceSleeveCureRecord, generateSpliceSleeveCureCertsCsv } = await import('../form-validation.js');
+
+  const r1 = buildSpliceSleeveCureRecord({ location: 'Exchange ODF', sleeveType: 'SLEEVE_60MM_STANDARD' });
+  const r2 = buildSpliceSleeveCureRecord({ location: 'Pole 12, with comma', sleeveType: 'SLEEVE_40MM_SLIM' });
+
+  const csv = generateSpliceSleeveCureCertsCsv([r1, r2]);
+  assert.ok(csv.startsWith('\uFEFF')); // UTF-8 BOM
+  assert.ok(csv.includes('Certificate ID,Date,Customer Name'));
+  assert.ok(csv.includes(r1.id));
+  assert.ok(csv.includes('"Pole 12, with comma"'));
+});
+
+test('localStorage CRUD operations and calculateSpliceSleeveCureMetrics function accurately', async () => {
+  const {
+    buildSpliceSleeveCureRecord,
+    getSavedSpliceSleeveCureCerts,
+    saveSpliceSleeveCureCert,
+    updateSpliceSleeveCureCertStatus,
+    clearSpliceSleeveCureCerts,
+    calculateSpliceSleeveCureMetrics
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  // Initially empty
+  assert.deepEqual(getSavedSpliceSleeveCureCerts(mockStorage), []);
+
+  const r1 = buildSpliceSleeveCureRecord({ ovenTempC: 205, cureTimeSec: 28 }); // Optimal
+  const r2 = buildSpliceSleeveCureRecord({ outerTubeCondition: 'CHARRED_EMBRITTLED' }); // Reject
+
+  assert.equal(saveSpliceSleeveCureCert(r1, mockStorage), true);
+  assert.equal(saveSpliceSleeveCureCert(r2, mockStorage), true);
+
+  const saved = getSavedSpliceSleeveCureCerts(mockStorage);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].id, r2.id); // unshift order
+
+  // Update status
+  const updated = updateSpliceSleeveCureCertStatus(r1.id, 'PASSED_ARCHIVED', mockStorage);
+  assert.equal(updated, true);
+  const reloaded = getSavedSpliceSleeveCureCerts(mockStorage);
+  assert.equal(reloaded.find(x => x.id === r1.id).status, 'PASSED_ARCHIVED');
+
+  // Metrics
+  const metrics = calculateSpliceSleeveCureMetrics(reloaded);
+  assert.equal(metrics.total, 2);
+  assert.ok(metrics.passRatePercent >= 50);
+  assert.ok(metrics.avgTensileN > 0);
+
+  // Clear
+  clearSpliceSleeveCureCerts(mockStorage);
+  assert.deepEqual(getSavedSpliceSleeveCureCerts(mockStorage), []);
+});
+
+test('setupSpliceSleeveCureModal wires full interactive modal lifecycle', async () => {
+  const { setupSpliceSleeveCureModal } = await import('../form-validation.js');
+
+  function createMockEl(tag = 'div') {
+    const el = {
+      tagName: tag.toUpperCase(),
+      children: [],
+      classList: new Set(),
+      className: '',
+      style: {},
+      value: '',
+      innerHTML: '',
+      textContent: '',
+      attributes: {},
+      listeners: {},
+      addEventListener(evt, fn) {
+        if (!this.listeners[evt]) this.listeners[evt] = [];
+        this.listeners[evt].push(fn);
+      },
+      click() {
+        if (this.listeners.click) this.listeners.click.forEach(fn => fn({ target: this }));
+      },
+      dispatchEvent(evt) {
+        if (this.listeners[evt.type]) this.listeners[evt.type].forEach(fn => fn(evt));
+      },
+      appendChild(child) {
+        this.children.push(child);
+        return child;
+      },
+      querySelector(selector) {
+        return this._childrenMap ? this._childrenMap[selector] || null : null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      setAttribute(k, v) { this.attributes[k] = v; },
+      removeAttribute(k) { delete this.attributes[k]; }
+    };
+    return el;
+  }
+
+  const dialog = createMockEl('dialog');
+  const elements = {
+    '#sleeveTypeSelect': createMockEl('select'),
+    '#sleeveAdhesiveSelect': createMockEl('select'),
+    '#sleevePresetSelect': createMockEl('select'),
+    '#sleeveTempInput': createMockEl('input'),
+    '#sleeveTimeInput': createMockEl('input'),
+    '#sleeveAmbientInput': createMockEl('input'),
+    '#sleeveBubbleCountInput': createMockEl('input'),
+    '#sleeveBubbleDiamInput': createMockEl('input'),
+    '#sleeveOverSpliceSelect': createMockEl('select'),
+    '#sleeveMeniscusSelect': createMockEl('select'),
+    '#sleeveTubeCondSelect': createMockEl('select'),
+    '#sleeveTechnicianInput': createMockEl('input'),
+    '#sleeveLocationInput': createMockEl('input'),
+    '#sleeveNotesInput': createMockEl('input'),
+    '#sleeveSvgContainer': createMockEl('div'),
+    '#sleeveEnergyBadge': createMockEl('div'),
+    '#sleeveVerdictPill': createMockEl('div'),
+    '#sleeveTensileBadge': createMockEl('div'),
+    '#sleeveMicroBendBadge': createMockEl('div'),
+    '#sleeveMeniscusBadge': createMockEl('div'),
+    '#sleeveHistoryTbody': createMockEl('tbody'),
+    '#sleeveHistorySearch': createMockEl('input'),
+    '#sleeveHistoryVerdictFilter': createMockEl('select'),
+    '#sleeveSaveCertBtn': createMockEl('button'),
+    '#sleevePrintA4Btn': createMockEl('button'),
+    '#sleevePrintPosBtn': createMockEl('button'),
+    '#sleeveExportCsvBtn': createMockEl('button'),
+    '#sleeveWhatsAppBtn': createMockEl('button'),
+    '#sleeveCloseBtn': createMockEl('button')
+  };
+  dialog._childrenMap = elements;
+
+  const trigger = createMockEl('button');
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toasts = [];
+  const controller = setupSpliceSleeveCureModal({
+    dialogElement: dialog,
+    triggerButton: trigger,
+    storage: mockStorage,
+    onToast: (msg) => toasts.push(msg)
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.recalculate, 'function');
+  assert.equal(typeof controller.populateCustomer, 'function');
+  assert.equal(typeof controller.renderHistory, 'function');
+
+  // Verify options were populated
+  assert.ok(elements['#sleeveTypeSelect'].children.length > 0);
+  assert.ok(elements['#sleeveAdhesiveSelect'].children.length > 0);
+  assert.ok(elements['#sleevePresetSelect'].children.length > 0);
+
+  // Recalculate creates SVG
+  const analysis = controller.recalculate();
+  assert.ok(analysis.tensileRetentionN >= 0);
+  assert.ok(elements['#sleeveSvgContainer'].innerHTML.includes('<svg'));
+
+  // Save cert
+  elements['#sleeveSaveCertBtn'].click();
+  assert.ok(toasts.some(t => t.includes('Saved Splice Protector Certificate')));
+
+  // History rendered
+  assert.ok(elements['#sleeveHistoryTbody'].innerHTML.includes('SCUR-'));
+
+  // Customer population
+  controller.populateCustomer({ name: 'Chaudhry Akram', mohalla: 'Jia Musa' });
+  assert.ok(elements['#sleeveLocationInput'].value.includes('Chaudhry Akram'));
+});

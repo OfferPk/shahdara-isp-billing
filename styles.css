@@ -8893,5 +8893,62 @@ html, body {
   color: #f1f5f9;
 }
 
+/* ==========================================================================
+   Package Revenue Mix & Portfolio ARPU Suite Modal Styles
+   ========================================================================== */
+.package-revenue-modal {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.pkg-revenue-row td {
+  vertical-align: middle;
+}
+
+.donut-slice {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+
+.donut-slice:hover {
+  opacity: 0.88;
+}
+
+.donut-mode-toggle button {
+  font-family: inherit;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+[data-theme="dark"] .package-revenue-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .package-revenue-table th {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .package-revenue-table td {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .donut-mode-toggle button {
+  border-color: #475569;
+}
+
+@media (max-width: 640px) {
+  .package-revenue-donut-svg {
+    max-width: 100%;
+    height: auto;
+  }
+  .package-revenue-table th,
+  .package-revenue-table td {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+}
+
 
 

@@ -152,5 +152,23 @@ test.describe('Navigation, Views, and Modal Dialogs Verification', () => {
       await closeBtn.click();
       await expect(areaModal).not.toBeVisible();
     }
+
+    // Package Revenue Mix modal
+    const packageRevenueBtn = page.locator('#quickActionPackageRevenue');
+    if (await packageRevenueBtn.isVisible()) {
+      await packageRevenueBtn.click();
+      const pkgModal = page.locator('#packageRevenueModal');
+      await expect(pkgModal).toBeVisible();
+
+      // Check Donut chart container and KPI elements exist
+      const chartContainer = page.locator('#packageRevenueChartContainer');
+      await expect(chartContainer).toBeVisible();
+      const kpiBilled = page.locator('#packageRevenueKpiBilled');
+      await expect(kpiBilled).toBeVisible();
+
+      const closeBtn = page.locator('#closePackageRevenueModalBtn');
+      await closeBtn.click();
+      await expect(pkgModal).not.toBeVisible();
+    }
   });
 });

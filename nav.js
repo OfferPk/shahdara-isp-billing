@@ -6159,3 +6159,20 @@ export {
   setupMobileFiberIdentifierModal
 } from './nav-fiber-identifier.js';
 
+export {
+  MPO_POLARITY_STORAGE_KEY,
+  TIA598_COLOR_CODES,
+  POLARITY_METHODS,
+  CONNECTOR_GENDERS,
+  MPO_PRESETS,
+  calculateMpoChannelMapping,
+  renderMpoPolaritySvg,
+  generateMpoPolarityReport,
+  generateMpoPolarityWhatsAppDispatch,
+  loadMpoPolarityAuditLog,
+  saveMpoPolarityAuditLog,
+  clearMpoPolarityAuditLog,
+  exportMpoPolarityAuditsCsv,
+  setupMobileMpoModal
+} from './nav-mpo-polarity.js';
+

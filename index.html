@@ -950,6 +950,16 @@
             </div>
             <div id="dashboardPolarizationChart" class="chart-svg-container" role="img" aria-label="Carrier Coherent Optical Polarization and DSP Equalizer Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-rocev2">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier RoCEv2 Lossless Fabric, Priority Flow Control (PFC) &amp; ECN Matrix</h4>
+                <p class="chart-subtitle">IEEE 802.1Qbb CoS 3 headroom sizing, RFC 3168 RED/ECN marking, DCQCN rate adaptation &amp; deadlock mitigation</p>
+              </div>
+              <button id="openDashboardRocev2Btn" class="chart-action-link" type="button" aria-haspopup="dialog">RoCEv2 Diagnostics</button>
+            </div>
+            <div id="dashboardRocev2Chart" class="chart-svg-container" role="img" aria-label="Carrier RoCEv2 Lossless Fabric and PFC Chart"></div>
+          </article>
         </div>
 
 
@@ -5778,6 +5788,84 @@
               <button id="polExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="polCopyReportBtn" class="primary-button" type="button">📋 Copy Polarization Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardRocev2Modal" class="dashboard-modal rocev2-modal" aria-labelledby="dashboardRocev2ModalTitle">
+        <div class="dashboard-modal-card rocev2-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardRocev2ModalTitle">Carrier RoCEv2 Lossless Fabric, Priority Flow Control (PFC) &amp; ECN Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">IEEE 802.1Qbb CoS 3 headroom sizing, RFC 3168 RED/ECN marking, DCQCN rate adaptation &amp; deadlock mitigation</p>
+            </div>
+            <button id="dashboardRocev2CloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="rocev2ClusterSelect">Target RoCEv2 Cluster:</label>
+              <select id="rocev2ClusterSelect" class="form-select">
+                <option value="baradari-ai-edge">Baradari Edge Data Center (100GbE AI / Video Caching)</option>
+                <option value="begum-kot-cran">Begum Kot 5G Cloud-RAN Distributed Unit (50GbE O-RAN)</option>
+                <option value="jia-musa-cdn">Jia Musa CDN Edge Cache (100GbE NVMe-oF Storage)</option>
+                <option value="ravi-siphon-core">Ravi Siphon Regional Spine Interconnect (400GbE Lossless Fabric)</option>
+                <option value="gt-road-dr">GT Road Disaster Recovery Colocation (100GbE DR Sync)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rocev2SpeedSelect">Link Transmission Speed:</label>
+              <select id="rocev2SpeedSelect" class="form-select">
+                <option value="25">25 Gbps (Edge Access)</option>
+                <option value="50">50 Gbps (5G Fronthaul)</option>
+                <option value="100">100 Gbps (Spine Fabric)</option>
+                <option value="400">400 Gbps (Metro Ultra-Core)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rocev2KminInput">ECN Marking Threshold K_min (KB):</label>
+              <input type="number" id="rocev2KminInput" min="50" max="400" step="10" value="150" class="form-input" style="width: 100%;">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="rocev2KmaxInput">ECN Marking Threshold K_max (KB):</label>
+              <input type="number" id="rocev2KmaxInput" min="200" max="750" step="10" value="600" class="form-input" style="width: 100%;">
+            </div>
+          </div>
+
+          <div class="mpls-tp-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="rocev2BurstBtn" class="primary-button" type="button">💥 Inject Micro-Burst Congestion</button>
+            <button id="rocev2ResetBtn" class="secondary-button" type="button">🔄 Reset RoCEv2 Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Lossless Fabric Status</span>
+              <span id="rocev2KpiVerdict" class="optical-evm-stat-val optimal">Lossless Fabric Optimal</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Effective Throughput</span>
+              <span id="rocev2KpiRate" class="optical-evm-stat-val optimal">100 Gbps</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Queue Latency &amp; Delay</span>
+              <span id="rocev2KpiLatency" class="optical-evm-stat-val optimal">0.0 µs</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Required Headroom</span>
+              <span id="rocev2KpiHeadroom" class="optical-evm-stat-val optimal">-- KB</span>
+            </div>
+          </div>
+
+          <div id="rocev2SvgContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier RoCEv2 Lossless Fabric and PFC Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="rocev2ExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="rocev2ExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="rocev2CopyReportBtn" class="primary-button" type="button">📋 Copy RoCEv2 Audit Report</button>
           </div>
         </div>
       </dialog>

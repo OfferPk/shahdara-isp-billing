@@ -5773,6 +5773,19 @@ export {
   setupCgnatModal
 } from './dashboard-cgnat.js';
 
+export {
+  OLT_CHASSIS_CONSTANTS,
+  SHAHDARA_OLT_CHASSIS,
+  calculateSplitterLossDb,
+  calculateOltChassisDynamics,
+  calculateOltChassisMetrics,
+  renderOltChassisDiagramSvg,
+  generateOltChassisReport,
+  exportOltChassisJson,
+  exportOltChassisCsv,
+  setupOltChassisModal
+} from './dashboard-olt-chassis.js';
+
 
 
 

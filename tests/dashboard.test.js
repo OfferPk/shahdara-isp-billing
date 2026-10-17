@@ -15141,6 +15141,277 @@ test('index.html and dashboard.css contain Carrier CGNAT markup and styles', asy
   assert.ok(css.includes('.cgnat-svg'));
 });
 
+test('calculateSplitterLossDb computes accurate insertion losses for passive split ratios', async () => {
+  const { calculateSplitterLossDb } = await import('../dashboard.js');
+
+  assert.equal(calculateSplitterLossDb('1:2'), 3.5);
+  assert.equal(calculateSplitterLossDb('1:4'), 7.0);
+  assert.equal(calculateSplitterLossDb('1:8'), 10.3);
+  assert.equal(calculateSplitterLossDb('1:16'), 13.5);
+  assert.equal(calculateSplitterLossDb('1:32'), 16.8);
+  assert.equal(calculateSplitterLossDb('1:64'), 20.2);
+  assert.equal(calculateSplitterLossDb('1:128'), 23.6);
+});
+
+test('calculateOltChassisDynamics accurately models port saturation, link loss, and optical margin', async () => {
+  const { calculateOltChassisDynamics, SHAHDARA_OLT_CHASSIS, OLT_CHASSIS_CONSTANTS } = await import('../dashboard.js');
+
+  const chassis = SHAHDARA_OLT_CHASSIS[0]; // Shahdara Central MA5800-X17 (12 cards, 192 ports)
+  const dynamics = calculateOltChassisDynamics(chassis);
+
+  assert.equal(dynamics.chassisId, 'olt-shahdara-central-x17');
+  assert.equal(dynamics.installedSlots, 12);
+  assert.equal(dynamics.totalPorts, 192);
+  assert.equal(dynamics.maxOnusPerPort, 128); // Combo PON
+  assert.equal(dynamics.maxTotalSubscribers, 192 * 128); // 24,576 ONUs
+  assert.equal(dynamics.activeSubscribers, 8840);
+  assert.equal(dynamics.portSaturationPct, 36.0);
+  assert.ok(dynamics.opticalMarginDb > 5.0);
+  assert.equal(dynamics.status, OLT_CHASSIS_CONSTANTS.STATUS.OPTIMAL);
+  assert.equal(dynamics.penaltyRebatePct, 0);
+
+  // Optical Deficit: GPON chassis with 1:128 split and long distance (18 km)
+  const gponChassis = SHAHDARA_OLT_CHASSIS[1];
+  const deficitDynamics = calculateOltChassisDynamics(gponChassis, {
+    splitRatio: '1:128',
+    dropDistanceKm: 18.0
+  });
+  assert.ok(deficitDynamics.opticalMarginDb < 1.0);
+  assert.equal(deficitDynamics.status, OLT_CHASSIS_CONSTANTS.STATUS.OPTICAL_DEFICIT);
+  assert.equal(deficitDynamics.penaltyRebatePct, 15);
+
+  // Port Saturation: Active subscribers near 100% capacity
+  const satDynamics = calculateOltChassisDynamics(chassis, {
+    activeSubscribers: 24000
+  });
+  assert.ok(satDynamics.portSaturationPct >= 95.0);
+  assert.equal(satDynamics.status, OLT_CHASSIS_CONSTANTS.STATUS.PORT_SATURATED);
+  assert.equal(satDynamics.penaltyRebatePct, 10);
+});
+
+test('calculateOltChassisMetrics aggregates fleet telemetry across all Shahdara OLTs', async () => {
+  const { calculateOltChassisMetrics, SHAHDARA_OLT_CHASSIS } = await import('../dashboard.js');
+
+  const metrics = calculateOltChassisMetrics(SHAHDARA_OLT_CHASSIS);
+
+  assert.equal(metrics.totalChassis, 5);
+  assert.equal(metrics.totalPorts, 432); // 192 + 96 + 80 + 48 + 16
+  assert.equal(metrics.totalSubscribers, 20660);
+  assert.equal(metrics.totalMaxCapacity, 39936);
+  assert.ok(metrics.totalMaxCapacity > 35000);
+  assert.ok(metrics.fleetSaturationPct > 35 && metrics.fleetSaturationPct < 65);
+  assert.ok(metrics.totalPowerWatts > 3000);
+  assert.ok(metrics.totalRevenuePkr > 10000000);
+  assert.equal(metrics.evaluatedChassis.length, 5);
+});
+
+test('renderOltChassisDiagramSvg outputs valid SVG for compact card and expanded modal', async () => {
+  const { calculateOltChassisDynamics, renderOltChassisDiagramSvg, SHAHDARA_OLT_CHASSIS } = await import('../dashboard.js');
+
+  const chassis = SHAHDARA_OLT_CHASSIS[0];
+  const dynamics = calculateOltChassisDynamics(chassis);
+
+  // 1. Compact card SVG
+  const compactSvg = renderOltChassisDiagramSvg(dynamics, { isCompact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('olt-compact-svg'));
+  assert.ok(compactSvg.includes('OPTICAL OLT CHASSIS MATRIX'));
+  assert.ok(compactSvg.includes('CHASSIS PORT SATURATION'));
+  assert.ok(compactSvg.includes('OPTICAL MARGIN'));
+  assert.ok(compactSvg.includes('SPLIT RATIO'));
+
+  // 2. Expanded detailed SVG
+  const expandedSvg = renderOltChassisDiagramSvg(dynamics, { isCompact: false });
+  assert.ok(expandedSvg.includes('<svg'));
+  assert.ok(expandedSvg.includes('olt-expanded-svg'));
+  assert.ok(expandedSvg.includes('MODULAR OLT CHASSIS SLOT ELEVATION'));
+  assert.ok(expandedSvg.includes('ODN PASSIVE SPLITTER &amp; POWER LOSS BUDGET'));
+  assert.ok(expandedSvg.includes('OLT SFP+ (Tx)'));
+  assert.ok(expandedSvg.includes('ODN SPLITTER STAGE'));
+  assert.ok(expandedSvg.includes('SUBSCRIBER ONT (Rx)'));
+});
+
+test('generateOltChassisReport, exportOltChassisJson, and exportOltChassisCsv produce formatted audit exports', async () => {
+  const {
+    calculateOltChassisDynamics,
+    calculateOltChassisMetrics,
+    generateOltChassisReport,
+    exportOltChassisJson,
+    exportOltChassisCsv,
+    SHAHDARA_OLT_CHASSIS
+  } = await import('../dashboard.js');
+
+  const chassis = SHAHDARA_OLT_CHASSIS[0];
+  const dynamics = calculateOltChassisDynamics(chassis);
+  const metrics = calculateOltChassisMetrics(SHAHDARA_OLT_CHASSIS);
+
+  // 1. Text Report
+  const report = generateOltChassisReport(dynamics, metrics);
+  assert.ok(report.includes('SHAHDARA ISP OPTICAL ACCESS (OLT CHASSIS) INFRASTRUCTURE REPORT'));
+  assert.ok(report.includes('ITU-T G.984 / ITU-T G.9807.1 (XGS-PON)'));
+  assert.ok(report.includes(dynamics.chassisName));
+  assert.ok(report.includes('Installed Service Cards:'));
+  assert.ok(report.includes('Net Optical Link Margin:'));
+
+  // 2. JSON Export
+  const json = exportOltChassisJson(dynamics, metrics);
+  const parsed = JSON.parse(json);
+  assert.equal(parsed.currentChassis.chassisId, chassis.id);
+  assert.equal(parsed.fleetSummary.totalChassis, 5);
+  assert.ok(parsed.metadata.standards.includes('ITU-T G.984'));
+
+  // 3. CSV Export
+  const csv = exportOltChassisCsv(dynamics, metrics);
+  assert.ok(csv.includes('Chassis_Code,Chassis_Name,Model'));
+  assert.ok(csv.includes('OLT-CH-01'));
+  assert.ok(csv.includes('Shahdara Town Hall Central CO Modular OLT Chassis'));
+});
+
+test('setupOltChassisModal wires controls, updates SVG charts, and handles user interactions', async () => {
+  const { setupOltChassisModal } = await import('../dashboard.js');
+
+  const listeners = {};
+  function createMockEl(id) {
+    listeners[id] = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      addEventListener(event, fn) {
+        listeners[id][event] = fn;
+      },
+      click() {
+        if (listeners[id].click) listeners[id].click();
+      },
+      input() {
+        if (listeners[id].input) listeners[id].input();
+      },
+      change() {
+        if (listeners[id].change) listeners[id].change();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      },
+      setAttribute(k, v) {
+        if (k === 'open') this.open = true;
+      },
+      removeAttribute(k) {
+        if (k === 'open') this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    dashboardOltChassisModal: createMockEl('dashboardOltChassisModal'),
+    dashboardOpenOltChassisModalBtn: createMockEl('dashboardOpenOltChassisModalBtn'),
+    dashboardOltChassisModalCloseBtn: createMockEl('dashboardOltChassisModalCloseBtn'),
+    dashboardOltChassisChart: createMockEl('dashboardOltChassisChart'),
+    oltChassisSelect: createMockEl('oltChassisSelect'),
+    oltSplitRatioSelect: createMockEl('oltSplitRatioSelect'),
+    oltSlotsSlider: createMockEl('oltSlotsSlider'),
+    oltSlotsLabel: createMockEl('oltSlotsLabel'),
+    oltDistanceSlider: createMockEl('oltDistanceSlider'),
+    oltDistanceLabel: createMockEl('oltDistanceLabel'),
+    oltChassisResetBtn: createMockEl('oltChassisResetBtn'),
+    oltChassisStatStatus: createMockEl('oltChassisStatStatus'),
+    oltChassisStatSaturation: createMockEl('oltChassisStatSaturation'),
+    oltChassisStatMargin: createMockEl('oltChassisStatMargin'),
+    oltChassisStatPorts: createMockEl('oltChassisStatPorts'),
+    oltChassisStatLoss: createMockEl('oltChassisStatLoss'),
+    oltChassisStatPenalty: createMockEl('oltChassisStatPenalty'),
+    oltChassisModalDiagramContainer: createMockEl('oltChassisModalDiagramContainer'),
+    oltChassisFilterAreaBtn: createMockEl('oltChassisFilterAreaBtn'),
+    oltChassisExportJsonBtn: createMockEl('oltChassisExportJsonBtn'),
+    oltChassisExportCsvBtn: createMockEl('oltChassisExportCsvBtn'),
+    oltChassisCopyReportBtn: createMockEl('oltChassisCopyReportBtn')
+  };
+
+  elements.oltChassisSelect.value = 'olt-shahdara-central-x17';
+  elements.oltSplitRatioSelect.value = '1:64';
+  elements.oltSlotsSlider.value = '12';
+  elements.oltDistanceSlider.value = '5.4';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupOltChassisModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardOltChassisModal.open, true);
+  assert.ok(elements.oltChassisModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardOltChassisChart.innerHTML.includes('<svg'));
+
+  // Test slot slider adjustment
+  elements.oltSlotsSlider.value = '15';
+  elements.oltSlotsSlider.input();
+  assert.ok(elements.oltSlotsLabel.textContent.includes('15 / 17'));
+
+  // Test split ratio change
+  elements.oltSplitRatioSelect.value = '1:32';
+  elements.oltSplitRatioSelect.change();
+
+  // Test reset
+  elements.oltChassisResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.oltChassisExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('clipboard'));
+  elements.oltChassisExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('clipboard'));
+  elements.oltChassisCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.oltChassisFilterAreaBtn.click();
+  assert.equal(filterArea, 'Shahdara Town');
+
+  controller.close();
+  assert.equal(elements.dashboardOltChassisModal.open, false);
+});
+
+test('index.html and dashboard.css contain Optical OLT Chassis markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-olt-chassis'));
+  assert.ok(html.includes('id="dashboardOltChassisChart"'));
+  assert.ok(html.includes('id="dashboardOpenOltChassisModalBtn"'));
+  assert.ok(html.includes('id="dashboardOltChassisModal"'));
+  assert.ok(html.includes('id="oltChassisSelect"'));
+  assert.ok(html.includes('id="oltSplitRatioSelect"'));
+  assert.ok(html.includes('id="oltSlotsSlider"'));
+  assert.ok(html.includes('id="oltDistanceSlider"'));
+  assert.ok(html.includes('id="oltChassisResetBtn"'));
+  assert.ok(html.includes('id="oltChassisModalDiagramContainer"'));
+  assert.ok(html.includes('id="oltChassisExportJsonBtn"'));
+  assert.ok(html.includes('id="oltChassisExportCsvBtn"'));
+  assert.ok(html.includes('id="oltChassisCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-olt-chassis'));
+  assert.ok(css.includes('.olt-chassis-modal-card'));
+  assert.ok(css.includes('.olt-chassis-svg'));
+});
+
 
 
 

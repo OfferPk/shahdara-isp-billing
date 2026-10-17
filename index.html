@@ -840,6 +840,16 @@
             </div>
             <div id="dashboardCgnatChart" class="chart-svg-container" role="img" aria-label="Carrier Grade NAT Port Block Allocation and Session Concurrency Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-olt-chassis">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Optical OLT Chassis (ITU-T G.984 / G.9807.1) Capacity Matrix</h4>
+                <p class="chart-subtitle">Modular line-card slots, 16P PON density, cascaded PLC splitter optical budget &amp; ONT margin telemetry</p>
+              </div>
+              <button id="dashboardOpenOltChassisModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OLT Chassis Diagnostics</button>
+            </div>
+            <div id="dashboardOltChassisChart" class="chart-svg-container" role="img" aria-label="Optical OLT Chassis Line Card Slot Elevation and Splitter Link Budget Chart"></div>
+          </article>
         </div>
 
 
@@ -4732,6 +4742,92 @@
               <button id="cgnatExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="cgnatCopyReportBtn" class="primary-button" type="button">📋 Copy CGNAT Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardOltChassisModal" class="dashboard-modal olt-chassis-modal" aria-labelledby="dashboardOltChassisModalTitle">
+        <div class="dashboard-modal-card olt-chassis-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardOltChassisModalTitle">Optical OLT Chassis &amp; Splitter Capacity Diagnostics</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">High-density line-card slot telemetry, cascaded ODN splitter loss &amp; ONT receiver sensitivity margins</p>
+            </div>
+            <button id="dashboardOltChassisModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="oltChassisSelect">Target OLT Chassis:</label>
+              <select id="oltChassisSelect" class="form-select">
+                <option value="olt-shahdara-central-x17">Shahdara Central CO (MA5800-X17, 12 Cards, 192P)</option>
+                <option value="olt-begum-kot-x7">Begum Kot Industrial Ring (ZTE C600, 6 Cards, 96P)</option>
+                <option value="olt-baradari-hub-x7">Baradari Hub (MA5800-X7, 5 Cards, 80P)</option>
+                <option value="olt-vandala-compact">Vandala Compact Access (ISAM FX-4, 3 Cards, 48P)</option>
+                <option value="olt-ravi-siphon-micro">Ravi Siphon Remote Hardened (MA5801, 16P Fixed)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="oltSplitRatioSelect">Cascaded Split Ratio:</label>
+              <select id="oltSplitRatioSelect" class="form-select">
+                <option value="1:16">1:16 Split (13.5 dB Loss)</option>
+                <option value="1:32">1:32 Split (16.8 dB Loss)</option>
+                <option value="1:64" selected>1:64 Split (20.2 dB Loss, Standard)</option>
+                <option value="1:128">1:128 Split (23.6 dB Loss, High-Density)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="oltSlotsSlider">Installed Line Cards: <span id="oltSlotsLabel" class="sim-val-pill">12 / 17 slots</span></label>
+              <input type="range" id="oltSlotsSlider" min="1" max="17" step="1" value="12" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="oltDistanceSlider">Drop Distance: <span id="oltDistanceLabel" class="sim-val-pill">5.4 km</span></label>
+              <input type="range" id="oltDistanceSlider" min="1.0" max="20.0" step="0.5" value="5.4" class="otdr-slider">
+            </div>
+          </div>
+
+          <div class="olt-chassis-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="oltChassisResetBtn" class="secondary-button" type="button">🔄 Reset Chassis Baseline</button>
+          </div>
+
+          <div class="sim-kpi-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Chassis Status</span>
+              <span id="oltChassisStatStatus" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Optimal Margin</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Port Saturation</span>
+              <span id="oltChassisStatSaturation" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">36.0% (8,840 Subs)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Optical Link Margin</span>
+              <span id="oltChassisStatMargin" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">+9.54 dB</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Installed Ports</span>
+              <span id="oltChassisStatPorts" class="ltv-kpi-val" style="color: #a78bfa; font-size: 1.05rem;">192 Ports (12 Slots)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Total Link Loss</span>
+              <span id="oltChassisStatLoss" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">23.56 dB</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">SLA Penalty Risk</span>
+              <span id="oltChassisStatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0% (PKR 0)</span>
+            </div>
+          </div>
+
+          <div id="oltChassisModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Optical Line Terminal Chassis Hardware Architecture and Link Loss Budget"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="oltChassisFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="oltChassisExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="oltChassisExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="oltChassisCopyReportBtn" class="primary-button" type="button">📋 Copy OLT Audit Report</button>
           </div>
         </div>
       </dialog>

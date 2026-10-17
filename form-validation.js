@@ -2689,6 +2689,12 @@ export const ADJUSTMENT_CATEGORIES = Object.freeze({
     labelUrdu: 'منیجر رعایت',
     defaultReason: 'Special administrative concession'
   },
+  prorated_package_change: {
+    id: 'prorated_package_change',
+    label: 'Mid-Month Package Change Pro-Rata',
+    labelUrdu: 'درمیانی ایام پیکج تبدیلی ایڈجسٹمنٹ',
+    defaultReason: 'Mid-cycle package transition proration adjustment'
+  },
   custom: {
     id: 'custom',
     label: 'Other Account Ledger Adjustment',
@@ -7950,10 +7956,13 @@ export function calculatePlanMigrationProration(currentRate, targetRate, effecti
 
   // Unearned old plan credit for remaining days
   const oldPlanCredit = Math.round((cRate / daysInMonth) * daysRemaining);
+  // Cost accrued on old plan for elapsed days
+  const oldPlanCostElapsed = Math.round((cRate / daysInMonth) * daysElapsed);
   // Prorated new plan charge for remaining days
   const newPlanCharge = Math.round((tRate / daysInMonth) * daysRemaining);
 
   const netAdjustment = newPlanCharge - oldPlanCredit;
+  const proRatedCurrentBill = oldPlanCostElapsed + newPlanCharge;
   const mrrDelta = tRate - cRate;
 
   let actionLabel = 'Lateral Exchange';
@@ -7973,8 +7982,10 @@ export function calculatePlanMigrationProration(currentRate, targetRate, effecti
     dailyOldRate,
     dailyNewRate,
     oldPlanCredit,
+    oldPlanCostElapsed,
     newPlanCharge,
     netAdjustment,
+    proRatedCurrentBill,
     mrrDelta,
     actionLabel
   };
@@ -8096,6 +8107,7 @@ export function buildPlanMigrationRecord(data = {}) {
     proration,
     compatibility,
     netAdjustment: proration.netAdjustment,
+    proRatedBillAmount: proration.proRatedCurrentBill,
     mrrDelta: proration.mrrDelta,
     status: data.status || MIGRATION_STATUSES.COMPLETED,
     notes: String(data.notes || '').trim(),
@@ -8605,6 +8617,11 @@ export function setupPlanMigrationModal(options = {}) {
       netDueVal.style.color = proration.netAdjustment > 0 ? '#b91c1c' : (proration.netAdjustment < 0 ? '#047857' : 'inherit');
     }
 
+    const proratedBillVal = document.getElementById('migProratedBillVal');
+    if (proratedBillVal) {
+      proratedBillVal.textContent = `PKR ${proration.proRatedCurrentBill.toLocaleString()}`;
+    }
+
     if (mrrDeltaVal) {
       const sign = proration.mrrDelta > 0 ? '+' : '';
       mrrDeltaVal.textContent = `${sign}PKR ${proration.mrrDelta.toLocaleString()}/mo`;
@@ -8617,9 +8634,13 @@ export function setupPlanMigrationModal(options = {}) {
           <span>Billing Month Length: <strong>${proration.daysInMonth} Days</strong></span>
           <span>Effective Day: <strong>Day ${proration.effectiveDay}</strong></span>
         </div>
-        <div style="display:flex; justify-content:space-between; font-size:11px;">
-          <span>Days on Old Plan: <strong>${proration.daysElapsed} days</strong> (Cr: PKR ${proration.oldPlanCredit.toLocaleString()})</span>
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-size:11px;">
+          <span>Days on Old Plan: <strong>${proration.daysElapsed} days</strong> (Cost: PKR ${(proration.oldPlanCostElapsed || (curRate - proration.oldPlanCredit)).toLocaleString()})</span>
           <span>Days on New Plan: <strong>${proration.daysRemaining} days</strong> (Chg: PKR ${proration.newPlanCharge.toLocaleString()})</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; border-top:1px dashed #cbd5e1; padding-top:4px;">
+          <span>Current-Month Pro-Rated Bill: <strong style="color:var(--brand-teal, #0e5b4d);">PKR ${proration.proRatedCurrentBill.toLocaleString()}</strong></span>
+          <span>Net Adjustment: <strong>${proration.netAdjustment >= 0 ? '+' : ''}PKR ${proration.netAdjustment.toLocaleString()}</strong></span>
         </div>
       `;
     }

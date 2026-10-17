@@ -5733,6 +5733,19 @@ export {
   setupBfdModal
 } from './dashboard-bfd.js';
 
+export {
+  VPLS_CONSTANTS,
+  SHAHDARA_VPLS_NETWORKS,
+  calculateVplsDynamics,
+  calculateVplsMetrics,
+  renderVplsDiagramSvg,
+  generateVplsReport,
+  exportVplsJson,
+  exportVplsCsv,
+  setupVplsModal
+} from './dashboard-vpls.js';
+
+
 
 
 

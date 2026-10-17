@@ -14262,6 +14262,301 @@ test('index.html and dashboard.css contain Carrier BFD markup and styles', async
   assert.ok(css.includes('.bfd-svg'));
 });
 
+// Carrier MPLS VPLS (Virtual Private LAN Service - RFC 4761 / RFC 4762) Tests
+test('VPLS_CONSTANTS and SHAHDARA_VPLS_NETWORKS provide accurate protocol configuration', async () => {
+  const { VPLS_CONSTANTS, SHAHDARA_VPLS_NETWORKS } = await import('../dashboard.js');
+
+  assert.equal(VPLS_CONSTANTS.DEFAULT_MAC_AGING_SEC, 300);
+  assert.equal(VPLS_CONSTANTS.DEFAULT_SPLIT_HORIZON, true);
+  assert.equal(VPLS_CONSTANTS.DEFAULT_MAC_FLAP_THRESHOLD, 5);
+  assert.equal(VPLS_CONSTANTS.STATES, undefined);
+  assert.equal(VPLS_CONSTANTS.STATUS.OPTIMAL, 'Optimal');
+
+  assert.equal(SHAHDARA_VPLS_NETWORKS.length, 5);
+  const civic = SHAHDARA_VPLS_NETWORKS.find(n => n.id === 'shahdara-civic-mesh');
+  assert.ok(civic);
+  assert.equal(civic.peNodes.length, 4);
+  assert.equal(civic.maxMacEntries, 8192);
+  assert.equal(civic.bumRateLimitMbps, 20);
+
+  const banking = SHAHDARA_VPLS_NETWORKS.find(n => n.id === 'banking-atm-vpls');
+  assert.ok(banking);
+  assert.equal(banking.peNodes.length, 3);
+  assert.ok(banking.signaling.includes('RFC 4762'));
+});
+
+test('calculateVplsDynamics correctly computes full-mesh PWs, MAC utilization, and BUM replication', async () => {
+  const { calculateVplsDynamics, SHAHDARA_VPLS_NETWORKS, VPLS_CONSTANTS } = await import('../dashboard.js');
+
+  const civic = SHAHDARA_VPLS_NETWORKS[0]; // 4 PEs
+  const dynamics = calculateVplsDynamics(civic);
+
+  // Full-mesh PWs: 4*(4-1)/2 = 6 PWs
+  assert.equal(dynamics.peCount, 4);
+  assert.equal(dynamics.fullMeshPwCount, 6);
+  assert.equal(dynamics.splitHorizonEnforced, true);
+  assert.equal(dynamics.table.maxMacEntries, 8192);
+  assert.equal(dynamics.table.macUtilizationPct, 28.6); // 2340 / 8192 * 100
+  assert.equal(dynamics.table.isMacTableOverflow, false);
+
+  // BUM Replication: 3 remote PEs * 10 Mbps = 30 Mbps raw load
+  assert.equal(dynamics.replication.remotePeCount, 3);
+  assert.equal(dynamics.replication.rawReplicationLoadMbps, 30);
+  assert.equal(dynamics.replication.isBumPolicerActive, true); // 30 > 20 limit
+  assert.equal(dynamics.replication.passedBumMbps, 20);
+  assert.equal(dynamics.replication.droppedBumMbps, 10);
+
+  // Loop stability
+  assert.equal(dynamics.stability.isLoopDetected, false);
+  assert.equal(dynamics.status, VPLS_CONSTANTS.STATUS.DEGRADED); // due to bum policer drop
+});
+
+test('calculateVplsDynamics accurately detects bridge loops and flap dampening', async () => {
+  const { calculateVplsDynamics, SHAHDARA_VPLS_NETWORKS, VPLS_CONSTANTS } = await import('../dashboard.js');
+
+  const banking = SHAHDARA_VPLS_NETWORKS[1]; // 3 PEs
+
+  // 1. Split-Horizon Disabled creates immediate bridge loop
+  const loopDynamics = calculateVplsDynamics(banking, {
+    splitHorizonEnforced: false
+  });
+  assert.equal(loopDynamics.stability.isLoopDetected, true);
+  assert.ok(loopDynamics.stability.loopRiskLevel.includes('Catastrophic'));
+  assert.equal(loopDynamics.status, VPLS_CONSTANTS.STATUS.CRITICAL);
+  assert.equal(loopDynamics.penaltyRebatePct, 25);
+  assert.ok(loopDynamics.penaltyPkr > 0);
+
+  // 2. High MAC flap rate triggers flap dampening
+  const flapDynamics = calculateVplsDynamics(banking, {
+    injectedMacFlapRate: 8
+  });
+  assert.equal(flapDynamics.stability.flapDampeningTriggered, true);
+  assert.equal(flapDynamics.status, VPLS_CONSTANTS.STATUS.CRITICAL);
+});
+
+test('calculateVplsMetrics aggregates telemetry across all Shahdara VPLS networks', async () => {
+  const { calculateVplsMetrics, SHAHDARA_VPLS_NETWORKS } = await import('../dashboard.js');
+
+  const metrics = calculateVplsMetrics(SHAHDARA_VPLS_NETWORKS);
+
+  assert.equal(metrics.totalNetworks, 5);
+  // Mesh PWs: 6 + 3 + 3 + 3 + 6 = 21 PWs
+  assert.equal(metrics.totalMeshPws, 21);
+  assert.ok(metrics.totalLearnedMacs >= 10000);
+  assert.ok(metrics.totalRevenuePkr >= 6000000);
+  assert.ok(metrics.totalSubscribers >= 1800);
+  assert.ok(metrics.totalBumLoadMbps > 0);
+  assert.equal(metrics.loopIncidentsCount, 0);
+});
+
+test('renderVplsDiagramSvg outputs valid vector graphics for compact and expanded views', async () => {
+  const { calculateVplsDynamics, renderVplsDiagramSvg, SHAHDARA_VPLS_NETWORKS } = await import('../dashboard.js');
+
+  const civic = SHAHDARA_VPLS_NETWORKS[0];
+  const dynamics = calculateVplsDynamics(civic);
+
+  // 1. Compact card SVG
+  const compactSvg = renderVplsDiagramSvg(dynamics, { isCompact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('vpls-compact-svg'));
+  assert.ok(compactSvg.includes('VPLS STATUS'));
+  assert.ok(compactSvg.includes('MAC TABLE UTIL'));
+  assert.ok(compactSvg.includes('BUM INGRESS REPL'));
+  assert.ok(compactSvg.includes('SPLIT-HORIZON'));
+
+  // 2. Expanded detailed SVG with PE circles and split-horizon shield
+  const expandedSvg = renderVplsDiagramSvg(dynamics, { isCompact: false });
+  assert.ok(expandedSvg.includes('<svg'));
+  assert.ok(expandedSvg.includes('vpls-expanded-svg'));
+  assert.ok(expandedSvg.includes('SPLIT-H'));
+  assert.ok(expandedSvg.includes('FULL-MESH PWs'));
+  assert.ok(expandedSvg.includes('MAC TABLE OCCUPANCY'));
+  assert.ok(expandedSvg.includes('BUM REPLICATION'));
+});
+
+test('generateVplsReport, exportVplsJson, and exportVplsCsv produce formatted telemetry exports', async () => {
+  const {
+    calculateVplsDynamics,
+    calculateVplsMetrics,
+    generateVplsReport,
+    exportVplsJson,
+    exportVplsCsv,
+    SHAHDARA_VPLS_NETWORKS
+  } = await import('../dashboard.js');
+
+  const civic = SHAHDARA_VPLS_NETWORKS[0];
+  const dynamics = calculateVplsDynamics(civic);
+  const metrics = calculateVplsMetrics(SHAHDARA_VPLS_NETWORKS);
+
+  // 1. Text Report
+  const report = generateVplsReport(dynamics, metrics);
+  assert.ok(report.includes('SHAHDARA ISP METRO FIBER - CARRIER VPLS L2VPN AUDIT REPORT'));
+  assert.ok(report.includes('1. VPLS NETWORK IDENTITY & TOPOLOGY'));
+  assert.ok(report.includes('2. MAC ADDRESS LEARNING & TABLE UTILIZATION'));
+  assert.ok(report.includes('3. BUM (BROADCAST / UNKNOWN / MULTICAST) REPLICATION DYNAMICS'));
+  assert.ok(report.includes('4. SPLIT-HORIZON LOOP PREVENTION VERDICT'));
+  assert.ok(report.includes('6. SHAHDARA METRO NETWORK VPLS AGGREGATE SUMMARY'));
+
+  // 2. JSON
+  const jsonStr = exportVplsJson(dynamics, metrics);
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.exportedAt);
+  assert.equal(parsed.dynamics.network.id, 'shahdara-civic-mesh');
+  assert.equal(parsed.allMetrics.totalNetworks, 5);
+
+  // 3. CSV
+  const csvStr = exportVplsCsv(dynamics, metrics);
+  assert.ok(csvStr.includes('VPLS ID,Instance ID,Network Name,Signaling,PE Count,Mesh PWs'));
+  assert.ok(csvStr.includes('"shahdara-civic-mesh"'));
+  assert.ok(csvStr.includes('\r\n'));
+});
+
+test('setupVplsModal binds DOM controls, sliders, split-horizon toggle, reset, and exports', async () => {
+  const { setupVplsModal } = await import('../dashboard.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      textContent: '',
+      innerHTML: '',
+      open: false,
+      style: {},
+      addEventListener(evt, fn) {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      input() {
+        if (listeners['input']) listeners['input'].forEach(fn => fn({ type: 'input' }));
+      },
+      change() {
+        if (listeners['change']) listeners['change'].forEach(fn => fn({ type: 'change' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; }
+    };
+  }
+
+  const elements = {
+    dashboardVplsModal: createMockEl('dashboardVplsModal'),
+    dashboardOpenVplsModalBtn: createMockEl('dashboardOpenVplsModalBtn'),
+    dashboardVplsModalCloseBtn: createMockEl('dashboardVplsModalCloseBtn'),
+    dashboardVplsChart: createMockEl('dashboardVplsChart'),
+    vplsNetworkSelect: createMockEl('vplsNetworkSelect'),
+    vplsMacSlider: createMockEl('vplsMacSlider'),
+    vplsMacLabel: createMockEl('vplsMacLabel'),
+    vplsAgingSlider: createMockEl('vplsAgingSlider'),
+    vplsAgingLabel: createMockEl('vplsAgingLabel'),
+    vplsBumSlider: createMockEl('vplsBumSlider'),
+    vplsBumLabel: createMockEl('vplsBumLabel'),
+    vplsFlapSlider: createMockEl('vplsFlapSlider'),
+    vplsFlapLabel: createMockEl('vplsFlapLabel'),
+    vplsSplitHorizonCheck: createMockEl('vplsSplitHorizonCheck'),
+    vplsResetBtn: createMockEl('vplsResetBtn'),
+    vplsStatStatus: createMockEl('vplsStatStatus'),
+    vplsStatMesh: createMockEl('vplsStatMesh'),
+    vplsStatMacUtil: createMockEl('vplsStatMacUtil'),
+    vplsStatBum: createMockEl('vplsStatBum'),
+    vplsStatFlap: createMockEl('vplsStatFlap'),
+    vplsStatPenalty: createMockEl('vplsStatPenalty'),
+    vplsModalDiagramContainer: createMockEl('vplsModalDiagramContainer'),
+    vplsFilterAreaBtn: createMockEl('vplsFilterAreaBtn'),
+    vplsExportJsonBtn: createMockEl('vplsExportJsonBtn'),
+    vplsExportCsvBtn: createMockEl('vplsExportCsvBtn'),
+    vplsCopyReportBtn: createMockEl('vplsCopyReportBtn')
+  };
+
+  elements.vplsNetworkSelect.value = 'shahdara-civic-mesh';
+  elements.vplsMacSlider.value = '2340';
+  elements.vplsAgingSlider.value = '300';
+  elements.vplsBumSlider.value = '10';
+  elements.vplsFlapSlider.value = '0';
+  elements.vplsSplitHorizonCheck.checked = true;
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupVplsModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardVplsModal.open, true);
+  assert.ok(elements.vplsModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardVplsChart.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.vplsMacSlider.value = '4500';
+  elements.vplsMacSlider.input();
+  assert.ok(elements.vplsMacLabel.textContent.includes('4500'));
+
+  // Test split horizon toggle
+  elements.vplsSplitHorizonCheck.checked = false;
+  elements.vplsSplitHorizonCheck.change();
+
+  // Test reset
+  elements.vplsResetBtn.click();
+  assert.ok(toastMsg.includes('reset to standard baseline'));
+
+  // Test export buttons
+  elements.vplsExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('clipboard'));
+  elements.vplsExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('clipboard'));
+  elements.vplsCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.vplsFilterAreaBtn.click();
+  assert.equal(filterArea, 'Shahdara Town');
+
+  controller.close();
+  assert.equal(elements.dashboardVplsModal.open, false);
+});
+
+test('index.html and dashboard.css contain Carrier VPLS markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-vpls'));
+  assert.ok(html.includes('id="dashboardVplsChart"'));
+  assert.ok(html.includes('id="dashboardOpenVplsModalBtn"'));
+  assert.ok(html.includes('id="dashboardVplsModal"'));
+  assert.ok(html.includes('id="vplsNetworkSelect"'));
+  assert.ok(html.includes('id="vplsMacSlider"'));
+  assert.ok(html.includes('id="vplsAgingSlider"'));
+  assert.ok(html.includes('id="vplsBumSlider"'));
+  assert.ok(html.includes('id="vplsFlapSlider"'));
+  assert.ok(html.includes('id="vplsSplitHorizonCheck"'));
+  assert.ok(html.includes('id="vplsResetBtn"'));
+  assert.ok(html.includes('id="vplsModalDiagramContainer"'));
+  assert.ok(html.includes('id="vplsExportJsonBtn"'));
+  assert.ok(html.includes('id="vplsExportCsvBtn"'));
+  assert.ok(html.includes('id="vplsCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-vpls'));
+  assert.ok(css.includes('.vpls-modal-card'));
+  assert.ok(css.includes('.vpls-svg'));
+});
+
+
 
 
 

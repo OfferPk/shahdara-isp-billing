@@ -2658,6 +2658,29 @@
   border-color: #28443b;
 }
 
+/* Carrier MPLS VPLS (RFC 4761 / 4762) Styles */
+.chart-card-vpls {
+  background: var(--surface, #ffffff);
+}
+
+.vpls-modal-card {
+  max-width: 820px;
+  width: 95vw;
+}
+
+.vpls-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-vpls {
+  background: #182923;
+  border-color: #28443b;
+}
+
+
 
 
 

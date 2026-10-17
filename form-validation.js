@@ -12271,3 +12271,28 @@ export {
   generateSpliceMfdOffsetCertsCsv,
   setupSpliceMfdOffsetModal
 } from './qa-splice-mfd-offset.js';
+
+export {
+  SPLICE_SLEEVE_CURE_STORAGE_KEY,
+  SLEEVE_TYPES,
+  HOT_MELT_ADHESIVES,
+  TUBE_CONDITIONS,
+  SLEEVE_QA_VERDICTS,
+  SHAH_SLEEVE_PRESETS,
+  calculateCureThermalEnergy,
+  calculateVoidMicroBendPenalty,
+  calculateAxialTensileRetention,
+  evaluateSleeveCureQa,
+  renderSpliceSleeveCureSvg,
+  validateSpliceSleeveCure,
+  buildSpliceSleeveCureRecord,
+  getSavedSpliceSleeveCureCerts,
+  saveSpliceSleeveCureCert,
+  updateSpliceSleeveCureCertStatus,
+  clearSpliceSleeveCureCerts,
+  calculateSpliceSleeveCureMetrics,
+  generateSpliceSleeveCureCertHtml,
+  formatSpliceSleeveCureCertWhatsApp,
+  generateSpliceSleeveCureCertsCsv,
+  setupSpliceSleeveCureModal
+} from './qa-splice-sleeve-cure.js';

@@ -63,7 +63,8 @@ import {
   setupArmoredCableCrushModal,
   setupCableJettingModal,
   setupTubeSlittingAccessModal,
-  setupConduitPullingModal
+  setupConduitPullingModal,
+  setupSpectralAttenuationModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3546,6 +3547,7 @@ export let customerArmoredCableCrushModalController;
 export let customerCableJettingModalController;
 export let customerTubeSlittingModalController;
 export let customerConduitPullingModalController;
+export let customerSpectralAttenuationModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4227,6 +4229,34 @@ if (typeof document !== 'undefined') {
           }
         }
         conduitPullingModal.showModal();
+      }
+    });
+  }
+
+  const spectralAttenuationModal = $('#spectralAttenuationModal');
+  const openSpectralAttenuationBtn = $('#openSpectralAttenuationBtn');
+  if (spectralAttenuationModal) {
+    customerSpectralAttenuationModalController = setupSpectralAttenuationModal({
+      state,
+      dialogElement: spectralAttenuationModal,
+      triggerButton: openSpectralAttenuationBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openSpectralAttenuationBtn) {
+    openSpectralAttenuationBtn.addEventListener('click', () => {
+      if (spectralAttenuationModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#sptSubscriberInput');
+            if (custInput) custInput.value = `${c.name || 'Subscriber'} Optical Link`;
+            const routeInput = $('#sptRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Feeder to Demarcation`;
+          }
+        }
+        spectralAttenuationModal.showModal();
       }
     });
   }

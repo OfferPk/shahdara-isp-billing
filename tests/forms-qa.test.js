@@ -11357,3 +11357,275 @@ test('DOM & CSS integration for Ribbon Splice QA Suite', () => {
   assert.ok(stylesCss.includes('#ribbonSpliceSvgContainer'));
   assert.ok(stylesCss.includes('[data-theme="dark"] #ribbonSpliceQaModal'));
 });
+
+// ============================================================================
+// Optical Fiber Fast Mechanical Field Splice & Cam-Lock Retention QA Tests
+// ============================================================================
+
+test('calculateFresnelReturnLoss and calculateMechanicalSpliceLoss model Fresnel reflection and mechanical gap loss', async () => {
+  const { calculateFresnelReturnLoss, calculateMechanicalSpliceLoss } = await import('../qa-fast-connector.js');
+
+  // Matched index (n1 == n2 == 1.467)
+  const rlApc = calculateFresnelReturnLoss(1.467, 1.467, true, 0.0);
+  assert.equal(rlApc, 65.0); // SC/APC pristine bonus
+
+  const rlUpc = calculateFresnelReturnLoss(1.467, 1.467, false, 0.0);
+  assert.equal(rlUpc, 54.0); // SC/UPC pristine baseline
+
+  // Unmatched gel with penalty
+  const rlEvaporated = calculateFresnelReturnLoss(1.467, 1.420, true, -14.0);
+  assert.ok(rlEvaporated < 55.0 && rlEvaporated > 35.0);
+
+  // Mechanical splice loss
+  const lossZero = calculateMechanicalSpliceLoss(0.0, 0.0, 0.0, 0.20);
+  assert.equal(lossZero, 0.10); // 0.20 * 0.5 baseline
+
+  // 1.0 µm gap + 0.4° angle + 0.12 gel penalty
+  const lossWithGap = calculateMechanicalSpliceLoss(1.0, 0.4, 0.12, 0.20);
+  // 0.10 + 0.045 + 0.056 + 0.12 = 0.321 dB
+  assert.ok(lossWithGap > 0.30 && lossWithGap < 0.35);
+});
+
+test('evaluateFastConnectorQa evaluates SC/APC and SC/UPC connectors across gel and tensile parameters', async () => {
+  const { evaluateFastConnectorQa } = await import('../qa-fast-connector.js');
+
+  // Huawei FAST-SC/APC Optimal Deployment
+  const optimalAnalysis = evaluateFastConnectorQa({
+    connectorModelId: 'HUAWEI_FAST_SC',
+    polishTypeId: 'SC_APC',
+    gelConditionId: 'PRISTINE_FRESH',
+    fiberGapUm: 0.5,
+    angularMismatchDeg: 0.25,
+    tensileLoadN: 45.0,
+    slippageMm: 0.0
+  });
+
+  assert.equal(optimalAnalysis.verdict.id, 'CERTIFIED_PASS');
+  assert.ok(optimalAnalysis.insertionLossDb <= 0.35);
+  assert.ok(optimalAnalysis.returnLossDb >= 58.0);
+  assert.equal(optimalAnalysis.isSlippageDetected, false);
+
+  // Slipped clamp / pull-out failure
+  const pulloutAnalysis = evaluateFastConnectorQa({
+    connectorModelId: 'GENERIC_OSP_FAST',
+    polishTypeId: 'SC_UPC',
+    gelConditionId: 'DRY_DEPLETED',
+    fiberGapUm: 4.5,
+    angularMismatchDeg: 1.5,
+    tensileLoadN: 15.0,
+    slippageMm: 0.85
+  });
+
+  assert.equal(pulloutAnalysis.verdict.id, 'RE_TERMINATE_MANDATED');
+  assert.ok(pulloutAnalysis.insertionLossDb > 0.75);
+  assert.equal(pulloutAnalysis.isSlippageDetected, true);
+});
+
+test('validateFastConnectorInput enforces required fields and numeric ranges', async () => {
+  const { validateFastConnectorInput } = await import('../qa-fast-connector.js');
+
+  const valid = validateFastConnectorInput({
+    customerName: 'Muhammad Arshad',
+    route: 'FAT-BK-04 to ONT Demarcation',
+    technicianName: 'Rizwan',
+    fiberGapUm: 1.0,
+    angularMismatchDeg: 0.4,
+    tensileLoadN: 45.0,
+    slippageMm: 0.0
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  // Missing customer
+  const missingCust = validateFastConnectorInput({
+    customerName: '',
+    route: 'Valid Route',
+    technicianName: 'Tech',
+    fiberGapUm: 1.0,
+    angularMismatchDeg: 0.4,
+    tensileLoadN: 45.0,
+    slippageMm: 0.0
+  });
+  assert.equal(missingCust.isValid, false);
+  assert.ok(missingCust.errors.some(e => e.includes('Subscriber name')));
+});
+
+test('buildFastConnectorRecord formats sequential FST-YYYYMM-XXXX record and persistence functions work', async () => {
+  const {
+    buildFastConnectorRecord,
+    getSavedFastConnectorCerts,
+    saveFastConnectorCert,
+    updateFastConnectorCertStatus,
+    clearFastConnectorCerts
+  } = await import('../qa-fast-connector.js');
+
+  const mockState = { fastConnectorCerts: [] };
+
+  const rec = buildFastConnectorRecord({
+    customerName: 'Haji Aslam',
+    route: 'Ravi Siphon Drop',
+    technicianName: 'Tariq Mehmood',
+    connectorModelId: 'HUAWEI_FAST_SC',
+    polishTypeId: 'SC_APC',
+    gelConditionId: 'PRISTINE_FRESH',
+    fiberGapUm: 0.8,
+    angularMismatchDeg: 0.3,
+    tensileLoadN: 45.0,
+    slippageMm: 0.0,
+    notes: 'Secure drop'
+  }, mockState);
+
+  assert.match(rec.id, /^FST-\d{6}-0001$/);
+  assert.equal(rec.customerName, 'Haji Aslam');
+  assert.ok(rec.analysis);
+
+  saveFastConnectorCert(rec, mockState);
+  assert.equal(getSavedFastConnectorCerts(mockState).length, 1);
+
+  updateFastConnectorCertStatus(rec.id, 'MONITORED_RECHECK', mockState);
+  assert.equal(getSavedFastConnectorCerts(mockState)[0].status, 'MONITORED_RECHECK');
+
+  clearFastConnectorCerts(mockState);
+  assert.equal(getSavedFastConnectorCerts(mockState).length, 0);
+});
+
+test('calculateFastConnectorMetrics aggregates metrics and handles keyword filtering', async () => {
+  const { calculateFastConnectorMetrics } = await import('../qa-fast-connector.js');
+
+  const sampleCerts = [
+    {
+      id: 'FST-202610-0001',
+      customerName: 'Muhammad Arshad',
+      route: 'Begum Kot FAT-04',
+      technicianName: 'Rizwan',
+      status: 'CERTIFIED_PASS',
+      analysis: { insertionLossDb: 0.22, returnLossDb: 62.0 }
+    },
+    {
+      id: 'FST-202610-0002',
+      customerName: 'Khurram Shehzad',
+      route: 'Vandala Road Drop',
+      technicianName: 'Tariq',
+      status: 'CONDITIONAL_PASS',
+      analysis: { insertionLossDb: 0.65, returnLossDb: 42.0 }
+    }
+  ];
+
+  const metrics = calculateFastConnectorMetrics(sampleCerts);
+  assert.equal(metrics.total, 2);
+  assert.equal(metrics.certifiedPass, 1);
+  assert.equal(metrics.conditionalPass, 1);
+  assert.equal(metrics.passRatePercent, 50.0);
+  assert.equal(metrics.avgReturnLossDb, 52.0);
+
+  const filtered = calculateFastConnectorMetrics(sampleCerts, { searchQuery: 'Vandala' });
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.conditionalPass, 1);
+});
+
+test('renderFastConnectorQaSvg generates valid SVG with mechanical cutaway and tensile load', async () => {
+  const { evaluateFastConnectorQa, renderFastConnectorQaSvg } = await import('../qa-fast-connector.js');
+
+  const analysis = evaluateFastConnectorQa({
+    connectorModelId: 'HUAWEI_FAST_SC',
+    polishTypeId: 'SC_APC',
+    gelConditionId: 'PRISTINE_FRESH',
+    fiberGapUm: 0.8,
+    angularMismatchDeg: 0.35,
+    tensileLoadN: 44.0,
+    slippageMm: 0.0
+  });
+
+  const svg = renderFastConnectorQaSvg(analysis, { width: 740, height: 320 });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('FAST CONNECTOR MECHANICAL SPLICE'));
+  assert.ok(svg.includes('Zirconia Ferrule'));
+  assert.ok(svg.includes('CAM-LOCK WEDGE'));
+  assert.ok(svg.includes('Index Gel V-Groove'));
+  assert.ok(svg.includes('44 N'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateFastConnectorCertHtml formats formal A4 certificate and thermal field slip', async () => {
+  const { evaluateFastConnectorQa, generateFastConnectorCertHtml } = await import('../qa-fast-connector.js');
+
+  const cert = {
+    id: 'FST-202610-0001',
+    createdAt: '2026-10-17T08:00:00.000Z',
+    customerName: 'Muhammad Arshad',
+    route: 'FAT-BK-04 Drop',
+    connectorModelName: 'Huawei FAST-SC',
+    polishTypeName: 'SC/APC 8°',
+    technicianName: 'Muhammad Rizwan',
+    analysis: evaluateFastConnectorQa()
+  };
+
+  const a4Html = generateFastConnectorCertHtml(cert, { format: 'a4' });
+  assert.ok(a4Html.includes('SHAHDARA FIBER OPTIC METROLOGY LABORATORY'));
+  assert.ok(a4Html.includes('FST-202610-0001'));
+  assert.ok(a4Html.includes('Muhammad Arshad'));
+  assert.ok(a4Html.includes('TENSILE PROOF RETENTION'));
+
+  const thermalHtml = generateFastConnectorCertHtml(cert, { format: 'thermal' });
+  assert.ok(thermalHtml.includes('FIELD FAST CONNECTOR QA SLIP'));
+  assert.ok(thermalHtml.includes('FST-202610-0001'));
+});
+
+test('formatFastConnectorCertWhatsApp and generateFastConnectorCertsCsv generate valid dispatches', async () => {
+  const { evaluateFastConnectorQa, formatFastConnectorCertWhatsApp, generateFastConnectorCertsCsv } = await import('../qa-fast-connector.js');
+
+  const cert = {
+    id: 'FST-202610-0003',
+    createdAt: '2026-10-17T08:00:00.000Z',
+    customerName: 'Al-Madina Bank',
+    route: 'Baradari Plaza Drop',
+    connectorModelName: 'Corning UniCam',
+    polishTypeName: 'SC/APC',
+    gelConditionName: 'Pristine Fresh Gel',
+    technicianName: 'Zubair Ahmad',
+    analysis: evaluateFastConnectorQa()
+  };
+
+  const text = formatFastConnectorCertWhatsApp(cert);
+  assert.ok(text.includes('FIELD FAST CONNECTOR QA CERTIFICATE'));
+  assert.ok(text.includes('FST-202610-0003'));
+  assert.ok(text.includes('Al-Madina Bank'));
+  assert.ok(text.includes('IEC 61754-4 / Telcordia GR-326-CORE'));
+
+  const csv = generateFastConnectorCertsCsv([cert]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('CertificateID,CreatedAt,Subscriber,Route'));
+  assert.ok(csv.includes('FST-202610-0003'));
+});
+
+test('DOM & CSS integration for Fast Connector QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openFastConnectorQaBtn"'));
+  assert.ok(indexHtml.includes('id="fastConnectorQaModal"'));
+  assert.ok(indexHtml.includes('id="fastConnectorPresetSelect"'));
+  assert.ok(indexHtml.includes('id="fastConnectorCustInput"'));
+  assert.ok(indexHtml.includes('id="fastConnectorRouteInput"'));
+  assert.ok(indexHtml.includes('id="fastConnectorModelSelect"'));
+  assert.ok(indexHtml.includes('id="fastConnectorPolishSelect"'));
+  assert.ok(indexHtml.includes('id="fastConnectorGelSelect"'));
+  assert.ok(indexHtml.includes('id="fastConnectorSaveBtn"'));
+  assert.ok(indexHtml.includes('id="fastConnectorPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="fastConnectorPrintThermalBtn"'));
+  assert.ok(indexHtml.includes('id="fastConnectorCsvBtn"'));
+  assert.ok(indexHtml.includes('id="fastConnectorWhatsAppBtn"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupFastConnectorQaModal'));
+  assert.ok(appJs.includes('customerFastConnectorQaModalController'));
+  assert.ok(appJs.includes('#openFastConnectorQaBtn'));
+  assert.ok(appJs.includes('#fastConnectorQaModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#fastConnectorQaModal'));
+  assert.ok(stylesCss.includes('#fastConnectorSvgContainer'));
+  assert.ok(stylesCss.includes('[data-theme="dark"] #fastConnectorQaModal'));
+});

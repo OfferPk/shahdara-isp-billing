@@ -6188,3 +6188,44 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+/* Optical Fiber Fast Mechanical Field Splice & Cam-Lock Retention QA Suite */
+#fastConnectorQaModal .dashboard-modal-card {
+  max-width: 960px;
+  border-radius: 12px;
+  padding: 24px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+#fastConnectorSvgContainer {
+  width: 100%;
+  overflow-x: auto;
+}
+
+#fastConnectorSvgContainer svg {
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
+  width: 100%;
+  max-width: 800px;
+  display: block;
+  margin: 0 auto;
+}
+
+[data-theme="dark"] #fastConnectorQaModal .dashboard-modal-card {
+  background: #111a2e;
+  border-color: #1e293b;
+  color: #f1f5f9;
+}
+
+@media print {
+  #fastConnectorQaModal,
+  #fastConnectorQaModal .dashboard-modal-card {
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #000 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

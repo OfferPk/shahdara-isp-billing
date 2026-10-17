@@ -1974,7 +1974,14 @@ export function setupOfflineSyncBanner({
   const viewQueueBtn = document.getElementById('offlineSyncViewQueueBtn');
 
   let isDismissed = false;
+  try {
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('shahdara_offline_dismissed') === '1') {
+      isDismissed = true;
+    }
+  } catch (_) {}
+
   let syncTimeout = null;
+  let autoDismissTimer = null;
 
   function updateBannerState() {
     if (!banner) return;
@@ -1994,6 +2001,13 @@ export function setupOfflineSyncBanner({
           : 'Offline Mode · All billing entries saved to device storage';
       }
       if (retryBtn) retryBtn.hidden = true;
+
+      if (autoDismissTimer) clearTimeout(autoDismissTimer);
+      autoDismissTimer = setTimeout(() => {
+        if (banner && banner.classList.contains('is-offline')) {
+          banner.hidden = true;
+        }
+      }, 6000);
     } else {
       if (queueCount > 0) {
         banner.hidden = false;
@@ -2078,23 +2092,46 @@ export function setupOfflineSyncBanner({
     });
   }
 
+  function dismissBanner() {
+    isDismissed = true;
+    triggerHaptic('light');
+    if (banner) banner.hidden = true;
+    try {
+      if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('shahdara_offline_dismissed', '1');
+    } catch (_) {}
+  }
+
   if (dismissBtn && !dismissBtn.dataset?.wired) {
     if (dismissBtn.dataset) dismissBtn.dataset.wired = 'true';
     else if (dismissBtn.setAttribute) dismissBtn.setAttribute('data-wired', 'true');
-    dismissBtn.addEventListener('click', () => {
-      isDismissed = true;
-      triggerHaptic('light');
-      if (banner) banner.hidden = true;
+    dismissBtn.addEventListener('click', (e) => {
+      e?.stopPropagation?.();
+      dismissBanner();
+    });
+  }
+
+  if (banner && typeof banner.addEventListener === 'function' && !banner.dataset?.wiredDismiss) {
+    if (banner.dataset) banner.dataset.wiredDismiss = 'true';
+    else if (banner.setAttribute) banner.setAttribute('data-wired-dismiss', 'true');
+    banner.addEventListener('click', (e) => {
+      if (e?.target?.closest?.('#offlineSyncRetryBtn') || e?.target?.closest?.('#offlineSyncViewQueueBtn')) return;
+      dismissBanner();
     });
   }
 
   if (typeof window !== 'undefined') {
     window.addEventListener('online', () => {
       isDismissed = false;
+      try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('shahdara_offline_dismissed');
+      } catch (_) {}
       updateBannerState();
     });
     window.addEventListener('offline', () => {
       isDismissed = false;
+      try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('shahdara_offline_dismissed');
+      } catch (_) {}
       updateBannerState();
     });
   }
@@ -2190,37 +2227,100 @@ export function setupMobileSpeedDial({
     });
   }
 
-  const actionBtns = menu.querySelectorAll?.('[data-speed-action]') ?? [];
-  actionBtns.forEach(btn => {
-    if (!btn.dataset?.wired) {
-      if (btn.dataset) btn.dataset.wired = 'true';
-      else if (btn.setAttribute) btn.setAttribute('data-wired', 'true');
-      btn.addEventListener('click', () => {
-        const action = btn.getAttribute('data-speed-action');
-        closeSpeedDial();
-        triggerHaptic('light');
+  const fieldToolsModal = document.getElementById('fieldToolsModal');
+  const closeFieldToolsBtn = document.getElementById('closeFieldToolsModalBtn');
 
-        if (action === 'search' && typeof onSearchRoster === 'function') {
-          onSearchRoster();
-        } else if (action === 'payment' && typeof onRecordPayment === 'function') {
-          onRecordPayment();
-        } else if (action === 'add-customer' && typeof onAddCustomer === 'function') {
-          onAddCustomer();
-        } else if (action === 'field-enrollment' && typeof onFieldEnrollment === 'function') {
-          onFieldEnrollment();
-        } else if (action === 'field-diagnostics' && typeof onFieldDiagnostics === 'function') {
-          onFieldDiagnostics();
-        } else if (action === 'field-route' && typeof onFieldRouteSheet === 'function') {
-          onFieldRouteSheet();
-        } else if (action === 'work-orders' && typeof onWorkOrders === 'function') {
-          onWorkOrders();
-        } else if (action === 'reminders' && typeof onReminders === 'function') {
-          onReminders();
-        } else if (action === 'scroll-top' && typeof onScrollTop === 'function') {
-          onScrollTop();
-        }
-      });
+  function openFieldTools() {
+    closeSpeedDial();
+    if (fieldToolsModal) {
+      triggerHaptic('medium');
+      fieldToolsModal.hidden = false;
+      if (typeof fieldToolsModal.removeAttribute === 'function') {
+        fieldToolsModal.removeAttribute('hidden');
+      }
+      if (typeof fieldToolsModal.showModal === 'function') {
+        fieldToolsModal.showModal();
+      } else {
+        fieldToolsModal.setAttribute('open', '');
+      }
     }
+  }
+
+  function closeFieldTools() {
+    if (fieldToolsModal) {
+      triggerHaptic('light');
+      if (typeof fieldToolsModal.close === 'function') {
+        fieldToolsModal.close();
+      } else {
+        fieldToolsModal.hidden = true;
+        fieldToolsModal.removeAttribute('open');
+      }
+    }
+  }
+
+  if (closeFieldToolsBtn && !closeFieldToolsBtn.dataset?.wired) {
+    if (closeFieldToolsBtn.dataset) closeFieldToolsBtn.dataset.wired = 'true';
+    else if (closeFieldToolsBtn.setAttribute) closeFieldToolsBtn.setAttribute('data-wired', 'true');
+    closeFieldToolsBtn.addEventListener('click', () => {
+      closeFieldTools();
+    });
+  }
+
+  if (fieldToolsModal && !fieldToolsModal.dataset?.wired) {
+    if (fieldToolsModal.dataset) fieldToolsModal.dataset.wired = 'true';
+    else if (fieldToolsModal.setAttribute) fieldToolsModal.setAttribute('data-wired', 'true');
+    fieldToolsModal.addEventListener('click', (e) => {
+      if (e.target === fieldToolsModal) {
+        closeFieldTools();
+      } else {
+        const btn = e.target.closest('button');
+        if (btn && btn !== closeFieldToolsBtn) {
+          setTimeout(() => closeFieldTools(), 80);
+        }
+      }
+    });
+    fieldToolsModal.addEventListener('cancel', () => {
+      closeFieldTools();
+    });
+  }
+
+  // Wire data-speed-actions inside both speed dial menu and field tools modal
+  const allActionContainers = [menu, fieldToolsModal].filter(Boolean);
+  allActionContainers.forEach(containerEl => {
+    const actionBtns = containerEl.querySelectorAll?.('[data-speed-action]') ?? [];
+    actionBtns.forEach(btn => {
+      if (!btn.dataset?.wired) {
+        if (btn.dataset) btn.dataset.wired = 'true';
+        else if (btn.setAttribute) btn.setAttribute('data-wired', 'true');
+        btn.addEventListener('click', () => {
+          const action = btn.getAttribute('data-speed-action');
+          closeSpeedDial();
+          triggerHaptic('light');
+
+          if (action === 'more-tools' || action === 'field-tools') {
+            openFieldTools();
+          } else if (action === 'search' && typeof onSearchRoster === 'function') {
+            onSearchRoster();
+          } else if (action === 'payment' && typeof onRecordPayment === 'function') {
+            onRecordPayment();
+          } else if (action === 'add-customer' && typeof onAddCustomer === 'function') {
+            onAddCustomer();
+          } else if (action === 'field-enrollment' && typeof onFieldEnrollment === 'function') {
+            onFieldEnrollment();
+          } else if (action === 'field-diagnostics' && typeof onFieldDiagnostics === 'function') {
+            onFieldDiagnostics();
+          } else if (action === 'field-route' && typeof onFieldRouteSheet === 'function') {
+            onFieldRouteSheet();
+          } else if (action === 'work-orders' && typeof onWorkOrders === 'function') {
+            onWorkOrders();
+          } else if (action === 'reminders' && typeof onReminders === 'function') {
+            onReminders();
+          } else if (action === 'scroll-top' && typeof onScrollTop === 'function') {
+            onScrollTop();
+          }
+        });
+      }
+    });
   });
 
   container.addEventListener('keydown', (e) => {
@@ -2243,16 +2343,36 @@ export function setupMobileSpeedDial({
     }
   });
 
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (isOpen) {
+        e.preventDefault();
+        closeSpeedDial();
+      } else if (fieldToolsModal && (fieldToolsModal.open || !fieldToolsModal.hidden)) {
+        closeFieldTools();
+      }
+    }
+  });
+
   document.addEventListener('click', (e) => {
     if (isOpen && !container.contains(e.target) && (!backdrop || !backdrop.contains(e.target))) {
       closeSpeedDial();
     }
   });
 
+  if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', () => {
+      closeSpeedDial();
+      closeFieldTools();
+    });
+  }
+
   return {
     open: openSpeedDial,
     close: closeSpeedDial,
     toggle: toggleSpeedDial,
+    openFieldTools,
+    closeFieldTools,
     isOpen: () => isOpen
   };
 }

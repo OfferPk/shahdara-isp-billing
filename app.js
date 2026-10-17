@@ -191,8 +191,13 @@ function activateProfileTab(name, focus = false) {
 mountCustomerProfileContent();
 
 function toast(message) {
-  const element = $('#toast'); element.textContent = message; element.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => { element.hidden = true; }, 2600);
+  const element = $('#toast');
+  if (!element) return;
+  element.textContent = message;
+  element.hidden = false;
+  element.onclick = () => { element.hidden = true; };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { element.hidden = true; }, 2800);
 }
 function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }

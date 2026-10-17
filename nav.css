@@ -4,6 +4,16 @@
    ========================================================================== */
 
 /* Drawer Toggle Button in Topbar */
+/* Strict [hidden] rule to prevent display:flex/grid overrides */
+[hidden],
+.speed-dial-backdrop[hidden],
+.mobile-speed-dial [hidden],
+.speed-dial-menu[hidden],
+.offline-sync-banner[hidden],
+.field-tools-dialog[hidden] {
+  display: none !important;
+}
+
 .nav-drawer-toggle {
   display: inline-flex;
   align-items: center;
@@ -1663,7 +1673,7 @@ kbd {
 /* Offline Sync & Connectivity Resilience Banner */
 .offline-sync-banner {
   position: fixed;
-  bottom: calc(var(--bottom-nav-height, 60px) + 12px);
+  top: calc(var(--topbar-height, 66px) + 8px);
   left: 16px;
   right: 16px;
   max-width: 520px;
@@ -1680,6 +1690,7 @@ kbd {
   -webkit-backdrop-filter: blur(10px);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   font: 500 13px/1.3 Manrope, system-ui, sans-serif;
+  cursor: pointer;
 }
 
 .offline-sync-banner.is-offline {
@@ -1807,6 +1818,7 @@ kbd {
   bottom: calc(var(--bottom-nav-height, 60px) + 16px);
   right: 16px;
   z-index: 1040;
+  pointer-events: none;
 }
 
 .speed-dial-trigger {
@@ -1823,6 +1835,7 @@ kbd {
   cursor: pointer;
   transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s ease;
   user-select: none;
+  pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -1850,6 +1863,18 @@ kbd {
   gap: 10px;
   align-items: flex-end;
   pointer-events: auto;
+  z-index: 1045;
+}
+
+.speed-dial-menu[hidden] {
+  display: none !important;
+}
+
+.speed-dial-action-tools {
+  background: #f0fdf4 !important;
+  border-color: #0e5b4d !important;
+  color: #0e5b4d !important;
+  font-weight: 700 !important;
 }
 
 .speed-dial-action {
@@ -1885,6 +1910,196 @@ kbd {
 
 .speed-action-label {
   letter-spacing: 0.2px;
+}
+
+/* Grouped Field & Engineering Tools Modal Sheet */
+.field-tools-dialog {
+  width: min(680px, calc(100% - 24px));
+  max-height: 85vh;
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 18px;
+  padding: 0;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  box-shadow: 0 24px 70px rgba(17, 45, 36, 0.3);
+  overflow: hidden;
+  margin: auto;
+}
+
+.field-tools-dialog::backdrop {
+  background: rgba(17, 45, 36, 0.5);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.field-tools-dialog[hidden] {
+  display: none !important;
+}
+
+.field-tools-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line, #e2ece7);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface, #ffffff);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.field-tools-title-group h2 {
+  font: 700 18px/1.2 Manrope, sans-serif;
+  margin: 0;
+  color: var(--ink, #182e2a);
+}
+
+.field-tools-subtitle {
+  font: 500 12px/1.3 Manrope, sans-serif;
+  color: var(--muted, #71817c);
+  margin: 3px 0 0;
+}
+
+.field-tools-close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--line, #e2ece7);
+  background: #f4f7f5;
+  color: #526a61;
+  font-size: 20px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease;
+}
+
+.field-tools-close-btn:hover {
+  background: #e6edea;
+}
+
+.field-tools-body {
+  padding: 16px 20px 24px;
+  overflow-y: auto;
+  max-height: calc(85vh - 75px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field-tools-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field-tools-group-title {
+  font: 700 11px/1.2 Manrope, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--muted, #71817c);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.field-tools-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line, #e2ece7);
+  background: #fafcfb;
+  color: var(--ink, #182e2a);
+  font: 600 13px/1.25 Manrope, sans-serif;
+  cursor: pointer;
+  text-align: left;
+  min-height: 48px;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.field-tools-btn:hover,
+.field-tools-btn:focus-visible {
+  background: #edf5f1;
+  border-color: #0e5b4d;
+  color: #0e5b4d;
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.field-tools-btn-icon {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.field-tools-btn-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .field-tools-dialog {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 0;
+    border-radius: 20px 20px 0 0;
+    max-height: 80vh;
+  }
+  .field-tools-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .field-tools-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-height: 44px;
+  }
+}
+
+[data-theme="dark"] .field-tools-dialog {
+  background: #132420;
+  color: #e6edea;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .field-tools-header {
+  background: #132420;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .field-tools-title-group h2 {
+  color: #e6edea;
+}
+[data-theme="dark"] .field-tools-subtitle {
+  color: #92a49d;
+}
+[data-theme="dark"] .field-tools-close-btn {
+  background: #1d332d;
+  color: #e6edea;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark"] .field-tools-btn {
+  background: #182b26;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #e6edea;
+}
+[data-theme="dark"] .field-tools-btn:hover,
+[data-theme="dark"] .field-tools-btn:focus-visible {
+  background: #203b34;
+  border-color: #34d399;
+  color: #a7f3d0;
 }
 
 /* Hide on desktop screens where full sidebar and topbar are present */

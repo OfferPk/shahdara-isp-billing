@@ -12680,3 +12680,24 @@ export {
   clearBillingAuditRecords,
   setupBillingCorrectnessModal
 } from './qa-billing-correctness.js';
+
+export {
+  LATE_FEE_CONFIG_KEY,
+  DEFAULT_LATE_FEE_CONFIG,
+  getLateFeeConfig,
+  saveLateFeeConfig,
+  validatePaymentDiscount,
+  calculateNetBillSettlement,
+  isBillOverdue,
+  evaluateBillLateFeeEligibility,
+  findOverdueBillsWithLateFeeStatus,
+  applyLateFeeToEligibleBills,
+  waiveLateFeeFromBills,
+  formatLateFeeNoticeWhatsApp,
+  formatReceiptWithDiscountAndFeeWhatsApp,
+  generateLateFeeDiscountsCsv,
+  generateLateFeeAuditPrintHtml,
+  renderLateFeeDiscountsSvg,
+  setupLateFeeModal
+} from './qa-discounts-late-fee.js';
+

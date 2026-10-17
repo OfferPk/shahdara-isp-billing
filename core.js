@@ -240,7 +240,7 @@ export function derivedBillStatus(customer, bill, allocations = null) {
   const summary = result.forMonth?.(customer.id, bill.month) ?? result.byCustomerMonth?.get(monthAllocationKey(customer.id, bill.month));
   if (!summary || summary.balanceDueCents === null || summary.balanceDueCents === undefined) return 'not-set';
   if (summary.balanceDueCents <= 0) return 'paid';
-  return summary.sameMonthAppliedCents > 0 || summary.creditAppliedCents > 0 ? 'partial' : 'pending';
+  return summary.sameMonthAppliedCents > 0 || summary.creditAppliedCents > 0 || (summary.discountAppliedCents || 0) > 0 ? 'partial' : 'pending';
 }
 
 export function buildPayrollSummary(state, month, referenceDate = new Date()) {
@@ -472,7 +472,7 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
 
-function validatePayment({ date, amount, method, paidBy }, referenceDate = new Date()) {
+function validatePayment({ date, amount, method, paidBy, discount, discountReason }, referenceDate = new Date()) {
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -480,7 +480,22 @@ function validatePayment({ date, amount, method, paidBy }, referenceDate = new D
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
   const payer = String(paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (payer.length > 100) throw new Error('Paid by must be 100 characters or fewer.');
-  return { date, amount: cents, method, ...(payer ? { paidBy:payer } : {}) };
+  let validDiscount = 0;
+  if (discount !== undefined && discount !== null && discount !== '') {
+    const dNum = Number(discount);
+    if (!Number.isFinite(dNum) || dNum < 0) throw new Error('Discount must be a positive number or zero.');
+    validDiscount = Math.round(dNum * 100) / 100;
+  }
+  const cleanReason = String(discountReason ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  if (cleanReason.length > 100) throw new Error('Discount reason must be 100 characters or fewer.');
+  return {
+    date,
+    amount: cents,
+    method,
+    ...(payer ? { paidBy:payer } : {}),
+    ...(validDiscount > 0 ? { discount: validDiscount } : {}),
+    ...(cleanReason ? { discountReason: cleanReason } : {})
+  };
 }
 
 export function addPayment(state, customerId, month, fields, referenceDate = new Date()) {
@@ -499,7 +514,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   const bill = customer.bills.find(b => b.month === month);
   const existingPayment = bill?.payments.find(p => p.id === paymentId);
   if (!existingPayment) throw new Error('Payment not found.');
-  const payment = { id:paymentId, ...validatePayment(fields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  const mergedFields = {
+    ...fields,
+    discount: fields.discount !== undefined ? fields.discount : existingPayment.discount,
+    discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason
+  };
+  const payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }
 
@@ -511,6 +531,70 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
     ...c,
     bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.filter(payment => payment.id !== paymentId) })
   }) };
+}
+
+export function applyLateFeeToBill(state, customerId, month, { amount = 100, reason = 'Late payment surcharge' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  const lateFeeNum = Number(amount);
+  if (!Number.isFinite(lateFeeNum) || lateFeeNum <= 0) throw new Error('Late fee amount must be a positive number.');
+  const cleanFee = Math.round(lateFeeNum * 100) / 100;
+  const cleanReason = String(reason || 'Late payment surcharge').trim();
+  const amountHistory = [...(bill.amountHistory ?? [])];
+  amountHistory.push({
+    changedAt: localDateTimeValue(referenceDate),
+    type: 'late_fee_applied',
+    previousLateFee: bill.lateFee ?? 0,
+    lateFee: cleanFee,
+    note: cleanReason
+  });
+  const updatedBill = {
+    ...bill,
+    lateFee: cleanFee,
+    lateFeeAppliedAt: localDateTimeValue(referenceDate),
+    lateFeeReason: cleanReason,
+    amountHistory
+  };
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      bills: c.bills.map(b => b.month !== month ? b : updatedBill)
+    })
+  };
+}
+
+export function waiveLateFeeFromBill(state, customerId, month, { reason = 'Late fee waived by owner' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  if (!bill.lateFee) return state;
+  const cleanReason = String(reason || 'Late fee waived by owner').trim();
+  const amountHistory = [...(bill.amountHistory ?? [])];
+  amountHistory.push({
+    changedAt: localDateTimeValue(referenceDate),
+    type: 'late_fee_waived',
+    previousLateFee: bill.lateFee,
+    lateFee: 0,
+    note: cleanReason
+  });
+  const updatedBill = {
+    ...bill,
+    lateFee: 0,
+    lateFeeAppliedAt: null,
+    lateFeeReason: cleanReason,
+    amountHistory
+  };
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      bills: c.bills.map(b => b.month !== month ? b : updatedBill)
+    })
+  };
 }
 
 export function recordedAmount(bill) {
@@ -597,18 +681,22 @@ export function calculatePaymentAllocations(state) {
     const bills = [...(customer.bills ?? [])].sort((a,b) => a.month.localeCompare(b.month));
     for (const bill of bills) {
       const key = monthAllocationKey(customer.id, bill.month);
-      const summary = { customerId:customer.id, month:bill.month, billAmountCents:null, actualReceiptsCents:0, sameMonthAppliedCents:0, creditAppliedCents:0, creditSources:[], balanceDueCents:null, excessGeneratedCents:0, creditForwardedCents:0, pendingCreditCents:0 };
+      const summary = { customerId:customer.id, month:bill.month, billAmountCents:null, baseAmountCents:null, lateFeeCents:0, actualReceiptsCents:0, discountAppliedCents:0, sameMonthAppliedCents:0, creditAppliedCents:0, creditSources:[], balanceDueCents:null, excessGeneratedCents:0, creditForwardedCents:0, pendingCreditCents:0 };
       byCustomerMonth.set(key, summary);
       const payments = [...(bill.payments ?? [])].sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
       summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + moneyCents(payment.amount), 0);
       const amount = bill.dueAmount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
-        for (const payment of payments) byPaymentId.set(payment.id, { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:true });
+        for (const payment of payments) byPaymentId.set(payment.id, { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:true });
         continue;
       }
 
-      const billAmountCents = moneyCents(amount);
+      const baseAmountCents = moneyCents(amount);
+      const lateFeeCents = moneyCents(bill.lateFee || 0);
+      const billAmountCents = baseAmountCents + lateFeeCents;
       summary.billAmountCents = billAmountCents;
+      summary.baseAmountCents = baseAmountCents;
+      summary.lateFeeCents = lateFeeCents;
       let dueRemainingCents = billAmountCents;
       for (const credit of pendingCredits) {
         if (dueRemainingCents <= 0) break;
@@ -626,8 +714,18 @@ export function calculatePaymentAllocations(state) {
       let sameMonthReceiptCapacityCents = dueRemainingCents;
       for (const payment of payments) {
         const amountCents = moneyCents(payment.amount);
-        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false };
+        const discountCents = moneyCents(payment.discount || 0);
+        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false };
         byPaymentId.set(payment.id, paymentLedger);
+
+        const appliedDiscountCents = Math.min(discountCents, sameMonthReceiptCapacityCents);
+        if (appliedDiscountCents > 0) {
+          paymentLedger.allocations.push({ month:bill.month, amountCents:appliedDiscountCents, kind:'discount' });
+          summary.discountAppliedCents += appliedDiscountCents;
+          sameMonthReceiptCapacityCents -= appliedDiscountCents;
+          dueRemainingCents -= appliedDiscountCents;
+        }
+
         const appliedCents = Math.min(amountCents, sameMonthReceiptCapacityCents);
         if (appliedCents > 0) {
           paymentLedger.allocations.push({ month:bill.month, amountCents:appliedCents, kind:'same-month' });
@@ -1107,7 +1205,10 @@ function validateBackupState(source) {
         validBackupAmount(correction.previousAmount, 'previous bill amount');
         validBackupAmount(correction.newAmount, 'corrected bill amount');
       }
-      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}) };
+      const lateFee = bill.lateFee !== undefined && bill.lateFee !== null ? (validBackupAmount(bill.lateFee, `late fee for ${bill.month}`), Number(bill.lateFee) || 0) : undefined;
+      const lateFeeAppliedAt = bill.lateFeeAppliedAt ? String(bill.lateFeeAppliedAt) : undefined;
+      const lateFeeReason = bill.lateFeeReason ? String(bill.lateFeeReason) : undefined;
+      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}) };
     });
     const incidents = sourceIncidents.map(incident => {
       if (!incident || typeof incident.id !== 'string' || !incident.id || incidentIds.has(incident.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate incident ID.`);
@@ -1205,7 +1306,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }

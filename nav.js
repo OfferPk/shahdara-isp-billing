@@ -6003,5 +6003,23 @@ export {
   setupMobileQuickProfileModal
 } from './nav-quick-profile.js';
 
+export {
+  LANGUAGE_STORAGE_KEY,
+  DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  TRANSLATIONS,
+  getAppLanguage,
+  t,
+  applyLanguageDirection,
+  updateDocumentTranslations,
+  setAppLanguage,
+  toggleAppLanguage,
+  formatBilingualCurrency,
+  formatBilingualStatus,
+  renderLanguageToggleBtnHtml,
+  setupLanguageToggle
+} from './nav-language.js';
+
+
 
 

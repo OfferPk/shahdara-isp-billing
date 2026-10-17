@@ -6410,3 +6410,189 @@ kbd {
 
 
 
+
+
+/* ==========================================================================
+   Bilingual English / Urdu (اردو) & RTL Layout Engine (agent2 - shahdara-mobile-nav)
+   ========================================================================== */
+
+.language-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font: 600 13px/1 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.language-toggle-btn:hover {
+  background: var(--mint, #e6f3ee);
+  border-color: var(--green, #0e5b4d);
+  color: var(--green, #0e5b4d);
+}
+
+.language-toggle-btn:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 1px;
+}
+
+.language-toggle-btn .lang-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.language-toggle-btn .language-toggle-label {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.drawer-language-toggle-btn {
+  height: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+[data-theme="dark"] .language-toggle-btn {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .language-toggle-btn:hover {
+  background: #1c322b;
+  border-color: #29b88f;
+  color: #34d399;
+}
+
+/* RTL Layout & Urdu Typography */
+/* RTL Layout & Urdu Typography */
+[dir="rtl"],
+.lang-ur {
+  direction: rtl;
+  text-align: right;
+  font-family: 'Noto Nastaliq Urdu', 'Urdu Typesetting', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+[dir="rtl"] .topbar-actions,
+.lang-ur .topbar-actions {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+[dir="rtl"] .nav-drawer,
+.lang-ur .nav-drawer {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid var(--line, #e2ece7);
+  transform: translateX(100%);
+}
+
+[dir="rtl"] .nav-drawer.is-open,
+.lang-ur .nav-drawer.is-open {
+  transform: translateX(0);
+}
+
+[dir="rtl"] .nav-drawer-item button,
+.lang-ur .nav-drawer-item button {
+  text-align: right;
+}
+
+[dir="rtl"] .nav-drawer-badge,
+.lang-ur .nav-drawer-badge {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+@media (max-width: 640px) {
+  .command-palette-trigger,
+  .shortcuts-help-button {
+    display: none;
+  }
+
+  .language-toggle-btn {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 6px;
+    font-size: 11px;
+    gap: 4px;
+  }
+}
+
+[dir="rtl"] .qc-search-clear,
+.lang-ur .qc-search-clear,
+[dir="rtl"] .fcs-search-clear,
+.lang-ur .fcs-search-clear {
+  right: auto;
+  left: 10px;
+}
+
+[dir="rtl"] .qc-search-input,
+.lang-ur .qc-search-input,
+[dir="rtl"] .fcs-search-input,
+.lang-ur .fcs-search-input {
+  padding-left: 38px;
+  padding-right: 14px;
+  text-align: right;
+}
+
+[dir="rtl"] .route-metric-pill,
+.lang-ur .route-metric-pill {
+  text-align: right;
+}
+
+[dir="rtl"] .mobile-more-menu,
+.lang-ur .mobile-more-menu {
+  text-align: right;
+}
+
+
+/* Accessibility: Skip link positioning & focus states */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  background: var(--green, #0e5b4d);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  z-index: 9999;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 16px;
+}
+
+[dir="rtl"] .skip-link,
+.lang-ur .skip-link {
+  left: auto;
+  right: 16px;
+}
+
+/* RTL Layout safety: prevent offscreen drawers from causing scrollWidth overflow */
+html,
+body {
+  overflow-x: hidden;
+}
+
+.nav-drawer:not(.is-open) {
+  display: none !important;
+}
+
+.nav-drawer.is-open {
+  display: flex !important;
+}

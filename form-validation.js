@@ -12296,3 +12296,26 @@ export {
   generateSpliceSleeveCureCertsCsv,
   setupSpliceSleeveCureModal
 } from './qa-splice-sleeve-cure.js';
+
+export {
+  FIBER_CLEAVE_QUALITY_STORAGE_KEY,
+  CLEAVER_MODELS,
+  SURFACE_DEFECT_TYPES,
+  BLADE_HEIGHT_SETTINGS,
+  CLEAVE_QA_VERDICTS,
+  SHAH_CLEAVE_PRESETS,
+  calculateCleaveAngleLoss,
+  calculateBladeWearMetrics,
+  evaluateCleaveQuality,
+  renderFiberCleaveQualitySvg,
+  validateFiberCleaveInput,
+  buildFiberCleaveRecord,
+  getSavedFiberCleaveCerts,
+  saveFiberCleaveCert,
+  clearFiberCleaveCerts,
+  calculateFiberCleaveMetrics,
+  generateFiberCleaveQualityCertHtml,
+  formatFiberCleaveQualityCertWhatsApp,
+  generateFiberCleaveQualityCertsCsv,
+  setupFiberCleaveQualityModal
+} from './qa-cleave-quality.js';

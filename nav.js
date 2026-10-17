@@ -6426,4 +6426,15 @@ export {
   setupQuickCollectModal
 } from './nav-quick-collect.js';
 
+export {
+  RECENT_CUSTOMERS_STORAGE_KEY,
+  recordRecentCustomer,
+  getRecentCustomers,
+  clearRecentCustomers,
+  searchFastCustomers,
+  renderFastCustomerSearchResultsHtml,
+  setupFastCustomerSearchModal
+} from './nav-customer-search.js';
+
+
 

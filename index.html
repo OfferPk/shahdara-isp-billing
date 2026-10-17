@@ -111,6 +111,12 @@
         </svg>
         <span class="palette-kbd-badge">⌘K</span>
       </button>
+      <button id="mobileCustomerSearchTrigger" class="mobile-search-trigger" type="button" aria-label="Fast Customer Search (/)" title="Search customers (/)" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+      </button>
       <button id="shortcutsHelpButton" class="shortcuts-help-button" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       </button>
@@ -17836,6 +17842,56 @@
 
 
 
+
+  <!-- Fast Customer Search Sheet & Recent Accounts Dialog (agent2 - shahdara-mobile-nav) -->
+  <dialog id="mobileCustomerSearchModal" class="modal fast-customer-search-modal" aria-labelledby="fastCustomerSearchTitle">
+    <section class="fast-customer-search-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FIELD SUBSCRIBER LOOKUP</p>
+          <h2 id="fastCustomerSearchTitle">Fast Customer Search</h2>
+        </div>
+        <button id="closeMobileCustomerSearchModalBtn" class="close-button" type="button" aria-label="Close search sheet">×</button>
+      </div>
+
+      <div class="fcs-search-bar">
+        <input id="fastCustomerSearchInput"
+               type="search"
+               class="fcs-search-input"
+               placeholder="Search name, #ID, 03xx phone, area or mohalla..."
+               aria-label="Search subscribers"
+               autocomplete="off">
+        <button id="fastCustomerSearchClearBtn" class="fcs-search-clear" type="button" aria-label="Clear search text" hidden>×</button>
+      </div>
+
+      <div class="fcs-filter-row" role="tablist" aria-label="Filter subscribers by billing status">
+        <button type="button" class="fcs-status-chip is-active" data-status="all" role="tab" aria-selected="true">
+          All
+        </button>
+        <button type="button" class="fcs-status-chip" data-status="pending" role="tab" aria-selected="false">
+          Pending Dues
+        </button>
+        <button type="button" class="fcs-status-chip" data-status="partial" role="tab" aria-selected="false">
+          Partial Paid
+        </button>
+        <button type="button" class="fcs-status-chip" data-status="paid" role="tab" aria-selected="false">
+          Settled (Paid)
+        </button>
+      </div>
+
+      <div class="fcs-section-header">
+        <h3 id="fastCustomerSearchSectionTitle" class="fcs-section-title">Recent Customers</h3>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span id="fastCustomerSearchCountBadge" class="fcs-count-badge">0</span>
+          <button id="fastCustomerClearRecentBtn" class="fcs-clear-recent-btn" type="button" title="Clear recent searches">Clear</button>
+        </div>
+      </div>
+
+      <div id="fastCustomerSearchResults" class="fcs-results-container" role="region" aria-label="Customer search results" tabindex="0">
+        <!-- Populated dynamically -->
+      </div>
+    </section>
+  </dialog>
 
   <!-- 2-Tap Quick Collect Mobile Field Flow Dialog (agent2 - shahdara-mobile-nav) -->
   <dialog id="quickCollectModal" class="modal quick-collect-modal" aria-labelledby="quickCollectTitle">

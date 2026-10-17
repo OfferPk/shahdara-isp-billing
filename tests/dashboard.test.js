@@ -17299,6 +17299,151 @@ test('index.html and dashboard.css contain all EDFA Cascade modal, card, and sty
   assert.ok(css.includes('.edfa-cascade-svg'));
 });
 
+test('calculateConstantTimeError and calculateTimeErrorBudget evaluate nanosecond phase alignment', async () => {
+  const { calculateConstantTimeError, calculateTimeErrorBudget, PTP_TBC_CONSTANTS } = await import('../dashboard.js');
+
+  // 4.2m fiber asymmetry -> cTE = (4.2 * 4.897) / 2 = 10.28 -> 10.3 ns
+  const uncompensated = calculateConstantTimeError(4.2, 0);
+  assert.equal(uncompensated.rawAsymmetryMeters, 4.2);
+  assert.equal(uncompensated.netCteNs, 10.3);
+
+  // Compensated with 4.0m -> net 0.2m -> cTE = 0.5 ns
+  const compensated = calculateConstantTimeError(4.2, 4.0);
+  assert.equal(compensated.netAsymmetryMeters, 0.2);
+  assert.equal(compensated.netCteNs, 0.5);
+
+  // Time error budget against Class B (limit 70ns)
+  const teB = calculateTimeErrorBudget(10.3, 12.0, 0, false, 'CLASS_B');
+  assert.equal(teB.cteNs, 10.3);
+  assert.equal(teB.dteNs, 12.0);
+  assert.equal(teB.maxTeNs, 22.3);
+  assert.equal(teB.targetLimitNs, 70);
+  assert.equal(teB.isCompliant, true);
+  assert.equal(teB.marginNs, 47.7);
+
+  // Holdover simulation introduces +45ns drift
+  const teHoldover = calculateTimeErrorBudget(10.3, 12.0, 0, true, 'CLASS_B');
+  assert.equal(teHoldover.maxTeNs, 67.3);
+  assert.equal(teHoldover.isCompliant, true);
+});
+
+test('calculatePtpTbcDynamics handles node selection, asymmetry compensation, holdover, and aggregates', async () => {
+  const {
+    calculatePtpTbcDynamics,
+    setPtpSelectedNodeId,
+    setPtpAsymmetryCompensation,
+    setPtpSimulatedHoldover,
+    setPtpSimulatedWanderNoise,
+    resetPtpSimState,
+    PTP_TBC_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetPtpSimState();
+  const dynNormal = calculatePtpTbcDynamics();
+  assert.equal(dynNormal.node.id, 'ptp-baradari-prtc');
+  assert.equal(dynNormal.node.clockClass, 6);
+  assert.equal(dynNormal.timeError.isCompliant, true);
+  assert.equal(dynNormal.severity, 'nominal');
+  assert.equal(dynNormal.overallStatus, PTP_TBC_CONSTANTS.STATUS.OPTIMAL);
+  assert.ok(dynNormal.timeError.maxTeNs < 15.0);
+
+  // Switch to Ravi Siphon T-BC with large aerial fiber asymmetry
+  setPtpSelectedNodeId('ptp-ravisiphon-tbc');
+  const dynRavi = calculatePtpTbcDynamics();
+  assert.equal(dynRavi.node.id, 'ptp-ravisiphon-tbc');
+  assert.ok(dynRavi.asymmetry.netCteNs > 30.0);
+  assert.equal(dynRavi.overallStatus, PTP_TBC_CONSTANTS.STATUS.ASYMMETRY_WARNING);
+
+  // Compensate asymmetry by 14 meters
+  setPtpAsymmetryCompensation(14.0);
+  const dynComp = calculatePtpTbcDynamics();
+  assert.ok(dynComp.asymmetry.netCteNs < 5.0);
+  assert.equal(dynComp.severity, 'nominal');
+
+  // Simulate holdover
+  setPtpSimulatedHoldover(true);
+  const dynHoldover = calculatePtpTbcDynamics();
+  assert.equal(dynHoldover.severity, 'warning');
+  assert.equal(dynHoldover.overallStatus, PTP_TBC_CONSTANTS.STATUS.HOLDOVER);
+
+  // Simulate extreme wander noise breaching limit
+  setPtpSimulatedWanderNoise(100.0);
+  const dynBreach = calculatePtpTbcDynamics();
+  assert.equal(dynBreach.timeError.isCompliant, false);
+  assert.equal(dynBreach.severity, 'critical');
+
+  // Check fleet aggregates
+  assert.equal(dynNormal.aggregates.totalNodes, 5);
+  assert.equal(dynNormal.aggregates.totalRadioSites, 54);
+  assert.ok(dynNormal.aggregates.totalSubscribers >= 9000);
+  assert.ok(dynNormal.aggregates.totalFleetRevenue >= 29000000);
+
+  resetPtpSimState();
+});
+
+test('calculatePtpTbcMetrics computes fast card metrics', async () => {
+  const { calculatePtpTbcMetrics } = await import('../dashboard.js');
+
+  const metrics = calculatePtpTbcMetrics();
+  assert.ok(metrics.nodeName.includes('Baradari NOC'));
+  assert.ok(metrics.maxTeNs < 15.0);
+  assert.equal(metrics.severity, 'nominal');
+  assert.equal(metrics.radioSites, 54);
+  assert.ok(metrics.monthlyRevenuePkr >= 29000000);
+});
+
+test('renderPtpTbcDiagramSvg produces pure-vector SVG with sync chain and eye diagram', async () => {
+  const { renderPtpTbcDiagramSvg, calculatePtpTbcDynamics } = await import('../dashboard.js');
+
+  const dyn = calculatePtpTbcDynamics();
+  const svgLight = renderPtpTbcDiagramSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
+  assert.ok(svgLight.includes('class="ptp-tbc-svg"'));
+  assert.ok(svgLight.includes('GNSS Constellation'));
+  assert.ok(svgLight.includes('PRTC Grandmaster'));
+  assert.ok(svgLight.includes('5G Radio Units'));
+  assert.ok(svgLight.includes('PHASE ALIGNMENT EYE'));
+  assert.ok(svgLight.includes('0.0 ns (UTC)'));
+
+  const svgDark = renderPtpTbcDiagramSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // dark background
+});
+
+test('generatePtpTbcReport produces formal Outside Plant PTP synchronization audit text', async () => {
+  const { generatePtpTbcReport, calculatePtpTbcDynamics } = await import('../dashboard.js');
+
+  const dyn = calculatePtpTbcDynamics();
+  const report = generatePtpTbcReport(dyn);
+  assert.ok(report.includes('SHAHDARA ISP PTP IEEE 1588v2 TELECOM BOUNDARY CLOCK AUDIT REPORT'));
+  assert.ok(report.includes('ITU-T G.8275.1 / G.8273.2'));
+  assert.ok(report.includes('Max Absolute TE (|maxTE|):'));
+  assert.ok(report.includes('Constant Time Error (cTE):'));
+  assert.ok(report.includes('Total Telecom Clocks:'));
+});
+
+test('index.html and dashboard.css contain all PTP T-BC modal, card, and style bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardPtpTbcChart"'));
+  assert.ok(html.includes('id="dashboardOpenPtpTbcModalBtn"'));
+  assert.ok(html.includes('id="dashboardPtpTbcModal"'));
+  assert.ok(html.includes('id="ptpNodeSelect"'));
+  assert.ok(html.includes('id="ptpAsymCompRange"'));
+  assert.ok(html.includes('id="ptpHoldoverToggleBtn"'));
+  assert.ok(html.includes('id="ptpResetBtn"'));
+  assert.ok(html.includes('id="dashboardPtpTbcModalSvgContainer"'));
+  assert.ok(html.includes('id="ptpExportJsonBtn"'));
+  assert.ok(html.includes('id="ptpExportCsvBtn"'));
+  assert.ok(html.includes('id="ptpCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-ptp-tbc'));
+  assert.ok(css.includes('.ptp-modal-card'));
+  assert.ok(css.includes('.ptp-tbc-svg'));
+});
+
 
 
 

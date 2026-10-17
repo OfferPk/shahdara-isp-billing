@@ -5959,6 +5959,29 @@ export {
   setupEdfaCascadeModal
 } from './dashboard-edfa-cascade.js';
 
+export {
+  PTP_TBC_CONSTANTS,
+  SHAHDARA_PTP_NODES,
+  getPtpSelectedNodeId,
+  setPtpSelectedNodeId,
+  getPtpAsymmetryCompensation,
+  setPtpAsymmetryCompensation,
+  getPtpSimulatedHoldover,
+  setPtpSimulatedHoldover,
+  getPtpSimulatedWanderNoise,
+  setPtpSimulatedWanderNoise,
+  resetPtpSimState,
+  calculateConstantTimeError,
+  calculateTimeErrorBudget,
+  calculatePtpTbcDynamics,
+  calculatePtpTbcMetrics,
+  renderPtpTbcDiagramSvg,
+  generatePtpTbcReport,
+  exportPtpTbcJson,
+  exportPtpTbcCsv,
+  setupPtpTbcModal
+} from './dashboard-ptp-tbc.js';
+
 
 
 

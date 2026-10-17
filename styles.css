@@ -9729,3 +9729,97 @@ html, body {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ==========================================================================
+   Month-over-Month (MoM) Growth & Momentum Suite Modal Styles
+   ========================================================================== */
+.mom-growth-modal {
+  max-width: 980px;
+  width: 95vw;
+}
+
+.mom-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mom-kpi-card {
+  background: var(--bg-surface, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mom-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.04em;
+}
+
+.mom-kpi-value {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 4px 0 2px 0;
+  color: var(--text-color, #0f172a);
+}
+
+.mom-kpi-delta {
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.mom-kpi-sub {
+  font-size: 11px;
+  color: var(--text-muted, #64748b);
+}
+
+.mom-momentum-pill {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  margin: 6px 0 4px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mom-window-toggle button.active {
+  background: var(--accent, #0e5b4d) !important;
+  color: #fff !important;
+}
+
+[data-theme="dark"] .mom-growth-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .mom-kpi-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .mom-growth-table th {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .mom-growth-table td {
+  border-color: #334155;
+}
+
+@media (max-width: 640px) {
+  .mom-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+

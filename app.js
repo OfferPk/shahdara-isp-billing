@@ -83,6 +83,7 @@ import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
+import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 
 
@@ -102,6 +103,7 @@ export let topDefaultersModalController = null;
 export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
 export let pnlModalController = null;
+export let momGrowthModalController = null;
 export let lateFeeModalController = null;
 let state;
 try {
@@ -4399,6 +4401,9 @@ if (typeof document !== 'undefined') {
   pnlModalController = setupPnlModal(() => state, {
     onToast: (msg) => toast(msg)
   });
+  momGrowthModalController = setupMomGrowthModal(() => state, {
+    onToast: (msg) => toast(msg)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -5309,6 +5314,13 @@ if (typeof document !== 'undefined') {
   const pnlModal = $('#pnlModal');
   if (pnlModal && !pnlModalController) {
     pnlModalController = setupPnlModal(() => state, {
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  const momGrowthModal = $('#momGrowthModal');
+  if (momGrowthModal && !momGrowthModalController) {
+    momGrowthModalController = setupMomGrowthModal(() => state, {
       onToast: (msg) => toast(msg)
     });
   }

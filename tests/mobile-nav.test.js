@@ -9981,4 +9981,314 @@ test('index.html and nav.css contain mobile MPO polarity markup and styles', asy
   assert.ok(css.includes('.mpo-metric-card'));
 });
 
+test('nav.js correctly re-exports Fast Connector assistant constants and functions', async () => {
+  const nav = await import('../nav.js');
+  assert.equal(typeof nav.FAST_CONNECTOR_STORAGE_KEY, 'string');
+  assert.ok(nav.FAST_CONNECTOR_TYPES.SC_APC);
+  assert.ok(nav.FAST_CONNECTOR_TYPES.SC_UPC);
+  assert.ok(nav.GEL_CONDITIONS.FRESH);
+  assert.ok(nav.GEL_CONDITIONS.DEGRADED);
+  assert.ok(nav.GEL_CONDITIONS.DRY_WIPED);
+  assert.ok(Array.isArray(nav.FAST_CONNECTOR_PRESETS));
+  assert.equal(typeof nav.calculateFastConnectorMetrics, 'function');
+  assert.equal(typeof nav.renderFastConnectorDiagramSvg, 'function');
+  assert.equal(typeof nav.formatFastConnectorWhatsApp, 'function');
+  assert.equal(typeof nav.generateFastConnectorCsv, 'function');
+  assert.equal(typeof nav.setupMobileFastConnectorModal, 'function');
+});
+
+test('calculateFastConnectorMetrics correctly evaluates optimal termination and defect scenarios', async () => {
+  const { calculateFastConnectorMetrics } = await import('../nav-fast-connector.js');
+
+  // 1. Optimal SC/APC termination
+  const optimal = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    gelCondition: 'FRESH',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 1.5,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 55
+  });
+
+  assert.equal(optimal.isOverallPass, true);
+  assert.equal(optimal.isIlPass, true);
+  assert.equal(optimal.isRlPass, true);
+  assert.equal(optimal.isTensileProofPass, true);
+  assert.equal(optimal.airGapUm, 0);
+  assert.equal(optimal.bowStatus, 'OPTIMAL');
+  assert.equal(optimal.qualityRating, 'EXCELLENT');
+  assert.ok(optimal.calculatedIlDb <= 0.30);
+  assert.ok(optimal.calculatedRlDb >= 50.0);
+
+  // 2. Short Cleave Length (Air Gap Defect)
+  const shortCleave = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    gelCondition: 'FRESH',
+    actualCleaveMm: 9.0,
+    deflectionBowMm: 1.5,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 55
+  });
+
+  assert.equal(shortCleave.isCleaveShort, true);
+  assert.equal(shortCleave.airGapUm, 1000);
+  assert.equal(shortCleave.isOverallPass, false);
+  assert.ok(shortCleave.qualityRating.includes('FAIL'));
+
+  // 3. Insufficient Deflection Micro-Bow (< 0.5mm)
+  const lowBow = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    gelCondition: 'FRESH',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 0.2,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 55
+  });
+  assert.ok(lowBow.bowStatus.includes('INSUFFICIENT'));
+  assert.equal(lowBow.isOverallPass, false);
+
+  // 4. Excessive Deflection Micro-Bow (> 2.5mm)
+  const highBow = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    gelCondition: 'FRESH',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 3.5,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 55
+  });
+  assert.ok(highBow.bowStatus.includes('EXCESSIVE'));
+
+  // 5. Reused Dry Gel Void (severe Fresnel reflection)
+  const dryGel = calculateFastConnectorMetrics({
+    connectorType: 'SC_UPC',
+    gelCondition: 'DRY_WIPED',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 1.5,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 55
+  });
+  assert.equal(dryGel.isOverallPass, false);
+  assert.ok(dryGel.calculatedIlDb > 0.6);
+  assert.ok(dryGel.calculatedRlDb <= 26.0);
+
+  // 6. Loose Drop Clamping (< 50N tensile proof)
+  const looseClamp = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    gelCondition: 'FRESH',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 1.5,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 35
+  });
+  assert.equal(looseClamp.isTensileProofPass, false);
+  assert.equal(looseClamp.isOverallPass, false);
+});
+
+test('renderFastConnectorDiagramSvg produces comprehensive cutaway SVG', async () => {
+  const { calculateFastConnectorMetrics, renderFastConnectorDiagramSvg } = await import('../nav-fast-connector.js');
+
+  const dyn = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    gelCondition: 'FRESH',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 1.5,
+    cleaveAngleDeg: 0.5,
+    clampingForceN: 55
+  });
+
+  const svg = renderFastConnectorDiagramSvg(dyn);
+  assert.ok(svg.includes('<svg class="fast-connector-svg"'));
+  assert.ok(svg.includes('FERRULE'));
+  assert.ok(svg.includes('V-GROOVE BED'));
+  assert.ok(svg.includes('GEL'));
+  assert.ok(svg.includes('DROP CABLE'));
+  assert.ok(svg.includes('BUFFER'));
+  assert.ok(svg.includes('BOW: 1.5mm'));
+  assert.ok(svg.includes('INSERTION LOSS (IL)'));
+  assert.ok(svg.includes('RETURN LOSS (RL)'));
+  assert.ok(svg.includes('CLEAVE GAUGE (10mm)'));
+  assert.ok(svg.includes('CLAMPING PROOF (≥50N)'));
+});
+
+test('formatFastConnectorWhatsApp formats bilingual Urdu-English report', async () => {
+  const { calculateFastConnectorMetrics, formatFastConnectorWhatsApp } = await import('../nav-fast-connector.js');
+
+  const dynPass = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    actualCleaveMm: 10.0,
+    deflectionBowMm: 1.5
+  });
+
+  const textPass = formatFastConnectorWhatsApp(dynPass, { area: 'Shahdara Town', technicianName: 'Arshad Ali' });
+  assert.ok(textPass.includes('SHAHDARA ISP · FTTH MECHANICAL FAST CONNECTOR AUDIT'));
+  assert.ok(textPass.includes('شاہدہرا آپٹیکل فاسٹ کنیکٹر فیلڈ رپورٹ'));
+  assert.ok(textPass.includes('Shahdara Town'));
+  assert.ok(textPass.includes('Arshad Ali'));
+  assert.ok(textPass.includes('PASSED'));
+
+  const dynFail = calculateFastConnectorMetrics({
+    connectorType: 'SC_APC',
+    actualCleaveMm: 9.0,
+    deflectionBowMm: 0.2
+  });
+  const textFail = formatFastConnectorWhatsApp(dynFail, { area: 'Ravi Road', technicianName: 'Usman' });
+  assert.ok(textFail.includes('FAILED'));
+  assert.ok(textFail.includes('Air Gap Detected'));
+});
+
+test('generateFastConnectorCsv produces compliant RFC-4180 CSV', async () => {
+  const { generateFastConnectorCsv } = await import('../nav-fast-connector.js');
+
+  const records = [
+    {
+      timestamp: '2026-10-17T06:00:00Z',
+      area: 'Begum Kot',
+      technicianName: 'Babar Azam',
+      connectorType: 'SC_APC',
+      actualCleaveMm: 10.0,
+      deflectionBowMm: 1.5,
+      cleaveAngleDeg: 0.4,
+      gelCondition: 'FRESH',
+      clampingForceN: 60,
+      calculatedIlDb: 0.22,
+      calculatedRlDb: 54.0,
+      qualityRating: 'EXCELLENT',
+      isOverallPass: true
+    }
+  ];
+
+  const csv = generateFastConnectorCsv(records);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Timestamp,Area,Technician,Connector Type'));
+  assert.ok(csv.includes('"Begum Kot"'));
+  assert.ok(csv.includes('"Babar Azam"'));
+  assert.ok(csv.includes('PASS'));
+});
+
+test('setupMobileFastConnectorModal binds DOM events and controls lifecycle', async () => {
+  const { setupMobileFastConnectorModal } = await import('../nav-fast-connector.js');
+
+  let modalShown = false;
+  let modalClosed = false;
+
+  function makeMockElement(id, initialVal = '') {
+    const elListeners = {};
+    return {
+      id,
+      value: initialVal,
+      textContent: '',
+      innerHTML: '',
+      dataset: {},
+      addEventListener: (evt, handler) => {
+        elListeners[evt] = handler;
+      },
+      trigger: (evt) => {
+        if (elListeners[evt]) elListeners[evt]({ target: { value: initialVal } });
+      },
+      showModal: () => { modalShown = true; },
+      close: () => { modalClosed = true; },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    };
+  }
+
+  const elements = {
+    mobileFastConnectorModal: makeMockElement('mobileFastConnectorModal'),
+    mobileMoreFastConnectorBtn: makeMockElement('mobileMoreFastConnectorBtn'),
+    mobileFastConnectorModalCloseBtn: makeMockElement('mobileFastConnectorModalCloseBtn'),
+    fcPresetSelect: makeMockElement('fcPresetSelect', 'shahdara-town-drop-apc'),
+    fcTypeSelect: makeMockElement('fcTypeSelect', 'SC_APC'),
+    fcGelSelect: makeMockElement('fcGelSelect', 'FRESH'),
+    fcCleaveSlider: makeMockElement('fcCleaveSlider', '10.0'),
+    fcCleaveLabel: makeMockElement('fcCleaveLabel'),
+    fcBowSlider: makeMockElement('fcBowSlider', '1.5'),
+    fcBowLabel: makeMockElement('fcBowLabel'),
+    fcAngleSlider: makeMockElement('fcAngleSlider', '0.5'),
+    fcAngleLabel: makeMockElement('fcAngleLabel'),
+    fcForceSlider: makeMockElement('fcForceSlider', '55'),
+    fcForceLabel: makeMockElement('fcForceLabel'),
+    fcAreaSelect: makeMockElement('fcAreaSelect', 'Shahdara Town'),
+    fcTechInput: makeMockElement('fcTechInput', 'Arshad Ali'),
+    fcDiagramContainer: makeMockElement('fcDiagramContainer'),
+    fcResetBtn: makeMockElement('fcResetBtn'),
+    fcSaveBtn: makeMockElement('fcSaveBtn'),
+    fcWhatsAppBtn: makeMockElement('fcWhatsAppBtn'),
+    fcExportCsvBtn: makeMockElement('fcExportCsvBtn')
+  };
+
+  const mockDoc = {
+    getElementById: (id) => elements[id] || null
+  };
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: (k) => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v))
+  };
+
+  let lastToast = null;
+  const controller = setupMobileFastConnectorModal({}, {
+    document: mockDoc,
+    storage: mockStorage,
+    onToast: (msg) => { lastToast = msg; }
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.update, 'function');
+  assert.equal(typeof controller.getMetrics, 'function');
+
+  // Verify open and close
+  controller.open();
+  assert.equal(modalShown, true);
+
+  controller.close();
+  assert.equal(modalClosed, true);
+
+  // Trigger Save
+  elements.fcSaveBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('audit saved'));
+  const audits = controller.getSavedAudits();
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].connectorType, 'SC_APC');
+
+  // Trigger Reset
+  elements.fcResetBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('baseline'));
+});
+
+test('index.html, nav.css, and app.js correctly integrate Mobile Fast Connector Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreFastConnectorBtn"'));
+  assert.ok(html.includes('id="mobileFastConnectorModal"'));
+  assert.ok(html.includes('id="mobileFastConnectorModalCloseBtn"'));
+  assert.ok(html.includes('id="fcPresetSelect"'));
+  assert.ok(html.includes('id="fcAreaSelect"'));
+  assert.ok(html.includes('id="fcTechInput"'));
+  assert.ok(html.includes('id="fcTypeSelect"'));
+  assert.ok(html.includes('id="fcGelSelect"'));
+  assert.ok(html.includes('id="fcCleaveSlider"'));
+  assert.ok(html.includes('id="fcBowSlider"'));
+  assert.ok(html.includes('id="fcAngleSlider"'));
+  assert.ok(html.includes('id="fcForceSlider"'));
+  assert.ok(html.includes('id="fcDiagramContainer"'));
+  assert.ok(html.includes('id="fcSaveBtn"'));
+  assert.ok(html.includes('id="fcWhatsAppBtn"'));
+  assert.ok(html.includes('id="fcExportCsvBtn"'));
+  assert.ok(html.includes('id="fcResetBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.fast-connector-card'));
+  assert.ok(css.includes('.fast-connector-svg-wrap'));
+  assert.ok(css.includes('.mobile-fast-connector-modal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileFastConnectorModal'));
+  assert.ok(app.includes('mobileFastConnectorModalController'));
+});
+
 

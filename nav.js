@@ -6413,3 +6413,17 @@ export {
   setupMobileTubeShavingModal
 } from './nav-tube-shaving.js';
 
+export {
+  QUICK_COLLECT_STORAGE_KEY,
+  QUICK_COLLECT_AUDIT_KEY,
+  getPakistanLocalDate,
+  getPendingCollectionCustomers,
+  getCustomerPaymentDefaults,
+  executeQuickCollection,
+  formatQuickCollectWhatsAppReceipt,
+  renderQuickCollectCustomerListHtml,
+  renderQuickCollectReceiptCardHtml,
+  setupQuickCollectModal
+} from './nav-quick-collect.js';
+
+

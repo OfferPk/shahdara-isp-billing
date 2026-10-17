@@ -13307,3 +13307,408 @@ test('Tube Shaving: markup and integration presence in index.html, styles.css, a
 
 
 
+
+/* -------------------------------------------------------------------------- */
+/* 2-Tap Quick Collect Mobile Field Flow Test Suite (agent2 - shahdara-mobile-nav) */
+/* -------------------------------------------------------------------------- */
+
+test('Quick Collect: getPakistanLocalDate returns valid YYYY-MM-DD for Pakistan timezone', async () => {
+  const { getPakistanLocalDate } = await import('../nav-quick-collect.js');
+
+  const todayStr = getPakistanLocalDate();
+  assert.match(todayStr, /^\d{4}-\d{2}-\d{2}$/);
+
+  // UTC evening should be next day morning in Pakistan (+05:00)
+  const utcEvening = new Date('2026-10-17T20:30:00Z');
+  const pktDate = getPakistanLocalDate(utcEvening);
+  assert.equal(pktDate, '2026-10-18');
+});
+
+test('Quick Collect: getPendingCollectionCustomers filters and sorts debtors correctly', async () => {
+  const { getPendingCollectionCustomers } = await import('../nav-quick-collect.js');
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-1',
+        customerNumber: 101,
+        name: 'Tariq Butt',
+        phone: '03001234567',
+        area: 'Baradari Road',
+        mohalla: 'Street 4',
+        address: 'House 12',
+        serviceStatus: 'active',
+        archived: false,
+        bills: [
+          {
+            id: 'b-101-1',
+            month: '2026-09',
+            dueAmount: 3000,
+            status: 'partial',
+            payments: [
+              { id: 'p-1', date: '2026-09-10', amount: 1000, method: 'Cash' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'cust-2',
+        customerNumber: 102,
+        name: 'Usman Ali',
+        phone: '03219876543',
+        area: 'Begum Kot',
+        mohalla: 'Main Chowk',
+        address: 'Shop 5',
+        serviceStatus: 'active',
+        archived: false,
+        bills: [
+          {
+            id: 'b-102-1',
+            month: '2026-09',
+            dueAmount: 1500,
+            status: 'pending',
+            payments: []
+          }
+        ]
+      },
+      {
+        id: 'cust-3',
+        customerNumber: 103,
+        name: 'Zahid Mehmood',
+        phone: '03335551122',
+        area: 'Jia Musa',
+        mohalla: 'Near Masjid',
+        address: 'House 9',
+        serviceStatus: 'active',
+        archived: false,
+        bills: [
+          {
+            id: 'b-103-1',
+            month: '2026-09',
+            dueAmount: 2000,
+            status: 'paid',
+            payments: [
+              { id: 'p-2', date: '2026-09-05', amount: 2000, method: 'JazzCash' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'cust-4',
+        customerNumber: 104,
+        name: 'Archived Customer',
+        phone: '03450000000',
+        area: 'Shahdara Town',
+        serviceStatus: 'offline',
+        archived: true,
+        bills: [
+          { id: 'b-104-1', month: '2026-09', dueAmount: 5000, status: 'pending', payments: [] }
+        ]
+      }
+    ]
+  };
+
+  const refDate = new Date('2026-09-15T10:00:00Z');
+
+  // 1. 'all-dues' filter
+  const debtors = getPendingCollectionCustomers(mockState, '', 'all-dues', refDate);
+  assert.equal(debtors.length, 2);
+  // Largest dues first: Tariq (2000 due) then Usman (1500 due)
+  assert.equal(debtors[0].name, 'Tariq Butt');
+  assert.equal(debtors[0].totalDues, 2000);
+  assert.equal(debtors[1].name, 'Usman Ali');
+  assert.equal(debtors[1].totalDues, 1500);
+
+  // 2. 'high-dues' filter (>= 2000)
+  const highDebtors = getPendingCollectionCustomers(mockState, '', 'high-dues', refDate);
+  assert.equal(highDebtors.length, 1);
+  assert.equal(highDebtors[0].name, 'Tariq Butt');
+
+  // 3. 'all' filter
+  const allList = getPendingCollectionCustomers(mockState, '', 'all', refDate);
+  assert.equal(allList.length, 3); // excludes archived
+  assert.equal(allList[2].name, 'Zahid Mehmood');
+  assert.equal(allList[2].totalDues, 0);
+
+  // 4. Search query matching
+  const searchByName = getPendingCollectionCustomers(mockState, 'usman', 'all', refDate);
+  assert.equal(searchByName.length, 1);
+  assert.equal(searchByName[0].name, 'Usman Ali');
+
+  const searchByArea = getPendingCollectionCustomers(mockState, 'Begum Kot', 'all', refDate);
+  assert.equal(searchByArea.length, 1);
+  assert.equal(searchByArea[0].name, 'Usman Ali');
+
+  const searchByNumber = getPendingCollectionCustomers(mockState, '#103', 'all', refDate);
+  assert.equal(searchByNumber.length, 1);
+  assert.equal(searchByNumber[0].name, 'Zahid Mehmood');
+});
+
+test('Quick Collect: getCustomerPaymentDefaults preselects balance, date, and last method', async () => {
+  const { getCustomerPaymentDefaults } = await import('../nav-quick-collect.js');
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-jazz',
+        customerNumber: 201,
+        name: 'Kamran Akmal',
+        phone: '03017778899',
+        area: 'Ravi Siphon Road',
+        archived: false,
+        monthlySellingAmount: 2500,
+        bills: [
+          {
+            id: 'b-201-1',
+            month: '2026-08',
+            dueAmount: 2500,
+            status: 'paid',
+            payments: [
+              { id: 'p-1', date: '2026-08-05', amount: 2500, method: 'EasyPaisa', paidBy: 'Self' }
+            ]
+          },
+          {
+            id: 'b-201-2',
+            month: '2026-09',
+            dueAmount: 2500,
+            status: 'partial',
+            payments: [
+              { id: 'p-2', date: '2026-09-07', amount: 1000, method: 'JazzCash', paidBy: 'Shop Cashier' }
+            ]
+          }
+        ]
+      },
+      {
+        id: 'cust-archived',
+        customerNumber: 202,
+        name: 'Old User',
+        archived: true,
+        bills: []
+      }
+    ]
+  };
+
+  const refDate = new Date('2026-09-20T12:00:00Z');
+  const defaults = getCustomerPaymentDefaults(mockState, 'cust-jazz', refDate);
+
+  assert.equal(defaults.name, 'Kamran Akmal');
+  assert.equal(defaults.customerNumber, 201);
+  assert.equal(defaults.targetMonth, '2026-09');
+  assert.equal(defaults.balanceDue, 1500); // 2500 - 1000
+  assert.equal(defaults.suggestedAmount, 1500);
+  assert.equal(defaults.defaultMethod, 'JazzCash'); // Last used method
+  assert.equal(defaults.lastPaidBy, 'Shop Cashier');
+  assert.equal(defaults.todayDate, '2026-09-20');
+
+  // Archived customer throw check
+  assert.throws(() => {
+    getCustomerPaymentDefaults(mockState, 'cust-archived', refDate);
+  }, /Archived customers cannot receive payments/);
+});
+
+test('Quick Collect: executeQuickCollection creates immutable payment and returns valid receipt', async () => {
+  const { executeQuickCollection } = await import('../nav-quick-collect.js');
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-exec',
+        customerNumber: 301,
+        name: 'Bilal Khan',
+        phone: '03124443322',
+        area: 'Chah Miran',
+        archived: false,
+        bills: [
+          {
+            id: 'b-301-1',
+            month: '2026-09',
+            dueAmount: 2000,
+            status: 'pending',
+            payments: []
+          }
+        ]
+      }
+    ]
+  };
+
+  const refDate = new Date('2026-09-12T08:00:00Z');
+
+  // Step 1: Partial collection of PKR 800
+  const step1 = executeQuickCollection(mockState, {
+    customerId: 'cust-exec',
+    month: '2026-09',
+    amount: 800,
+    date: '2026-09-12',
+    method: 'Cash',
+    paidBy: 'Brother'
+  }, refDate);
+
+  assert.equal(step1.receipt.success, true);
+  assert.equal(step1.receipt.amount, 800);
+  assert.equal(step1.receipt.newBalanceDue, 1200); // 2000 - 800
+  assert.equal(step1.receipt.newTotalDues, 1200);
+  assert.equal(step1.receipt.isSettled, false);
+  assert.equal(step1.receipt.paidBy, 'Brother');
+  assert.match(step1.receipt.receiptNumber, /^RCPT-301-202609-01$/);
+
+  // Verify nextState has payment recorded
+  const billAfterStep1 = step1.nextState.customers[0].bills[0];
+  assert.equal(billAfterStep1.payments.length, 1);
+  assert.equal(billAfterStep1.payments[0].amount, 800);
+
+  // Step 2: Final settlement collection of PKR 1,200
+  const step2 = executeQuickCollection(step1.nextState, {
+    customerId: 'cust-exec',
+    month: '2026-09',
+    amount: 1200,
+    date: '2026-09-12',
+    method: 'JazzCash'
+  }, refDate);
+
+  assert.equal(step2.receipt.amount, 1200);
+  assert.equal(step2.receipt.newBalanceDue, 0);
+  assert.equal(step2.receipt.newTotalDues, 0);
+  assert.equal(step2.receipt.isSettled, true);
+  assert.match(step2.receipt.receiptNumber, /^RCPT-301-202609-02$/);
+
+  // Validation checks: negative amount
+  assert.throws(() => {
+    executeQuickCollection(mockState, {
+      customerId: 'cust-exec',
+      month: '2026-09',
+      amount: -500
+    }, refDate);
+  }, /greater than zero/);
+
+  // Validation checks: invalid payment method
+  assert.throws(() => {
+    executeQuickCollection(mockState, {
+      customerId: 'cust-exec',
+      month: '2026-09',
+      amount: 500,
+      method: 'BitCoinCrypto'
+    }, refDate);
+  }, /valid payment method/);
+});
+
+test('Quick Collect: formatQuickCollectWhatsAppReceipt generates bilingual message and wa.me link', async () => {
+  const { formatQuickCollectWhatsAppReceipt } = await import('../nav-quick-collect.js');
+
+  const receipt = {
+    receiptNumber: 'RCPT-505-202610-01',
+    customerNumber: 505,
+    customerName: 'Muhammad Salman',
+    phone: '03009876543',
+    area: 'Baradari Sector B',
+    month: '2026-10',
+    date: '2026-10-17',
+    amount: 2500,
+    method: 'Cash',
+    paidBy: 'Self',
+    newBalanceDue: 0,
+    newTotalDues: 0
+  };
+
+  const { text, url } = formatQuickCollectWhatsAppReceipt(receipt);
+
+  assert.ok(text.includes('SHAHDARA FIBER NETWORK'));
+  assert.ok(text.includes('RCPT-505-202610-01'));
+  assert.ok(text.includes('Muhammad Salman'));
+  assert.ok(text.includes('2,500'));
+  assert.ok(text.includes('مکمل ادا شدہ'));
+  assert.ok(text.includes('PAID IN FULL'));
+
+  assert.ok(url.startsWith('https://wa.me/923009876543'));
+  assert.ok(url.includes(encodeURIComponent('RCPT-505-202610-01')));
+});
+
+test('Quick Collect: HTML renderers produce valid accessible markup', async () => {
+  const { renderQuickCollectCustomerListHtml, renderQuickCollectReceiptCardHtml } = await import('../nav-quick-collect.js');
+
+  const customers = [
+    {
+      id: 'cust-a',
+      customerNumber: 42,
+      name: 'Ahmed Raza',
+      phone: '03001112233',
+      area: 'Begum Kot',
+      totalDues: 2400
+    },
+    {
+      id: 'cust-b',
+      customerNumber: 43,
+      name: 'Hamza Tariq',
+      phone: '03224445566',
+      area: 'Jia Musa',
+      totalDues: 0
+    }
+  ];
+
+  const html = renderQuickCollectCustomerListHtml(customers, 'cust-a');
+  assert.ok(html.includes('data-customer-id="cust-a"'));
+  assert.ok(html.includes('#42'));
+  assert.ok(html.includes('Ahmed Raza'));
+  assert.ok(html.includes('2,400'));
+  assert.ok(html.includes('is-selected'));
+  assert.ok(html.includes('SETTLED'));
+
+  const emptyHtml = renderQuickCollectCustomerListHtml([]);
+  assert.ok(emptyHtml.includes('No matching accounts found'));
+
+  const receiptCardHtml = renderQuickCollectReceiptCardHtml({
+    receiptNumber: 'RCPT-42-202610-01',
+    customerName: 'Ahmed Raza',
+    customerNumber: 42,
+    amount: 2400,
+    date: '2026-10-17',
+    method: 'Cash',
+    area: 'Begum Kot',
+    newTotalDues: 0,
+    paidBy: 'Self'
+  });
+
+  assert.ok(receiptCardHtml.includes('RCPT-42-202610-01'));
+  assert.ok(receiptCardHtml.includes('Ahmed Raza'));
+  assert.ok(receiptCardHtml.includes('2,400'));
+  assert.ok(receiptCardHtml.includes('Settle in Full'));
+});
+
+test('Quick Collect: DOM integration and markup in index.html, styles.css, app.js, owner-ui.js, and nav.js', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="quickCollectModal"'));
+  assert.ok(html.includes('id="closeQuickCollectModalBtn"'));
+  assert.ok(html.includes('id="quickCollectSearchInput"'));
+  assert.ok(html.includes('id="quickCollectCustomerList"'));
+  assert.ok(html.includes('id="quickCollectStepPick"'));
+  assert.ok(html.includes('id="quickCollectStepForm"'));
+  assert.ok(html.includes('id="quickCollectPaymentForm"'));
+  assert.ok(html.includes('id="quickCollectAmountInput"'));
+  assert.ok(html.includes('id="quickCollectDateInput"'));
+  assert.ok(html.includes('id="quickCollectMethodSelect"'));
+  assert.ok(html.includes('id="quickCollectConfirmBtn"'));
+  assert.ok(html.includes('id="quickCollectStepSuccess"'));
+  assert.ok(html.includes('id="quickCollectReceiptCard"'));
+  assert.ok(html.includes('id="quickCollectWhatsAppBtn"'));
+
+  const styles = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(styles.includes('#quickCollectModal'));
+  assert.ok(styles.includes('.qc-customer-card'));
+  assert.ok(styles.includes('[data-theme="dark"] #quickCollectModal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupQuickCollectModal'));
+  assert.ok(app.includes('window.quickCollectModalController'));
+
+  const ownerUi = fs.readFileSync(path.resolve('./owner-ui.js'), 'utf-8');
+  assert.ok(ownerUi.includes('quickCollectModalController'));
+
+  const nav = await import('../nav.js');
+  assert.ok(typeof nav.getPendingCollectionCustomers === 'function');
+  assert.ok(typeof nav.getCustomerPaymentDefaults === 'function');
+  assert.ok(typeof nav.executeQuickCollection === 'function');
+  assert.ok(typeof nav.formatQuickCollectWhatsAppReceipt === 'function');
+  assert.ok(typeof nav.setupQuickCollectModal === 'function');
+});

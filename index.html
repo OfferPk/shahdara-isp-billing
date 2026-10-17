@@ -17837,6 +17837,150 @@
 
 
 
+  <!-- 2-Tap Quick Collect Mobile Field Flow Dialog (agent2 - shahdara-mobile-nav) -->
+  <dialog id="quickCollectModal" class="modal quick-collect-modal" aria-labelledby="quickCollectTitle">
+    <section class="quick-collect-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">FIELD RECOVERY &amp; BILLING</p>
+          <h2 id="quickCollectTitle">Quick Collect (2-Tap Flow)</h2>
+        </div>
+        <button id="closeQuickCollectModalBtn" class="close-button" type="button" aria-label="Close quick collect modal">×</button>
+      </div>
+
+      <!-- Step 1: Customer Picker (Tap 1) -->
+      <div id="quickCollectStepPick" class="qc-step">
+        <div class="qc-search-box">
+          <input id="quickCollectSearchInput"
+                 type="search"
+                 class="qc-search-input"
+                 placeholder="Search by name, #ID, phone, or area..."
+                 aria-label="Search customers for quick collection"
+                 autocomplete="off">
+          <button id="quickCollectSearchClearBtn" class="qc-search-clear" type="button" aria-label="Clear search" hidden>×</button>
+        </div>
+
+        <div class="qc-filter-pills" role="tablist" aria-label="Customer filter">
+          <button type="button" class="quick-collect-filter-chip is-active" data-filter="all-dues" role="tab" aria-selected="true">
+            With Dues (<span id="quickCollectDuesCount">0</span>)
+          </button>
+          <button type="button" class="quick-collect-filter-chip" data-filter="high-dues" role="tab" aria-selected="false">
+            High Dues ≥ 2k (<span id="quickCollectHighDuesCount">0</span>)
+          </button>
+          <button type="button" class="quick-collect-filter-chip" data-filter="all" role="tab" aria-selected="false">
+            All (<span id="quickCollectAllCount">0</span>)
+          </button>
+        </div>
+
+        <div id="quickCollectCustomerList" class="qc-customer-list" role="region" aria-label="Subscribers list" tabindex="0">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="qc-picker-footer">
+          <button id="quickCollectGoToTransactionsBtn" type="button" class="secondary-button" style="width:100%;font-size:0.85rem;">
+            📋 Switch to Full Ledger &amp; Transactions Table
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Prefilled Payment Form (Tap 2) -->
+      <div id="quickCollectStepForm" class="qc-step" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <button id="quickCollectBackToPickBtn" class="secondary-button qc-back-btn" type="button" aria-label="Back to customer list">
+            ← Back to Picker
+          </button>
+          <span class="qc-step-badge">Step 2 of 2</span>
+        </div>
+
+        <div id="quickCollectCustomerHeader" class="qc-cust-header-box">
+          <!-- Populated dynamically with customer details -->
+        </div>
+
+        <form id="quickCollectPaymentForm" class="qc-form" novalidate>
+          <div class="qc-field-group">
+            <label for="quickCollectAmountInput" class="qc-label">
+              Amount Collected (PKR) <span class="qc-required">*</span>
+            </label>
+            <input id="quickCollectAmountInput"
+                   type="number"
+                   step="0.01"
+                   min="0.01"
+                   max="999999"
+                   required
+                   inputmode="decimal"
+                   placeholder="Enter amount"
+                   class="qc-input qc-amount-input">
+            <div class="qc-quick-amount-chips" aria-label="Suggested quick amounts">
+              <button type="button" class="quick-amount-chip" data-quick-amount="full">Full Balance</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="half">50%</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="1000">1,000</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="1500">1,500</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="2000">2,000</button>
+            </div>
+          </div>
+
+          <div class="qc-form-row">
+            <div class="qc-field-group">
+              <label for="quickCollectDateInput" class="qc-label">Payment Date (PKT) <span class="qc-required">*</span></label>
+              <input id="quickCollectDateInput" type="date" required class="qc-input">
+            </div>
+
+            <div class="qc-field-group">
+              <label for="quickCollectMethodSelect" class="qc-label">Payment Method <span class="qc-required">*</span></label>
+              <select id="quickCollectMethodSelect" required class="qc-input"></select>
+            </div>
+          </div>
+
+          <div class="qc-form-row">
+            <div class="qc-field-group">
+              <label for="quickCollectMonthSelect" class="qc-label">Billing Month Settlement</label>
+              <select id="quickCollectMonthSelect" class="qc-input"></select>
+            </div>
+
+            <div class="qc-field-group">
+              <label for="quickCollectPaidByInput" class="qc-label">Paid By / Note (Optional)</label>
+              <input id="quickCollectPaidByInput" type="text" maxlength="100" placeholder="e.g. Self, Brother, Shop Cashier" class="qc-input">
+            </div>
+          </div>
+
+          <div class="qc-form-actions">
+            <button id="quickCollectConfirmBtn" class="primary-button qc-confirm-btn" type="submit">
+              ✓ Confirm &amp; Issue Receipt
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Step 3: Success Screen with Receipt Slip -->
+      <div id="quickCollectStepSuccess" class="qc-step" hidden>
+        <div class="qc-success-banner" role="status">
+          <span class="qc-success-check" aria-hidden="true">✓</span>
+          <h3>Payment Recorded Successfully</h3>
+          <p>The transaction is saved locally and ledger balances are updated.</p>
+        </div>
+
+        <div id="quickCollectReceiptCard" class="qc-receipt-container">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div class="qc-success-actions">
+          <button id="quickCollectWhatsAppBtn" class="primary-button qc-wa-btn" type="button">
+            💬 Share via WhatsApp
+          </button>
+          <button id="quickCollectPrintReceiptBtn" class="secondary-button" type="button">
+            🖨️ Print Receipt Slip
+          </button>
+          <button id="quickCollectAnotherBtn" class="secondary-button" type="button">
+            ➕ Collect Another Customer
+          </button>
+          <button id="quickCollectDoneCloseBtn" class="secondary-button" type="button">
+            Done
+          </button>
+        </div>
+      </div>
+    </section>
+  </dialog>
+
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <script type="module" src="./app.js?v=1.10.0"></script>
 </body>

@@ -6234,7 +6234,8 @@ html, body {
 #midspanSvgContainer,
 #powerLoggerSvgContainer,
 #dropRetentionSvgContainer,
-#adssSvgContainer {
+#adssSvgContainer,
+#armoredSvgContainer {
   width: 100%;
   overflow-x: auto;
   border-radius: 8px;
@@ -6245,7 +6246,8 @@ html, body {
 #midspanSvgContainer svg,
 #powerLoggerSvgContainer svg,
 #dropRetentionSvgContainer svg,
-#adssSvgContainer svg {
+#adssSvgContainer svg,
+#armoredSvgContainer svg {
   width: 100%;
   min-width: 580px;
   max-width: 820px;
@@ -6255,7 +6257,9 @@ html, body {
 
 @media print {
   #adssSagTensionModal,
-  #adssSagTensionModal .dashboard-modal-card {
+  #adssSagTensionModal .dashboard-modal-card,
+  #armoredCableCrushModal,
+  #armoredCableCrushModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;

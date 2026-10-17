@@ -14120,3 +14120,372 @@ test('Mobile Customer Quick Profile & WhatsApp Receipt Delivery Suite: state, ac
   assert.ok(typeof nav.renderQuickProfileCardHtml === 'function');
   assert.ok(typeof nav.setupMobileQuickProfileModal === 'function');
 });
+
+test('Mobile Field Collection Rounds, Door-to-Door Dues Recovery & Dispatch Suite (agent2 - shahdara-mobile-nav)', async () => {
+  const {
+    FIELD_ROUTE_PROGRESS_KEY,
+    FIELD_ROUTE_NOTES_KEY,
+    getTodayDateString,
+    getFieldRouteProgress,
+    markRouteStopCollected,
+    clearFieldRouteProgress,
+    getFieldRouteNotes,
+    saveFieldRouteNote,
+    calculateFieldCollectionRoutes,
+    generateFieldRouteManifestText,
+    generateFieldRouteSlipHtml,
+    setupFieldRouteSheet
+  } = await import('../nav.js');
+
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  // 1. Storage and Date Utilities
+  const memoryStore = new Map();
+  const mockStorage = {
+    getItem: (k) => memoryStore.get(k) || null,
+    setItem: (k, v) => memoryStore.set(k, String(v)),
+    removeItem: (k) => memoryStore.delete(k)
+  };
+
+  const today = getTodayDateString();
+  assert.match(today, /^\d{4}-\d{2}-\d{2}$/);
+
+  // 2. Sample ISP State with Multi-Area/Mohalla Outstanding Dues
+  const sampleState = {
+    customers: [
+      {
+        id: 'cust-saeed-1',
+        customerNumber: 101,
+        name: 'Malik Arshad',
+        username: 'malikarshad',
+        phone: '03001112233',
+        address: 'House 45, Street 2',
+        area: 'Saeed Park',
+        mohalla: 'Main Bazaar',
+        status: 'active',
+        bills: [
+          { month: '2026-09', dueAmount: 2500, status: 'unpaid' },
+          { month: '2026-10', dueAmount: 2500, status: 'unpaid' }
+        ]
+      },
+      {
+        id: 'cust-saeed-2',
+        customerNumber: 102,
+        name: 'Sheikh Waqas',
+        username: 'swaqas',
+        phone: '03214445566',
+        address: 'Plot 12, Block A',
+        area: 'Saeed Park',
+        mohalla: 'Gulshan Colony',
+        status: 'offline',
+        bills: [
+          { month: '2026-10', dueAmount: 3500, status: 'unpaid' }
+        ]
+      },
+      {
+        id: 'cust-wandala-1',
+        customerNumber: 201,
+        name: 'Chaudhry Nadeem',
+        username: 'nadeemc',
+        phone: '', // No phone on file
+        address: 'Railway Crossing Corner',
+        area: 'Wandala Road',
+        mohalla: 'Railway Gate',
+        status: 'suspended',
+        bills: [
+          { month: '2026-08', dueAmount: 4000, status: 'unpaid' }
+        ]
+      },
+      {
+        id: 'cust-settled',
+        customerNumber: 301,
+        name: 'Zahid Mehmood',
+        username: 'zahidm',
+        phone: '03457778899',
+        area: 'Saeed Park',
+        mohalla: 'Main Bazaar',
+        status: 'active',
+        bills: [
+          { month: '2026-10', dueAmount: 0, status: 'paid' }
+        ]
+      },
+      {
+        id: 'cust-archived',
+        name: 'Old Subscriber',
+        archived: true,
+        bills: [{ dueAmount: 5000, status: 'unpaid' }]
+      }
+    ]
+  };
+
+  // 3. Comprehensive Route Calculation & Sorting
+  // Default sorting by priority
+  const priorityRoute = calculateFieldCollectionRoutes(sampleState, {
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+
+  assert.equal(priorityRoute.totalStops, 3);
+  assert.equal(priorityRoute.totalDue, 12500); // 5000 + 3500 + 4000
+  assert.equal(priorityRoute.collectedStops, 0);
+  assert.equal(priorityRoute.collectedAmount, 0);
+  assert.equal(priorityRoute.pendingStops, 3);
+  assert.equal(priorityRoute.pendingAmount, 12500);
+  assert.equal(priorityRoute.completionRate, 0);
+  assert.equal(priorityRoute.roundStatus, 'NOT_STARTED');
+
+  // Verify Areas & Sectors breakdowns
+  assert.ok(priorityRoute.allSectors.includes('All'));
+  assert.ok(priorityRoute.allSectors.includes('Saeed Park - Main Bazaar'));
+  assert.ok(priorityRoute.allSectors.includes('Saeed Park - Gulshan Colony'));
+  assert.ok(priorityRoute.allSectors.includes('Wandala Road - Railway Gate'));
+
+  assert.ok(priorityRoute.allAreas.includes('All'));
+  assert.ok(priorityRoute.allAreas.includes('Saeed Park'));
+  assert.ok(priorityRoute.allAreas.includes('Wandala Road'));
+
+  // Test Sort: due-high (Highest Balance First)
+  const dueHighRoute = calculateFieldCollectionRoutes(sampleState, {
+    sortBy: 'due-high',
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(dueHighRoute.stops[0].id, 'cust-saeed-1'); // 5000 due
+  assert.equal(dueHighRoute.stops[1].id, 'cust-wandala-1'); // 4000 due
+  assert.equal(dueHighRoute.stops[2].id, 'cust-saeed-2'); // 3500 due
+
+  // 4. Contact & WhatsApp Reminder Draft Verification
+  const stop1 = dueHighRoute.stops[0];
+  assert.equal(stop1.customerNumber, 101);
+  assert.equal(stop1.whatsappPhone, '923001112233');
+  assert.equal(stop1.phoneUrl, 'tel:03001112233');
+  assert.ok(stop1.whatsappReminderUrl);
+  assert.ok(stop1.whatsappReminderUrl.includes('923001112233'));
+  assert.ok(stop1.whatsappReminderUrl.includes(encodeURIComponent('SHAHDARA ISP - FIELD COLLECTION REMINDER')));
+  assert.ok(stop1.whatsappReminderText.includes('Malik Arshad'));
+  assert.ok(stop1.whatsappReminderText.includes('PKR 5,000'));
+  assert.ok(stop1.whatsappReminderText.includes('#101'));
+
+  // Stop without phone
+  const stopNoPhone = dueHighRoute.stops[1];
+  assert.equal(stopNoPhone.phone, '');
+  assert.equal(stopNoPhone.whatsappPhone, '');
+  assert.equal(stopNoPhone.phoneUrl, null);
+  assert.equal(stopNoPhone.whatsappReminderUrl, null);
+  assert.ok(stopNoPhone.whatsappReminderText.includes('Chaudhry Nadeem'));
+  assert.ok(stopNoPhone.whatsappReminderText.includes('PKR 4,000'));
+
+  // 5. Area / Sector Filtering
+  const saeedRoute = calculateFieldCollectionRoutes(sampleState, {
+    sector: 'Saeed Park - Main Bazaar',
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(saeedRoute.totalStops, 1);
+  assert.equal(saeedRoute.stops[0].id, 'cust-saeed-1');
+  assert.equal(saeedRoute.totalDue, 5000);
+
+  // 6. Search Query Filtering
+  const queryRoute = calculateFieldCollectionRoutes(sampleState, {
+    query: '102',
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(queryRoute.totalStops, 1);
+  assert.equal(queryRoute.stops[0].id, 'cust-saeed-2');
+
+  // 7. Route Progress Persistence & Tab Filtering
+  markRouteStopCollected('cust-saeed-1', true, mockStorage, '2026-10-17');
+  const prog1 = getFieldRouteProgress(mockStorage, '2026-10-17');
+  assert.deepEqual(prog1.collectedIds, ['cust-saeed-1']);
+
+  const progressRoute = calculateFieldCollectionRoutes(sampleState, {
+    sortBy: 'due-high',
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(progressRoute.totalStops, 3);
+  assert.equal(progressRoute.collectedStops, 1);
+  assert.equal(progressRoute.collectedAmount, 5000);
+  assert.equal(progressRoute.pendingStops, 2);
+  assert.equal(progressRoute.pendingAmount, 7500);
+  assert.equal(progressRoute.completionRate, 33);
+  assert.equal(progressRoute.roundStatus, 'IN_PROGRESS');
+
+  // Test filterTab: 'pending' vs 'collected'
+  const pendingOnlyRoute = calculateFieldCollectionRoutes(sampleState, {
+    filterTab: 'pending',
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(pendingOnlyRoute.stops.length, 2);
+  assert.ok(!pendingOnlyRoute.stops.some(s => s.id === 'cust-saeed-1'));
+
+  const collectedOnlyRoute = calculateFieldCollectionRoutes(sampleState, {
+    filterTab: 'collected',
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(collectedOnlyRoute.stops.length, 1);
+  assert.equal(collectedOnlyRoute.stops[0].id, 'cust-saeed-1');
+
+  // Mark all collected
+  markRouteStopCollected('cust-saeed-2', true, mockStorage, '2026-10-17');
+  markRouteStopCollected('cust-wandala-1', true, mockStorage, '2026-10-17');
+  const allCollectedRoute = calculateFieldCollectionRoutes(sampleState, {
+    storage: mockStorage,
+    dateStr: '2026-10-17'
+  });
+  assert.equal(allCollectedRoute.completionRate, 100);
+  assert.equal(allCollectedRoute.roundStatus, 'COMPLETED');
+
+  // Clear progress
+  clearFieldRouteProgress(mockStorage, '2026-10-17');
+  const clearedProg = getFieldRouteProgress(mockStorage, '2026-10-17');
+  assert.deepEqual(clearedProg.collectedIds, []);
+
+  // 7b. Field Route Notes Persistence
+  saveFieldRouteNote('cust-saeed-1', 'Promised to pay on 20th after salary', mockStorage, '2026-10-17');
+  const notesAfterSave = getFieldRouteNotes(mockStorage, '2026-10-17');
+  assert.equal(notesAfterSave['cust-saeed-1'], 'Promised to pay on 20th after salary');
+  const routeWithNotes = calculateFieldCollectionRoutes(sampleState, { storage: mockStorage, dateStr: '2026-10-17' });
+  const stopWithNote = routeWithNotes.stops.find(s => s.id === 'cust-saeed-1');
+  assert.equal(stopWithNote.fieldNote, 'Promised to pay on 20th after salary');
+
+  // 8. Text Manifest Generation
+  const manifest = generateFieldRouteManifestText(progressRoute);
+  assert.ok(manifest.includes('*SHAHDARA FIBER NET - FIELD COLLECTION DISPATCH*'));
+  assert.ok(manifest.includes('Target Dues: Rs. 12,500'));
+  assert.ok(manifest.includes('Malik Arshad'));
+  assert.ok(manifest.includes('Sheikh Waqas'));
+
+  // 9. Printable Route Slip HTML Generation
+  const slipHtml = generateFieldRouteSlipHtml(dueHighRoute);
+  assert.ok(slipHtml.includes('Door-to-Door Field Collection Manifest'));
+  assert.ok(slipHtml.includes('SHAHDARA FIBER NET'));
+  assert.ok(slipHtml.includes('Malik Arshad'));
+  assert.ok(slipHtml.includes('Rs. 5,000'));
+  assert.ok(slipHtml.includes('Rs. 4,000'));
+  assert.ok(slipHtml.includes('Rs. 3,500'));
+  assert.ok(slipHtml.includes('Collected by:'));
+
+  // 10. DOM Setup and Interactive Controller Verification
+  const mockElements = {
+    fieldRouteModal: {
+      showModal: () => { mockElements.fieldRouteModal.open = true; },
+      close: () => { mockElements.fieldRouteModal.open = false; },
+      addEventListener: (evt, cb) => { mockElements.fieldRouteModal[`on_${evt}`] = cb; },
+      open: false
+    },
+    fieldRouteCloseBtn: { addEventListener: (evt, cb) => { mockElements.fieldRouteCloseBtn.onClick = cb; } },
+    routeSectorFilter: {
+      value: 'All',
+      options: [{ value: 'All', textContent: 'All Sectors' }],
+      appendChild: () => {},
+      addEventListener: (evt, cb) => { mockElements.routeSectorFilter.onChange = cb; }
+    },
+    routeSortFilter: { value: 'due-high', addEventListener: (evt, cb) => { mockElements.routeSortFilter.onChange = cb; } },
+    routeSearchInput: { value: '', addEventListener: (evt, cb) => { mockElements.routeSearchInput.onInput = cb; } },
+    fieldRouteStopsList: {
+      innerHTML: '',
+      children: [],
+      appendChild: (child) => { mockElements.fieldRouteStopsList.children.push(child); },
+      addEventListener: (evt, cb) => { mockElements.fieldRouteStopsList.onClick = cb; }
+    },
+    routeEmptyState: { hidden: true },
+    routeMetricTarget: { textContent: '' },
+    routeMetricCollected: { textContent: '' },
+    routeMetricPending: { textContent: '' },
+    routeMetricStops: { textContent: '' },
+    routeProgressText: { textContent: '' },
+    routeProgressBarFill: { style: {} },
+    resetRouteProgressBtn: { addEventListener: (evt, cb) => { mockElements.resetRouteProgressBtn.onClick = cb; } },
+    copyRouteManifestBtn: { addEventListener: (evt, cb) => { mockElements.copyRouteManifestBtn.onClick = cb; } },
+    shareRouteWhatsappBtn: { addEventListener: (evt, cb) => { mockElements.shareRouteWhatsappBtn.onClick = cb; } },
+    printRouteSlipBtn: { addEventListener: (evt, cb) => { mockElements.printRouteSlipBtn.onClick = cb; } }
+  };
+
+  const origDocument = globalThis.document;
+  try {
+    globalThis.document = {
+      getElementById: (id) => mockElements[id] || null,
+      querySelectorAll: (sel) => [],
+      createElement: (tag) => ({
+        tagName: String(tag).toUpperCase(),
+        setAttribute: () => {},
+        querySelector: () => null,
+        innerHTML: '',
+        classList: { add: () => {} },
+        style: {}
+      })
+    };
+
+    let collectedCustId = null;
+    let quickProfileCustId = null;
+    let toastedMsg = null;
+
+    const controller = setupFieldRouteSheet({
+      state: sampleState,
+      onCollectPayment: (cid) => { collectedCustId = cid; },
+      onQuickProfile: (cid) => { quickProfileCustId = cid; },
+      onToast: (msg) => { toastedMsg = msg; },
+      storage: mockStorage
+    });
+
+    controller.open();
+    assert.equal(mockElements.fieldRouteModal.open, true);
+    assert.equal(mockElements.routeMetricTarget.textContent, 'Rs. 12,500');
+    assert.equal(mockElements.fieldRouteStopsList.children.length, 3);
+
+    // Simulate clicking "Receive Cash" on stop 1
+    const mockCollectEvent = {
+      target: {
+        closest: (selector) => selector === '[data-stop-collect]' ? {
+          getAttribute: (attr) => attr === 'data-stop-collect' ? 'cust-saeed-1' : null
+        } : null
+      }
+    };
+    mockElements.fieldRouteStopsList.onClick(mockCollectEvent);
+    assert.equal(collectedCustId, 'cust-saeed-1');
+
+    // Simulate clicking "ℹ️ Profile" on stop 2
+    const mockProfileEvent = {
+      target: {
+        closest: (selector) => selector === '[data-stop-quick-profile]' ? {
+          getAttribute: (attr) => attr === 'data-stop-quick-profile' ? 'cust-saeed-2' : null
+        } : null
+      }
+    };
+    mockElements.fieldRouteStopsList.onClick(mockProfileEvent);
+    assert.equal(quickProfileCustId, 'cust-saeed-2');
+
+    // Test tab filtering via controller
+    controller.setFilterTab('pending');
+    assert.equal(controller.getRouteData().stops.length, 3); // all currently pending
+
+    controller.close();
+    assert.equal(mockElements.fieldRouteModal.open, false);
+  } finally {
+    globalThis.document = origDocument;
+  }
+
+  // 11. HTML & CSS Markups Verification
+  const indexHtml = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(indexHtml.includes('id="fieldRouteModal"'));
+  assert.ok(indexHtml.includes('id="routeSectorFilter"'));
+  assert.ok(indexHtml.includes('id="routeSortFilter"'));
+  assert.ok(indexHtml.includes('id="fieldRouteStopsList"'));
+  assert.ok(indexHtml.includes('class="route-filter-tabs"'));
+  assert.ok(indexHtml.includes('id="printRouteSlipBtn"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.route-card'));
+  assert.ok(navCss.includes('.route-filter-tabs'));
+  assert.ok(navCss.includes('.route-filter-tab'));
+  assert.ok(navCss.includes('.field-route-stops-list'));
+
+  const appCode = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(appCode.includes('fieldRouteSheetController'));
+  assert.ok(appCode.includes('quickCollectModalController'));
+});

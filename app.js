@@ -83,6 +83,7 @@ import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
+import { setupDataIntegrityModal } from './qa-data-integrity.js';
 
 
 
@@ -4259,6 +4260,7 @@ export let customerSpectralAttenuationModalController;
 export let customerFoscSealModalController;
 export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
+export let dataIntegrityModalController;
 if (typeof document !== 'undefined') {
   collectionTargetController = setupCollectionTargetModal(state);
   duesAgingController = setupDuesAgingModal(state, {
@@ -4315,6 +4317,18 @@ if (typeof document !== 'undefined') {
       renderDashboard();
     },
     toast: (msg) => toast(msg)
+  });
+  dataIntegrityModalController = setupDataIntegrityModal({
+    getState: () => state,
+    updateState: (newState) => {
+      state = newState;
+      save();
+      renderDetail();
+      renderCustomers();
+      renderDashboard();
+    },
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
   });
 
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
@@ -5117,6 +5131,22 @@ if (typeof document !== 'undefined') {
   if (billingCorrectnessModal && !billingCorrectnessModalController) {
     billingCorrectnessModalController = setupBillingCorrectnessModal({
       getState: () => state,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  const dataIntegrityModal = $('#dataIntegrityModal');
+  if (dataIntegrityModal && !dataIntegrityModalController) {
+    dataIntegrityModalController = setupDataIntegrityModal({
+      getState: () => state,
+      updateState: (newState) => {
+        state = newState;
+        save();
+        renderDetail();
+        renderCustomers();
+        renderDashboard();
+      },
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
       onToast: (msg) => toast(msg)
     });

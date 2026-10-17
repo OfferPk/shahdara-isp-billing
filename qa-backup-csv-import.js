@@ -25,6 +25,7 @@ export const STORAGE_KEYS_CATALOG = Object.freeze([
   { key: 'shahdara_area_recovery_rounds_v1', label: 'Area Recovery Field Rounds', critical: false, category: 'billing' },
   { key: 'shahdara_late_fee_policy_v1', label: 'Late Fee Policy & Waive Audit', critical: false, category: 'billing' },
   { key: 'shahdara_billing_correctness_audits_v1', label: 'Billing Correctness Audit Log', critical: false, category: 'audit' },
+  { key: 'shahdara_data_integrity_audits_v1', label: 'Data Integrity Audit & Repair Log', critical: false, category: 'audit' },
   { key: 'shahdara_theme', label: 'User Theme Preference (Light/Dark)', critical: false, category: 'ui' },
   { key: 'shahdara_language', label: 'User Language Preference (English/Urdu)', critical: false, category: 'ui' }
 ]);

@@ -35,6 +35,7 @@ import { calculateRpkiMetrics, setupRpkiModal, renderRpkiDiagramSvg } from './da
 import { calculatePolarizationMetrics, setupPolarizationModal, renderPolarizationDiagramSvg } from './dashboard-polarization-eq.js';
 import { calculateRocev2Metrics, setupRocev2Modal, renderRocev2DiagramSvg } from './dashboard-rocev2.js';
 import { calculateOlpMetrics, setupOlpModal, renderOlpDiagramSvg } from './dashboard-olp-protection.js';
+import { calculateDuesAgingBreakdown, setupDuesAgingModal, renderDuesAgingSvg } from './dashboard-dues-aging.js';
 
 
 
@@ -3255,6 +3256,13 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupDelinquencyPipelineModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  const duesAgingEl = document.getElementById('dashboardDuesAgingChart');
+  if (duesAgingEl) {
+    const agingData = calculateDuesAgingBreakdown(state, referenceDate);
+    duesAgingEl.innerHTML = renderDuesAgingSvg(agingData);
+  }
+  setupDuesAgingModal(state, { referenceDate, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
   const cpeEl = document.getElementById('dashboardCpeChart');
   if (cpeEl) {

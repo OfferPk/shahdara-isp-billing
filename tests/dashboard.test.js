@@ -18660,6 +18660,295 @@ test('Monthly Collection vs Target Analytics & Run-Rate Forecasting Suite', asyn
   assert.ok(app.includes('collectionTargetController'));
 });
 
+test('Outstanding Dues Aging Report & Receivables Breakdown Suite', async () => {
+  const {
+    DUES_AGING_BUCKETS,
+    formatDateYmd,
+    parseBillDueDate,
+    calculateDaysOverdue,
+    resolveAgingBucketKey,
+    calculateDuesAgingBreakdown,
+    renderDuesAgingSvg,
+    generateDuesAgingCsv,
+    generateDuesAgingBriefing,
+    setupDuesAgingModal
+  } = await import('../dashboard-dues-aging.js');
+
+  const {
+    createInitialState,
+    addCustomer,
+    saveBillMonth,
+    addPayment
+  } = await import('../core.js');
+
+  const { calculateDelinquencyRecoveryPipeline } = await import('../dashboard.js');
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  // 1. Bucket configuration & constants
+  assert.equal(DUES_AGING_BUCKETS.length, 4);
+  assert.deepEqual(DUES_AGING_BUCKETS.map(b => b.key), ['b0_30', 'b31_60', 'b61_90', 'b90_plus']);
+
+  // 2. Due Date resolution
+  assert.equal(parseBillDueDate(null), null);
+  assert.equal(parseBillDueDate({}), null);
+
+  const billWithDate = { dueDate: '2026-10-15', month: '2026-10' };
+  const parsed1 = parseBillDueDate(billWithDate);
+  assert.ok(parsed1 instanceof Date);
+  assert.equal(formatDateYmd(parsed1), '2026-10-15');
+
+  const billWithoutDate = { month: '2026-09' };
+  const parsed2 = parseBillDueDate(billWithoutDate);
+  assert.ok(parsed2 instanceof Date);
+  assert.equal(formatDateYmd(parsed2), '2026-09-10');
+
+  // 3. Days Overdue calculation
+  const refDate = new Date('2026-10-17T12:00:00+05:00');
+  assert.equal(calculateDaysOverdue(null, refDate), 0);
+  assert.equal(calculateDaysOverdue(new Date('2026-10-25T00:00:00+05:00'), refDate), 0); // future
+  assert.equal(calculateDaysOverdue(new Date('2026-10-17T00:00:00+05:00'), refDate), 0); // today
+  assert.equal(calculateDaysOverdue(new Date('2026-10-07T00:00:00+05:00'), refDate), 10); // 10 days overdue
+  assert.equal(calculateDaysOverdue(new Date('2026-09-02T00:00:00+05:00'), refDate), 45); // 45 days overdue
+
+  // 4. Aging bucket resolution
+  assert.equal(resolveAgingBucketKey(0), 'b0_30');
+  assert.equal(resolveAgingBucketKey(15), 'b0_30');
+  assert.equal(resolveAgingBucketKey(30), 'b0_30');
+  assert.equal(resolveAgingBucketKey(31), 'b31_60');
+  assert.equal(resolveAgingBucketKey(60), 'b31_60');
+  assert.equal(resolveAgingBucketKey(61), 'b61_90');
+  assert.equal(resolveAgingBucketKey(90), 'b61_90');
+  assert.equal(resolveAgingBucketKey(91), 'b90_plus');
+  assert.equal(resolveAgingBucketKey(180), 'b90_plus');
+
+  // 5. Clean ledger test
+  const cleanState = createInitialState([]);
+  const cleanData = calculateDuesAgingBreakdown(cleanState, refDate);
+  assert.equal(cleanData.totalOutstanding, 0);
+  assert.equal(cleanData.totalAccounts, 0);
+  assert.equal(cleanData.criticalOverduePkr, 0);
+  assert.equal(cleanData.criticalOverduePercent, 0);
+  assert.equal(cleanData.portfolioRiskStatus, 'Clean Ledger (Zero Receivables)');
+
+  const cleanSvg = renderDuesAgingSvg(cleanData);
+  assert.ok(cleanSvg.includes('Clean Ledger — Zero Overdue Receivables'));
+
+  // 6. Multi-bill multi-bucket aging calculations
+  let state = createInitialState([]);
+  // Customer 1 in Saeed Park: multiple bills across different aging buckets
+  state = addCustomer(state, 'Malik Arshad', new Date('2026-06-01T10:00:00+05:00'), {
+    monthlySellingAmount: 2500,
+    phone: '03001112233',
+    area: 'Saeed Park',
+    mohalla: 'Main Bazaar'
+  });
+  state.customers[0].area = 'Saeed Park';
+  const c1Id = state.customers[0].id;
+  // Bill 1: 2026-10 (due 2026-10-10 -> 7 days overdue -> b0_30), dueAmount: 2500, no payments -> 2500 balance
+  state = saveBillMonth(state, c1Id, { month: '2026-10', dueAmount: 2500, status: 'pending', dueDate: '2026-10-10' }, refDate);
+  // Bill 2: 2026-09 (due 2026-09-10 -> 37 days overdue -> b31_60), dueAmount: 2500, paid 1000 -> 1500 balance
+  state = saveBillMonth(state, c1Id, { month: '2026-09', dueAmount: 2500, status: 'pending', dueDate: '2026-09-10' }, refDate);
+  state = addPayment(state, c1Id, '2026-09', { amount: 1000, date: '2026-09-15', method: 'Cash' }, refDate);
+  // Bill 3: 2026-07 (due 2026-07-10 -> 99 days overdue -> b90_plus), dueAmount: 2500, no payments -> 2500 balance
+  state = saveBillMonth(state, c1Id, { month: '2026-07', dueAmount: 2500, status: 'pending', dueDate: '2026-07-10' }, refDate);
+
+  // Customer 2 in Wandala Road: single bill in b61_90
+  state = addCustomer(state, 'Chaudhry Nadeem', new Date('2026-07-01T10:00:00+05:00'), {
+    monthlySellingAmount: 4000,
+    phone: '03004445566',
+    area: 'Wandala Road',
+    mohalla: 'Railway Crossing'
+  });
+  state.customers[1].area = 'Wandala Road';
+  const c2Id = state.customers[1].id;
+  // Bill: 2026-08 (due 2026-08-10 -> 68 days overdue -> b61_90), dueAmount: 4000, paid 500 -> 3500 balance
+  state = saveBillMonth(state, c2Id, { month: '2026-08', dueAmount: 4000, status: 'pending', dueDate: '2026-08-10' }, refDate);
+  state = addPayment(state, c2Id, '2026-08', { amount: 500, date: '2026-08-12', method: 'JazzCash' }, refDate);
+
+  // Customer 3 in Saeed Park: fully paid (should not appear in aging receivables)
+  state = addCustomer(state, 'Zahid Mehmood', new Date('2026-10-01T10:00:00+05:00'), {
+    monthlySellingAmount: 2000,
+    phone: '03007778899',
+    area: 'Saeed Park'
+  });
+  state.customers[2].area = 'Saeed Park';
+  const c3Id = state.customers[2].id;
+  state = saveBillMonth(state, c3Id, { month: '2026-10', dueAmount: 2000, status: 'pending', dueDate: '2026-10-10' }, refDate);
+  state = addPayment(state, c3Id, '2026-10', { amount: 2000, date: '2026-10-05', method: 'Cash' }, refDate);
+
+  const agingData = calculateDuesAgingBreakdown(state, refDate);
+
+  // Customer 1 dues: 2500 (b0_30) + 1500 (b31_60) + 2500 (b90_plus) = 6500
+  // Customer 2 dues: 3500 (b61_90)
+  // Total receivables = 6500 + 3500 = 10,000
+  assert.equal(agingData.totalOutstanding, 10000);
+  assert.equal(agingData.totalAccounts, 2);
+
+  // Bucket details
+  const b0 = agingData.buckets.find(b => b.key === 'b0_30');
+  const b31 = agingData.buckets.find(b => b.key === 'b31_60');
+  const b61 = agingData.buckets.find(b => b.key === 'b61_90');
+  const b90 = agingData.buckets.find(b => b.key === 'b90_plus');
+
+  assert.equal(b0.totalOverdue, 2500);
+  assert.equal(b0.customerCount, 1);
+  assert.equal(b0.percentOfTotal, 25.0);
+
+  assert.equal(b31.totalOverdue, 1500);
+  assert.equal(b31.customerCount, 1);
+  assert.equal(b31.percentOfTotal, 15.0);
+
+  assert.equal(b61.totalOverdue, 3500);
+  assert.equal(b61.customerCount, 1);
+  assert.equal(b61.percentOfTotal, 35.0);
+
+  assert.equal(b90.totalOverdue, 2500);
+  assert.equal(b90.customerCount, 1);
+  assert.equal(b90.percentOfTotal, 25.0);
+
+  // Critical Overdue (61+ days: b61 + b90) = 3500 + 2500 = 6000 (60%)
+  assert.equal(agingData.criticalOverduePkr, 6000);
+  assert.equal(agingData.criticalOverduePercent, 60.0);
+  assert.equal(agingData.portfolioRiskStatus, 'High Risk (Severe Aging)');
+
+  // Verify Customer 1 drill-down
+  const cust1 = agingData.customers.find(c => c.id === c1Id);
+  assert.ok(cust1);
+  assert.equal(cust1.totalDue, 6500);
+  assert.equal(cust1.b0_30, 2500);
+  assert.equal(cust1.b31_60, 1500);
+  assert.equal(cust1.b61_90, 0);
+  assert.equal(cust1.b90_plus, 2500);
+  assert.equal(cust1.primaryBucket, 'b90_plus');
+  assert.equal(cust1.oldestOverdueDays, 99);
+  assert.equal(cust1.unpaidBills.length, 3);
+
+  // Verify Customer 2 drill-down
+  const cust2 = agingData.customers.find(c => c.id === c2Id);
+  assert.ok(cust2);
+  assert.equal(cust2.totalDue, 3500);
+  assert.equal(cust2.b0_30, 0);
+  assert.equal(cust2.b31_60, 0);
+  assert.equal(cust2.b61_90, 3500);
+  assert.equal(cust2.b90_plus, 0);
+  assert.equal(cust2.primaryBucket, 'b61_90');
+  assert.equal(cust2.oldestOverdueDays, 68);
+
+  // Verify Area concentration
+  assert.equal(agingData.areas.length, 2);
+  const saeedArea = agingData.areas.find(a => a.areaName === 'Saeed Park');
+  const wandalaArea = agingData.areas.find(a => a.areaName === 'Wandala Road');
+  assert.equal(saeedArea.totalDue, 6500);
+  assert.equal(wandalaArea.totalDue, 3500);
+
+  // 7. Delinquency Pipeline integration check
+  const delinquencyPipeline = calculateDelinquencyRecoveryPipeline(state, refDate);
+  assert.ok(delinquencyPipeline.duesAging);
+  assert.equal(delinquencyPipeline.duesAging.totalOutstanding, 10000);
+  assert.equal(delinquencyPipeline.duesAging.totalAccounts, 2);
+
+  // 8. SVG Visualizer rendering check
+  const svg = renderDuesAgingSvg(agingData);
+  assert.ok(svg.includes('dues-aging-svg'));
+  assert.ok(svg.includes('PKR 10,000'));
+  assert.ok(svg.includes('PKR 2,500'));
+  assert.ok(svg.includes('PKR 3,500'));
+  assert.ok(svg.includes('0–30 Days'));
+  assert.ok(svg.includes('31–60 Days'));
+  assert.ok(svg.includes('61–90 Days'));
+  assert.ok(svg.includes('90+ Days'));
+
+  // 9. RFC-4180 CSV export check
+  const csv = generateDuesAgingCsv(agingData, refDate);
+  assert.ok(csv.startsWith('\uFEFF')); // UTF-8 BOM
+  assert.ok(csv.includes('SHAHDARA ISP - DUES AGING & RECEIVABLES REPORT'));
+  assert.ok(csv.includes('"0–30 Days"'));
+  assert.ok(csv.includes('"0 to 30 days overdue"'));
+  assert.ok(csv.includes('"Malik Arshad"'));
+  assert.ok(csv.includes('"Chaudhry Nadeem"'));
+  assert.ok(csv.includes('"Saeed Park"'));
+  assert.ok(csv.includes('"Wandala Road"'));
+
+  // 10. Briefing text check
+  const briefing = generateDuesAgingBriefing(agingData, refDate);
+  assert.ok(briefing.includes('SHAHDARA ISP - DUES AGING & RECEIVABLES BRIEFING'));
+  assert.ok(briefing.includes('Total Overdue Receivables: PKR 10,000'));
+  assert.ok(briefing.includes('Critical Dues (61+ Days): PKR 6,000'));
+  assert.ok(briefing.includes('Malik Arshad (Saeed Park) - PKR 6,500'));
+
+  // 11. Modal Setup & DOM interaction check
+  const mockElements = {
+    duesAgingModal: {
+      showModal: () => { mockElements.duesAgingModal.open = true; },
+      close: () => { mockElements.duesAgingModal.open = false; },
+      addEventListener: (evt, cb) => { mockElements.duesAgingModal[`on_${evt}`] = cb; },
+      open: false
+    },
+    duesAgingSvgChart: { innerHTML: '' },
+    duesAgingTableBody: {
+      innerHTML: '',
+      querySelectorAll: (sel) => []
+    },
+    duesAgingTotalOutstandingVal: { textContent: '' },
+    duesAgingTotalAccountsVal: { textContent: '' },
+    duesAgingCriticalDuesVal: { textContent: '' },
+    duesAgingWeightedDaysVal: { textContent: '' },
+    duesAgingRiskStatusBadge: { textContent: '', className: '' },
+    duesAgingSearchInput: { value: '', addEventListener: () => {} },
+    duesAgingAreaSelect: { value: 'all', options: [{ value: 'all' }], appendChild: () => {}, addEventListener: () => {} },
+    duesAgingBucketFilters: { querySelectorAll: () => [], querySelector: () => null, addEventListener: () => {} },
+    closeDuesAgingModalBtn: { addEventListener: (evt, cb) => { mockElements.closeDuesAgingModalBtn.onClick = cb; } },
+    closeDuesAgingSecondaryBtn: { addEventListener: (evt, cb) => { mockElements.closeDuesAgingSecondaryBtn.onClick = cb; } },
+    duesAgingExportCsvBtn: { addEventListener: () => {} },
+    duesAgingCopyBriefingBtn: { addEventListener: () => {} },
+    duesAgingPrintBtn: { addEventListener: () => {} }
+  };
+
+  const originalDocument = globalThis.document;
+  try {
+    globalThis.document = {
+      getElementById: (id) => mockElements[id] || null,
+      querySelectorAll: () => []
+    };
+
+    let navigatedCustomerId = null;
+    const controller = setupDuesAgingModal(state, {
+      referenceDate: refDate,
+      onFilterCustomer: (cid) => { navigatedCustomerId = cid; }
+    });
+
+    controller.open();
+    assert.equal(mockElements.duesAgingModal.open, true);
+    assert.equal(mockElements.duesAgingTotalOutstandingVal.textContent, 'PKR 10,000');
+    assert.equal(mockElements.duesAgingTotalAccountsVal.textContent, '2');
+    assert.ok(mockElements.duesAgingSvgChart.innerHTML.includes('dues-aging-svg'));
+    assert.ok(mockElements.duesAgingTableBody.innerHTML.includes('Malik Arshad'));
+    assert.ok(mockElements.duesAgingTableBody.innerHTML.includes('Chaudhry Nadeem'));
+
+    controller.close();
+    assert.equal(mockElements.duesAgingModal.open, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
+
+  // 12. Verify styles and index.html markup presence
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="duesAgingModal"'));
+  assert.ok(html.includes('id="dashboardOpenDuesAgingBtn"'));
+  assert.ok(html.includes('id="delinquencyOpenAgingModalBtn"'));
+  assert.ok(html.includes('id="duesAgingSvgChart"'));
+  assert.ok(html.includes('id="duesAgingTableBody"'));
+
+  const css = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(css.includes('.dues-aging-modal'));
+  assert.ok(css.includes('.aging-kpi-summary-grid'));
+  assert.ok(css.includes('.aging-bucket-tabs'));
+  assert.ok(css.includes('.aging-pill-critical'));
+  assert.ok(css.includes('[data-theme="dark"] .dues-aging-modal'));
+});
+
+
 
 
 

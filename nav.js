@@ -6384,3 +6384,17 @@ export {
   formatCleaningWhatsAppText,
   setupMobileConnectorCleaningModal
 } from './nav-connector-cleaning.js';
+
+export {
+  OTDR_DEADZONE_STORAGE_KEY,
+  PULSE_WIDTH_SPECS,
+  DEADZONE_PRESETS,
+  calculateDeadZoneMetrics,
+  saveDeadZoneAudit,
+  getSavedDeadZoneAudits,
+  clearDeadZoneAudits,
+  renderOtdrDeadzoneTraceSvg,
+  generateDeadzoneWhatsAppReport,
+  exportDeadZoneAuditsCsv,
+  setupMobileOtdrDeadzoneModal
+} from './nav-otdr-deadzone.js';

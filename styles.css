@@ -6293,5 +6293,46 @@ html, body {
   }
 }
 
+/* Field OTDR Dead Zone & Pulse Width Assistant */
+.otdr-deadzone-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.otdr-dz-recommendation-box {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.4;
+  margin: 12px 0;
+  border-left: 4px solid;
+}
+
+.otdr-dz-recommendation-box.optimal {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: #10b981;
+  color: #047857;
+}
+
+.otdr-dz-recommendation-box.critical {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: #ef4444;
+  color: #b91c1c;
+}
+
+[data-theme="dark"] .otdr-dz-recommendation-box.optimal {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+}
+
+[data-theme="dark"] .otdr-dz-recommendation-box.critical {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+}
+
 
 

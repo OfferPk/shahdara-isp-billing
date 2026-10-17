@@ -12539,4 +12539,25 @@ export {
   setupSpectralAttenuationModal
 } from './qa-spectral-attenuation.js';
 
-
+export {
+  FOSC_SEAL_CERT_STORAGE_KEY,
+  FOSC_ENCLOSURE_TYPES,
+  SEALING_TECHNOLOGY_TYPES,
+  DEPLOYMENT_ENVIRONMENTS,
+  PORT_CLAMPING_CABLE_TYPES,
+  FOSC_QA_VERDICTS,
+  SHAHDARA_FOSC_PRESETS,
+  calculateFoscSealPhysics,
+  validateFoscSealInput,
+  buildFoscSealCertRecord,
+  getSavedFoscSealCerts,
+  saveFoscSealCert,
+  updateFoscSealCertStatus,
+  clearFoscSealCerts,
+  calculateFoscSealMetrics,
+  renderFoscSealAnalysisSvg,
+  generateFoscSealCertHtml,
+  formatFoscSealCertWhatsApp,
+  generateFoscSealCertsCsv,
+  setupFoscSealModal
+} from './qa-fosc-seal-inspection.js';

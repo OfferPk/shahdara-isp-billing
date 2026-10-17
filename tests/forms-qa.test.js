@@ -13363,4 +13363,230 @@ test('DOM & CSS integration for Optical Fiber Spectral Attenuation QA Suite', ()
   assert.ok(stylesCss.includes('#spectralAttenuationModal'));
 });
 
+test('calculateFoscSealPhysics calculates temperature-compensated decay, leak rates, and hydrostatic ingress margins', async () => {
+  const { calculateFoscSealPhysics } = await import('../form-validation.js');
+
+  const analysis = calculateFoscSealPhysics({
+    enclosureTypeId: 'DOME_FOSC_400_B4',
+    sealingTechId: 'COLD_SILICONE_GEL_BLOCK',
+    environmentId: 'SUBMERGED_MANHOLE_SUMP',
+    cableTypeId: 'FEEDER_ARMORED_CST',
+    waterHeadMeters: 2.5,
+    initialPressureKpa: 70,
+    finalPressureKpa: 69.2,
+    testDurationHours: 12.0,
+    tempInitialC: 26,
+    tempFinalC: 25,
+    reentryCount: 2,
+    measuredClampRetentionN: 680
+  });
+
+  assert.ok(analysis.enclosureType);
+  assert.equal(analysis.enclosureType.id, 'DOME_FOSC_400_B4');
+  assert.ok(analysis.sealingTech);
+  assert.equal(analysis.sealingTech.id, 'COLD_SILICONE_GEL_BLOCK');
+  assert.ok(analysis.hourlyLeakRateKpaHr > 0);
+  assert.ok(analysis.hourlyLeakRateKpaHr < 0.1);
+  assert.ok(analysis.normalized24hDecayKpa > 0);
+  assert.ok(analysis.hydrostaticPressureKpa > 24); // 9.80665 * 2.5 ~= 24.5 kPa
+  assert.ok(analysis.netIngressSafetyMarginKpa > 50);
+  assert.ok(analysis.clampRetentionSafetyFactor >= 1.25);
+  assert.equal(analysis.verdict.id, 'CERTIFIED_IP68_HERMETIC_PASS');
+});
+
+test('calculateFoscSealPhysics correctly identifies Conditional Pass and Failed Breach Hazards', async () => {
+  const { calculateFoscSealPhysics } = await import('../form-validation.js');
+
+  // Conditional Pass due to elevated leak rate (e.g. 0.15 kPa/hr)
+  const cond = calculateFoscSealPhysics({
+    enclosureTypeId: 'MICRO_PEDESTAL_FAT',
+    sealingTechId: 'MECHANICAL_GROMMET_EPDM',
+    environmentId: 'AERIAL_POLE_MONSOON_EXPOSED',
+    cableTypeId: 'FLAT_BUTTERFLY_DROP',
+    waterHeadMeters: 0.0,
+    initialPressureKpa: 40,
+    finalPressureKpa: 38.8,
+    testDurationHours: 8.0,
+    tempInitialC: 25,
+    tempFinalC: 25,
+    measuredClampRetentionN: 90
+  });
+  assert.equal(cond.verdict.id, 'CONDITIONAL_PASS_AERIAL_ONLY');
+
+  // Failed Hazard due to severe decay / clamp slippage
+  const fail = calculateFoscSealPhysics({
+    enclosureTypeId: 'DOME_FOSC_400_A4',
+    sealingTechId: 'DIVIDED_EXPANSION_PLUG',
+    environmentId: 'SUBMERGED_MANHOLE_SUMP',
+    cableTypeId: 'FEEDER_ARMORED_CST',
+    waterHeadMeters: 4.0,
+    initialPressureKpa: 70,
+    finalPressureKpa: 50, // Massive 20 kPa drop
+    testDurationHours: 4.0,
+    tempInitialC: 25,
+    tempFinalC: 25,
+    measuredClampRetentionN: 200 // Less than 500 N required
+  });
+  assert.equal(fail.verdict.id, 'FAILED_SEAL_BREACH_HAZARD');
+});
+
+test('validateFoscSealInput checks required fields and parameter boundaries', async () => {
+  const { validateFoscSealInput } = await import('../form-validation.js');
+
+  const valid = validateFoscSealInput({
+    subscriberName: 'Baradari Canal Culvert Feeder',
+    waterHeadMeters: 2.5,
+    initialPressureKpa: 70,
+    finalPressureKpa: 69.2,
+    testDurationHours: 12.0,
+    measuredClampRetentionN: 650
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateFoscSealInput({
+    subscriberName: '',
+    waterHeadMeters: -5,
+    initialPressureKpa: 5,
+    finalPressureKpa: 300,
+    testDurationHours: 0.1,
+    measuredClampRetentionN: -10
+  });
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 5);
+});
+
+test('buildFoscSealCertRecord produces valid record with FOSC- identifier', async () => {
+  const { buildFoscSealCertRecord } = await import('../form-validation.js');
+
+  const record = buildFoscSealCertRecord({
+    subscriberName: 'Begum Kot GT Road Siphon Vault',
+    enclosureTypeId: 'HEAVY_VAULT_METRO_FOSC',
+    sealingTechId: 'HEAT_SHRINK_MASTIC',
+    waterHeadMeters: 3.2
+  });
+
+  assert.ok(record.id.startsWith('FOSC-'));
+  assert.equal(record.subscriberName, 'Begum Kot GT Road Siphon Vault');
+  assert.ok(record.analysis);
+  assert.equal(record.analysis.enclosureType.id, 'HEAVY_VAULT_METRO_FOSC');
+});
+
+test('LocalStorage persistence and calculateFoscSealMetrics aggregator', async () => {
+  const {
+    getSavedFoscSealCerts,
+    saveFoscSealCert,
+    updateFoscSealCertStatus,
+    clearFoscSealCerts,
+    calculateFoscSealMetrics,
+    buildFoscSealCertRecord
+  } = await import('../form-validation.js');
+
+  clearFoscSealCerts();
+  assert.deepEqual(getSavedFoscSealCerts(), []);
+
+  const r1 = buildFoscSealCertRecord({
+    id: 'FOSC-202610-1001',
+    subscriberName: 'Test FOSC Alpha',
+    enclosureTypeId: 'DOME_FOSC_400_A4'
+  });
+
+  saveFoscSealCert(r1);
+  const loaded = getSavedFoscSealCerts();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'FOSC-202610-1001');
+
+  updateFoscSealCertStatus('FOSC-202610-1001', 'RE_AUDITED');
+  const reloaded = getSavedFoscSealCerts();
+  assert.equal(reloaded[0].status, 'RE_AUDITED');
+
+  const metrics = calculateFoscSealMetrics(reloaded);
+  assert.equal(metrics.totalCertificates, 1);
+  assert.ok(metrics.passRatePercent >= 0);
+  assert.ok(metrics.avgClampSafetyFactor > 0);
+
+  clearFoscSealCerts();
+  assert.equal(getSavedFoscSealCerts().length, 0);
+});
+
+test('renderFoscSealAnalysisSvg, printable certificates, WhatsApp and CSV generator output valid content', async () => {
+  const {
+    calculateFoscSealPhysics,
+    renderFoscSealAnalysisSvg,
+    generateFoscSealCertHtml,
+    formatFoscSealCertWhatsApp,
+    generateFoscSealCertsCsv,
+    buildFoscSealCertRecord
+  } = await import('../form-validation.js');
+
+  const analysis = calculateFoscSealPhysics({
+    enclosureTypeId: 'DOME_FOSC_400_B4',
+    waterHeadMeters: 2.5
+  });
+
+  const svg = renderFoscSealAnalysisSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('SPLICE TRAYS'));
+  assert.ok(svg.includes('NITROGEN TEST'));
+
+  const record = buildFoscSealCertRecord({
+    id: 'FOSC-202610-9999',
+    subscriberName: 'Baradari Feeder Dome #01',
+    routeDescription: 'Central Feeder',
+    enclosureTypeId: 'DOME_FOSC_400_B4'
+  });
+
+  const a4Html = generateFoscSealCertHtml(record, { format: 'A4' });
+  assert.ok(a4Html.includes('FOSC-202610-9999'));
+  assert.ok(a4Html.includes('Baradari Feeder Dome #01'));
+  assert.ok(a4Html.includes('IEC 60529 IP68'));
+
+  const posHtml = generateFoscSealCertHtml(record, { format: 'POS80' });
+  assert.ok(posHtml.includes('fosc-pos-slip'));
+  assert.ok(posHtml.includes('FOSC-202610-9999'));
+
+  const wa = formatFoscSealCertWhatsApp(record);
+  assert.ok(wa.includes('SHAHDARA ISP NETWORK - FOSC INGRESS & PRESSURE SEAL QA'));
+  assert.ok(wa.includes('Baradari Feeder Dome #01'));
+
+  const csv = generateFoscSealCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('FOSC-202610-9999'));
+  assert.ok(csv.includes('Baradari Feeder Dome #01'));
+});
+
+test('DOM & CSS integration for Outside Plant Fiber Splice Enclosure (FOSC) QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openFoscSealBtn"'));
+  assert.ok(indexHtml.includes('id="foscSealModal"'));
+  assert.ok(indexHtml.includes('id="foscPresetSelect"'));
+  assert.ok(indexHtml.includes('id="foscEnclosureTypeSelect"'));
+  assert.ok(indexHtml.includes('id="foscSealingTechSelect"'));
+  assert.ok(indexHtml.includes('id="foscEnvironmentSelect"'));
+  assert.ok(indexHtml.includes('id="foscWaterHeadInput"'));
+  assert.ok(indexHtml.includes('id="foscInitialPressureInput"'));
+  assert.ok(indexHtml.includes('id="foscFinalPressureInput"'));
+  assert.ok(indexHtml.includes('id="foscDurationInput"'));
+  assert.ok(indexHtml.includes('id="foscClampRetentionInput"'));
+  assert.ok(indexHtml.includes('id="foscSaveBtn"'));
+  assert.ok(indexHtml.includes('id="foscPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="foscPrintPosBtn"'));
+  assert.ok(indexHtml.includes('id="foscWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="foscCsvExportBtn"'));
+  assert.ok(indexHtml.includes('id="foscSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupFoscSealModal'));
+  assert.ok(appJs.includes('customerFoscSealModalController'));
+  assert.ok(appJs.includes('#openFoscSealBtn'));
+  assert.ok(appJs.includes('#foscSealModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#foscSealModal'));
+});
+
 

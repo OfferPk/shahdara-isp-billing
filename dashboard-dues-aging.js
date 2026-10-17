@@ -82,16 +82,22 @@ export function escapeXml(str) {
 }
 
 /**
- * Formats a Date object as YYYY-MM-DD using local calendar year, month, date.
+ * Formats a Date object as YYYY-MM-DD using Pakistan Standard Time (Asia/Karachi) calendar date.
  * @param {Date} date
  * @returns {string}
  */
 export function formatDateYmd(date) {
   if (!date || isNaN(date.getTime())) return '';
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  const parts = Object.fromEntries(
+    formatter.formatToParts(date).filter(p => p.type !== 'literal').map(p => [p.type, p.value])
+  );
+  return `${parts.year}-${parts.month}-${parts.day}`;
 }
 
 /**
@@ -110,7 +116,7 @@ export function parseBillDueDate(bill) {
       const m = Number(parts[1]) - 1;
       const d = Number(parts[2]);
       if (!Number.isNaN(y) && !Number.isNaN(m) && !Number.isNaN(d)) {
-        return new Date(y, m, d, 12, 0, 0);
+        return new Date(Date.UTC(y, m, d, 7, 0, 0));
       }
     }
     const d = new Date(bill.dueDate);
@@ -118,7 +124,7 @@ export function parseBillDueDate(bill) {
   }
   if (bill.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(bill.month)) {
     const [y, m] = bill.month.split('-');
-    return new Date(Number(y), Number(m) - 1, 10, 12, 0, 0);
+    return new Date(Date.UTC(Number(y), Number(m) - 1, 10, 7, 0, 0));
   }
   return null;
 }
@@ -126,15 +132,27 @@ export function parseBillDueDate(bill) {
 /**
  * Calculates days overdue from bill due date relative to reference date.
  * If due date is in the future, returns 0.
+ * Invariant across all execution environments by comparing calendar days in Pakistan time.
  * @param {Date} dueDate
  * @param {Date} referenceDate
  * @returns {number}
  */
 export function calculateDaysOverdue(dueDate, referenceDate = new Date()) {
   if (!dueDate || isNaN(dueDate.getTime())) return 0;
-  const refTime = (referenceDate instanceof Date ? referenceDate : new Date(referenceDate)).getTime();
-  const dueTime = dueDate.getTime();
-  const diffDays = Math.floor((refTime - dueTime) / (1000 * 60 * 60 * 24));
+  const ref = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  if (isNaN(ref.getTime())) return 0;
+
+  const dueYmd = formatDateYmd(dueDate);
+  const refYmd = formatDateYmd(ref);
+  if (!dueYmd || !refYmd) return 0;
+
+  const [dy, dm, dd] = dueYmd.split('-').map(Number);
+  const [ry, rm, rd] = refYmd.split('-').map(Number);
+
+  const dueUtc = Date.UTC(dy, dm - 1, dd);
+  const refUtc = Date.UTC(ry, rm - 1, rd);
+
+  const diffDays = Math.floor((refUtc - dueUtc) / (1000 * 60 * 60 * 24));
   return Math.max(0, diffDays);
 }
 

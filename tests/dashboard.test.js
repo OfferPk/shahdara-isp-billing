@@ -18906,29 +18906,31 @@ test('Outstanding Dues Aging Report & Receivables Breakdown Suite', async () => 
   };
 
   const originalDocument = globalThis.document;
-  globalThis.document = {
-    getElementById: (id) => mockElements[id] || null,
-    querySelectorAll: () => []
-  };
+  try {
+    globalThis.document = {
+      getElementById: (id) => mockElements[id] || null,
+      querySelectorAll: () => []
+    };
 
-  let navigatedCustomerId = null;
-  const controller = setupDuesAgingModal(state, {
-    referenceDate: refDate,
-    onFilterCustomer: (cid) => { navigatedCustomerId = cid; }
-  });
+    let navigatedCustomerId = null;
+    const controller = setupDuesAgingModal(state, {
+      referenceDate: refDate,
+      onFilterCustomer: (cid) => { navigatedCustomerId = cid; }
+    });
 
-  controller.open();
-  assert.equal(mockElements.duesAgingModal.open, true);
-  assert.equal(mockElements.duesAgingTotalOutstandingVal.textContent, 'PKR 10,000');
-  assert.equal(mockElements.duesAgingTotalAccountsVal.textContent, '2');
-  assert.ok(mockElements.duesAgingSvgChart.innerHTML.includes('dues-aging-svg'));
-  assert.ok(mockElements.duesAgingTableBody.innerHTML.includes('Malik Arshad'));
-  assert.ok(mockElements.duesAgingTableBody.innerHTML.includes('Chaudhry Nadeem'));
+    controller.open();
+    assert.equal(mockElements.duesAgingModal.open, true);
+    assert.equal(mockElements.duesAgingTotalOutstandingVal.textContent, 'PKR 10,000');
+    assert.equal(mockElements.duesAgingTotalAccountsVal.textContent, '2');
+    assert.ok(mockElements.duesAgingSvgChart.innerHTML.includes('dues-aging-svg'));
+    assert.ok(mockElements.duesAgingTableBody.innerHTML.includes('Malik Arshad'));
+    assert.ok(mockElements.duesAgingTableBody.innerHTML.includes('Chaudhry Nadeem'));
 
-  controller.close();
-  assert.equal(mockElements.duesAgingModal.open, false);
-
-  globalThis.document = originalDocument;
+    controller.close();
+    assert.equal(mockElements.duesAgingModal.open, false);
+  } finally {
+    globalThis.document = originalDocument;
+  }
 
   // 12. Verify styles and index.html markup presence
   const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');

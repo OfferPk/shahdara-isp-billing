@@ -12054,6 +12054,587 @@ test('index.html, styles.css, nav.css, and app.js correctly integrate Drop Reten
   assert.ok(app.includes('mobileDropRetentionModalController'));
 });
 
+test('nav.js correctly re-exports Reference Jumpers assistant constants and functions', async () => {
+  const nav = await import('../nav.js');
+  assert.equal(typeof nav.REF_JUMPERS_STORAGE_KEY, 'string');
+  assert.ok(nav.REFERENCING_METHODS.METHOD_A_1_JUMPER);
+  assert.ok(nav.REFERENCING_METHODS.METHOD_B_2_JUMPER);
+  assert.ok(nav.REFERENCING_METHODS.METHOD_C_3_JUMPER);
+  assert.ok(nav.JUMPER_GRADES.SC_APC_REF);
+  assert.ok(nav.JUMPER_GRADES.SC_UPC_REF);
+  assert.ok(nav.JUMPER_GRADES.LC_APC_REF);
+  assert.ok(nav.JUMPER_GRADES.STANDARD_PATCH_CORD);
+  assert.ok(Array.isArray(nav.REF_JUMPERS_PRESETS));
+  assert.equal(typeof nav.calculateReferenceJumpersMetrics, 'function');
+  assert.equal(typeof nav.renderReferenceJumpersSvg, 'function');
+  assert.equal(typeof nav.formatReferenceJumpersWhatsAppText, 'function');
+  assert.equal(typeof nav.generateReferenceJumpersCsv, 'function');
+  assert.equal(typeof nav.loadReferenceJumpersAuditLog, 'function');
+  assert.equal(typeof nav.saveReferenceJumpersAuditLog, 'function');
+  assert.equal(typeof nav.clearReferenceJumpersAuditLog, 'function');
+  assert.equal(typeof nav.setupMobileRefJumpersModal, 'function');
+});
+
+test('calculateReferenceJumpersMetrics correctly calculates Method A, B, and C with TRC qualification', async () => {
+  const { calculateReferenceJumpersMetrics } = await import('../nav-reference-jumpers.js');
+
+  // 1. Method A: 1-Jumper with Grade-A TRC PASS
+  const resA = calculateReferenceJumpersMetrics({
+    method: 'METHOD_A_1_JUMPER',
+    launchJumper: 'SC_APC_REF',
+    tailJumper: 'SC_APC_REF',
+    wavelengthNm: 1310,
+    referencePowerDbm: -3.00,
+    trcVerificationLossDb: 0.08,
+    measuredLinkPowerDbm: -18.45
+  });
+
+  assert.equal(resA.calculatedLinkLossDb, 15.45);
+  assert.equal(resA.trcVerificationLossDb, 0.08);
+  assert.equal(resA.trcVerificationPass, true);
+  assert.equal(resA.launchJumper.isReferenceGrade, true);
+  assert.equal(resA.tailJumper.isReferenceGrade, true);
+  assert.ok(resA.trcQualityRating.includes('Grade-A'));
+  assert.equal(resA.measurementUncertaintyDb, 0.15);
+
+  // 2. Method B: 2-Jumper
+  const resB = calculateReferenceJumpersMetrics({
+    method: 'METHOD_B_2_JUMPER',
+    launchJumper: 'SC_UPC_REF',
+    tailJumper: 'SC_APC_REF',
+    wavelengthNm: 1550,
+    referencePowerDbm: -4.50,
+    trcVerificationLossDb: 0.12,
+    measuredLinkPowerDbm: -16.20
+  });
+
+  assert.equal(resB.calculatedLinkLossDb, 11.70);
+  assert.equal(resB.trcVerificationPass, true);
+
+  // 3. Method C: 3-Jumper with standard commercial cord (TRC qualification fail)
+  const resC = calculateReferenceJumpersMetrics({
+    method: 'METHOD_C_3_JUMPER',
+    launchJumper: 'STANDARD_PATCH_CORD',
+    tailJumper: 'STANDARD_PATCH_CORD',
+    wavelengthNm: 1550,
+    referencePowerDbm: -5.00,
+    trcVerificationLossDb: 0.35,
+    measuredLinkPowerDbm: -20.00
+  });
+
+  assert.equal(resC.calculatedLinkLossDb, 15.00);
+  assert.equal(resC.trcVerificationPass, false); // exceeds 0.20 dB limit
+  assert.equal(resC.launchJumper.isReferenceGrade, false);
+  assert.ok(resC.trcQualityRating.includes('REJECTED'));
+});
+
+test('renderReferenceJumpersSvg renders valid SVG markup with TRC jumpers and power levels', async () => {
+  const { calculateReferenceJumpersMetrics, renderReferenceJumpersSvg } = await import('../nav-reference-jumpers.js');
+  const metrics = calculateReferenceJumpersMetrics({
+    method: 'METHOD_A_1_JUMPER',
+    launchJumper: 'SC_APC_REF',
+    tailJumper: 'SC_APC_REF',
+    wavelengthNm: 1310,
+    referencePowerDbm: -3.00,
+    trcVerificationLossDb: 0.08,
+    measuredLinkPowerDbm: -18.45
+  });
+
+  const svg = renderReferenceJumpersSvg(metrics, { isDark: true });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('15.45 dB'));
+  assert.ok(svg.includes('-3.00 dBm'));
+  assert.ok(svg.includes('Launch TRC (Grade-A)'));
+});
+
+test('formatReferenceJumpersWhatsAppText and generateReferenceJumpersCsv generate correct reports', async () => {
+  const { calculateReferenceJumpersMetrics, formatReferenceJumpersWhatsAppText, generateReferenceJumpersCsv } = await import('../nav-reference-jumpers.js');
+  const metrics = calculateReferenceJumpersMetrics({
+    method: 'METHOD_A_1_JUMPER',
+    launchJumper: 'SC_APC_REF',
+    tailJumper: 'SC_APC_REF',
+    wavelengthNm: 1310,
+    referencePowerDbm: -3.00,
+    trcVerificationLossDb: 0.08,
+    measuredLinkPowerDbm: -18.45
+  });
+
+  const record = {
+    id: 'TRC-TEST-001',
+    date: '2026-10-17 10:00:00',
+    area: 'Shahdara Town',
+    technician: 'Rashid Mahmood',
+    notes: 'Reference calibration test',
+    params: {},
+    metrics
+  };
+
+  const whatsapp = formatReferenceJumpersWhatsAppText(record);
+  assert.ok(whatsapp.includes('TRC-TEST-001'));
+  assert.ok(whatsapp.includes('Shahdara Town'));
+  assert.ok(whatsapp.includes('15.45 dB'));
+
+  const csv = generateReferenceJumpersCsv([record]);
+  assert.ok(csv.includes('TestId,Date,Area,Technician'));
+  assert.ok(csv.includes('TRC-TEST-001'));
+  assert.ok(csv.includes('15.45'));
+});
+
+test('loadReferenceJumpersAuditLog, saveReferenceJumpersAuditLog, and clearReferenceJumpersAuditLog work with storage', async () => {
+  const { loadReferenceJumpersAuditLog, saveReferenceJumpersAuditLog, clearReferenceJumpersAuditLog, REF_JUMPERS_STORAGE_KEY } = await import('../nav-reference-jumpers.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (key) => store[key] || null,
+    setItem: (key, val) => { store[key] = String(val); },
+    removeItem: (key) => { delete store[key]; }
+  };
+
+  assert.deepEqual(loadReferenceJumpersAuditLog(mockStorage), []);
+
+  const sample = [{ id: 'TRC-1', area: 'Shahdara', metrics: { calculatedLinkLossDb: 10 } }];
+  saveReferenceJumpersAuditLog(sample, mockStorage);
+  assert.equal(loadReferenceJumpersAuditLog(mockStorage).length, 1);
+
+  clearReferenceJumpersAuditLog(mockStorage);
+  assert.deepEqual(loadReferenceJumpersAuditLog(mockStorage), []);
+});
+
+test('setupMobileRefJumpersModal handles open, close, and preset change events', async () => {
+  const { setupMobileRefJumpersModal } = await import('../nav-reference-jumpers.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobileRefJumpersModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, styles.css, nav.css, and app.js correctly integrate Reference Jumpers Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreRefJumpersBtn"'));
+  assert.ok(html.includes('id="mobileRefJumpersModal"'));
+  assert.ok(html.includes('id="refJumpersPresetSelect"'));
+  assert.ok(html.includes('id="refJumpersSvgContainer"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.mobile-ref-jumpers-modal'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#refJumpersSvgContainer'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileRefJumpersModal'));
+  assert.ok(app.includes('mobileRefJumpersModalController'));
+});
+
+test('nav.js correctly re-exports Ribbon Separator assistant constants and functions', async () => {
+  const nav = await import('../nav.js');
+  assert.equal(typeof nav.RIBBON_SEPARATOR_STORAGE_KEY, 'string');
+  assert.equal(nav.RIBBON_COLOR_CODES.length, 12);
+  assert.ok(nav.DE_RIBBON_METHODS.MECHANICAL_COMB);
+  assert.ok(nav.DE_RIBBON_METHODS.THERMAL_STRIPPER);
+  assert.ok(nav.DE_RIBBON_METHODS.SOLVENT_ASSISTED);
+  assert.ok(Array.isArray(nav.RIBBON_PRESETS));
+  assert.equal(typeof nav.calculateRibbonSeparatorMetrics, 'function');
+  assert.equal(typeof nav.renderRibbonSeparatorSvg, 'function');
+  assert.equal(typeof nav.loadRibbonSeparatorAuditLog, 'function');
+  assert.equal(typeof nav.saveRibbonSeparatorAuditLog, 'function');
+  assert.equal(typeof nav.clearRibbonSeparatorAuditLog, 'function');
+  assert.equal(typeof nav.formatRibbonSeparatorWhatsAppText, 'function');
+  assert.equal(typeof nav.generateRibbonSeparatorCsv, 'function');
+  assert.equal(typeof nav.setupMobileRibbonSeparatorModal, 'function');
+});
+
+test('calculateRibbonSeparatorMetrics correctly evaluates mechanical comb, thermal stripper, and solvent methods', async () => {
+  const { calculateRibbonSeparatorMetrics } = await import('../nav-ribbon-separator.js');
+
+  // 1. Optimal mechanical separation
+  const opt = calculateRibbonSeparatorMetrics({
+    deRibbonMethod: 'MECHANICAL_COMB',
+    ribbonNumber: 3,
+    cableFiberCount: 144,
+    peelLengthMm: 75,
+    measuredPeelForceN: 1.8,
+    matrixResidueUm: 12,
+    targetCore: 'ALL_12_CORES'
+  });
+
+  assert.equal(opt.isOverallPass, true);
+  assert.equal(opt.isForcePass, true);
+  assert.equal(opt.isResiduePass, true);
+  assert.equal(opt.integrityScore, 100);
+  assert.equal(opt.verdict, 'OPTIMAL_SEPARATION');
+
+  // 2. High peel force warning
+  const highForce = calculateRibbonSeparatorMetrics({
+    deRibbonMethod: 'THERMAL_STRIPPER',
+    ribbonNumber: 1,
+    cableFiberCount: 72,
+    peelLengthMm: 40,
+    measuredPeelForceN: 2.8, // exceeds 1.2 N limit
+    matrixResidueUm: 6,
+    targetCore: 'ALL_12_CORES'
+  });
+
+  assert.equal(highForce.isForcePass, false);
+  assert.equal(highForce.isResiduePass, true);
+  assert.equal(highForce.isOverallPass, false);
+  assert.ok(highForce.integrityScore < 100);
+
+  // 3. Single core selection
+  const singleCore = calculateRibbonSeparatorMetrics({
+    deRibbonMethod: 'SOLVENT_ASSISTED',
+    ribbonNumber: 2,
+    cableFiberCount: 24,
+    targetCore: '5_SLATE'
+  });
+  assert.ok(singleCore.targetCoreLabel.includes('Slate'));
+});
+
+test('renderRibbonSeparatorSvg generates valid SVG markup with 12 colored fibers and separator comb', async () => {
+  const { calculateRibbonSeparatorMetrics, renderRibbonSeparatorSvg } = await import('../nav-ribbon-separator.js');
+  const metrics = calculateRibbonSeparatorMetrics();
+
+  const svg = renderRibbonSeparatorSvg(metrics, { isDark: true });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('SEPARATOR'));
+  assert.ok(svg.includes('Intact 12-Fiber Ribbon'));
+  assert.ok(svg.includes('#1 Blue'));
+  assert.ok(svg.includes('#12 Aqua'));
+});
+
+test('formatRibbonSeparatorWhatsAppText and generateRibbonSeparatorCsv generate correct reports', async () => {
+  const { calculateRibbonSeparatorMetrics, formatRibbonSeparatorWhatsAppText, generateRibbonSeparatorCsv } = await import('../nav-ribbon-separator.js');
+  const metrics = calculateRibbonSeparatorMetrics({
+    deRibbonMethod: 'MECHANICAL_COMB',
+    ribbonNumber: 3,
+    cableFiberCount: 144
+  });
+
+  const record = {
+    id: 'RBN-TEST-001',
+    date: '2026-10-17 10:00:00',
+    area: 'Shahdara Feeder',
+    technician: 'Rashid Mahmood',
+    notes: 'Test notes',
+    params: { fanOutKitType: '900um Spider Furcation Fan-out Kit' },
+    metrics
+  };
+
+  const text = formatRibbonSeparatorWhatsAppText(record);
+  assert.ok(text.includes('RBN-TEST-001'));
+  assert.ok(text.includes('Shahdara Feeder'));
+  assert.ok(text.includes('Ribbon #3'));
+
+  const csv = generateRibbonSeparatorCsv([record]);
+  assert.ok(csv.includes('TestId,Date,Area,Technician'));
+  assert.ok(csv.includes('RBN-TEST-001'));
+  assert.ok(csv.includes('144'));
+});
+
+test('loadRibbonSeparatorAuditLog, saveRibbonSeparatorAuditLog, and clearRibbonSeparatorAuditLog handle storage', async () => {
+  const { loadRibbonSeparatorAuditLog, saveRibbonSeparatorAuditLog, clearRibbonSeparatorAuditLog } = await import('../nav-ribbon-separator.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (key) => store[key] || null,
+    setItem: (key, val) => { store[key] = String(val); },
+    removeItem: (key) => { delete store[key]; }
+  };
+
+  assert.deepEqual(loadRibbonSeparatorAuditLog(mockStorage), []);
+  saveRibbonSeparatorAuditLog([{ id: 'RBN-1', area: 'Shahdara', metrics: { integrityScore: 90 } }], mockStorage);
+  assert.equal(loadRibbonSeparatorAuditLog(mockStorage).length, 1);
+
+  clearRibbonSeparatorAuditLog(mockStorage);
+  assert.deepEqual(loadRibbonSeparatorAuditLog(mockStorage), []);
+});
+
+test('setupMobileRibbonSeparatorModal handles open, close, and preset change events', async () => {
+  const { setupMobileRibbonSeparatorModal } = await import('../nav-ribbon-separator.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobileRibbonSeparatorModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, styles.css, nav.css, and app.js correctly integrate Ribbon Separator Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreRibbonSeparatorBtn"'));
+  assert.ok(html.includes('id="mobileRibbonSeparatorModal"'));
+  assert.ok(html.includes('id="ribbonSeparatorPresetSelect"'));
+  assert.ok(html.includes('id="ribbonSeparatorSvgContainer"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.mobile-ribbon-separator-modal'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#ribbonSeparatorSvgContainer'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileRibbonSeparatorModal'));
+  assert.ok(app.includes('mobileRibbonSeparatorModalController'));
+});
+
+test('nav.js correctly re-exports Mechanical Splice assistant constants and functions', async () => {
+  const nav = await import('../nav.js');
+  assert.equal(typeof nav.MECHANICAL_SPLICE_STORAGE_KEY, 'string');
+  assert.ok(nav.SPLICE_ELEMENT_TYPES.FIBRLOK_UNIVERSAL_2529);
+  assert.ok(nav.SPLICE_ELEMENT_TYPES.CAMSPLICE_CORNING);
+  assert.ok(nav.SPLICE_ELEMENT_TYPES.MICRO_DROP_SPLICE);
+  assert.ok(nav.GEL_STATES.OPTIMAL);
+  assert.ok(nav.GEL_STATES.DRIED_AGED);
+  assert.ok(nav.GEL_STATES.AIR_VOID_CONTAMINATED);
+  assert.ok(Array.isArray(nav.MECHANICAL_SPLICE_PRESETS));
+  assert.equal(typeof nav.calculateMechanicalSpliceMetrics, 'function');
+  assert.equal(typeof nav.renderMechanicalSpliceSvg, 'function');
+  assert.equal(typeof nav.loadMechanicalSpliceAuditLog, 'function');
+  assert.equal(typeof nav.saveMechanicalSpliceAuditLog, 'function');
+  assert.equal(typeof nav.clearMechanicalSpliceAuditLog, 'function');
+  assert.equal(typeof nav.formatMechanicalSpliceWhatsAppText, 'function');
+  assert.equal(typeof nav.generateMechanicalSpliceCsv, 'function');
+  assert.equal(typeof nav.setupMobileMechanicalSpliceModal, 'function');
+});
+
+test('calculateMechanicalSpliceMetrics correctly computes insertion loss, return loss, and pull resistance', async () => {
+  const { calculateMechanicalSpliceMetrics } = await import('../nav-mechanical-splice.js');
+
+  // 1. Optimal Fibrlok splice
+  const opt = calculateMechanicalSpliceMetrics({
+    spliceType: 'FIBRLOK_UNIVERSAL_2529',
+    gelState: 'OPTIMAL',
+    fiber1CleaveAngleDeg: 0.6,
+    fiber2CleaveAngleDeg: 0.8,
+    buttGapMicrons: 4,
+    tensilePullN: 8.5
+  });
+
+  assert.equal(opt.isOverallPass, true);
+  assert.equal(opt.isLossPass, true);
+  assert.equal(opt.isOrlPass, true);
+  assert.equal(opt.isTensilePass, true);
+  assert.ok(opt.calculatedLossDb <= 0.25);
+  assert.ok(opt.orlDb >= 40);
+  assert.ok(opt.qualityRating.includes('EXCELLENT'));
+
+  // 2. Air void contaminated gel defect
+  const voidSplice = calculateMechanicalSpliceMetrics({
+    spliceType: 'FIBRLOK_UNIVERSAL_2529',
+    gelState: 'AIR_VOID_CONTAMINATED',
+    fiber1CleaveAngleDeg: 2.2,
+    fiber2CleaveAngleDeg: 2.4,
+    buttGapMicrons: 25,
+    tensilePullN: 3.2
+  });
+
+  assert.equal(voidSplice.isLossPass, false);
+  assert.equal(voidSplice.isTensilePass, false);
+  assert.equal(voidSplice.isOverallPass, false);
+  assert.ok(voidSplice.qualityRating.includes('FAIL'));
+});
+
+test('renderMechanicalSpliceSvg generates valid SVG schematic with V-groove and index gel', async () => {
+  const { calculateMechanicalSpliceMetrics, renderMechanicalSpliceSvg } = await import('../nav-mechanical-splice.js');
+  const metrics = calculateMechanicalSpliceMetrics();
+
+  const svg = renderMechanicalSpliceSvg(metrics, { isDark: true });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('</svg>'));
+  assert.ok(svg.includes('INDEX MATCHING GEL'));
+  assert.ok(svg.includes('Fiber 1 (250µm)'));
+  assert.ok(svg.includes('Fiber 2 (250µm)'));
+  assert.ok(svg.includes('Insertion Loss:'));
+});
+
+test('formatMechanicalSpliceWhatsAppText and generateMechanicalSpliceCsv generate valid dispatches', async () => {
+  const { calculateMechanicalSpliceMetrics, formatMechanicalSpliceWhatsAppText, generateMechanicalSpliceCsv } = await import('../nav-mechanical-splice.js');
+  const metrics = calculateMechanicalSpliceMetrics();
+
+  const record = {
+    id: 'MEC-TEST-001',
+    date: '2026-10-17 10:00:00',
+    area: 'Shahdara Town Feeder',
+    technician: 'Rashid Mahmood',
+    notes: 'Emergency restoration test',
+    params: {},
+    metrics
+  };
+
+  const text = formatMechanicalSpliceWhatsAppText(record);
+  assert.ok(text.includes('MEC-TEST-001'));
+  assert.ok(text.includes('Shahdara Town Feeder'));
+  assert.ok(text.includes('Calculated Insertion Loss'));
+
+  const csv = generateMechanicalSpliceCsv([record]);
+  assert.ok(csv.includes('TestId,Date,Area,Technician'));
+  assert.ok(csv.includes('MEC-TEST-001'));
+});
+
+test('loadMechanicalSpliceAuditLog, saveMechanicalSpliceAuditLog, and clearMechanicalSpliceAuditLog operate on storage', async () => {
+  const { loadMechanicalSpliceAuditLog, saveMechanicalSpliceAuditLog, clearMechanicalSpliceAuditLog } = await import('../nav-mechanical-splice.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (key) => store[key] || null,
+    setItem: (key, val) => { store[key] = String(val); },
+    removeItem: (key) => { delete store[key]; }
+  };
+
+  assert.deepEqual(loadMechanicalSpliceAuditLog(mockStorage), []);
+  saveMechanicalSpliceAuditLog([{ id: 'MEC-1', area: 'Shahdara', metrics: { calculatedLossDb: 0.12 } }], mockStorage);
+  assert.equal(loadMechanicalSpliceAuditLog(mockStorage).length, 1);
+
+  clearMechanicalSpliceAuditLog(mockStorage);
+  assert.deepEqual(loadMechanicalSpliceAuditLog(mockStorage), []);
+});
+
+test('setupMobileMechanicalSpliceModal handles open, close, and preset selection', async () => {
+  const { setupMobileMechanicalSpliceModal } = await import('../nav-mechanical-splice.js');
+
+  let modalOpened = false;
+  let modalClosed = false;
+
+  const makeEl = (id) => ({
+    id,
+    value: '',
+    textContent: '',
+    className: '',
+    dataset: {},
+    innerHTML: '',
+    style: {},
+    appendChild: function(c) { this.children = this.children || []; this.children.push(c); },
+    showModal: () => { modalOpened = true; },
+    close: () => { modalClosed = true; },
+    addEventListener: () => {}
+  });
+
+  const mockDoc = {
+    getElementById: (id) => makeEl(id),
+    createElement: (tag) => ({
+      tagName: tag.toUpperCase(),
+      innerHTML: '',
+      style: {},
+      appendChild: () => {}
+    })
+  };
+
+  const origDoc = globalThis.document;
+  globalThis.document = mockDoc;
+  try {
+    const controller = setupMobileMechanicalSpliceModal({}, { storage: null, onToast: () => {} });
+    assert.ok(controller);
+    controller.open();
+    assert.equal(modalOpened, true);
+    controller.close();
+    assert.equal(modalClosed, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('index.html, styles.css, nav.css, and app.js correctly integrate Mechanical Splice Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreMechanicalSpliceBtn"'));
+  assert.ok(html.includes('id="mobileMechanicalSpliceModal"'));
+  assert.ok(html.includes('id="mechanicalSplicePresetSelect"'));
+  assert.ok(html.includes('id="mechanicalSpliceSvgContainer"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.mobile-mechanical-splice-modal'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#mechanicalSpliceSvgContainer'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileMechanicalSpliceModal'));
+  assert.ok(app.includes('mobileMechanicalSpliceModalController'));
+});
+
+
+
+
 
 
 

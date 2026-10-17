@@ -16657,6 +16657,293 @@ test('index.html and dashboard.css contain OTN markup and styles', async () => {
   assert.ok(css.includes('.otn-action-bar'));
 });
 
+test('MPLS_TP_CONSTANTS and SHAHDARA_MPLS_TP_LSPS define valid carrier configurations', async () => {
+  const { MPLS_TP_CONSTANTS, SHAHDARA_MPLS_TP_LSPS } = await import('../dashboard.js');
+
+  assert.equal(MPLS_TP_CONSTANTS.DEFAULT_LSP_ID, 'lsp-tp-01');
+  assert.equal(MPLS_TP_CONSTANTS.DEFAULT_CC_INTERVAL_MS, 3.33);
+  assert.equal(MPLS_TP_CONSTANTS.FIBER_REFRACTIVE_INDEX, 1.4682);
+
+  // CC Intervals
+  assert.ok(MPLS_TP_CONSTANTS.CC_INTERVALS.FAST_3_33);
+  assert.ok(MPLS_TP_CONSTANTS.CC_INTERVALS.STANDARD_10);
+  assert.ok(MPLS_TP_CONSTANTS.CC_INTERVALS.RELAXED_100);
+  assert.ok(MPLS_TP_CONSTANTS.CC_INTERVALS.MINIMAL_1000);
+
+  // Faults
+  assert.ok(MPLS_TP_CONSTANTS.FAULTS.NONE);
+  assert.ok(MPLS_TP_CONSTANTS.FAULTS.WORKING_CUT);
+  assert.ok(MPLS_TP_CONSTANTS.FAULTS.PROTECTION_CUT);
+  assert.ok(MPLS_TP_CONSTANTS.FAULTS.MANUAL_SWITCH);
+  assert.ok(MPLS_TP_CONSTANTS.FAULTS.LOCKOUT);
+  assert.ok(MPLS_TP_CONSTANTS.FAULTS.DOUBLE_FAULT);
+
+  // LSPs
+  assert.equal(SHAHDARA_MPLS_TP_LSPS.length, 5);
+  SHAHDARA_MPLS_TP_LSPS.forEach(l => {
+    assert.ok(l.id);
+    assert.ok(l.name);
+    assert.ok(l.primaryArea);
+    assert.ok(l.targetArea);
+    assert.ok(l.bandwidthGbps > 0);
+    assert.ok(l.workingRoute);
+    assert.ok(l.workingDistanceKm > 0);
+    assert.ok(l.protectionRoute);
+    assert.ok(l.protectionDistanceKm > l.workingDistanceKm); // Protection path physically diverse/longer
+    assert.ok(l.defaultCcIntervalMs > 0);
+    assert.ok(l.monthlyRevenuePkr > 0);
+    assert.ok(l.subscribersCount > 0);
+  });
+});
+
+test('calculateMplsTpFiberDelay and calculateMplsTpSwitchBudget compute microsecond delays and switch budgets', async () => {
+  const { calculateMplsTpFiberDelay, calculateMplsTpSwitchBudget } = await import('../dashboard.js');
+
+  // Fiber Delay: ~4.897 us per km
+  const delay10km = calculateMplsTpFiberDelay(10.0);
+  assert.ok(delay10km >= 48.0 && delay10km <= 50.0);
+
+  const delay20km = calculateMplsTpFiberDelay(20.0);
+  assert.ok(delay20km >= 97.0 && delay20km <= 100.0);
+
+  // Switching Budget: 3.33ms CC
+  const budgetFast = calculateMplsTpSwitchBudget(3.33);
+  assert.equal(budgetFast.defectDetectionTimeMs, 9.99);
+  assert.equal(budgetFast.totalSwitchingTimeMs, 13.99);
+  assert.equal(budgetFast.meetsSub50msSla, true);
+
+  // Switching Budget: 10.0ms CC
+  const budgetStandard = calculateMplsTpSwitchBudget(10.0);
+  assert.equal(budgetStandard.defectDetectionTimeMs, 30.0);
+  assert.equal(budgetStandard.totalSwitchingTimeMs, 34.0);
+  assert.equal(budgetStandard.meetsSub50msSla, true);
+
+  // Switching Budget: 100.0ms CC (long-haul)
+  const budgetSlow = calculateMplsTpSwitchBudget(100.0);
+  assert.equal(budgetSlow.defectDetectionTimeMs, 300.0);
+  assert.equal(budgetSlow.meetsSub50msSla, false);
+});
+
+test('calculateMplsTpDynamics handles normal, 1:1 protection switch, manual switch, and double fault', async () => {
+  const {
+    calculateMplsTpDynamics,
+    setMplsTpSelectedLspId,
+    setMplsTpCcIntervalMs,
+    setMplsTpInjectedFault,
+    resetMplsTpSimState,
+    MPLS_TP_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetMplsTpSimState();
+  const dynNormal = calculateMplsTpDynamics();
+  assert.equal(dynNormal.lsp.id, 'lsp-tp-01');
+  assert.equal(dynNormal.activePath, 'WORKING');
+  assert.equal(dynNormal.trafficForwardingPct, 100);
+  assert.equal(dynNormal.packetLossPct, 0.0);
+  assert.equal(dynNormal.status, MPLS_TP_CONSTANTS.STATUS.OPTIMAL);
+  assert.ok(dynNormal.workingDelayUs > 90.0);
+  assert.ok(dynNormal.protectionDelayUs > dynNormal.workingDelayUs);
+
+  // Test working fiber cut -> 1:1 protection switched
+  setMplsTpInjectedFault('WORKING_CUT');
+  const dynSwitched = calculateMplsTpDynamics();
+  assert.equal(dynSwitched.activePath, 'PROTECTION');
+  assert.equal(dynSwitched.status, MPLS_TP_CONSTANTS.STATUS.PROTECTED_ACTIVE);
+  assert.equal(dynSwitched.activeDelayUs, dynSwitched.protectionDelayUs);
+  assert.ok(dynSwitched.packetLossPct >= 0);
+
+  // Test manual switch for maintenance
+  setMplsTpInjectedFault('MANUAL_SWITCH');
+  const dynManual = calculateMplsTpDynamics();
+  assert.equal(dynManual.activePath, 'PROTECTION');
+  assert.equal(dynManual.packetLossPct, 0.0); // Hitless
+
+  // Test protection path damaged
+  setMplsTpInjectedFault('PROTECTION_CUT');
+  const dynProtCut = calculateMplsTpDynamics();
+  assert.equal(dynProtCut.activePath, 'WORKING');
+  assert.equal(dynProtCut.status, MPLS_TP_CONSTANTS.STATUS.REDUNDANCY_DEGRADED);
+
+  // Test catastrophic double fault
+  setMplsTpInjectedFault('DOUBLE_FAULT');
+  const dynOutage = calculateMplsTpDynamics();
+  assert.equal(dynOutage.activePath, 'NONE');
+  assert.equal(dynOutage.trafficForwardingPct, 0);
+  assert.equal(dynOutage.packetLossPct, 100.0);
+  assert.equal(dynOutage.status, MPLS_TP_CONSTANTS.STATUS.OUTAGE);
+
+  resetMplsTpSimState();
+});
+
+test('calculateMplsTpMetrics computes fleet-wide aggregates', async () => {
+  const { calculateMplsTpMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateMplsTpMetrics();
+  assert.equal(metrics.totalLsps, 5);
+  assert.equal(metrics.totalBandwidthGbps, 47.5);
+  assert.ok(metrics.totalMonthlyRevenuePkr >= 20000000);
+  assert.ok(metrics.totalSubscribersProtected >= 3500);
+  assert.equal(metrics.optimalCount, 5);
+  assert.ok(metrics.averageSwitchTimeMs > 10.0 && metrics.averageSwitchTimeMs < 30.0);
+});
+
+test('renderMplsTpDiagramSvg generates accessible and accurate pure-vector SVG', async () => {
+  const { renderMplsTpDiagramSvg, calculateMplsTpDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateMplsTpDynamics();
+  const svgLight = renderMplsTpDiagramSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg class="mpls-tp-svg"'));
+  assert.ok(svgLight.includes('role="img"'));
+  assert.ok(svgLight.includes('aria-label='));
+  assert.ok(svgLight.includes('WORKING LSP:'));
+  assert.ok(svgLight.includes('PROTECTION LSP:'));
+  assert.ok(svgLight.includes('G-ACh CC-V Heartbeat'));
+  assert.ok(svgLight.includes('PE-01'));
+  assert.ok(svgLight.includes('PE-02'));
+  assert.ok(svgLight.includes('ACTIVE 1-WAY LATENCY'));
+  assert.ok(svgLight.includes('SWITCH TIME BUDGET'));
+  assert.ok(svgLight.includes('FORWARDING &amp; LOSS'));
+
+  const svgDark = renderMplsTpDiagramSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a'));
+  assert.ok(svgDark.includes('viewBox="0 0 720 330"'));
+});
+
+test('exportMplsTpJson, exportMplsTpCsv, and generateMplsTpReport produce formatted outputs', async () => {
+  const { exportMplsTpJson, exportMplsTpCsv, generateMplsTpReport } = await import('../dashboard.js');
+
+  // JSON
+  const jsonStr = exportMplsTpJson();
+  const data = JSON.parse(jsonStr);
+  assert.ok(data.timestamp);
+  assert.equal(data.selectedLsp.id, 'lsp-tp-01');
+  assert.ok(data.oamTelemetry.switchBudget);
+  assert.ok(data.faults.code);
+  assert.equal(data.fleetMetrics.totalLsps, 5);
+
+  // CSV
+  const csvStr = exportMplsTpCsv();
+  const lines = csvStr.trim().split('\n');
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].startsWith('LspId,LspName,BandwidthGbps'));
+  assert.ok(lines[1].startsWith('lsp-tp-01'));
+
+  // Report
+  const report = generateMplsTpReport();
+  assert.ok(report.includes('SHAHDARA CARRIER MPLS-TP (ITU-T G.8113.1) SLA AUDIT REPORT'));
+  assert.ok(report.includes('Primary LSP:'));
+  assert.ok(report.includes('PHYSICAL FIBER DISJOINT ROUTES & PROPAGATION DELAY:'));
+  assert.ok(report.includes('OAM TELEMETRY & 1:1 PROTECTION SWITCHING BUDGET:'));
+  assert.ok(report.includes('FLEET-WIDE CARRIER MPLS-TP SUMMARY:'));
+});
+
+test('setupMplsTpModal manages modal interactions and DOM events', async () => {
+  const { setupMplsTpModal } = await import('../dashboard.js');
+
+  const elements = {
+    dashboardMplsTpModal: { open: false, showModal() { this.open = true; }, close() { this.open = false; }, setAttribute(k, v) { if (k === 'open') this.open = true; }, removeAttribute(k) { if (k === 'open') this.open = false; } },
+    dashboardOpenMplsTpModalBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    dashboardMplsTpModalCloseBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    dashboardMplsTpChart: { innerHTML: '' },
+    mplsTpModalDiagramContainer: { innerHTML: '' },
+    mplsTpLspSelect: { value: 'lsp-tp-01', addEventListener(ev, cb) { this.change = cb; } },
+    mplsTpCcIntervalSelect: { value: '3.33', addEventListener(ev, cb) { this.change = cb; } },
+    mplsTpFaultSelect: { value: 'NONE', addEventListener(ev, cb) { this.change = cb; } },
+    mplsTpResetBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    mplsTpStatBandwidth: { textContent: '' },
+    mplsTpStatSwitchTime: { textContent: '' },
+    mplsTpStatActiveDelay: { textContent: '' },
+    mplsTpStatForwarding: { textContent: '', style: {} },
+    mplsTpStatCcInterval: { textContent: '' },
+    mplsTpStatFault: { textContent: '', style: {} },
+    mplsTpFilterAreaBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    mplsTpExportJsonBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    mplsTpExportCsvBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    mplsTpCopyReportBtn: { addEventListener(ev, cb) { this.click = cb; } }
+  };
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    documentElement: {
+      getAttribute: () => 'light'
+    }
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+
+  const controller = setupMplsTpModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filteredArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardMplsTpModal.open, true);
+  assert.ok(elements.dashboardMplsTpChart.innerHTML.includes('<svg'));
+  assert.ok(elements.mplsTpModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Select CC interval
+  elements.mplsTpCcIntervalSelect.value = '10.0';
+  elements.mplsTpCcIntervalSelect.change();
+  assert.ok(elements.mplsTpStatSwitchTime.textContent.includes('34 ms'));
+
+  // Select fault: WORKING_CUT
+  elements.mplsTpFaultSelect.value = 'WORKING_CUT';
+  elements.mplsTpFaultSelect.change();
+  assert.equal(elements.mplsTpStatFault.textContent, 'WORKING_CUT');
+  assert.ok(elements.mplsTpStatActiveDelay.textContent.includes('PROTECTION'));
+
+  // Reset button
+  elements.mplsTpResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Export buttons
+  elements.mplsTpExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON'));
+
+  elements.mplsTpExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV'));
+
+  elements.mplsTpCopyReportBtn.click();
+  assert.ok(toastMsg.includes('SLA audit report'));
+
+  // Filter area button
+  elements.mplsTpFilterAreaBtn.click();
+  assert.equal(filteredArea, 'Ravi Siphon');
+
+  controller.close();
+  assert.equal(elements.dashboardMplsTpModal.open, false);
+});
+
+test('index.html and dashboard.css contain MPLS-TP markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-mpls-tp'));
+  assert.ok(html.includes('id="dashboardMplsTpChart"'));
+  assert.ok(html.includes('id="dashboardOpenMplsTpModalBtn"'));
+  assert.ok(html.includes('id="dashboardMplsTpModal"'));
+  assert.ok(html.includes('id="mplsTpLspSelect"'));
+  assert.ok(html.includes('id="mplsTpCcIntervalSelect"'));
+  assert.ok(html.includes('id="mplsTpFaultSelect"'));
+  assert.ok(html.includes('id="mplsTpResetBtn"'));
+  assert.ok(html.includes('id="mplsTpModalDiagramContainer"'));
+  assert.ok(html.includes('id="mplsTpExportJsonBtn"'));
+  assert.ok(html.includes('id="mplsTpExportCsvBtn"'));
+  assert.ok(html.includes('id="mplsTpCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-mpls-tp'));
+  assert.ok(css.includes('.mpls-tp-modal-card'));
+  assert.ok(css.includes('.mpls-tp-svg'));
+  assert.ok(css.includes('.mpls-tp-action-bar'));
+});
+
 
 
 

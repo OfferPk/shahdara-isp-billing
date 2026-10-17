@@ -5887,6 +5887,27 @@ export {
   setupOtnModal
 } from './dashboard-otn.js';
 
+export {
+  MPLS_TP_CONSTANTS,
+  SHAHDARA_MPLS_TP_LSPS,
+  getMplsTpSelectedLspId,
+  setMplsTpSelectedLspId,
+  getMplsTpCcIntervalMs,
+  setMplsTpCcIntervalMs,
+  getMplsTpInjectedFault,
+  setMplsTpInjectedFault,
+  resetMplsTpSimState,
+  calculateMplsTpFiberDelay,
+  calculateMplsTpSwitchBudget,
+  calculateMplsTpDynamics,
+  calculateMplsTpMetrics,
+  renderMplsTpDiagramSvg,
+  generateMplsTpReport,
+  exportMplsTpJson,
+  exportMplsTpCsv,
+  setupMplsTpModal
+} from './dashboard-mpls-tp.js';
+
 
 
 

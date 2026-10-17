@@ -16944,6 +16944,506 @@ test('index.html and dashboard.css contain MPLS-TP markup and styles', async () 
   assert.ok(css.includes('.mpls-tp-action-bar'));
 });
 
+test('calculateVrfPrefixCapacity correctly evaluates utilization, headroom, and warning/critical thresholds', async () => {
+  const { calculateVrfPrefixCapacity } = await import('../dashboard.js');
+
+  const normal = calculateVrfPrefixCapacity(150, 500);
+  assert.equal(normal.activePrefixes, 150);
+  assert.equal(normal.maxPrefixes, 500);
+  assert.equal(normal.headroom, 350);
+  assert.equal(normal.utilizationPercent, 30.0);
+  assert.equal(normal.statusLevel, 'nominal');
+
+  const warning = calculateVrfPrefixCapacity(380, 500);
+  assert.equal(warning.headroom, 120);
+  assert.equal(warning.utilizationPercent, 76.0);
+  assert.equal(warning.statusLevel, 'warning');
+
+  const critical = calculateVrfPrefixCapacity(460, 500);
+  assert.equal(critical.headroom, 40);
+  assert.equal(critical.utilizationPercent, 92.0);
+  assert.equal(critical.statusLevel, 'critical');
+
+  const overflow = calculateVrfPrefixCapacity(520, 500);
+  assert.equal(overflow.headroom, 0);
+  assert.equal(overflow.utilizationPercent, 104.0);
+  assert.equal(overflow.statusLevel, 'critical');
+});
+
+test('calculateMplsLabelStack accurately computes 2-level MPLS label overhead and MTU', async () => {
+  const { calculateMplsLabelStack } = await import('../dashboard.js');
+
+  const stack = calculateMplsLabelStack(1001, 20101, 1500);
+  assert.equal(stack.transportLabel, 1001);
+  assert.equal(stack.vpnLabel, 20101);
+  assert.equal(stack.outerLabelBytes, 4);
+  assert.equal(stack.innerLabelBytes, 4);
+  assert.equal(stack.totalMplsOverheadBytes, 8);
+  assert.equal(stack.requiredMtu, 1508);
+  assert.equal(stack.totalFrameBytes, 1526); // 1500 + 14 (Eth) + 8 (MPLS) + 4 (CRC)
+  assert.ok(stack.payloadEfficiencyPercent > 98.0);
+});
+
+test('calculateShamLinkMetrics and evaluateRouteTargetIsolation validate OSPF cost and VRF security', async () => {
+  const { calculateShamLinkMetrics, evaluateRouteTargetIsolation, SHAHDARA_L3VPN_VRFS } = await import('../dashboard.js');
+
+  const optimalSham = calculateShamLinkMetrics(50, 200);
+  assert.equal(optimalSham.isOptimal, true);
+  assert.equal(optimalSham.costMargin, 150);
+  assert.ok(optimalSham.recommendation.includes('properly calibrated'));
+
+  const badSham = calculateShamLinkMetrics(250, 100);
+  assert.equal(badSham.isOptimal, false);
+  assert.ok(badSham.recommendation.includes('Misconfiguration'));
+
+  const vrfHbl = SHAHDARA_L3VPN_VRFS[0]; // vrf-hbl-banking
+  const vrfRavi = SHAHDARA_L3VPN_VRFS[2]; // vrf-ravi-health
+
+  // Normal: HBL and Ravi Health must be completely isolated
+  const normalIsolation = evaluateRouteTargetIsolation(vrfHbl, vrfRavi);
+  assert.equal(normalIsolation.isIsolated, true);
+  assert.equal(normalIsolation.intersectingCommunities.length, 0);
+
+  // Injected leak: simulate HBL importing Ravi Health's RT
+  const leakedIsolation = evaluateRouteTargetIsolation(vrfHbl, vrfRavi, 'target:65001:103');
+  assert.equal(leakedIsolation.isIsolated, false);
+  assert.deepEqual(leakedIsolation.intersectingCommunities, ['target:65001:103']);
+});
+
+test('calculateL3VpnDynamics handles default VRF, prefix injection, route leak, and aggregates', async () => {
+  const {
+    calculateL3VpnDynamics,
+    setL3VpnSelectedVrfId,
+    setL3VpnPrefixInjectionOffset,
+    setL3VpnSimulatedProtocol,
+    setL3VpnSimulatedLeakTarget,
+    resetL3VpnSimState,
+    L3VPN_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetL3VpnSimState();
+  const dynNormal = calculateL3VpnDynamics();
+  assert.equal(dynNormal.selectedVrf.id, 'vrf-hbl-banking');
+  assert.equal(dynNormal.selectedVrf.rd, '65001:101');
+  assert.equal(dynNormal.severity, 'nominal');
+  assert.equal(dynNormal.overallStatus, L3VPN_CONSTANTS.STATUS.OPTIMAL);
+  assert.equal(dynNormal.hasUnauthorizedLeak, false);
+
+  // Test route injection triggering warning and critical thresholds
+  setL3VpnPrefixInjectionOffset(250); // 142 + 250 = 392 / 500 (78.4% -> Warning)
+  const dynWarning = calculateL3VpnDynamics();
+  assert.equal(dynWarning.prefixCapacity.statusLevel, 'warning');
+  assert.equal(dynWarning.severity, 'warning');
+  assert.equal(dynWarning.overallStatus, L3VPN_CONSTANTS.STATUS.WARNING_CAPACITY);
+
+  setL3VpnPrefixInjectionOffset(320); // 142 + 320 = 462 / 500 (92.4% -> Critical)
+  const dynCritical = calculateL3VpnDynamics();
+  assert.equal(dynCritical.prefixCapacity.statusLevel, 'critical');
+  assert.equal(dynCritical.severity, 'critical');
+  assert.equal(dynCritical.overallStatus, L3VPN_CONSTANTS.STATUS.CRITICAL_CAPACITY);
+
+  // Test unauthorized route leak simulation
+  resetL3VpnSimState();
+  setL3VpnSimulatedLeakTarget('target:65001:102'); // Inject CCTV RT into HBL Banking VRF
+  const dynLeak = calculateL3VpnDynamics();
+  assert.equal(dynLeak.hasUnauthorizedLeak, true);
+  assert.equal(dynLeak.severity, 'critical');
+  assert.equal(dynLeak.overallStatus, L3VPN_CONSTANTS.STATUS.LEAK_DETECTED);
+
+  // Test protocol override
+  resetL3VpnSimState();
+  setL3VpnSimulatedProtocol('STATIC_BFD');
+  const dynBfd = calculateL3VpnDynamics();
+  assert.equal(dynBfd.protocolInfo.code, 'STATIC_BFD');
+  assert.equal(dynBfd.protocolInfo.convergenceMs, 30);
+
+  // Check carrier-wide aggregates
+  assert.equal(dynNormal.aggregates.totalVrfs, 5);
+  assert.equal(dynNormal.aggregates.totalSubscribedSites, 108);
+  assert.ok(dynNormal.aggregates.totalMonthlyRevenue >= 22000000);
+  assert.equal(dynNormal.aggregates.totalBandwidthGbps, 15.8);
+  assert.ok(dynNormal.aggregates.totalActivePrefixes > 2000);
+
+  resetL3VpnSimState();
+});
+
+test('calculateL3VpnMetrics computes fast summary metrics', async () => {
+  const { calculateL3VpnMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateL3VpnMetrics();
+  assert.ok(metrics.vrfName.includes('Habib Bank Limited'));
+  assert.equal(metrics.rd, '65001:101');
+  assert.equal(metrics.activePrefixes, 142);
+  assert.equal(metrics.maxPrefixes, 500);
+  assert.equal(metrics.utilizationPercent, 28.4);
+  assert.equal(metrics.severity, 'nominal');
+  assert.ok(metrics.totalMonthlyRevenue >= 22000000);
+  assert.equal(metrics.totalSites, 108);
+});
+
+test('renderL3VpnDiagramSvg generates pure-vector SVG markup for both light and dark mode', async () => {
+  const { renderL3VpnDiagramSvg, calculateL3VpnDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateL3VpnDynamics();
+  const svgLight = renderL3VpnDiagramSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
+  assert.ok(svgLight.includes('class="l3vpn-svg-diagram"'));
+  assert.ok(svgLight.includes('CE-Site A (Branch)'));
+  assert.ok(svgLight.includes('PE-1 (Baradari Hub)'));
+  assert.ok(svgLight.includes('MPLS Core (P Routers)'));
+  assert.ok(svgLight.includes('PE-2 (Begum Kot)'));
+  assert.ok(svgLight.includes('CE-Site B (HQ / DC)'));
+  assert.ok(svgLight.includes('Outer LDP: 1001 (4B)'));
+  assert.ok(svgLight.includes('Inner VPN: 20101 (4B)'));
+  assert.ok(svgLight.includes('PREFIX CAPACITY &amp; HEADROOM'));
+  assert.ok(svgLight.includes('ROUTE TARGET (RT) ISOLATION'));
+
+  const svgDark = renderL3VpnDiagramSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // dark background
+});
+
+test('generateL3VpnReport produces telecommunications carrier audit text', async () => {
+  const { generateL3VpnReport, calculateL3VpnDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateL3VpnDynamics();
+  const report = generateL3VpnReport(dyn);
+  assert.ok(report.includes('SHAHDARA ISP CARRIER BGP/MPLS IP VPN (L3VPN) AUDIT REPORT'));
+  assert.ok(report.includes('RFC 4364 / RFC 4659'));
+  assert.ok(report.includes('Route Distinguisher:  65001:101'));
+  assert.ok(report.includes('Route Target Export:  target:65001:101'));
+  assert.ok(report.includes('Transport Label (LDP): 1001'));
+  assert.ok(report.includes('VPN Label (MP-BGP):   20101'));
+  assert.ok(report.includes('Total Active VRFs:    5'));
+});
+
+test('index.html and dashboard.css contain all necessary L3VPN modal, card, and style bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardL3VpnChart"'));
+  assert.ok(html.includes('id="dashboardOpenL3VpnModalBtn"'));
+  assert.ok(html.includes('id="dashboardL3VpnModal"'));
+  assert.ok(html.includes('id="l3vpnVrfSelect"'));
+  assert.ok(html.includes('id="l3vpnProtoSelect"'));
+  assert.ok(html.includes('id="l3vpnPrefixRange"'));
+  assert.ok(html.includes('id="l3vpnSimLeakSelect"'));
+  assert.ok(html.includes('id="l3vpnResetBtn"'));
+  assert.ok(html.includes('id="dashboardL3VpnModalSvgContainer"'));
+  assert.ok(html.includes('id="l3vpnExportJsonBtn"'));
+  assert.ok(html.includes('id="l3vpnExportCsvBtn"'));
+  assert.ok(html.includes('id="l3vpnCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-l3vpn'));
+  assert.ok(css.includes('.l3vpn-modal-card'));
+  assert.ok(css.includes('.l3vpn-svg-diagram'));
+});
+
+test('calculateCascadedOsnr correctly calculates multi-span OSNR, SD-FEC, and HD-FEC margins', async () => {
+  const { calculateCascadedOsnr, EDFA_CASCADE_CONSTANTS } = await import('../dashboard.js');
+
+  // Launch power +2dBm, span loss 4.5dB, NF 5.2dB, 3 spans
+  // OSNR = 2 - 4.5 - 5.2 - 10*log10(3) + 58 = 2 - 9.7 - 4.77 + 58 = 45.53 -> 45.5 dB
+  const res = calculateCascadedOsnr(2.0, 4.5, 5.2, 3);
+  assert.equal(res.osnrDb, 45.5);
+  assert.equal(res.sdFecMargin, Math.round((45.5 - EDFA_CASCADE_CONSTANTS.SD_FEC_OSNR_THRESHOLD_DB) * 10) / 10);
+  assert.equal(res.isSdFecCompliant, true);
+  assert.equal(res.isHdFecCompliant, true);
+
+  // Severe loss span with 20 spans and high NF
+  const poorRes = calculateCascadedOsnr(-15.0, 25.0, 9.0, 20);
+  assert.ok(poorRes.osnrDb < 10.0);
+  assert.equal(poorRes.isSdFecCompliant, false);
+  assert.ok(poorRes.sdFecMargin < 0);
+});
+
+test('calculateGainRipple and calculateTransientSurge model DGE spectral flattening and AGC loop', async () => {
+  const { calculateGainRipple, calculateTransientSurge } = await import('../dashboard.js');
+
+  const equalized = calculateGainRipple(4, true);
+  assert.equal(equalized.peakRippleDb, 0.35);
+  assert.equal(equalized.rippleStatus, 'nominal');
+
+  const unflattened = calculateGainRipple(4, false);
+  assert.equal(unflattened.peakRippleDb, 8.8); // 4 * 2.2
+  assert.equal(unflattened.rippleStatus, 'critical');
+
+  const steadySurge = calculateTransientSurge('FAST_HARDWARE', false);
+  assert.equal(steadySurge.transientSurgeDb, 0.0);
+  assert.equal(steadySurge.surgeStatus, 'nominal');
+
+  const fastAgcSurge = calculateTransientSurge('FAST_HARDWARE', true);
+  assert.equal(fastAgcSurge.transientSurgeDb, 0.35);
+  assert.equal(fastAgcSurge.surgeStatus, 'nominal');
+
+  const slowAgcSurge = calculateTransientSurge('LEGACY_SLOW', true);
+  assert.equal(slowAgcSurge.transientSurgeDb, 4.2);
+  assert.equal(slowAgcSurge.surgeStatus, 'critical');
+});
+
+test('calculateEdfaCascadeDynamics handles link presets, DGE toggle, surge simulation, and fleet aggregates', async () => {
+  const {
+    calculateEdfaCascadeDynamics,
+    setEdfaSelectedLinkId,
+    setEdfaDgeEnabled,
+    setEdfaAgcModeCode,
+    setEdfaSimulatedChannelDrop,
+    resetEdfaSimState,
+    EDFA_CASCADE_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetEdfaSimState();
+  const dynNormal = calculateEdfaCascadeDynamics();
+  assert.equal(dynNormal.link.id, 'link-baradari-siphon');
+  assert.equal(dynNormal.link.spansCount, 3);
+  assert.equal(dynNormal.dgeEnabled, true);
+  assert.equal(dynNormal.severity, 'nominal');
+  assert.equal(dynNormal.overallStatus, EDFA_CASCADE_CONSTANTS.STATUS.OPTIMAL);
+  assert.ok(dynNormal.osnr.osnrDb > 40.0);
+
+  // Turn off DGE to simulate ripple divergence
+  setEdfaDgeEnabled(false);
+  const dynRipple = calculateEdfaCascadeDynamics();
+  assert.equal(dynRipple.ripple.rippleStatus, 'critical');
+  assert.equal(dynRipple.severity, 'critical');
+  assert.equal(dynRipple.overallStatus, EDFA_CASCADE_CONSTANTS.STATUS.RIPPLE_SEVE);
+
+  // Test channel drop with slow AGC -> power surge alert
+  resetEdfaSimState();
+  setEdfaAgcModeCode('LEGACY_SLOW');
+  setEdfaSimulatedChannelDrop(true);
+  const dynSurge = calculateEdfaCascadeDynamics();
+  assert.equal(dynSurge.surge.surgeStatus, 'critical');
+  assert.equal(dynSurge.severity, 'critical');
+  assert.equal(dynSurge.overallStatus, EDFA_CASCADE_CONSTANTS.STATUS.SURGE_ALERT);
+
+  // Check fleet aggregates
+  assert.equal(dynNormal.aggregates.totalLinks, 5);
+  assert.ok(dynNormal.aggregates.totalAmplifiedDistanceKm >= 240);
+  assert.equal(dynNormal.aggregates.totalSpans, 12);
+  assert.equal(dynNormal.aggregates.totalEdfaUnits, 17);
+  assert.ok(dynNormal.aggregates.totalProtectedSubscribers >= 6000);
+  assert.ok(dynNormal.aggregates.totalFleetMonthlyRevenue >= 30000000);
+
+  resetEdfaSimState();
+});
+
+test('calculateEdfaCascadeMetrics provides fast summary metrics for cards', async () => {
+  const { calculateEdfaCascadeMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateEdfaCascadeMetrics();
+  assert.ok(metrics.linkName.includes('Baradari NOC'));
+  assert.equal(metrics.distanceKm, 62.0);
+  assert.equal(metrics.spansCount, 3);
+  assert.ok(metrics.osnrDb > 40.0);
+  assert.equal(metrics.peakRippleDb, 0.35);
+  assert.equal(metrics.severity, 'nominal');
+  assert.ok(metrics.monthlyRevenuePkr >= 30000000);
+});
+
+test('renderEdfaCascadeSvg produces pure-vector SVG with optical amplifiers and power profile', async () => {
+  const { renderEdfaCascadeSvg, calculateEdfaCascadeDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateEdfaCascadeDynamics();
+  const svgLight = renderEdfaCascadeSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
+  assert.ok(svgLight.includes('class="edfa-cascade-svg"'));
+  assert.ok(svgLight.includes('DWDM Tx'));
+  assert.ok(svgLight.includes('BA')); // Booster
+  assert.ok(svgLight.includes('ILA-1')); // In-line amp
+  assert.ok(svgLight.includes('DGE/GFF')); // Equalizer
+  assert.ok(svgLight.includes('PA')); // Pre-amp
+  assert.ok(svgLight.includes('DWDM Rx'));
+  assert.ok(svgLight.includes('OPTICAL POWER SAWTOOTH'));
+  assert.ok(svgLight.includes('ASE Noise Floor'));
+
+  const svgDark = renderEdfaCascadeSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // dark background
+});
+
+test('generateEdfaCascadeReport produces formal Outside Plant DWDM transmission report', async () => {
+  const { generateEdfaCascadeReport, calculateEdfaCascadeDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateEdfaCascadeDynamics();
+  const report = generateEdfaCascadeReport(dyn);
+  assert.ok(report.includes('SHAHDARA ISP DWDM CASCADED EDFA OPTICAL TRANSMISSION AUDIT REPORT'));
+  assert.ok(report.includes('ITU-T G.692 / G.661 / G.662 / G.680'));
+  assert.ok(report.includes('Baradari NOC <-> Ravi Siphon'));
+  assert.ok(report.includes('End-to-End OSNR:'));
+  assert.ok(report.includes('Dynamic Gain Equalizer:'));
+  assert.ok(report.includes('Total Amplified Links:'));
+});
+
+test('index.html and dashboard.css contain all EDFA Cascade modal, card, and style bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardEdfaCascadeChart"'));
+  assert.ok(html.includes('id="dashboardOpenEdfaCascadeModalBtn"'));
+  assert.ok(html.includes('id="dashboardEdfaCascadeModal"'));
+  assert.ok(html.includes('id="edfaLinkSelect"'));
+  assert.ok(html.includes('id="edfaAgcModeSelect"'));
+  assert.ok(html.includes('id="edfaDgeToggle"'));
+  assert.ok(html.includes('id="edfaSurgeTestBtn"'));
+  assert.ok(html.includes('id="edfaResetBtn"'));
+  assert.ok(html.includes('id="dashboardEdfaCascadeModalSvgContainer"'));
+  assert.ok(html.includes('id="edfaExportJsonBtn"'));
+  assert.ok(html.includes('id="edfaExportCsvBtn"'));
+  assert.ok(html.includes('id="edfaCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-edfa-cascade'));
+  assert.ok(css.includes('.edfa-modal-card'));
+  assert.ok(css.includes('.edfa-cascade-svg'));
+});
+
+test('calculateConstantTimeError and calculateTimeErrorBudget evaluate nanosecond phase alignment', async () => {
+  const { calculateConstantTimeError, calculateTimeErrorBudget, PTP_TBC_CONSTANTS } = await import('../dashboard.js');
+
+  // 4.2m fiber asymmetry -> cTE = (4.2 * 4.897) / 2 = 10.28 -> 10.3 ns
+  const uncompensated = calculateConstantTimeError(4.2, 0);
+  assert.equal(uncompensated.rawAsymmetryMeters, 4.2);
+  assert.equal(uncompensated.netCteNs, 10.3);
+
+  // Compensated with 4.0m -> net 0.2m -> cTE = 0.5 ns
+  const compensated = calculateConstantTimeError(4.2, 4.0);
+  assert.equal(compensated.netAsymmetryMeters, 0.2);
+  assert.equal(compensated.netCteNs, 0.5);
+
+  // Time error budget against Class B (limit 70ns)
+  const teB = calculateTimeErrorBudget(10.3, 12.0, 0, false, 'CLASS_B');
+  assert.equal(teB.cteNs, 10.3);
+  assert.equal(teB.dteNs, 12.0);
+  assert.equal(teB.maxTeNs, 22.3);
+  assert.equal(teB.targetLimitNs, 70);
+  assert.equal(teB.isCompliant, true);
+  assert.equal(teB.marginNs, 47.7);
+
+  // Holdover simulation introduces +45ns drift
+  const teHoldover = calculateTimeErrorBudget(10.3, 12.0, 0, true, 'CLASS_B');
+  assert.equal(teHoldover.maxTeNs, 67.3);
+  assert.equal(teHoldover.isCompliant, true);
+});
+
+test('calculatePtpTbcDynamics handles node selection, asymmetry compensation, holdover, and aggregates', async () => {
+  const {
+    calculatePtpTbcDynamics,
+    setPtpSelectedNodeId,
+    setPtpAsymmetryCompensation,
+    setPtpSimulatedHoldover,
+    setPtpSimulatedWanderNoise,
+    resetPtpSimState,
+    PTP_TBC_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetPtpSimState();
+  const dynNormal = calculatePtpTbcDynamics();
+  assert.equal(dynNormal.node.id, 'ptp-baradari-prtc');
+  assert.equal(dynNormal.node.clockClass, 6);
+  assert.equal(dynNormal.timeError.isCompliant, true);
+  assert.equal(dynNormal.severity, 'nominal');
+  assert.equal(dynNormal.overallStatus, PTP_TBC_CONSTANTS.STATUS.OPTIMAL);
+  assert.ok(dynNormal.timeError.maxTeNs < 15.0);
+
+  // Switch to Ravi Siphon T-BC with large aerial fiber asymmetry
+  setPtpSelectedNodeId('ptp-ravisiphon-tbc');
+  const dynRavi = calculatePtpTbcDynamics();
+  assert.equal(dynRavi.node.id, 'ptp-ravisiphon-tbc');
+  assert.ok(dynRavi.asymmetry.netCteNs > 30.0);
+  assert.equal(dynRavi.overallStatus, PTP_TBC_CONSTANTS.STATUS.ASYMMETRY_WARNING);
+
+  // Compensate asymmetry by 14 meters
+  setPtpAsymmetryCompensation(14.0);
+  const dynComp = calculatePtpTbcDynamics();
+  assert.ok(dynComp.asymmetry.netCteNs < 5.0);
+  assert.equal(dynComp.severity, 'nominal');
+
+  // Simulate holdover
+  setPtpSimulatedHoldover(true);
+  const dynHoldover = calculatePtpTbcDynamics();
+  assert.equal(dynHoldover.severity, 'warning');
+  assert.equal(dynHoldover.overallStatus, PTP_TBC_CONSTANTS.STATUS.HOLDOVER);
+
+  // Simulate extreme wander noise breaching limit
+  setPtpSimulatedWanderNoise(100.0);
+  const dynBreach = calculatePtpTbcDynamics();
+  assert.equal(dynBreach.timeError.isCompliant, false);
+  assert.equal(dynBreach.severity, 'critical');
+
+  // Check fleet aggregates
+  assert.equal(dynNormal.aggregates.totalNodes, 5);
+  assert.equal(dynNormal.aggregates.totalRadioSites, 54);
+  assert.ok(dynNormal.aggregates.totalSubscribers >= 9000);
+  assert.ok(dynNormal.aggregates.totalFleetRevenue >= 29000000);
+
+  resetPtpSimState();
+});
+
+test('calculatePtpTbcMetrics computes fast card metrics', async () => {
+  const { calculatePtpTbcMetrics } = await import('../dashboard.js');
+
+  const metrics = calculatePtpTbcMetrics();
+  assert.ok(metrics.nodeName.includes('Baradari NOC'));
+  assert.ok(metrics.maxTeNs < 15.0);
+  assert.equal(metrics.severity, 'nominal');
+  assert.equal(metrics.radioSites, 54);
+  assert.ok(metrics.monthlyRevenuePkr >= 29000000);
+});
+
+test('renderPtpTbcDiagramSvg produces pure-vector SVG with sync chain and eye diagram', async () => {
+  const { renderPtpTbcDiagramSvg, calculatePtpTbcDynamics } = await import('../dashboard.js');
+
+  const dyn = calculatePtpTbcDynamics();
+  const svgLight = renderPtpTbcDiagramSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
+  assert.ok(svgLight.includes('class="ptp-tbc-svg"'));
+  assert.ok(svgLight.includes('GNSS Constellation'));
+  assert.ok(svgLight.includes('PRTC Grandmaster'));
+  assert.ok(svgLight.includes('5G Radio Units'));
+  assert.ok(svgLight.includes('PHASE ALIGNMENT EYE'));
+  assert.ok(svgLight.includes('0.0 ns (UTC)'));
+
+  const svgDark = renderPtpTbcDiagramSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // dark background
+});
+
+test('generatePtpTbcReport produces formal Outside Plant PTP synchronization audit text', async () => {
+  const { generatePtpTbcReport, calculatePtpTbcDynamics } = await import('../dashboard.js');
+
+  const dyn = calculatePtpTbcDynamics();
+  const report = generatePtpTbcReport(dyn);
+  assert.ok(report.includes('SHAHDARA ISP PTP IEEE 1588v2 TELECOM BOUNDARY CLOCK AUDIT REPORT'));
+  assert.ok(report.includes('ITU-T G.8275.1 / G.8273.2'));
+  assert.ok(report.includes('Max Absolute TE (|maxTE|):'));
+  assert.ok(report.includes('Constant Time Error (cTE):'));
+  assert.ok(report.includes('Total Telecom Clocks:'));
+});
+
+test('index.html and dashboard.css contain all PTP T-BC modal, card, and style bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardPtpTbcChart"'));
+  assert.ok(html.includes('id="dashboardOpenPtpTbcModalBtn"'));
+  assert.ok(html.includes('id="dashboardPtpTbcModal"'));
+  assert.ok(html.includes('id="ptpNodeSelect"'));
+  assert.ok(html.includes('id="ptpAsymCompRange"'));
+  assert.ok(html.includes('id="ptpHoldoverToggleBtn"'));
+  assert.ok(html.includes('id="ptpResetBtn"'));
+  assert.ok(html.includes('id="dashboardPtpTbcModalSvgContainer"'));
+  assert.ok(html.includes('id="ptpExportJsonBtn"'));
+  assert.ok(html.includes('id="ptpExportCsvBtn"'));
+  assert.ok(html.includes('id="ptpCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-ptp-tbc'));
+  assert.ok(css.includes('.ptp-modal-card'));
+  assert.ok(css.includes('.ptp-tbc-svg'));
+});
+
 
 
 

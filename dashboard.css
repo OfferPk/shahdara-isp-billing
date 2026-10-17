@@ -2977,6 +2977,28 @@
   border-color: #24354a;
 }
 
+/* Carrier DWDM Cascaded EDFA Styles */
+.chart-card-edfa-cascade {
+  background: var(--surface, #ffffff);
+}
+
+.edfa-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.edfa-cascade-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-edfa-cascade {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

@@ -29,6 +29,7 @@ import { calculateMefEthernetMetrics, setupMefEthernetModal, renderMefCarrierEth
 import { calculateOtnDynamics, setupOtnModal, renderOtnDiagramSvg } from './dashboard-otn.js';
 import { calculateMplsTpDynamics, setupMplsTpModal, renderMplsTpDiagramSvg } from './dashboard-mpls-tp.js';
 import { calculateL3VpnDynamics, setupL3VpnModal, renderL3VpnDiagramSvg } from './dashboard-l3vpn.js';
+import { calculateEdfaCascadeDynamics, setupEdfaCascadeModal, renderEdfaCascadeSvg } from './dashboard-edfa-cascade.js';
 
 
 
@@ -3509,6 +3510,15 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
 
   setupL3VpnModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
 
+  const edfaEl = document.getElementById('dashboardEdfaCascadeChart');
+  if (edfaEl) {
+    const edfaDyn = calculateEdfaCascadeDynamics(state);
+    const isDark = (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('data-theme') === 'dark');
+    edfaEl.innerHTML = renderEdfaCascadeSvg(edfaDyn, { isDark, compact: true });
+  }
+
+  setupEdfaCascadeModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
   setupDashboardChartsEvents(state, referenceDate);
 }
-export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg, renderMclagDiagramSvg, renderFlowspecDiagramSvg, renderRamanDiagramSvg, renderSrMplsDiagramSvg, renderPmdDiagramSvg, renderEvpnDiagramSvg, renderKerrDiagramSvg, renderMplsTeDiagramSvg, renderMefCarrierEthernetSvg, renderOtnDiagramSvg, renderMplsTpDiagramSvg, renderL3VpnDiagramSvg };
+export { renderOtdrTraceSvg, renderSolarInverterSvg, renderAerialTensionSvg, renderMicrowaveLinkSvg, renderSpliceClosureSvg, renderDuctJettingSvg, renderPonDbaQueueSvg, renderFusionSplicerSvg, renderBgpRoutingConvergenceSvg, renderIptvMulticastSvg, renderDnsDiagnosticsSvg, renderDwdmBudgetSvg, renderOscTelemetrySvg, renderQinqTrunkSvg, renderSyncEClockSvg, renderRoadmOpticalSvg, renderMicroOtdrTraceSvg, renderMclagDiagramSvg, renderFlowspecDiagramSvg, renderRamanDiagramSvg, renderSrMplsDiagramSvg, renderPmdDiagramSvg, renderEvpnDiagramSvg, renderKerrDiagramSvg, renderMplsTeDiagramSvg, renderMefCarrierEthernetSvg, renderOtnDiagramSvg, renderMplsTpDiagramSvg, renderL3VpnDiagramSvg, renderEdfaCascadeSvg };

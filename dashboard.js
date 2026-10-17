@@ -5933,6 +5933,32 @@ export {
   setupL3VpnModal
 } from './dashboard-l3vpn.js';
 
+export {
+  EDFA_CASCADE_CONSTANTS,
+  SHAHDARA_EDFA_LINKS,
+  getEdfaSelectedLinkId,
+  setEdfaSelectedLinkId,
+  getEdfaChannelsOverride,
+  setEdfaChannelsOverride,
+  getEdfaDgeEnabled,
+  setEdfaDgeEnabled,
+  getEdfaAgcModeCode,
+  setEdfaAgcModeCode,
+  getEdfaSimulatedChannelDrop,
+  setEdfaSimulatedChannelDrop,
+  resetEdfaSimState,
+  calculateCascadedOsnr,
+  calculateGainRipple,
+  calculateTransientSurge,
+  calculateEdfaCascadeDynamics,
+  calculateEdfaCascadeMetrics,
+  renderEdfaCascadeSvg,
+  generateEdfaCascadeReport,
+  exportEdfaCascadeJson,
+  exportEdfaCascadeCsv,
+  setupEdfaCascadeModal
+} from './dashboard-edfa-cascade.js';
+
 
 
 

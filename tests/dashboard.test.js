@@ -17140,6 +17140,165 @@ test('index.html and dashboard.css contain all necessary L3VPN modal, card, and 
   assert.ok(css.includes('.l3vpn-svg-diagram'));
 });
 
+test('calculateCascadedOsnr correctly calculates multi-span OSNR, SD-FEC, and HD-FEC margins', async () => {
+  const { calculateCascadedOsnr, EDFA_CASCADE_CONSTANTS } = await import('../dashboard.js');
+
+  // Launch power +2dBm, span loss 4.5dB, NF 5.2dB, 3 spans
+  // OSNR = 2 - 4.5 - 5.2 - 10*log10(3) + 58 = 2 - 9.7 - 4.77 + 58 = 45.53 -> 45.5 dB
+  const res = calculateCascadedOsnr(2.0, 4.5, 5.2, 3);
+  assert.equal(res.osnrDb, 45.5);
+  assert.equal(res.sdFecMargin, Math.round((45.5 - EDFA_CASCADE_CONSTANTS.SD_FEC_OSNR_THRESHOLD_DB) * 10) / 10);
+  assert.equal(res.isSdFecCompliant, true);
+  assert.equal(res.isHdFecCompliant, true);
+
+  // Severe loss span with 20 spans and high NF
+  const poorRes = calculateCascadedOsnr(-15.0, 25.0, 9.0, 20);
+  assert.ok(poorRes.osnrDb < 10.0);
+  assert.equal(poorRes.isSdFecCompliant, false);
+  assert.ok(poorRes.sdFecMargin < 0);
+});
+
+test('calculateGainRipple and calculateTransientSurge model DGE spectral flattening and AGC loop', async () => {
+  const { calculateGainRipple, calculateTransientSurge } = await import('../dashboard.js');
+
+  const equalized = calculateGainRipple(4, true);
+  assert.equal(equalized.peakRippleDb, 0.35);
+  assert.equal(equalized.rippleStatus, 'nominal');
+
+  const unflattened = calculateGainRipple(4, false);
+  assert.equal(unflattened.peakRippleDb, 8.8); // 4 * 2.2
+  assert.equal(unflattened.rippleStatus, 'critical');
+
+  const steadySurge = calculateTransientSurge('FAST_HARDWARE', false);
+  assert.equal(steadySurge.transientSurgeDb, 0.0);
+  assert.equal(steadySurge.surgeStatus, 'nominal');
+
+  const fastAgcSurge = calculateTransientSurge('FAST_HARDWARE', true);
+  assert.equal(fastAgcSurge.transientSurgeDb, 0.35);
+  assert.equal(fastAgcSurge.surgeStatus, 'nominal');
+
+  const slowAgcSurge = calculateTransientSurge('LEGACY_SLOW', true);
+  assert.equal(slowAgcSurge.transientSurgeDb, 4.2);
+  assert.equal(slowAgcSurge.surgeStatus, 'critical');
+});
+
+test('calculateEdfaCascadeDynamics handles link presets, DGE toggle, surge simulation, and fleet aggregates', async () => {
+  const {
+    calculateEdfaCascadeDynamics,
+    setEdfaSelectedLinkId,
+    setEdfaDgeEnabled,
+    setEdfaAgcModeCode,
+    setEdfaSimulatedChannelDrop,
+    resetEdfaSimState,
+    EDFA_CASCADE_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetEdfaSimState();
+  const dynNormal = calculateEdfaCascadeDynamics();
+  assert.equal(dynNormal.link.id, 'link-baradari-siphon');
+  assert.equal(dynNormal.link.spansCount, 3);
+  assert.equal(dynNormal.dgeEnabled, true);
+  assert.equal(dynNormal.severity, 'nominal');
+  assert.equal(dynNormal.overallStatus, EDFA_CASCADE_CONSTANTS.STATUS.OPTIMAL);
+  assert.ok(dynNormal.osnr.osnrDb > 40.0);
+
+  // Turn off DGE to simulate ripple divergence
+  setEdfaDgeEnabled(false);
+  const dynRipple = calculateEdfaCascadeDynamics();
+  assert.equal(dynRipple.ripple.rippleStatus, 'critical');
+  assert.equal(dynRipple.severity, 'critical');
+  assert.equal(dynRipple.overallStatus, EDFA_CASCADE_CONSTANTS.STATUS.RIPPLE_SEVE);
+
+  // Test channel drop with slow AGC -> power surge alert
+  resetEdfaSimState();
+  setEdfaAgcModeCode('LEGACY_SLOW');
+  setEdfaSimulatedChannelDrop(true);
+  const dynSurge = calculateEdfaCascadeDynamics();
+  assert.equal(dynSurge.surge.surgeStatus, 'critical');
+  assert.equal(dynSurge.severity, 'critical');
+  assert.equal(dynSurge.overallStatus, EDFA_CASCADE_CONSTANTS.STATUS.SURGE_ALERT);
+
+  // Check fleet aggregates
+  assert.equal(dynNormal.aggregates.totalLinks, 5);
+  assert.ok(dynNormal.aggregates.totalAmplifiedDistanceKm >= 240);
+  assert.equal(dynNormal.aggregates.totalSpans, 12);
+  assert.equal(dynNormal.aggregates.totalEdfaUnits, 17);
+  assert.ok(dynNormal.aggregates.totalProtectedSubscribers >= 6000);
+  assert.ok(dynNormal.aggregates.totalFleetMonthlyRevenue >= 30000000);
+
+  resetEdfaSimState();
+});
+
+test('calculateEdfaCascadeMetrics provides fast summary metrics for cards', async () => {
+  const { calculateEdfaCascadeMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateEdfaCascadeMetrics();
+  assert.ok(metrics.linkName.includes('Baradari NOC'));
+  assert.equal(metrics.distanceKm, 62.0);
+  assert.equal(metrics.spansCount, 3);
+  assert.ok(metrics.osnrDb > 40.0);
+  assert.equal(metrics.peakRippleDb, 0.35);
+  assert.equal(metrics.severity, 'nominal');
+  assert.ok(metrics.monthlyRevenuePkr >= 30000000);
+});
+
+test('renderEdfaCascadeSvg produces pure-vector SVG with optical amplifiers and power profile', async () => {
+  const { renderEdfaCascadeSvg, calculateEdfaCascadeDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateEdfaCascadeDynamics();
+  const svgLight = renderEdfaCascadeSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
+  assert.ok(svgLight.includes('class="edfa-cascade-svg"'));
+  assert.ok(svgLight.includes('DWDM Tx'));
+  assert.ok(svgLight.includes('BA')); // Booster
+  assert.ok(svgLight.includes('ILA-1')); // In-line amp
+  assert.ok(svgLight.includes('DGE/GFF')); // Equalizer
+  assert.ok(svgLight.includes('PA')); // Pre-amp
+  assert.ok(svgLight.includes('DWDM Rx'));
+  assert.ok(svgLight.includes('OPTICAL POWER SAWTOOTH'));
+  assert.ok(svgLight.includes('ASE Noise Floor'));
+
+  const svgDark = renderEdfaCascadeSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // dark background
+});
+
+test('generateEdfaCascadeReport produces formal Outside Plant DWDM transmission report', async () => {
+  const { generateEdfaCascadeReport, calculateEdfaCascadeDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateEdfaCascadeDynamics();
+  const report = generateEdfaCascadeReport(dyn);
+  assert.ok(report.includes('SHAHDARA ISP DWDM CASCADED EDFA OPTICAL TRANSMISSION AUDIT REPORT'));
+  assert.ok(report.includes('ITU-T G.692 / G.661 / G.662 / G.680'));
+  assert.ok(report.includes('Baradari NOC <-> Ravi Siphon'));
+  assert.ok(report.includes('End-to-End OSNR:'));
+  assert.ok(report.includes('Dynamic Gain Equalizer:'));
+  assert.ok(report.includes('Total Amplified Links:'));
+});
+
+test('index.html and dashboard.css contain all EDFA Cascade modal, card, and style bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardEdfaCascadeChart"'));
+  assert.ok(html.includes('id="dashboardOpenEdfaCascadeModalBtn"'));
+  assert.ok(html.includes('id="dashboardEdfaCascadeModal"'));
+  assert.ok(html.includes('id="edfaLinkSelect"'));
+  assert.ok(html.includes('id="edfaAgcModeSelect"'));
+  assert.ok(html.includes('id="edfaDgeToggle"'));
+  assert.ok(html.includes('id="edfaSurgeTestBtn"'));
+  assert.ok(html.includes('id="edfaResetBtn"'));
+  assert.ok(html.includes('id="dashboardEdfaCascadeModalSvgContainer"'));
+  assert.ok(html.includes('id="edfaExportJsonBtn"'));
+  assert.ok(html.includes('id="edfaExportCsvBtn"'));
+  assert.ok(html.includes('id="edfaCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-edfa-cascade'));
+  assert.ok(css.includes('.edfa-modal-card'));
+  assert.ok(css.includes('.edfa-cascade-svg'));
+});
+
 
 
 

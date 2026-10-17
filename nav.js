@@ -6188,3 +6188,16 @@ export {
   setupMobileFastConnectorModal
 } from './nav-fast-connector.js';
 
+export {
+  OTDR_LAUNCH_STORAGE_KEY,
+  OTDR_PULSE_WIDTHS,
+  OTDR_LAUNCH_FIBER_TYPES,
+  OTDR_LAUNCH_WAVELENGTHS,
+  OTDR_LAUNCH_PRESETS,
+  calculateOtdrLaunchMetrics,
+  renderOtdrLaunchDiagramSvg,
+  formatOtdrLaunchWhatsApp,
+  generateOtdrLaunchCsv,
+  setupMobileOtdrLaunchModal
+} from './nav-otdr-launch-cable.js';
+

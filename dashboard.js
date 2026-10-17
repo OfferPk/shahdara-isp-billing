@@ -5760,6 +5760,19 @@ export {
   setupBotdaModal
 } from './dashboard-botda.js';
 
+export {
+  CGNAT_CONSTANTS,
+  SHAHDARA_CGNAT_POOLS,
+  calculatePortBlockCapacity,
+  calculateCgnatDynamics,
+  calculateCgnatMetrics,
+  renderCgnatDiagramSvg,
+  generateCgnatReport,
+  exportCgnatJson,
+  exportCgnatCsv,
+  setupCgnatModal
+} from './dashboard-cgnat.js';
+
 
 
 

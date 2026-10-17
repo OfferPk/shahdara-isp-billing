@@ -6281,7 +6281,9 @@ html, body {
   #tubeSlittingAccessModal,
   #tubeSlittingAccessModal .dashboard-modal-card,
   #conduitPullingModal,
-  #conduitPullingModal .dashboard-modal-card {
+  #conduitPullingModal .dashboard-modal-card,
+  #spectralAttenuationModal,
+  #spectralAttenuationModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;

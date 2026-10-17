@@ -12632,6 +12632,275 @@ test('index.html, styles.css, nav.css, and app.js correctly integrate Mechanical
   assert.ok(app.includes('mobileMechanicalSpliceModalController'));
 });
 
+// ==========================================
+// Field Optical Fiber VIP Microscope Tests
+// ==========================================
+test('Fiber Microscope VIP: evaluates pristine connector as pass with zero penalty', async () => {
+  const { evaluateConnectorSurface } = await import('../nav-fiber-microscope.js');
+  const res = evaluateConnectorSurface({
+    coreScratches: 0,
+    coreDefects: 0,
+    claddingScratches: 0,
+    claddingDefects: 0,
+    epoxyDefects: 0,
+    contactDefects: 0
+  });
+
+  assert.equal(res.overallPassed, true);
+  assert.equal(res.estimatedInsertionLossDb, 0.05);
+  assert.equal(res.estimatedReturnLossDb, 65.0);
+  assert.equal(res.zones.ZONE_A_CORE.passed, true);
+  assert.equal(res.zones.ZONE_B_CLADDING.passed, true);
+  assert.equal(res.zones.ZONE_C_EPOXY.passed, true);
+  assert.equal(res.zones.ZONE_D_CONTACT.passed, true);
+});
+
+test('Fiber Microscope VIP: fails connector with core defects and calculates loss penalty', async () => {
+  const { evaluateConnectorSurface } = await import('../nav-fiber-microscope.js');
+  const res = evaluateConnectorSurface({
+    coreScratches: 2,
+    coreDefects: 1,
+    claddingScratches: 1,
+    claddingDefects: 2,
+    epoxyDefects: 0,
+    contactDefects: 0
+  });
+
+  assert.equal(res.overallPassed, false);
+  assert.equal(res.zones.ZONE_A_CORE.passed, false);
+  assert.ok(res.estimatedInsertionLossDb > 0.5);
+  assert.ok(res.estimatedReturnLossDb < 50);
+});
+
+test('Fiber Microscope VIP: renders SVG, saves/loads records, and exports CSV and WhatsApp text', async () => {
+  const {
+    renderMicroscopeSvg,
+    evaluateConnectorSurface,
+    saveMicroscopeAuditRecord,
+    loadMicroscopeAuditRecords,
+    clearMicroscopeAuditRecords,
+    exportMicroscopeCsv,
+    formatMicroscopeWhatsAppText
+  } = await import('../nav-fiber-microscope.js');
+
+  const evalRes = evaluateConnectorSurface({ coreScratches: 0, coreDefects: 0, claddingScratches: 1, claddingDefects: 0 });
+  const svg = renderMicroscopeSvg(evalRes);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('IEC 61300-3-35'));
+
+  const mockStorage = new Map();
+  const origLocal = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => mockStorage.get(k) || null,
+    setItem: (k, v) => mockStorage.set(k, String(v)),
+    removeItem: (k) => mockStorage.delete(k)
+  };
+
+  try {
+    const list = saveMicroscopeAuditRecord({
+      location: 'FAT-04 Baradari Splitter 02',
+      connectorType: 'SC/APC',
+      isCorePassed: true,
+      isCladdingPassed: true,
+      isOverallPassed: true,
+      verdictLabel: 'PASS',
+      technicianName: 'Tariq Mehmood'
+    });
+    assert.equal(list.length, 1);
+    const loaded = loadMicroscopeAuditRecords();
+    assert.equal(loaded.length, 1);
+    assert.equal(loaded[0].location, 'FAT-04 Baradari Splitter 02');
+
+    const csv = exportMicroscopeCsv(loaded);
+    assert.ok(csv.includes('Timestamp'));
+    assert.ok(csv.includes('FAT-04 Baradari Splitter 02'));
+
+    const wa = formatMicroscopeWhatsAppText(loaded[0]);
+    assert.ok(wa.includes('SHAHDARA ISP'));
+    assert.ok(wa.includes('PASS'));
+
+    clearMicroscopeAuditRecords();
+    assert.equal(loadMicroscopeAuditRecords().length, 0);
+  } finally {
+    globalThis.localStorage = origLocal;
+  }
+});
+
+// ==========================================
+// Field VFL Red Laser & Core Resolver Tests
+// ==========================================
+test('VFL Tracer: resolves 12-color TIA-598-D core and buffer tube mapping', async () => {
+  const { resolveFiberCoreFromNumber, resolveCoreNumberFromTubeAndFiber } = await import('../nav-vfl-tracer.js');
+  
+  const core1 = resolveFiberCoreFromNumber(1, 24);
+  assert.equal(core1.fiberColor.name, 'Blue');
+  assert.equal(core1.tubeColor.name, 'Blue');
+
+  const core14 = resolveFiberCoreFromNumber(14, 24);
+  assert.equal(core14.fiberColor.name, 'Orange');
+  assert.equal(core14.tubeColor.name, 'Orange');
+
+  const resolvedNum = resolveCoreNumberFromTubeAndFiber(2, 2, '24-core');
+  assert.equal(resolvedNum, 14);
+});
+
+test('VFL Tracer: renders laser SVG and generates field report', async () => {
+  const { renderMobileVflLaserSvg, generateVflFieldReport } = await import('../nav-vfl-tracer.js');
+  const reading = {
+    coreNumber: 5,
+    tubeNumber: 1,
+    fiberNumberInTube: 5,
+    totalCores: 24,
+    fiberColor: { name: 'Slate', hex: '#64748b', urduName: 'سلیٹی' },
+    tubeColor: { name: 'Blue', hex: '#0284c7', urduName: 'نیلا' },
+    laserMode: 'PULSE_2HZ',
+    powerMw: 10,
+    faultCondition: { id: 'CONTINUITY_OK', label: 'Continuous Core (Clean Red Glow)', color: '#10b981' },
+    cabinetId: 'cab-sh-01',
+    cabinetName: 'FAT-01 Baradari Chungi',
+    linemanNotes: 'Testing drop core'
+  };
+
+  const svg = renderMobileVflLaserSvg(reading);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('650nm'));
+  assert.ok(svg.includes('RED LASER'));
+
+  const report = generateVflFieldReport(reading);
+  assert.ok(report.includes('VFL LASER & CORE IDENTIFICATION REPORT'));
+  assert.ok(report.includes('Slate'));
+});
+
+// ==========================================
+// Optical Connector Cleaning Tests
+// ==========================================
+test('Connector Cleaning: recommends 1-click dry clean for airborne dust', async () => {
+  const { evaluateCleaningProtocol } = await import('../nav-connector-cleaning.js');
+  const res = evaluateCleaningProtocol({
+    toolId: 'CLICK_PEN_25',
+    contaminationId: 'DUST_AIRBORNE',
+    ambientHumidityPercent: 45,
+    clicksAttempted: 1
+  });
+
+  assert.equal(res.protocolName, '1-Click Dry Clean');
+  assert.equal(res.recommendedSolvent, false);
+  assert.ok(res.estimatedSuccessRatePercent >= 90);
+  assert.equal(res.staticRiskLevel, 'LOW');
+});
+
+test('Connector Cleaning: recommends wet-to-dry solvent wipe for fingerprint oil and flags high static at low humidity', async () => {
+  const { evaluateCleaningProtocol } = await import('../nav-connector-cleaning.js');
+  const res = evaluateCleaningProtocol({
+    toolId: 'WET_TO_DRY_WIPE',
+    contaminationId: 'SKIN_OIL',
+    ambientHumidityPercent: 20,
+    clicksAttempted: 4
+  });
+
+  assert.ok(res.protocolName.includes('Wet-to-Dry'));
+  assert.equal(res.recommendedSolvent, true);
+  assert.ok(res.staticChargeKv >= 1.0);
+});
+
+test('Connector Cleaning: click lifetime tracking, SVG rendering, and audit persistence', async () => {
+  const {
+    evaluateCleaningProtocol,
+    renderCleaningSvg,
+    loadToolCounters,
+    decrementToolCounter,
+    resetToolCounter,
+    saveCleaningRecord,
+    loadCleaningRecords,
+    clearCleaningRecords,
+    exportCleaningCsv,
+    formatCleaningWhatsAppText
+  } = await import('../nav-connector-cleaning.js');
+
+  const evalRes = evaluateCleaningProtocol({ toolId: 'CLICK_PEN_25', contaminationId: 'DUST_AIRBORNE', ambientHumidityPercent: 40, clicksAttempted: 1 });
+  const svg = renderCleaningSvg(evalRes);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('GR-2923 / IEC 62627-01'));
+
+  const mockStorage = new Map();
+  const origLocal = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (k) => mockStorage.get(k) || null,
+    setItem: (k, v) => mockStorage.set(k, String(v)),
+    removeItem: (k) => mockStorage.delete(k)
+  };
+
+  try {
+    const initial = decrementToolCounter('CLICK_PEN_25', 2);
+    assert.equal(initial, 798);
+    const resetVal = resetToolCounter('CLICK_PEN_25');
+    assert.equal(resetVal, 800);
+
+    const list = saveCleaningRecord({
+      location: 'FAT-03 Baradari Port 06',
+      connectorType: 'SC/APC',
+      toolName: '2.5mm Push Click Pen',
+      protocolName: '1-Click Dry Clean',
+      estimatedSuccessRatePercent: 95
+    });
+    assert.equal(list.length, 1);
+    const loaded = loadCleaningRecords();
+    assert.equal(loaded[0].location, 'FAT-03 Baradari Port 06');
+
+    const csv = exportCleaningCsv(loaded);
+    assert.ok(csv.includes('Record ID'));
+    assert.ok(csv.includes('FAT-03 Baradari Port 06'));
+
+    const wa = formatCleaningWhatsAppText(loaded[0]);
+    assert.ok(wa.includes('CONNECTOR SANITATION AUDIT'));
+
+    clearCleaningRecords();
+    assert.equal(loadCleaningRecords().length, 0);
+  } finally {
+    globalThis.localStorage = origLocal;
+  }
+});
+
+// ==========================================
+// Cross-File Full Integration Test
+// ==========================================
+test('index.html, styles.css, nav.css, and app.js correctly integrate Fiber VIP Microscope and Connector Cleaning Assistants', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreFiberMicroscopeBtn"'));
+  assert.ok(html.includes('id="mobileFiberMicroscopeModal"'));
+  assert.ok(html.includes('id="microscopeDiagramContainer"'));
+
+  assert.ok(html.includes('id="mobileMoreVflTracerBtn"'));
+  assert.ok(html.includes('id="mobileVflModal"'));
+
+  assert.ok(html.includes('id="mobileMoreConnectorCleaningBtn"'));
+  assert.ok(html.includes('id="mobileConnectorCleaningModal"'));
+  assert.ok(html.includes('id="cleanDiagramContainer"'));
+
+  const navCss = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(navCss.includes('.mobile-microscope-modal'));
+  assert.ok(navCss.includes('.mobile-cleaning-modal'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#microscopeDiagramContainer'));
+  assert.ok(stylesCss.includes('#cleanDiagramContainer'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileFiberMicroscopeModal'));
+  assert.ok(app.includes('mobileFiberMicroscopeModalController'));
+  assert.ok(app.includes('setupMobileConnectorCleaningModal'));
+  assert.ok(app.includes('mobileConnectorCleaningModalController'));
+
+  const nav = await import('../nav.js');
+  assert.ok(typeof nav.evaluateConnectorSurface === 'function');
+  assert.ok(typeof nav.evaluateCleaningProtocol === 'function');
+  assert.ok(typeof nav.resolveFiberCoreFromNumber === 'function');
+});
+
+
 
 
 

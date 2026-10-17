@@ -16024,6 +16024,318 @@ test('index.html and dashboard.css contain Flex-Algo markup and styles', async (
   assert.ok(css.includes('.flex-algo-stat-val'));
 });
 
+test('OPTICAL_EVM_CONSTANTS and SHAHDARA_OPTICAL_EVM_LINKS define valid configurations', async () => {
+  const { OPTICAL_EVM_CONSTANTS, SHAHDARA_OPTICAL_EVM_LINKS } = await import('../dashboard.js');
+
+  assert.equal(OPTICAL_EVM_CONSTANTS.DEFAULT_LINK_ID, 'baradari-begumkot-100g-dpqpsk');
+  assert.equal(OPTICAL_EVM_CONSTANTS.FEC_LIMITS.HD_FEC_BER, 3.8e-3);
+  assert.equal(OPTICAL_EVM_CONSTANTS.FEC_LIMITS.SD_FEC_BER, 2.0e-2);
+  assert.ok(OPTICAL_EVM_CONSTANTS.FORMATS.DP_QPSK);
+  assert.ok(OPTICAL_EVM_CONSTANTS.STATUS.OPTIMAL_POST_FEC_CLEAR);
+
+  assert.equal(SHAHDARA_OPTICAL_EVM_LINKS.length, 5);
+  SHAHDARA_OPTICAL_EVM_LINKS.forEach(l => {
+    assert.ok(l.id);
+    assert.ok(l.name);
+    assert.ok(l.format);
+    assert.ok(l.primaryArea);
+    assert.ok(l.targetArea);
+    assert.ok(l.distanceKm > 0);
+    assert.ok(l.dispersionCoeffPsPerNmKm > 0);
+    assert.ok(l.baselineEvmPct > 0);
+    assert.ok(l.capacityGbps >= 40);
+    assert.ok(l.monthlyRevenuePkr > 1000000);
+  });
+});
+
+test('calculateAccumulatedDispersion, calculateResidualDispersion, calculateEvmFromDispersion, estimatePreFecBer compute accurate math', async () => {
+  const {
+    calculateAccumulatedDispersion,
+    calculateResidualDispersion,
+    calculateEvmFromDispersion,
+    estimatePreFecBer,
+    calculateFecMargin
+  } = await import('../dashboard.js');
+
+  // Dispersion calculations (14.8 km * 17.0 ps/nm/km = 251.6 ps/nm)
+  const accum = calculateAccumulatedDispersion(14.8, 17.0);
+  assert.equal(accum, 251.6);
+
+  const res = calculateResidualDispersion(251.6, 250.0);
+  assert.equal(res, 1.6);
+
+  // EVM calculation with low residual dispersion (1.6 ps/nm) and normal power (2.0 dBm)
+  const evm = calculateEvmFromDispersion(7.2, 1.6, 2.0);
+  assert.equal(evm.baselineEvm, 7.2);
+  assert.equal(evm.nlPenalty, 0);
+  assert.equal(evm.asePenalty, 0);
+  assert.ok(evm.evmRmsPct >= 7.2 && evm.evmRmsPct < 7.5);
+  assert.ok(evm.evmDb < -22.0);
+
+  // High launch power (4.0 dBm) induces nonlinear SPM penalty
+  const evmHighPower = calculateEvmFromDispersion(7.2, 0, 4.0);
+  assert.ok(evmHighPower.nlPenalty > 1.5);
+  assert.ok(evmHighPower.evmRmsPct > 8.5);
+
+  // Pre-FEC BER estimation (7.2% EVM -> BER < 1e-6)
+  const ber = estimatePreFecBer(7.2, 'DP_QPSK');
+  assert.ok(ber < 1e-4);
+
+  // FEC Margin relative to SD-FEC (2.0e-2)
+  const margin = calculateFecMargin(ber, 2.0e-2);
+  assert.ok(margin > 20); // > 20 dB margin
+});
+
+test('calculateOpticalEvmDynamics and state mutators evaluate penalties, BER, and status transitions', async () => {
+  const {
+    calculateOpticalEvmDynamics,
+    getOpticalEvmSelectedLinkId,
+    setOpticalEvmSelectedLinkId,
+    getOpticalEvmDcmCompPsPerNm,
+    setOpticalEvmDcmCompPsPerNm,
+    getOpticalEvmLaunchPowerDbm,
+    setOpticalEvmLaunchPowerDbm,
+    resetOpticalEvmSimState,
+    OPTICAL_EVM_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetOpticalEvmSimState();
+  assert.equal(getOpticalEvmSelectedLinkId(), 'baradari-begumkot-100g-dpqpsk');
+
+  // Baseline dynamics
+  const dyn = calculateOpticalEvmDynamics();
+  assert.equal(dyn.link.id, 'baradari-begumkot-100g-dpqpsk');
+  assert.equal(dyn.format, 'DP_QPSK');
+  assert.equal(dyn.status, OPTICAL_EVM_CONSTANTS.STATUS.OPTIMAL_POST_FEC_CLEAR);
+  assert.equal(dyn.statusClass, 'optimal');
+  assert.ok(dyn.fecMarginDb > 20);
+
+  // Severe under-compensation of dispersion (DCM = 0 ps/nm -> residual ~251.6 ps/nm)
+  setOpticalEvmDcmCompPsPerNm(0);
+  const dynHighCd = calculateOpticalEvmDynamics();
+  assert.ok(dynHighCd.evmData.cdPenalty > 0.3);
+  assert.ok(dynHighCd.evmData.evmRmsPct > 7.5);
+
+  // Mutators and reset
+  setOpticalEvmSelectedLinkId('ravi-siphon-aerial-dpqpsk');
+  assert.equal(getOpticalEvmSelectedLinkId(), 'ravi-siphon-aerial-dpqpsk');
+
+  setOpticalEvmLaunchPowerDbm(5.0);
+  assert.equal(getOpticalEvmLaunchPowerDbm(), 5.0);
+
+  resetOpticalEvmSimState();
+  assert.equal(getOpticalEvmSelectedLinkId(), 'baradari-begumkot-100g-dpqpsk');
+  assert.equal(getOpticalEvmLaunchPowerDbm(), 2.0);
+});
+
+test('calculateOpticalEvmMetrics aggregates multi-link capacity and revenue', async () => {
+  const { calculateOpticalEvmMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateOpticalEvmMetrics();
+  assert.equal(metrics.totalLinks, 5);
+  assert.ok(metrics.totalCapacityGbps >= 400);
+  assert.ok(metrics.totalRevenuePkr > 15000000);
+  assert.ok(metrics.totalSubscribers > 3000);
+  assert.ok(metrics.totalDistanceKm > 50);
+  assert.ok(metrics.avgEvmRms > 5 && metrics.avgEvmRms < 15);
+  assert.ok(metrics.currentDynamics);
+});
+
+test('renderOpticalEvmDiagramSvg, generateOpticalEvmReport, exportOpticalEvmJson, exportOpticalEvmCsv generate valid outputs', async () => {
+  const {
+    calculateOpticalEvmDynamics,
+    renderOpticalEvmDiagramSvg,
+    generateOpticalEvmReport,
+    exportOpticalEvmJson,
+    exportOpticalEvmCsv
+  } = await import('../dashboard.js');
+
+  const dyn = calculateOpticalEvmDynamics();
+
+  // 1. SVG
+  const svgLight = renderOpticalEvmDiagramSvg(dyn, { isDark: false });
+  assert.ok(svgLight.includes('<svg'));
+  assert.ok(svgLight.includes('optical-evm-svg'));
+  assert.ok(svgLight.includes('In-Phase (I)'));
+  assert.ok(svgLight.includes('Quadrature (Q)'));
+  assert.ok(svgLight.includes('COHERENT DSP OPTICAL TELEMETRY'));
+
+  const svgDark = renderOpticalEvmDiagramSvg(dyn, { isDark: true });
+  assert.ok(svgDark.includes('#0f172a'));
+
+  // 2. Report
+  const report = generateOpticalEvmReport(dyn);
+  assert.ok(report.includes('CONSTELLATION EVM & DISPERSION AUDIT REPORT'));
+  assert.ok(report.includes('Baradari to Begum Kot'));
+  assert.ok(report.includes('EVM RMS Percentage'));
+
+  // 3. JSON
+  const jsonStr = exportOpticalEvmJson(dyn);
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.standard.includes('ITU-T G.698.2'));
+  assert.equal(parsed.link.id, 'baradari-begumkot-100g-dpqpsk');
+  assert.ok(parsed.telemetry.evmRmsPct > 0);
+
+  // 4. CSV
+  const csvStr = exportOpticalEvmCsv(dyn);
+  assert.ok(csvStr.includes('LinkId,LinkName,Format'));
+  assert.ok(csvStr.includes('baradari-begumkot-100g-dpqpsk'));
+});
+
+test('setupOpticalEvmModal wires controls and handles user interactions', async () => {
+  const { setupOpticalEvmModal } = await import('../dashboard.js');
+
+  const listeners = {};
+  function createMockEl(id) {
+    listeners[id] = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      className: '',
+      addEventListener(event, fn) {
+        listeners[id][event] = fn;
+      },
+      click() {
+        if (listeners[id].click) listeners[id].click();
+      },
+      input() {
+        if (listeners[id].input) listeners[id].input();
+      },
+      change() {
+        if (listeners[id].change) listeners[id].change();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      },
+      setAttribute(k, v) {
+        if (k === 'open') this.open = true;
+      },
+      removeAttribute(k) {
+        if (k === 'open') this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    dashboardOpticalEvmModal: createMockEl('dashboardOpticalEvmModal'),
+    dashboardOpenOpticalEvmModalBtn: createMockEl('dashboardOpenOpticalEvmModalBtn'),
+    dashboardOpticalEvmModalCloseBtn: createMockEl('dashboardOpticalEvmModalCloseBtn'),
+    dashboardOpticalEvmChart: createMockEl('dashboardOpticalEvmChart'),
+    opticalEvmModalDiagramContainer: createMockEl('opticalEvmModalDiagramContainer'),
+    opticalEvmLinkSelect: createMockEl('opticalEvmLinkSelect'),
+    opticalEvmFormatSelect: createMockEl('opticalEvmFormatSelect'),
+    opticalEvmDcmSlider: createMockEl('opticalEvmDcmSlider'),
+    opticalEvmDcmLabel: createMockEl('opticalEvmDcmLabel'),
+    opticalEvmPowerSlider: createMockEl('opticalEvmPowerSlider'),
+    opticalEvmPowerLabel: createMockEl('opticalEvmPowerLabel'),
+    opticalEvmResetBtn: createMockEl('opticalEvmResetBtn'),
+    opticalEvmStatStatus: createMockEl('opticalEvmStatStatus'),
+    opticalEvmStatEvm: createMockEl('opticalEvmStatEvm'),
+    opticalEvmStatBer: createMockEl('opticalEvmStatBer'),
+    opticalEvmStatMargin: createMockEl('opticalEvmStatMargin'),
+    opticalEvmStatDispersion: createMockEl('opticalEvmStatDispersion'),
+    opticalEvmStatCapacity: createMockEl('opticalEvmStatCapacity'),
+    opticalEvmFilterAreaBtn: createMockEl('opticalEvmFilterAreaBtn'),
+    opticalEvmExportJsonBtn: createMockEl('opticalEvmExportJsonBtn'),
+    opticalEvmExportCsvBtn: createMockEl('opticalEvmExportCsvBtn'),
+    opticalEvmCopyReportBtn: createMockEl('opticalEvmCopyReportBtn')
+  };
+
+  elements.opticalEvmLinkSelect.value = 'baradari-begumkot-100g-dpqpsk';
+  elements.opticalEvmDcmSlider.value = '250';
+  elements.opticalEvmPowerSlider.value = '2.0';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    documentElement: {
+      getAttribute: () => 'light'
+    }
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+
+  const controller = setupOpticalEvmModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filteredArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardOpticalEvmModal.open, true);
+  assert.ok(elements.dashboardOpticalEvmChart.innerHTML.includes('<svg'));
+  assert.ok(elements.opticalEvmModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.opticalEvmDcmSlider.value = '200';
+  elements.opticalEvmDcmSlider.input();
+  assert.equal(elements.opticalEvmDcmLabel.textContent, '200 ps/nm');
+
+  // Test power slider
+  elements.opticalEvmPowerSlider.value = '3.5';
+  elements.opticalEvmPowerSlider.input();
+  assert.equal(elements.opticalEvmPowerLabel.textContent, '3.5 dBm');
+
+  // Test reset
+  elements.opticalEvmResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.opticalEvmExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON'));
+
+  elements.opticalEvmExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV'));
+
+  elements.opticalEvmCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.opticalEvmFilterAreaBtn.click();
+  assert.equal(filteredArea, 'Baradari');
+
+  controller.close();
+  assert.equal(elements.dashboardOpticalEvmModal.open, false);
+});
+
+test('index.html and dashboard.css contain Optical EVM markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-optical-evm'));
+  assert.ok(html.includes('id="dashboardOpticalEvmChart"'));
+  assert.ok(html.includes('id="dashboardOpenOpticalEvmModalBtn"'));
+  assert.ok(html.includes('id="dashboardOpticalEvmModal"'));
+  assert.ok(html.includes('id="opticalEvmLinkSelect"'));
+  assert.ok(html.includes('id="opticalEvmFormatSelect"'));
+  assert.ok(html.includes('id="opticalEvmDcmSlider"'));
+  assert.ok(html.includes('id="opticalEvmPowerSlider"'));
+  assert.ok(html.includes('id="opticalEvmResetBtn"'));
+  assert.ok(html.includes('id="opticalEvmModalDiagramContainer"'));
+  assert.ok(html.includes('id="opticalEvmExportJsonBtn"'));
+  assert.ok(html.includes('id="opticalEvmExportCsvBtn"'));
+  assert.ok(html.includes('id="opticalEvmCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-optical-evm'));
+  assert.ok(css.includes('.optical-evm-modal-card'));
+  assert.ok(css.includes('.optical-evm-svg'));
+  assert.ok(css.includes('.optical-evm-stat-val'));
+});
+
+
 
 
 

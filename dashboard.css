@@ -2858,6 +2858,46 @@
   border-color: #24354a;
 }
 
+/* Optical Fiber Constellation EVM & Chromatic Dispersion (ITU-T G.698.2) Styles */
+.chart-card-optical-evm {
+  background: var(--surface, #ffffff);
+}
+
+.optical-evm-modal-card {
+  max-width: 860px;
+  width: 95vw;
+}
+
+.optical-evm-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.optical-evm-stat-val {
+  font: 800 15px/1.2 Manrope, system-ui, sans-serif;
+  color: var(--ink, #182e2a);
+}
+
+.optical-evm-stat-val.optimal {
+  color: var(--color-success, #10b981);
+}
+
+.optical-evm-stat-val.degraded {
+  color: var(--color-warning, #f59e0b);
+}
+
+.optical-evm-stat-val.critical {
+  color: var(--color-danger, #ef4444);
+}
+
+[data-theme="dark"] .chart-card-optical-evm {
+  background: #182330;
+  border-color: #24354a;
+}
+
+
 
 
 

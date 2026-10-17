@@ -6114,7 +6114,10 @@ kbd {
 .mobile-drop-retention-modal,
 .mobile-ref-jumpers-modal,
 .mobile-ribbon-separator-modal,
-.mobile-mechanical-splice-modal {
+.mobile-mechanical-splice-modal,
+.mobile-microscope-modal,
+.mobile-vfl-modal,
+.mobile-cleaning-modal {
   max-width: 860px;
   width: 95%;
   border-radius: 16px;
@@ -6127,7 +6130,10 @@ kbd {
 [data-theme="dark"] .mobile-drop-retention-modal,
 [data-theme="dark"] .mobile-ref-jumpers-modal,
 [data-theme="dark"] .mobile-ribbon-separator-modal,
-[data-theme="dark"] .mobile-mechanical-splice-modal {
+[data-theme="dark"] .mobile-mechanical-splice-modal,
+[data-theme="dark"] .mobile-microscope-modal,
+[data-theme="dark"] .mobile-vfl-modal,
+[data-theme="dark"] .mobile-cleaning-modal {
   background: #090d16;
   border-color: #1e3a5f;
 }

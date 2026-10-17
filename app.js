@@ -61,8 +61,10 @@ import {
   setupFastConnectorQaModal,
   setupAdssSagTensionModal,
   setupArmoredCableCrushModal,
-  setupCableJettingModal
+  setupCableJettingModal,
+  setupTubeSlittingAccessModal
 } from './form-validation.js?v=1.10.0';
+
 
 
 const $ = selector => document.querySelector(selector);
@@ -3529,6 +3531,7 @@ export let customerFastConnectorQaModalController;
 export let customerAdssSagTensionModalController;
 export let customerArmoredCableCrushModalController;
 export let customerCableJettingModalController;
+export let customerTubeSlittingModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4158,8 +4161,35 @@ if (typeof document !== 'undefined') {
         jettingModal.showModal();
       }
     });
+  const tubeSlittingModal = $('#tubeSlittingAccessModal');
+  const openTubeSlittingAccessBtn = $('#openTubeSlittingAccessBtn');
+  if (tubeSlittingModal) {
+    customerTubeSlittingModalController = setupTubeSlittingAccessModal({
+      state,
+      dialogElement: tubeSlittingModal,
+      triggerButton: openTubeSlittingAccessBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openTubeSlittingAccessBtn) {
+    openTubeSlittingAccessBtn.addEventListener('click', () => {
+      if (tubeSlittingModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#slittingCustInput');
+            if (custInput) custInput.value = c.name || 'Subscriber';
+            const routeInput = $('#slittingRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} FOSC Closure (Mid-Span Tap)`;
+          }
+        }
+        tubeSlittingModal.showModal();
+      }
+    });
   }
 }
+
 
 
 function handleRouteFromHash() {

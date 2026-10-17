@@ -12470,3 +12470,303 @@ test('DOM & CSS integration for Outside Plant Cable Jetting & Air-Blowing QA Sui
   assert.ok(stylesCss.includes('#jettingSvgContainer'));
 });
 
+test('calculateTubeSlitWallPenetration evaluates blade penetration % and remaining clearance', async () => {
+  const { calculateTubeSlitWallPenetration } = await import('../form-validation.js');
+
+  // Optimal shave: blade 0.35mm on 0.40mm wall -> 87.5% penetration, 0.05mm clearance
+  const opt = calculateTubeSlitWallPenetration(0.35, 0.40);
+  assert.equal(opt.penetrationPct, 87.5);
+  assert.equal(opt.remainingClearanceMm, 0.05);
+  assert.equal(opt.status, 'OPTIMAL_SHAVE');
+
+  // Puncture nick: blade 0.45mm on 0.35mm wall -> 128.6% penetration
+  const nick = calculateTubeSlitWallPenetration(0.45, 0.35);
+  assert.equal(nick.penetrationPct, 128.6);
+  assert.ok(nick.remainingClearanceMm < 0);
+  assert.equal(nick.status, 'PENETRATION_FIBER_NICK');
+
+  // Under-score: blade 0.20mm on 0.40mm wall -> 50% penetration
+  const under = calculateTubeSlitWallPenetration(0.20, 0.40);
+  assert.equal(under.penetrationPct, 50.0);
+  assert.equal(under.status, 'INSUFFICIENT_UNDER_SCORE');
+});
+
+test('calculateInducedSlitLossDb models optical transmission loss and nick damage', async () => {
+  const { calculateInducedSlitLossDb } = await import('../form-validation.js');
+
+  // Clean shave with micrometer tool
+  const cleanLoss = calculateInducedSlitLossDb(88, 0.04, 'PRECISION_MICROMETER_SLITTER');
+  assert.equal(cleanLoss, 0.01);
+
+  // Severe nick damage with negative clearance
+  const nickLoss = calculateInducedSlitLossDb(120, -0.05, 'HANDHELD_FIELD_UTILITY');
+  assert.ok(nickLoss >= 0.25);
+});
+
+test('evaluateTubeSlittingAccess evaluates complete mid-span buffer access scenarios', async () => {
+  const { evaluateTubeSlittingAccess } = await import('../form-validation.js');
+
+  // Scenario 1: Optimal Baradari express drop
+  const optimal = evaluateTubeSlittingAccess({
+    toolId: 'PRECISION_MICROMETER_SLITTER',
+    tubeTypeId: 'PBT_LOOSE_TUBE_2_5MM',
+    bladeDepthMm: 0.35,
+    slackLoopRadiusMm: 45,
+    isLiveTrafficOnTube: true
+  });
+  assert.equal(optimal.verdict.id, 'CERTIFIED_OPTIMAL_ACCESS');
+  assert.equal(optimal.isBendRadiusCompliant, true);
+  assert.ok(optimal.inducedLossDb <= 0.02);
+
+  // Scenario 2: Blade nick puncture hazard
+  const nick = evaluateTubeSlittingAccess({
+    toolId: 'HANDHELD_FIELD_UTILITY',
+    tubeTypeId: 'PBT_LOOSE_TUBE_2_0MM',
+    bladeDepthMm: 0.45,
+    slackLoopRadiusMm: 40
+  });
+  assert.equal(nick.verdict.id, 'FAILED_BLADE_FIBER_NICK');
+
+  // Scenario 3: Under-score incomplete slit
+  const under = evaluateTubeSlittingAccess({
+    toolId: 'PRECISION_MICROMETER_SLITTER',
+    tubeTypeId: 'CENTRAL_LOOSE_TUBE_4_0MM',
+    bladeDepthMm: 0.30, // 50% of 0.60mm wall
+    slackLoopRadiusMm: 65
+  });
+  assert.equal(under.verdict.id, 'FAILED_INSUFFICIENT_SHAVE');
+
+  // Scenario 4: Slack bend radius violation
+  const tightBend = evaluateTubeSlittingAccess({
+    toolId: 'PRECISION_MICROMETER_SLITTER',
+    tubeTypeId: 'POLYCARBONATE_TUBE_3_0MM',
+    bladeDepthMm: 0.42,
+    slackLoopRadiusMm: 20 // min is 45mm
+  });
+  assert.equal(tightBend.verdict.id, 'FAILED_EXCESSIVE_BEND_RADIUS');
+  assert.equal(tightBend.isBendRadiusCompliant, false);
+});
+
+test('validateTubeSlittingInput checks boundary constraints', async () => {
+  const { validateTubeSlittingInput } = await import('../form-validation.js');
+
+  const valid = validateTubeSlittingInput({
+    customer: 'Shahdara Trunk Feeder',
+    route: 'Closure FOSC-04',
+    bladeDepthMm: 0.35,
+    shaveWindowLengthMm: 50,
+    slackLoopRadiusMm: 40
+  });
+  assert.equal(valid.valid, true);
+
+  const invalid = validateTubeSlittingInput({
+    customer: '',
+    route: '',
+    bladeDepthMm: 10,
+    shaveWindowLengthMm: 500,
+    slackLoopRadiusMm: 2
+  });
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.errors.length >= 4);
+});
+
+test('buildTubeSlittingCertRecord builds structured immutable record', async () => {
+  const { buildTubeSlittingCertRecord } = await import('../form-validation.js');
+
+  const rec = buildTubeSlittingCertRecord({
+    customer: 'Shahdara Ring Feeder',
+    route: 'Pole 14 FOSC',
+    technicianName: 'Umair Lead Splicer',
+    tubeTypeId: 'PBT_LOOSE_TUBE_2_0MM',
+    bladeDepthMm: 0.30
+  });
+
+  assert.ok(rec.certId.startsWith('SLT-'));
+  assert.equal(rec.customer, 'Shahdara Ring Feeder');
+  assert.equal(rec.route, 'Pole 14 FOSC');
+  assert.ok(rec.analysis);
+  assert.ok(rec.status);
+});
+
+test('saveTubeSlittingCert, getSavedTubeSlittingCerts, and update status maintain persistence', async () => {
+  const {
+    saveTubeSlittingCert,
+    getSavedTubeSlittingCerts,
+    updateTubeSlittingCertStatus,
+    clearTubeSlittingCerts
+  } = await import('../form-validation.js');
+
+  const mockState = {};
+  clearTubeSlittingCerts(mockState);
+  assert.equal(getSavedTubeSlittingCerts(mockState).length, 0);
+
+  const rec1 = { certId: 'SLT-202610-0001', customer: 'Feeder A', status: 'VERIFIED' };
+  const rec2 = { certId: 'SLT-202610-0002', customer: 'Feeder B', status: 'ACTION_REQUIRED' };
+
+  saveTubeSlittingCert(rec1, mockState);
+  saveTubeSlittingCert(rec2, mockState);
+
+  const saved = getSavedTubeSlittingCerts(mockState);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].certId, 'SLT-202610-0002');
+
+  updateTubeSlittingCertStatus('SLT-202610-0002', 'RESOLVED', mockState);
+  const updated = getSavedTubeSlittingCerts(mockState);
+  assert.equal(updated.find(c => c.certId === 'SLT-202610-0002').status, 'RESOLVED');
+
+  clearTubeSlittingCerts(mockState);
+  assert.equal(getSavedTubeSlittingCerts(mockState).length, 0);
+});
+
+test('calculateTubeSlittingMetrics aggregates KPI summary counts', async () => {
+  const { calculateTubeSlittingMetrics } = await import('../form-validation.js');
+
+  const mockCerts = [
+    { certId: 'SLT-1', isLiveTrafficOnTube: true, analysis: { inducedLossDb: 0.01, verdict: { id: 'CERTIFIED_OPTIMAL_ACCESS' } } },
+    { certId: 'SLT-2', isLiveTrafficOnTube: true, analysis: { inducedLossDb: 0.03, verdict: { id: 'CONDITIONAL_PASS_CARE_REQUIRED' } } },
+    { certId: 'SLT-3', isLiveTrafficOnTube: false, analysis: { inducedLossDb: 0.35, verdict: { id: 'FAILED_BLADE_FIBER_NICK' } } }
+  ];
+
+  const metrics = calculateTubeSlittingMetrics(mockCerts);
+  assert.equal(metrics.total, 3);
+  assert.equal(metrics.certified, 1);
+  assert.equal(metrics.conditional, 1);
+  assert.equal(metrics.failed, 1);
+  assert.equal(metrics.passRatePct, 67);
+  assert.equal(metrics.totalLiveTaps, 2);
+  assert.equal(metrics.maxInducedLossSeen, 0.35);
+});
+
+test('renderTubeSlittingAccessSvg produces valid vector SVG markup', async () => {
+  const { renderTubeSlittingAccessSvg, evaluateTubeSlittingAccess } = await import('../form-validation.js');
+
+  const analysis = evaluateTubeSlittingAccess({
+    toolId: 'PRECISION_MICROMETER_SLITTER',
+    tubeTypeId: 'PBT_LOOSE_TUBE_2_5MM',
+    bladeDepthMm: 0.35
+  });
+
+  const svg = renderTubeSlittingAccessSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('class="tube-slitting-access-svg"'));
+  assert.ok(svg.includes('MID-SPAN ACCESS WINDOW'));
+  assert.ok(svg.includes('EXPRESS TUBE SLACK STORAGE'));
+  assert.ok(svg.includes('MID-SPAN ACCESS METROLOGY HUD'));
+});
+
+test('generateTubeSlittingCertHtml creates formal A4 certificate and thermal POS slip', async () => {
+  const { generateTubeSlittingCertHtml, evaluateTubeSlittingAccess } = await import('../form-validation.js');
+
+  const record = {
+    certId: 'SLT-202610-8899',
+    customer: 'Shahdara Metro Ring',
+    route: 'Baradari FOSC Dome #04',
+    technicianName: 'Umair Lead Splicer',
+    analysis: evaluateTubeSlittingAccess({
+      toolId: 'PRECISION_MICROMETER_SLITTER',
+      tubeTypeId: 'PBT_LOOSE_TUBE_2_5MM',
+      bladeDepthMm: 0.35
+    })
+  };
+
+  const a4Html = generateTubeSlittingCertHtml(record, { format: 'a4' });
+  assert.ok(a4Html.includes('a4-certificate-container'));
+  assert.ok(a4Html.includes('SHAHDARA FIBER NETWORK OPERATIONS'));
+  assert.ok(a4Html.includes('SLT-202610-8899'));
+  assert.ok(a4Html.includes('Buffer Tube Wall Thickness'));
+
+  const posHtml = generateTubeSlittingCertHtml(record, { format: 'thermal' });
+  assert.ok(posHtml.includes('pos-thermal-slip'));
+  assert.ok(posHtml.includes('MID-SPAN TUBE SLITTING &amp; SHAVING QA'));
+  assert.ok(posHtml.includes('SLT-202610-8899'));
+});
+
+test('formatTubeSlittingCertWhatsApp and generateTubeSlittingCertsCsv export field data', async () => {
+  const {
+    formatTubeSlittingCertWhatsApp,
+    generateTubeSlittingCertsCsv,
+    evaluateTubeSlittingAccess
+  } = await import('../form-validation.js');
+
+  const record = {
+    certId: 'SLT-202610-5544',
+    customer: 'Shahdara Feeder Cluster',
+    route: 'Canal Pedestal Closure',
+    technicianName: 'Tariq Splicer',
+    createdAt: '2026-10-17T10:00:00.000Z',
+    isLiveTrafficOnTube: true,
+    analysis: evaluateTubeSlittingAccess({
+      toolId: 'PRECISION_MICROMETER_SLITTER',
+      tubeTypeId: 'PBT_LOOSE_TUBE_2_0MM',
+      bladeDepthMm: 0.30
+    })
+  };
+
+  const wa = formatTubeSlittingCertWhatsApp(record);
+  assert.ok(wa.includes('*SHAHDARA FIBER NETWORK — OSP MID-SPAN TUBE SLITTING & SHAVING QA*'));
+  assert.ok(wa.includes('SLT-202610-5544'));
+  assert.ok(wa.includes('Canal Pedestal Closure'));
+
+  const csv = generateTubeSlittingCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('SLT-202610-5544'));
+  assert.ok(csv.includes('"Shahdara Feeder Cluster"'));
+  assert.ok(csv.includes('PBT_LOOSE_TUBE_2_0MM'));
+});
+
+test('SHAH_TUBE_SLITTING_PRESETS contains 5 valid field configurations', async () => {
+  const { SHAH_TUBE_SLITTING_PRESETS, TUBE_SLITTER_TOOL_TYPES, BUFFER_TUBE_TYPES } = await import('../form-validation.js');
+
+  const keys = Object.keys(SHAH_TUBE_SLITTING_PRESETS);
+  assert.equal(keys.length, 5);
+
+  keys.forEach(k => {
+    const p = SHAH_TUBE_SLITTING_PRESETS[k];
+    assert.ok(p.id);
+    assert.ok(p.customer);
+    assert.ok(p.route);
+    assert.ok(TUBE_SLITTER_TOOL_TYPES[p.toolId]);
+    assert.ok(BUFFER_TUBE_TYPES[p.tubeTypeId]);
+    assert.ok(p.bladeDepthMm > 0);
+    assert.ok(p.shaveWindowLengthMm > 0);
+    assert.ok(p.slackLoopRadiusMm > 0);
+  });
+});
+
+test('DOM & CSS integration for Outside Plant Tube Slitting & Shaving QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openTubeSlittingAccessBtn"'));
+  assert.ok(indexHtml.includes('id="tubeSlittingAccessModal"'));
+  assert.ok(indexHtml.includes('id="slittingPresetSelect"'));
+  assert.ok(indexHtml.includes('id="slittingCustInput"'));
+  assert.ok(indexHtml.includes('id="slittingRouteInput"'));
+  assert.ok(indexHtml.includes('id="slittingTechInput"'));
+  assert.ok(indexHtml.includes('id="slittingToolSelect"'));
+  assert.ok(indexHtml.includes('id="slittingTubeSelect"'));
+  assert.ok(indexHtml.includes('id="slittingDepthInput"'));
+  assert.ok(indexHtml.includes('id="slittingWindowInput"'));
+  assert.ok(indexHtml.includes('id="slittingRadiusInput"'));
+  assert.ok(indexHtml.includes('id="slittingLiveCheckbox"'));
+  assert.ok(indexHtml.includes('id="slittingSaveCertBtn"'));
+  assert.ok(indexHtml.includes('id="slittingPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="slittingPrintThermalBtn"'));
+  assert.ok(indexHtml.includes('id="slittingCopyWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="slittingExportCsvBtn"'));
+  assert.ok(indexHtml.includes('id="slittingSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupTubeSlittingAccessModal'));
+  assert.ok(appJs.includes('customerTubeSlittingModalController'));
+  assert.ok(appJs.includes('#openTubeSlittingAccessBtn'));
+  assert.ok(appJs.includes('#tubeSlittingAccessModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#tubeSlittingAccessModal'));
+  assert.ok(stylesCss.includes('#slittingSvgContainer'));
+});
+
+

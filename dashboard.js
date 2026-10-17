@@ -5836,6 +5836,33 @@ export {
   setupFlexAlgoModal
 } from './dashboard-flex-algo.js';
 
+export {
+  OPTICAL_EVM_CONSTANTS,
+  SHAHDARA_OPTICAL_EVM_LINKS,
+  getOpticalEvmSelectedLinkId,
+  setOpticalEvmSelectedLinkId,
+  getOpticalEvmDcmCompPsPerNm,
+  setOpticalEvmDcmCompPsPerNm,
+  getOpticalEvmLaunchPowerDbm,
+  setOpticalEvmLaunchPowerDbm,
+  getOpticalEvmCustomFormat,
+  setOpticalEvmCustomFormat,
+  resetOpticalEvmSimState,
+  calculateAccumulatedDispersion,
+  calculateResidualDispersion,
+  calculateEvmFromDispersion,
+  estimatePreFecBer,
+  calculateFecMargin,
+  calculateOpticalEvmDynamics,
+  calculateOpticalEvmMetrics,
+  renderOpticalEvmDiagramSvg,
+  generateOpticalEvmReport,
+  exportOpticalEvmJson,
+  exportOpticalEvmCsv,
+  setupOpticalEvmModal
+} from './dashboard-optical-evm.js';
+
+
 
 
 

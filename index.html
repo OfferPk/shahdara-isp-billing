@@ -870,6 +870,16 @@
             </div>
             <div id="dashboardFlexAlgoChart" class="chart-svg-container" role="img" aria-label="Carrier Segment Routing Flexible Algorithm Multi Plane Routing Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-optical-evm">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Optical Modulation &amp; Constellation EVM (ITU-T G.698.2) Matrix</h4>
+                <p class="chart-subtitle">Coherent DP-QPSK, DQPSK, DPSK, 16-QAM constellation error vector magnitude &amp; chromatic dispersion telemetry</p>
+              </div>
+              <button id="dashboardOpenOpticalEvmModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Constellation EVM Diagnostics</button>
+            </div>
+            <div id="dashboardOpticalEvmChart" class="chart-svg-container" role="img" aria-label="Optical Fiber Constellation Error Vector Magnitude and Dispersion Matrix Chart"></div>
+          </article>
         </div>
 
 
@@ -5010,6 +5020,93 @@
               <button id="flexAlgoExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="flexAlgoCopyReportBtn" class="primary-button" type="button">📋 Copy Flex-Algo Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardOpticalEvmModal" class="dashboard-modal optical-evm-modal" aria-labelledby="dashboardOpticalEvmModalTitle">
+        <div class="dashboard-modal-card optical-evm-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardOpticalEvmModalTitle">Optical Modulation &amp; Constellation EVM Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">ITU-T G.698.2 / OIF-400ZR DP-QPSK, DQPSK, DPSK, 16-QAM &amp; chromatic dispersion compensation telemetry</p>
+            </div>
+            <button id="dashboardOpticalEvmModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="opticalEvmLinkSelect">Target Optical Link:</label>
+              <select id="opticalEvmLinkSelect" class="form-select">
+                <option value="baradari-begumkot-100g-dpqpsk">Baradari to Begum Kot 100G DP-QPSK Core Trunk</option>
+                <option value="jia-musa-dqpsk-transit">Jia Musa Ring 40G DQPSK Transit</option>
+                <option value="ravi-siphon-aerial-dpqpsk">Ravi Siphon High-Span 100G DP-QPSK Aerial Crossing</option>
+                <option value="vandala-road-dpsk-backhaul">Vandala Road Wholesale 40G DPSK Backhaul</option>
+                <option value="townhall-datacenter-16qam">Shahdara Town Hall to Data Center 200G 16-QAM Express</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="opticalEvmFormatSelect">Override Modulation Format:</label>
+              <select id="opticalEvmFormatSelect" class="form-select">
+                <option value="">Default Link Format</option>
+                <option value="DP_QPSK">DP-QPSK (Dual-Polarization QPSK, 4b/sym)</option>
+                <option value="DQPSK">DQPSK (Differential QPSK, 2b/sym)</option>
+                <option value="DPSK">DPSK (Differential Binary PSK, 1b/sym)</option>
+                <option value="QAM_16">16-QAM (16-ary Quadrature Amplitude, 4b/sym)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="opticalEvmDcmSlider">DCM Dispersion Comp: <span id="opticalEvmDcmLabel" class="sim-val-pill">250 ps/nm</span></label>
+              <input type="range" id="opticalEvmDcmSlider" min="0" max="450" step="5" value="250" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="opticalEvmPowerSlider">Tx Launch Power: <span id="opticalEvmPowerLabel" class="sim-val-pill">2.0 dBm</span></label>
+              <input type="range" id="opticalEvmPowerSlider" min="-4.0" max="7.0" step="0.5" value="2.0" class="otdr-slider">
+            </div>
+          </div>
+
+          <div class="optical-evm-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="opticalEvmResetBtn" class="secondary-button" type="button">🔄 Reset Link Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Link Health</span>
+              <span id="opticalEvmStatStatus" class="optical-evm-stat-val optimal">Optimal</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">EVM RMS</span>
+              <span id="opticalEvmStatEvm" class="optical-evm-stat-val">7.2% (-22.8 dB)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Pre-FEC BER</span>
+              <span id="opticalEvmStatBer" class="optical-evm-stat-val">1.20e-7</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Post-FEC Margin</span>
+              <span id="opticalEvmStatMargin" class="optical-evm-stat-val">+52.2 dB</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Residual CD</span>
+              <span id="opticalEvmStatDispersion" class="optical-evm-stat-val">1.6 ps/nm</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Capacity</span>
+              <span id="opticalEvmStatCapacity" class="optical-evm-stat-val">100 Gbps</span>
+            </div>
+          </div>
+
+          <div id="opticalEvmModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Optical Modulation 2D Constellation Diagram and Error Vector Magnitude Scatter Plot"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="opticalEvmFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="opticalEvmExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="opticalEvmExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="opticalEvmCopyReportBtn" class="primary-button" type="button">📋 Copy Optical EVM Report</button>
           </div>
         </div>
       </dialog>

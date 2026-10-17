@@ -2724,6 +2724,28 @@
   border-color: #24354a;
 }
 
+/* Optical OLT Chassis Line Card & Splitter Styles */
+.chart-card-olt-chassis {
+  background: var(--surface, #ffffff);
+}
+
+.olt-chassis-modal-card {
+  max-width: 840px;
+  width: 95vw;
+}
+
+.olt-chassis-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-olt-chassis {
+  background: #1c2738;
+  border-color: #2c3e59;
+}
+
 
 
 

@@ -890,6 +890,16 @@
             </div>
             <div id="dashboardOtnChart" class="chart-svg-container" role="img" aria-label="Optical Transport Network ITU-T G.709 Framing and FEC Telemetry Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-mpls-tp">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier MPLS-TP (ITU-T G.8113.1) 1:1 Protection Matrix</h4>
+                <p class="chart-subtitle">Bidirectional co-routed path protection, G-ACh CC-V OAM &amp; sub-50ms fault recovery telemetry</p>
+              </div>
+              <button id="dashboardOpenMplsTpModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MPLS-TP Diagnostics</button>
+            </div>
+            <div id="dashboardMplsTpChart" class="chart-svg-container" role="img" aria-label="Carrier MPLS-TP 1:1 Path Protection and Microsecond OAM Chart"></div>
+          </article>
         </div>
 
 
@@ -5210,6 +5220,94 @@
               <button id="otnExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="otnCopyReportBtn" class="primary-button" type="button">📋 Copy OTN Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardMplsTpModal" class="dashboard-modal mpls-tp-modal" aria-labelledby="dashboardMplsTpModalTitle">
+        <div class="dashboard-modal-card mpls-tp-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardMplsTpModalTitle">Carrier MPLS-TP (ITU-T G.8113.1) 1:1 Protection Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Bidirectional co-routed path protection, G-ACh CC-V OAM &amp; sub-50ms fault recovery telemetry</p>
+            </div>
+            <button id="dashboardMplsTpModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="mplsTpLspSelect">Target MPLS-TP LSP Trunk:</label>
+              <select id="mplsTpLspSelect" class="form-select">
+                <option value="lsp-tp-01">Shahdara Central &lt;-&gt; Ravi Siphon (10G Underground / ADSS)</option>
+                <option value="lsp-tp-02">Begum Kot &lt;-&gt; Baradari DC (10G Express Duct / Ring)</option>
+                <option value="lsp-tp-03">Jia Musa &lt;-&gt; Shahdara Core (5G Rail Crossing / Canal)</option>
+                <option value="lsp-tp-04">Kot Abdul Malik &lt;-&gt; GT Road (20G Highway / Ring Road)</option>
+                <option value="lsp-tp-05">Shahdara Town Security Backbone (2.5G Civic / Tension)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="mplsTpCcIntervalSelect">G-ACh CC-V OAM Heartbeat:</label>
+              <select id="mplsTpCcIntervalSelect" class="form-select">
+                <option value="3.33">3.33 ms (Fastest - 10ms defect detection)</option>
+                <option value="10.0">10.0 ms (Standard Carrier Backhaul)</option>
+                <option value="100.0">100.0 ms (Long-Haul Metro Ring)</option>
+                <option value="1000.0">1000.0 ms (Low-Overhead Periodic Keepalive)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="mplsTpFaultSelect">Simulated Fiber Cut / Command:</label>
+              <select id="mplsTpFaultSelect" class="form-select">
+                <option value="NONE">Normal (Working Path Active)</option>
+                <option value="WORKING_CUT">Working Path Cut (Sub-50ms APS Switched)</option>
+                <option value="PROTECTION_CUT">Protection Path Damaged (Redundancy Lost)</option>
+                <option value="MANUAL_SWITCH">Manual Switch for Maintenance (MS)</option>
+                <option value="LOCKOUT">Lockout of Protection (LO)</option>
+                <option value="DOUBLE_FAULT">Catastrophic Dual Fiber Cut (Outage)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mpls-tp-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="mplsTpResetBtn" class="secondary-button" type="button">🔄 Reset LSP Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Committed Bandwidth</span>
+              <span id="mplsTpStatBandwidth" class="optical-evm-stat-val">10 Gbps CIR</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Switchover Time</span>
+              <span id="mplsTpStatSwitchTime" class="optical-evm-stat-val optimal">14.0 ms (&lt; 50ms)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Active 1-Way Latency</span>
+              <span id="mplsTpStatActiveDelay" class="optical-evm-stat-val">93.0 µs (WORKING)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Traffic Forwarding</span>
+              <span id="mplsTpStatForwarding" class="optical-evm-stat-val optimal">100% (0% loss)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">OAM CC Interval</span>
+              <span id="mplsTpStatCcInterval" class="optical-evm-stat-val">3.33 ms (3x detect)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Fault Code</span>
+              <span id="mplsTpStatFault" class="optical-evm-stat-val optimal">NONE</span>
+            </div>
+          </div>
+
+          <div id="mplsTpModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier MPLS-TP 1:1 Dual-Rail Path Architecture and OAM Pulse Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="mplsTpFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="mplsTpExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="mplsTpExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="mplsTpCopyReportBtn" class="primary-button" type="button">📋 Copy MPLS-TP Audit Report</button>
           </div>
         </div>
       </dialog>

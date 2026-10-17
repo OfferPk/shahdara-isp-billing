@@ -89,6 +89,7 @@ export function readState(storage, key = STORAGE_KEY) {
       zone:customer.zone ?? '',
       address:customer.address ?? '',
       phone:customer.phone ?? '',
+      cnic:customer.cnic ?? '',
       ispProvider:customer.ispProvider ?? '',
       serviceStatus:['active','offline','not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set',
       packageSpeed:customer.packageSpeed ?? '',
@@ -178,23 +179,26 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   };
   const address = cleanText(options.address, 200, 'Address');
   const phone = cleanText(options.phone, 40, 'Phone number');
+  const cnic = cleanText(options.cnic, 30, 'CNIC');
   const mohalla = cleanText(options.mohalla, 100, 'Mohalla');
   const zone = cleanText(options.zone, 100, 'Zone');
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
   const phoneValues = [customer.phone, customer.customerPhone];
-  const fields = [customer.name, ...phoneValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
+  const cnicValues = [customer.cnic, customer.customerCnic];
+  const fields = [customer.name, ...phoneValues, ...cnicValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
     .map(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase());
   if (fields.some(value => value.includes(normalized))) return true;
-  const phoneQuery = normalized.replace(/\D/g, '');
-  if (/^[+\d\s().-]+$/.test(normalized) && phoneQuery.length >= 3 && phoneValues.some(value => String(value ?? '').replace(/\D/g, '').includes(phoneQuery))) return true;
+  const digitsQuery = normalized.replace(/\D/g, '');
+  if (/^[+\d\s().-]+$/.test(normalized) && digitsQuery.length >= 3 && phoneValues.some(value => String(value ?? '').replace(/\D/g, '').includes(digitsQuery))) return true;
+  if (digitsQuery.length >= 4 && cnicValues.some(value => String(value ?? '').replace(/\D/g, '').includes(digitsQuery))) return true;
   const numberQuery = normalized.replace(/^#\s*/, '').trim();
   if (/^\d+$/.test(numberQuery) && String(customer.customerNumber ?? '').includes(numberQuery)) return true;
   const bills = Array.isArray(customer.bills) ? customer.bills : [];
@@ -350,6 +354,7 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
     notes: cleanText(valueOrCurrent('notes') ?? '', 1000, 'Customer notes'),
     phone: cleanText(valueOrCurrent('phone') ?? '', 40, 'Phone number'),
+    cnic: cleanText(valueOrCurrent('cnic') ?? '', 30, 'CNIC'),
     ispProvider: cleanText(valueOrCurrent('ispProvider') ?? '', 100, 'ISP/provider name'),
     serviceStatus: checkServiceStatus(valueOrCurrent('serviceStatus') ?? 'not-set'),
     packageSpeed: cleanText(valueOrCurrent('packageSpeed') ?? '', 80, 'Package/speed'),

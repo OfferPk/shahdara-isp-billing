@@ -16,6 +16,10 @@ function normalizePhone(value) {
   return normalized.replace(/\D/g, '');
 }
 
+function normalizeCnic(value) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
 function valuesOf(record, fields, normalizer) {
   return [...new Set(fields.map(field => normalizer(record?.[field])).filter(Boolean))];
 }
@@ -44,20 +48,27 @@ function partialAddressMatch(left, right) {
 export function findPossibleDuplicateCustomers(customers, draft = {}) {
   const name = normalizeText(draft.name);
   const phone = normalizePhone(draft.phone);
+  const cnic = normalizeCnic(draft.cnic);
   const address = normalizeText(draft.address);
   const mohalla = normalizeText(draft.mohalla);
   const zone = normalizeText(draft.zone);
-  if (!name && !phone && !address) return [];
+  const excludeId = draft.customerId || draft.id || null;
+  if (!name && !phone && !cnic && !address) return [];
 
   const matches = [];
   for (const customer of Array.isArray(customers) ? customers : []) {
+    if (excludeId && customer.id === excludeId) continue;
     const reasons = [];
     const savedNames = valuesOf(customer, ['name', 'customerName'], normalizeText);
     const savedPhones = valuesOf(customer, ['phone', 'customerPhone'], normalizePhone);
+    const savedCnics = valuesOf(customer, ['cnic', 'customerCnic'], normalizeCnic);
     const savedAddresses = valuesOf(customer, ['address', 'customerAddress'], normalizeText);
     const savedMohallas = valuesOf(customer, ['mohalla'], normalizeText);
     const savedZones = valuesOf(customer, ['zone'], normalizeText);
 
+    if (cnic && savedCnics.includes(cnic)) {
+      reasons.push({ field: 'cnic', type: 'exact', label: 'CNIC / National Identity Card matches an existing customer.' });
+    }
     if (phone && savedPhones.includes(phone)) {
       reasons.push({ field: 'phone', type: 'exact', label: 'Phone number matches after removing formatting.' });
     }

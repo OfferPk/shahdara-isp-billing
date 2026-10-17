@@ -6229,3 +6229,25 @@ html, body {
     max-width: 100% !important;
   }
 }
+
+#wdmSvgContainer,
+#midspanSvgContainer,
+#powerLoggerSvgContainer,
+#dropRetentionSvgContainer {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 8px;
+  background: #0f172a;
+}
+
+#wdmSvgContainer svg,
+#midspanSvgContainer svg,
+#powerLoggerSvgContainer svg,
+#dropRetentionSvgContainer svg {
+  width: 100%;
+  min-width: 580px;
+  max-width: 820px;
+  display: block;
+  margin: 0 auto;
+}
+

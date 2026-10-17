@@ -15731,6 +15731,300 @@ test('index.html and dashboard.css contain SRv6 markup and styles', async () => 
   assert.ok(css.includes('.srv6-stat-grid'));
 });
 
+test('FLEX_ALGO_CONSTANTS and SHAHDARA_FLEX_ALGOS define valid configurations', async () => {
+  const { FLEX_ALGO_CONSTANTS, SHAHDARA_FLEX_ALGOS } = await import('../dashboard.js');
+
+  assert.equal(FLEX_ALGO_CONSTANTS.DEFAULT_ALGO_ID, 128);
+  assert.ok(FLEX_ALGO_CONSTANTS.METRIC_TYPES.MIN_DELAY.includes('Min-Delay'));
+  assert.ok(FLEX_ALGO_CONSTANTS.CONSTRAINTS.EXCLUDE_MICROWAVE);
+  assert.ok(FLEX_ALGO_CONSTANTS.STATUS.OPTIMAL_COMPLIANT);
+
+  assert.equal(SHAHDARA_FLEX_ALGOS.length, 5);
+  SHAHDARA_FLEX_ALGOS.forEach(a => {
+    assert.ok(a.id !== undefined);
+    assert.ok(a.name);
+    assert.ok(a.metricType);
+    assert.ok(a.srv6Locator);
+    assert.ok(a.primaryArea);
+    assert.ok(a.targetArea);
+    assert.ok(Array.isArray(a.nodes) && a.nodes.length >= 2);
+    assert.ok(a.capacityGbps > 0);
+    assert.ok(a.baselineLatencyMs > 0);
+    assert.ok(a.monthlyRevenuePkr > 1000000);
+  });
+});
+
+test('calculateFlexAlgoPathLatency and calculateFlexAlgoLatencyReduction compute math accurately', async () => {
+  const { calculateFlexAlgoPathLatency, calculateFlexAlgoLatencyReduction } = await import('../dashboard.js');
+
+  // Baseline load: 8 Gbps on 20 Gbps link (40% load -> 0 queuing delay)
+  const normalLoad = calculateFlexAlgoPathLatency(0.82, 2, 8, 20);
+  assert.equal(normalLoad.baselineLatencyMs, 0.82);
+  assert.equal(normalLoad.queuingDelayMs, 0);
+  assert.equal(normalLoad.pathLatencyMs, 0.82);
+  assert.equal(normalLoad.loadRatio, 40.0);
+
+  // High load: 18 Gbps on 20 Gbps link (90% load -> queuing delay added)
+  const highLoad = calculateFlexAlgoPathLatency(0.82, 2, 18, 20);
+  assert.ok(highLoad.queuingDelayMs > 0);
+  assert.ok(highLoad.pathLatencyMs > 0.82);
+  assert.equal(highLoad.loadRatio, 90.0);
+
+  // Latency reduction vs Default SPF (0.82 ms vs 2.45 ms -> 66.5% reduction)
+  const reduction = calculateFlexAlgoLatencyReduction(0.82, 2.45);
+  assert.equal(reduction, 66.5);
+  assert.equal(calculateFlexAlgoLatencyReduction(2.45, 2.45), 0);
+});
+
+test('calculateFlexAlgoDynamics and state mutators evaluate headroom, SRLG, and status transitions', async () => {
+  const {
+    calculateFlexAlgoDynamics,
+    getFlexAlgoSelectedId,
+    setFlexAlgoSelectedId,
+    getFlexAlgoTrafficLoadGbps,
+    setFlexAlgoTrafficLoadGbps,
+    getFlexAlgoExcludeMicrowave,
+    setFlexAlgoExcludeMicrowave,
+    getFlexAlgoExcludeSrlg,
+    setFlexAlgoExcludeSrlg,
+    resetFlexAlgoSimState,
+    FLEX_ALGO_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetFlexAlgoSimState();
+  assert.equal(getFlexAlgoSelectedId(), 128);
+
+  // Default dynamics
+  const dyn = calculateFlexAlgoDynamics();
+  assert.equal(dyn.algo.id, 128);
+  assert.equal(dyn.headroomGbps, 12);
+  assert.equal(dyn.status, FLEX_ALGO_CONSTANTS.STATUS.OPTIMAL_COMPLIANT);
+  assert.equal(dyn.statusClass, 'optimal');
+
+  // Disable SRLG protection when algo requires it -> SRLG Risk
+  setFlexAlgoExcludeSrlg(false);
+  const dynSrlgRisk = calculateFlexAlgoDynamics();
+  assert.equal(dynSrlgRisk.status, FLEX_ALGO_CONSTANTS.STATUS.SRLG_RISK);
+  assert.equal(dynSrlgRisk.statusClass, 'degraded');
+
+  // Traffic overload -> Critical status
+  setFlexAlgoTrafficLoadGbps(25); // exceeds 20 Gbps capacity
+  const dynOverload = calculateFlexAlgoDynamics();
+  assert.equal(dynOverload.status, FLEX_ALGO_CONSTANTS.STATUS.LATENCY_ELEVATED);
+  assert.equal(dynOverload.statusClass, 'critical');
+
+  // Mutator tests and reset
+  setFlexAlgoSelectedId(129);
+  assert.equal(getFlexAlgoSelectedId(), 129);
+
+  setFlexAlgoExcludeMicrowave(false);
+  assert.equal(getFlexAlgoExcludeMicrowave(), false);
+
+  resetFlexAlgoSimState();
+  assert.equal(getFlexAlgoSelectedId(), 128);
+  assert.equal(getFlexAlgoTrafficLoadGbps(), 8);
+  assert.equal(getFlexAlgoExcludeSrlg(), true);
+});
+
+test('calculateFlexAlgoMetrics aggregates multi-plane capacity and revenue', async () => {
+  const { calculateFlexAlgoMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateFlexAlgoMetrics();
+  assert.equal(metrics.totalPlanes, 5);
+  assert.ok(metrics.totalCapacityGbps >= 250);
+  assert.ok(metrics.totalRevenuePkr > 10000000);
+  assert.ok(metrics.totalSubscribers > 2000);
+  assert.ok(metrics.avgLatencySavings > 30);
+  assert.ok(metrics.currentDynamics);
+});
+
+test('renderFlexAlgoDiagramSvg, generateFlexAlgoReport, exportFlexAlgoJson, exportFlexAlgoCsv generate valid outputs', async () => {
+  const {
+    calculateFlexAlgoDynamics,
+    renderFlexAlgoDiagramSvg,
+    generateFlexAlgoReport,
+    exportFlexAlgoJson,
+    exportFlexAlgoCsv
+  } = await import('../dashboard.js');
+
+  const dyn = calculateFlexAlgoDynamics();
+
+  // 1. SVG
+  const svgLight = renderFlexAlgoDiagramSvg(dyn, { isDark: false });
+  assert.ok(svgLight.includes('<svg'));
+  assert.ok(svgLight.includes('flex-algo-svg'));
+  assert.ok(svgLight.includes('FLEX-ALGO LATENCY'));
+  assert.ok(svgLight.includes('SRLG PROTECTION'));
+
+  const svgDark = renderFlexAlgoDiagramSvg(dyn, { isDark: true });
+  assert.ok(svgDark.includes('#0f172a'));
+
+  // 2. Report
+  const report = generateFlexAlgoReport(dyn);
+  assert.ok(report.includes('FLEXIBLE ALGORITHM (RFC 9350) REPORT'));
+  assert.ok(report.includes('Flex-Algo 128'));
+  assert.ok(report.includes('SRLG CONSTRAINTS'));
+
+  // 3. JSON
+  const jsonStr = exportFlexAlgoJson(dyn);
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.standard.includes('RFC 9350'));
+  assert.equal(parsed.algo.id, 128);
+  assert.ok(parsed.telemetry.pathLatencyMs > 0);
+
+  // 4. CSV
+  const csvStr = exportFlexAlgoCsv(dyn);
+  assert.ok(csvStr.includes('AlgoId,Name,MetricType'));
+  assert.ok(csvStr.includes('128,"Flex-Algo 128'));
+});
+
+test('setupFlexAlgoModal wires controls and handles user interactions', async () => {
+  const { setupFlexAlgoModal } = await import('../dashboard.js');
+
+  const listeners = {};
+  function createMockEl(id) {
+    listeners[id] = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      className: '',
+      addEventListener(event, fn) {
+        listeners[id][event] = fn;
+      },
+      click() {
+        if (listeners[id].click) listeners[id].click();
+      },
+      input() {
+        if (listeners[id].input) listeners[id].input();
+      },
+      change() {
+        if (listeners[id].change) listeners[id].change();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      },
+      setAttribute(k, v) {
+        if (k === 'open') this.open = true;
+      },
+      removeAttribute(k) {
+        if (k === 'open') this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    dashboardFlexAlgoModal: createMockEl('dashboardFlexAlgoModal'),
+    dashboardOpenFlexAlgoModalBtn: createMockEl('dashboardOpenFlexAlgoModalBtn'),
+    dashboardFlexAlgoModalCloseBtn: createMockEl('dashboardFlexAlgoModalCloseBtn'),
+    dashboardFlexAlgoChart: createMockEl('dashboardFlexAlgoChart'),
+    flexAlgoModalDiagramContainer: createMockEl('flexAlgoModalDiagramContainer'),
+    flexAlgoSelect: createMockEl('flexAlgoSelect'),
+    flexAlgoLoadSlider: createMockEl('flexAlgoLoadSlider'),
+    flexAlgoLoadLabel: createMockEl('flexAlgoLoadLabel'),
+    flexAlgoSrlgToggle: createMockEl('flexAlgoSrlgToggle'),
+    flexAlgoMicrowaveToggle: createMockEl('flexAlgoMicrowaveToggle'),
+    flexAlgoResetBtn: createMockEl('flexAlgoResetBtn'),
+    flexAlgoStatStatus: createMockEl('flexAlgoStatStatus'),
+    flexAlgoStatLatency: createMockEl('flexAlgoStatLatency'),
+    flexAlgoStatSavings: createMockEl('flexAlgoStatSavings'),
+    flexAlgoStatHeadroom: createMockEl('flexAlgoStatHeadroom'),
+    flexAlgoStatSrlg: createMockEl('flexAlgoStatSrlg'),
+    flexAlgoStatCapacity: createMockEl('flexAlgoStatCapacity'),
+    flexAlgoFilterAreaBtn: createMockEl('flexAlgoFilterAreaBtn'),
+    flexAlgoExportJsonBtn: createMockEl('flexAlgoExportJsonBtn'),
+    flexAlgoExportCsvBtn: createMockEl('flexAlgoExportCsvBtn'),
+    flexAlgoCopyReportBtn: createMockEl('flexAlgoCopyReportBtn')
+  };
+
+  elements.flexAlgoSelect.value = '128';
+  elements.flexAlgoLoadSlider.value = '8';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    documentElement: {
+      getAttribute: () => 'light'
+    }
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+
+  const controller = setupFlexAlgoModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filteredArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardFlexAlgoModal.open, true);
+  assert.ok(elements.dashboardFlexAlgoChart.innerHTML.includes('<svg'));
+  assert.ok(elements.flexAlgoModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.flexAlgoLoadSlider.value = '12';
+  elements.flexAlgoLoadSlider.input();
+  assert.equal(elements.flexAlgoLoadLabel.textContent, '12 Gbps');
+
+  // Test reset
+  elements.flexAlgoResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.flexAlgoExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON'));
+
+  elements.flexAlgoExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV'));
+
+  elements.flexAlgoCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report') || toastMsg.includes('Report'));
+
+  // Test filter area
+  elements.flexAlgoFilterAreaBtn.click();
+  assert.equal(filteredArea, 'Baradari');
+
+  controller.close();
+  assert.equal(elements.dashboardFlexAlgoModal.open, false);
+});
+
+test('index.html and dashboard.css contain Flex-Algo markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-flex-algo'));
+  assert.ok(html.includes('id="dashboardFlexAlgoChart"'));
+  assert.ok(html.includes('id="dashboardOpenFlexAlgoModalBtn"'));
+  assert.ok(html.includes('id="dashboardFlexAlgoModal"'));
+  assert.ok(html.includes('id="flexAlgoSelect"'));
+  assert.ok(html.includes('id="flexAlgoLoadSlider"'));
+  assert.ok(html.includes('id="flexAlgoSrlgToggle"'));
+  assert.ok(html.includes('id="flexAlgoMicrowaveToggle"'));
+  assert.ok(html.includes('id="flexAlgoResetBtn"'));
+  assert.ok(html.includes('id="flexAlgoModalDiagramContainer"'));
+  assert.ok(html.includes('id="flexAlgoExportJsonBtn"'));
+  assert.ok(html.includes('id="flexAlgoExportCsvBtn"'));
+  assert.ok(html.includes('id="flexAlgoCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-flex-algo'));
+  assert.ok(css.includes('.flex-algo-modal-card'));
+  assert.ok(css.includes('.flex-algo-svg'));
+  assert.ok(css.includes('.flex-algo-stat-val'));
+});
+
+
 
 
 

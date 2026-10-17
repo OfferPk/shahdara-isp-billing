@@ -18235,6 +18235,227 @@ test('index.html and dashboard.css contain all RoCEv2 Lossless Fabric bindings',
   assert.ok(css.includes('.rocev2-modal-card'));
 });
 
+test('OLP_CONSTANTS contains valid spans, switching modes, and ITU-T threshold limits', async () => {
+  const { OLP_CONSTANTS } = await import('../dashboard.js');
+
+  assert.ok(OLP_CONSTANTS);
+  assert.equal(OLP_CONSTANTS.DEFAULT_SWITCH_MODE, 'AUTOMATIC');
+  assert.equal(OLP_CONSTANTS.DEFAULT_REVERTIVE_MODE, 'REVERTIVE');
+  assert.equal(OLP_CONSTANTS.DEFAULT_SWITCH_THRESHOLD_DBM, -22.0);
+  assert.ok(OLP_CONSTANTS.ACTUATION_TIME_MS < 50.0);
+  assert.equal(OLP_CONSTANTS.ITU_T_MAX_SWITCH_TIME_MS, 50.0);
+
+  assert.ok(Array.isArray(OLP_CONSTANTS.SPANS));
+  assert.ok(OLP_CONSTANTS.SPANS.length >= 5);
+
+  const baradari = OLP_CONSTANTS.SPANS.find(s => s.id === 'span-01-baradari-siphon');
+  assert.ok(baradari);
+  assert.ok(baradari.workingRoute.includes('GT Road'));
+  assert.ok(baradari.protectionRoute.includes('Canal Bank'));
+  assert.equal(baradari.connectedSubscribers, 1200);
+  assert.equal(baradari.monthlyRevenueExposurePkr, 2400000);
+
+  assert.ok(OLP_CONSTANTS.SWITCH_MODES.AUTOMATIC);
+  assert.ok(OLP_CONSTANTS.SWITCH_MODES.FORCED_WORKING);
+  assert.ok(OLP_CONSTANTS.SWITCH_MODES.FORCED_PROTECTION);
+  assert.ok(OLP_CONSTANTS.SWITCH_MODES.LOCKOUT_OF_PROTECTION);
+});
+
+test('OLP simulation state getters, setters, and reset functionality', async () => {
+  const {
+    getOlpSelectedSpanId,
+    setOlpSelectedSpanId,
+    getOlpSwitchMode,
+    setOlpSwitchMode,
+    getOlpRevertiveMode,
+    setOlpRevertiveMode,
+    getOlpWorkingFiberCut,
+    setOlpWorkingFiberCut,
+    getOlpProtectionFiberCut,
+    setOlpProtectionFiberCut,
+    resetOlpSimState
+  } = await import('../dashboard.js');
+
+  resetOlpSimState();
+  assert.equal(getOlpSelectedSpanId(), 'span-01-baradari-siphon');
+  assert.equal(getOlpSwitchMode(), 'AUTOMATIC');
+  assert.equal(getOlpRevertiveMode(), 'REVERTIVE');
+  assert.equal(getOlpWorkingFiberCut(), false);
+  assert.equal(getOlpProtectionFiberCut(), false);
+
+  // Set span
+  setOlpSelectedSpanId('span-02-begum-kot');
+  assert.equal(getOlpSelectedSpanId(), 'span-02-begum-kot');
+  setOlpSelectedSpanId('invalid-span');
+  assert.equal(getOlpSelectedSpanId(), 'span-02-begum-kot');
+
+  // Set modes
+  setOlpSwitchMode('FORCED_PROTECTION');
+  assert.equal(getOlpSwitchMode(), 'FORCED_PROTECTION');
+  setOlpRevertiveMode('NON_REVERTIVE');
+  assert.equal(getOlpRevertiveMode(), 'NON_REVERTIVE');
+
+  // Cut toggles
+  setOlpWorkingFiberCut(true);
+  assert.equal(getOlpWorkingFiberCut(), true);
+  setOlpProtectionFiberCut(true);
+  assert.equal(getOlpProtectionFiberCut(), true);
+
+  // Reset
+  resetOlpSimState();
+  assert.equal(getOlpSelectedSpanId(), 'span-01-baradari-siphon');
+  assert.equal(getOlpSwitchMode(), 'AUTOMATIC');
+  assert.equal(getOlpWorkingFiberCut(), false);
+  assert.equal(getOlpProtectionFiberCut(), false);
+});
+
+test('calculateOlpSwitchDynamics evaluates hitless failover and dual fiber cut states', async () => {
+  const { calculateOlpSwitchDynamics, OLP_CONSTANTS } = await import('../dashboard.js');
+
+  const span = OLP_CONSTANTS.SPANS[0];
+
+  // 1. Normal state (Both routes healthy)
+  const normal = calculateOlpSwitchDynamics({
+    span,
+    isWorkingCut: false,
+    isProtectionCut: false,
+    switchMode: 'AUTOMATIC'
+  });
+
+  assert.equal(normal.activePath, 'WORKING');
+  assert.equal(normal.powerWorkingDbm, span.workingNominalDbm);
+  assert.equal(normal.powerProtectionDbm, span.protectionNominalDbm);
+  assert.equal(normal.healthVerdict, 'OPTIMAL_WORKING');
+  assert.ok(normal.switchTimeMs < 50);
+
+  // 2. Working fiber cut (APS triggers sub-50ms switchover to Protection route)
+  const workingCut = calculateOlpSwitchDynamics({
+    span,
+    isWorkingCut: true,
+    isProtectionCut: false,
+    switchMode: 'AUTOMATIC'
+  });
+
+  assert.equal(workingCut.activePath, 'PROTECTION');
+  assert.equal(workingCut.powerWorkingDbm, -45.0);
+  assert.equal(workingCut.isWorkingLos, true);
+  assert.equal(workingCut.isProtectionLos, false);
+  assert.equal(workingCut.healthVerdict, 'PROTECTION_ACTIVE');
+  assert.equal(workingCut.activeReceivedPowerDbm, span.protectionNominalDbm);
+
+  // 3. Double fault critical cut (Both working and protection cut)
+  const doubleCut = calculateOlpSwitchDynamics({
+    span,
+    isWorkingCut: true,
+    isProtectionCut: true,
+    switchMode: 'AUTOMATIC'
+  });
+
+  assert.equal(doubleCut.activePath, 'NONE');
+  assert.equal(doubleCut.isWorkingLos, true);
+  assert.equal(doubleCut.isProtectionLos, true);
+  assert.equal(doubleCut.healthVerdict, 'DOUBLE_FAULT_CRITICAL');
+
+  // 4. Forced switch mode override
+  const forced = calculateOlpSwitchDynamics({
+    span,
+    isWorkingCut: false,
+    isProtectionCut: false,
+    switchMode: 'FORCED_PROTECTION'
+  });
+
+  assert.equal(forced.activePath, 'PROTECTION');
+  assert.equal(forced.healthVerdict, 'FORCED_PROTECTION');
+});
+
+test('calculateOlpMetrics integrates customer state and revenue exposure', async () => {
+  const { calculateOlpMetrics, resetOlpSimState } = await import('../dashboard.js');
+
+  resetOlpSimState();
+  const mockState = {
+    customers: [
+      { id: 'c1', status: 'ACTIVE' },
+      { id: 'c2', status: 'OFFLINE' }
+    ]
+  };
+
+  const metrics = calculateOlpMetrics(mockState);
+  assert.ok(metrics.span);
+  assert.equal(metrics.span.id, 'span-01-baradari-siphon');
+  assert.equal(metrics.dynamics.activePath, 'WORKING');
+  assert.equal(metrics.totalCustomers, 2);
+  assert.equal(metrics.activeCustomers, 1);
+  assert.ok(metrics.revenueExposureFormatted.includes('PKR'));
+});
+
+test('renderOlpDiagramSvg generates valid vector SVG in full, compact, light and dark modes', async () => {
+  const { calculateOlpMetrics, renderOlpDiagramSvg, resetOlpSimState } = await import('../dashboard.js');
+
+  resetOlpSimState();
+  const metrics = calculateOlpMetrics({});
+
+  // 1. Compact SVG
+  const compactSvg = renderOlpDiagramSvg(metrics, { compact: true, isDark: false });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('viewBox="0 0 560 220"'));
+  assert.ok(compactSvg.includes('50/50'));
+  assert.ok(compactSvg.includes('WORKING'));
+  assert.ok(compactSvg.includes('PROTECTION'));
+  assert.ok(compactSvg.includes('ACTIVE OPTICAL PATH'));
+
+  // 2. Full SVG in dark theme
+  const fullSvg = renderOlpDiagramSvg(metrics, { compact: false, isDark: true });
+  assert.ok(fullSvg.includes('viewBox="0 0 780 320"'));
+  assert.ok(fullSvg.includes('#0f172a'));
+  assert.ok(fullSvg.includes('DWDM Tx'));
+  assert.ok(fullSvg.includes('DWDM Rx'));
+});
+
+test('generateOlpReport produces formal Outside Plant engineering audit text', async () => {
+  const { calculateOlpMetrics, generateOlpReport, resetOlpSimState } = await import('../dashboard.js');
+
+  resetOlpSimState();
+  const metrics = calculateOlpMetrics({});
+  const report = generateOlpReport(metrics);
+
+  assert.ok(report.includes('SHAHDARA ISP CARRIER NOC - OPTICAL LINE PROTECTION (OLP 1+1) AUDIT REPORT'));
+  assert.ok(report.includes('PHYSICAL OPTICAL FIBER DIVERSITY ROUTES'));
+  assert.ok(report.includes('Primary Working Route:'));
+  assert.ok(report.includes('Secondary Protection Route:'));
+  assert.ok(report.includes('OPTICAL SWITCHING DYNAMICS & APS TELEMETRY'));
+  assert.ok(report.includes('SUBSCRIBER REVENUE & SLA IMPACT'));
+  assert.ok(report.includes('Baradari Central ODF to Ravi Siphon Metro Core'));
+});
+
+test('index.html and dashboard.css contain all Optical Line Protection bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardOlpChart"'));
+  assert.ok(html.includes('id="openDashboardOlpBtn"'));
+  assert.ok(html.includes('id="dashboardOlpModal"'));
+  assert.ok(html.includes('id="dashboardOlpCloseBtn"'));
+  assert.ok(html.includes('id="olpSpanSelect"'));
+  assert.ok(html.includes('id="olpSwitchModeSelect"'));
+  assert.ok(html.includes('id="olpRevertiveModeSelect"'));
+  assert.ok(html.includes('id="olpCutWorkingBtn"'));
+  assert.ok(html.includes('id="olpCutProtectionBtn"'));
+  assert.ok(html.includes('id="olpResetBtn"'));
+  assert.ok(html.includes('id="olpKpiActive"'));
+  assert.ok(html.includes('id="olpKpiPower"'));
+  assert.ok(html.includes('id="olpKpiSwitchTime"'));
+  assert.ok(html.includes('id="olpKpiVerdict"'));
+  assert.ok(html.includes('id="olpSvgContainer"'));
+  assert.ok(html.includes('id="olpExportJsonBtn"'));
+  assert.ok(html.includes('id="olpExportCsvBtn"'));
+  assert.ok(html.includes('id="olpCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-olp'));
+  assert.ok(css.includes('.olp-modal-card'));
+});
+
 
 
 

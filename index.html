@@ -960,6 +960,16 @@
             </div>
             <div id="dashboardRocev2Chart" class="chart-svg-container" role="img" aria-label="Carrier RoCEv2 Lossless Fabric and PFC Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-olp">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier Optical Line Protection (OLP 1+1) &amp; Hitless Switch Matrix</h4>
+                <p class="chart-subtitle">ITU-T G.873.1 dual-fed / selective-receiving, &lt;20ms automated optical path protection &amp; LOS failover</p>
+              </div>
+              <button id="openDashboardOlpBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OLP Diagnostics</button>
+            </div>
+            <div id="dashboardOlpChart" class="chart-svg-container" role="img" aria-label="Carrier Optical Line Protection and Fast Optical Switch Chart"></div>
+          </article>
         </div>
 
 
@@ -5866,6 +5876,83 @@
               <button id="rocev2ExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="rocev2CopyReportBtn" class="primary-button" type="button">📋 Copy RoCEv2 Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardOlpModal" class="dashboard-modal olp-modal" aria-labelledby="dashboardOlpModalTitle">
+        <div class="dashboard-modal-card olp-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardOlpModalTitle">Carrier Optical Line Protection (OLP 1+1) &amp; Fast Switch Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">ITU-T G.873.1 Dual-Fed / Selective-Receiving &lt;20ms Hitless Switchover &amp; Fiber Diversity Telemetry</p>
+            </div>
+            <button id="dashboardOlpCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="olpSpanSelect">Protected Optical Span:</label>
+              <select id="olpSpanSelect" class="form-select">
+                <option value="span-01-baradari-siphon">Span 01: Baradari Central ODF to Ravi Siphon Metro Core (14.8km / 19.2km)</option>
+                <option value="span-02-begum-kot">Span 02: Begum Kot Industrial Core to Ring-B Terminal (9.4km / 12.1km)</option>
+                <option value="span-03-vandala">Span 03: Vandala Road Primary ODF to Substation Ring (6.5km / 8.2km)</option>
+                <option value="span-04-jiamusa">Span 04: Jia Musa Commercial Banking Ring Interconnect (11.2km / 13.8km)</option>
+                <option value="span-05-shahdaratown">Span 05: Shahdara Town Sub-FAT Distribution Trunk (4.2km / 5.1km)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="olpSwitchModeSelect">Switching Mode (APS):</label>
+              <select id="olpSwitchModeSelect" class="form-select">
+                <option value="AUTOMATIC">Automatic Protection Switching (APS ITU-T G.873.1)</option>
+                <option value="FORCED_WORKING">Forced to Working Route (Maintenance Override)</option>
+                <option value="FORCED_PROTECTION">Forced to Protection Route (Manual Switchover)</option>
+                <option value="LOCKOUT_OF_PROTECTION">Lockout of Protection (LOP)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="olpRevertiveModeSelect">Reversion Policy:</label>
+              <select id="olpRevertiveModeSelect" class="form-select">
+                <option value="REVERTIVE">Revertive (Auto-return after WTR timer)</option>
+                <option value="NON_REVERTIVE">Non-Revertive (Remain on Protection)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mpls-tp-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="olpCutWorkingBtn" class="primary-button" type="button">✂️ Simulate Working Fiber Cut</button>
+            <button id="olpCutProtectionBtn" class="secondary-button" type="button">✂️ Simulate Protection Fiber Cut</button>
+            <button id="olpResetBtn" class="secondary-button" type="button">🔄 Reset OLP Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Active Optical Path</span>
+              <span id="olpKpiActive" class="optical-evm-stat-val optimal">WORKING Route</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Fiber Power Levels</span>
+              <span id="olpKpiPower" class="optical-evm-stat-val optimal">W: -16.5 dBm · P: -18.2 dBm</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Switch Actuation Latency</span>
+              <span id="olpKpiSwitchTime" class="optical-evm-stat-val optimal">&lt; 12.5 ms (&lt;50ms standard)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Protection State Machine</span>
+              <span id="olpKpiVerdict" class="optical-evm-stat-val optimal">Working route pristine</span>
+            </div>
+          </div>
+
+          <div id="olpSvgContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Optical Line Protection and Fast Optical Switch Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="olpExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="olpExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="olpCopyReportBtn" class="primary-button" type="button">📋 Copy OLP Audit Report</button>
           </div>
         </div>
       </dialog>

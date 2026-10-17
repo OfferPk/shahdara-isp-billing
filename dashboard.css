@@ -3080,6 +3080,21 @@
   border-color: #24354a;
 }
 
+/* Carrier Optical Line Protection (OLP 1+1) Styles */
+.chart-card-olp {
+  background: var(--surface, #ffffff);
+}
+
+.olp-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+[data-theme="dark"] .chart-card-olp {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

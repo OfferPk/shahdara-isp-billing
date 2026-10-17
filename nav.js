@@ -6217,3 +6217,20 @@ export {
   setupMobileBareFiberAdapterModal
 } from './nav-bare-fiber-adapter.js';
 
+export {
+  SLS_TONE_STORAGE_KEY,
+  SLS_WAVELENGTHS,
+  SLS_MODULATION_MODES,
+  SLS_CONNECTOR_TYPES,
+  SLS_PRESETS,
+  dbmToMilliwatts,
+  calculateSlsMetrics,
+  renderSlsDiagramSvg,
+  formatSlsToneWhatsApp,
+  loadSlsToneAuditLog,
+  saveSlsToneAuditLog,
+  clearSlsToneAuditLog,
+  generateSlsToneCsv,
+  setupMobileSlsToneModal
+} from './nav-stabilized-light-source.js';
+

@@ -6035,5 +6035,50 @@ kbd {
   }
 }
 
+/* ==========================================================================
+   Stabilized Light Source (SLS) & Modulated Tone Generator Assistant (agent2)
+   ========================================================================== */
+.sls-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sls-svg-wrap {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #090d16;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sls-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.mobile-sls-modal {
+  max-width: 860px;
+  width: 95%;
+  border-radius: 16px;
+}
+
+[data-theme="dark"] .mobile-sls-modal {
+  background: #090d16;
+  border-color: #1e3a5f;
+}
+
+@media (max-width: 640px) {
+  .sls-card {
+    padding: 14px;
+    gap: 12px;
+  }
+}
+
 
 

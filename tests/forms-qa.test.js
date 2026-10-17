@@ -10184,3 +10184,432 @@ test('setupSpliceSleeveCureModal wires full interactive modal lifecycle', async 
   controller.populateCustomer({ name: 'Chaudhry Akram', mohalla: 'Jia Musa' });
   assert.ok(elements['#sleeveLocationInput'].value.includes('Chaudhry Akram'));
 });
+
+test('qa-cleave-quality constants and catalogs conform to ITU-T and Telcordia specifications', async () => {
+  const {
+    CLEAVER_MODELS,
+    SURFACE_DEFECT_TYPES,
+    BLADE_HEIGHT_SETTINGS,
+    CLEAVE_QA_VERDICTS,
+    SHAH_CLEAVE_PRESETS
+  } = await import('../form-validation.js');
+
+  assert.ok(CLEAVER_MODELS['FUJIKURA_CT50']);
+  assert.equal(CLEAVER_MODELS['FUJIKURA_CT50'].bladeChannels, 16);
+  assert.ok(CLEAVER_MODELS['SUMITOMO_FC6S']);
+  assert.equal(CLEAVER_MODELS['SUMITOMO_FC6S'].totalBladeLife, 36000);
+
+  assert.ok(SURFACE_DEFECT_TYPES['NONE_PRISTINE']);
+  assert.equal(SURFACE_DEFECT_TYPES['NONE_PRISTINE'].lossPenaltyDb, 0.0);
+  assert.ok(SURFACE_DEFECT_TYPES['HACKLE_RADIAL']);
+  assert.equal(SURFACE_DEFECT_TYPES['HACKLE_RADIAL'].verdictImpact, 'REJECT');
+
+  assert.ok(BLADE_HEIGHT_SETTINGS['OPTIMAL']);
+  assert.equal(BLADE_HEIGHT_SETTINGS['OPTIMAL'].angleMultiplier, 1.0);
+
+  assert.ok(CLEAVE_QA_VERDICTS['GRADE_A_EXCELLENT']);
+  assert.equal(CLEAVE_QA_VERDICTS['GRADE_A_EXCELLENT'].isPassing, true);
+  assert.equal(CLEAVE_QA_VERDICTS['GRADE_D_REJECT'].isPassing, false);
+
+  assert.ok(SHAH_CLEAVE_PRESETS['PRESET_BARADARI_CT50']);
+  assert.ok(SHAH_CLEAVE_PRESETS['PRESET_RAVI_SIPHON_REJECT']);
+});
+
+test('calculateCleaveAngleLoss calculates Marcuse tilt insertion loss across angular degrees', async () => {
+  const { calculateCleaveAngleLoss } = await import('../form-validation.js');
+
+  assert.equal(calculateCleaveAngleLoss(0), 0);
+  const loss05 = calculateCleaveAngleLoss(0.5);
+  assert.ok(loss05 > 0.05 && loss05 < 0.12, `0.5° loss was ${loss05}`);
+  const loss10 = calculateCleaveAngleLoss(1.0);
+  assert.ok(loss10 > 0.30 && loss10 < 0.40, `1.0° loss was ${loss10}`);
+  const loss20 = calculateCleaveAngleLoss(2.0);
+  assert.ok(loss20 > 1.20 && loss20 < 1.60, `2.0° loss was ${loss20}`);
+});
+
+test('calculateBladeWearMetrics tracks channel wear and total lifetime wear index', async () => {
+  const { calculateBladeWearMetrics } = await import('../form-validation.js');
+
+  const fresh = calculateBladeWearMetrics('SUMITOMO_FC6S', 1, 200);
+  assert.equal(fresh.channel, 1);
+  assert.equal(fresh.channelHealth, 'OPTIMAL');
+  assert.equal(fresh.isChannelExhausted, false);
+
+  const warn = calculateBladeWearMetrics('SUMITOMO_FC6S', 1, 2000);
+  assert.equal(warn.channelHealth, 'WARNING');
+
+  const exhausted = calculateBladeWearMetrics('SUMITOMO_FC6S', 1, 2600);
+  assert.equal(exhausted.channelHealth, 'EXHAUSTED');
+  assert.equal(exhausted.isChannelExhausted, true);
+});
+
+test('evaluateCleaveQuality assigns appropriate quality grades and fusion readiness', async () => {
+  const { evaluateCleaveQuality } = await import('../form-validation.js');
+
+  // Grade A: Pristine 0.35°
+  const gradeA = evaluateCleaveQuality({
+    cleaverModelId: 'FUJIKURA_CT50',
+    cleaveAngleDeg: 0.35,
+    defectTypeId: 'NONE_PRISTINE',
+    bladeHeightId: 'OPTIMAL'
+  });
+  assert.equal(gradeA.verdict.code, 'GRADE_A');
+  assert.equal(gradeA.isPassing, true);
+  assert.equal(gradeA.fusionSpliceReady, true);
+  assert.equal(gradeA.reCleaveRequired, false);
+
+  // Grade B: 0.75° with peripheral mist
+  const gradeB = evaluateCleaveQuality({
+    cleaverModelId: 'SUMITOMO_FC6S',
+    cleaveAngleDeg: 0.75,
+    defectTypeId: 'MIST_PERIPHERY',
+    bladeHeightId: 'OPTIMAL'
+  });
+  assert.equal(gradeB.verdict.code, 'GRADE_B');
+  assert.equal(gradeB.fusionSpliceReady, true);
+
+  // Grade C: 1.35° with minor lip
+  const gradeC = evaluateCleaveQuality({
+    cleaverModelId: 'SUMITOMO_FC6S',
+    cleaveAngleDeg: 1.35,
+    defectTypeId: 'LIP_SMALL',
+    bladeHeightId: 'OPTIMAL'
+  });
+  assert.equal(gradeC.verdict.code, 'GRADE_C');
+  assert.equal(gradeC.fusionSpliceReady, false);
+  assert.equal(gradeC.fastConnectorReady, true);
+
+  // Grade D: Severe hackle or high angle
+  const gradeD = evaluateCleaveQuality({
+    cleaverModelId: 'SUMITOMO_FC6S',
+    cleaveAngleDeg: 2.20,
+    defectTypeId: 'HACKLE_RADIAL',
+    bladeHeightId: 'TOO_HIGH'
+  });
+  assert.equal(gradeD.verdict.code, 'GRADE_D');
+  assert.equal(gradeD.isPassing, false);
+  assert.equal(gradeD.reCleaveRequired, true);
+});
+
+test('renderFiberCleaveQualitySvg outputs valid SVG graphic with telemetry ribbons', async () => {
+  const { evaluateCleaveQuality, renderFiberCleaveQualitySvg } = await import('../form-validation.js');
+
+  const analysis = evaluateCleaveQuality({
+    cleaverModelId: 'FUJIKURA_CT50',
+    cleaveAngleDeg: 0.42,
+    defectTypeId: 'NONE_PRISTINE',
+    bladeHeightId: 'OPTIMAL',
+    bladeChannel: 2,
+    cleavesOnChannel: 300
+  });
+
+  const svg = renderFiberCleaveQualitySvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('FIBER CLEAVE ANGLE &amp; END-FACE TOPOGRAPHY METROLOGY'));
+  assert.ok(svg.includes('θ = 0.42°'));
+  assert.ok(svg.includes('Cladding (125 µm)'));
+  assert.ok(svg.includes('Core (9.2 µm)'));
+  assert.ok(svg.includes('GRADE_A'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('validateFiberCleaveInput guards input bounds for angle, channel and count', async () => {
+  const { validateFiberCleaveInput } = await import('../form-validation.js');
+
+  const valid = validateFiberCleaveInput({
+    cleaveAngleDeg: 0.65,
+    bladeChannel: 4,
+    cleavesOnChannel: 800
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateFiberCleaveInput({
+    cleaveAngleDeg: -2,
+    bladeChannel: 40,
+    cleavesOnChannel: -100
+  });
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 2);
+});
+
+test('buildFiberCleaveRecord generates unique ID and complete certificate snapshot', async () => {
+  const { buildFiberCleaveRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'cust_99', name: 'Naveed Akhtar', mohalla: 'Vandala Road', phone: '03001234567' };
+  const record = buildFiberCleaveRecord({
+    customer,
+    cleaverModelId: 'SUMITOMO_FC6S',
+    cleaveAngleDeg: 0.55,
+    defectTypeId: 'NONE_PRISTINE',
+    technicianName: 'Zahid Lead Splicer',
+    location: 'FAT-04 Wandala',
+    notes: 'Pre-splice check'
+  });
+
+  assert.match(record.id, /^CLV-\d{6}-\d{4}$/);
+  assert.equal(record.customerName, 'Naveed Akhtar');
+  assert.equal(record.customerMohalla, 'Vandala Road');
+  assert.equal(record.cleaveAngleDeg, 0.55);
+  assert.equal(record.isPassing, true);
+  assert.equal(record.technicianName, 'Zahid Lead Splicer');
+});
+
+test('fiber cleave certs localStorage persistence and calculateFiberCleaveMetrics', async () => {
+  const {
+    getSavedFiberCleaveCerts,
+    saveFiberCleaveCert,
+    clearFiberCleaveCerts,
+    calculateFiberCleaveMetrics
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedFiberCleaveCerts(mockStorage), []);
+
+  const cert1 = { id: 'CLV-01', verdictCode: 'GRADE_A', isPassing: true, cleaveAngleDeg: 0.40, totalEstimatedLossDb: 0.010 };
+  const cert2 = { id: 'CLV-02', verdictCode: 'GRADE_D', isPassing: false, cleaveAngleDeg: 2.10, totalEstimatedLossDb: 0.350 };
+
+  saveFiberCleaveCert(cert1, mockStorage);
+  saveFiberCleaveCert(cert2, mockStorage);
+
+  const loaded = getSavedFiberCleaveCerts(mockStorage);
+  assert.equal(loaded.length, 2);
+
+  const metrics = calculateFiberCleaveMetrics(loaded);
+  assert.equal(metrics.totalCertificates, 2);
+  assert.equal(metrics.gradeACount, 1);
+  assert.equal(metrics.gradeDCount, 1);
+  assert.equal(metrics.passRatePct, 50);
+  assert.equal(metrics.reCleaveMandatedCount, 1);
+
+  clearFiberCleaveCerts(mockStorage);
+  assert.deepEqual(getSavedFiberCleaveCerts(mockStorage), []);
+});
+
+test('generateFiberCleaveQualityCertHtml creates formal A4 and 80mm thermal documents', async () => {
+  const { generateFiberCleaveQualityCertHtml } = await import('../form-validation.js');
+
+  const record = {
+    id: 'CLV-202610-1234',
+    dateStr: '2026-10-17',
+    customerName: 'Shahdara Baradari Feeder',
+    customerMohalla: 'Baradari Zone 1',
+    technicianName: 'Kamran Splicer',
+    location: 'ODF Rack 02',
+    cleaverModelName: 'Fujikura CT50 Automated',
+    bladeChannel: 3,
+    cleavesOnChannel: 400,
+    channelWearPct: 11,
+    cleaveAngleDeg: 0.32,
+    defectName: 'Pristine Mirror Zone',
+    angleLossDb: 0.005,
+    defectLossDb: 0.000,
+    totalEstimatedLossDb: 0.005,
+    verdictLabel: 'Grade A — Ultra-Low Loss Fusion Splice Certified',
+    isPassing: true,
+    fusionSpliceReady: true,
+    notes: 'Lab calibrated'
+  };
+
+  const htmlA4 = generateFiberCleaveQualityCertHtml(record, { format: 'A4' });
+  assert.ok(htmlA4.includes('SHAHDARA OPTICAL NETWORK METROLOGY LABORATORY'));
+  assert.ok(htmlA4.includes('CLV-202610-1234'));
+  assert.ok(htmlA4.includes('0.32°'));
+  assert.ok(htmlA4.includes('Grade A — Ultra-Low Loss Fusion Splice Certified'));
+
+  const htmlPos = generateFiberCleaveQualityCertHtml(record, { format: 'POS' });
+  assert.ok(htmlPos.includes('FIBER CLEAVE QA FIELD SLIP'));
+  assert.ok(htmlPos.includes('CLV-202610-1234'));
+  assert.ok(htmlPos.includes('80mm'));
+});
+
+test('formatFiberCleaveQualityCertWhatsApp produces bilingual dispatch message', async () => {
+  const { formatFiberCleaveQualityCertWhatsApp } = await import('../form-validation.js');
+
+  const record = {
+    id: 'CLV-202610-5678',
+    dateStr: '2026-10-17',
+    customerName: 'Imran Ashraf',
+    customerMohalla: 'Jia Musa',
+    technicianName: 'Umair Field Lead',
+    location: 'FAT-02 Drop Terminal',
+    cleaverModelName: 'Sumitomo FC-6S',
+    bladeChannel: 5,
+    cleavesOnChannel: 850,
+    channelWearPct: 38,
+    cleaveAngleDeg: 0.62,
+    defectName: 'Peripheral Mist Zone',
+    totalEstimatedLossDb: 0.038,
+    verdictLabel: 'Grade B — Standard Outside Plant Fusion Splice Pass',
+    isPassing: true
+  };
+
+  const text = formatFiberCleaveQualityCertWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA FIBER NETWORK — CLEAVE QA CERTIFICATE'));
+  assert.ok(text.includes('سرٹیفکیٹ برائے آپٹیکل فائبر کلیو اینگل و کوالٹی'));
+  assert.ok(text.includes('CLV-202610-5678'));
+  assert.ok(text.includes('Imran Ashraf'));
+  assert.ok(text.includes('0.62°'));
+  assert.ok(text.includes('فائبر کا سرا صاف ہے'));
+});
+
+test('generateFiberCleaveQualityCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
+  const { generateFiberCleaveQualityCertsCsv } = await import('../form-validation.js');
+
+  const records = [
+    {
+      id: 'CLV-01',
+      dateStr: '2026-10-17',
+      customerId: 'c1',
+      customerName: 'Shahid Mehmood',
+      customerMohalla: 'Vandala',
+      technicianName: 'Zahid',
+      location: 'FAT-01',
+      cleaverModelName: 'Sumitomo FC-6S',
+      bladeChannel: 2,
+      cleavesOnChannel: 300,
+      channelWearPct: 13,
+      cleaveAngleDeg: 0.48,
+      defectName: 'Pristine Mirror',
+      bladeHeightName: 'Optimal',
+      angleLossDb: 0.011,
+      defectLossDb: 0.0,
+      totalEstimatedLossDb: 0.011,
+      verdictCode: 'GRADE_A',
+      verdictLabel: 'Grade A',
+      isPassing: true,
+      fusionSpliceReady: true,
+      notes: 'Clean'
+    }
+  ];
+
+  const csv = generateFiberCleaveQualityCertsCsv(records);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('"Certificate ID","Date","Customer ID"'));
+  assert.ok(csv.includes('"CLV-01"'));
+  assert.ok(csv.includes('"Shahid Mehmood"'));
+  assert.ok(csv.includes('"0.48"'));
+});
+
+test('setupFiberCleaveQualityModal wires interactive controls, calculation and history', async () => {
+  const { setupFiberCleaveQualityModal } = await import('../form-validation.js');
+
+  function createMockEl(tagName = 'div') {
+    const el = {
+      tagName: tagName.toUpperCase(),
+      attributes: {},
+      children: [],
+      value: '',
+      innerHTML: '',
+      textContent: '',
+      style: {},
+      className: '',
+      addEventListener(evt, fn) {
+        this._listeners = this._listeners || {};
+        this._listeners[evt] = this._listeners[evt] || [];
+        this._listeners[evt].push(fn);
+      },
+      dispatchEvent(evt) {
+        if (this._listeners && this._listeners[evt.type]) {
+          this._listeners[evt.type].forEach(fn => fn(evt));
+        }
+      },
+      click() {
+        this.dispatchEvent({ type: 'click' });
+      },
+      appendChild(c) {
+        this.children.push(c);
+      },
+      querySelector(selector) {
+        return this._childrenMap ? this._childrenMap[selector] || null : null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      setAttribute(k, v) { this.attributes[k] = v; },
+      removeAttribute(k) { delete this.attributes[k]; }
+    };
+    return el;
+  }
+
+  const dialog = createMockEl('dialog');
+  dialog.ownerDocument = {
+    createElement(tag) { return createMockEl(tag); }
+  };
+  const elements = {
+    '#cleaveModelSelect': createMockEl('select'),
+    '#cleavePresetSelect': createMockEl('select'),
+    '#cleaveAngleInput': createMockEl('input'),
+    '#cleaveDefectSelect': createMockEl('select'),
+    '#cleaveBladeHeightSelect': createMockEl('select'),
+    '#cleaveChannelInput': createMockEl('input'),
+    '#cleaveCountInput': createMockEl('input'),
+    '#cleaveTechnicianInput': createMockEl('input'),
+    '#cleaveLocationInput': createMockEl('input'),
+    '#cleaveNotesInput': createMockEl('input'),
+    '#cleaveSvgContainer': createMockEl('div'),
+    '#cleaveAngleBadge': createMockEl('div'),
+    '#cleaveVerdictPill': createMockEl('div'),
+    '#cleaveLossBadge': createMockEl('div'),
+    '#cleaveWearBadge': createMockEl('div'),
+    '#cleaveHistoryTbody': createMockEl('tbody'),
+    '#cleaveHistorySearch': createMockEl('input'),
+    '#cleaveHistoryFilter': createMockEl('select'),
+    '#cleaveSaveCertBtn': createMockEl('button'),
+    '#cleavePrintA4Btn': createMockEl('button'),
+    '#cleavePrintPosBtn': createMockEl('button'),
+    '#cleaveExportCsvBtn': createMockEl('button'),
+    '#cleaveWhatsAppBtn': createMockEl('button'),
+    '#cleaveCloseBtn': createMockEl('button')
+  };
+  dialog._childrenMap = elements;
+
+  const trigger = createMockEl('button');
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toasts = [];
+  const controller = setupFiberCleaveQualityModal({
+    dialogElement: dialog,
+    triggerButton: trigger,
+    storage: mockStorage,
+    onToast: (msg) => toasts.push(msg)
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.recalculate, 'function');
+  assert.equal(typeof controller.populateCustomer, 'function');
+  assert.equal(typeof controller.renderHistory, 'function');
+
+  // Verify dropdowns populated
+  assert.ok(elements['#cleaveModelSelect'].children.length > 0);
+  assert.ok(elements['#cleaveDefectSelect'].children.length > 0);
+  assert.ok(elements['#cleavePresetSelect'].children.length > 0);
+
+  // Recalculate creates SVG
+  const analysis = controller.recalculate();
+  assert.ok(analysis.totalEstimatedLossDb >= 0);
+  assert.ok(elements['#cleaveSvgContainer'].innerHTML.includes('<svg'));
+
+  // Save cert
+  elements['#cleaveSaveCertBtn'].click();
+  assert.ok(toasts.some(t => t.includes('Saved Cleave QA Certificate')));
+
+  // History rendered
+  assert.ok(elements['#cleaveHistoryTbody'].innerHTML.includes('CLV-'));
+
+  // Customer population
+  controller.populateCustomer({ name: 'Tariq Mehmood', mohalla: 'Baradari' });
+  assert.ok(elements['#cleaveLocationInput'].value.includes('Tariq Mehmood'));
+});
+

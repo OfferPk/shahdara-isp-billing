@@ -2897,6 +2897,35 @@
   border-color: #24354a;
 }
 
+/* Optical Transport Network (OTN - ITU-T G.709) Styles */
+.chart-card-otn {
+  background: var(--surface, #ffffff);
+}
+
+.otn-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.otn-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+.otn-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+[data-theme="dark"] .chart-card-otn {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

@@ -880,6 +880,16 @@
             </div>
             <div id="dashboardOpticalEvmChart" class="chart-svg-container" role="img" aria-label="Optical Fiber Constellation Error Vector Magnitude and Dispersion Matrix Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-otn">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Optical Transport Network (OTN - ITU-T G.709) Matrix</h4>
+                <p class="chart-subtitle">Multi-rate ODUk/OTUk framing hierarchy, Soft-Decision FEC coding gain &amp; defect alarm telemetry</p>
+              </div>
+              <button id="dashboardOpenOtnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OTN Diagnostics</button>
+            </div>
+            <div id="dashboardOtnChart" class="chart-svg-container" role="img" aria-label="Optical Transport Network ITU-T G.709 Framing and FEC Telemetry Chart"></div>
+          </article>
         </div>
 
 
@@ -5107,6 +5117,99 @@
               <button id="opticalEvmExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="opticalEvmCopyReportBtn" class="primary-button" type="button">📋 Copy Optical EVM Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardOtnModal" class="dashboard-modal otn-modal" aria-labelledby="dashboardOtnModalTitle">
+        <div class="dashboard-modal-card otn-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardOtnModalTitle">Optical Transport Network (OTN - ITU-T G.709) Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Multi-rate ODUk/OTUk framing hierarchy, Soft-Decision FEC coding gain &amp; defect alarm telemetry</p>
+            </div>
+            <button id="dashboardOtnModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="otnTrunkSelect">Target Carrier OTN Trunk:</label>
+              <select id="otnTrunkSelect" class="form-select">
+                <option value="otn-trk-01">Shahdara OLT &lt;-&gt; Ravi Siphon (OTU4 100G SD-FEC)</option>
+                <option value="otn-trk-02">Shahdara Core &lt;-&gt; Begum Kot Ring (OTU4 100G SD-FEC)</option>
+                <option value="otn-trk-03">Shahdara Core &lt;-&gt; Nayatel Interconnect (OTU2 10G GFEC)</option>
+                <option value="otn-trk-04">Jia Musa Hub &lt;-&gt; Shahdara Town 10GbE (OTU2e Overclocked)</option>
+                <option value="otn-trk-05">Shahdara DR Site &lt;-&gt; GT Road POP (OTU4 100G Bulk)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="otnFecModeSelect">FEC Mode Override:</label>
+              <select id="otnFecModeSelect" class="form-select">
+                <option value="">Default Trunk Profile</option>
+                <option value="GFEC">Standard RS(255,239) GFEC (+6.2 dB)</option>
+                <option value="SD_FEC">Soft-Decision SD-FEC (+11.4 dB)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="otnDefectSimSelect">Defect / Fault Injection:</label>
+              <select id="otnDefectSimSelect" class="form-select">
+                <option value="NONE">Normal (No Injected Fault)</option>
+                <option value="OTU_LOF">OTU Loss of Frame (LOF)</option>
+                <option value="OTU_LOM">OTU Loss of Multiframe (LOM)</option>
+                <option value="ODU_AIS">ODU Alarm Indication Signal (AIS)</option>
+                <option value="ODU_OCI">ODU Open Connection (OCI)</option>
+                <option value="ODU_LCK">ODU Locked Maintenance (LCK)</option>
+                <option value="HIGH_NOISE_BURST">Transient High Noise Micro-Bend Burst</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="otnBerSlider">Pre-FEC Noise Multiplier: <span id="otnBerLabel" class="sim-val-pill">1.0x</span></label>
+              <input type="range" id="otnBerSlider" min="0.1" max="25.0" step="0.5" value="1.0" class="otdr-slider">
+            </div>
+          </div>
+
+          <div class="otn-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="otnResetBtn" class="secondary-button" type="button">🔄 Reset Trunk Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Trunk Capacity</span>
+              <span id="otnStatCapacity" class="optical-evm-stat-val">100 Gbps (OTU4)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Pre-FEC BER</span>
+              <span id="otnStatPreFec" class="optical-evm-stat-val">1.80e-3</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Post-FEC BER</span>
+              <span id="otnStatPostFec" class="optical-evm-stat-val optimal">&lt; 1.0e-15</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">FEC Margin</span>
+              <span id="otnStatMargin" class="optical-evm-stat-val">+10.4 dB</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Tributary Slots</span>
+              <span id="otnStatSlots" class="optical-evm-stat-val">68/80 (85%)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Defect State</span>
+              <span id="otnStatDefect" class="optical-evm-stat-val optimal">NONE</span>
+            </div>
+          </div>
+
+          <div id="otnModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="OTN ITU-T G.709 4-Row Frame Structure and Telemetry Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="otnFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="otnExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="otnExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="otnCopyReportBtn" class="primary-button" type="button">📋 Copy OTN Audit Report</button>
           </div>
         </div>
       </dialog>

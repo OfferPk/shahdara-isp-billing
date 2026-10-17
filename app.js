@@ -2969,6 +2969,7 @@ function renderAnalytics() {
 let inventorySortKey = 'name';
 let inventorySortAsc = true;
 let inventoryCategoryFilter = 'all';
+let inventoryStockFilter = 'all';
 let inventorySearchQuery = '';
 
 function renderInventory() {
@@ -2982,6 +2983,17 @@ function renderInventory() {
   const allItems = items;
   const filteredItems = allItems.filter(item => {
     if (inventoryCategoryFilter !== 'all' && item.category !== inventoryCategoryFilter) return false;
+    if (inventoryStockFilter !== 'all') {
+      if (inventoryStockFilter === 'low') {
+        if (!item.hasMovements || item.available > item.minimumStock) return false;
+      } else if (inventoryStockFilter === 'out') {
+        if (!item.hasMovements || item.available > 0) return false;
+      } else if (inventoryStockFilter === 'in') {
+        if (!item.hasMovements || item.available <= item.minimumStock) return false;
+      } else if (inventoryStockFilter === 'unrecorded') {
+        if (item.hasMovements) return false;
+      }
+    }
     if (inventorySearchQuery) {
       const q = inventorySearchQuery.toLowerCase();
       const name = (item.name || '').toLowerCase();
@@ -3016,7 +3028,7 @@ function renderInventory() {
 
   const countEl = $('#inventoryTableCount');
   if (countEl) {
-    if (inventoryCategoryFilter !== 'all' || inventorySearchQuery) {
+    if (inventoryCategoryFilter !== 'all' || inventoryStockFilter !== 'all' || inventorySearchQuery) {
       countEl.textContent = `Showing ${filteredItems.length} of ${allItems.length} items`;
     } else {
       countEl.textContent = allItems.length ? `${allItems.length} item definitions` : '';
@@ -3036,7 +3048,20 @@ function renderInventory() {
   });
 
   const itemsTable=$('#inventoryItemsTable');
-  itemsTable.innerHTML=filteredItems.map(item=>`<tr><th scope="row">${phase3Cell(item.name)}</th><td>${phase3Cell(item.category)}</td><td>${item.hasMovements?new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available):'Not recorded'}</td><td>${phase3Cell(item.unit)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)}</td><td>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</td><td>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</td><td>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</td><td><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></td></tr>`).join('');
+  itemsTable.innerHTML=filteredItems.map(item=>{
+    let statusPill = '';
+    if (!item.hasMovements) {
+      statusPill = '<span class="stock-status-pill pill-muted">Unrecorded</span>';
+    } else if (item.available <= 0) {
+      statusPill = '<span class="stock-status-pill pill-danger">Out of stock</span>';
+    } else if (item.available <= item.minimumStock) {
+      statusPill = '<span class="stock-status-pill pill-warning">Low stock</span>';
+    } else {
+      statusPill = '<span class="stock-status-pill pill-success">In stock</span>';
+    }
+    const formattedAvail = item.hasMovements ? new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available) : 'Not recorded';
+    return `<tr><th scope="row">${phase3Cell(item.name)}</th><td>${phase3Cell(item.category)}</td><td><div class="stock-avail-cell"><span class="stock-qty">${formattedAvail}</span> ${statusPill}</div></td><td>${phase3Cell(item.unit)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)}</td><td>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</td><td>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</td><td>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</td><td class="inventory-actions"><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></td></tr>`;
+  }).join('');
   $('#inventoryItemsEmpty').hidden=allItems.length>0;
   const filterEmpty = $('#inventoryItemsFilterEmpty');
   if (filterEmpty) filterEmpty.hidden = !(allItems.length > 0 && filteredItems.length === 0);
@@ -3046,8 +3071,10 @@ function renderInventory() {
   const customerSelect=$('#movementCustomerId'),selectedCustomer=customerSelect.value;
   customerSelect.innerHTML='<option value="">Not assigned</option>'+state.customers.map(customer=>`<option value="${phase3Cell(customer.id)}">#${customer.customerNumber} ${phase3Cell(customer.name)}</option>`).join('');
   if(state.customers.some(customer=>customer.id===selectedCustomer))customerSelect.value=selectedCustomer;
-  $('#inventoryMovementTable').innerHTML=summary.movements.map(row=>{const customer=state.customers.find(item=>item.id===row.customerId);const assignment=customer?`#${customer.customerNumber} ${phase3Cell(customer.name)}`:row.customerNameSnapshot?`#${phase3Cell(row.customerNumberSnapshot)} ${phase3Cell(row.customerNameSnapshot)} (profile removed)`: 'Not assigned';const action=({receive:'Receive / purchase',install:'Install / issue',issue:'Install / issue',return:'Return',damage:'Damage',correction:'Correction'})[row.type]??row.type;return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.itemName)}</th><td>${phase3Cell(action)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(row.quantity)} ${phase3Cell(row.unit)}</td><td>${phase3Cell(row.fromState||'External')} → ${phase3Cell(row.toState||'Removed')}</td><td>${assignment}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td><button type="button" class="delete-incident" data-delete-movement="${phase3Cell(row.id)}">Delete</button></td></tr>`;}).join('');
+  $('#inventoryMovementTable').innerHTML=summary.movements.map(row=>{const customer=state.customers.find(item=>item.id===row.customerId);const assignment=customer?`#${customer.customerNumber} ${phase3Cell(customer.name)}`:row.customerNameSnapshot?`#${phase3Cell(row.customerNumberSnapshot)} ${phase3Cell(row.customerNameSnapshot)} (profile removed)`: 'Not assigned';const action=({receive:'Receive / purchase',install:'Install / issue',issue:'Install / issue',return:'Return',damage:'Damage',correction:'Correction'})[row.type]??row.type;return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.itemName)}</th><td>${phase3Cell(action)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(row.quantity)} ${phase3Cell(row.unit)}</td><td>${phase3Cell(row.fromState||'External')} → ${phase3Cell(row.toState||'Removed')}</td><td>${assignment}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td class="inventory-actions"><button type="button" class="delete-incident" data-delete-movement="${phase3Cell(row.id)}">Delete</button></td></tr>`;}).join('');
   $('#inventoryMovementsEmpty').hidden=summary.movements.length>0;
+  const movDate=$('#movementDate');
+  if(movDate&&!movDate.value) movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);
   itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
   $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement||!window.confirm(`Delete the ${movement.type} movement of ${movement.quantity} ${movement.unit} dated ${movement.date}? This may change all current inventory balances.`))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.');}catch(error){toast(error.message);}}));
   updateNavigationBadges(state);
@@ -3157,7 +3184,7 @@ function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryIte
 function resetExpenseForm() { $('#expenseForm').reset();$('#expenseId').value='';$('#expenseSubmit').textContent='Record actual expense';$('#expenseCancel').hidden=true;const expNotice=$('#expenseDraftNotice');if(expNotice)expNotice.hidden=true; }
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
-$('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
+$('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
 $('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={date:data.get('date'),amount:data.get('amount'),category:data.get('category'),notes:data.get('notes')};try{const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;state=id?updateExpense(state,id,fields):addExpense(state,fields);save();expenseDraftController?.clear();resetExpenseForm();toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');}catch(error){toast(error.message);}});
 $('#expenseCancel').addEventListener('click',resetExpenseForm);
 document.querySelectorAll('[data-sort-expense]').forEach(th=>{
@@ -3223,14 +3250,20 @@ $('#inventoryCategoryFilter')?.addEventListener('change',e=>{
   inventoryCategoryFilter=e.currentTarget.value;
   renderInventory();
 });
+$('#inventoryStockFilter')?.addEventListener('change',e=>{
+  inventoryStockFilter=e.currentTarget.value;
+  renderInventory();
+});
 $('#inventorySearchInput')?.addEventListener('input',e=>{
   inventorySearchQuery=e.currentTarget.value.trim();
   renderInventory();
 });
 $('#clearInventoryFilters')?.addEventListener('click',()=>{
   inventoryCategoryFilter='all';
+  inventoryStockFilter='all';
   inventorySearchQuery='';
   const cat=$('#inventoryCategoryFilter');if(cat)cat.value='all';
+  const stk=$('#inventoryStockFilter');if(stk)stk.value='all';
   const inp=$('#inventorySearchInput');if(inp)inp.value='';
   renderInventory();
 });
@@ -3450,19 +3483,73 @@ $('#exportExpensesCsvBtn')?.addEventListener('click', () => {
 });
 
 $('#exportInventoryCsvBtn')?.addEventListener('click', () => {
-  const items = state.inventoryItems || [];
+  const summary = inventorySummary(state);
+  const allSummaryItems = summary.items || [];
+  const hasActiveFilter = inventoryCategoryFilter !== 'all' || inventoryStockFilter !== 'all' || Boolean(inventorySearchQuery);
+  const sourceItems = hasActiveFilter ? allSummaryItems.filter(item => {
+    if (inventoryCategoryFilter !== 'all' && item.category !== inventoryCategoryFilter) return false;
+    if (inventoryStockFilter !== 'all') {
+      if (inventoryStockFilter === 'low') {
+        if (!item.hasMovements || item.available > item.minimumStock) return false;
+      } else if (inventoryStockFilter === 'out') {
+        if (!item.hasMovements || item.available > 0) return false;
+      } else if (inventoryStockFilter === 'in') {
+        if (!item.hasMovements || item.available <= item.minimumStock) return false;
+      } else if (inventoryStockFilter === 'unrecorded') {
+        if (item.hasMovements) return false;
+      }
+    }
+    if (inventorySearchQuery) {
+      const q = inventorySearchQuery.toLowerCase();
+      const name = (item.name || '').toLowerCase();
+      const cat = (item.category || '').toLowerCase();
+      const notes = (item.notes || '').toLowerCase();
+      if (!name.includes(q) && !cat.includes(q) && !notes.includes(q)) return false;
+    }
+    return true;
+  }) : allSummaryItems;
+
+  const rows = sourceItems.map(item => {
+    let stockStatus = 'Not recorded';
+    if (item.hasMovements) {
+      if (item.available <= 0) stockStatus = 'Out of stock';
+      else if (item.available <= item.minimumStock) stockStatus = 'Low stock';
+      else stockStatus = 'In stock';
+    }
+    return {
+      name: item.name,
+      category: item.category,
+      available: item.hasMovements ? item.available : 'Not recorded',
+      unit: item.unit,
+      minimumStock: item.minimumStock,
+      unitCost: item.unitCost ?? '',
+      value: item.hasMovements && item.value !== null ? item.value : '',
+      installed: item.hasMovements ? item.installed : 0,
+      damaged: item.hasMovements ? item.damaged : 0,
+      returned: item.hasMovements ? item.returned : 0,
+      status: stockStatus,
+      notes: item.notes || ''
+    };
+  });
+
   const headers = [
     { key: 'name', label: 'Item Name' },
     { key: 'category', label: 'Category' },
+    { key: 'available', label: 'Available Stock' },
     { key: 'unit', label: 'Unit' },
     { key: 'minimumStock', label: 'Minimum Stock' },
     { key: 'unitCost', label: 'Unit Cost (PKR)' },
+    { key: 'value', label: 'Available Value (PKR)' },
+    { key: 'installed', label: 'Installed Quantity' },
+    { key: 'damaged', label: 'Damaged Quantity' },
+    { key: 'returned', label: 'Returned Quantity' },
+    { key: 'status', label: 'Stock Status' },
     { key: 'notes', label: 'Notes' }
   ];
-  const csv = generateCsvContent(headers, items);
+  const csv = generateCsvContent(headers, rows);
   const filename = `inventory-${new Date().toISOString().slice(0, 10)}.csv`;
   downloadCsvFile(filename, csv);
-  toast(`Exported ${items.length} inventory items to CSV.`);
+  toast(`Exported ${rows.length} inventory item${rows.length === 1 ? '' : 's'} to CSV.`);
 });
 
 $('#exportMonthlyReportCsvBtn')?.addEventListener('click', () => {

@@ -6382,6 +6382,16 @@
                 <option value="Other">Other</option>
               </select>
             </div>
+            <div class="table-filter-group">
+              <label for="inventoryStockFilter" class="sr-only">Filter by stock level</label>
+              <select id="inventoryStockFilter" class="table-filter-select" aria-label="Filter by stock level">
+                <option value="all">All stock levels</option>
+                <option value="low">⚠️ Low stock (≤ min)</option>
+                <option value="out">🚫 Out of stock (0)</option>
+                <option value="in">✅ In stock (> min)</option>
+                <option value="unrecorded">📋 Unrecorded</option>
+              </select>
+            </div>
             <div class="table-filter-group search-group">
               <label for="inventorySearchInput" class="sr-only">Search items or notes</label>
               <input id="inventorySearchInput" type="search" class="table-filter-input" placeholder="Search item name or notes..." autocomplete="off">

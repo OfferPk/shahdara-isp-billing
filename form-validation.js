@@ -12365,3 +12365,27 @@ export {
   generateRibbonSpliceCertsCsv,
   setupRibbonSpliceQaModal
 } from './qa-ribbon-splice.js';
+
+export {
+  FAST_CONNECTOR_QA_STORAGE_KEY,
+  POLISH_TYPES,
+  FAST_CONNECTOR_MODELS,
+  INDEX_GEL_CONDITIONS,
+  FAST_CONNECTOR_VERDICTS,
+  SHAH_FAST_CONNECTOR_PRESETS,
+  calculateFresnelReturnLoss,
+  calculateMechanicalSpliceLoss,
+  evaluateFastConnectorQa,
+  validateFastConnectorInput,
+  buildFastConnectorRecord,
+  getSavedFastConnectorCerts,
+  saveFastConnectorCert,
+  updateFastConnectorCertStatus,
+  clearFastConnectorCerts,
+  calculateFastConnectorMetrics,
+  renderFastConnectorQaSvg,
+  generateFastConnectorCertHtml,
+  formatFastConnectorCertWhatsApp,
+  generateFastConnectorCertsCsv,
+  setupFastConnectorQaModal
+} from './qa-fast-connector.js';

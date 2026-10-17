@@ -57,7 +57,8 @@ import {
   setupSpliceSleeveCureModal,
   setupFiberCleaveQualityModal,
   setupOtdrGhostArtifactModal,
-  setupRibbonSpliceQaModal
+  setupRibbonSpliceQaModal,
+  setupFastConnectorQaModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3477,6 +3478,7 @@ export let customerSpliceSleeveCureModalController;
 export let customerFiberCleaveQualityModalController;
 export let customerOtdrGhostArtifactModalController;
 export let customerRibbonSpliceQaModalController;
+export let customerFastConnectorQaModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3992,6 +3994,34 @@ if (typeof document !== 'undefined') {
           }
         }
         ribbonModal.showModal();
+      }
+    });
+  }
+
+  const fastModal = $('#fastConnectorQaModal');
+  const openFastConnectorQaBtn = $('#openFastConnectorQaBtn');
+  if (fastModal) {
+    customerFastConnectorQaModalController = setupFastConnectorQaModal({
+      state,
+      dialogElement: fastModal,
+      triggerButton: openFastConnectorQaBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openFastConnectorQaBtn) {
+    openFastConnectorQaBtn.addEventListener('click', () => {
+      if (fastModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#fastConnectorCustInput');
+            if (custInput) custInput.value = c.name || 'Subscriber';
+            const routeInput = $('#fastConnectorRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Drop FAT to ONT Demarcation`;
+          }
+        }
+        fastModal.showModal();
       }
     });
   }

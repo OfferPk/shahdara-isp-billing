@@ -6432,7 +6432,7 @@
     </section>
   </main>
 
-  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><section class="backup-manager" aria-label="Automatic local backup"><div class="backup-manager-heading"><strong>Automatic local backup</strong><span>Saved only on this device</span></div><label for="backupFrequencySelect">Automatic frequency<select id="backupFrequencySelect"><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label><button id="backupNowButton" class="primary-button" type="button">Backup Now</button><dl class="backup-summary"><div><dt>Last successful backup</dt><dd id="backupLastSuccess">Checking…</dd></div><div><dt>Backup size</dt><dd id="backupLastSize">Not available</dd></div><div><dt>Status</dt><dd id="backupStatus" role="status" aria-live="polite">Checking local backup storage…</dd></div></dl><p class="backup-local-note">Automatic checks run when the app opens or resumes; they cannot run while it is closed. App-private backups may be removed if app/browser data is cleared or the app is uninstalled. Download a JSON copy for safekeeping elsewhere.</p><label for="savedLocalBackupSelect">Saved local backups<select id="savedLocalBackupSelect"><option value="">Choose a saved backup</option></select></label><button id="restoreLocalBackupButton" class="secondary-button" type="button" disabled>Review &amp; Restore Backup</button></section><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review JSON backup file</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden></div></div></div></div></footer>
+  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><section class="backup-manager" aria-label="Automatic local backup"><div class="backup-manager-heading"><strong>Automatic local backup</strong><span>Saved only on this device</span></div><label for="backupFrequencySelect">Automatic frequency<select id="backupFrequencySelect"><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label><button id="backupNowButton" class="primary-button" type="button">Backup Now</button><dl class="backup-summary"><div><dt>Last successful backup</dt><dd id="backupLastSuccess">Checking…</dd></div><div><dt>Backup size</dt><dd id="backupLastSize">Not available</dd></div><div><dt>Status</dt><dd id="backupStatus" role="status" aria-live="polite">Checking local backup storage…</dd></div></dl><p class="backup-local-note">Automatic checks run when the app opens or resumes; they cannot run while it is closed. App-private backups may be removed if app/browser data is cleared or the app is uninstalled. Download a JSON copy for safekeeping elsewhere.</p><label for="savedLocalBackupSelect">Saved local backups<select id="savedLocalBackupSelect"><option value="">Choose a saved backup</option></select></label><button id="restoreLocalBackupButton" class="secondary-button" type="button" disabled>Review &amp; Restore Backup</button></section><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review JSON backup file</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden><button id="downloadCustomerCsvTemplateBtn" class="secondary-button" type="button" title="Download sample CSV customer template">Download CSV Template</button><button id="importCustomerCsvBtn" class="secondary-button" type="button" title="Import customers from CSV file">Import Customers (CSV)</button><input id="customerCsvFileInput" type="file" accept=".csv,text/csv" hidden><button id="verifyStorageIntegrityBtn" class="secondary-button" type="button" title="Audit all local storage keys and offline database resilience">Storage Health Audit</button></div></div></div></div></footer>
 
   <dialog id="jsonBackupDialog" class="modal backup-modal">
     <section>
@@ -6441,6 +6441,49 @@
       <p class="backup-merge-rule">This is a merge-only restore. Existing nonblank profiles and conflicting bill/payment values are kept; unique saved receipts, bills, complaints and profiles can be added. No record is written until you apply this preview.</p>
       <ul id="jsonBackupConflictList" class="backup-conflict-list" aria-label="Backup conflicts"></ul>
       <div class="modal-actions"><button id="cancelJsonBackupButton" class="secondary-button" type="button">Cancel</button><button id="applyJsonBackupButton" class="primary-button" type="button" disabled>Apply safe merge</button></div>
+    </section>
+  </dialog>
+
+  <dialog id="csvImportDialog" class="modal backup-modal">
+    <section>
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">CUSTOMER SPREADSHEET IMPORT</p>
+          <h2>Review CSV Customer Import</h2>
+        </div>
+        <button class="close-button" type="button" data-close-csv-dialog aria-label="Close">×</button>
+      </div>
+      <p id="csvImportPreviewSummary" class="backup-preview-summary" role="status" aria-live="polite"></p>
+      <p class="backup-merge-rule">This is a non-destructive, merge-only import. New customers are safely added with next available customer numbers. For matching existing customers, only missing/blank fields are filled. Existing billing history, bills, and payments are never overwritten.</p>
+      <div class="csv-import-options">
+        <label class="checkbox-label" for="csvEnrichExistingCheckbox">
+          <input type="checkbox" id="csvEnrichExistingCheckbox" checked>
+          <span>Fill missing fields (phone, CNIC, address, etc.) for existing matching customers</span>
+        </label>
+      </div>
+      <div class="table-scroll csv-preview-table-wrap">
+        <table class="csv-preview-table">
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Status</th>
+              <th scope="col">Name</th>
+              <th scope="col">Phone</th>
+              <th scope="col">CNIC</th>
+              <th scope="col">Area / Mohalla</th>
+              <th scope="col">Package</th>
+              <th scope="col">Monthly Rate</th>
+              <th scope="col">Details / Notes</th>
+            </tr>
+          </thead>
+          <tbody id="csvImportPreviewRows"></tbody>
+        </table>
+      </div>
+      <ul id="csvImportConflictList" class="backup-conflict-list" aria-label="CSV import conflicts and errors"></ul>
+      <div class="modal-actions">
+        <button id="cancelCsvImportButton" class="secondary-button" type="button">Cancel</button>
+        <button id="applyCsvImportButton" class="primary-button" type="button" disabled>Apply Safe Import</button>
+      </div>
     </section>
   </dialog>
 

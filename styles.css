@@ -9286,5 +9286,107 @@ html, body {
   }
 }
 
+/* CSV Customer Import & Backup Hardening */
+.csv-import-options {
+  margin: 10px 0 12px;
+  padding: 8px 12px;
+  background: var(--bg-card, #f7faf8);
+  border: 1px solid var(--line, #dcebe3);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.csv-preview-table-wrap {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line, #dcebe3);
+  border-radius: 8px;
+  margin: 10px 0 14px;
+}
+.csv-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.csv-preview-table th {
+  position: sticky;
+  top: 0;
+  background: #f1f7f4;
+  color: #1e3a2f;
+  font-weight: 700;
+  padding: 8px 6px;
+  text-align: left;
+  border-bottom: 2px solid var(--line, #dcebe3);
+  white-space: nowrap;
+  z-index: 2;
+}
+.csv-preview-table td {
+  padding: 6px;
+  border-bottom: 1px solid #eef4f1;
+  vertical-align: middle;
+}
+.csv-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.csv-badge-add {
+  background: #e6f4ea;
+  color: #137333;
+  border: 1px solid #b7e1cd;
+}
+.csv-badge-enrich {
+  background: #e8f0fe;
+  color: #1a73e8;
+  border: 1px solid #aecbfa;
+}
+.csv-badge-conflict {
+  background: #fef7e0;
+  color: #b06000;
+  border: 1px solid #fdd663;
+}
+.csv-badge-error {
+  background: #fce8e6;
+  color: #c5221f;
+  border: 1px solid #f6aea9;
+}
 
-
+[data-theme="dark"] .csv-import-options {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .csv-preview-table-wrap {
+  border-color: #334155;
+}
+[data-theme="dark"] .csv-preview-table th {
+  background: #1e293b;
+  color: #f1f5f9;
+  border-color: #334155;
+}
+[data-theme="dark"] .csv-preview-table td {
+  border-color: #334155;
+  color: #cbd5e1;
+}
+[data-theme="dark"] .csv-badge-add {
+  background: rgba(19, 115, 51, 0.25);
+  color: #81c995;
+  border-color: #137333;
+}
+[data-theme="dark"] .csv-badge-enrich {
+  background: rgba(26, 115, 232, 0.25);
+  color: #8ab4f8;
+  border-color: #1a73e8;
+}
+[data-theme="dark"] .csv-badge-conflict {
+  background: rgba(242, 153, 0, 0.25);
+  color: #fdd663;
+  border-color: #f29900;
+}
+[data-theme="dark"] .csv-badge-error {
+  background: rgba(217, 48, 37, 0.25);
+  color: #f28b82;
+  border-color: #ea4335;
+}

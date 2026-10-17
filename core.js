@@ -1146,7 +1146,7 @@ function validateBackupState(source) {
     const normalizedName = customer.name.trim().toLocaleLowerCase();
     if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
     customerNames.add(normalizedName);
-    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
       if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
     }
     if (customer.serviceStatus !== undefined && !['active','offline','not-set'].includes(customer.serviceStatus)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid manual service status.`);
@@ -1228,7 +1228,7 @@ function validateBackupState(source) {
       id:customer.id,
       name:customer.name.trim(),
       addedOn:checkOptionalDate(customer.addedOn ?? null, 'Customer added date'),
-      mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
+      mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', cnic:customer.cnic ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
       monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
@@ -1257,7 +1257,11 @@ export function previewJsonBackupMerge(existingState, backupText) {
   let document;
   try { document = JSON.parse(backupText); }
   catch { throw new Error('Backup is not valid JSON. No local data has changed.'); }
-  if (!document || document.format !== BACKUP_FORMAT || document.formatVersion !== 1) throw new Error('This is not a supported Shahdara ISP Billing JSON backup. No local data has changed.');
+  if (!document || typeof document !== 'object') throw new Error('Backup is not valid JSON. No local data has changed.');
+  if (document.format !== BACKUP_FORMAT) throw new Error('This is not a supported Shahdara ISP Billing JSON backup. No local data has changed.');
+  const formatVer = Number(document.formatVersion);
+  if (formatVer > 1) throw new Error('Backup format version is newer than supported by this app. No local data has changed.');
+  if (!formatVer || formatVer < 1) document.formatVersion = 1;
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
@@ -1266,7 +1270,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
-    if (sameJson(oldValue, newValue) || (key === 'addedOn' && !nonempty(oldValue) && !nonempty(newValue))) return;
+    if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
     if (!nonempty(oldValue) && nonempty(newValue)) { target[key] = deepCopy(newValue); counts.filledProfileFields++; counts.changes++; return; }
     if (nonempty(oldValue) && !nonempty(newValue)) return;
@@ -1291,7 +1295,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','addedOn','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','addedOn','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {

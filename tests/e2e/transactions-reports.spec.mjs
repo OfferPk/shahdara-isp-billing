@@ -96,6 +96,7 @@ async function navigateToView(page, viewName) {
   const drawerToggle = page.locator('#navDrawerToggle');
   if (await drawerToggle.isVisible()) {
     await drawerToggle.click();
+    await expect(page.locator('#navDrawer')).toBeVisible();
     const navBtn = page.locator(`#navDrawer [data-nav-target="${viewName}"]`);
     await expect(navBtn).toBeVisible();
     await navBtn.click();

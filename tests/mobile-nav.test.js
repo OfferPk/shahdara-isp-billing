@@ -11122,4 +11122,250 @@ test('index.html, nav.css, and app.js correctly integrate Mobile Stabilized Ligh
   assert.ok(app.includes('mobileSlsToneModalController'));
 });
 
+// ==========================================================================
+// Tests for Optical Fiber Talk Set (FOTS) Assistant (agent2)
+// ==========================================================================
+
+test('calculateFiberTalksetMetrics calculates link loss and pristine voice MOS for direct feeder', async () => {
+  const { calculateFiberTalksetMetrics } = await import('../nav.js');
+
+  const result = calculateFiberTalksetMetrics({
+    fiberLengthKm: 12.5,
+    spliceCount: 4,
+    connectorCount: 2,
+    splitterType: 'NONE',
+    headsetVolumePercent: 75
+  });
+
+  assert.ok(result);
+  assert.equal(result.fiberLengthKm, 12.5);
+  assert.equal(result.spliceCount, 4);
+  assert.equal(result.isLinkConnected, true);
+  assert.equal(result.verdict, 'PASS');
+  assert.ok(result.totalLinkLossDb < 10.0);
+  assert.ok(result.opticalMarginDb > 35.0);
+  assert.equal(result.voiceQualityScore, 4.5);
+  assert.ok(result.voiceQualityRating.includes('HD Studio'));
+});
+
+test('calculateFiberTalksetMetrics detects optical link drop when loss exceeds 45dB budget', async () => {
+  const { calculateFiberTalksetMetrics } = await import('../nav.js');
+
+  const dropResult = calculateFiberTalksetMetrics({
+    fiberLengthKm: 110.0, // 38.5 dB fiber loss
+    spliceCount: 20, // 1.0 dB splice loss
+    connectorCount: 4, // 1.0 dB connector loss
+    splitterType: 'SPLIT_1_8' // 10.6 dB splitter loss -> total > 50 dB
+  });
+
+  assert.ok(dropResult);
+  assert.equal(dropResult.isLinkConnected, false);
+  assert.equal(dropResult.verdict, 'FAIL');
+  assert.equal(dropResult.voiceQualityScore, 1.0);
+  assert.ok(dropResult.voiceQualityRating.includes('LINK DROP'));
+  assert.ok(dropResult.opticalMarginDb < 0);
+});
+
+test('renderFiberTalksetSvg returns valid SVG with Unit A, Unit B, and full-duplex light rays', async () => {
+  const { calculateFiberTalksetMetrics, renderFiberTalksetSvg } = await import('../nav.js');
+
+  const dynamics = calculateFiberTalksetMetrics({
+    fiberLengthKm: 12.5,
+    spliceCount: 4
+  });
+
+  const svg = renderFiberTalksetSvg(dynamics, {
+    fiberLengthKm: 12.5
+  });
+
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('class="talkset-svg"'));
+  assert.ok(svg.includes('MASTER UNIT A'));
+  assert.ok(svg.includes('SLAVE UNIT B'));
+  assert.ok(svg.includes('1310 nm Voice Carrier'));
+  assert.ok(svg.includes('1550 nm Voice Carrier'));
+  assert.ok(svg.includes('TOTAL FIBER LOSS'));
+  assert.ok(svg.includes('OPTICAL LINK MARGIN'));
+});
+
+test('formatFiberTalksetWhatsApp and generateFiberTalksetCsv output bilingual text and CSV', async () => {
+  const { calculateFiberTalksetMetrics, formatFiberTalksetWhatsApp, generateFiberTalksetCsv } = await import('../nav.js');
+
+  const dynamics = calculateFiberTalksetMetrics({
+    fiberLengthKm: 12.5,
+    spliceCount: 4
+  });
+
+  const waMsg = formatFiberTalksetWhatsApp(dynamics, {
+    technicianA: 'Arshad Ali',
+    technicianB: 'Sajjad Malik',
+    area: 'Shahdara Town',
+    notes: 'Coordination clean'
+  });
+
+  assert.ok(waMsg.includes('SHAHDARA ISP - FIBER OPTIC TALK SET'));
+  assert.ok(waMsg.includes('Arshad Ali'));
+  assert.ok(waMsg.includes('Sajjad Malik'));
+  assert.ok(waMsg.includes('ITU-T G.652'));
+
+  const csv = generateFiberTalksetCsv([
+    {
+      id: 'fots-301',
+      timestamp: '2026-10-17T07:40:00Z',
+      technicianA: 'Arshad Ali',
+      technicianB: 'Sajjad Malik',
+      area: 'Shahdara Town',
+      fiberLengthKm: 12.5,
+      spliceCount: 4,
+      connectorCount: 2,
+      splitterId: 'NONE',
+      totalLinkLossDb: 5.08,
+      opticalMarginDb: 39.92,
+      receivedPowerDbm: -10.08,
+      voiceQualityScore: 4.5,
+      verdict: 'PASS',
+      notes: 'Clear line'
+    }
+  ]);
+
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Audit_ID,Timestamp,Technician_CO,Technician_Field,Area'));
+  assert.ok(csv.includes('fots-301'));
+  assert.ok(csv.includes('Arshad Ali'));
+});
+
+test('setupMobileFiberTalksetModal initializes, handles UI events and manages audit logs', async () => {
+  const { setupMobileFiberTalksetModal } = await import('../nav.js');
+
+  let modalShown = false;
+  let modalClosed = false;
+
+  function createMockElem(tag = 'div') {
+    const listeners = {};
+    return {
+      tagName: tag.toUpperCase(),
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      addEventListener: (evt, handler) => {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(handler);
+      },
+      trigger: (evt) => {
+        (listeners[evt] || []).forEach(fn => fn({ preventDefault: () => {} }));
+      },
+      querySelectorAll: () => [],
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    };
+  }
+
+  const elements = {
+    mobileFiberTalksetModal: {
+      showModal: () => { modalShown = true; },
+      close: () => { modalClosed = true; },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    },
+    mobileFiberTalksetModalCloseBtn: createMockElem('button'),
+    mobileMoreFiberTalksetBtn: createMockElem('button'),
+    talksetPresetSelect: createMockElem('select'),
+    talksetAreaSelect: createMockElem('select'),
+    talksetTechAInput: createMockElem('input'),
+    talksetTechBInput: createMockElem('input'),
+    talksetDistSlider: createMockElem('input'),
+    talksetDistLabel: createMockElem('span'),
+    talksetSpliceSlider: createMockElem('input'),
+    talksetSpliceLabel: createMockElem('span'),
+    talksetConnSlider: createMockElem('input'),
+    talksetConnLabel: createMockElem('span'),
+    talksetSplitterSelect: createMockElem('select'),
+    talksetVolumeSlider: createMockElem('input'),
+    talksetVolumeLabel: createMockElem('span'),
+    talksetNotesInput: createMockElem('input'),
+    talksetResetBtn: createMockElem('button'),
+    talksetSaveBtn: createMockElem('button'),
+    talksetWhatsAppBtn: createMockElem('button'),
+    talksetExportCsvBtn: createMockElem('button'),
+    talksetDiagramContainer: createMockElem('div'),
+    talksetHistoryTbody: createMockElem('tbody'),
+    talksetHistorySearch: createMockElem('input'),
+    talksetHistoryVerdictFilter: createMockElem('select')
+  };
+
+  const mockDoc = {
+    getElementById: (id) => elements[id] || null
+  };
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: (k) => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v)),
+    removeItem: (k) => mockStore.delete(k)
+  };
+
+  let lastToast = null;
+  const controller = setupMobileFiberTalksetModal({}, {
+    document: mockDoc,
+    storage: mockStorage,
+    onToast: (msg) => { lastToast = msg; }
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.update, 'function');
+  assert.equal(typeof controller.getMetrics, 'function');
+
+  controller.open();
+  assert.equal(modalShown, true);
+
+  controller.close();
+  assert.equal(modalClosed, true);
+
+  elements.talksetSaveBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('audit saved'));
+  const audits = controller.getSavedAudits();
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].fiberLengthKm, 12.5);
+
+  elements.talksetResetBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('baseline'));
+});
+
+test('index.html, nav.css, and app.js correctly integrate Mobile Fiber Optic Talk Set Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreFiberTalksetBtn"'));
+  assert.ok(html.includes('id="mobileFiberTalksetModal"'));
+  assert.ok(html.includes('id="mobileFiberTalksetModalCloseBtn"'));
+  assert.ok(html.includes('id="talksetPresetSelect"'));
+  assert.ok(html.includes('id="talksetAreaSelect"'));
+  assert.ok(html.includes('id="talksetTechAInput"'));
+  assert.ok(html.includes('id="talksetTechBInput"'));
+  assert.ok(html.includes('id="talksetDistSlider"'));
+  assert.ok(html.includes('id="talksetSpliceSlider"'));
+  assert.ok(html.includes('id="talksetConnSlider"'));
+  assert.ok(html.includes('id="talksetSplitterSelect"'));
+  assert.ok(html.includes('id="talksetVolumeSlider"'));
+  assert.ok(html.includes('id="talksetNotesInput"'));
+  assert.ok(html.includes('id="talksetDiagramContainer"'));
+  assert.ok(html.includes('id="talksetSaveBtn"'));
+  assert.ok(html.includes('id="talksetWhatsAppBtn"'));
+  assert.ok(html.includes('id="talksetExportCsvBtn"'));
+  assert.ok(html.includes('id="talksetResetBtn"'));
+  assert.ok(html.includes('id="talksetHistoryTbody"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.talkset-card'));
+  assert.ok(css.includes('.talkset-svg-wrap'));
+  assert.ok(css.includes('.mobile-talkset-modal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileFiberTalksetModal'));
+  assert.ok(app.includes('mobileFiberTalksetModalController'));
+});
+
 

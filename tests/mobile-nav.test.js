@@ -9747,3 +9747,238 @@ test('index.html and nav.css contain mobile fiber identifier markup and styles',
   assert.ok(css.includes('.identifier-metric-card'));
 });
 
+test('nav-mpo-polarity constants and specifications adhere to TIA-568.3-D standards', async () => {
+  const {
+    MPO_POLARITY_STORAGE_KEY,
+    TIA598_COLOR_CODES,
+    POLARITY_METHODS,
+    CONNECTOR_GENDERS,
+    MPO_PRESETS
+  } = await import('../nav-mpo-polarity.js');
+
+  assert.equal(MPO_POLARITY_STORAGE_KEY, 'shahdara_mpo_polarity_audits_v1');
+
+  // Color Codes
+  assert.equal(TIA598_COLOR_CODES.length, 12);
+  assert.equal(TIA598_COLOR_CODES[0].name, 'Blue');
+  assert.equal(TIA598_COLOR_CODES[1].name, 'Orange');
+  assert.equal(TIA598_COLOR_CODES[11].name, 'Aqua');
+
+  // Polarity Methods
+  assert.ok(POLARITY_METHODS.METHOD_A);
+  assert.equal(POLARITY_METHODS.METHOD_A.keyOrientation, 'Key-Up to Key-Down');
+  assert.ok(POLARITY_METHODS.METHOD_B);
+  assert.equal(POLARITY_METHODS.METHOD_B.keyOrientation, 'Key-Up to Key-Up');
+  assert.ok(POLARITY_METHODS.METHOD_C);
+  assert.equal(POLARITY_METHODS.METHOD_C.keyOrientation, 'Key-Up to Key-Down');
+
+  // Genders
+  assert.ok(CONNECTOR_GENDERS.MALE_PINNED);
+  assert.equal(CONNECTOR_GENDERS.MALE_PINNED.hasPins, true);
+  assert.ok(CONNECTOR_GENDERS.FEMALE_UNPINNED);
+  assert.equal(CONNECTOR_GENDERS.FEMALE_UNPINNED.hasPins, false);
+
+  // Presets
+  assert.ok(MPO_PRESETS.PARALLEL_40G_SR4);
+  assert.ok(MPO_PRESETS.DUPLEX_BREAKOUT_CASSETTE);
+  assert.ok(MPO_PRESETS.PAIR_FLIPPED_TRUNK);
+  assert.ok(MPO_PRESETS.HIGH_DENSITY_24F);
+});
+
+test('calculateMpoChannelMapping correctly maps Method A, Method B, and Method C with gender safety', async () => {
+  const { calculateMpoChannelMapping } = await import('../nav-mpo-polarity.js');
+
+  // Method B (Inverted): Fiber 1 -> 12, 2 -> 11, 12 -> 1
+  const bMap = calculateMpoChannelMapping({
+    methodId: 'METHOD_B',
+    fiberCount: 12,
+    genderA: 'MALE_PINNED',
+    genderB: 'FEMALE_UNPINNED',
+    directMating: true
+  });
+  assert.equal(bMap.channels.length, 12);
+  assert.equal(bMap.channels[0].endAPort, 1);
+  assert.equal(bMap.channels[0].endBPort, 12);
+  assert.equal(bMap.channels[0].sr4Role, 'Tx 1');
+  assert.equal(bMap.channels[11].endAPort, 12);
+  assert.equal(bMap.channels[11].endBPort, 1);
+  assert.equal(bMap.channels[11].sr4Role, 'Rx 1');
+  assert.equal(bMap.matingSafety, 'SAFE');
+
+  // Method A (Straight-Through): Fiber 1 -> 1, 12 -> 12
+  const aMap = calculateMpoChannelMapping({
+    methodId: 'METHOD_A',
+    fiberCount: 12
+  });
+  assert.equal(aMap.channels[0].endAPort, 1);
+  assert.equal(aMap.channels[0].endBPort, 1);
+  assert.equal(aMap.channels[11].endAPort, 12);
+  assert.equal(aMap.channels[11].endBPort, 12);
+
+  // Method C (Pair-Flipped): 1->2, 2->1, 3->4, 4->3
+  const cMap = calculateMpoChannelMapping({
+    methodId: 'METHOD_C',
+    fiberCount: 12
+  });
+  assert.equal(cMap.channels[0].endAPort, 1);
+  assert.equal(cMap.channels[0].endBPort, 2);
+  assert.equal(cMap.channels[1].endAPort, 2);
+  assert.equal(cMap.channels[1].endBPort, 1);
+  assert.equal(cMap.channels[2].endAPort, 3);
+  assert.equal(cMap.channels[2].endBPort, 4);
+
+  // 24-Fiber Ribbon Count
+  const map24 = calculateMpoChannelMapping({
+    methodId: 'METHOD_B',
+    fiberCount: 24
+  });
+  assert.equal(map24.channels.length, 24);
+  assert.equal(map24.channels[0].endBPort, 24);
+
+  // Gender Mating Hazard: Male + Male Direct Mating
+  const pinClash = calculateMpoChannelMapping({
+    genderA: 'MALE_PINNED',
+    genderB: 'MALE_PINNED',
+    directMating: true
+  });
+  assert.equal(pinClash.matingSafety, 'DANGER_PIN_COLLISION');
+  assert.ok(pinClash.advisoryUrdu.includes('ٹوٹ جائیں گی'));
+
+  // Gender Mating Warning: Female + Female Direct Mating
+  const unpinned = calculateMpoChannelMapping({
+    genderA: 'FEMALE_UNPINNED',
+    genderB: 'FEMALE_UNPINNED',
+    directMating: true
+  });
+  assert.equal(unpinned.matingSafety, 'WARNING_UNPINNED');
+});
+
+test('renderMpoPolaritySvg produces valid vector visualization of ferrule and ribbon traces', async () => {
+  const { calculateMpoChannelMapping, renderMpoPolaritySvg } = await import('../nav-mpo-polarity.js');
+
+  const calc = calculateMpoChannelMapping({
+    methodId: 'METHOD_B',
+    fiberCount: 12,
+    genderA: 'FEMALE_UNPINNED',
+    genderB: 'MALE_PINNED',
+    directMating: true
+  });
+
+  const svg = renderMpoPolaritySvg({
+    mapping: calc.channels,
+    methodId: 'METHOD_B',
+    fiberCount: 12,
+    genderA: 'FEMALE_UNPINNED',
+    genderB: 'MALE_PINNED',
+    matingSafety: calc.matingSafety,
+    trunkName: 'Test Trunk 40G'
+  });
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('viewBox="0 0 760 320"'));
+  assert.ok(svg.includes('CONNECTOR END A'));
+  assert.ok(svg.includes('CONNECTOR END B'));
+  assert.ok(svg.includes('KEY-UP'));
+  assert.ok(svg.includes('PINNING: COMPLIANT'));
+  assert.ok(svg.includes('Test Trunk 40G'));
+});
+
+test('generateMpoPolarityReport and generateMpoPolarityWhatsAppDispatch format accurate field records', async () => {
+  const { generateMpoPolarityReport, generateMpoPolarityWhatsAppDispatch } = await import('../nav-mpo-polarity.js');
+
+  const sampleData = {
+    trunkName: 'Core-POP-Rack-A04 MPO-12',
+    technician: 'Usman Ghani',
+    location: 'POP Server Room',
+    methodName: 'Method B (Inverted)',
+    fiberCount: 12,
+    genderAName: 'Female (Unpinned)',
+    genderBName: 'Male (Pinned)',
+    directMating: true,
+    matingSafety: 'SAFE',
+    advisoryUrdu: 'تسلی بخش: پننگ اور پولرٹی معیاری ہے۔',
+    channels: [
+      { endAPort: 1, endBPort: 12, colorName: 'Blue', sr4Role: 'Tx 1' }
+    ]
+  };
+
+  const report = generateMpoPolarityReport(sampleData);
+  assert.ok(report.includes('SHAHDARA ISP - MPO/MTP RIBBON TRUNK POLARITY & PINNING AUDIT'));
+  assert.ok(report.includes('Usman Ghani'));
+  assert.ok(report.includes('Method B'));
+  assert.ok(report.includes('Port  1 [Blue  ] ➔ Port 12 (Tx 1)'));
+
+  const wa = generateMpoPolarityWhatsAppDispatch(sampleData);
+  assert.ok(wa.includes('MPO TRUNK POLARITY AUDIT'));
+  assert.ok(wa.includes('Usman Ghani'));
+  assert.ok(wa.includes('PASSED'));
+});
+
+test('MPO polarity audit persistence and CSV export operate reliably', async () => {
+  const {
+    loadMpoPolarityAuditLog,
+    saveMpoPolarityAuditLog,
+    clearMpoPolarityAuditLog,
+    exportMpoPolarityAuditsCsv
+  } = await import('../nav-mpo-polarity.js');
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: k => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v)),
+    removeItem: k => mockStore.delete(k)
+  };
+
+  assert.deepEqual(loadMpoPolarityAuditLog(mockStorage), []);
+
+  const list = saveMpoPolarityAuditLog({
+    trunkName: 'Backbone-Ribbon-01',
+    methodName: 'Method B',
+    fiberCount: 12,
+    genderAName: 'Female',
+    genderBName: 'Male',
+    matingSafety: 'SAFE'
+  }, mockStorage);
+
+  assert.equal(list.length, 1);
+  assert.ok(list[0].id.startsWith('MPO_'));
+  assert.equal(list[0].trunkName, 'Backbone-Ribbon-01');
+
+  const csv = exportMpoPolarityAuditsCsv(list);
+  assert.ok(csv.includes('Record ID,Timestamp,Trunk Name'));
+  assert.ok(csv.includes('"Backbone-Ribbon-01"'));
+  assert.ok(csv.includes('Method B'));
+
+  clearMpoPolarityAuditLog(mockStorage);
+  assert.deepEqual(loadMpoPolarityAuditLog(mockStorage), []);
+});
+
+test('index.html and nav.css contain mobile MPO polarity markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreMpoBtn"'));
+  assert.ok(html.includes('id="mobileMpoModal"'));
+  assert.ok(html.includes('id="mpoPresetSelect"'));
+  assert.ok(html.includes('id="mpoMethodSelect"'));
+  assert.ok(html.includes('id="mpoCountSelect"'));
+  assert.ok(html.includes('id="mpoGenderASelect"'));
+  assert.ok(html.includes('id="mpoGenderBSelect"'));
+  assert.ok(html.includes('id="mpoDirectMatingCheck"'));
+  assert.ok(html.includes('id="mpoSvgContainer"'));
+  assert.ok(html.includes('id="mpoChannelsTbody"'));
+  assert.ok(html.includes('id="mpoSaveAuditBtn"'));
+  assert.ok(html.includes('id="mpoWhatsappBtn"'));
+  assert.ok(html.includes('id="mpoExportCsvBtn"'));
+  assert.ok(html.includes('id="mpoHistoryTbody"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.mobile-mpo-modal'));
+  assert.ok(css.includes('.mpo-card'));
+  assert.ok(css.includes('.mpo-svg-wrap'));
+  assert.ok(css.includes('.mpo-metrics-grid'));
+  assert.ok(css.includes('.mpo-metric-card'));
+});
+
+

@@ -4,7 +4,7 @@ import {
   deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
-  summarizeCustomerReceipts, summarizeCustomerTenure
+  summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill
 } from './core.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
@@ -71,7 +71,10 @@ import {
   setupBillingCorrectnessModal,
   calculatePlanMigrationProration,
   buildAdjustmentVoucherData,
-  saveAdjustmentVoucher
+  saveAdjustmentVoucher,
+  setupLateFeeModal,
+  getLateFeeConfig,
+  isBillOverdue
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
@@ -628,6 +631,9 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false }
     ['Package type', receipt.packageType],
     ['Data limit', receipt.dataLimit],
     ['Nominal package price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
+    ...(receipt.lateFee > 0 ? [['Late fee surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
+    ...(receipt.lateFee > 0 ? [['Total gross payable', formatAmount(receipt.totalBilled)]] : []),
+    ...(receipt.discount > 0 ? [['Concession / discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
     ['Package date', receipt.packageDate],
     ['Amount received', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount)],
     ['Payment method', receipt.paymentMethod],
@@ -682,19 +688,23 @@ function renderHistory(customer) {
     const payments = (bill?.payments ?? []).map(payment => {
       const allocation = paymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
       const receiptData = buildPaymentReceipt(customer, bill, payment);
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 80mm thermal slip for customer ${customer.customerNumber}">80mm slip</button><button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
+      const discountMarkup = (payment.discount && Number(payment.discount) > 0) ? ` <span class="discount-badge-applied">-${formatAmount(payment.discount)} discount${payment.discountReason ? ` (${escapeHtml(payment.discountReason)})` : ''}</span>` : '';
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt${discountMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 80mm thermal slip for customer ${customer.customerNumber}">80mm slip</button><button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
     const hasPartial = statusValue === 'partial';
-    const summaryMarkup = !bill ? '<p class="empty-month">No billing details recorded for this month.</p>' : `<div class="month-summary"><span>Status: <strong>${status.label}</strong></span><span>Optional due date (PKT): <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : 'Not set · no due-date rule or penalty applied'}</strong></span><span>Actual receipts (PKR cash): <strong>${formatAmount(received)}</strong></span><span>Carry-in credit (PKR, not new cash): <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span>Bill amount (PKR): <strong>${escapeHtml(displayAmount)}</strong></span><span>Balance due (PKR): <strong>${escapeHtml(balanceDue)}</strong></span>${monthAllocation?.excessGeneratedCents ? `<span>Credit from this month’s receipts (PKR): <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span>Credit applied to later bills (PKR): <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span>Credit waiting for the next generated bill (PKR): <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? '<span class="month-status status-pending">Partial payment / credit</span>' : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
+    const lateFeeMarkup = bill?.lateFee ? `<span>Late fee surcharge (PKR): <strong class="late-fee-badge-applied">+${formatAmount(bill.lateFee)}</strong> <small>(${escapeHtml(bill.lateFeeReason || 'Owner surcharge')})</small> <button type="button" class="waive-late-fee-btn" data-waive-late-fee data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Waive late fee">Waive</button></span>` : '';
+    const overdueEligible = bill && bill.dueDate && isBillOverdue(bill).isOverdue && (monthAllocation?.balanceDueCents ?? 0) > 0 && !bill.lateFee;
+    const applyFeeBtnMarkup = overdueEligible ? `<span><button type="button" class="apply-late-fee-btn" data-apply-late-fee data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Apply owner configured late fee">Apply Late Fee (+PKR ${getLateFeeConfig().defaultAmount})</button></span>` : '';
+    const summaryMarkup = !bill ? '<p class="empty-month">No billing details recorded for this month.</p>' : `<div class="month-summary"><span>Status: <strong>${status.label}</strong></span><span>Optional due date (PKT): <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : 'Not set · no due-date rule or penalty applied'}</strong></span><span>Actual receipts (PKR cash): <strong>${formatAmount(received)}</strong></span><span>Carry-in credit (PKR, not new cash): <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span>Bill amount (PKR): <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}<span>Balance due (PKR): <strong>${escapeHtml(balanceDue)}</strong></span>${monthAllocation?.excessGeneratedCents ? `<span>Credit from this month’s receipts (PKR): <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span>Credit applied to later bills (PKR): <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span>Credit waiting for the next generated bill (PKR): <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? '<span class="month-status status-pending">Partial payment / credit</span>' : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? 'Optional' : 'Required to create a bill';
     const amountPlaceholder = bill ? 'Leave blank only if not known' : 'Enter confirmed amount in PKR';
     const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
     const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid">${packageSelector}<label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid">${packageSelector}<label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="discount-${month}">Discount / Concession (PKR) <span class="optional-label">Optional · waives balance</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0 (No discount)"><label class="field-label full" for="discount-reason-${month}">Discount reason <span class="optional-label">Optional</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="e.g. Loyalty concession, Outage credit"><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}"><summary><span class="month-label">${escapeHtml(monthName(month))}</span><span class="history-count">${bill ? `${bill.payments?.length ?? 0} payment${bill.payments?.length === 1 ? '' : 's'}` : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="Payments for ${escapeHtml(monthName(month))}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
@@ -710,6 +720,28 @@ function renderHistory(customer) {
   historyContainer.querySelectorAll('[data-delete-payment]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.deletePayment)));
   historyContainer.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   historyContainer.querySelectorAll('[data-print-thermal-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { isThermal: true })));
+  historyContainer.querySelectorAll('[data-apply-late-fee]').forEach(button => button.addEventListener('click', () => {
+    const custId = button.dataset.customerId;
+    const month = button.dataset.month;
+    const config = getLateFeeConfig();
+    const promptAmount = window.prompt(`Enter late fee surcharge in PKR for bill ${month}:`, String(config.defaultAmount));
+    if (promptAmount === null) return;
+    const num = Number(promptAmount);
+    if (!Number.isFinite(num) || num <= 0) { toast('Enter a valid positive number for late fee.'); return; }
+    try {
+      state = applyLateFeeToBill(state, custId, month, { amount: num, reason: config.reason });
+      save(); renderDetail(); toast(`Late fee of PKR ${num} applied to bill ${month}.`);
+    } catch (err) { toast(err.message); }
+  }));
+  historyContainer.querySelectorAll('[data-waive-late-fee]').forEach(button => button.addEventListener('click', () => {
+    const custId = button.dataset.customerId;
+    const month = button.dataset.month;
+    if (!window.confirm(`Waive / remove the late fee on bill ${month}?`)) return;
+    try {
+      state = waiveLateFeeFromBill(state, custId, month, { reason: 'Waived by owner' });
+      save(); renderDetail(); toast(`Late fee waived on bill ${month}.`);
+    } catch (err) { toast(err.message); }
+  }));
   bindReceiptPhoneActions(historyContainer);
 }
 let transactionMethodFilter = 'all';
@@ -1215,12 +1247,17 @@ function onBillSubmit(event) {
 function onPaymentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
-  try { state = addPayment(state, selectedCustomerId, form.dataset.month, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy') }); save(); renderDetail(); toast('Payment recorded on this device.'); }
+  try {
+    state = addPayment(state, selectedCustomerId, form.dataset.month, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy'), discount:data.get('discount') || 0, discountReason:data.get('discountReason') || '' });
+    save();
+    renderDetail();
+    toast('Payment recorded on this device.');
+  }
   catch (error) { toast(error.message); }
 }
 function correctionForm(payment, customerId, month, origin) {
   const options = PAYMENT_METHODS.map(method => `<option value="${method}" ${method === payment.method ? 'selected' : ''}>${method}</option>`).join('');
-  return `<form class="payment-form editing" data-kind="correct" data-origin="${origin}" data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}"><div class="form-grid"><label class="field-label full" for="edit-date-${escapeHtml(payment.id)}">Payment date</label><input id="edit-date-${escapeHtml(payment.id)}" class="full" name="date" type="date" max="${localDate()}" value="${escapeHtml(payment.date)}" required><label class="field-label full" for="edit-amount-${escapeHtml(payment.id)}">Amount received (PKR)</label><input id="edit-amount-${escapeHtml(payment.id)}" class="full" name="amount" type="number" min="0.01" step="0.01" value="${escapeHtml(payment.amount)}" required><label class="field-label full" for="edit-method-${escapeHtml(payment.id)}">Payment method</label><select id="edit-method-${escapeHtml(payment.id)}" class="full" name="method">${options}</select>${paidByFieldMarkup(`edit-paid-by-${payment.id}`, payment.paidBy ?? '')}<button class="primary-button" type="submit">Save correction</button><button class="secondary-button full" type="button" data-cancel-correction>Cancel</button></div></form>`;
+  return `<form class="payment-form editing" data-kind="correct" data-origin="${origin}" data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}"><div class="form-grid"><label class="field-label full" for="edit-date-${escapeHtml(payment.id)}">Payment date</label><input id="edit-date-${escapeHtml(payment.id)}" class="full" name="date" type="date" max="${localDate()}" value="${escapeHtml(payment.date)}" required><label class="field-label full" for="edit-amount-${escapeHtml(payment.id)}">Amount received (PKR)</label><input id="edit-amount-${escapeHtml(payment.id)}" class="full" name="amount" type="number" min="0.01" step="0.01" value="${escapeHtml(payment.amount)}" required><label class="field-label full" for="edit-discount-${escapeHtml(payment.id)}">Discount / concession (PKR)</label><input id="edit-discount-${escapeHtml(payment.id)}" class="full" name="discount" type="number" min="0" step="0.01" value="${payment.discount !== undefined && payment.discount !== null ? escapeHtml(payment.discount) : '0'}" placeholder="0"><label class="field-label full" for="edit-discount-reason-${escapeHtml(payment.id)}">Discount reason (optional)</label><input id="edit-discount-reason-${escapeHtml(payment.id)}" class="full" name="discountReason" type="text" maxlength="80" value="${escapeHtml(payment.discountReason || '')}" placeholder="e.g. Owner concession, outage waiver"><label class="field-label full" for="edit-method-${escapeHtml(payment.id)}">Payment method</label><select id="edit-method-${escapeHtml(payment.id)}" class="full" name="method">${options}</select>${paidByFieldMarkup(`edit-paid-by-${payment.id}`, payment.paidBy ?? '')}<button class="primary-button" type="submit">Save correction</button><button class="secondary-button full" type="button" data-cancel-correction>Cancel</button></div></form>`;
 }
 function beginCorrection(customerId, month, paymentId, origin) {
   const customer = state.customers.find(item => item.id === customerId);
@@ -1238,7 +1275,7 @@ function onCorrectionSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
   try {
-    state = correctPayment(state, form.dataset.customerId, form.dataset.month, form.dataset.paymentId, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy') });
+    state = correctPayment(state, form.dataset.customerId, form.dataset.month, form.dataset.paymentId, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy'), discount:data.get('discount') || 0, discountReason:data.get('discountReason') || '' });
     save();
     if (selectedCustomerId === form.dataset.customerId) renderDetail();
     toast('Payment correction saved on this device.');
@@ -3855,6 +3892,7 @@ export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
 export let collectionTargetController;
 export let duesAgingController;
+export let lateFeeModalController;
 if (typeof document !== 'undefined') {
   collectionTargetController = setupCollectionTargetModal(state);
   duesAgingController = setupDuesAgingModal(state, {
@@ -3868,6 +3906,17 @@ if (typeof document !== 'undefined') {
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
     onToast: (msg) => toast(msg)
+  });
+  lateFeeModalController = setupLateFeeModal({
+    getState: () => state,
+    updateState: (newState) => {
+      state = newState;
+      save();
+      renderDetail();
+      renderCustomers();
+      renderDashboard();
+    },
+    toast: (msg) => toast(msg)
   });
 
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
@@ -4688,6 +4737,21 @@ if (typeof document !== 'undefined') {
         switchView('customers');
       },
       onToast: (msg) => toast(msg)
+    });
+  }
+
+  const lateFeeModal = $('#lateFeeManagerModal');
+  if (lateFeeModal && !lateFeeModalController) {
+    lateFeeModalController = setupLateFeeModal({
+      getState: () => state,
+      updateState: (newState) => {
+        state = newState;
+        save();
+        renderDetail();
+        renderCustomers();
+        renderDashboard();
+      },
+      toast: (msg) => toast(msg)
     });
   }
 }

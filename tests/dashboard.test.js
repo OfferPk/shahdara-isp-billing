@@ -17734,6 +17734,238 @@ test('index.html and dashboard.css contain all RPKI ROV and Flap Damping binding
   assert.ok(css.includes('.rpki-svg'));
 });
 
+test('dashboard-polarization constants and span catalog are complete and valid', async () => {
+  const {
+    POLARIZATION_CONSTANTS,
+    SHAHDARA_COHERENT_SPANS
+  } = await import('../dashboard.js');
+
+  assert.ok(POLARIZATION_CONSTANTS.DEFAULT_SPAN_ID);
+  assert.ok(POLARIZATION_CONSTANTS.MOD_FORMATS.DP_16QAM_400G);
+  assert.ok(POLARIZATION_CONSTANTS.MOD_FORMATS.DP_QPSK_200G);
+  assert.ok(POLARIZATION_CONSTANTS.MOD_FORMATS.DP_64QAM_800G);
+  assert.ok(POLARIZATION_CONSTANTS.EQUALIZER_MODES.DD_LMS);
+  assert.ok(POLARIZATION_CONSTANTS.EQUALIZER_MODES.CMA);
+  assert.ok(POLARIZATION_CONSTANTS.SD_FEC_LIMIT_BER === 0.024);
+
+  assert.ok(Array.isArray(SHAHDARA_COHERENT_SPANS));
+  assert.ok(SHAHDARA_COHERENT_SPANS.length >= 5);
+  const baradari = SHAHDARA_COHERENT_SPANS.find(s => s.id === 'span-01-baradari');
+  assert.ok(baradari);
+  assert.equal(baradari.capacityGbps, 400);
+
+  const raviSiphon = SHAHDARA_COHERENT_SPANS.find(s => s.id === 'span-02-ravisiphon');
+  assert.ok(raviSiphon);
+  assert.equal(raviSiphon.capacityGbps, 800);
+});
+
+test('dashboard-polarization state getters, setters and resets work reliably', async () => {
+  const {
+    getPolarizationSelectedSpanId,
+    setPolarizationSelectedSpanId,
+    getPolarizationModFormat,
+    setPolarizationModFormat,
+    getPolarizationEqualizerMode,
+    setPolarizationEqualizerMode,
+    getPolarizationSopSpeedKradS,
+    setPolarizationSopSpeedKradS,
+    getPolarizationVibrationSurge,
+    setPolarizationVibrationSurge,
+    resetPolarizationSimState
+  } = await import('../dashboard.js');
+
+  resetPolarizationSimState();
+  assert.equal(getPolarizationSelectedSpanId(), 'span-01-baradari');
+  assert.equal(getPolarizationModFormat(), 'DP_16QAM_400G');
+  assert.equal(getPolarizationEqualizerMode(), 'DD_LMS');
+  assert.equal(getPolarizationSopSpeedKradS(), 12);
+  assert.equal(getPolarizationVibrationSurge(), false);
+
+  setPolarizationSelectedSpanId('span-02-ravisiphon');
+  assert.equal(getPolarizationSelectedSpanId(), 'span-02-ravisiphon');
+
+  setPolarizationModFormat('DP_64QAM_800G');
+  assert.equal(getPolarizationModFormat(), 'DP_64QAM_800G');
+
+  setPolarizationEqualizerMode('CMA');
+  assert.equal(getPolarizationEqualizerMode(), 'CMA');
+
+  setPolarizationSopSpeedKradS(45);
+  assert.equal(getPolarizationSopSpeedKradS(), 45);
+
+  setPolarizationVibrationSurge(true);
+  assert.equal(getPolarizationVibrationSurge(), true);
+
+  resetPolarizationSimState();
+  assert.equal(getPolarizationSelectedSpanId(), 'span-01-baradari');
+  assert.equal(getPolarizationSopSpeedKradS(), 12);
+  assert.equal(getPolarizationVibrationSurge(), false);
+});
+
+test('calculateStokesVector computes valid 4-element Stokes coordinates and DOP', async () => {
+  const { calculateStokesVector } = await import('../dashboard.js');
+
+  const baseline = calculateStokesVector(10, false);
+  assert.equal(baseline.S0, 1.0);
+  assert.ok(baseline.S1 >= -1 && baseline.S1 <= 1);
+  assert.ok(baseline.S2 >= -1 && baseline.S2 <= 1);
+  assert.ok(baseline.S3 >= -1 && baseline.S3 <= 1);
+  assert.ok(baseline.dopPercent >= 90 && baseline.dopPercent <= 100);
+  assert.equal(baseline.effectiveSpeedKradS, 10);
+
+  // Vibration surge should increase effective speed
+  const surge = calculateStokesVector(10, true);
+  assert.equal(surge.effectiveSpeedKradS, 45);
+});
+
+test('calculateDspEqualizerDynamics calculates equalizer convergence, MSE and Pre-FEC BER', async () => {
+  const { calculateDspEqualizerDynamics, SHAHDARA_COHERENT_SPANS } = await import('../dashboard.js');
+
+  const span = SHAHDARA_COHERENT_SPANS.find(s => s.id === 'span-01-baradari');
+
+  // Low rotation speed baseline
+  const baseline = calculateDspEqualizerDynamics(span, 'DP_16QAM_400G', 'DD_LMS', 8, false);
+  assert.equal(baseline.status, 'Optimal');
+  assert.ok(baseline.currentMseDb < -18);
+  assert.ok(baseline.preFecBer < 0.0038);
+  assert.equal(baseline.cycleSlipAlert, false);
+  assert.equal(baseline.convergenceCurve.length, 31);
+
+  // High speed rotation + vibration surge (Critical state)
+  const critical = calculateDspEqualizerDynamics(span, 'DP_16QAM_400G', 'DD_LMS', 90, true);
+  assert.equal(critical.status, 'Critical');
+  assert.ok(critical.cycleSlipAlert);
+  assert.ok(critical.cycleSlipsPerHour > 0);
+  assert.ok(critical.currentMseDb > -14);
+});
+
+test('calculatePolarizationMetrics correlates with subscriber ledger and revenue', async () => {
+  const { calculatePolarizationMetrics, resetPolarizationSimState } = await import('../dashboard.js');
+
+  resetPolarizationSimState();
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-baradari-1',
+        name: 'Baradari Fiber User',
+        area: 'Baradari Road',
+        serviceStatus: 'active',
+        bills: [{ month: '2026-10', dueAmount: 4000, paidAmount: 4000, payments: [{ amount: 4000 }] }]
+      },
+      {
+        id: 'cust-baradari-2',
+        name: 'Tariq Road User (Alias Area)',
+        area: 'Tariq Road',
+        serviceStatus: 'active',
+        bills: [{ month: '2026-10', dueAmount: 6000, paidAmount: 0, payments: [] }]
+      },
+      {
+        id: 'cust-other',
+        name: 'Begum Kot User',
+        area: 'Begum Kot',
+        serviceStatus: 'active',
+        bills: [{ month: '2026-10', dueAmount: 3000, paidAmount: 3000, payments: [{ amount: 3000 }] }]
+      }
+    ]
+  };
+
+  // Optimal state
+  const optimalMetrics = calculatePolarizationMetrics(mockState, {
+    spanId: 'span-01-baradari',
+    sopSpeedKradS: 8,
+    isVibrationSurgeActive: false
+  });
+
+  assert.equal(optimalMetrics.subscriberCorrelation.totalSubscribers, 2);
+  assert.equal(optimalMetrics.subscriberCorrelation.sectorMonthlyRevenue, 10000);
+  assert.equal(optimalMetrics.subscriberCorrelation.sectorTotalDues, 6000);
+  assert.equal(optimalMetrics.subscriberCorrelation.revenueAtRisk, 0);
+
+  // Critical state (surge + high speed)
+  const critMetrics = calculatePolarizationMetrics(mockState, {
+    spanId: 'span-01-baradari',
+    sopSpeedKradS: 100,
+    isVibrationSurgeActive: true
+  });
+
+  assert.equal(critMetrics.dynamics.status, 'Critical');
+  assert.ok(critMetrics.subscriberCorrelation.revenueAtRisk > 0);
+});
+
+test('renderPolarizationDiagramSvg produces complete vector SVG diagram in compact, full, light and dark modes', async () => {
+  const { calculatePolarizationMetrics, renderPolarizationDiagramSvg, resetPolarizationSimState } = await import('../dashboard.js');
+
+  resetPolarizationSimState();
+  const metrics = calculatePolarizationMetrics({});
+
+  // 1. Compact SVG
+  const compactSvg = renderPolarizationDiagramSvg(metrics, { compact: true, isDark: true });
+  assert.ok(compactSvg.includes('<svg class="polarization-svg"'));
+  assert.ok(compactSvg.includes('viewBox="0 0 560 280"'));
+  assert.ok(compactSvg.includes('Poincaré Sphere'));
+  assert.ok(compactSvg.includes('2×2 Butterfly FIR Equalizer Convergence'));
+  assert.ok(compactSvg.includes('SD-FEC LIMIT'));
+
+  // 2. Full SVG
+  const fullSvg = renderPolarizationDiagramSvg(metrics, { compact: false, isDark: false });
+  assert.ok(fullSvg.includes('viewBox="0 0 860 380"'));
+  assert.ok(fullSvg.includes('#f8fafc'));
+
+  // 3. Null fallback
+  const emptySvg = renderPolarizationDiagramSvg(null);
+  assert.ok(emptySvg.includes('No polarization telemetry available'));
+});
+
+test('generatePolarizationReport produces formal Coherent Optical DSP audit text', async () => {
+  const { calculatePolarizationMetrics, generatePolarizationReport, resetPolarizationSimState } = await import('../dashboard.js');
+
+  resetPolarizationSimState();
+  const metrics = calculatePolarizationMetrics({});
+  const report = generatePolarizationReport(metrics);
+
+  assert.ok(report.includes('SHAHDARA ISP COHERENT OPTICAL POLARIZATION & DSP EQUALIZATION AUDIT REPORT'));
+  assert.ok(report.includes('ITU-T G.698.2'));
+  assert.ok(report.includes('IEEE 802.3ct (400ZR)'));
+  assert.ok(report.includes('Normalized Stokes Vector:'));
+  assert.ok(report.includes('Degree of Polarization (DOP):'));
+  assert.ok(report.includes('2x2 BUTTERFLY DSP EQUALIZER TELEMETRY'));
+  assert.ok(report.includes('NOC ACTION RECOMMENDATIONS'));
+});
+
+test('index.html and dashboard.css contain all Coherent Optical Polarization bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="dashboardPolarizationChart"'));
+  assert.ok(html.includes('id="dashboardOpenPolarizationModalBtn"'));
+  assert.ok(html.includes('id="dashboardPolarizationModal"'));
+  assert.ok(html.includes('id="dashboardPolarizationModalCloseBtn"'));
+  assert.ok(html.includes('id="polSpanSelect"'));
+  assert.ok(html.includes('id="polModSelect"'));
+  assert.ok(html.includes('id="polEqSelect"'));
+  assert.ok(html.includes('id="polSpeedRange"'));
+  assert.ok(html.includes('id="polSpeedValLabel"'));
+  assert.ok(html.includes('id="polSurgeToggleBtn"'));
+  assert.ok(html.includes('id="polResetBtn"'));
+  assert.ok(html.includes('id="polStatDop"'));
+  assert.ok(html.includes('id="polStatSpeed"'));
+  assert.ok(html.includes('id="polStatMse"'));
+  assert.ok(html.includes('id="polStatPdl"'));
+  assert.ok(html.includes('id="polStatStatusBadge"'));
+  assert.ok(html.includes('id="polStatRevenueRisk"'));
+  assert.ok(html.includes('id="dashboardPolarizationModalSvgContainer"'));
+  assert.ok(html.includes('id="polExportJsonBtn"'));
+  assert.ok(html.includes('id="polExportCsvBtn"'));
+  assert.ok(html.includes('id="polCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-polarization'));
+  assert.ok(css.includes('.polarization-modal-card'));
+  assert.ok(css.includes('.polarization-svg'));
+});
+
 
 
 

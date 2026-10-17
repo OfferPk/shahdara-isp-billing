@@ -14392,5 +14392,320 @@ test('Customer Add/Edit Form Validation, Pakistani Phone & CNIC Verification & N
   assert.ok(freshApp.includes('validateCustomerCnic'), 'app.js imports and uses validateCustomerCnic');
 });
 
+/* ==========================================================================
+   MID-MONTH PACKAGE CHANGE WITH PRO-RATA & ADJUSTMENT VOUCHER TEST SUITE
+   ========================================================================== */
+
+test('calculatePlanMigrationProration accurately computes proRatedCurrentBill, oldPlanCostElapsed, and netAdjustment', async () => {
+  const { calculatePlanMigrationProration } = await import('../form-validation.js');
+
+  // Case 1: Mid-month upgrade (Day 16 of 30-day month)
+  // Old rate = 1500 PKR, New rate = 2500 PKR
+  // Days elapsed = 15, Days remaining = 15
+  // Old cost: 15 * 50 = 750 PKR
+  // New cost: 15 * 83.33 -> 1250 PKR
+  // Pro-rated current bill: 750 + 1250 = 2000 PKR
+  // Net adjustment: 1250 - 750 = +500 PKR
+  const upgrade = calculatePlanMigrationProration(1500, 2500, '2026-04-16', 30);
+  assert.equal(upgrade.daysInMonth, 30);
+  assert.equal(upgrade.effectiveDay, 16);
+  assert.equal(upgrade.daysElapsed, 15);
+  assert.equal(upgrade.daysRemaining, 15);
+  assert.equal(upgrade.oldPlanCredit, 750);
+  assert.equal(upgrade.oldPlanCostElapsed, 750);
+  assert.equal(upgrade.newPlanCharge, 1250);
+  assert.equal(upgrade.netAdjustment, 500);
+  assert.equal(upgrade.proRatedCurrentBill, 2000);
+  assert.equal(upgrade.mrrDelta, 1000);
+
+  // Case 2: Mid-month downgrade (Day 11 of 30-day month)
+  // Old rate = 3000 PKR, New rate = 1500 PKR
+  // Days elapsed = 10, Days remaining = 20
+  // Old cost: 10 * 100 = 1000 PKR
+  // New cost: 20 * 50 = 1000 PKR
+  // Pro-rated current bill: 1000 + 1000 = 2000 PKR
+  // Net adjustment: 1000 - 2000 = -1000 PKR (Credit refund)
+  const downgrade = calculatePlanMigrationProration(3000, 1500, '2026-04-11', 30);
+  assert.equal(downgrade.daysInMonth, 30);
+  assert.equal(downgrade.effectiveDay, 11);
+  assert.equal(downgrade.daysElapsed, 10);
+  assert.equal(downgrade.daysRemaining, 20);
+  assert.equal(downgrade.oldPlanCredit, 2000);
+  assert.equal(downgrade.oldPlanCostElapsed, 1000);
+  assert.equal(downgrade.newPlanCharge, 1000);
+  assert.equal(downgrade.netAdjustment, -1000);
+  assert.equal(downgrade.proRatedCurrentBill, 2000);
+  assert.equal(downgrade.mrrDelta, -1500);
+
+  // Case 3: First day of month (Full month new plan)
+  const dayOne = calculatePlanMigrationProration(1500, 2500, '2026-05-01', 31);
+  assert.equal(dayOne.effectiveDay, 1);
+  assert.equal(dayOne.daysElapsed, 0);
+  assert.equal(dayOne.daysRemaining, 31);
+  assert.equal(dayOne.oldPlanCostElapsed, 0);
+  assert.equal(dayOne.proRatedCurrentBill, 2500);
+  assert.equal(dayOne.netAdjustment, 1000);
+
+  // Case 4: Zero rate handling and boundary stability
+  const zeroOld = calculatePlanMigrationProration(0, 2000, '2026-06-15', 30);
+  assert.equal(zeroOld.oldPlanCredit, 0);
+  assert.equal(zeroOld.oldPlanCostElapsed, 0);
+  assert.ok(zeroOld.proRatedCurrentBill > 0);
+});
+
+test('updateCustomerProfile records proRataAdjustment and proRatedBillAmount in packageHistory while preserving old bill snapshots', async () => {
+  const { updateCustomerProfile, addCustomer, generateMonthlyBillsThroughCurrentMonth } = await import('../core.js');
+
+  let state = { nextCustomerNumber: 1, customers: [] };
+  state = addCustomer(state, 'Prorata Test Subscriber', new Date('2026-09-01T10:00:00+05:00'), {
+    phone: '03001234567',
+    mohalla: 'MOHALLA HAVELI'
+  });
+  const custId = state.customers[0].id;
+
+  // Set initial package & generate bill for 2026-09
+  state = updateCustomerProfile(state, custId, {
+    packageSpeed: '10 Mbps Family Streamer',
+    monthlySellingAmount: 1500
+  }, new Date('2026-09-01T10:00:00+05:00'));
+
+  state = generateMonthlyBillsThroughCurrentMonth(state, new Date('2026-09-05T10:00:00+05:00'));
+  const initialBill = state.customers[0].bills.find(b => b.month === '2026-09');
+  assert.ok(initialBill);
+  assert.equal(initialBill.dueAmount, 1500);
+  assert.equal(initialBill.priceSnapshot, 1500);
+
+  // Perform mid-month package change on 2026-09-16
+  state = updateCustomerProfile(state, custId, {
+    packageSpeed: '25 Mbps Turbo Broadband',
+    monthlySellingAmount: 2500,
+    packageChangeStaffName: 'Saad NOC',
+    proRataAdjustment: 500,
+    proRatedBillAmount: 2000,
+    voucherId: 'ADJ-202609-0001'
+  }, new Date('2026-09-16T14:30:00+05:00'));
+
+  const custAfter = state.customers[0];
+  assert.equal(custAfter.packageSpeed, '25 Mbps Turbo Broadband');
+  assert.equal(custAfter.monthlySellingAmount, 2500);
+
+  // Verify historical bill snapshot for 2026-09 is preserved and NOT rewritten
+  const billAfter = custAfter.bills.find(b => b.month === '2026-09');
+  assert.equal(billAfter.dueAmount, 1500);
+  assert.equal(billAfter.priceSnapshot, 1500);
+
+  // Verify packageHistory record contains pro-rata fields
+  assert.equal(custAfter.packageHistory.length, 2);
+  const latestChange = custAfter.packageHistory[1];
+  assert.equal(latestChange.oldPackage, '10 Mbps Family Streamer');
+  assert.equal(latestChange.newPackage, '25 Mbps Turbo Broadband');
+  assert.equal(latestChange.oldMonthlyRate, 1500);
+  assert.equal(latestChange.newMonthlyRate, 2500);
+  assert.equal(latestChange.monthlyRecurringPriceDelta, 1000);
+  assert.equal(latestChange.staffName, 'Saad NOC');
+  assert.equal(latestChange.proRataAdjustment, 500);
+  assert.equal(latestChange.proRatedBillAmount, 2000);
+  assert.equal(latestChange.voucherId, 'ADJ-202609-0001');
+
+  // Verify monthly price schedule for next month
+  const schedule = custAfter.monthlyPriceSchedule;
+  assert.ok(schedule.some(s => s.amount === 2500 && s.effectiveMonth === '2026-10'));
+});
+
+test('prorated_package_change category is registered in ADJUSTMENT_CATEGORIES and builds valid adjustment voucher', async () => {
+  const {
+    ADJUSTMENT_CATEGORIES,
+    buildAdjustmentVoucherData,
+    saveAdjustmentVoucher,
+    getSavedAdjustmentVouchers
+  } = await import('../form-validation.js');
+
+  assert.ok(ADJUSTMENT_CATEGORIES.prorated_package_change);
+  assert.equal(ADJUSTMENT_CATEGORIES.prorated_package_change.id, 'prorated_package_change');
+  assert.match(ADJUSTMENT_CATEGORIES.prorated_package_change.label, /Pro-Rata/i);
+  assert.match(ADJUSTMENT_CATEGORIES.prorated_package_change.labelUrdu, /پیکج تبدیلی/);
+
+  const mockCustomer = {
+    id: 'cust-prorata-99',
+    customerNumber: 99,
+    name: 'Hamza Tariq',
+    phone: '03009876543',
+    bills: [{ month: '2026-10', dueAmount: 1500, payments: [] }]
+  };
+
+  const voucher = buildAdjustmentVoucherData({
+    customer: mockCustomer,
+    category: 'prorated_package_change',
+    amount: 500,
+    reason: 'Mid-cycle transition from 10M to 25M (Pro-rated current-bill: PKR 2,000)',
+    authorizedBy: 'Saad Manager',
+    date: '2026-10-16'
+  });
+
+  assert.ok(voucher.id);
+  assert.match(voucher.voucherNumber, /^ADJ-202610-\d{4}$/);
+  assert.equal(voucher.category, 'prorated_package_change');
+  assert.equal(voucher.amount, 500);
+  assert.equal(voucher.previousBalance, 1500);
+  assert.equal(voucher.projectedBalance, 1000);
+  assert.match(voucher.reason, /Pro-rated current-bill/);
+
+  // Persistence round-trip
+  const store = {
+    data: {},
+    getItem(k) { return this.data[k] || null; },
+    setItem(k, v) { this.data[k] = String(v); }
+  };
+
+  const saved = saveAdjustmentVoucher(store, voucher);
+  assert.ok(saved);
+
+  const retrieved = getSavedAdjustmentVouchers(store, 'cust-prorata-99');
+  assert.equal(retrieved.length, 1);
+  assert.equal(retrieved[0].voucherNumber, voucher.voucherNumber);
+  assert.equal(retrieved[0].category, 'prorated_package_change');
+});
+
+test('setupPlanMigrationModal updates migProratedBillVal and displays pro-rated bill in preview', async () => {
+  const { setupPlanMigrationModal } = await import('../form-validation.js');
+
+  const mockElement = (id) => ({
+    id,
+    dataset: {},
+    children: [],
+    selectedOptions: [{ dataset: { price: '2500', speed: '25' } }],
+    options: [{ value: '25 Mbps Turbo Broadband', dataset: { price: '2500', speed: '25' } }],
+    value: id === 'migTargetRateInput' ? '2500' : (id === 'migEffectiveDateInput' ? '2026-10-16' : ''),
+    textContent: '',
+    innerHTML: '',
+    style: {},
+    appendChild(child) { this.children.push(child); },
+    addEventListener: () => {},
+    showModal: () => {},
+    close: () => {},
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  });
+
+  const modal = mockElement('customerPlanMigrationModal');
+  const closeBtn = mockElement('planMigrationCloseBtn');
+  const customerNameEl = mockElement('migCustomerName');
+  const customerMetaEl = mockElement('migCustomerMeta');
+  const currentPlanEl = mockElement('migCurrentPlan');
+  const currentRateEl = mockElement('migCurrentRate');
+  const targetPlanSelect = mockElement('migTargetPlanSelect');
+  const targetRateInput = mockElement('migTargetRateInput');
+  const effectiveDateInput = mockElement('migEffectiveDateInput');
+  const ontPortSelect = mockElement('migOntPortSelect');
+  const notesInput = mockElement('migNotesInput');
+  const authorizerInput = mockElement('migAuthorizerInput');
+  const speedDeltaBadge = mockElement('migSpeedDeltaBadge');
+  const prorationSummaryBox = mockElement('migProrationSummaryBox');
+  const netDueVal = mockElement('migNetDueVal');
+  const proratedBillVal = mockElement('migProratedBillVal');
+  const mrrDeltaVal = mockElement('migMrrDeltaVal');
+  const hardwareWarningBanner = mockElement('migHardwareWarningBanner');
+  const submitBtn = mockElement('planMigrationSubmitBtn');
+  const printA4Btn = mockElement('planMigrationPrintA4Btn');
+  const printThermalBtn = mockElement('planMigrationPrintThermalBtn');
+  const copyWhatsAppBtn = mockElement('planMigrationCopyWhatsAppBtn');
+  const exportCsvBtn = mockElement('planMigrationExportCsvBtn');
+  const filterTypeSelect = mockElement('migFilterTypeSelect');
+  const searchInput = mockElement('migSearchInput');
+  const tableBody = mockElement('migHistoryTableBody');
+  const countBadge = mockElement('migTotalCountBadge');
+  const kpiUpgrades = mockElement('migKpiUpgrades');
+  const kpiNetMrr = mockElement('migKpiNetMrr');
+  const kpiProratedTotal = mockElement('migKpiProratedTotal');
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      const map = {
+        customerPlanMigrationModal: modal,
+        planMigrationCloseBtn: closeBtn,
+        migCustomerName: customerNameEl,
+        migCustomerMeta: customerMetaEl,
+        migCurrentPlan: currentPlanEl,
+        migCurrentRate: currentRateEl,
+        migTargetPlanSelect: targetPlanSelect,
+        migTargetRateInput: targetRateInput,
+        migEffectiveDateInput: effectiveDateInput,
+        migOntPortSelect: ontPortSelect,
+        migNotesInput: notesInput,
+        migAuthorizerInput: authorizerInput,
+        migSpeedDeltaBadge: speedDeltaBadge,
+        migProrationSummaryBox: prorationSummaryBox,
+        migNetDueVal: netDueVal,
+        migProratedBillVal: proratedBillVal,
+        migMrrDeltaVal: mrrDeltaVal,
+        migHardwareWarningBanner: hardwareWarningBanner,
+        planMigrationSubmitBtn: submitBtn,
+        planMigrationPrintA4Btn: printA4Btn,
+        planMigrationPrintThermalBtn: printThermalBtn,
+        planMigrationCopyWhatsAppBtn: copyWhatsAppBtn,
+        planMigrationExportCsvBtn: exportCsvBtn,
+        migFilterTypeSelect: filterTypeSelect,
+        migSearchInput: searchInput,
+        migHistoryTableBody: tableBody,
+        migTotalCountBadge: countBadge,
+        migKpiUpgrades: kpiUpgrades,
+        migKpiNetMrr: kpiNetMrr,
+        migKpiProratedTotal: kpiProratedTotal
+      };
+      return map[id] || null;
+    },
+    querySelectorAll: () => [],
+    createElement: () => ({ setAttribute: () => {}, removeAttribute: () => {}, appendChild: () => {}, dataset: {} })
+  };
+
+  try {
+    const controller = setupPlanMigrationModal({
+      getState: () => ({ customers: [] })
+    });
+
+    controller.open({
+      id: 'CUST-007',
+      name: 'Naveed Akhtar',
+      package: '15 Mbps Family Streamer',
+      monthlyFee: 1500
+    });
+
+    assert.ok(proratedBillVal.textContent.includes('PKR'));
+    assert.ok(prorationSummaryBox.innerHTML.includes('Current-Month Pro-Rated Bill'));
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
+test('DOM, styles, and app.js integration for mid-month package change pro-rata preview and adjustment voucher', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // 1. index.html checks
+  assert.ok(indexHtml.includes('id="packageChangeProrataPreview"'), 'Customer profile contains packageChangeProrataPreview');
+  assert.ok(indexHtml.includes('id="prorataPreviewDeltaBadge"'), 'Customer profile contains prorataPreviewDeltaBadge');
+  assert.ok(indexHtml.includes('id="prorataPreviewDaysBreakdown"'), 'Customer profile contains prorataPreviewDaysBreakdown');
+  assert.ok(indexHtml.includes('id="prorataCalculatedBill"'), 'Customer profile contains prorataCalculatedBill');
+  assert.ok(indexHtml.includes('id="prorataNetAdjustment"'), 'Customer profile contains prorataNetAdjustment');
+  assert.ok(indexHtml.includes('id="saveProrataVoucherCheckbox"'), 'Customer profile contains saveProrataVoucherCheckbox');
+  assert.ok(indexHtml.includes('id="migProratedBillVal"'), 'Plan migration modal contains migProratedBillVal');
+  assert.ok(indexHtml.includes('value="prorated_package_change"'), 'Adjustment category select contains prorated_package_change');
+
+  // 2. styles.css checks
+  assert.ok(stylesCss.includes('.profile-prorata-preview'), 'styles.css has .profile-prorata-preview');
+  assert.ok(stylesCss.includes('.prorata-preview-header'), 'styles.css has .prorata-preview-header');
+  assert.ok(stylesCss.includes('.prorata-days-breakdown'), 'styles.css has .prorata-days-breakdown');
+  assert.ok(stylesCss.includes('.prorata-calc-summary'), 'styles.css has .prorata-calc-summary');
+  assert.ok(stylesCss.includes('[data-theme="dark"] .profile-prorata-preview'), 'styles.css has dark mode for profile-prorata-preview');
+
+  // 3. app.js checks
+  assert.ok(appJs.includes('renderProfileProrataPreview'), 'app.js includes renderProfileProrataPreview');
+  assert.ok(appJs.includes('proRatedBillAmount'), 'app.js handles proRatedBillAmount');
+  assert.ok(appJs.includes('proRataAdjustment'), 'app.js handles proRataAdjustment');
+  assert.ok(appJs.includes('prorated_package_change'), 'app.js issues prorated_package_change adjustment voucher');
+});
+
 
 

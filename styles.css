@@ -8093,4 +8093,112 @@ html, body {
   border-color: #334155;
 }
 
+/* Mid-month Package Change Pro-Rata Preview in Profile Form */
+.profile-prorata-preview {
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-prorata-preview[hidden] {
+  display: none !important;
+}
+
+.prorata-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prorata-preview-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0e5b4d;
+  letter-spacing: -0.01em;
+}
+
+.prorata-days-breakdown {
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.4;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px dashed #cbd5e1;
+}
+
+.prorata-calc-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  background: #ffffff;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.prorata-sum-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.prorata-lbl {
+  font-size: 0.7rem;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.prorata-val {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.prorata-save-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  margin-top: 2px;
+}
+
+/* Dark mode for profile-prorata-preview */
+[data-theme="dark"] .profile-prorata-preview {
+  background: rgba(14, 91, 77, 0.15);
+  border-color: rgba(14, 91, 77, 0.4);
+}
+
+[data-theme="dark"] .prorata-preview-title {
+  color: #34d399;
+}
+
+[data-theme="dark"] .prorata-days-breakdown {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .prorata-calc-summary {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .prorata-lbl {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .prorata-save-checkbox-label {
+  color: #e2e8f0;
+}
+
+
 

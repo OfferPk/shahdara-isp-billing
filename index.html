@@ -6082,6 +6082,29 @@
                 <label class="profile-field" for="packageChangeStaffNameInput"><span class="field-label">Package-change staff name <span class="optional-label">Optional · used only for next change</span></span><input id="packageChangeStaffNameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
               </div>
               <p id="customerProfitPreview" class="profile-profit" role="status" aria-live="polite">Expected monthly package profit: Not set until both monthly amounts are entered.</p>
+              <div id="packageChangeProrataPreview" class="profile-prorata-preview" role="region" aria-label="Mid-month package change pro-rata preview" hidden>
+                <div class="prorata-preview-header">
+                  <span class="prorata-preview-title">⚡ Mid-Month Package Pro-Rata Preview</span>
+                  <span id="prorataPreviewDeltaBadge" class="sim-delta-badge badge-info">Transition</span>
+                </div>
+                <div class="prorata-preview-body">
+                  <div id="prorataPreviewDaysBreakdown" class="prorata-days-breakdown"></div>
+                  <div class="prorata-calc-summary">
+                    <div class="prorata-sum-item">
+                      <span class="prorata-lbl">Current Month Pro-Rated Bill:</span>
+                      <strong id="prorataCalculatedBill" class="prorata-val" style="color:var(--brand-teal, #0e5b4d);">PKR 0</strong>
+                    </div>
+                    <div class="prorata-sum-item">
+                      <span class="prorata-lbl">Pro-Rata Net Adjustment:</span>
+                      <strong id="prorataNetAdjustment" class="prorata-val">PKR 0</strong>
+                    </div>
+                  </div>
+                  <label class="prorata-save-checkbox-label" for="saveProrataVoucherCheckbox">
+                    <input type="checkbox" id="saveProrataVoucherCheckbox" checked>
+                    <span>Record explicit adjustment voucher in customer account (کھاتہ واؤچر)</span>
+                  </label>
+                </div>
+              </div>
                 <div class="profile-form-actions"><button id="saveMohallaButton" class="secondary-button profile-save" type="button">Save profile</button><button id="cancelProfileEditButton" class="secondary-button" type="button">Cancel</button></div>
               </div>
             </div>
@@ -12672,6 +12695,7 @@
               <option value="promotional_discount">Promotional Discount / Retention Waiver (خصوصی رعایت)</option>
               <option value="ont_fee_waiver">ONT Router Fee / Deposit Waiver (راؤٹر فیس چھوٹ)</option>
               <option value="manager_waiver">Management Special Concession (منیجر رعایت)</option>
+              <option value="prorated_package_change">Mid-Month Package Change Pro-Rata (درمیانی ایام پیکج تبدیلی ایڈجسٹمنٹ)</option>
               <option value="custom">Other Account Ledger Adjustment (دیگر ترمیم)</option>
             </select>
           </div>
@@ -13667,6 +13691,10 @@
             </div>
 
             <div class="mig-totals-row">
+              <div class="mig-total-block">
+                <span class="mig-total-lbl">PRO-RATED BILL AMOUNT</span>
+                <span id="migProratedBillVal" class="mig-total-val" style="color: #0e5b4d;">PKR 0</span>
+              </div>
               <div class="mig-total-block">
                 <span class="mig-total-lbl">NET PRORATION DUE</span>
                 <span id="migNetDueVal" class="mig-total-val" style="color: #b91c1c;">PKR 0</span>

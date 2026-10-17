@@ -68,7 +68,10 @@ import {
   setupSpectralAttenuationModal,
   setupFoscSealModal,
   setupThermalCyclingModal,
-  setupBillingCorrectnessModal
+  setupBillingCorrectnessModal,
+  calculatePlanMigrationProration,
+  buildAdjustmentVoucherData,
+  saveAdjustmentVoucher
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 
@@ -943,9 +946,17 @@ function renderDetail() {
   $('#cancellationDateInput').value = customer.cancellationDate ?? '';
   $('#packageChangeStaffNameInput').value = '';
   const packageHistory = [...(customer.packageHistory ?? [])].reverse();
-  $('#packageHistoryList').innerHTML = packageHistory.map(change => `<li><strong>${escapeHtml(change.date || 'Date not recorded')}</strong> · ${escapeHtml(change.oldPackage || 'Not set')} → ${escapeHtml(change.newPackage || 'Not set')} · Rate ${escapeHtml(formatAmount(change.oldMonthlyRate))} → ${escapeHtml(formatAmount(change.newMonthlyRate))} · monthly delta ${escapeHtml(change.monthlyRecurringPriceDelta === null ? 'Not calculable' : formatAmount(change.monthlyRecurringPriceDelta))}${change.staffName ? ` · ${escapeHtml(change.staffName)}` : ''}</li>`).join('');
+  $('#packageHistoryList').innerHTML = packageHistory.map(change => {
+    let proRataPart = '';
+    if (change.proRatedBillAmount != null) {
+      const sign = (change.proRataAdjustment || 0) > 0 ? '+' : '';
+      proRataPart = ` · <strong style="color:var(--brand-teal, #0e5b4d);">Pro-rata: PKR ${Number(change.proRatedBillAmount).toLocaleString()}</strong> (${sign}PKR ${Number(change.proRataAdjustment || 0).toLocaleString()})`;
+    }
+    return `<li><strong>${escapeHtml(change.date || 'Date not recorded')}</strong> · ${escapeHtml(change.oldPackage || 'Not set')} → ${escapeHtml(change.newPackage || 'Not set')} · Rate ${escapeHtml(formatAmount(change.oldMonthlyRate))} → ${escapeHtml(formatAmount(change.newMonthlyRate))} · monthly delta ${escapeHtml(change.monthlyRecurringPriceDelta === null ? 'Not calculable' : formatAmount(change.monthlyRecurringPriceDelta))}${proRataPart}${change.staffName ? ` · ${escapeHtml(change.staffName)}` : ''}</li>`;
+  }).join('');
   $('#packageHistoryEmpty').hidden = packageHistory.length > 0;
   renderProfileMarginPreview();
+  renderProfileProrataPreview();
   renderIncidents(customer);
   renderHistory(customer);
 }
@@ -1518,6 +1529,45 @@ $('#saveMohallaButton').addEventListener('click', () => {
     }
   }
 
+  const currentCustomer = selectedCustomer();
+  const oldRate = Number(currentCustomer?.monthlySellingAmount) || 0;
+  const newRate = Number($('#monthlySellingAmountInput').value) || 0;
+  const oldPlan = currentCustomer?.packageSpeed || '';
+  const newPlan = $('#packageSpeedInput').value || '';
+  const planChanged = Boolean(oldPlan && newPlan && oldPlan !== newPlan);
+  const rateChanged = Boolean(oldRate > 0 && newRate > 0 && oldRate !== newRate);
+
+  let proRataAdjustment = null;
+  let proRatedBillAmount = null;
+  let voucherId = null;
+
+  if ((planChanged || rateChanged) && oldRate > 0 && newRate > 0) {
+    const today = new Date();
+    const todayStr = dateKey(today);
+    const proration = calculatePlanMigrationProration(oldRate, newRate, todayStr);
+    proRataAdjustment = proration.netAdjustment;
+    proRatedBillAmount = proration.proRatedCurrentBill;
+
+    const shouldSaveVoucher = $('#saveProrataVoucherCheckbox')?.checked ?? true;
+    if (shouldSaveVoucher && proration.netAdjustment !== 0) {
+      try {
+        const store = typeof localStorage !== 'undefined' ? localStorage : null;
+        const adjVoucher = buildAdjustmentVoucherData({
+          customer: currentCustomer,
+          category: 'prorated_package_change',
+          amount: Math.abs(proration.netAdjustment),
+          reason: `Mid-cycle package transition: ${oldPlan} (PKR ${oldRate}) → ${newPlan} (PKR ${newRate}). Pro-rated current-bill: PKR ${proration.proRatedCurrentBill.toLocaleString()} (Day ${proration.effectiveDay}/${proration.daysInMonth}).`,
+          authorizedBy: $('#packageChangeStaffNameInput').value || 'Staff Operator',
+          date: todayStr
+        });
+        saveAdjustmentVoucher(store, adjVoucher);
+        voucherId = adjVoucher.voucherNumber || adjVoucher.id;
+      } catch (e) {
+        console.error('Failed to save adjustment voucher:', e);
+      }
+    }
+  }
+
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
       mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:phoneVal,
@@ -1527,15 +1577,75 @@ $('#saveMohallaButton').addEventListener('click', () => {
       packageSpeed:$('#packageSpeedInput').value, monthlyPurchaseCost:$('#monthlyPurchaseCostInput').value,
       monthlySellingAmount:$('#monthlySellingAmountInput').value, connectionDate:$('#connectionDateInput').value,
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
-      packageChangeStaffName:$('#packageChangeStaffNameInput').value
+      packageChangeStaffName:$('#packageChangeStaffNameInput').value,
+      proRataAdjustment, proRatedBillAmount, voucherId
     });
     profileEditMode = false;
-    save(); renderDetail(); toast('Customer profile saved on this device.');
+    save(); renderDetail();
+    if (proRataAdjustment !== null) {
+      toast(`Customer profile and mid-month pro-rata adjustment (PKR ${proRataAdjustment >= 0 ? '+' : ''}${proRataAdjustment.toLocaleString()}) saved.`);
+    } else {
+      toast('Customer profile saved on this device.');
+    }
   } catch (error) { toast(error.message); }
 });
 $('#cancelProfileEditButton').addEventListener('click', () => { profileEditMode = false; renderDetail(); });
 $('#monthlyPurchaseCostInput').addEventListener('input', renderProfileMarginPreview);
-$('#monthlySellingAmountInput').addEventListener('input', renderProfileMarginPreview);
+$('#monthlySellingAmountInput').addEventListener('input', () => {
+  renderProfileMarginPreview();
+  renderProfileProrataPreview();
+});
+$('#packageSpeedInput').addEventListener('input', renderProfileProrataPreview);
+$('#packageSpeedInput').addEventListener('change', renderProfileProrataPreview);
+
+function renderProfileProrataPreview() {
+  const customer = selectedCustomer();
+  const container = $('#packageChangeProrataPreview');
+  if (!container) return;
+  if (!customer) {
+    container.hidden = true;
+    return;
+  }
+  const currentPlan = customer.packageSpeed || '';
+  const currentRate = Number(customer.monthlySellingAmount) || 0;
+  const newPlan = $('#packageSpeedInput')?.value?.trim() || '';
+  const newRate = Number($('#monthlySellingAmountInput')?.value) || 0;
+
+  const planChanged = Boolean(currentPlan && newPlan && currentPlan !== newPlan);
+  const rateChanged = Boolean(currentRate > 0 && newRate > 0 && currentRate !== newRate);
+
+  if ((planChanged || rateChanged) && currentRate > 0 && newRate > 0) {
+    const today = new Date();
+    const todayStr = dateKey(today);
+    const proration = calculatePlanMigrationProration(currentRate, newRate, todayStr);
+
+    container.hidden = false;
+    const badge = $('#prorataPreviewDeltaBadge');
+    if (badge) {
+      const isUp = proration.netAdjustment > 0;
+      badge.textContent = `${proration.netAdjustment > 0 ? '+' : ''}PKR ${proration.netAdjustment.toLocaleString()} (${isUp ? 'UPGRADE' : (proration.netAdjustment < 0 ? 'DOWNGRADE' : 'LATERAL')})`;
+      badge.className = `sim-delta-badge ${isUp ? 'badge-success' : (proration.netAdjustment < 0 ? 'badge-warning' : 'badge-info')}`;
+    }
+    const breakdown = $('#prorataPreviewDaysBreakdown');
+    if (breakdown) {
+      breakdown.innerHTML = `
+        <span>Day ${proration.effectiveDay} of ${proration.daysInMonth} · ${proration.daysElapsed} days on old rate (PKR ${(proration.oldPlanCostElapsed || (currentRate - proration.oldPlanCredit)).toLocaleString()}) + ${proration.daysRemaining} days on new rate (PKR ${proration.newPlanCharge.toLocaleString()})</span>
+      `;
+    }
+    const calcBill = $('#prorataCalculatedBill');
+    if (calcBill) {
+      calcBill.textContent = `PKR ${proration.proRatedCurrentBill.toLocaleString()}`;
+    }
+    const netAdj = $('#prorataNetAdjustment');
+    if (netAdj) {
+      const sign = proration.netAdjustment > 0 ? '+' : '';
+      netAdj.textContent = `${sign}PKR ${proration.netAdjustment.toLocaleString()}`;
+      netAdj.style.color = proration.netAdjustment > 0 ? '#b91c1c' : (proration.netAdjustment < 0 ? '#047857' : 'inherit');
+    }
+  } else {
+    container.hidden = true;
+  }
+}
 function restoreCustomer(customerId) {
   try {
     state = unarchiveCustomer(state, customerId, new Date());
@@ -3875,8 +3985,36 @@ if (typeof document !== 'undefined') {
           cust.package = record.targetPlan;
           cust.plan = record.targetPlan;
           cust.monthlyFee = record.targetRate;
-          renderCustomerDetail();
-          saveState();
+          const store = typeof localStorage !== 'undefined' ? localStorage : null;
+          let voucherNum = record.id;
+          if (record.netAdjustment !== 0) {
+            try {
+              const adjVoucher = buildAdjustmentVoucherData({
+                customer: cust,
+                category: 'prorated_package_change',
+                amount: Math.abs(record.netAdjustment),
+                reason: `Mid-cycle plan migration: ${record.currentPlan} → ${record.targetPlan}. Pro-rated current-bill: PKR ${(record.proration?.proRatedCurrentBill || record.proRatedBillAmount || 0).toLocaleString()} (Net adj: ${record.netAdjustment >= 0 ? '+' : '-'}PKR ${Math.abs(record.netAdjustment).toLocaleString()}).`,
+                authorizedBy: record.authorizedBy || 'NOC Operator',
+                date: record.effectiveDate
+              });
+              saveAdjustmentVoucher(store, adjVoucher);
+              voucherNum = adjVoucher.voucherNumber || adjVoucher.id;
+            } catch (e) {
+              console.error('Failed to save adjustment voucher:', e);
+            }
+          }
+
+          state = updateCustomerProfile(state, cust.id, {
+            packageSpeed: record.targetPlan,
+            monthlySellingAmount: record.targetRate,
+            packageChangeStaffName: record.authorizedBy || 'NOC Operator',
+            proRataAdjustment: record.netAdjustment,
+            proRatedBillAmount: record.proration?.proRatedCurrentBill || record.proRatedBillAmount,
+            voucherId: voucherNum
+          }, new Date(record.effectiveDate));
+
+          save();
+          renderDetail();
         }
       }
     }

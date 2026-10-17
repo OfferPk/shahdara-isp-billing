@@ -371,13 +371,23 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
   let packageHistory = Array.isArray(current.packageHistory) ? [...current.packageHistory] : [];
   if (packageChanged || priceChanged) {
     const staffName = cleanText(values.packageChangeStaffName ?? '', 100, 'Staff name');
-    packageHistory.push({
+    const historyEntry = {
       date:dateKey(referenceDate), recordedAt:localDateTimeValue(referenceDate),
       oldPackage:String(current.packageSpeed ?? ''), newPackage:fields.packageSpeed,
       oldMonthlyRate:previousPrice, newMonthlyRate:nextPrice,
       monthlyRecurringPriceDelta:previousPrice === null || nextPrice === null ? null : Number((nextPrice - previousPrice).toFixed(2)),
       staffName
-    });
+    };
+    if (values.proRataAdjustment !== undefined && values.proRataAdjustment !== null) {
+      historyEntry.proRataAdjustment = Number(values.proRataAdjustment);
+    }
+    if (values.proRatedBillAmount !== undefined && values.proRatedBillAmount !== null) {
+      historyEntry.proRatedBillAmount = Number(values.proRatedBillAmount);
+    }
+    if (values.voucherId !== undefined && values.voucherId !== null) {
+      historyEntry.voucherId = String(values.voucherId);
+    }
+    packageHistory.push(historyEntry);
   }
   let monthlyPriceSchedule = Array.isArray(current.monthlyPriceSchedule) ? [...current.monthlyPriceSchedule] : [];
   if (priceChanged) {
@@ -1062,6 +1072,8 @@ function validateBackupState(source) {
       validBackupAmount(change.oldMonthlyRate, 'previous monthly rate');
       validBackupAmount(change.newMonthlyRate, 'new monthly rate');
       if (change.monthlyRecurringPriceDelta !== null && change.monthlyRecurringPriceDelta !== undefined && !Number.isFinite(Number(change.monthlyRecurringPriceDelta))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid package price delta.`);
+      if (change.proRataAdjustment !== null && change.proRataAdjustment !== undefined && !Number.isFinite(Number(change.proRataAdjustment))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid pro-rata adjustment.`);
+      if (change.proRatedBillAmount !== null && change.proRatedBillAmount !== undefined && !Number.isFinite(Number(change.proRatedBillAmount))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid pro-rated bill amount.`);
     }
     const scheduleMonths = new Set();
     for (const entry of schedule) {

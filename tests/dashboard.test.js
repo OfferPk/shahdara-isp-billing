@@ -16335,6 +16335,328 @@ test('index.html and dashboard.css contain Optical EVM markup and styles', async
   assert.ok(css.includes('.optical-evm-stat-val'));
 });
 
+test('OTN_CONSTANTS and SHAHDARA_OTN_TRUNKS define valid ITU-T G.709 configurations', async () => {
+  const { OTN_CONSTANTS, SHAHDARA_OTN_TRUNKS } = await import('../dashboard.js');
+
+  assert.equal(OTN_CONSTANTS.DEFAULT_TRUNK_ID, 'otn-trk-01');
+  assert.equal(OTN_CONSTANTS.DEFAULT_BER_MULTIPLIER, 1.0);
+
+  // Check Rates
+  assert.ok(OTN_CONSTANTS.RATES.OTU1);
+  assert.ok(OTN_CONSTANTS.RATES.OTU2);
+  assert.ok(OTN_CONSTANTS.RATES.OTU2e);
+  assert.ok(OTN_CONSTANTS.RATES.OTU3);
+  assert.ok(OTN_CONSTANTS.RATES.OTU4);
+  assert.equal(OTN_CONSTANTS.RATES.OTU4.tributarySlots, 80);
+
+  // Check FEC Profiles
+  assert.equal(OTN_CONSTANTS.FEC_PROFILES.GFEC.netCodingGainDb, 6.2);
+  assert.equal(OTN_CONSTANTS.FEC_PROFILES.SD_FEC.netCodingGainDb, 11.4);
+  assert.equal(OTN_CONSTANTS.FEC_PROFILES.GFEC.thresholdBer, 3.8e-3);
+  assert.equal(OTN_CONSTANTS.FEC_PROFILES.SD_FEC.thresholdBer, 2.0e-2);
+
+  // Check Defects
+  assert.ok(OTN_CONSTANTS.DEFECTS.NONE);
+  assert.ok(OTN_CONSTANTS.DEFECTS.OTU_LOF);
+  assert.ok(OTN_CONSTANTS.DEFECTS.OTU_LOM);
+  assert.ok(OTN_CONSTANTS.DEFECTS.ODU_AIS);
+  assert.ok(OTN_CONSTANTS.DEFECTS.ODU_OCI);
+  assert.ok(OTN_CONSTANTS.DEFECTS.ODU_LCK);
+  assert.ok(OTN_CONSTANTS.DEFECTS.HIGH_NOISE_BURST);
+
+  // Check Trunks
+  assert.equal(SHAHDARA_OTN_TRUNKS.length, 5);
+  SHAHDARA_OTN_TRUNKS.forEach(t => {
+    assert.ok(t.id);
+    assert.ok(t.name);
+    assert.ok(t.rate);
+    assert.ok(t.distanceKm > 0);
+    assert.ok(t.primaryArea);
+    assert.ok(t.targetArea);
+    assert.ok(t.allocatedTributarySlots > 0);
+    assert.ok(t.totalTributarySlots >= t.allocatedTributarySlots);
+    assert.ok(t.activeClientServices);
+    assert.ok(t.baselinePreFecBer > 0);
+    assert.ok(t.fecType);
+    assert.ok(t.capacityGbps > 0);
+    assert.ok(t.monthlyRevenuePkr > 0);
+    assert.ok(t.subscribersCount > 0);
+  });
+});
+
+test('calculateEffectivePreFecBer, estimatePostFecBer, calculateFecHeadroomMargin, and calculateBip8Statistics', async () => {
+  const {
+    calculateEffectivePreFecBer,
+    estimatePostFecBer,
+    calculateFecHeadroomMargin,
+    calculateBip8Statistics,
+    OTN_CONSTANTS
+  } = await import('../dashboard.js');
+
+  // Baseline effective pre-FEC BER
+  const berBase = calculateEffectivePreFecBer(1.8e-3, 1.0, 'NONE');
+  assert.equal(berBase, 1.8e-3);
+
+  const berMult = calculateEffectivePreFecBer(1.8e-3, 2.0, 'NONE');
+  assert.equal(berMult, 3.6e-3);
+
+  const berNoise = calculateEffectivePreFecBer(1.8e-3, 1.0, 'HIGH_NOISE_BURST');
+  assert.ok(berNoise >= 1.2e-2);
+
+  const berLof = calculateEffectivePreFecBer(1.8e-3, 1.0, 'OTU_LOF');
+  assert.equal(berLof, 0.5);
+
+  // Post-FEC BER estimation
+  const sdFecProfile = OTN_CONSTANTS.FEC_PROFILES.SD_FEC;
+  const postBerGood = estimatePostFecBer(1.0e-4, sdFecProfile);
+  assert.equal(postBerGood, 1e-16);
+
+  const postBerUncorrectable = estimatePostFecBer(0.03, sdFecProfile);
+  assert.ok(postBerUncorrectable > 1e-3);
+
+  // FEC Headroom Margin (dB)
+  const marginDb = calculateFecHeadroomMargin(1.0e-3, 2.0e-2);
+  assert.ok(marginDb > 12.0); // 10 * log10(20) ~ 13 dB
+
+  const zeroMargin = calculateFecHeadroomMargin(0.025, 2.0e-2);
+  assert.equal(zeroMargin, 0.0);
+
+  // BIP-8 Statistics
+  const bip8 = calculateBip8Statistics(1.0e-4, 8000);
+  assert.equal(bip8.bitsPerFrame, 130560);
+  assert.equal(bip8.totalFramesSampled, 8000);
+  assert.ok(bip8.erroredBlockCount > 0);
+  assert.ok(bip8.backgroundBlockErrorRatio > 0 && bip8.backgroundBlockErrorRatio <= 1.0);
+});
+
+test('calculateOtnDynamics handles baseline, slot utilization, and simulated defect states', async () => {
+  const {
+    calculateOtnDynamics,
+    setOtnSelectedTrunkId,
+    setOtnBerMultiplier,
+    setOtnCustomFec,
+    setOtnSimulatedDefect,
+    resetOtnSimState,
+    OTN_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetOtnSimState();
+  const dynDefault = calculateOtnDynamics();
+  assert.equal(dynDefault.trunk.id, 'otn-trk-01');
+  assert.equal(dynDefault.rateInfo.nominalBitrateGbps > 100, true);
+  assert.equal(dynDefault.activeFecKey, 'SD_FEC');
+  assert.equal(dynDefault.slotUtilizationPct, 85.0);
+  assert.equal(dynDefault.availableTributarySlots, 12);
+  assert.equal(dynDefault.status, OTN_CONSTANTS.STATUS.OPTIMAL);
+  assert.equal(dynDefault.activeDefect.code, 'NONE');
+  assert.ok(dynDefault.fecMarginDb > 8.0);
+
+  // Test custom defect: OTU_LOF
+  setOtnSimulatedDefect('OTU_LOF');
+  const dynLof = calculateOtnDynamics();
+  assert.equal(dynLof.activeDefect.code, 'OTU_LOF');
+  assert.equal(dynLof.activeDefect.severity, 'critical');
+  assert.equal(dynLof.status, OTN_CONSTANTS.STATUS.UNRESOLVABLE_DEFECT);
+
+  // Test custom defect: ODU_OCI
+  setOtnSimulatedDefect('ODU_OCI');
+  const dynOci = calculateOtnDynamics();
+  assert.equal(dynOci.activeDefect.code, 'ODU_OCI');
+  assert.equal(dynOci.activeDefect.severity, 'warning');
+
+  // Test trunk change: OTU2 trunk
+  setOtnSimulatedDefect('NONE');
+  setOtnSelectedTrunkId('otn-trk-03');
+  const dynTrk3 = calculateOtnDynamics();
+  assert.equal(dynTrk3.trunk.id, 'otn-trk-03');
+  assert.equal(dynTrk3.rateInfo.name.includes('OTU2'), true);
+  assert.equal(dynTrk3.activeFecKey, 'GFEC');
+  assert.equal(dynTrk3.slotUtilizationPct, 100.0);
+
+  // Test noise multiplier and margin warning
+  setOtnBerMultiplier(15.0);
+  const dynHighNoise = calculateOtnDynamics();
+  assert.ok(dynHighNoise.fecMarginDb < dynTrk3.fecMarginDb);
+
+  resetOtnSimState();
+});
+
+test('calculateOtnMetrics computes fleet-wide aggregates', async () => {
+  const { calculateOtnMetrics } = await import('../dashboard.js');
+
+  const metrics = calculateOtnMetrics();
+  assert.equal(metrics.totalTrunks, 5);
+  assert.equal(metrics.totalCapacityGbps, 320);
+  assert.equal(metrics.totalAvailableSlots, 256);
+  assert.ok(metrics.totalAllocatedSlots > 200);
+  assert.ok(metrics.overallSlotUtilizationPct > 80);
+  assert.ok(metrics.totalMonthlyRevenuePkr >= 17000000);
+  assert.ok(metrics.totalSubscribersProtected >= 3000);
+  assert.equal(metrics.healthyTrunkCount, 5);
+  assert.equal(metrics.alarmedTrunkCount, 0);
+  assert.ok(metrics.averageFecMarginDb > 5.0);
+});
+
+test('renderOtnDiagramSvg generates accessible and accurate pure-vector SVG', async () => {
+  const { renderOtnDiagramSvg, calculateOtnDynamics } = await import('../dashboard.js');
+
+  const dyn = calculateOtnDynamics();
+  const svgLight = renderOtnDiagramSvg(dyn, { isDark: false, compact: false });
+  assert.ok(svgLight.includes('<svg class="otn-svg"'));
+  assert.ok(svgLight.includes('role="img"'));
+  assert.ok(svgLight.includes('aria-label='));
+  assert.ok(svgLight.includes('FAS'));
+  assert.ok(svgLight.includes('OTU-SM'));
+  assert.ok(svgLight.includes('ODU-PM'));
+  assert.ok(svgLight.includes('OPU-OH (PSI)'));
+  assert.ok(svgLight.includes('OPU Payload Area'));
+  assert.ok(svgLight.includes('FEC Parity Check'));
+  assert.ok(svgLight.includes('PRE-FEC BER (RAW)'));
+  assert.ok(svgLight.includes('POST-FEC BER (CORRECTED)'));
+  assert.ok(svgLight.includes('OPTICAL FEC HEADROOM'));
+
+  const svgDark = renderOtnDiagramSvg(dyn, { isDark: true, compact: true });
+  assert.ok(svgDark.includes('#0f172a')); // Dark background
+  assert.ok(svgDark.includes('viewBox="0 0 720 330"'));
+});
+
+test('exportOtnJson, exportOtnCsv, and generateOtnReport produce formatted outputs', async () => {
+  const { exportOtnJson, exportOtnCsv, generateOtnReport } = await import('../dashboard.js');
+
+  // JSON
+  const jsonStr = exportOtnJson();
+  const data = JSON.parse(jsonStr);
+  assert.ok(data.timestamp);
+  assert.equal(data.selectedTrunk.id, 'otn-trk-01');
+  assert.ok(data.fecTelemetry.fecProfile);
+  assert.ok(data.alarms.defectCode);
+  assert.equal(data.fleetMetrics.totalTrunks, 5);
+
+  // CSV
+  const csvStr = exportOtnCsv();
+  const lines = csvStr.trim().split('\n');
+  assert.equal(lines.length, 2);
+  assert.ok(lines[0].startsWith('TrunkId,TrunkName,Rate'));
+  assert.ok(lines[1].startsWith('otn-trk-01'));
+
+  // Report
+  const report = generateOtnReport();
+  assert.ok(report.includes('SHAHDARA OPTICAL TRANSPORT NETWORK (OTN - ITU-T G.709) AUDIT'));
+  assert.ok(report.includes('Primary Trunk:'));
+  assert.ok(report.includes('FORWARD ERROR CORRECTION (FEC) & CODING MARGIN:'));
+  assert.ok(report.includes('DEFECT ALARM & SLA STATUS:'));
+  assert.ok(report.includes('FLEET-WIDE CARRIER OTN SUMMARY:'));
+});
+
+test('setupOtnModal manages modal interactions and DOM events', async () => {
+  const { setupOtnModal } = await import('../dashboard.js');
+
+  const elements = {
+    dashboardOtnModal: { open: false, showModal() { this.open = true; }, close() { this.open = false; }, setAttribute(k, v) { if (k === 'open') this.open = true; }, removeAttribute(k) { if (k === 'open') this.open = false; } },
+    dashboardOpenOtnModalBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    dashboardOtnModalCloseBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    dashboardOtnChart: { innerHTML: '' },
+    otnModalDiagramContainer: { innerHTML: '' },
+    otnTrunkSelect: { value: 'otn-trk-01', addEventListener(ev, cb) { this.change = cb; } },
+    otnFecModeSelect: { value: '', addEventListener(ev, cb) { this.change = cb; } },
+    otnDefectSimSelect: { value: 'NONE', addEventListener(ev, cb) { this.change = cb; } },
+    otnBerSlider: { value: '1.0', addEventListener(ev, cb) { this.input = cb; } },
+    otnBerLabel: { textContent: '' },
+    otnResetBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    otnStatCapacity: { textContent: '' },
+    otnStatPreFec: { textContent: '' },
+    otnStatPostFec: { textContent: '' },
+    otnStatMargin: { textContent: '' },
+    otnStatSlots: { textContent: '' },
+    otnStatDefect: { textContent: '', style: {} },
+    otnFilterAreaBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    otnExportJsonBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    otnExportCsvBtn: { addEventListener(ev, cb) { this.click = cb; } },
+    otnCopyReportBtn: { addEventListener(ev, cb) { this.click = cb; } }
+  };
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    documentElement: {
+      getAttribute: () => 'light'
+    }
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+
+  const controller = setupOtnModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filteredArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardOtnModal.open, true);
+  assert.ok(elements.dashboardOtnChart.innerHTML.includes('<svg'));
+  assert.ok(elements.otnModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Slider change
+  elements.otnBerSlider.value = '3.5';
+  elements.otnBerSlider.input();
+  assert.equal(elements.otnBerLabel.textContent, '3.5x');
+
+  // Defect select change
+  elements.otnDefectSimSelect.value = 'ODU_AIS';
+  elements.otnDefectSimSelect.change();
+  assert.equal(elements.otnStatDefect.textContent, 'ODU_AIS');
+
+  // Reset button
+  elements.otnResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Export buttons
+  elements.otnExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON'));
+
+  elements.otnExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV'));
+
+  elements.otnCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Filter area button
+  elements.otnFilterAreaBtn.click();
+  assert.equal(filteredArea, 'Ravi Siphon');
+
+  controller.close();
+  assert.equal(elements.dashboardOtnModal.open, false);
+});
+
+test('index.html and dashboard.css contain OTN markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-otn'));
+  assert.ok(html.includes('id="dashboardOtnChart"'));
+  assert.ok(html.includes('id="dashboardOpenOtnModalBtn"'));
+  assert.ok(html.includes('id="dashboardOtnModal"'));
+  assert.ok(html.includes('id="otnTrunkSelect"'));
+  assert.ok(html.includes('id="otnFecModeSelect"'));
+  assert.ok(html.includes('id="otnDefectSimSelect"'));
+  assert.ok(html.includes('id="otnBerSlider"'));
+  assert.ok(html.includes('id="otnResetBtn"'));
+  assert.ok(html.includes('id="otnModalDiagramContainer"'));
+  assert.ok(html.includes('id="otnExportJsonBtn"'));
+  assert.ok(html.includes('id="otnExportCsvBtn"'));
+  assert.ok(html.includes('id="otnCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-otn'));
+  assert.ok(css.includes('.otn-modal-card'));
+  assert.ok(css.includes('.otn-svg'));
+  assert.ok(css.includes('.otn-action-bar'));
+});
+
 
 
 

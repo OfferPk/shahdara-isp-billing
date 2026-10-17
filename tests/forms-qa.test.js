@@ -12146,3 +12146,327 @@ test('DOM & CSS integration for Outside Plant Armored Cable Crush & Impact QA Su
   assert.ok(stylesCss.includes('#armoredCableCrushModal'));
   assert.ok(stylesCss.includes('#armoredSvgContainer'));
 });
+
+test('calculateDuctFillRatio calculates diameter and area ratios and evaluates fill status', async () => {
+  const { calculateDuctFillRatio } = await import('../form-validation.js');
+
+  // Optimal fill: 6.2mm cable in 10mm duct -> 62% diameter ratio
+  const opt = calculateDuctFillRatio(6.2, 10.0);
+  assert.equal(opt.diameterRatioPct, 62);
+  assert.equal(opt.areaRatioPct, 38.4);
+  assert.equal(opt.status, 'OPTIMAL');
+
+  // Overfilled choke: 11.2mm cable in 12mm duct -> 93.3% diameter ratio
+  const choke = calculateDuctFillRatio(11.2, 12.0);
+  assert.equal(choke.diameterRatioPct, 93.3);
+  assert.equal(choke.status, 'OVERFILLED_CHOKED');
+
+  // Underfilled blowout: 2.8mm cable in 16mm duct -> 17.5% diameter ratio
+  const under = calculateDuctFillRatio(2.8, 16.0);
+  assert.equal(under.diameterRatioPct, 17.5);
+  assert.equal(under.status, 'UNDERFILLED_BLOWOUT');
+});
+
+test('calculateCriticalBucklingPushForce computes Euler column crash-buckling limit', async () => {
+  const { calculateCriticalBucklingPushForce } = await import('../form-validation.js');
+
+  // 48F micro-cable in 12/10mm duct (clearance = (10 - 6.2)/2 = 1.9mm)
+  const res = calculateCriticalBucklingPushForce(9200, 73, 36, 10.0, 6.2);
+  assert.equal(res.radialClearanceMm, 1.9);
+  assert.ok(res.criticalBucklingForceN > 100);
+  assert.ok(res.criticalBucklingForceN < 1000);
+});
+
+test('calculateViscousDragForce and calculateCapstanCurvatureFactor model airflow drag and bends', async () => {
+  const { calculateViscousDragForce, calculateCapstanCurvatureFactor } = await import('../form-validation.js');
+
+  const drag = calculateViscousDragForce(10.0, 6.2, 1450, 12.0);
+  assert.ok(drag.totalViscousDragForceN > 50);
+  assert.equal(drag.avgPressureBar, 6.5);
+  assert.ok(drag.exitAirVelocityMps > 50);
+
+  // 8 bends of 45 deg = 360 deg = 2*pi rad
+  // Pre-lubed mu = 0.08 -> exp(0.08 * 2*pi) = exp(0.5026) ≈ 1.653
+  const capstan = calculateCapstanCurvatureFactor(8, 45, 0.08);
+  assert.equal(capstan.totalAngleDegrees, 360);
+  assert.ok(capstan.capstanMultiplier >= 1.6 && capstan.capstanMultiplier <= 1.7);
+});
+
+test('evaluateCableJettingPhysics evaluates comprehensive outside plant pneumatic blowing scenarios', async () => {
+  const { evaluateCableJettingPhysics } = await import('../form-validation.js');
+
+  // Scenario 1: Optimal Baradari backbone jetting
+  const optimal = evaluateCableJettingPhysics({
+    cableTypeId: 'MICRO_CABLE_48F_6MM',
+    ductTypeId: 'MICRODUCT_12_10',
+    equipmentId: 'SCREW_COMPRESSOR_15BAR',
+    ductLengthM: 1450,
+    airPressureBar: 12,
+    machinePushForceN: 350,
+    totalBendsCount: 8,
+    avgBendDegrees: 45,
+    isPreLubricated: true
+  });
+  assert.equal(optimal.verdict.id, 'CERTIFIED_OPTIMAL_JETTING');
+  assert.ok(optimal.pushBucklingRatio <= 1.0);
+  assert.equal(optimal.netInstallationTensionN, 0); // floats aerodynamically
+  assert.ok(optimal.estimatedMaxBlowingDistanceM >= 1450);
+
+  // Scenario 2: Overfilled duct choke
+  const choke = evaluateCableJettingPhysics({
+    cableTypeId: 'STANDARD_DUCT_144F_11MM',
+    ductTypeId: 'MICRODUCT_12_10',
+    ductLengthM: 600,
+    airPressureBar: 8,
+    machinePushForceN: 400
+  });
+  assert.equal(choke.verdict.id, 'FAILED_DUCT_OVERFILL_CHOKE');
+  assert.ok(choke.fillRatio.diameterRatioPct > 80);
+
+  // Scenario 3: Excessive push force crash buckling hazard
+  const crash = evaluateCableJettingPhysics({
+    cableTypeId: 'MICRO_DROP_4F_3MM',
+    ductTypeId: 'MICRODUCT_10_8',
+    machinePushForceN: 450 // way above 4F drop buckling limit
+  });
+  assert.equal(crash.verdict.id, 'FAILED_CRASH_BUCKLING_RISK');
+  assert.ok(crash.pushBucklingRatio > 1.0);
+});
+
+test('validateCableJettingInput validates field input constraints', async () => {
+  const { validateCableJettingInput } = await import('../form-validation.js');
+
+  const valid = validateCableJettingInput({
+    customer: 'Shahdara Backbone',
+    route: 'Baradari OLT Duct Bank',
+    ductLengthM: 1200,
+    airPressureBar: 12,
+    machinePushForceN: 300,
+    pushSpeedMPerMin: 60
+  });
+  assert.equal(valid.valid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateCableJettingInput({
+    customer: '',
+    route: '',
+    ductLengthM: -5,
+    airPressureBar: 50,
+    machinePushForceN: 5000,
+    pushSpeedMPerMin: 500
+  });
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.errors.length >= 5);
+});
+
+test('buildCableJettingCertRecord creates structured record with immutable properties', async () => {
+  const { buildCableJettingCertRecord } = await import('../form-validation.js');
+
+  const record = buildCableJettingCertRecord({
+    customer: 'Shahdara North Feeder',
+    route: 'Chamber 08 to FDH-02',
+    technicianName: 'Umair Lead Lineworker',
+    cableTypeId: 'MICRO_CABLE_24F_5MM',
+    ductTypeId: 'MICRODUCT_10_8',
+    ductLengthM: 800,
+    airPressureBar: 10
+  });
+
+  assert.ok(record.certId.startsWith('JET-'));
+  assert.equal(record.customer, 'Shahdara North Feeder');
+  assert.equal(record.route, 'Chamber 08 to FDH-02');
+  assert.equal(record.technicianName, 'Umair Lead Lineworker');
+  assert.ok(record.analysis);
+  assert.ok(record.status);
+});
+
+test('saveCableJettingCert, getSavedCableJettingCerts, and update status maintain persistence', async () => {
+  const {
+    saveCableJettingCert,
+    getSavedCableJettingCerts,
+    updateCableJettingCertStatus,
+    clearCableJettingCerts
+  } = await import('../form-validation.js');
+
+  const mockState = {};
+  clearCableJettingCerts(mockState);
+  assert.equal(getSavedCableJettingCerts(mockState).length, 0);
+
+  const rec1 = { certId: 'JET-202610-0001', customer: 'Cust A', ductLengthM: 500, status: 'VERIFIED' };
+  const rec2 = { certId: 'JET-202610-0002', customer: 'Cust B', ductLengthM: 1000, status: 'ACTION_REQUIRED' };
+
+  saveCableJettingCert(rec1, mockState);
+  saveCableJettingCert(rec2, mockState);
+
+  const saved = getSavedCableJettingCerts(mockState);
+  assert.equal(saved.length, 2);
+  assert.equal(saved[0].certId, 'JET-202610-0002');
+
+  updateCableJettingCertStatus('JET-202610-0002', 'RESOLVED', mockState);
+  const updated = getSavedCableJettingCerts(mockState);
+  assert.equal(updated.find(c => c.certId === 'JET-202610-0002').status, 'RESOLVED');
+
+  clearCableJettingCerts(mockState);
+  assert.equal(getSavedCableJettingCerts(mockState).length, 0);
+});
+
+test('calculateCableJettingMetrics aggregates summary statistics', async () => {
+  const { calculateCableJettingMetrics } = await import('../form-validation.js');
+
+  const mockCerts = [
+    { certId: 'JET-1', ductLengthM: 1200, airPressureBar: 12, analysis: { verdict: { id: 'CERTIFIED_OPTIMAL_JETTING' } } },
+    { certId: 'JET-2', ductLengthM: 800, airPressureBar: 10, analysis: { verdict: { id: 'CONDITIONAL_PASS_LUBRICATED' } } },
+    { certId: 'JET-3', ductLengthM: 600, airPressureBar: 14, analysis: { verdict: { id: 'FAILED_DUCT_OVERFILL_CHOKE' } } }
+  ];
+
+  const metrics = calculateCableJettingMetrics(mockCerts);
+  assert.equal(metrics.total, 3);
+  assert.equal(metrics.certified, 1);
+  assert.equal(metrics.conditional, 1);
+  assert.equal(metrics.failed, 1);
+  assert.equal(metrics.passRatePct, 67);
+  assert.equal(metrics.totalBlowingMeters, 2600);
+  assert.equal(metrics.avgDistanceM, 867);
+  assert.equal(metrics.maxPressureBarSeen, 14);
+});
+
+test('renderCableJettingAnalysisSvg returns valid pure-vector SVG markup', async () => {
+  const { renderCableJettingAnalysisSvg, evaluateCableJettingPhysics } = await import('../form-validation.js');
+
+  const analysis = evaluateCableJettingPhysics({
+    cableTypeId: 'MICRO_CABLE_48F_6MM',
+    ductTypeId: 'MICRODUCT_12_10',
+    ductLengthM: 1450,
+    airPressureBar: 12,
+    machinePushForceN: 350
+  });
+
+  const svg = renderCableJettingAnalysisSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('class="cable-jetting-analysis-svg"'));
+  assert.ok(svg.includes('AIR COMP'));
+  assert.ok(svg.includes('PUSH: 350N'));
+  assert.ok(svg.includes('Aerodynamic Air Drag'));
+  assert.ok(svg.includes('CABLE JETTING METROLOGY HUD'));
+});
+
+test('generateCableJettingCertHtml produces formal A4 certificate and thermal POS slip', async () => {
+  const { generateCableJettingCertHtml, evaluateCableJettingPhysics } = await import('../form-validation.js');
+
+  const record = {
+    certId: 'JET-202610-7788',
+    customer: 'Shahdara Ring Feeder',
+    route: 'Baradari to Begum Kot',
+    technicianName: 'Umair Tech',
+    analysis: evaluateCableJettingPhysics({
+      cableTypeId: 'MICRO_CABLE_48F_6MM',
+      ductTypeId: 'MICRODUCT_12_10',
+      ductLengthM: 1450
+    })
+  };
+
+  const a4Html = generateCableJettingCertHtml(record, { format: 'a4' });
+  assert.ok(a4Html.includes('a4-certificate-container'));
+  assert.ok(a4Html.includes('SHAHDARA FIBER NETWORK OPERATIONS'));
+  assert.ok(a4Html.includes('JET-202610-7788'));
+  assert.ok(a4Html.includes('Duct Fill Ratio'));
+  assert.ok(a4Html.includes('Caterpillar Machine Push Force'));
+
+  const posHtml = generateCableJettingCertHtml(record, { format: 'thermal' });
+  assert.ok(posHtml.includes('pos-thermal-slip'));
+  assert.ok(posHtml.includes('OUTSIDE PLANT PNEUMATIC JETTING QA SLIP'));
+  assert.ok(posHtml.includes('JET-202610-7788'));
+});
+
+test('formatCableJettingCertWhatsApp and generateCableJettingCertsCsv export data correctly', async () => {
+  const {
+    formatCableJettingCertWhatsApp,
+    generateCableJettingCertsCsv,
+    evaluateCableJettingPhysics
+  } = await import('../form-validation.js');
+
+  const record = {
+    certId: 'JET-202610-9999',
+    customer: 'Shahdara Trunk Feeder',
+    route: 'Canal Road Crossing',
+    technicianName: 'Umair Lead Splicer',
+    createdAt: '2026-10-17T10:00:00.000Z',
+    analysis: evaluateCableJettingPhysics({
+      cableTypeId: 'MINI_CABLE_96F_7MM',
+      ductTypeId: 'SUBDUCT_20_16',
+      ductLengthM: 1150
+    })
+  };
+
+  const wa = formatCableJettingCertWhatsApp(record);
+  assert.ok(wa.includes('*SHAHDARA FIBER NETWORK — OSP PNEUMATIC CABLE JETTING QA CERTIFICATE*'));
+  assert.ok(wa.includes('JET-202610-9999'));
+  assert.ok(wa.includes('Shahdara Trunk Feeder'));
+  assert.ok(wa.includes('Span Length: 1150 meters'));
+
+  const csv = generateCableJettingCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('JET-202610-9999'));
+  assert.ok(csv.includes('"Shahdara Trunk Feeder"'));
+  assert.ok(csv.includes('MINI_CABLE_96F_7MM'));
+});
+
+test('SHAH_JETTING_PRESETS catalog contains 5 valid field configurations', async () => {
+  const { SHAH_JETTING_PRESETS, JETTING_CABLE_TYPES, JETTING_DUCT_TYPES, JETTING_EQUIPMENT_TYPES } = await import('../form-validation.js');
+
+  const keys = Object.keys(SHAH_JETTING_PRESETS);
+  assert.equal(keys.length, 5);
+
+  keys.forEach(k => {
+    const p = SHAH_JETTING_PRESETS[k];
+    assert.ok(p.id);
+    assert.ok(p.customer);
+    assert.ok(p.route);
+    assert.ok(JETTING_CABLE_TYPES[p.cableTypeId]);
+    assert.ok(JETTING_DUCT_TYPES[p.ductTypeId]);
+    assert.ok(JETTING_EQUIPMENT_TYPES[p.equipmentId]);
+    assert.ok(p.ductLengthM > 0);
+    assert.ok(p.airPressureBar > 0);
+    assert.ok(p.machinePushForceN > 0);
+  });
+});
+
+test('DOM & CSS integration for Outside Plant Cable Jetting & Air-Blowing QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openCableJettingBtn"'));
+  assert.ok(indexHtml.includes('id="cableJettingModal"'));
+  assert.ok(indexHtml.includes('id="jettingPresetSelect"'));
+  assert.ok(indexHtml.includes('id="jettingCustInput"'));
+  assert.ok(indexHtml.includes('id="jettingRouteInput"'));
+  assert.ok(indexHtml.includes('id="jettingTechInput"'));
+  assert.ok(indexHtml.includes('id="jettingCableSelect"'));
+  assert.ok(indexHtml.includes('id="jettingDuctSelect"'));
+  assert.ok(indexHtml.includes('id="jettingEquipSelect"'));
+  assert.ok(indexHtml.includes('id="jettingLengthInput"'));
+  assert.ok(indexHtml.includes('id="jettingPressInput"'));
+  assert.ok(indexHtml.includes('id="jettingPushInput"'));
+  assert.ok(indexHtml.includes('id="jettingSpeedInput"'));
+  assert.ok(indexHtml.includes('id="jettingBendsInput"'));
+  assert.ok(indexHtml.includes('id="jettingLubedCheckbox"'));
+  assert.ok(indexHtml.includes('id="jettingSaveCertBtn"'));
+  assert.ok(indexHtml.includes('id="jettingPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="jettingPrintThermalBtn"'));
+  assert.ok(indexHtml.includes('id="jettingCopyWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="jettingExportCsvBtn"'));
+  assert.ok(indexHtml.includes('id="jettingSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupCableJettingModal'));
+  assert.ok(appJs.includes('customerCableJettingModalController'));
+  assert.ok(appJs.includes('#openCableJettingBtn'));
+  assert.ok(appJs.includes('#cableJettingModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#cableJettingModal'));
+  assert.ok(stylesCss.includes('#jettingSvgContainer'));
+});
+

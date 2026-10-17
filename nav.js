@@ -6176,3 +6176,15 @@ export {
   setupMobileMpoModal
 } from './nav-mpo-polarity.js';
 
+export {
+  FAST_CONNECTOR_STORAGE_KEY,
+  FAST_CONNECTOR_TYPES,
+  GEL_CONDITIONS,
+  FAST_CONNECTOR_PRESETS,
+  calculateFastConnectorMetrics,
+  renderFastConnectorDiagramSvg,
+  formatFastConnectorWhatsApp,
+  generateFastConnectorCsv,
+  setupMobileFastConnectorModal
+} from './nav-fast-connector.js';
+

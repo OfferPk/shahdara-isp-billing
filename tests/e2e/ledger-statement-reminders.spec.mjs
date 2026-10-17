@@ -57,6 +57,13 @@ test.describe('Customer Ledger Statement, Batch Slips & Payment Reminders E2E Ve
     await rangeSelect.selectOption('all');
     await expect(previewContainer).toBeVisible();
 
+    // Verify Share on WhatsApp button
+    const shareWhatsAppBtn = page.locator('#shareStatementWhatsAppBtn');
+    await expect(shareWhatsAppBtn).toBeVisible();
+    await shareWhatsAppBtn.click();
+    const toast = page.locator('#toast');
+    await expect(toast).toBeVisible();
+
     // Close Statement Modal via close button
     const closeStatementBtn = page.locator('#closeStatementModalBtn');
     await expect(closeStatementBtn).toBeVisible();
@@ -120,13 +127,17 @@ test.describe('Customer Ledger Statement, Batch Slips & Payment Reminders E2E Ve
     const reportsView = page.locator('#billingReportsView');
     await expect(reportsView).toBeVisible();
 
-    // Click Print Slips button
-    const batchSlipsBtn = page.locator('#batchReceiptPrintBtn');
-    await expect(batchSlipsBtn).toBeVisible();
-    await batchSlipsBtn.click();
+    // Verify Bulk Reminder Dispatch button exists in reports view
+    const bulkReminderBtn = page.locator('#bulkReminderDispatchBtn');
+    await expect(bulkReminderBtn).toBeVisible();
+    await bulkReminderBtn.click();
 
     const batchModal = page.locator('#batchReceiptModal');
     await expect(batchModal).toBeVisible();
+
+    // Verify Filter Select is pre-set to pending
+    const filterSelect = page.locator('#batchReceiptFilterSelect');
+    await expect(filterSelect).toHaveValue('pending');
 
     // Verify Month Selector exists and has options
     const monthSelect = page.locator('#batchReceiptMonthSelect');
@@ -134,17 +145,19 @@ test.describe('Customer Ledger Statement, Batch Slips & Payment Reminders E2E Ve
     const monthOptions = await monthSelect.locator('option').count();
     expect(monthOptions).toBeGreaterThan(0);
 
-    // Verify Filter Select exists
-    const filterSelect = page.locator('#batchReceiptFilterSelect');
-    await expect(filterSelect).toBeVisible();
-    await filterSelect.selectOption('pending');
-    await filterSelect.selectOption('all');
-
     // Verify Preview Container is visible and contains billing slips
     const previewContainer = page.locator('#batchReceiptPreviewContainer');
     await expect(previewContainer).toBeVisible();
     await expect(previewContainer).toContainText('SHAHDARA FIBER NET');
     await expect(previewContainer).toContainText('CUSTOMER BILLING SLIP');
+
+    // Switch filter to all
+    await filterSelect.selectOption('all');
+
+    // Verify WhatsApp reminder button exists on slips
+    const slipWaBtn = page.locator('.batch-slip-wa-btn').first();
+    await expect(slipWaBtn).toBeVisible();
+    await expect(slipWaBtn).toContainText('WhatsApp Reminder');
 
     // Close Batch Slips Modal
     const closeBatchBtn = page.locator('#batchReceiptModalCloseBtn');
@@ -153,7 +166,7 @@ test.describe('Customer Ledger Statement, Batch Slips & Payment Reminders E2E Ve
     await expect(batchModal).not.toBeVisible();
   });
 
-  test('responsive verification: zero horizontal scroll overflow at 390px mobile viewport', async ({ page }) => {
+  test('responsive verification: zero horizontal scroll overflow and 44px touch targets at 390px mobile viewport', async ({ page }) => {
     await page.goto('/#customers');
 
     const firstCustomerBtn = page.locator('#customerList [data-customer-id]').first();
@@ -179,6 +192,12 @@ test.describe('Customer Ledger Statement, Batch Slips & Payment Reminders E2E Ve
       return document.documentElement.scrollWidth > document.documentElement.clientWidth;
     });
     expect(statementOverflow).toBe(false);
+
+    // Check WhatsApp statement button touch target >= 44px
+    const shareWhatsAppBtn = page.locator('#shareStatementWhatsAppBtn');
+    await expect(shareWhatsAppBtn).toBeVisible();
+    const waBox = await shareWhatsAppBtn.boundingBox();
+    expect(waBox.height).toBeGreaterThanOrEqual(44);
 
     const closeStatementBtn = page.locator('#closeStatementModalBtn');
     await closeStatementBtn.click();

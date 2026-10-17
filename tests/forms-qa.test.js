@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   validatePakistanPhone, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, hasFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
   calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
@@ -539,6 +539,93 @@ test('downloadCustomerStatementCsv generates RFC 4180 CSV with UTF-8 BOM and tri
   }
 });
 
+test('formatCustomerStatement integrates adjustment vouchers into chronological ledger', () => {
+  const customer = {
+    id: 'c-adj',
+    customerNumber: 88,
+    name: 'Hamza Malik',
+    bills: [
+      { id: 'b1', month: '2026-03', dueAmount: 2000, dueDate: '2026-03-05', payments: [] }
+    ]
+  };
+
+  const adjustments = [
+    {
+      id: 'v-01',
+      customerId: 'c-adj',
+      date: '2026-03-10',
+      month: '2026-03',
+      amount: -500,
+      category: 'waiver',
+      categoryLabel: 'Late Fee Waiver',
+      reason: 'First time waiver'
+    }
+  ];
+
+  const stmt = formatCustomerStatement(customer, { range: 'all', adjustments });
+  assert.equal(stmt.totalBilled, 2000);
+  assert.equal(stmt.totalPaid, 500); // 500 credit
+  assert.equal(stmt.currentBalance, 1500);
+  assert.equal(stmt.events.length, 2);
+  assert.equal(stmt.events[1].type, 'adjustment');
+  assert.match(stmt.events[1].description, /Late Fee Waiver/);
+});
+
+test('formatCustomerStatementWhatsApp produces bilingual Urdu & English summary', () => {
+  const statementData = {
+    customer: { id: 'c-wa', customerNumber: 77, name: 'Usman Ali', phone: '0301-7654321', area: 'Baradari', package: '25 Mbps Fiber' },
+    range: 'all',
+    openingBalance: 200,
+    totalBilled: 3000,
+    totalPaid: 2500,
+    currentBalance: 700,
+    events: [
+      { date: '2026-03-05', type: 'bill', description: 'Monthly Bill (2026-03)', charge: 3000, credit: 0, runningBalance: 3200 },
+      { date: '2026-03-10', type: 'payment', description: 'Payment Received · JazzCash', charge: 0, credit: 2500, runningBalance: 700 }
+    ]
+  };
+
+  const waText = formatCustomerStatementWhatsApp(statementData);
+  assert.match(waText, /Shahdara ISP - Customer Account Statement/);
+  assert.match(waText, /شاہدرہ انٹرنیٹ سروسز - کھاتہ اسٹیٹمنٹ/);
+  assert.match(waText, /Usman Ali/);
+  assert.match(waText, /#77/);
+  assert.match(waText, /Baradari/);
+  assert.match(waText, /25 Mbps Fiber/);
+  assert.match(waText, /Opening Balance \/ پچھلا بقایا: \*PKR 200\*/);
+  assert.match(waText, /Total Billed Charges \/ کل بلز: \*PKR 3,000\*/);
+  assert.match(waText, /Total Payments Received \/ کل وصولی: \*PKR 2,500\*/);
+  assert.match(waText, /Net Current Balance \/ موجودہ بقایا: \*PKR 700\*/);
+  assert.match(waText, /EasyPaisa · JazzCash · Cash Collection/);
+
+  // Null handling
+  assert.equal(formatCustomerStatementWhatsApp(null), 'Customer ledger information is currently unavailable.');
+});
+
+test('generateBatchReceiptHtml includes customerNumber and WhatsApp reminder action button', () => {
+  const customers = [
+    {
+      id: 'cust-batch-1',
+      customerNumber: 105,
+      name: 'Nadeem Akhtar',
+      phone: '0321-9988776',
+      area: 'Begum Kot',
+      package: '15 Mbps',
+      bills: [
+        { month: '2026-03', dueAmount: 1800, paidAmount: 0 }
+      ]
+    }
+  ];
+
+  const html = generateBatchReceiptHtml(customers, '2026-03', { customers });
+  assert.match(html, /#105 · Nadeem Akhtar/);
+  assert.match(html, /class="batch-slip-actions"/);
+  assert.match(html, /class="btn-xs whatsapp-btn batch-slip-wa-btn"/);
+  assert.match(html, /data-cust-id="cust-batch-1"/);
+  assert.match(html, /data-month="2026-03"/);
+  assert.match(html, /WhatsApp Reminder/);
+});
+
 test('index.html and styles.css provide accessible customer account statement and thermal receipt support', () => {
   const indexHtml = read('index.html');
   const stylesCss = read('styles.css');
@@ -548,6 +635,8 @@ test('index.html and styles.css provide accessible customer account statement an
   assert.match(indexHtml, /id="statementRangeSelect"/);
   assert.match(indexHtml, /id="printStatementBtn"/);
   assert.match(indexHtml, /id="downloadStatementCsvBtn"/);
+  assert.match(indexHtml, /id="shareStatementWhatsAppBtn"/);
+  assert.match(indexHtml, /id="bulkReminderDispatchBtn"/);
   assert.match(indexHtml, /id="statementPreviewContainer"/);
 
   assert.match(stylesCss, /\.statement-modal/);
@@ -557,6 +646,9 @@ test('index.html and styles.css provide accessible customer account statement an
   assert.match(stylesCss, /body\.printing-statement/);
   assert.match(stylesCss, /body\.printing-thermal/);
   assert.match(stylesCss, /\.thermal-receipt/);
+  assert.match(stylesCss, /\.batch-slip-actions/);
+  assert.match(stylesCss, /\.batch-slip-wa-btn/);
+  assert.match(stylesCss, /body\.printing-batch \.batch-slip-actions/);
 });
 
 test('app.js integrates customer statement modal, thermal receipt printing, and phone input masking', () => {
@@ -570,6 +662,9 @@ test('app.js integrates customer statement modal, thermal receipt printing, and 
   assert.match(appJs, /#statementRangeSelect/);
   assert.match(appJs, /#printStatementBtn/);
   assert.match(appJs, /#downloadStatementCsvBtn/);
+  assert.match(appJs, /#shareStatementWhatsAppBtn/);
+  assert.match(appJs, /#bulkReminderDispatchBtn/);
+  assert.match(appJs, /\.batch-slip-wa-btn/);
   assert.match(appJs, /isThermal/);
   assert.match(appJs, /data-print-thermal-receipt/);
   assert.match(appJs, /wirePhoneInputMask/);

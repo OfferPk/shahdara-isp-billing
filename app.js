@@ -29,7 +29,7 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 import {
   validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, generateCustomerStatementHtml, downloadCustomerStatementCsv,
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
   generateStandaloneInvoiceDocument, downloadHtmlFile,
@@ -2688,9 +2688,17 @@ setupMobileSpeedDial({
     fieldWorkOrderSheetController?.open();
   },
   onReminders: () => {
-    const btn = $('#openReminderModalBtn');
-    if (btn && !btn.hidden) {
-      btn.click();
+    let cust = selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null;
+    if (!cust) {
+      cust = state.customers.find(c => !c.archived && Array.isArray(c.bills) && c.bills.some(b => Number(b.dueAmount || 0) > Number(b.paidAmount || 0)));
+      if (!cust) {
+        cust = state.customers.find(c => !c.archived) || state.customers[0];
+      }
+    }
+    if (cust) {
+      selectCustomer(cust.id);
+      switchView('customers');
+      openPaymentReminderModal(cust);
     } else {
       switchView('customers');
       toast('Select a customer to send WhatsApp payment reminders');
@@ -3619,6 +3627,59 @@ $('#triggerBatchPrintBtn')?.addEventListener('click', () => {
   });
 });
 
+// Batch slip direct WhatsApp reminder dispatch
+const batchPreviewContainer = $('#batchReceiptPreviewContainer') || $('#batchReceiptContainer');
+batchPreviewContainer?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.batch-slip-wa-btn');
+  if (!btn) return;
+  const custId = btn.getAttribute('data-cust-id');
+  const month = btn.getAttribute('data-month') || selectedBillingMonth;
+  const customer = state.customers.find(c => c.id === custId);
+  if (!customer) return;
+
+  const bill = Array.isArray(customer.bills) ? customer.bills.find(b => b.month === month) : null;
+  const dueAmount = Number(bill?.dueAmount || customer.monthlyPrice || customer.packagePrice || 0);
+  const paidAmount = Number(bill?.paidAmount || 0);
+  const balance = Math.max(0, dueAmount - paidAmount);
+  const dueDate = bill?.dueDate || (customer.customDueDate ? `${customer.customDueDate}th of month` : '5th of month');
+
+  const msg = buildPaymentReminderMessage({
+    customer,
+    templateType: balance > dueAmount ? 'overdue' : 'due',
+    billingData: {
+      month,
+      billAmount: dueAmount,
+      balance,
+      dueDate,
+      packageName: customer.package || customer.packageSpeed || 'Standard Plan'
+    }
+  });
+
+  const phoneRes = formatWhatsAppUrl(customer.phone || '', msg);
+  if (phoneRes.validPhone && phoneRes.url) {
+    window.open(phoneRes.url, '_blank');
+    toast(`Opening WhatsApp reminder draft for ${customer.name}...`);
+  } else {
+    openPaymentReminderModal(customer);
+    toast(`Phone missing or invalid for ${customer.name}. Opening reminder modal.`);
+  }
+});
+
+// Bulk Reminders button in Monthly Report view: opens batch slips filtered to pending
+$('#bulkReminderDispatchBtn')?.addEventListener('click', () => {
+  const monthSelect = $('#batchReceiptMonthSelect');
+  if (monthSelect) {
+    const months = monthsForHistory();
+    monthSelect.innerHTML = months.map(m => `<option value="${m}" ${m === selectedBillingMonth ? 'selected' : ''}>${monthName(m)} (${m})</option>`).join('');
+  }
+  const filterSelect = $('#batchReceiptFilterSelect');
+  if (filterSelect) filterSelect.value = 'pending';
+  renderBatchReceipts();
+  if (batchReceiptModal?.showModal) batchReceiptModal.showModal();
+  else batchReceiptModal?.setAttribute('open', '');
+  toast('Displaying pending customer slips. Tap "WhatsApp Reminder" on each slip to dispatch.');
+});
+
 let currentStatementData = null;
 
 function renderAccountStatement(range = 'all') {
@@ -3626,7 +3687,10 @@ function renderAccountStatement(range = 'all') {
   const customer = state.customers.find(c => c.id === selectedCustomerId);
   if (!customer) return;
 
-  currentStatementData = formatCustomerStatement(customer, { range });
+  currentStatementData = formatCustomerStatement(customer, {
+    range,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null
+  });
   const preview = $('#statementPreviewContainer');
   if (preview) {
     preview.innerHTML = generateCustomerStatementHtml(currentStatementData);
@@ -3639,6 +3703,7 @@ const closeStatementBtn = $('#closeStatementModalBtn');
 const statementRangeSelect = $('#statementRangeSelect');
 const printStatementBtn = $('#printStatementBtn');
 const downloadStatementCsvBtn = $('#downloadStatementCsvBtn');
+const shareStatementWhatsAppBtn = $('#shareStatementWhatsAppBtn');
 
 if (openStatementBtn && statementModal) {
   openStatementBtn.addEventListener('click', () => {
@@ -3695,6 +3760,38 @@ if (downloadStatementCsvBtn) {
     if (currentStatementData) {
       downloadCustomerStatementCsv(currentStatementData);
       toast('Customer statement CSV downloaded.');
+    }
+  });
+}
+
+if (shareStatementWhatsAppBtn) {
+  shareStatementWhatsAppBtn.addEventListener('click', async () => {
+    if (!currentStatementData || !currentStatementData.customer) {
+      toast('No customer statement data to share.');
+      return;
+    }
+    const text = formatCustomerStatementWhatsApp(currentStatementData);
+    const phone = currentStatementData.customer.phone || '';
+    const phoneRes = formatWhatsAppUrl(phone, text);
+    if (phoneRes.validPhone && phoneRes.url) {
+      window.open(phoneRes.url, '_blank');
+      toast(`Opening WhatsApp statement draft for ${currentStatementData.customer.name}...`);
+    } else {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+        }
+        toast('Customer phone missing. Statement summary copied to clipboard.');
+      } catch {
+        toast('Unable to copy statement to clipboard.');
+      }
     }
   });
 }

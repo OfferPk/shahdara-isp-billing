@@ -6129,6 +6129,18 @@ export {
   getAreaDescriptors
 } from './dashboard-area-collections.js';
 
+export {
+  calculatePackageRevenueMix,
+  renderPackageRevenueDonutSvg,
+  generatePackageRevenueCsv,
+  generatePackageRevenuePrintHtml,
+  generatePackageRevenueBriefing,
+  setupPackageRevenueModal,
+  resolvePackageForCustomer,
+  resolvePackageForBill,
+  describeDonutArc
+} from './dashboard-package-revenue.js';
+
 
 
 

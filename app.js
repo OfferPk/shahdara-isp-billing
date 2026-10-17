@@ -80,6 +80,7 @@ import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
+import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 
 
 
@@ -96,6 +97,7 @@ export let collectionTargetController = null;
 export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let areaCollectionsModalController = null;
+export let packageRevenueModalController = null;
 export let lateFeeModalController = null;
 let state;
 try {
@@ -3928,6 +3930,17 @@ if (typeof document !== 'undefined') {
     },
     onToast: (msg) => toast(msg)
   });
+  packageRevenueModalController = setupPackageRevenueModal(() => state, {
+    onFilterPackageCustomers: (pkgLabel) => {
+      const search = $('#globalCustomerSearch');
+      if (search) {
+        search.value = pkgLabel;
+        renderGlobalSearch();
+      }
+      switchView('customers');
+    },
+    onToast: (msg) => toast(msg)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -4784,6 +4797,21 @@ if (typeof document !== 'undefined') {
         const search = $('#globalCustomerSearch');
         if (search) {
           search.value = areaName;
+          renderGlobalSearch();
+        }
+        switchView('customers');
+      },
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  const packageRevenueModal = $('#packageRevenueModal');
+  if (packageRevenueModal && !packageRevenueModalController) {
+    packageRevenueModalController = setupPackageRevenueModal(() => state, {
+      onFilterPackageCustomers: (pkgLabel) => {
+        const search = $('#globalCustomerSearch');
+        if (search) {
+          search.value = pkgLabel;
           renderGlobalSearch();
         }
         switchView('customers');

@@ -800,6 +800,16 @@
             </div>
             <div id="dashboardPseudowireChart" class="chart-svg-container" role="img" aria-label="Carrier MPLS Pseudowire Encapsulation and Playout Buffer Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-bfd">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier BFD (RFC 5880 / 5881 / 7130) Fault Detection Matrix</h4>
+                <p class="chart-subtitle">Microsecond asynchronous heartbeat, Echo function, Micro-BFD on LAG &amp; sub-50ms rapid failover</p>
+              </div>
+              <button id="dashboardOpenBfdModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">BFD Peering Diagnostics</button>
+            </div>
+            <div id="dashboardBfdChart" class="chart-svg-container" role="img" aria-label="Carrier BFD Protocol Heartbeat and Failover Chart"></div>
+          </article>
         </div>
 
 
@@ -4341,6 +4351,98 @@
               <button id="pwExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="pwCopyReportBtn" class="primary-button" type="button">📋 Copy PW Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="dashboardBfdModal" class="dashboard-modal bfd-modal" aria-labelledby="dashboardBfdModalTitle">
+        <div class="dashboard-modal-card bfd-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <h3 id="dashboardBfdModalTitle">Carrier BFD (RFC 5880 / 5881 / 7130) Peering Matrix</h3>
+              <p class="modal-subtitle">Microsecond asynchronous heartbeat, Echo mode, Micro-BFD on LAG &amp; rapid IGP failover trigger</p>
+            </div>
+            <button id="dashboardBfdModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="form-group">
+              <label for="bfdSessionSelect">Target BFD Peering Session:</label>
+              <select id="bfdSessionSelect" class="form-select">
+                <option value="nayatel-10g-transit">Nayatel 10G IP Transit (RFC 5881 BGP, 50ms)</option>
+                <option value="begumkot-vandala-lag-bfd">Begum Kot to Vandala Micro-BFD LAG (RFC 7130, 100ms)</option>
+                <option value="jiamusa-subfat-ospf">Jia Musa Sub-FAT OSPF Fast Neighbor (RFC 5883, 100ms)</option>
+                <option value="siphon-aerial-frr">Ravi Siphon Aerial RSVP-TE FRR (10ms Echo, Sub-50ms)</option>
+                <option value="gt-road-corporate-vpls">GT Road Commercial Hub IS-IS Peering (50ms, 4x)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="bfdTxSlider">Desired Min TX: <span id="bfdTxLabel" class="sim-val-pill">50 ms</span></label>
+              <input type="range" id="bfdTxSlider" min="5" max="500" step="5" value="50" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="bfdRxSlider">Required Min RX: <span id="bfdRxLabel" class="sim-val-pill">50 ms</span></label>
+              <input type="range" id="bfdRxSlider" min="5" max="500" step="5" value="50" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="bfdMultiplierSlider">Detect Multiplier: <span id="bfdMultiplierLabel" class="sim-val-pill">3x</span></label>
+              <input type="range" id="bfdMultiplierSlider" min="2" max="8" step="1" value="3" class="otdr-slider">
+            </div>
+
+            <div class="form-group">
+              <label for="bfdLossSlider">Simulated Drop Rate: <span id="bfdLossLabel" class="sim-val-pill">0.0%</span></label>
+              <input type="range" id="bfdLossSlider" min="0" max="25" step="0.5" value="0" class="otdr-slider">
+            </div>
+
+            <div class="form-group" style="display: flex; align-items: center; gap: 8px; margin-top: 22px;">
+              <input type="checkbox" id="bfdEchoCheck">
+              <label for="bfdEchoCheck" style="margin: 0; cursor: pointer; font-weight: 600;">Enable RFC 5880 Echo Mode</label>
+            </div>
+          </div>
+
+          <div class="bfd-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="bfdResetBtn" class="secondary-button" type="button">🔄 Reset BFD Baseline</button>
+          </div>
+
+          <div class="sim-stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; background: rgba(0,0,0,0.03); padding: 10px; border-radius: 8px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Session Status</span>
+              <span id="bfdStatStatus" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Optimal</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Detection Window</span>
+              <span id="bfdStatDetect" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">150 ms</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Failover Speedup</span>
+              <span id="bfdStatSpeedup" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">600x Faster</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">False Flap Risk</span>
+              <span id="bfdStatFlap" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.00%</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">PDU Rate</span>
+              <span id="bfdStatRate" class="ltv-kpi-val" style="color: #a78bfa; font-size: 1.05rem;">20 pkts/s</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">SLA Penalty Risk</span>
+              <span id="bfdStatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0% (PKR 0)</span>
+            </div>
+          </div>
+
+          <div id="bfdModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier BFD Peer Architecture and Timing Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="bfdFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="bfdExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="bfdExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="bfdCopyReportBtn" class="primary-button" type="button">📋 Copy BFD Audit Report</button>
           </div>
         </div>
       </dialog>

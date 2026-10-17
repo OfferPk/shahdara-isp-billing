@@ -13959,5 +13959,309 @@ test('index.html and dashboard.css contain Pseudowire markup and styles', async 
   assert.ok(css.includes('.pseudowire-svg'));
 });
 
+// Carrier BFD (Bidirectional Forwarding Detection - RFC 5880 / 5881 / 7130) Tests
+test('BFD_CONSTANTS and SHAHDARA_BFD_SESSIONS provide accurate protocol configuration', async () => {
+  const { BFD_CONSTANTS, SHAHDARA_BFD_SESSIONS } = await import('../dashboard.js');
+
+  assert.equal(BFD_CONSTANTS.BFD_CONTROL_PORT, 3784);
+  assert.equal(BFD_CONSTANTS.BFD_ECHO_PORT, 3785);
+  assert.equal(BFD_CONSTANTS.BFD_LAG_CONTROL_PORT, 6784);
+  assert.equal(BFD_CONSTANTS.STATES.UP, 'Up');
+  assert.equal(BFD_CONSTANTS.STATES.DOWN, 'Down');
+  assert.equal(BFD_CONSTANTS.DIAG_CODES[1], 'Control Detection Time Expired');
+  assert.equal(BFD_CONSTANTS.DIAG_CODES[7], 'AdminDown');
+
+  assert.equal(SHAHDARA_BFD_SESSIONS.length, 5);
+  const transit = SHAHDARA_BFD_SESSIONS.find(s => s.id === 'nayatel-10g-transit');
+  assert.ok(transit);
+  assert.equal(transit.interface, 'TenGigE0/0/1');
+  assert.equal(transit.baselineTxIntervalMs, 50);
+  assert.equal(transit.baselineMultiplier, 3);
+  assert.equal(transit.echoSupported, true);
+  assert.equal(transit.hardwareOffload, true);
+
+  const microBfd = SHAHDARA_BFD_SESSIONS.find(s => s.id === 'begumkot-vandala-lag-bfd');
+  assert.ok(microBfd);
+  assert.ok(microBfd.rfcProfile.includes('RFC 7130'));
+});
+
+test('calculateBfdDynamics correctly negotiates timers, detection time, and failover speedup', async () => {
+  const { calculateBfdDynamics, SHAHDARA_BFD_SESSIONS, BFD_CONSTANTS } = await import('../dashboard.js');
+
+  const transit = SHAHDARA_BFD_SESSIONS[0]; // Nayatel 10G Transit
+  const dynamics = calculateBfdDynamics(transit);
+
+  // Baseline: 50ms TX, 50ms RX, mult 3 -> detection time 150ms
+  assert.equal(dynamics.timing.negotiatedTxIntervalMs, 50);
+  assert.equal(dynamics.timing.negotiatedRxIntervalMs, 50);
+  assert.equal(dynamics.timing.detectionTimeMs, 150);
+  assert.equal(dynamics.state, BFD_CONSTANTS.STATES.UP);
+  assert.equal(dynamics.status, BFD_CONSTANTS.STATUS.ACCEPTABLE);
+
+  // Failover speedup vs 90s BGP dead time: 90000 / 150 = 600x
+  assert.equal(dynamics.performance.failoverSpeedupFactor, 600.0);
+  assert.ok(dynamics.performance.outageReductionPct > 99.8);
+  assert.equal(dynamics.reliability.falseFlapPct, 0);
+
+  // Test Echo Mode activation
+  const echoDynamics = calculateBfdDynamics(transit, { echoEnabled: true });
+  assert.equal(echoDynamics.echoEnabled, true);
+  assert.equal(echoDynamics.echoIntervalMs, 20);
+  assert.equal(echoDynamics.timing.detectionTimeMs, 60); // 3 * 20ms = 60ms
+  assert.equal(echoDynamics.status, BFD_CONSTANTS.STATUS.OPTIMAL);
+
+  // Test Custom Timers: 10ms TX, 10ms RX, mult 3 -> 30ms detection
+  const fastDynamics = calculateBfdDynamics(transit, {
+    desiredMinTxMs: 10,
+    requiredMinRxMs: 10,
+    detectMultiplier: 3
+  });
+  assert.equal(fastDynamics.timing.detectionTimeMs, 30);
+  assert.equal(fastDynamics.status, BFD_CONSTANTS.STATUS.OPTIMAL);
+});
+
+test('calculateBfdDynamics accurately models packet loss false flaps and SLA penalties', async () => {
+  const { calculateBfdDynamics, SHAHDARA_BFD_SESSIONS, BFD_CONSTANTS } = await import('../dashboard.js');
+
+  const session = SHAHDARA_BFD_SESSIONS[2]; // Jia Musa OSPF (software CPU mode)
+
+  // Under 10% packet drop and multiplier 3: P_flap = 0.10^3 = 0.001 (0.1%)
+  const lossDynamics = calculateBfdDynamics(session, {
+    simulatedPacketDropPct: 10
+  });
+  assert.equal(lossDynamics.reliability.falseFlapPct, 0.1);
+  assert.equal(lossDynamics.status, BFD_CONSTANTS.STATUS.DEGRADED);
+  assert.equal(lossDynamics.penaltyRebatePct, 10);
+  assert.ok(lossDynamics.penaltyPkr > 0);
+
+  // Administrative Down diagnosis
+  const adminDownDynamics = calculateBfdDynamics(session, { diagCode: 7 });
+  assert.equal(adminDownDynamics.state, BFD_CONSTANTS.STATES.ADMIN_DOWN);
+  assert.equal(adminDownDynamics.status, BFD_CONSTANTS.STATUS.CRITICAL);
+  assert.equal(adminDownDynamics.penaltyRebatePct, 25);
+});
+
+test('calculateBfdMetrics aggregates peering telemetry across all Shahdara sessions', async () => {
+  const { calculateBfdMetrics, SHAHDARA_BFD_SESSIONS } = await import('../dashboard.js');
+
+  const metrics = calculateBfdMetrics(SHAHDARA_BFD_SESSIONS);
+
+  assert.equal(metrics.totalSessions, 5);
+  assert.equal(metrics.hardwareOffloadCount, 4); // 4 hardware, 1 software
+  assert.equal(metrics.hardwareOffloadPct, 80);
+  assert.equal(metrics.sub50msSessionsCount, 1);
+  assert.equal(metrics.sub150msSessionsCount, 2);
+  assert.ok(metrics.totalRevenuePkr >= 4000000);
+  assert.ok(metrics.totalSubscribers >= 1300);
+  assert.ok(metrics.meanDetectionTimeMs > 0);
+  assert.ok(metrics.maxSpeedup > 100);
+});
+
+test('renderBfdDiagramSvg outputs valid SVG for compact card and expanded modal', async () => {
+  const { calculateBfdDynamics, renderBfdDiagramSvg, SHAHDARA_BFD_SESSIONS } = await import('../dashboard.js');
+
+  const session = SHAHDARA_BFD_SESSIONS[0];
+  const dynamics = calculateBfdDynamics(session);
+
+  // 1. Compact card SVG
+  const compactSvg = renderBfdDiagramSvg(dynamics, { isCompact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('bfd-compact-svg'));
+  assert.ok(compactSvg.includes('DETECTION TIME'));
+  assert.ok(compactSvg.includes('FAILOVER SPEEDUP'));
+  assert.ok(compactSvg.includes('FALSE FLAP RISK'));
+
+  // 2. Expanded detailed SVG with Echo path
+  const echoDynamics = calculateBfdDynamics(session, { echoEnabled: true });
+  const expandedSvg = renderBfdDiagramSvg(echoDynamics, { isCompact: false });
+  assert.ok(expandedSvg.includes('<svg'));
+  assert.ok(expandedSvg.includes('bfd-expanded-svg'));
+  assert.ok(expandedSvg.includes('LOCAL ENDPOINT'));
+  assert.ok(expandedSvg.includes('REMOTE PEER ENDPOINT'));
+  assert.ok(expandedSvg.includes('RFC 5880 Echo Loopback'));
+  assert.ok(expandedSvg.includes('Control PDU (UDP 3784)'));
+});
+
+test('generateBfdReport, exportBfdJson, and exportBfdCsv produce formatted telemetry exports', async () => {
+  const {
+    calculateBfdDynamics,
+    calculateBfdMetrics,
+    generateBfdReport,
+    exportBfdJson,
+    exportBfdCsv,
+    SHAHDARA_BFD_SESSIONS
+  } = await import('../dashboard.js');
+
+  const session = SHAHDARA_BFD_SESSIONS[0];
+  const dynamics = calculateBfdDynamics(session);
+  const metrics = calculateBfdMetrics(SHAHDARA_BFD_SESSIONS);
+
+  // 1. Text Report
+  const report = generateBfdReport(dynamics, metrics);
+  assert.ok(report.includes('SHAHDARA ISP METRO FIBER - CARRIER BFD TELEMETRY'));
+  assert.ok(report.includes('1. SESSION IDENTITY & PROTOCOL PROFILE'));
+  assert.ok(report.includes('2. NEGOTIATED TIMING PARAMETERS & STATE MACHINE'));
+  assert.ok(report.includes('3. FAILOVER CONVERGENCE & OUTAGE REDUCTION'));
+  assert.ok(report.includes('6. SHADARA METRO NETWORK BFD AGGREGATE SUMMARY'));
+
+  // 2. JSON
+  const jsonStr = exportBfdJson(dynamics, metrics);
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.exportedAt);
+  assert.equal(parsed.dynamics.session.id, 'nayatel-10g-transit');
+  assert.equal(parsed.allMetrics.totalSessions, 5);
+
+  // 3. CSV
+  const csvStr = exportBfdCsv(dynamics, metrics);
+  assert.ok(csvStr.includes('Session ID,Session Name,Interface,Client Protocol'));
+  assert.ok(csvStr.includes('"nayatel-10g-transit"'));
+  assert.ok(csvStr.includes('\r\n'));
+});
+
+test('setupBfdModal binds DOM controls, sliders, Echo toggle, reset, and exports', async () => {
+  const { setupBfdModal } = await import('../dashboard.js');
+
+  function createMockEl(id) {
+    const listeners = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      textContent: '',
+      innerHTML: '',
+      open: false,
+      style: {},
+      addEventListener(evt, fn) {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(fn);
+      },
+      click() {
+        if (listeners['click']) listeners['click'].forEach(fn => fn({ type: 'click' }));
+      },
+      input() {
+        if (listeners['input']) listeners['input'].forEach(fn => fn({ type: 'input' }));
+      },
+      change() {
+        if (listeners['change']) listeners['change'].forEach(fn => fn({ type: 'change' }));
+      },
+      showModal() { this.open = true; },
+      close() { this.open = false; },
+      setAttribute(attr, val) { if (attr === 'open') this.open = true; },
+      removeAttribute(attr) { if (attr === 'open') this.open = false; }
+    };
+  }
+
+  const elements = {
+    dashboardBfdModal: createMockEl('dashboardBfdModal'),
+    dashboardOpenBfdModalBtn: createMockEl('dashboardOpenBfdModalBtn'),
+    dashboardBfdModalCloseBtn: createMockEl('dashboardBfdModalCloseBtn'),
+    dashboardBfdChart: createMockEl('dashboardBfdChart'),
+    bfdSessionSelect: createMockEl('bfdSessionSelect'),
+    bfdTxSlider: createMockEl('bfdTxSlider'),
+    bfdTxLabel: createMockEl('bfdTxLabel'),
+    bfdRxSlider: createMockEl('bfdRxSlider'),
+    bfdRxLabel: createMockEl('bfdRxLabel'),
+    bfdMultiplierSlider: createMockEl('bfdMultiplierSlider'),
+    bfdMultiplierLabel: createMockEl('bfdMultiplierLabel'),
+    bfdEchoCheck: createMockEl('bfdEchoCheck'),
+    bfdLossSlider: createMockEl('bfdLossSlider'),
+    bfdLossLabel: createMockEl('bfdLossLabel'),
+    bfdResetBtn: createMockEl('bfdResetBtn'),
+    bfdStatStatus: createMockEl('bfdStatStatus'),
+    bfdStatDetect: createMockEl('bfdStatDetect'),
+    bfdStatSpeedup: createMockEl('bfdStatSpeedup'),
+    bfdStatFlap: createMockEl('bfdStatFlap'),
+    bfdStatRate: createMockEl('bfdStatRate'),
+    bfdStatPenalty: createMockEl('bfdStatPenalty'),
+    bfdModalDiagramContainer: createMockEl('bfdModalDiagramContainer'),
+    bfdFilterAreaBtn: createMockEl('bfdFilterAreaBtn'),
+    bfdExportJsonBtn: createMockEl('bfdExportJsonBtn'),
+    bfdExportCsvBtn: createMockEl('bfdExportCsvBtn'),
+    bfdCopyReportBtn: createMockEl('bfdCopyReportBtn')
+  };
+
+  elements.bfdSessionSelect.value = 'nayatel-10g-transit';
+  elements.bfdTxSlider.value = '50';
+  elements.bfdRxSlider.value = '50';
+  elements.bfdMultiplierSlider.value = '3';
+  elements.bfdLossSlider.value = '0';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupBfdModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardBfdModal.open, true);
+  assert.ok(elements.bfdModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardBfdChart.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.bfdTxSlider.value = '25';
+  elements.bfdTxSlider.input();
+  assert.ok(elements.bfdTxLabel.textContent.includes('25 ms'));
+
+  // Test Echo checkbox toggle
+  elements.bfdEchoCheck.checked = true;
+  elements.bfdEchoCheck.change();
+
+  // Test reset
+  elements.bfdResetBtn.click();
+  assert.ok(toastMsg.includes('reset to standard baseline'));
+
+  // Test export buttons
+  elements.bfdExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('clipboard'));
+  elements.bfdExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('clipboard'));
+  elements.bfdCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.bfdFilterAreaBtn.click();
+  assert.equal(filterArea, 'Baradari');
+
+  controller.close();
+  assert.equal(elements.dashboardBfdModal.open, false);
+});
+
+test('index.html and dashboard.css contain Carrier BFD markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-bfd'));
+  assert.ok(html.includes('id="dashboardBfdChart"'));
+  assert.ok(html.includes('id="dashboardOpenBfdModalBtn"'));
+  assert.ok(html.includes('id="dashboardBfdModal"'));
+  assert.ok(html.includes('id="bfdSessionSelect"'));
+  assert.ok(html.includes('id="bfdTxSlider"'));
+  assert.ok(html.includes('id="bfdRxSlider"'));
+  assert.ok(html.includes('id="bfdMultiplierSlider"'));
+  assert.ok(html.includes('id="bfdEchoCheck"'));
+  assert.ok(html.includes('id="bfdLossSlider"'));
+  assert.ok(html.includes('id="bfdResetBtn"'));
+  assert.ok(html.includes('id="bfdModalDiagramContainer"'));
+  assert.ok(html.includes('id="bfdExportJsonBtn"'));
+  assert.ok(html.includes('id="bfdExportCsvBtn"'));
+  assert.ok(html.includes('id="bfdCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-bfd'));
+  assert.ok(css.includes('.bfd-modal-card'));
+  assert.ok(css.includes('.bfd-svg'));
+});
+
+
 
 

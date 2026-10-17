@@ -18,6 +18,7 @@ import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './p
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
+import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip } from './qa-backup-csv-import.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal } from './nav.js?v=1.10.0';
@@ -1234,6 +1235,143 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
+});
+
+let pendingCsvImportPreview = null;
+
+function renderCsvImportPreview(preview) {
+  pendingCsvImportPreview = preview;
+  const { summary, rows } = preview;
+  $('#csvImportPreviewSummary').textContent = `Spreadsheet preview: ${summary.totalRows} rows found · ${summary.addCount} new customers · ${summary.enrichCount} matching/enrichable · ${summary.conflictCount} conflicts · ${summary.errorCount} errors.`;
+
+  const tbody = $('#csvImportPreviewRows');
+  tbody.replaceChildren();
+
+  for (const row of rows.slice(0, 100)) {
+    const tr = document.createElement('tr');
+    const badgeClass = `csv-badge csv-badge-${row.action}`;
+    const badgeText = row.action === 'add' ? 'New' : row.action === 'enrich' ? 'Enrich' : row.action === 'conflict' ? 'Conflict' : 'Error';
+
+    const detailText = row.errors.length > 0
+      ? row.errors.join('; ')
+      : (row.action === 'enrich' && row.fieldsToEnrich.length > 0)
+        ? `Fills: ${row.fieldsToEnrich.join(', ')}`
+        : (row.notes || 'Ready to add');
+
+    tr.innerHTML = `
+      <td>${row.rowNumber}</td>
+      <td><span class="${badgeClass}">${badgeText}</span></td>
+      <td><strong>${escapeHtml(row.name)}</strong></td>
+      <td>${escapeHtml(row.phone || '—')}</td>
+      <td>${escapeHtml(row.cnic || '—')}</td>
+      <td>${escapeHtml(row.mohalla || row.zone || '—')}</td>
+      <td>${escapeHtml(row.packageSpeed || '—')}</td>
+      <td>${row.monthlySellingAmount !== null ? `Rs ${row.monthlySellingAmount}` : '—'}</td>
+      <td>${escapeHtml(detailText)}</td>
+    `;
+    tbody.append(tr);
+  }
+
+  const conflictsList = $('#csvImportConflictList');
+  conflictsList.replaceChildren();
+  const problemRows = rows.filter(r => r.action === 'conflict' || r.action === 'error');
+  for (const prob of problemRows.slice(0, 20)) {
+    const li = document.createElement('li');
+    li.textContent = `Row ${prob.rowNumber} (${prob.name || 'unnamed'}): ${prob.errors.join('; ')}`;
+    conflictsList.append(li);
+  }
+  if (problemRows.length > 20) {
+    const li = document.createElement('li');
+    li.textContent = `${problemRows.length - 20} more errors or conflicts in spreadsheet.`;
+    conflictsList.append(li);
+  }
+
+  $('#applyCsvImportButton').disabled = !preview.canApply;
+  $('#csvImportDialog').showModal();
+}
+
+function closeCsvImportDialog() {
+  pendingCsvImportPreview = null;
+  $('#csvImportDialog').close();
+}
+
+$('#downloadCustomerCsvTemplateBtn')?.addEventListener('click', () => {
+  const csv = generateSampleCustomerCsv();
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `shahdara_customer_import_template_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Sample customer CSV template downloaded. Fill it and import.');
+});
+
+$('#importCustomerCsvBtn')?.addEventListener('click', () => {
+  const fileInput = $('#customerCsvFileInput');
+  if (fileInput) {
+    fileInput.value = '';
+    fileInput.click();
+  }
+});
+
+$('#customerCsvFileInput')?.addEventListener('change', async (event) => {
+  const file = event.currentTarget.files?.[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) {
+    toast('CSV file must be smaller than 10 MB.');
+    return;
+  }
+  try {
+    const text = await file.text();
+    const preview = parseCustomerCsvImport(text, state);
+    if (preview.error) {
+      toast(`CSV Import Error: ${preview.error}`);
+      return;
+    }
+    renderCsvImportPreview(preview);
+  } catch (err) {
+    toast(`Failed to read CSV: ${err.message}`);
+  }
+});
+
+document.querySelectorAll('[data-close-csv-dialog]').forEach(btn => btn.addEventListener('click', closeCsvImportDialog));
+$('#cancelCsvImportButton')?.addEventListener('click', closeCsvImportDialog);
+
+$('#applyCsvImportButton')?.addEventListener('click', () => {
+  if (!pendingCsvImportPreview?.canApply) return;
+  try {
+    const enrichExisting = $('#csvEnrichExistingCheckbox')?.checked ?? true;
+    const result = applyCustomerCsvImport(state, pendingCsvImportPreview, { enrichExisting });
+    const newState = generateMonthlyBillsThroughCurrentMonth(result.state, new Date());
+    persistState(newState, localStorage);
+    state = newState;
+    storageAvailable = true;
+    persistenceBlocked = false;
+    readFailureMessage = '';
+    closeCsvImportDialog();
+    renderStorageWarning();
+    renderDashboard();
+    renderGlobalSearch();
+    renderCustomers();
+    renderTransactions();
+    renderMonthlyReport();
+    renderDetail();
+    toast(result.summaryMessage);
+  } catch (err) {
+    toast(`CSV Import could not be saved: ${err.message}`);
+  }
+});
+
+$('#verifyStorageIntegrityBtn')?.addEventListener('click', () => {
+  const audit = verifyAllStorageKeysRoundTrip(localStorage);
+  if (audit.allPassed) {
+    toast(`Storage Health: All ${audit.passedKeys} offline storage keys verified healthy.`);
+  } else {
+    toast(`Storage Health: ${audit.passedKeys}/${audit.totalKeys} keys passed. Some keys had warnings.`);
+  }
 });
 function onBillSubmit(event) {
   event.preventDefault();

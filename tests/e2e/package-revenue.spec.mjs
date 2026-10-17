@@ -7,7 +7,9 @@ test.describe('Package Revenue Mix & Portfolio ARPU Suite E2E Verification', () 
     // Open drawer and navigate to Analytics view
     const drawerToggle = page.locator('#navDrawerToggle');
     await drawerToggle.click();
+    await expect(page.locator('#navDrawer')).toBeVisible();
     const analyticsBtn = page.locator('#navDrawer [data-nav-target="analytics"]');
+    await expect(analyticsBtn).toBeVisible();
     await analyticsBtn.click();
     const analyticsView = page.locator('#analyticsView');
     await expect(analyticsView).toBeVisible();

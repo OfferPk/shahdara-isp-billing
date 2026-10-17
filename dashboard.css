@@ -2702,6 +2702,28 @@
   border-color: #2b3a55;
 }
 
+/* Carrier-Grade NAT (CGNAT444 / RFC 6598) Styles */
+.chart-card-cgnat {
+  background: var(--surface, #ffffff);
+}
+
+.cgnat-modal-card {
+  max-width: 840px;
+  width: 95vw;
+}
+
+.cgnat-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-cgnat {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

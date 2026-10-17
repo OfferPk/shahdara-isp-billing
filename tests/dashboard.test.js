@@ -14865,6 +14865,282 @@ test('index.html and dashboard.css contain Brillouin BOTDA sensing markup and st
   assert.ok(css.includes('.botda-svg'));
 });
 
+test('calculatePortBlockCapacity computes correct blocks per IP and total fleet allocation', async () => {
+  const { calculatePortBlockCapacity, CGNAT_CONSTANTS } = await import('../dashboard.js');
+
+  // With 1024 block size: 64512 / 1024 = 63 blocks per IP
+  const cap510 = calculatePortBlockCapacity(510, 1024);
+  assert.equal(cap510, 510 * 63); // 32,130 blocks
+
+  // With 512 block size: 64512 / 512 = 126 blocks per IP
+  const cap254 = calculatePortBlockCapacity(254, 512);
+  assert.equal(cap254, 254 * 126); // 32,004 blocks
+
+  // With 2048 block size: 64512 / 2048 = 31 blocks per IP
+  const cap100 = calculatePortBlockCapacity(100, 2048);
+  assert.equal(cap100, 3100);
+});
+
+test('calculateCgnatDynamics accurately evaluates pool saturation, session concurrency, and drops', async () => {
+  const { calculateCgnatDynamics, SHAHDARA_CGNAT_POOLS, CGNAT_CONSTANTS } = await import('../dashboard.js');
+
+  const pool = SHAHDARA_CGNAT_POOLS[0]; // Shahdara Town Residential (510 IPs, 28,500 subs)
+  const dynamics = calculateCgnatDynamics(pool);
+
+  assert.equal(dynamics.poolId, 'shahdara-town-residential-cgnat');
+  assert.equal(dynamics.publicIpCount, 510);
+  assert.equal(dynamics.blockSize, 1024);
+  assert.equal(dynamics.blocksPerIp, 63);
+  assert.equal(dynamics.totalCapacityBlocks, 32130);
+  assert.equal(dynamics.oversubRatio, 55.9);
+  assert.equal(dynamics.poolUtilizationPct, 88.7);
+  assert.equal(dynamics.effectiveSessionsPerSub, 380);
+  assert.equal(dynamics.dropRatePct, 0);
+  assert.equal(dynamics.isDeterministic, true);
+  assert.equal(dynamics.syslogStorageSavingsPct, 99.8);
+  assert.equal(dynamics.status, CGNAT_CONSTANTS.STATUS.CONGESTED); // utilization > 80%
+  assert.equal(dynamics.penaltyRebatePct, 0);
+
+  // Apply traffic surge: session load = 1200 > 1024 block size -> port overflow drops!
+  const surgeDynamics = calculateCgnatDynamics(pool, { sessionLoad: 1200 });
+  assert.equal(surgeDynamics.effectiveSessionsPerSub, 1200);
+  assert.equal(surgeDynamics.portOverflowSessions, 176);
+  assert.ok(surgeDynamics.dropRatePct > 10.0);
+  assert.equal(surgeDynamics.status, CGNAT_CONSTANTS.STATUS.CRITICAL);
+  assert.equal(surgeDynamics.penaltyRebatePct, 25);
+  assert.ok(surgeDynamics.penaltyPkr > 0);
+  assert.ok(surgeDynamics.revenueAtRiskPkr > 0);
+
+  // Apply smaller block size (256): 380 sessions > 256 block size -> elevated drops
+  const smallBlockDynamics = calculateCgnatDynamics(pool, { blockSize: 256 });
+  assert.equal(smallBlockDynamics.portOverflowSessions, 124);
+  assert.ok(smallBlockDynamics.dropRatePct > 0);
+  assert.ok(smallBlockDynamics.penaltyRebatePct >= 10);
+});
+
+test('calculateCgnatMetrics aggregates fleet statistics across all Shahdara CGNAT pools', async () => {
+  const { calculateCgnatMetrics, SHAHDARA_CGNAT_POOLS } = await import('../dashboard.js');
+
+  const metrics = calculateCgnatMetrics(SHAHDARA_CGNAT_POOLS);
+
+  assert.equal(metrics.totalPools, 5);
+  assert.equal(metrics.totalPublicIps, 1270);
+  assert.equal(metrics.totalSubscribers, 62000);
+  assert.ok(metrics.totalCapacityBlocks > 60000);
+  assert.ok(metrics.fleetUtilizationPct > 50 && metrics.fleetUtilizationPct < 100);
+  assert.ok(metrics.overallOversubRatio > 30);
+  assert.ok(metrics.totalRevenuePkr > 10000000);
+  assert.equal(metrics.evaluatedPools.length, 5);
+});
+
+test('renderCgnatDiagramSvg produces valid SVG for compact card and expanded modal', async () => {
+  const { calculateCgnatDynamics, renderCgnatDiagramSvg, SHAHDARA_CGNAT_POOLS } = await import('../dashboard.js');
+
+  const pool = SHAHDARA_CGNAT_POOLS[0];
+  const dynamics = calculateCgnatDynamics(pool);
+
+  // 1. Compact card SVG
+  const compactSvg = renderCgnatDiagramSvg(dynamics, { isCompact: true });
+  assert.ok(compactSvg.includes('<svg'));
+  assert.ok(compactSvg.includes('cgnat-compact-svg'));
+  assert.ok(compactSvg.includes('CARRIER CGNAT444'));
+  assert.ok(compactSvg.includes('POOL BLOCK SATURATION'));
+  assert.ok(compactSvg.includes('SUBSCRIBER PORT BLOCK LOAD'));
+  assert.ok(compactSvg.includes('SYSLOG OPTIMIZATION'));
+
+  // 2. Expanded detailed SVG
+  const expandedSvg = renderCgnatDiagramSvg(dynamics, { isCompact: false });
+  assert.ok(expandedSvg.includes('<svg'));
+  assert.ok(expandedSvg.includes('cgnat-expanded-svg'));
+  assert.ok(expandedSvg.includes('SUBSCRIBER SUBNET'));
+  assert.ok(expandedSvg.includes('CGNAT444 TRANSLATOR'));
+  assert.ok(expandedSvg.includes('PUBLIC IP POOL'));
+  assert.ok(expandedSvg.includes('PER-SUBSCRIBER PORT BLOCK SPECTRUM'));
+  assert.ok(expandedSvg.includes('Port 1024'));
+  assert.ok(expandedSvg.includes('Port 65535'));
+});
+
+test('generateCgnatReport, exportCgnatJson, and exportCgnatCsv produce formatted audit records', async () => {
+  const {
+    calculateCgnatDynamics,
+    calculateCgnatMetrics,
+    generateCgnatReport,
+    exportCgnatJson,
+    exportCgnatCsv,
+    SHAHDARA_CGNAT_POOLS
+  } = await import('../dashboard.js');
+
+  const pool = SHAHDARA_CGNAT_POOLS[0];
+  const dynamics = calculateCgnatDynamics(pool);
+  const metrics = calculateCgnatMetrics(SHAHDARA_CGNAT_POOLS);
+
+  // 1. Text Report
+  const report = generateCgnatReport(dynamics, metrics);
+  assert.ok(report.includes('SHAHDARA ISP CARRIER-GRADE NAT (CGNAT444) OPERATIONS REPORT'));
+  assert.ok(report.includes('RFC 6598 / RFC 6888 / RFC 7422'));
+  assert.ok(report.includes(dynamics.poolName));
+  assert.ok(report.includes('Assigned Port-Block Size:'));
+  assert.ok(report.includes('Pool Block Saturation:'));
+
+  // 2. JSON Export
+  const json = exportCgnatJson(dynamics, metrics);
+  const parsed = JSON.parse(json);
+  assert.equal(parsed.currentPool.poolId, pool.id);
+  assert.equal(parsed.fleetSummary.totalPools, 5);
+  assert.ok(parsed.metadata.standards.includes('RFC 6598'));
+
+  // 3. CSV Export
+  const csv = exportCgnatCsv(dynamics, metrics);
+  assert.ok(csv.includes('Pool_Code,Pool_Name,Primary_Area'));
+  assert.ok(csv.includes('CGNAT-PL-01'));
+  assert.ok(csv.includes('Shahdara Town Central Residential CGNAT Cluster'));
+});
+
+test('setupCgnatModal wires controls, updates SVG charts, and handles user interactions', async () => {
+  const { setupCgnatModal } = await import('../dashboard.js');
+
+  const listeners = {};
+  function createMockEl(id) {
+    listeners[id] = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      addEventListener(event, fn) {
+        listeners[id][event] = fn;
+      },
+      click() {
+        if (listeners[id].click) listeners[id].click();
+      },
+      input() {
+        if (listeners[id].input) listeners[id].input();
+      },
+      change() {
+        if (listeners[id].change) listeners[id].change();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      },
+      setAttribute(k, v) {
+        if (k === 'open') this.open = true;
+      },
+      removeAttribute(k) {
+        if (k === 'open') this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    dashboardCgnatModal: createMockEl('dashboardCgnatModal'),
+    dashboardOpenCgnatModalBtn: createMockEl('dashboardOpenCgnatModalBtn'),
+    dashboardCgnatModalCloseBtn: createMockEl('dashboardCgnatModalCloseBtn'),
+    dashboardCgnatChart: createMockEl('dashboardCgnatChart'),
+    cgnatPoolSelect: createMockEl('cgnatPoolSelect'),
+    cgnatBlockSizeSelect: createMockEl('cgnatBlockSizeSelect'),
+    cgnatSessionSlider: createMockEl('cgnatSessionSlider'),
+    cgnatSessionLabel: createMockEl('cgnatSessionLabel'),
+    cgnatPeakSlider: createMockEl('cgnatPeakSlider'),
+    cgnatPeakLabel: createMockEl('cgnatPeakLabel'),
+    cgnatResetBtn: createMockEl('cgnatResetBtn'),
+    cgnatStatStatus: createMockEl('cgnatStatStatus'),
+    cgnatStatSaturation: createMockEl('cgnatStatSaturation'),
+    cgnatStatOversub: createMockEl('cgnatStatOversub'),
+    cgnatStatSessions: createMockEl('cgnatStatSessions'),
+    cgnatStatDrops: createMockEl('cgnatStatDrops'),
+    cgnatStatPenalty: createMockEl('cgnatStatPenalty'),
+    cgnatModalDiagramContainer: createMockEl('cgnatModalDiagramContainer'),
+    cgnatFilterAreaBtn: createMockEl('cgnatFilterAreaBtn'),
+    cgnatExportJsonBtn: createMockEl('cgnatExportJsonBtn'),
+    cgnatExportCsvBtn: createMockEl('cgnatExportCsvBtn'),
+    cgnatCopyReportBtn: createMockEl('cgnatCopyReportBtn')
+  };
+
+  elements.cgnatPoolSelect.value = 'shahdara-town-residential-cgnat';
+  elements.cgnatBlockSizeSelect.value = '1024';
+  elements.cgnatSessionSlider.value = '380';
+  elements.cgnatPeakSlider.value = '1.0';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    }
+  };
+
+  let filterArea = null;
+  let toastMsg = null;
+  const controller = setupCgnatModal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filterArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardCgnatModal.open, true);
+  assert.ok(elements.cgnatModalDiagramContainer.innerHTML.includes('<svg'));
+  assert.ok(elements.dashboardCgnatChart.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.cgnatSessionSlider.value = '800';
+  elements.cgnatSessionSlider.input();
+  assert.ok(elements.cgnatSessionLabel.textContent.includes('800'));
+
+  // Test block size change
+  elements.cgnatBlockSizeSelect.value = '512';
+  elements.cgnatBlockSizeSelect.change();
+
+  // Test reset
+  elements.cgnatResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.cgnatExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON') || toastMsg.includes('clipboard'));
+  elements.cgnatExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV') || toastMsg.includes('clipboard'));
+  elements.cgnatCopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.cgnatFilterAreaBtn.click();
+  assert.equal(filterArea, 'Shahdara Town');
+
+  controller.close();
+  assert.equal(elements.dashboardCgnatModal.open, false);
+});
+
+test('index.html and dashboard.css contain Carrier CGNAT markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-cgnat'));
+  assert.ok(html.includes('id="dashboardCgnatChart"'));
+  assert.ok(html.includes('id="dashboardOpenCgnatModalBtn"'));
+  assert.ok(html.includes('id="dashboardCgnatModal"'));
+  assert.ok(html.includes('id="cgnatPoolSelect"'));
+  assert.ok(html.includes('id="cgnatBlockSizeSelect"'));
+  assert.ok(html.includes('id="cgnatSessionSlider"'));
+  assert.ok(html.includes('id="cgnatPeakSlider"'));
+  assert.ok(html.includes('id="cgnatResetBtn"'));
+  assert.ok(html.includes('id="cgnatModalDiagramContainer"'));
+  assert.ok(html.includes('id="cgnatExportJsonBtn"'));
+  assert.ok(html.includes('id="cgnatExportCsvBtn"'));
+  assert.ok(html.includes('id="cgnatCopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-cgnat'));
+  assert.ok(css.includes('.cgnat-modal-card'));
+  assert.ok(css.includes('.cgnat-svg'));
+});
+
 
 
 

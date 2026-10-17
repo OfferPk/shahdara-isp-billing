@@ -830,6 +830,16 @@
             </div>
             <div id="dashboardBotdaChart" class="chart-svg-container" role="img" aria-label="Brillouin Optical Time Domain Distributed Temperature and Strain Sensing Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-cgnat">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier CGNAT (RFC 6598 / 7422) Port-Block Allocation Matrix</h4>
+                <p class="chart-subtitle">RFC 6598 Shared IPv4 space, Deterministic PBA, subscriber session quota &amp; port exhaustion drop mitigation</p>
+              </div>
+              <button id="dashboardOpenCgnatModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">CGNAT Pool Diagnostics</button>
+            </div>
+            <div id="dashboardCgnatChart" class="chart-svg-container" role="img" aria-label="Carrier Grade NAT Port Block Allocation and Session Concurrency Chart"></div>
+          </article>
         </div>
 
 
@@ -4636,6 +4646,92 @@
               <button id="botdaExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="botdaCopyReportBtn" class="primary-button" type="button">📋 Copy BOTDA Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardCgnatModal" class="dashboard-modal cgnat-modal" aria-labelledby="dashboardCgnatModalTitle">
+        <div class="dashboard-modal-card cgnat-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardCgnatModalTitle">Carrier-Grade NAT (CGNAT444 / RFC 6598) Pool Diagnostics</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Deterministic Port-Block Allocation (PBA), subscriber session quotas &amp; public IPv4 pool conservation</p>
+            </div>
+            <button id="dashboardCgnatModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="cgnatPoolSelect">Target CGNAT Pool:</label>
+              <select id="cgnatPoolSelect" class="form-select">
+                <option value="shahdara-town-residential-cgnat">Shahdara Town Central (182.180.44.0/23, 28.5k Subs)</option>
+                <option value="begum-kot-commercial-cgnat">Begum Kot &amp; Industrial Estate (175.107.12.0/24, 8.4k Subs)</option>
+                <option value="baradari-ftth-cgnat">Baradari High-Density FTTH (182.180.46.0/24, 14.2k Subs)</option>
+                <option value="vandala-road-cgnat">Vandala Road Feeder (119.160.88.0/25, 6.1k Subs)</option>
+                <option value="ravi-siphon-outskirts-cgnat">Ravi Siphon Wireless &amp; Fiber (119.160.89.0/25, 4.8k Subs)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="cgnatBlockSizeSelect">Port-Block Size (Ports/Sub):</label>
+              <select id="cgnatBlockSizeSelect" class="form-select">
+                <option value="256">256 Ports (252 Subs/IP, Aggressive)</option>
+                <option value="512">512 Ports (126 Subs/IP, Balanced)</option>
+                <option value="1024" selected>1024 Ports (63 Subs/IP, Recommended)</option>
+                <option value="2048">2048 Ports (31 Subs/IP, Heavy Enterprise)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="cgnatSessionSlider">Avg Concurrent Sessions: <span id="cgnatSessionLabel" class="sim-val-pill">380 sessions</span></label>
+              <input type="range" id="cgnatSessionSlider" min="50" max="2500" step="50" value="380" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="cgnatPeakSlider">Peak Surge Multiplier: <span id="cgnatPeakLabel" class="sim-val-pill">1.0x Peak</span></label>
+              <input type="range" id="cgnatPeakSlider" min="1.0" max="3.0" step="0.1" value="1.0" class="otdr-slider">
+            </div>
+          </div>
+
+          <div class="cgnat-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="cgnatResetBtn" class="secondary-button" type="button">🔄 Reset CGNAT Baseline</button>
+          </div>
+
+          <div class="sim-kpi-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Pool Status</span>
+              <span id="cgnatStatStatus" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">Optimal Scaling</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Pool Saturation</span>
+              <span id="cgnatStatSaturation" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">88.7% (28,500 Subs)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Oversub Ratio</span>
+              <span id="cgnatStatOversub" class="ltv-kpi-val" style="color: #38bdf8; font-size: 1.05rem;">55.9:1 Ratio</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Session Load</span>
+              <span id="cgnatStatSessions" class="ltv-kpi-val" style="color: #a78bfa; font-size: 1.05rem;">380 / 1024</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">Port Exhaustion Drops</span>
+              <span id="cgnatStatDrops" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0.0% (Zero Drop)</span>
+            </div>
+            <div class="sim-stat-box">
+              <span class="sim-stat-label">SLA Penalty Risk</span>
+              <span id="cgnatStatPenalty" class="ltv-kpi-val" style="color: #10b981; font-size: 1.05rem;">0% (PKR 0)</span>
+            </div>
+          </div>
+
+          <div id="cgnatModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Grade NAT Topology and Port Allocation Spectrum"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="cgnatFilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="cgnatExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="cgnatExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="cgnatCopyReportBtn" class="primary-button" type="button">📋 Copy CGNAT Audit Report</button>
           </div>
         </div>
       </dialog>

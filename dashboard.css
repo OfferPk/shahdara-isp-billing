@@ -3043,6 +3043,28 @@
   border-color: #24354a;
 }
 
+/* Carrier Coherent Optical Polarization & DSP Equalizer Matrix Styles */
+.chart-card-polarization {
+  background: var(--surface, #ffffff);
+}
+
+.polarization-modal-card {
+  max-width: 900px;
+  width: 96vw;
+}
+
+.polarization-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}
+
+[data-theme="dark"] .chart-card-polarization {
+  background: #182330;
+  border-color: #24354a;
+}
+
 
 
 

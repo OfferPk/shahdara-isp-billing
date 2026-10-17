@@ -6010,6 +6010,30 @@ export {
   setupRpkiModal
 } from './dashboard-rpki.js';
 
+export {
+  POLARIZATION_CONSTANTS,
+  SHAHDARA_COHERENT_SPANS,
+  getPolarizationSelectedSpanId,
+  setPolarizationSelectedSpanId,
+  getPolarizationModFormat,
+  setPolarizationModFormat,
+  getPolarizationEqualizerMode,
+  setPolarizationEqualizerMode,
+  getPolarizationSopSpeedKradS,
+  setPolarizationSopSpeedKradS,
+  getPolarizationVibrationSurge,
+  setPolarizationVibrationSurge,
+  resetPolarizationSimState,
+  calculateStokesVector,
+  calculateDspEqualizerDynamics,
+  calculatePolarizationMetrics,
+  renderPolarizationDiagramSvg,
+  generatePolarizationReport,
+  exportPolarizationJson,
+  exportPolarizationCsv,
+  setupPolarizationModal
+} from './dashboard-polarization-eq.js';
+
 
 
 

@@ -940,6 +940,16 @@
             </div>
             <div id="dashboardRpkiChart" class="chart-svg-container" role="img" aria-label="Carrier BGP Route Origin Validation and Flap Damping Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-polarization">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier Coherent Optical Polarization Mode State &amp; DSP Equalizer Matrix</h4>
+                <p class="chart-subtitle">Stokes vector (S0, S1, S2, S3), Poincaré sphere SOP rotation &amp; 2&times;2 butterfly FIR equalization</p>
+              </div>
+              <button id="dashboardOpenPolarizationModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Polarization Diagnostics</button>
+            </div>
+            <div id="dashboardPolarizationChart" class="chart-svg-container" role="img" aria-label="Carrier Coherent Optical Polarization and DSP Equalizer Chart"></div>
+          </article>
         </div>
 
 
@@ -5679,6 +5689,95 @@
               <button id="rpkiExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="rpkiCopyReportBtn" class="primary-button" type="button">📋 Copy RPKI ROV Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardPolarizationModal" class="dashboard-modal polarization-modal" aria-labelledby="dashboardPolarizationModalTitle">
+        <div class="dashboard-modal-card polarization-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardPolarizationModalTitle">Carrier Coherent Optical Polarization &amp; DSP Equalizer Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">Stokes vector tracking, Poincaré sphere SOP dynamics &amp; 2&times;2 butterfly FIR convergence</p>
+            </div>
+            <button id="dashboardPolarizationModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="polSpanSelect">Target Coherent DWDM Span:</label>
+              <select id="polSpanSelect" class="form-select">
+                <option value="span-01-baradari">Span 01: Shahdara Core to Baradari Ring (400G · G.652.D Duct)</option>
+                <option value="span-02-ravisiphon">Span 02: Baradari to Ravi Siphon Span (800G · ADSS Aerial Sway)</option>
+                <option value="span-03-vandala">Span 03: Shahdara Core to Vandala Substation (400G · OPGW 132kV)</option>
+                <option value="span-04-begumkot">Span 04: Begum Kot to Kot Abdul Malik (800G · Motorway M-2 Trunk)</option>
+                <option value="span-05-jiamusa">Span 05: Jia Musa Feeder (400G · Railway Track Vibration)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="polModSelect">Optical Modulation Format:</label>
+              <select id="polModSelect" class="form-select">
+                <option value="DP_16QAM_400G">DP-16QAM (400 Gbps · Metro Regional)</option>
+                <option value="DP_QPSK_200G">DP-QPSK (200 Gbps · Ultra Long-Haul)</option>
+                <option value="DP_64QAM_800G">DP-64QAM (800 Gbps · High-Density Core)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="polEqSelect">DSP Adaptive Equalizer Algorithm:</label>
+              <select id="polEqSelect" class="form-select">
+                <option value="DD_LMS">Decision-Directed LMS (Optimal Steady-State)</option>
+                <option value="CMA">Constant Modulus Algorithm (Blind Pre-Convergence)</option>
+                <option value="RADIUS_DIRECTED">Radius-Directed Equalizer (Multi-ring 16/64QAM)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="polSpeedRange">SOP Rotation Speed: <span id="polSpeedValLabel" style="font-weight: 700; color: #3b82f6;">12 krad/s</span></label>
+              <input type="range" id="polSpeedRange" min="0" max="120" step="2" value="12" class="form-range" style="width: 100%;">
+            </div>
+          </div>
+
+          <div class="mpls-tp-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="polSurgeToggleBtn" class="secondary-button" type="button">🌪️ Simulate Aerial Wind / Train Vibration</button>
+            <button id="polResetBtn" class="secondary-button" type="button">🔄 Reset Polarization Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Degree of Polarization (DOP)</span>
+              <span id="polStatDop" class="optical-evm-stat-val optimal">98.5% (S1:0.85)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">SOP Tracking Speed</span>
+              <span id="polStatSpeed" class="optical-evm-stat-val optimal">12 krad/s</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Equalizer MSE &amp; Pre-FEC BER</span>
+              <span id="polStatMse" class="optical-evm-stat-val optimal">-19.2 dB (BER 0.0008)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Polarization Loss (PDL)</span>
+              <span id="polStatPdl" class="optical-evm-stat-val optimal">1.2 dB (8.5 ps)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">DSP Lock Health</span>
+              <span id="polStatStatusBadge" class="optical-evm-stat-val optimal">OPTIMAL</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Sector Revenue at Risk</span>
+              <span id="polStatRevenueRisk" class="optical-evm-stat-val optimal">PKR 0</span>
+            </div>
+          </div>
+
+          <div id="dashboardPolarizationModalSvgContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier Coherent Optical Polarization and DSP Equalizer Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="polExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="polExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="polCopyReportBtn" class="primary-button" type="button">📋 Copy Polarization Audit Report</button>
           </div>
         </div>
       </dialog>

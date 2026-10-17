@@ -12583,3 +12583,20 @@ export {
   generateThermalCyclingCertsCsv,
   setupThermalCyclingModal
 } from './qa-thermal-cycling.js';
+
+export {
+  BILLING_CORRECTNESS_STORAGE_KEY,
+  AUDIT_SEVERITY,
+  BILLING_STATUSES,
+  AUDIT_RULE_CODES,
+  SHAHDARA_BILLING_PRESETS,
+  auditBillingCorrectness,
+  renderBillingCorrectnessSvg,
+  generateBillingAuditHtml,
+  formatBillingAuditWhatsApp,
+  generateBillingAuditCsv,
+  saveBillingAuditRecord,
+  getSavedBillingAuditRecords,
+  clearBillingAuditRecords,
+  setupBillingCorrectnessModal
+} from './qa-billing-correctness.js';

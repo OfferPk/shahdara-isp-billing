@@ -233,6 +233,15 @@
             <span class="quick-action-sub">Roshnamcha &amp; closing</span>
           </span>
         </button>
+        <button id="quickActionBillingCorrectness" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Billing Audit</span>
+            <span class="quick-action-sub">Ledger QA &amp; Correctness</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -18035,6 +18044,122 @@
         </div>
       </div>
     </section>
+  </dialog>
+
+  <!-- Billing Correctness & Ledger Reconciliation QA Suite Dialog -->
+  <dialog id="billingCorrectnessModal" class="billing-modal billing-correctness-modal">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2>Billing Correctness &amp; Ledger Reconciliation QA Suite</h2>
+          <span class="urdu-subtitle">بلنگ و لیجر تصدیق و درستگی آڈٹ سوٹ</span>
+        </div>
+        <button id="closeBillingCorrectnessModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- Action Toolbar -->
+        <div class="audit-action-bar">
+          <div class="audit-action-left">
+            <button id="runBillingAuditBtn" class="primary-button audit-run-btn" type="button">
+              🔄 Run Full Ledger Audit
+            </button>
+            <select id="billingDiscFilterSelect" class="select-input disc-filter-select" aria-label="Filter discrepancies">
+              <option value="all">All Audit Findings</option>
+              <option value="critical">Critical Issues Only</option>
+              <option value="warning">Warnings Only</option>
+              <option value="info">Informational &amp; Credits</option>
+            </select>
+          </div>
+          <div class="audit-action-right">
+            <button id="printBillingAuditA4Btn" class="secondary-button" type="button">
+              📄 Print A4 Certificate
+            </button>
+            <button id="printBillingAuditPosBtn" class="secondary-button" type="button">
+              🧾 Print 80mm Slip
+            </button>
+            <button id="shareBillingAuditWhatsAppBtn" class="secondary-button" type="button">
+              💬 WhatsApp Summary
+            </button>
+            <button id="exportBillingAuditCsvBtn" class="secondary-button" type="button">
+              📥 Export CSV Ledger
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Summary Cards -->
+        <div class="audit-kpi-ribbon">
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Clean Bills Accuracy</span>
+            <strong id="auditCleanBillsVal" class="audit-kpi-value text-success">100%</strong>
+            <span class="audit-kpi-sub">Mathematical compliance</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Total Billed Revenue</span>
+            <strong id="auditTotalBilledVal" class="audit-kpi-value">PKR 0</strong>
+            <span class="audit-kpi-sub">Retained cycle snapshots</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Actual Collections</span>
+            <strong id="auditTotalCollectedVal" class="audit-kpi-value text-success">PKR 0</strong>
+            <span class="audit-kpi-sub">Dated receipts received</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Outstanding Dues</span>
+            <strong id="auditTotalDueVal" class="audit-kpi-value text-warning">PKR 0</strong>
+            <span class="audit-kpi-sub">Unpaid pending balances</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Prepaid Forward Credit</span>
+            <strong id="auditUnappliedCreditVal" class="audit-kpi-value text-info">PKR 0</strong>
+            <span class="audit-kpi-sub">Available excess credit</span>
+          </div>
+        </div>
+
+        <!-- SVG Flow Visualizer -->
+        <div class="audit-svg-card">
+          <div class="audit-card-header">
+            <h3>Billing Architecture &amp; Allocation Pipeline</h3>
+            <span id="auditDiscCountBadge" class="badge-status-pill badge-neutral">0 findings</span>
+          </div>
+          <div id="billingAuditSvgContainer" class="audit-svg-container">
+            <!-- Populated dynamically by renderBillingCorrectnessSvg -->
+          </div>
+        </div>
+
+        <!-- Discrepancies & Ledger Reconciliation Table -->
+        <div class="audit-table-card">
+          <div class="audit-card-header">
+            <h3>Discrepancies &amp; Exception Logs</h3>
+            <span class="audit-card-sub">Real-time validation against ISP accounting rules</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table billing-disc-table">
+              <thead>
+                <tr>
+                  <th style="width: 110px;">Severity</th>
+                  <th style="width: 180px;">Subscriber</th>
+                  <th style="width: 90px;">Cycle</th>
+                  <th>Finding Description</th>
+                  <th style="width: 260px;">Resolution Suggestion</th>
+                </tr>
+              </thead>
+              <tbody id="billingDiscrepanciesTableBody">
+                <tr>
+                  <td colspan="5" class="text-center" style="padding:16px; color:#64748b;">
+                    Click "Run Full Ledger Audit" to inspect state.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <button id="closeBillingCorrectnessSecondaryBtn" class="secondary-button" type="button">Close</button>
+      </footer>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

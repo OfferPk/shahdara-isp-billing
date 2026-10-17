@@ -67,7 +67,8 @@ import {
   setupConduitPullingModal,
   setupSpectralAttenuationModal,
   setupFoscSealModal,
-  setupThermalCyclingModal
+  setupThermalCyclingModal,
+  setupBillingCorrectnessModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3600,7 +3601,14 @@ export let customerConduitPullingModalController;
 export let customerSpectralAttenuationModalController;
 export let customerFoscSealModalController;
 export let customerThermalCyclingModalController;
+export let billingCorrectnessModalController;
 if (typeof document !== 'undefined') {
+  billingCorrectnessModalController = setupBillingCorrectnessModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg) => toast(msg)
+  });
+
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -4366,6 +4374,15 @@ if (typeof document !== 'undefined') {
         }
         thermalCyclingModal.showModal();
       }
+    });
+  }
+
+  const billingCorrectnessModal = $('#billingCorrectnessModal');
+  if (billingCorrectnessModal && !billingCorrectnessModalController) {
+    billingCorrectnessModalController = setupBillingCorrectnessModal({
+      getState: () => state,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg) => toast(msg)
     });
   }
 }

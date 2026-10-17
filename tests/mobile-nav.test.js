@@ -9181,3 +9181,326 @@ test('index.html contains mobile cleaver button and modal markup', async () => {
   assert.ok(css.includes('.cleaver-card'));
   assert.ok(css.includes('.cleaver-svg-wrap'));
 });
+
+test('nav-olts-cert constants and specifications adhere to TIA-568.3-D and ITU-T standards', async () => {
+  const {
+    OLTS_CERT_STORAGE_KEY,
+    OLTS_WAVELENGTHS,
+    REFERENCE_METHODS,
+    OLTS_CONNECTOR_TYPES,
+    OLTS_SPLICE_TYPES,
+    OLTS_PRESETS
+  } = await import('../nav-olts-cert.js');
+
+  assert.equal(OLTS_CERT_STORAGE_KEY, 'shahdara_olts_cert_audits_v1');
+
+  // Wavelengths
+  assert.ok(OLTS_WAVELENGTHS.SM_1310);
+  assert.equal(OLTS_WAVELENGTHS.SM_1310.wavelengthNm, 1310);
+  assert.equal(OLTS_WAVELENGTHS.SM_1310.defaultLossPerKm, 0.35);
+  assert.ok(OLTS_WAVELENGTHS.SM_1490);
+  assert.equal(OLTS_WAVELENGTHS.SM_1490.wavelengthNm, 1490);
+  assert.ok(OLTS_WAVELENGTHS.SM_1550);
+  assert.equal(OLTS_WAVELENGTHS.SM_1550.defaultLossPerKm, 0.20);
+  assert.ok(OLTS_WAVELENGTHS.SM_1577);
+  assert.ok(OLTS_WAVELENGTHS.SM_1625);
+
+  // Reference Methods
+  assert.ok(REFERENCE_METHODS.METHOD_1_CORD);
+  assert.equal(REFERENCE_METHODS.METHOD_1_CORD.cords, 1);
+  assert.ok(REFERENCE_METHODS.METHOD_2_CORD);
+  assert.equal(REFERENCE_METHODS.METHOD_2_CORD.cords, 2);
+  assert.ok(REFERENCE_METHODS.METHOD_3_CORD);
+  assert.equal(REFERENCE_METHODS.METHOD_3_CORD.cords, 3);
+
+  // Connectors & Splices
+  assert.ok(OLTS_CONNECTOR_TYPES.SC_APC);
+  assert.equal(OLTS_CONNECTOR_TYPES.SC_APC.typicalLossDb, 0.25);
+  assert.equal(OLTS_CONNECTOR_TYPES.SC_APC.returnLossDb, 65);
+  assert.ok(OLTS_CONNECTOR_TYPES.SC_UPC);
+  assert.equal(OLTS_CONNECTOR_TYPES.SC_UPC.typicalLossDb, 0.30);
+  assert.ok(OLTS_SPLICE_TYPES.FUSION);
+  assert.equal(OLTS_SPLICE_TYPES.FUSION.typicalLossDb, 0.05);
+  assert.ok(OLTS_SPLICE_TYPES.MECHANICAL);
+  assert.equal(OLTS_SPLICE_TYPES.MECHANICAL.typicalLossDb, 0.15);
+
+  // Presets
+  assert.ok(OLTS_PRESETS.SHAHDARA_FEEDER);
+  assert.equal(OLTS_PRESETS.SHAHDARA_FEEDER.lengthKm, 3.8);
+  assert.ok(OLTS_PRESETS.FDT_DISTRIBUTION);
+  assert.ok(OLTS_PRESETS.FAT_DROP_SUBSCRIBER);
+  assert.ok(OLTS_PRESETS.METRO_INTER_POP);
+  assert.ok(OLTS_PRESETS.DC_CROSS_CONNECT);
+});
+
+test('calculateTier1LossBudget calculates correct fiber, splice, and connector loss budgets', async () => {
+  const { calculateTier1LossBudget } = await import('../nav-olts-cert.js');
+
+  // Standard Feeder link: 3.8 km at 1310nm (0.35 dB/km), 4 splices (0.05 dB), 2 connectors (0.25 dB)
+  // fiber: 3.8 * 0.35 = 1.33 dB
+  // splices: 4 * 0.05 = 0.20 dB
+  // connectors: 2 * 0.25 = 0.50 dB
+  // total = 1.33 + 0.20 + 0.50 = 2.03 dB
+  const budget = calculateTier1LossBudget({
+    lengthKm: 3.8,
+    wavelengthId: 'SM_1310',
+    splicesCount: 4,
+    spliceType: 'FUSION',
+    connectorsCount: 2,
+    connectorType: 'SC_APC'
+  });
+
+  assert.equal(budget.lengthKm, 3.8);
+  assert.equal(budget.fiberLossDb, 1.33);
+  assert.equal(budget.spliceLossDb, 0.2);
+  assert.equal(budget.connectorLossDb, 0.5);
+  assert.equal(budget.totalBudgetDb, 2.03);
+  assert.ok(budget.standardCeilingBudgetDb > budget.totalBudgetDb);
+
+  // Zero-length / datacenter patch jumper test
+  const dcPatch = calculateTier1LossBudget({
+    lengthKm: 0,
+    splicesCount: 0,
+    connectorsCount: 2,
+    connectorType: 'LC_UPC'
+  });
+  assert.equal(dcPatch.fiberLossDb, 0);
+  assert.equal(dcPatch.spliceLossDb, 0);
+  assert.equal(dcPatch.connectorLossDb, 0.6);
+  assert.equal(dcPatch.totalBudgetDb, 0.6);
+
+  // Custom component loss override
+  const customBudget = calculateTier1LossBudget({
+    lengthKm: 2.0,
+    customFiberLossPerKm: 0.22,
+    splicesCount: 1,
+    customSpliceLoss: 0.10,
+    connectorsCount: 2,
+    customConnectorLoss: 0.20
+  });
+  assert.equal(customBudget.totalBudgetDb, 0.94);
+});
+
+test('calculateBidirectionalCertification correctly computes bi-dir average, delta, gainer detection, and Pass/Marginal/Fail', async () => {
+  const { calculateBidirectionalCertification } = await import('../nav-olts-cert.js');
+
+  // Case 1: Healthy Pass with >= 1.0 dB margin headroom
+  const passRes = calculateBidirectionalCertification({
+    lossAtoB: 0.82,
+    lossBtoA: 0.86,
+    budgetDb: 2.40,
+    lengthKm: 2.0
+  });
+  assert.equal(passRes.avgLossDb, 0.84);
+  assert.equal(passRes.deltaDb, 0.04);
+  assert.equal(passRes.marginDb, 1.56);
+  assert.equal(passRes.status, 'PASS');
+  assert.equal(passRes.hasGainer, false);
+  assert.equal(passRes.hasDirectionalBias, false);
+  assert.equal(passRes.attenuationPerKm, 0.42);
+  assert.ok(passRes.statusText.includes('CERTIFIED PASS'));
+
+  // Case 2: Marginal Pass with < 1.0 dB headroom
+  const marginalRes = calculateBidirectionalCertification({
+    lossAtoB: 1.85,
+    lossBtoA: 1.91,
+    budgetDb: 2.10,
+    lengthKm: 3.8
+  });
+  assert.equal(marginalRes.avgLossDb, 1.88);
+  assert.equal(marginalRes.marginDb, 0.22);
+  assert.equal(marginalRes.status, 'MARGINAL');
+  assert.ok(marginalRes.statusText.includes('MARGINAL PASS'));
+
+  // Case 3: Failed Certification (exceeds budget)
+  const failRes = calculateBidirectionalCertification({
+    lossAtoB: 3.10,
+    lossBtoA: 3.30,
+    budgetDb: 2.00,
+    lengthKm: 1.5
+  });
+  assert.equal(failRes.avgLossDb, 3.20);
+  assert.equal(failRes.marginDb, -1.20);
+  assert.equal(failRes.status, 'FAIL');
+  assert.ok(failRes.statusText.includes('CERTIFICATION FAILED'));
+  assert.ok(failRes.advisoryUrdu.includes('خطرہ'));
+
+  // Case 4: Apparent Gainer (negative loss in one direction due to MFD mismatch)
+  const gainerRes = calculateBidirectionalCertification({
+    lossAtoB: -0.15,
+    lossBtoA: 1.45,
+    budgetDb: 1.80
+  });
+  assert.equal(gainerRes.avgLossDb, 0.65);
+  assert.equal(gainerRes.hasGainer, true);
+  assert.ok(gainerRes.diagnostics.some(d => d.includes('gainer')));
+
+  // Case 5: Directional Asymmetry (> 0.25 dB delta)
+  const biasRes = calculateBidirectionalCertification({
+    lossAtoB: 0.60,
+    lossBtoA: 1.10,
+    budgetDb: 1.50
+  });
+  assert.equal(biasRes.deltaDb, 0.50);
+  assert.equal(biasRes.hasDirectionalBias, true);
+  assert.ok(biasRes.diagnostics.some(d => d.includes('asymmetry')));
+});
+
+test('renderOltsCertificationSvg and renderOltsReferenceDiagramSvg produce valid vector graphics', async () => {
+  const { renderOltsCertificationSvg, renderOltsReferenceDiagramSvg } = await import('../nav-olts-cert.js');
+
+  const svgPass = renderOltsCertificationSvg({
+    lossAtoB: 1.85,
+    lossBtoA: 1.91,
+    avgLossDb: 1.88,
+    budgetDb: 2.45,
+    marginDb: 0.57,
+    status: 'PASS',
+    wavelengthNm: 1310,
+    linkName: 'Shahdara Feeder 01'
+  });
+  assert.ok(svgPass.includes('<svg'));
+  assert.ok(svgPass.includes('viewBox="0 0 760 320"'));
+  assert.ok(svgPass.includes('END A'));
+  assert.ok(svgPass.includes('END B'));
+  assert.ok(svgPass.includes('1.88 dB'));
+  assert.ok(svgPass.includes('PASS'));
+  assert.ok(svgPass.includes('Shahdara Feeder 01'));
+
+  const svgFail = renderOltsCertificationSvg({
+    lossAtoB: 3.5,
+    lossBtoA: 3.7,
+    avgLossDb: 3.6,
+    budgetDb: 2.0,
+    marginDb: -1.6,
+    status: 'FAIL'
+  });
+  assert.ok(svgFail.includes('FAIL'));
+
+  // Reference Diagram
+  const ref1 = renderOltsReferenceDiagramSvg({ methodId: 'METHOD_1_CORD' });
+  assert.ok(ref1.includes('1-Cord Reference'));
+  assert.ok(ref1.includes('Launch Cord'));
+  assert.ok(ref1.includes('SET ZERO'));
+
+  const ref2 = renderOltsReferenceDiagramSvg({ methodId: 'METHOD_2_CORD' });
+  assert.ok(ref2.includes('Receive Cord'));
+
+  const ref3 = renderOltsReferenceDiagramSvg({ methodId: 'METHOD_3_CORD' });
+  assert.ok(ref3.includes('3-Cord Reference'));
+});
+
+test('generateOltsAuditReport and generateOltsWhatsAppDispatch create formatted field records', async () => {
+  const { generateOltsAuditReport, generateOltsWhatsAppDispatch } = await import('../nav-olts-cert.js');
+
+  const sampleData = {
+    linkName: 'Shahdara Central OLT -> Ravi FDT',
+    technician: 'Kamran Akram',
+    location: 'Begum Kot, Lahore',
+    lengthKm: 3.8,
+    wavelengthNm: 1310,
+    connectorsCount: 2,
+    connectorType: 'SC/APC',
+    splicesCount: 4,
+    spliceType: 'Fusion Splice',
+    lossAtoB: 1.85,
+    lossBtoA: 1.91,
+    avgLossDb: 1.88,
+    budgetDb: 2.03,
+    marginDb: 0.15,
+    status: 'PASS',
+    advisoryUrdu: 'مبارک! آپٹیکل فائبر لنک ٹیسٹ کامیابی سے پاس ہو گیا ہے۔',
+    diagnostics: ['Headroom compliant with TIA-568.3-D']
+  };
+
+  const report = generateOltsAuditReport(sampleData);
+  assert.ok(report.includes('SHAHDARA ISP - TIER-1 OPTICAL LOSS TEST SET (OLTS) CERTIFICATION'));
+  assert.ok(report.includes('TIA-568.3-D / ISO/IEC 14763-3'));
+  assert.ok(report.includes('Kamran Akram'));
+  assert.ok(report.includes('1.88 dB'));
+  assert.ok(report.includes('1.85 dB'));
+  assert.ok(report.includes('1.91 dB'));
+  assert.ok(report.includes('PASS'));
+
+  const whatsapp = generateOltsWhatsAppDispatch(sampleData);
+  assert.ok(whatsapp.includes('SHAHDARA ISP - OPTICAL LOSS (OLTS) TIER-1 CERTIFICATION'));
+  assert.ok(whatsapp.includes('Kamran Akram'));
+  assert.ok(whatsapp.includes('*1.88 dB*'));
+  assert.ok(whatsapp.includes('*PASS*'));
+});
+
+test('OLTS audit log persistence and CSV export operate reliably', async () => {
+  const {
+    loadOltsAuditLog,
+    saveOltsAuditLog,
+    clearOltsAuditLog,
+    exportOltsAuditsCsv
+  } = await import('../nav-olts-cert.js');
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: k => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v)),
+    removeItem: k => mockStore.delete(k)
+  };
+
+  // Initially empty
+  assert.deepEqual(loadOltsAuditLog(mockStorage), []);
+
+  // Save 1 record
+  const savedList = saveOltsAuditLog({
+    linkName: 'Span-Alpha',
+    lengthKm: 1.5,
+    wavelengthNm: 1310,
+    avgLossDb: 0.95,
+    budgetDb: 1.50,
+    marginDb: 0.55,
+    status: 'PASS'
+  }, mockStorage);
+
+  assert.equal(savedList.length, 1);
+  assert.equal(savedList[0].linkName, 'Span-Alpha');
+  assert.ok(savedList[0].id.startsWith('OLTS_'));
+
+  // CSV export
+  const csv = exportOltsAuditsCsv(savedList);
+  assert.ok(csv.includes('Record ID,Timestamp,Link Name'));
+  assert.ok(csv.includes('"Span-Alpha"'));
+  assert.ok(csv.includes('0.95'));
+
+  // Clear history
+  clearOltsAuditLog(mockStorage);
+  assert.deepEqual(loadOltsAuditLog(mockStorage), []);
+});
+
+test('index.html and nav.css contain mobile OLTS certification markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreOltsBtn"'));
+  assert.ok(html.includes('id="mobileOltsModal"'));
+  assert.ok(html.includes('id="oltsPresetSelect"'));
+  assert.ok(html.includes('id="oltsLengthKm"'));
+  assert.ok(html.includes('id="oltsWavelength"'));
+  assert.ok(html.includes('id="oltsLossAtoB"'));
+  assert.ok(html.includes('id="oltsLossBtoA"'));
+  assert.ok(html.includes('id="oltsSvgContainer"'));
+  assert.ok(html.includes('id="oltsRefSvgContainer"'));
+  assert.ok(html.includes('id="oltsAvgLossDisplay"'));
+  assert.ok(html.includes('id="oltsBudgetDisplay"'));
+  assert.ok(html.includes('id="oltsMarginDisplay"'));
+  assert.ok(html.includes('id="oltsStatusBadge"'));
+  assert.ok(html.includes('id="oltsSaveAuditBtn"'));
+  assert.ok(html.includes('id="oltsWhatsappBtn"'));
+  assert.ok(html.includes('id="oltsExportCsvBtn"'));
+  assert.ok(html.includes('id="oltsHistoryTbody"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.mobile-olts-modal'));
+  assert.ok(css.includes('.olts-card'));
+  assert.ok(css.includes('.olts-svg-wrap'));
+  assert.ok(css.includes('.olts-ref-wrap'));
+  assert.ok(css.includes('.olts-metrics-grid'));
+  assert.ok(css.includes('.olts-metric-card'));
+});

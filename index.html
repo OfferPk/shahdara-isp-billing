@@ -6247,8 +6247,10 @@
           <label for="transactionRecencyFilter">Recent payments<select id="transactionRecencyFilter" aria-describedby="transactionFilterHelp"><option value="all" selected>All history</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label>
           <label for="transactionMethodFilter">Payment method<select id="transactionMethodFilter"><option value="all" selected>All methods</option><option value="Cash">Cash</option><option value="EasyPaisa">EasyPaisa</option><option value="JazzCash">JazzCash</option><option value="Bank Transfer">Bank Transfer</option><option value="Other">Other</option></select></label>
           <label for="transactionDateFilter">Exact payment date<input id="transactionDateFilter" type="date"></label>
-          <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
-          <button id="exportTransactionsCsvBtn" class="secondary-button" type="button" title="Export transactions to CSV">Export CSV</button>
+          <div class="transaction-filter-actions">
+            <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
+            <button id="exportTransactionsCsvBtn" class="secondary-button" type="button" title="Export transactions to CSV">Export CSV</button>
+          </div>
         </div>
         <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">
           <span class="tx-summary-item"><span class="tx-summary-label">Filtered total:</span> <strong id="txSummaryTotal">PKR 0</strong></span>
@@ -6283,8 +6285,10 @@
         </div>
         <div class="report-search-bar">
           <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area...">
-          <button id="exportMonthlyReportCsvBtn" class="secondary-button" type="button" title="Export monthly report to CSV">Export CSV</button>
-          <button id="batchReceiptPrintBtn" class="secondary-button" type="button" title="Print monthly billing slips">Print Slips</button>
+          <div class="report-search-actions">
+            <button id="exportMonthlyReportCsvBtn" class="secondary-button" type="button" title="Export monthly report to CSV">Export CSV</button>
+            <button id="batchReceiptPrintBtn" class="secondary-button" type="button" title="Print monthly billing slips">Print Slips</button>
+          </div>
         </div>
         <div id="monthlyReportSummaryBar" class="monthly-report-summary-bar" aria-live="polite">
           <span class="report-summary-item"><span class="report-summary-label">Billed:</span> <strong id="reportSummaryBilled">PKR 0</strong></span>

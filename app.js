@@ -60,7 +60,8 @@ import {
   setupRibbonSpliceQaModal,
   setupFastConnectorQaModal,
   setupAdssSagTensionModal,
-  setupArmoredCableCrushModal
+  setupArmoredCableCrushModal,
+  setupCableJettingModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3527,6 +3528,7 @@ export let customerRibbonSpliceQaModalController;
 export let customerFastConnectorQaModalController;
 export let customerAdssSagTensionModalController;
 export let customerArmoredCableCrushModalController;
+export let customerCableJettingModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4129,7 +4131,36 @@ if (typeof document !== 'undefined') {
       }
     });
   }
+
+  const jettingModal = $('#cableJettingModal');
+  const openCableJettingBtn = $('#openCableJettingBtn');
+  if (jettingModal) {
+    customerCableJettingModalController = setupCableJettingModal({
+      state,
+      dialogElement: jettingModal,
+      triggerButton: openCableJettingBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openCableJettingBtn) {
+    openCableJettingBtn.addEventListener('click', () => {
+      if (jettingModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#jettingCustInput');
+            if (custInput) custInput.value = c.name || 'Subscriber';
+            const routeInput = $('#jettingRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Microduct Span to Demarcation`;
+          }
+        }
+        jettingModal.showModal();
+      }
+    });
+  }
 }
+
 
 function handleRouteFromHash() {
   if (typeof window === 'undefined' || !window.location) return;

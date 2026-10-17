@@ -6238,7 +6238,8 @@ html, body {
 #ribbonSeparatorSvgContainer,
 #mechanicalSpliceSvgContainer,
 #adssSvgContainer,
-#armoredSvgContainer {
+#armoredSvgContainer,
+#jettingSvgContainer {
   width: 100%;
   overflow-x: auto;
   border-radius: 8px;
@@ -6253,7 +6254,8 @@ html, body {
 #ribbonSeparatorSvgContainer svg,
 #mechanicalSpliceSvgContainer svg,
 #adssSvgContainer svg,
-#armoredSvgContainer svg {
+#armoredSvgContainer svg,
+#jettingSvgContainer svg {
   width: 100%;
   min-width: 580px;
   max-width: 820px;
@@ -6265,7 +6267,9 @@ html, body {
   #adssSagTensionModal,
   #adssSagTensionModal .dashboard-modal-card,
   #armoredCableCrushModal,
-  #armoredCableCrushModal .dashboard-modal-card {
+  #armoredCableCrushModal .dashboard-modal-card,
+  #cableJettingModal,
+  #cableJettingModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;
@@ -6274,4 +6278,5 @@ html, body {
     max-width: 100% !important;
   }
 }
+
 

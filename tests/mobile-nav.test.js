@@ -10840,4 +10840,286 @@ test('index.html, nav.css, and app.js correctly integrate Mobile Bare Fiber Adap
   assert.ok(app.includes('mobileBareFiberAdapterModalController'));
 });
 
+// ==========================================================================
+// Tests for Stabilized Light Source (SLS) & Tone Generator Assistant (agent2)
+// ==========================================================================
+
+test('dbmToMilliwatts converts dBm to optical power in milliwatts', async () => {
+  const { dbmToMilliwatts } = await import('../nav.js');
+
+  assert.equal(dbmToMilliwatts(0.0), 1.0);
+  assert.equal(dbmToMilliwatts(3.0), 1.995);
+  assert.equal(dbmToMilliwatts(-3.0), 0.501);
+  assert.equal(dbmToMilliwatts(10.0), 10.0);
+});
+
+test('calculateSlsMetrics calculates calibrated baseline and thermal drift for reference standard', async () => {
+  const { calculateSlsMetrics } = await import('../nav.js');
+
+  const result = calculateSlsMetrics({
+    wavelength: 'WAVE_1310',
+    modulation: 'CW',
+    connectorType: 'SC_APC',
+    outputPowerDbm: 0.0,
+    warmUpMinutes: 15,
+    ambientTempC: 25.0
+  });
+
+  assert.ok(result);
+  assert.equal(result.wavelengthNm, 1310);
+  assert.equal(result.frequencyHz, 0);
+  assert.equal(result.isWarmedUp, true);
+  assert.equal(result.warmUpAlert, null);
+  assert.equal(result.isTempSafe, true);
+  assert.equal(result.isShortTermCompliant, true);
+  assert.equal(result.isLongTermCompliant, true);
+  assert.equal(result.verdict, 'PASS');
+  assert.equal(result.statusBadge, 'CALIBRATED & STABLE');
+  assert.ok(result.totalShortTermDriftDb <= 0.05);
+  assert.ok(result.effectivePowerDbm < 0.0); // -0.15 dB bulkhead loss
+  assert.ok(result.estimatedBatteryLifeHours > 20);
+});
+
+test('calculateSlsMetrics detects cold-start warm-up penalty and excessive heat drift', async () => {
+  const { calculateSlsMetrics } = await import('../nav.js');
+
+  const uncalibrated = calculateSlsMetrics({
+    wavelength: 'WAVE_1550',
+    modulation: 'TONE_1KHZ',
+    connectorType: 'SC_APC',
+    outputPowerDbm: -5.0,
+    warmUpMinutes: 3, // < 10 mins
+    ambientTempC: 42.0 // > 35°C
+  });
+
+  assert.ok(uncalibrated);
+  assert.equal(uncalibrated.isWarmedUp, false);
+  assert.ok(uncalibrated.warmUpAlert && uncalibrated.warmUpAlert.includes('Insufficient laser warm-up'));
+  assert.ok(uncalibrated.totalShortTermDriftDb > 0.05); // Thermal drift exceeds Class 1 limit
+  assert.equal(uncalibrated.verdict, 'FAIL');
+  assert.equal(uncalibrated.statusBadge, 'EXCESSIVE THERMAL DRIFT');
+});
+
+test('calculateSlsMetrics correctly configures 2kHz high-penetration tone for splitter', async () => {
+  const { calculateSlsMetrics } = await import('../nav.js');
+
+  const toneResult = calculateSlsMetrics({
+    wavelength: 'WAVE_1490',
+    modulation: 'TONE_2KHZ',
+    connectorType: 'SC_UPC',
+    outputPowerDbm: 3.0,
+    warmUpMinutes: 12,
+    ambientTempC: 26.0
+  });
+
+  assert.ok(toneResult);
+  assert.equal(toneResult.frequencyHz, 2000);
+  assert.equal(toneResult.dutyCyclePercent, 50);
+  assert.equal(toneResult.isWarmedUp, true);
+  assert.equal(toneResult.verdict, 'PASS');
+});
+
+test('renderSlsDiagramSvg generates comprehensive SVG schematic with LCD and waveform', async () => {
+  const { calculateSlsMetrics, renderSlsDiagramSvg } = await import('../nav.js');
+
+  const dynamics = calculateSlsMetrics({
+    wavelength: 'WAVE_1310',
+    modulation: 'TONE_1KHZ',
+    outputPowerDbm: 0.0,
+    warmUpMinutes: 15
+  });
+
+  const svg = renderSlsDiagramSvg(dynamics, {
+    wavelength: 'WAVE_1310',
+    modulation: 'TONE_1KHZ'
+  });
+
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('class="sls-svg"'));
+  assert.ok(svg.includes('SHAHDARA SLS-800 OPTICAL XMTR'));
+  assert.ok(svg.includes('1310'));
+  assert.ok(svg.includes('1000 Hz'));
+  assert.ok(svg.includes('CARRIER / MODULATED TONE WAVEFORM'));
+  assert.ok(svg.includes('THERMAL DRIFT (15m)'));
+});
+
+test('formatSlsToneWhatsApp and generateSlsToneCsv output bilingual dispatches and RFC-4180 CSV', async () => {
+  const { calculateSlsMetrics, formatSlsToneWhatsApp, generateSlsToneCsv } = await import('../nav.js');
+
+  const dynamics = calculateSlsMetrics({
+    wavelength: 'WAVE_1310',
+    modulation: 'CW',
+    outputPowerDbm: 0.0,
+    warmUpMinutes: 15
+  });
+
+  const waMsg = formatSlsToneWhatsApp(dynamics, {
+    technicianName: 'Arshad Ali',
+    area: 'Shahdara Town',
+    notes: 'Reference calibration'
+  });
+
+  assert.ok(waMsg.includes('SHAHDARA ISP - STABILIZED LIGHT SOURCE'));
+  assert.ok(waMsg.includes('Arshad Ali'));
+  assert.ok(waMsg.includes('Shahdara Town'));
+  assert.ok(waMsg.includes('ITU-T G.652.D'));
+
+  const csv = generateSlsToneCsv([
+    {
+      id: 'sls-201',
+      timestamp: '2026-10-17T07:35:00Z',
+      technicianName: 'Arshad Ali',
+      area: 'Shahdara Town',
+      wavelengthNm: 1310,
+      modulationId: 'CW',
+      connectorId: 'SC_APC',
+      targetPowerDbm: 0.0,
+      effectivePowerDbm: -0.15,
+      warmUpMinutes: 15,
+      ambientTempC: 25,
+      totalShortTermDriftDb: 0.03,
+      verdict: 'PASS',
+      notes: 'Reference set'
+    }
+  ]);
+
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Audit_ID,Timestamp,Technician,Area,Wavelength_nm'));
+  assert.ok(csv.includes('sls-201'));
+  assert.ok(csv.includes('Arshad Ali'));
+});
+
+test('setupMobileSlsToneModal initializes, handles UI events and manages audit logs', async () => {
+  const { setupMobileSlsToneModal } = await import('../nav.js');
+
+  let modalShown = false;
+  let modalClosed = false;
+
+  function createMockElem(tag = 'div') {
+    const listeners = {};
+    return {
+      tagName: tag.toUpperCase(),
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      addEventListener: (evt, handler) => {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(handler);
+      },
+      trigger: (evt) => {
+        (listeners[evt] || []).forEach(fn => fn({ preventDefault: () => {} }));
+      },
+      querySelectorAll: () => [],
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    };
+  }
+
+  const elements = {
+    mobileSlsToneModal: {
+      showModal: () => { modalShown = true; },
+      close: () => { modalClosed = true; },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    },
+    mobileSlsToneModalCloseBtn: createMockElem('button'),
+    mobileMoreSlsToneBtn: createMockElem('button'),
+    slsPresetSelect: createMockElem('select'),
+    slsAreaSelect: createMockElem('select'),
+    slsTechInput: createMockElem('input'),
+    slsWaveSelect: createMockElem('select'),
+    slsModSelect: createMockElem('select'),
+    slsConnSelect: createMockElem('select'),
+    slsPowerSlider: createMockElem('input'),
+    slsPowerLabel: createMockElem('span'),
+    slsWarmUpSlider: createMockElem('input'),
+    slsWarmUpLabel: createMockElem('span'),
+    slsTempSlider: createMockElem('input'),
+    slsTempLabel: createMockElem('span'),
+    slsNotesInput: createMockElem('input'),
+    slsResetBtn: createMockElem('button'),
+    slsSaveBtn: createMockElem('button'),
+    slsWhatsAppBtn: createMockElem('button'),
+    slsExportCsvBtn: createMockElem('button'),
+    slsDiagramContainer: createMockElem('div'),
+    slsHistoryTbody: createMockElem('tbody'),
+    slsHistorySearch: createMockElem('input'),
+    slsHistoryVerdictFilter: createMockElem('select')
+  };
+
+  const mockDoc = {
+    getElementById: (id) => elements[id] || null
+  };
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: (k) => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v)),
+    removeItem: (k) => mockStore.delete(k)
+  };
+
+  let lastToast = null;
+  const controller = setupMobileSlsToneModal({}, {
+    document: mockDoc,
+    storage: mockStorage,
+    onToast: (msg) => { lastToast = msg; }
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.update, 'function');
+  assert.equal(typeof controller.getMetrics, 'function');
+
+  controller.open();
+  assert.equal(modalShown, true);
+
+  controller.close();
+  assert.equal(modalClosed, true);
+
+  elements.slsSaveBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('audit saved'));
+  const audits = controller.getSavedAudits();
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].wavelengthNm, 1310);
+
+  elements.slsResetBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('baseline'));
+});
+
+test('index.html, nav.css, and app.js correctly integrate Mobile Stabilized Light Source Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreSlsToneBtn"'));
+  assert.ok(html.includes('id="mobileSlsToneModal"'));
+  assert.ok(html.includes('id="mobileSlsToneModalCloseBtn"'));
+  assert.ok(html.includes('id="slsPresetSelect"'));
+  assert.ok(html.includes('id="slsAreaSelect"'));
+  assert.ok(html.includes('id="slsTechInput"'));
+  assert.ok(html.includes('id="slsWaveSelect"'));
+  assert.ok(html.includes('id="slsModSelect"'));
+  assert.ok(html.includes('id="slsConnSelect"'));
+  assert.ok(html.includes('id="slsPowerSlider"'));
+  assert.ok(html.includes('id="slsWarmUpSlider"'));
+  assert.ok(html.includes('id="slsTempSlider"'));
+  assert.ok(html.includes('id="slsNotesInput"'));
+  assert.ok(html.includes('id="slsDiagramContainer"'));
+  assert.ok(html.includes('id="slsSaveBtn"'));
+  assert.ok(html.includes('id="slsWhatsAppBtn"'));
+  assert.ok(html.includes('id="slsExportCsvBtn"'));
+  assert.ok(html.includes('id="slsResetBtn"'));
+  assert.ok(html.includes('id="slsHistoryTbody"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.sls-card'));
+  assert.ok(css.includes('.sls-svg-wrap'));
+  assert.ok(css.includes('.mobile-sls-modal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileSlsToneModal'));
+  assert.ok(app.includes('mobileSlsToneModalController'));
+});
+
 

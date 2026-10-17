@@ -6307,5 +6307,52 @@ export {
   setupMobileDropRetentionModal
 } from './nav-drop-retention.js';
 
+export {
+  REF_JUMPERS_STORAGE_KEY,
+  REFERENCING_METHODS,
+  JUMPER_GRADES,
+  REF_JUMPERS_PRESETS,
+  calculateReferenceJumpersMetrics,
+  renderReferenceJumpersSvg,
+  formatReferenceJumpersWhatsAppText,
+  generateReferenceJumpersCsv,
+  loadReferenceJumpersAuditLog,
+  saveReferenceJumpersAuditLog,
+  clearReferenceJumpersAuditLog,
+  setupMobileRefJumpersModal
+} from './nav-reference-jumpers.js';
+
+export {
+  RIBBON_SEPARATOR_STORAGE_KEY,
+  RIBBON_COLOR_CODES,
+  DE_RIBBON_METHODS,
+  RIBBON_PRESETS,
+  calculateRibbonSeparatorMetrics,
+  renderRibbonSeparatorSvg,
+  loadRibbonSeparatorAuditLog,
+  saveRibbonSeparatorAuditLog,
+  clearRibbonSeparatorAuditLog,
+  formatRibbonSeparatorWhatsAppText,
+  generateRibbonSeparatorCsv,
+  setupMobileRibbonSeparatorModal
+} from './nav-ribbon-separator.js';
+
+export {
+  MECHANICAL_SPLICE_STORAGE_KEY,
+  SPLICE_ELEMENT_TYPES,
+  GEL_STATES,
+  MECHANICAL_SPLICE_PRESETS,
+  calculateMechanicalSpliceMetrics,
+  renderMechanicalSpliceSvg,
+  loadMechanicalSpliceAuditLog,
+  saveMechanicalSpliceAuditLog,
+  clearMechanicalSpliceAuditLog,
+  formatMechanicalSpliceWhatsAppText,
+  generateMechanicalSpliceCsv,
+  setupMobileMechanicalSpliceModal
+} from './nav-mechanical-splice.js';
+
+
+
 
 

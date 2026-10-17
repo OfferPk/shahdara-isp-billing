@@ -6234,6 +6234,9 @@ html, body {
 #midspanSvgContainer,
 #powerLoggerSvgContainer,
 #dropRetentionSvgContainer,
+#refJumpersSvgContainer,
+#ribbonSeparatorSvgContainer,
+#mechanicalSpliceSvgContainer,
 #adssSvgContainer,
 #armoredSvgContainer {
   width: 100%;
@@ -6246,6 +6249,9 @@ html, body {
 #midspanSvgContainer svg,
 #powerLoggerSvgContainer svg,
 #dropRetentionSvgContainer svg,
+#refJumpersSvgContainer svg,
+#ribbonSeparatorSvgContainer svg,
+#mechanicalSpliceSvgContainer svg,
 #adssSvgContainer svg,
 #armoredSvgContainer svg {
   width: 100%;

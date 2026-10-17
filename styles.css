@@ -337,7 +337,8 @@ textarea { line-height: 1.5; }
 .transaction-actions .edit-payment, .transaction-actions .delete-payment,
 .payment-actions .edit-payment, .payment-actions .delete-payment,
 .incident-actions .secondary-button, .incident-actions .delete-incident,
-.payment-row .edit-payment, .payment-row .delete-payment {
+.payment-row .edit-payment, .payment-row .delete-payment,
+.expense-actions .edit-payment, .expense-actions .delete-incident {
   min-width: 44px;
   min-height: 44px;
   padding: 7px 11px;
@@ -412,8 +413,8 @@ textarea { line-height: 1.5; }
   flex: 1 1 240px;
 }
 .table-filter-select, .table-filter-input {
-  min-height: 40px;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 8px 10px;
   border: 1px solid var(--line, #dfe8e3);
   border-radius: 8px;
   font: 500 13px 'DM Sans', sans-serif;
@@ -424,8 +425,8 @@ textarea { line-height: 1.5; }
   width: 100%;
 }
 .table-filter-clear {
-  min-height: 40px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 0 14px;
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -433,6 +434,12 @@ textarea { line-height: 1.5; }
   margin: 0 0 0 auto;
   font-size: 12px;
   color: var(--muted, #667a72);
+}
+.expense-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 @media (max-width: 620px) {
   .table-filter-toolbar {
@@ -2178,25 +2185,29 @@ html, body {
 }
 
 [data-theme="dark"] .transaction-actions .edit-payment,
-[data-theme="dark"] .payment-actions .edit-payment {
+[data-theme="dark"] .payment-actions .edit-payment,
+[data-theme="dark"] .expense-actions .edit-payment {
   background: #182d27;
   border-color: #28443b;
   color: #9ab4aa;
 }
 
 [data-theme="dark"] .transaction-actions .edit-payment:hover,
-[data-theme="dark"] .payment-actions .edit-payment:hover {
+[data-theme="dark"] .payment-actions .edit-payment:hover,
+[data-theme="dark"] .expense-actions .edit-payment:hover {
   background: #203932;
   color: #fff;
 }
 
-[data-theme="dark"] .delete-payment {
+[data-theme="dark"] .delete-payment,
+[data-theme="dark"] .expense-actions .delete-incident {
   background: #2a1b1a;
   border-color: #4a2826;
   color: #f87171;
 }
 
-[data-theme="dark"] .delete-payment:hover {
+[data-theme="dark"] .delete-payment:hover,
+[data-theme="dark"] .expense-actions .delete-incident:hover {
   background: #38201e;
   border-color: #5c322f;
   color: #fca5a5;

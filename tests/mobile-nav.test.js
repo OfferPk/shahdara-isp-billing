@@ -12900,6 +12900,190 @@ test('index.html, styles.css, nav.css, and app.js correctly integrate Fiber VIP 
   assert.ok(typeof nav.resolveFiberCoreFromNumber === 'function');
 });
 
+test('nav-otdr-deadzone constants and presets are complete and valid', async () => {
+  const {
+    OTDR_DEADZONE_STORAGE_KEY,
+    PULSE_WIDTH_SPECS,
+    DEADZONE_PRESETS
+  } = await import('../nav-otdr-deadzone.js');
+
+  assert.equal(OTDR_DEADZONE_STORAGE_KEY, 'shahdara_otdr_deadzone_audits_v1');
+  assert.ok(PULSE_WIDTH_SPECS.PULSE_3NS);
+  assert.ok(PULSE_WIDTH_SPECS.PULSE_100NS);
+  assert.ok(PULSE_WIDTH_SPECS.PULSE_1US);
+
+  assert.equal(PULSE_WIDTH_SPECS.PULSE_3NS.edzMeters, 0.8);
+  assert.equal(PULSE_WIDTH_SPECS.PULSE_3NS.adzMeters, 2.8);
+  assert.equal(PULSE_WIDTH_SPECS.PULSE_3NS.dynamicRangeDb, 14.5);
+
+  assert.ok(Array.isArray(DEADZONE_PRESETS));
+  assert.ok(DEADZONE_PRESETS.length >= 5);
+  const dropPreset = DEADZONE_PRESETS.find(p => p.id === 'preset-ftth-drop');
+  assert.ok(dropPreset);
+  assert.equal(dropPreset.pulseId, 'PULSE_3NS');
+  assert.equal(dropPreset.launchLengthMeters, 100);
+});
+
+test('calculateDeadZoneMetrics correctly assesses EDZ, ADZ, and launch fiber adequacy', async () => {
+  const { calculateDeadZoneMetrics } = await import('../nav-otdr-deadzone.js');
+
+  // 1. Direct trace without launch cable
+  const noLaunch = calculateDeadZoneMetrics({
+    pulseId: 'PULSE_3NS',
+    fiberLengthMeters: 100,
+    hasLaunchCable: false
+  });
+
+  assert.equal(noLaunch.pulseWidthNs, 3);
+  assert.equal(noLaunch.edzMeters, 0.8);
+  assert.equal(noLaunch.adzMeters, 2.8);
+  assert.equal(noLaunch.launchAdequacyVerdict, 'NO_LAUNCH_CABLE');
+  assert.equal(noLaunch.firstConnectorTestable, false);
+  assert.equal(noLaunch.unmeasurableBlindZoneMeters, 2.8);
+
+  // 2. Undersized launch cable (e.g. 10m launch cable for 100ns pulse where ADZ is 38m)
+  const undersized = calculateDeadZoneMetrics({
+    pulseId: 'PULSE_100NS',
+    fiberLengthMeters: 1000,
+    hasLaunchCable: true,
+    launchLengthMeters: 10
+  });
+
+  assert.equal(undersized.edzMeters, 11.5);
+  assert.equal(undersized.adzMeters, 38.0);
+  assert.equal(undersized.launchAdequacyVerdict, 'UNDERSIZED');
+  assert.equal(undersized.firstConnectorTestable, false);
+  assert.equal(undersized.unmeasurableBlindZoneMeters, 28); // 38 - 10
+
+  // 3. Adequate launch cable (e.g. 100m launch cable for 3ns pulse where ADZ is 2.8m)
+  const adequate = calculateDeadZoneMetrics({
+    pulseId: 'PULSE_3NS',
+    fiberLengthMeters: 100,
+    hasLaunchCable: true,
+    launchLengthMeters: 100
+  });
+
+  assert.equal(adequate.launchAdequacyVerdict, 'ADEQUATE');
+  assert.equal(adequate.firstConnectorTestable, true);
+  assert.equal(adequate.unmeasurableBlindZoneMeters, 0);
+  assert.ok(adequate.recommendation.includes('OPTIMAL'));
+});
+
+test('saveDeadZoneAudit, getSavedDeadZoneAudits, and clearDeadZoneAudits persist correctly', async () => {
+  const {
+    saveDeadZoneAudit,
+    getSavedDeadZoneAudits,
+    clearDeadZoneAudits
+  } = await import('../nav-otdr-deadzone.js');
+
+  clearDeadZoneAudits();
+  assert.equal(getSavedDeadZoneAudits().length, 0);
+
+  const audit1 = saveDeadZoneAudit({
+    location: 'Shahdara Town Customer Drop',
+    pulseWidthNs: 3,
+    edzMeters: 0.8,
+    adzMeters: 2.8,
+    fiberLengthMeters: 75,
+    launchLengthMeters: 100,
+    hasLaunchCable: true,
+    launchAdequacyVerdict: 'ADEQUATE',
+    firstConnectorTestable: true
+  });
+
+  assert.ok(audit1.id);
+  assert.ok(audit1.timestamp);
+  const loaded = getSavedDeadZoneAudits();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].location, 'Shahdara Town Customer Drop');
+
+  clearDeadZoneAudits();
+  assert.equal(getSavedDeadZoneAudits().length, 0);
+});
+
+test('renderOtdrDeadzoneTraceSvg renders valid SVG markup in dark and light themes', async () => {
+  const { calculateDeadZoneMetrics, renderOtdrDeadzoneTraceSvg } = await import('../nav-otdr-deadzone.js');
+
+  const metrics = calculateDeadZoneMetrics({
+    pulseId: 'PULSE_3NS',
+    fiberLengthMeters: 120,
+    hasLaunchCable: true,
+    launchLengthMeters: 100
+  });
+
+  const darkSvg = renderOtdrDeadzoneTraceSvg(metrics, { isDark: true });
+  assert.ok(darkSvg.includes('<svg class="otdr-deadzone-svg"'));
+  assert.ok(darkSvg.includes('viewBox="0 0 720 300"'));
+  assert.ok(darkSvg.includes('EDZ: 0.8m'));
+  assert.ok(darkSvg.includes('ADZ: 2.8m'));
+  assert.ok(darkSvg.includes('1st Connector (ODF/FAT): 100m'));
+
+  const lightSvg = renderOtdrDeadzoneTraceSvg(metrics, { isDark: false });
+  assert.ok(lightSvg.includes('#f8fafc')); // light gradient stop
+
+  const emptySvg = renderOtdrDeadzoneTraceSvg(null);
+  assert.ok(emptySvg.includes('No OTDR dead zone metrics available'));
+});
+
+test('generateDeadzoneWhatsAppReport formats comprehensive English and Urdu text', async () => {
+  const { calculateDeadZoneMetrics, generateDeadzoneWhatsAppReport } = await import('../nav-otdr-deadzone.js');
+
+  const metrics = calculateDeadZoneMetrics({
+    pulseId: 'PULSE_30NS',
+    fiberLengthMeters: 1500,
+    hasLaunchCable: true,
+    launchLengthMeters: 150
+  });
+
+  const report = generateDeadzoneWhatsAppReport(metrics, { location: 'Baradari Feeder' });
+  assert.ok(report.includes('SHAHDARA ISP - OTDR DEAD ZONE & PULSE WIDTH AUDIT'));
+  assert.ok(report.includes('Location:* Baradari Feeder'));
+  assert.ok(report.includes('Pulse Width: *30 ns*'));
+  assert.ok(report.includes('Event Dead Zone (EDZ): *3.5 m*'));
+  assert.ok(report.includes('Attenuation Dead Zone (ADZ): *12 m*'));
+  assert.ok(report.includes('URDU SUMMARY:'));
+  assert.ok(report.includes('Launch cable ki lambai ADZ se zyada hai'));
+});
+
+test('index.html, styles.css, app.js, and nav.js contain all OTDR Dead Zone bindings', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreOtdrDeadzoneBtn"'));
+  assert.ok(html.includes('id="mobileOtdrDeadzoneModal"'));
+  assert.ok(html.includes('id="mobileOtdrDeadzoneModalCloseBtn"'));
+  assert.ok(html.includes('id="otdrDzPresetSelect"'));
+  assert.ok(html.includes('id="otdrDzPulseSelect"'));
+  assert.ok(html.includes('id="otdrDzLengthRange"'));
+  assert.ok(html.includes('id="otdrDzLaunchToggle"'));
+  assert.ok(html.includes('id="otdrDzLaunchLengthSelect"'));
+  assert.ok(html.includes('id="otdrDzWavelengthSelect"'));
+  assert.ok(html.includes('id="otdrDzTailToggle"'));
+  assert.ok(html.includes('id="otdrDzStatEdz"'));
+  assert.ok(html.includes('id="otdrDzStatAdz"'));
+  assert.ok(html.includes('id="otdrDzStatFirstConnector"'));
+  assert.ok(html.includes('id="otdrDzStatDynamicRange"'));
+  assert.ok(html.includes('id="otdrDzStatVerdictBadge"'));
+  assert.ok(html.includes('id="mobileOtdrDeadzoneModalSvgContainer"'));
+  assert.ok(html.includes('id="otdrDzSaveAuditBtn"'));
+  assert.ok(html.includes('id="otdrDzWhatsappBtn"'));
+  assert.ok(html.includes('id="otdrDzExportCsvBtn"'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('.otdr-deadzone-svg'));
+  assert.ok(stylesCss.includes('.otdr-dz-recommendation-box'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileOtdrDeadzoneModal'));
+  assert.ok(app.includes('mobileOtdrDeadzoneModalController'));
+
+  const nav = await import('../nav.js');
+  assert.ok(typeof nav.calculateDeadZoneMetrics === 'function');
+  assert.ok(typeof nav.renderOtdrDeadzoneTraceSvg === 'function');
+  assert.ok(typeof nav.setupMobileOtdrDeadzoneModal === 'function');
+});
+
 
 
 

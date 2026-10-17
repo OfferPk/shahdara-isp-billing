@@ -290,7 +290,11 @@ export function calculateFusionSplicerMetrics(state, options = {}) {
     const activeCount = activeSubscribers.length;
 
     // Monthly revenue snapshot
-    const refMonth = referenceDate.slice(0, 7);
+    const refMonth = typeof referenceDate === 'string'
+      ? referenceDate.slice(0, 7)
+      : (referenceDate instanceof Date && !isNaN(referenceDate.getTime())
+        ? referenceDate.toISOString().slice(0, 7)
+        : '2026-10');
     let corridorBilled = 0;
     matchedCustomers.forEach((c) => {
       const b = bills.find((bill) => bill.customerId === c.id && bill.month === refMonth);

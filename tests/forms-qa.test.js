@@ -13801,4 +13801,519 @@ test('DOM & CSS integration for Optical Fiber Environmental Temperature Cycling 
   assert.ok(stylesCss.includes('#thermalCyclingModal'));
 });
 
+/* ==========================================================================
+   BILLING CORRECTNESS & LEDGER RECONCILIATION TEST SUITE (AGENT3)
+   ========================================================================== */
+
+test('Billing correctness suite: end-to-end monthly bill generation, price-effective scheduling, standard 5th due date, and archived customer rules', async () => {
+  const {
+    createInitialState,
+    addCustomer,
+    updateCustomerProfile,
+    archiveCustomer,
+    unarchiveCustomer,
+    generateMonthlyBillsThroughCurrentMonth
+  } = await import('../core.js');
+
+  const aug1 = new Date(2026, 7, 1, 10);
+  const sep5 = new Date(2026, 8, 5, 12);
+  const sep20 = new Date(2026, 8, 20, 10);
+  const oct1 = new Date(2026, 9, 1, 10);
+  const nov1 = new Date(2026, 10, 1, 10);
+  const dec1 = new Date(2026, 11, 1, 10);
+
+  // 1. Create clean state and add customer
+  let state = createInitialState();
+  state = addCustomer(state, 'Zahid Fiber Net', aug1);
+  const custId = state.customers.at(-1).id;
+
+  // 2. Configure customer with initial rate 1500 for August 2026
+  state = updateCustomerProfile(state, custId, {
+    monthlySellingAmount: '1500',
+    packageSpeed: '15 Mbps Unlimited',
+    serviceStatus: 'active'
+  }, aug1);
+
+  // 3. Generate monthly bills through September
+  state = generateMonthlyBillsThroughCurrentMonth(state, sep5);
+  let customer = state.customers.find(c => c.id === custId);
+
+  // Verify August and September bills exist with due date on the 5th
+  assert.equal(customer.bills.length, 2);
+  const augBill = customer.bills.find(b => b.month === '2026-08');
+  const sepBill = customer.bills.find(b => b.month === '2026-09');
+
+  assert.ok(augBill, 'August bill should exist');
+  assert.ok(sepBill, 'September bill should exist');
+  assert.equal(augBill.dueAmount, 1500);
+  assert.equal(augBill.dueDate, '2026-08-05', 'Bill must be due on the 5th');
+  assert.equal(augBill.priceSnapshot, 1500);
+  assert.equal(sepBill.dueAmount, 1500);
+  assert.equal(sepBill.dueDate, '2026-09-05', 'Bill must be due on the 5th');
+
+  // 4. Rate revision mid-cycle in September to 2000 PKR
+  // Since September bill exists, effective month must be 2026-10 (next month)
+  state = updateCustomerProfile(state, custId, {
+    monthlySellingAmount: '2000',
+    packageSpeed: '25 Mbps Ultra'
+  }, sep20);
+
+  customer = state.customers.find(c => c.id === custId);
+  const sched = customer.monthlyPriceSchedule;
+  assert.equal(sched.at(-1).amount, 2000);
+  assert.equal(sched.at(-1).effectiveMonth, '2026-10');
+
+  // Verify historical bills are NOT rewritten by price changes
+  const augBillAfterEdit = customer.bills.find(b => b.month === '2026-08');
+  const sepBillAfterEdit = customer.bills.find(b => b.month === '2026-09');
+  assert.equal(augBillAfterEdit.dueAmount, 1500, 'Historical August bill snapshot must remain 1500');
+  assert.equal(sepBillAfterEdit.dueAmount, 1500, 'Historical September bill snapshot must remain 1500');
+
+  // 5. Generate October bill: must use new rate 2000
+  state = generateMonthlyBillsThroughCurrentMonth(state, oct1);
+  customer = state.customers.find(c => c.id === custId);
+  const octBill = customer.bills.find(b => b.month === '2026-10');
+  assert.ok(octBill);
+  assert.equal(octBill.dueAmount, 2000);
+  assert.equal(octBill.dueDate, '2026-10-05');
+
+  // 6. Archive customer in October
+  state = archiveCustomer(state, custId, oct1);
+  customer = state.customers.find(c => c.id === custId);
+  assert.equal(customer.archived, true);
+
+  // 7. Try to generate bills for November while archived: NO new bills should be created
+  state = generateMonthlyBillsThroughCurrentMonth(state, nov1);
+  customer = state.customers.find(c => c.id === custId);
+  assert.equal(customer.bills.length, 3, 'No bill should be generated for November while archived');
+  assert.equal(customer.bills.some(b => b.month === '2026-11'), false);
+
+  // 8. Unarchive customer in December
+  state = unarchiveCustomer(state, custId, dec1);
+  customer = state.customers.find(c => c.id === custId);
+  assert.equal(customer.archived, false);
+  assert.equal(customer.billingStartMonth, '2026-12', 'Unarchive sets start month to current month');
+
+  // 9. Generate bills for December: only December is created, November is skipped
+  state = generateMonthlyBillsThroughCurrentMonth(state, dec1);
+  customer = state.customers.find(c => c.id === custId);
+  assert.equal(customer.bills.length, 4);
+  assert.ok(customer.bills.some(b => b.month === '2026-12'), 'December bill must be generated');
+  assert.equal(customer.bills.some(b => b.month === '2026-11'), false, 'Archived month November must never be backfilled');
+});
+
+test('Billing correctness suite: partial payments, excess overpayment, and chronological FIFO credit cascade', async () => {
+  const {
+    createInitialState,
+    addCustomer,
+    updateCustomerProfile,
+    generateMonthlyBillsThroughCurrentMonth,
+    addPayment,
+    calculatePaymentAllocations,
+    derivedBillStatus
+  } = await import('../core.js');
+
+  const aug1 = new Date(2026, 7, 1, 10);
+  const aug15 = new Date(2026, 7, 15, 10);
+  const oct1 = new Date(2026, 9, 1, 10);
+
+  let state = createInitialState();
+  state = addCustomer(state, 'Malik Aslam', aug1);
+  const custId = state.customers.at(-1).id;
+  state = updateCustomerProfile(state, custId, { monthlySellingAmount: '1000' }, aug1);
+  state = generateMonthlyBillsThroughCurrentMonth(state, oct1);
+
+  let customer = state.customers.find(c => c.id === custId);
+  assert.equal(customer.bills.length, 3); // 2026-08, 2026-09, 2026-10
+
+  // 1. Partial payment on August bill (400 PKR out of 1000 PKR)
+  state = addPayment(state, custId, '2026-08', {
+    date: '2026-08-04',
+    amount: '400',
+    method: 'Cash',
+    paidBy: 'Malik Aslam'
+  }, aug15);
+
+  customer = state.customers.find(c => c.id === custId);
+  let allocations = calculatePaymentAllocations(state);
+  let augSummary = allocations.forMonth(custId, '2026-08');
+
+  assert.equal(augSummary.sameMonthAppliedCents, 40000);
+  assert.equal(augSummary.balanceDueCents, 60000);
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-08'), allocations), 'partial');
+
+  // 2. Customer overpays: records 1600 PKR on August bill (total received: 2000 PKR against 1000 PKR bill)
+  state = addPayment(state, custId, '2026-08', {
+    date: '2026-08-10',
+    amount: '1600',
+    method: 'Cash'
+  }, aug15);
+
+  customer = state.customers.find(c => c.id === custId);
+  allocations = calculatePaymentAllocations(state);
+  augSummary = allocations.forMonth(custId, '2026-08');
+  const sepSummary = allocations.forMonth(custId, '2026-09');
+  const octSummary = allocations.forMonth(custId, '2026-10');
+
+  // August bill is fully PAID
+  assert.equal(augSummary.balanceDueCents, 0);
+  assert.equal(augSummary.excessGeneratedCents, 100000); // 1000 PKR excess
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-08'), allocations), 'paid');
+
+  // September bill (1000 PKR): fully covered by the 1000 PKR carry-forward credit!
+  assert.equal(sepSummary.creditAppliedCents, 100000);
+  assert.equal(sepSummary.balanceDueCents, 0);
+  assert.equal(sepSummary.creditSources.length, 1);
+  assert.equal(sepSummary.creditSources[0].originMonth, '2026-08');
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-09'), allocations), 'paid');
+
+  // October bill (1000 PKR): 0 credit remaining, status is PENDING
+  assert.equal(octSummary.creditAppliedCents, 0);
+  assert.equal(octSummary.balanceDueCents, 100000);
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-10'), allocations), 'pending');
+});
+
+test('Billing correctness suite: receipt correction and deletion dynamically recalculates ledger and credit allocations', async () => {
+  const {
+    createInitialState,
+    addCustomer,
+    updateCustomerProfile,
+    generateMonthlyBillsThroughCurrentMonth,
+    addPayment,
+    correctPayment,
+    deletePayment,
+    calculatePaymentAllocations,
+    derivedBillStatus
+  } = await import('../core.js');
+
+  const aug1 = new Date(2026, 7, 1, 10);
+  const aug10 = new Date(2026, 7, 10, 10);
+  const sep5 = new Date(2026, 8, 5, 10);
+
+  let state = createInitialState();
+  state = addCustomer(state, 'Babar Zaman', aug1);
+  const custId = state.customers.at(-1).id;
+  state = updateCustomerProfile(state, custId, { monthlySellingAmount: '1200' }, aug1);
+  state = generateMonthlyBillsThroughCurrentMonth(state, sep5);
+
+  // Add overpayment of 2000 PKR in August (covers August 1200, carries forward 800 to September)
+  state = addPayment(state, custId, '2026-08', {
+    date: '2026-08-05',
+    amount: '2000',
+    method: 'Cash'
+  }, aug10);
+
+  let customer = state.customers.find(c => c.id === custId);
+  const pmtId = customer.bills.find(b => b.month === '2026-08').payments[0].id;
+
+  let allocations = calculatePaymentAllocations(state);
+  assert.equal(allocations.forMonth(custId, '2026-09').creditAppliedCents, 80000);
+  assert.equal(allocations.forMonth(custId, '2026-09').balanceDueCents, 40000); // 1200 - 800 = 400 balance
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-09'), allocations), 'partial');
+
+  // 1. Correct payment from 2000 PKR down to 1000 PKR (underpaying August by 200 PKR!)
+  state = correctPayment(state, custId, '2026-08', pmtId, {
+    date: '2026-08-05',
+    amount: '1000',
+    method: 'Cash'
+  }, aug10);
+
+  customer = state.customers.find(c => c.id === custId);
+  allocations = calculatePaymentAllocations(state);
+
+  // August is now PARTIAL (1000 paid vs 1200 due)
+  assert.equal(allocations.forMonth(custId, '2026-08').balanceDueCents, 20000);
+  assert.equal(allocations.forMonth(custId, '2026-08').excessGeneratedCents, 0);
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-08'), allocations), 'partial');
+
+  // September loses the carry-forward credit and reverts to full 1200 PKR PENDING!
+  assert.equal(allocations.forMonth(custId, '2026-09').creditAppliedCents, 0);
+  assert.equal(allocations.forMonth(custId, '2026-09').balanceDueCents, 120000);
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-09'), allocations), 'pending');
+
+  // 2. Delete the payment completely
+  state = deletePayment(state, custId, '2026-08', pmtId, aug1);
+  customer = state.customers.find(c => c.id === custId);
+  allocations = calculatePaymentAllocations(state);
+
+  // August now has 0 payments and is PENDING
+  assert.equal(customer.bills.find(b => b.month === '2026-08').payments.length, 0);
+  assert.equal(allocations.forMonth(custId, '2026-08').balanceDueCents, 120000);
+  assert.equal(derivedBillStatus(customer, customer.bills.find(b => b.month === '2026-08'), allocations), 'pending');
+});
+
+test('auditBillingCorrectness audits full ISP state and correctly detects compliance vs anomalies', async () => {
+  const {
+    createInitialState,
+    addCustomer,
+    updateCustomerProfile,
+    generateMonthlyBillsThroughCurrentMonth,
+    addPayment
+  } = await import('../core.js');
+
+  const { auditBillingCorrectness, AUDIT_RULE_CODES, BILLING_STATUSES } = await import('../form-validation.js');
+
+  const refDate = new Date(2026, 8, 15, 12); // September 15, 2026
+  let state = createInitialState();
+
+  // Test 1: Empty starter state has 74 customers, all unconfigured
+  let audit1 = auditBillingCorrectness(state, refDate);
+  assert.equal(audit1.totalCustomers, 74);
+  assert.equal(audit1.totalBills, 0);
+  assert.equal(audit1.overallStatus, 'HEALTHY');
+
+  // Test 2: Add 2 configured customers
+  state = addCustomer(state, 'Customer A', refDate);
+  const idA = state.customers.at(-1).id;
+  state = updateCustomerProfile(state, idA, { monthlySellingAmount: '1500' }, refDate);
+
+  state = addCustomer(state, 'Customer B', refDate);
+  const idB = state.customers.at(-1).id;
+  state = updateCustomerProfile(state, idB, { monthlySellingAmount: '2000' }, refDate);
+
+  state = generateMonthlyBillsThroughCurrentMonth(state, refDate);
+  state = addPayment(state, idA, '2026-09', { date: '2026-09-05', amount: '1500', method: 'Cash' }, refDate);
+
+  let audit2 = auditBillingCorrectness(state, refDate);
+  assert.equal(audit2.totalBills, 2);
+  assert.equal(audit2.paidBillsCount, 1);
+  assert.equal(audit2.pendingBillsCount, 1);
+  assert.equal(audit2.totalBilledAmount, 3500);
+  assert.equal(audit2.totalCollectedAmount, 1500);
+  assert.equal(audit2.totalOutstandingDue, 2000);
+  assert.equal(audit2.cleanBillsPercent, 100);
+
+  // Test 3: Introduce deliberate anomalies (unpriced bill, duplicate customer number, future payment)
+  const faultyState = {
+    ...state,
+    customers: [
+      ...state.customers,
+      {
+        id: 'bad-cust-1',
+        customerNumber: 1, // Duplicate customer number!
+        name: 'Faulty Duplicate Account',
+        archived: false,
+        bills: [
+          {
+            id: 'bad-b1',
+            month: '2026-09',
+            dueAmount: null, // UNPRICED BILL
+            dueDate: '2026-09-12', // Non-standard due date
+            payments: [
+              {
+                id: 'bad-p1',
+                amount: 500,
+                date: '2026-10-25', // Future date!
+                method: 'Crypto' // Unknown method
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  };
+
+  const audit3 = auditBillingCorrectness(faultyState, refDate);
+  assert.ok(audit3.discrepancies.length > 0);
+  assert.equal(audit3.overallStatus, 'CRITICAL_ACTION_REQUIRED');
+
+  const ruleCodes = audit3.discrepancies.map(d => d.ruleId);
+  assert.ok(ruleCodes.includes(AUDIT_RULE_CODES.DUPLICATE_CUSTOMER_NUMBER));
+  assert.ok(ruleCodes.includes(AUDIT_RULE_CODES.UNPRICED_BILL));
+  assert.ok(ruleCodes.includes(AUDIT_RULE_CODES.NON_STANDARD_DUE_DATE));
+  assert.ok(ruleCodes.includes(AUDIT_RULE_CODES.FUTURE_PAYMENT_DATE));
+  assert.ok(ruleCodes.includes(AUDIT_RULE_CODES.UNKNOWN_PAYMENT_METHOD));
+});
+
+test('renderBillingCorrectnessSvg, HTML generators (A4, POS80), WhatsApp and CSV outputs are valid and complete', async () => {
+  const {
+    auditBillingCorrectness,
+    renderBillingCorrectnessSvg,
+    generateBillingAuditHtml,
+    formatBillingAuditWhatsApp,
+    generateBillingAuditCsv
+  } = await import('../form-validation.js');
+
+  const mockAudit = {
+    auditTimestamp: '2026-10-17T12:00:00Z',
+    auditDate: '2026-10-17',
+    currentMonth: '2026-10',
+    totalCustomers: 75,
+    activeCustomers: 45,
+    archivedCustomers: 5,
+    totalBills: 120,
+    paidBillsCount: 85,
+    partialBillsCount: 15,
+    pendingBillsCount: 18,
+    notSetBillsCount: 2,
+    totalBilledAmount: 215000,
+    totalCollectedAmount: 180000,
+    totalOutstandingDue: 35000,
+    totalCreditForwarded: 12000,
+    totalUnappliedCredit: 4500,
+    cleanAccountsCount: 72,
+    cleanBillsPercent: 98.3,
+    collectionEfficiencyPercent: 83.7,
+    criticalCount: 0,
+    warningCount: 2,
+    infoCount: 3,
+    overallStatus: 'HEALTHY',
+    discrepancies: [
+      {
+        id: 'disc-1',
+        ruleId: 'UNPRICED_BILL',
+        severity: 'warning',
+        customerNumber: 22,
+        customerName: 'Chaudhry Akram',
+        month: '2026-10',
+        message: 'Bill for month 2026-10 has no valid amount configured.',
+        suggestion: 'Configure a valid monthly selling amount.'
+      }
+    ],
+    auditedBills: [
+      {
+        customerId: 'c-1',
+        customerNumber: 1,
+        customerName: 'NAZEER',
+        customerPhone: '03001234567',
+        customerArea: 'Baradari',
+        month: '2026-10',
+        dueAmount: 1500,
+        dueDate: '2026-10-05',
+        actualReceipts: 1500,
+        sameMonthApplied: 1500,
+        creditApplied: 0,
+        balanceDue: 0,
+        pendingCredit: 0,
+        status: 'paid',
+        paymentCount: 1
+      }
+    ]
+  };
+
+  // 1. SVG Diagram
+  const svg = renderBillingCorrectnessSvg(mockAudit);
+  assert.ok(svg.includes('<svg'), 'SVG must have svg tag');
+  assert.ok(svg.includes('SHAHDARA BROADBAND - BILLING CORRECTNESS'));
+  assert.ok(svg.includes('CLEAN BILLS'));
+  assert.ok(svg.includes('98.3%'));
+  assert.ok(svg.includes('FIFO CREDIT ROLL'));
+
+  // 2. A4 Certificate
+  const a4Html = generateBillingAuditHtml(mockAudit, { format: 'A4' });
+  assert.ok(a4Html.includes('OFFICIAL BILLING AUDIT &amp; LEDGER RECONCILIATION STATEMENT'));
+  assert.ok(a4Html.includes('سرٹیفکیٹ برائے بلنگ تصدیق و درستگی کھاتہ جات'));
+  assert.ok(a4Html.includes('Clean Bills Ratio'));
+  assert.ok(a4Html.includes('Chaudhry Akram'));
+  assert.ok(a4Html.includes('Managing Director (Saad)'));
+
+  // 3. POS80 Slip
+  const posHtml = generateBillingAuditHtml(mockAudit, { format: 'POS80' });
+  assert.ok(posHtml.includes('SHAHDARA BROADBAND &amp; ISP'));
+  assert.ok(posHtml.includes('بلنگ و لیجر تصدیق رپورٹ'));
+  assert.ok(posHtml.includes('Billed Revenue:'));
+
+  // 4. WhatsApp Summary
+  const wa = formatBillingAuditWhatsApp(mockAudit);
+  assert.ok(wa.includes('*SHAHDARA BROADBAND - BILLING CORRECTNESS REPORT*'));
+  assert.ok(wa.includes('Clean Bills Accuracy:* 98.3%'));
+  assert.ok(wa.includes('Paid') && wa.includes('85'));
+  assert.ok(wa.includes('Prepaid Forward Credit:'));
+
+  // 5. CSV Export
+  const csv = generateBillingAuditCsv(mockAudit);
+  assert.ok(csv.startsWith('\uFEFF'), 'CSV must start with UTF-8 BOM');
+  assert.ok(csv.includes('Customer_No,Customer_Name,Phone,Area,Month'));
+  assert.ok(csv.includes('1,NAZEER,03001234567,Baradari,2026-10,2026-10-05,1500.00'));
+});
+
+test('LocalStorage audit history and setupBillingCorrectnessModal controller initialize cleanly', async () => {
+  const {
+    saveBillingAuditRecord,
+    getSavedBillingAuditRecords,
+    clearBillingAuditRecords,
+    setupBillingCorrectnessModal,
+    BILLING_CORRECTNESS_STORAGE_KEY
+  } = await import('../form-validation.js');
+
+  const mockStorage = {
+    store: {},
+    getItem(k) { return this.store[k] ?? null; },
+    setItem(k, v) { this.store[k] = String(v); },
+    removeItem(k) { delete this.store[k]; }
+  };
+
+  assert.deepEqual(getSavedBillingAuditRecords(mockStorage), []);
+
+  saveBillingAuditRecord(mockStorage, {
+    auditDate: '2026-10-17',
+    cleanBillsPercent: 100,
+    totalBilledAmount: 50000,
+    totalCollectedAmount: 45000,
+    totalOutstandingDue: 5000,
+    discrepancies: [],
+    overallStatus: 'HEALTHY'
+  });
+
+  const records = getSavedBillingAuditRecords(mockStorage);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].date, '2026-10-17');
+  assert.equal(records[0].cleanPercent, 100);
+
+  clearBillingAuditRecords(mockStorage);
+  assert.equal(getSavedBillingAuditRecords(mockStorage).length, 0);
+
+  // Controller fallback when elements are not in DOM
+  const controller = setupBillingCorrectnessModal({
+    getState: () => ({ customers: [] }),
+    storage: mockStorage
+  });
+
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.refresh, 'function');
+  assert.equal(typeof controller.getData, 'function');
+
+  // Should not throw
+  controller.refresh();
+  controller.open();
+  controller.close();
+});
+
+test('DOM & CSS integration for Billing Correctness & Ledger Reconciliation QA Suite', () => {
+  const freshIndex = read('index.html');
+  const freshApp = read('app.js');
+  const freshStyles = read('styles.css');
+
+  // index.html checks
+  assert.ok(freshIndex.includes('id="quickActionBillingCorrectness"'), 'Quick action tile exists');
+  assert.ok(freshIndex.includes('id="billingCorrectnessModal"'), 'Modal dialog exists');
+  assert.ok(freshIndex.includes('id="closeBillingCorrectnessModalBtn"'), 'Close button exists');
+  assert.ok(freshIndex.includes('id="runBillingAuditBtn"'), 'Run audit button exists');
+  assert.ok(freshIndex.includes('id="billingDiscFilterSelect"'), 'Filter select exists');
+  assert.ok(freshIndex.includes('id="printBillingAuditA4Btn"'), 'Print A4 button exists');
+  assert.ok(freshIndex.includes('id="printBillingAuditPosBtn"'), 'Print POS button exists');
+  assert.ok(freshIndex.includes('id="shareBillingAuditWhatsAppBtn"'), 'WhatsApp button exists');
+  assert.ok(freshIndex.includes('id="exportBillingAuditCsvBtn"'), 'Export CSV button exists');
+  assert.ok(freshIndex.includes('id="auditCleanBillsVal"'), 'Clean bills KPI exists');
+  assert.ok(freshIndex.includes('id="auditTotalBilledVal"'), 'Total billed KPI exists');
+  assert.ok(freshIndex.includes('id="auditTotalCollectedVal"'), 'Total collected KPI exists');
+  assert.ok(freshIndex.includes('id="auditTotalDueVal"'), 'Total due KPI exists');
+  assert.ok(freshIndex.includes('id="auditUnappliedCreditVal"'), 'Unapplied credit KPI exists');
+  assert.ok(freshIndex.includes('id="billingAuditSvgContainer"'), 'SVG container exists');
+  assert.ok(freshIndex.includes('id="billingDiscrepanciesTableBody"'), 'Discrepancies table body exists');
+
+  // app.js checks
+  assert.ok(freshApp.includes('setupBillingCorrectnessModal'), 'Imported in app.js');
+  assert.ok(freshApp.includes('billingCorrectnessModalController'), 'Controller declared');
+  assert.ok(freshApp.includes('#billingCorrectnessModal'), 'Modal element referenced');
+
+  // styles.css checks
+  assert.ok(freshStyles.includes('.billing-correctness-modal'), 'Modal class styled');
+  assert.ok(freshStyles.includes('.audit-action-bar'), 'Action bar styled');
+  assert.ok(freshStyles.includes('.audit-kpi-ribbon'), 'KPI ribbon styled');
+  assert.ok(freshStyles.includes('.audit-svg-card'), 'SVG card styled');
+  assert.ok(freshStyles.includes('[data-theme="dark"] .billing-correctness-modal'), 'Dark theme support exists');
+});
+
 

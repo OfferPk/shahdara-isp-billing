@@ -65,7 +65,8 @@ import {
   setupCableJettingModal,
   setupTubeSlittingAccessModal,
   setupConduitPullingModal,
-  setupSpectralAttenuationModal
+  setupSpectralAttenuationModal,
+  setupFoscSealModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3559,6 +3560,7 @@ export let customerCableJettingModalController;
 export let customerTubeSlittingModalController;
 export let customerConduitPullingModalController;
 export let customerSpectralAttenuationModalController;
+export let customerFoscSealModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4268,6 +4270,34 @@ if (typeof document !== 'undefined') {
           }
         }
         spectralAttenuationModal.showModal();
+      }
+    });
+  }
+
+  const foscSealModal = $('#foscSealModal');
+  const openFoscSealBtn = $('#openFoscSealBtn');
+  if (foscSealModal) {
+    customerFoscSealModalController = setupFoscSealModal({
+      state,
+      dialogElement: foscSealModal,
+      triggerButton: openFoscSealBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openFoscSealBtn) {
+    openFoscSealBtn.addEventListener('click', () => {
+      if (foscSealModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#foscSubscriberInput');
+            if (custInput) custInput.value = `${c.name || 'Shahdara'} Enclosure Splice`;
+            const routeInput = $('#foscRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Distribution Ring Joint`;
+          }
+        }
+        foscSealModal.showModal();
       }
     });
   }

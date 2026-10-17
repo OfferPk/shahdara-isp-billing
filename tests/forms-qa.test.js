@@ -12769,4 +12769,337 @@ test('DOM & CSS integration for Outside Plant Tube Slitting & Shaving QA Suite',
   assert.ok(stylesCss.includes('#slittingSvgContainer'));
 });
 
+/* -------------------------------------------------------------------------- */
+/* CONDUIT PULLING TENSION, SWBP & DUCT FILL QA CERTIFICATION TEST SUITE      */
+/* -------------------------------------------------------------------------- */
+
+test('CONDUIT_PULL_CABLE_TYPES & CONDUIT_TYPES catalog schemas validate physical properties', async () => {
+  const {
+    CONDUIT_PULL_CABLE_TYPES,
+    CONDUIT_TYPES,
+    PULLING_LUBRICANT_MODES,
+    CONDUIT_PULLING_VERDICTS
+  } = await import('../form-validation.js');
+
+  assert.ok(CONDUIT_PULL_CABLE_TYPES['FTTH_DROP_FLAT_FRP_1F']);
+  assert.equal(CONDUIT_PULL_CABLE_TYPES['FTTH_DROP_FLAT_FRP_1F'].maxPullingLoadN, 100);
+  assert.equal(CONDUIT_PULL_CABLE_TYPES['FTTH_DROP_FLAT_FRP_1F'].maxSwbpNm, 450);
+
+  assert.ok(CONDUIT_PULL_CABLE_TYPES['CENTRAL_LOOSE_TUBE_12F_ARMORED']);
+  assert.equal(CONDUIT_PULL_CABLE_TYPES['CENTRAL_LOOSE_TUBE_12F_ARMORED'].maxPullingLoadN, 1500);
+
+  assert.ok(CONDUIT_TYPES['PVC_CONDUIT_25MM']);
+  assert.equal(CONDUIT_TYPES['PVC_CONDUIT_25MM'].innerDiameterMm, 21.0);
+  assert.equal(CONDUIT_TYPES['PVC_CONDUIT_25MM'].frictionCoeffDry, 0.35);
+
+  assert.ok(PULLING_LUBRICANT_MODES['POLYMER_LUBRICATED']);
+  assert.ok(CONDUIT_PULLING_VERDICTS['CERTIFIED_OPTIMAL_PULL']);
+  assert.ok(CONDUIT_PULLING_VERDICTS['FAILED_OVERTENSION_HAZARD']);
+});
+
+test('calculateConduitFillRatio evaluates NEC Chapter 9 Table 1 limits and jam ratio', async () => {
+  const { calculateConduitFillRatio } = await import('../form-validation.js');
+
+  // Single cable in 21mm ID conduit (53% limit)
+  const single = calculateConduitFillRatio(21.0, 3.0, 1);
+  assert.ok(single.conduitAreaMm2 > 340);
+  assert.ok(single.totalCableAreaMm2 > 7.0);
+  assert.ok(single.fillRatioPercent < 5.0);
+  assert.equal(single.maxAllowedPercent, 53.0);
+  assert.equal(single.isFillCompliant, true);
+  assert.equal(single.isJamRisk, false);
+
+  // 2 cables in 21mm conduit (31% limit)
+  const twoCables = calculateConduitFillRatio(21.0, 5.0, 2);
+  assert.equal(twoCables.maxAllowedPercent, 31.0);
+  assert.equal(twoCables.isFillCompliant, true);
+
+  // Overfill scenario
+  const overfill = calculateConduitFillRatio(15.5, 12.0, 2);
+  assert.equal(overfill.isFillCompliant, false);
+
+  // Jam ratio hazard: 1.05 <= ID/dc <= 1.40 with multi-cables
+  const jamTest = calculateConduitFillRatio(20.0, 16.0, 2); // 20 / 16 = 1.25 (hazard)
+  assert.equal(jamTest.isJamRisk, true);
+});
+
+test('calculateWeightCorrectionFactor evaluates single vs multi-cable pulling drag', async () => {
+  const { calculateWeightCorrectionFactor } = await import('../form-validation.js');
+
+  // Single cable WCF is always 1.0
+  assert.equal(calculateWeightCorrectionFactor(21.0, 3.0, 1), 1.0);
+
+  // Multi-cable WCF > 1.0
+  const multi = calculateWeightCorrectionFactor(21.0, 5.0, 3);
+  assert.ok(multi > 1.0);
+  assert.ok(multi <= 2.5);
+});
+
+test('calculateConduitPullingTension calculates Capstan exponential tension buildup through bends', async () => {
+  const { calculateConduitPullingTension } = await import('../form-validation.js');
+
+  // Baseline pull with 0 bends
+  const straightPull = calculateConduitPullingTension({
+    cableTypeId: 'FTTH_DROP_FLAT_FRP_1F',
+    conduitTypeId: 'PVC_CONDUIT_25MM',
+    conduitLengthM: 30.0,
+    bendCount90: 0,
+    bendCount45: 0,
+    bendRadiusMm: 150.0,
+    cableCount: 1,
+    lubricantModeId: 'POLYMER_LUBRICATED'
+  });
+
+  // Pull with 3x 90 degree bends
+  const curvedPull = calculateConduitPullingTension({
+    cableTypeId: 'FTTH_DROP_FLAT_FRP_1F',
+    conduitTypeId: 'PVC_CONDUIT_25MM',
+    conduitLengthM: 30.0,
+    bendCount90: 3,
+    bendCount45: 0,
+    bendRadiusMm: 150.0,
+    cableCount: 1,
+    lubricantModeId: 'POLYMER_LUBRICATED'
+  });
+
+  assert.ok(curvedPull.finalPullingTensionN > straightPull.finalPullingTensionN);
+  assert.equal(curvedPull.totalBends, 3);
+  assert.equal(curvedPull.totalBendsDegrees, 270);
+  assert.ok(curvedPull.tensionProfile.length >= 4);
+});
+
+test('calculateConduitPullingTension evaluates Sidewall Bearing Pressure (SWBP) and induced loss', async () => {
+  const { calculateConduitPullingTension } = await import('../form-validation.js');
+
+  const res = calculateConduitPullingTension({
+    cableTypeId: 'RISER_DISTRIBUTION_6F',
+    conduitTypeId: 'PVC_CONDUIT_25MM',
+    conduitLengthM: 40.0,
+    bendCount90: 2,
+    bendCount45: 1,
+    bendRadiusMm: 150.0,
+    cableCount: 2,
+    lubricantModeId: 'POLYMER_LUBRICATED'
+  });
+
+  assert.ok(res.maxSwbpNm > 0);
+  assert.ok(res.swbpUtilizationPercent > 0);
+  assert.ok(res.inducedLossDb <= 0.05);
+  assert.equal(res.verdict.id, 'CERTIFIED_OPTIMAL_PULL');
+});
+
+test('calculateConduitPullingTension detects overtension failure hazard', async () => {
+  const { calculateConduitPullingTension } = await import('../form-validation.js');
+
+  // Highly stressed run with dry friction and multiple sharp bends exceeding 100 N MAPL
+  const failRes = calculateConduitPullingTension({
+    cableTypeId: 'FTTH_DROP_FLAT_FRP_1F', // MAPL 100 N
+    conduitTypeId: 'FLEXIBLE_CORRUGATED_20MM',
+    conduitLengthM: 100.0,
+    bendCount90: 6,
+    bendCount45: 4,
+    bendRadiusMm: 40.0,
+    cableCount: 1,
+    lubricantModeId: 'UNLUBRICATED_DRY'
+  });
+
+  assert.ok(failRes.finalPullingTensionN > 100);
+  assert.equal(failRes.verdict.id, 'FAILED_OVERTENSION_HAZARD');
+});
+
+test('calculateConduitPullingTension accounts for directional pulling vectors', async () => {
+  const { calculateConduitPullingTension } = await import('../form-validation.js');
+
+  const down = calculateConduitPullingTension({
+    cableTypeId: 'RISER_DISTRIBUTION_6F',
+    conduitTypeId: 'PVC_CONDUIT_25MM',
+    conduitLengthM: 50.0,
+    pullingDirection: 'DOWNWARD_GRAVITY_ASSIST'
+  });
+
+  const up = calculateConduitPullingTension({
+    cableTypeId: 'RISER_DISTRIBUTION_6F',
+    conduitTypeId: 'PVC_CONDUIT_25MM',
+    conduitLengthM: 50.0,
+    pullingDirection: 'UPWARD_VERTICAL'
+  });
+
+  assert.ok(up.finalPullingTensionN > down.finalPullingTensionN);
+});
+
+test('validateConduitPullingInput verifies bounds and error messages', async () => {
+  const { validateConduitPullingInput } = await import('../form-validation.js');
+
+  const valid = validateConduitPullingInput({
+    subscriberName: 'Mian Tariq Textiles',
+    routeDescription: 'Baradari Plaza Riser',
+    conduitLengthM: 35,
+    bendCount90: 2,
+    bendCount45: 1,
+    bendRadiusMm: 150,
+    cableCount: 2
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateConduitPullingInput({
+    subscriberName: '',
+    routeDescription: '',
+    conduitLengthM: -5,
+    bendCount90: 20,
+    bendCount45: -1,
+    bendRadiusMm: 5,
+    cableCount: 50
+  });
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 5);
+});
+
+test('buildConduitPullingCertRecord constructs valid audit records with CND- prefix', async () => {
+  const { buildConduitPullingCertRecord } = await import('../form-validation.js');
+
+  const record = buildConduitPullingCertRecord({
+    subscriberName: 'Shahdara Diagnostics',
+    routeDescription: 'Main GT Road Duct Bank',
+    cableTypeId: 'CENTRAL_LOOSE_TUBE_12F_ARMORED',
+    conduitTypeId: 'PVC_CONDUIT_32MM',
+    conduitLengthM: 25,
+    bendCount90: 1,
+    bendCount45: 0,
+    bendRadiusMm: 200,
+    cableCount: 1
+  });
+
+  assert.ok(record.id.startsWith('CND-'));
+  assert.ok(record.timestamp);
+  assert.equal(record.subscriberName, 'Shahdara Diagnostics');
+  assert.ok(record.analysis);
+  assert.ok(record.analysis.finalPullingTensionN > 0);
+});
+
+test('LocalStorage CRUD and KPI metrics aggregator for conduit pulling QA', async () => {
+  const {
+    getSavedConduitPullingCerts,
+    saveConduitPullingCert,
+    updateConduitPullingCertStatus,
+    clearConduitPullingCerts,
+    calculateConduitPullingMetrics,
+    buildConduitPullingCertRecord
+  } = await import('../form-validation.js');
+
+  clearConduitPullingCerts();
+  assert.deepEqual(getSavedConduitPullingCerts(), []);
+
+  const r1 = buildConduitPullingCertRecord({
+    id: 'CND-202610-1001',
+    subscriberName: 'Customer Alpha',
+    routeDescription: 'Alpha Route',
+    cableTypeId: 'FTTH_DROP_FLAT_FRP_1F',
+    conduitLengthM: 20
+  });
+
+  saveConduitPullingCert(r1);
+  const loaded = getSavedConduitPullingCerts();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'CND-202610-1001');
+
+  updateConduitPullingCertStatus('CND-202610-1001', 'AUDITED');
+  const reloaded = getSavedConduitPullingCerts();
+  assert.equal(reloaded[0].status, 'AUDITED');
+
+  const metrics = calculateConduitPullingMetrics(reloaded);
+  assert.equal(metrics.totalCertificates, 1);
+  assert.ok(metrics.passRatePercent > 0);
+  assert.ok(metrics.avgTensionN > 0);
+
+  clearConduitPullingCerts();
+  assert.equal(getSavedConduitPullingCerts().length, 0);
+});
+
+test('renderConduitPullingQaSvg, printable certificates, WhatsApp and CSV generator output valid content', async () => {
+  const {
+    calculateConduitPullingTension,
+    renderConduitPullingQaSvg,
+    generateConduitPullingCertHtml,
+    formatConduitPullingCertWhatsApp,
+    generateConduitPullingCertsCsv,
+    buildConduitPullingCertRecord
+  } = await import('../form-validation.js');
+
+  const analysis = calculateConduitPullingTension({
+    cableTypeId: 'RISER_DISTRIBUTION_6F',
+    conduitTypeId: 'PVC_CONDUIT_25MM',
+    conduitLengthM: 35,
+    bendCount90: 2,
+    bendCount45: 1
+  });
+
+  const svg = renderConduitPullingQaSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('OUTSIDE PLANT CONDUIT PULLING METROLOGY'));
+  assert.ok(svg.includes('SWBP AT ELBOWS'));
+
+  const record = buildConduitPullingCertRecord({
+    id: 'CND-202610-8888',
+    subscriberName: 'Baradari Textiles',
+    routeDescription: 'Plaza Riser Conduit',
+    cableTypeId: 'RISER_DISTRIBUTION_6F'
+  });
+
+  const a4Html = generateConduitPullingCertHtml(record, { format: 'A4' });
+  assert.ok(a4Html.includes('CND-202610-8888'));
+  assert.ok(a4Html.includes('Baradari Textiles'));
+  assert.ok(a4Html.includes('Dynamic Tensile Load'));
+
+  const posHtml = generateConduitPullingCertHtml(record, { format: 'POS80' });
+  assert.ok(posHtml.includes('POS-80'));
+  assert.ok(posHtml.includes('CONDUIT PULLING QA FIELD SLIP'));
+
+  const wa = formatConduitPullingCertWhatsApp(record);
+  assert.ok(wa.includes('SHAHDARA ISP CONDUIT PULLING QA CERTIFICATE'));
+  assert.ok(wa.includes('Baradari Textiles'));
+
+  const csv = generateConduitPullingCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('CND-202610-8888'));
+  assert.ok(csv.includes('Baradari Textiles'));
+});
+
+test('DOM & CSS integration for Outside Plant Conduit Pulling Tension QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openConduitPullingBtn"'));
+  assert.ok(indexHtml.includes('id="conduitPullingModal"'));
+  assert.ok(indexHtml.includes('id="cndPresetSelect"'));
+  assert.ok(indexHtml.includes('id="cndSubscriberInput"'));
+  assert.ok(indexHtml.includes('id="cndRouteInput"'));
+  assert.ok(indexHtml.includes('id="cndCableTypeSelect"'));
+  assert.ok(indexHtml.includes('id="cndConduitTypeSelect"'));
+  assert.ok(indexHtml.includes('id="cndLengthInput"'));
+  assert.ok(indexHtml.includes('id="cndBend90Input"'));
+  assert.ok(indexHtml.includes('id="cndBend45Input"'));
+  assert.ok(indexHtml.includes('id="cndBendRadiusInput"'));
+  assert.ok(indexHtml.includes('id="cndCableCountInput"'));
+  assert.ok(indexHtml.includes('id="cndLubricantSelect"'));
+  assert.ok(indexHtml.includes('id="cndDirectionSelect"'));
+  assert.ok(indexHtml.includes('id="cndSaveBtn"'));
+  assert.ok(indexHtml.includes('id="cndPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="cndPrintPosBtn"'));
+  assert.ok(indexHtml.includes('id="cndWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="cndCsvExportBtn"'));
+  assert.ok(indexHtml.includes('id="cndSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupConduitPullingModal'));
+  assert.ok(appJs.includes('customerConduitPullingModalController'));
+  assert.ok(appJs.includes('#openConduitPullingBtn'));
+  assert.ok(appJs.includes('#conduitPullingModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#conduitPullingModal'));
+});
+
 

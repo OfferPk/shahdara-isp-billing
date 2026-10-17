@@ -12340,3 +12340,28 @@ export {
   generateOtdrGhostArtifactCertsCsv,
   setupOtdrGhostArtifactModal
 } from './qa-otdr-ghost-artifact.js';
+
+export {
+  RIBBON_SPLICE_QA_STORAGE_KEY,
+  TIA598_RIBBON_COLORS,
+  RIBBON_SPLICER_MODELS,
+  RIBBON_QA_VERDICTS,
+  SHAH_RIBBON_SPLICE_PRESETS,
+  calculateMarcuseCoreOffsetLoss,
+  calculateCleaveTiltLoss,
+  calculateRibbonArcThermalLoss,
+  calculateRibbonPitchSkew,
+  evaluateRibbonSpliceAnalysis,
+  validateRibbonSpliceInput,
+  buildRibbonSpliceRecord,
+  getSavedRibbonSpliceCerts,
+  saveRibbonSpliceCert,
+  updateRibbonSpliceCertStatus,
+  clearRibbonSpliceCerts,
+  calculateRibbonSpliceMetrics,
+  renderRibbonSpliceQaSvg,
+  generateRibbonSpliceCertHtml,
+  formatRibbonSpliceCertWhatsApp,
+  generateRibbonSpliceCertsCsv,
+  setupRibbonSpliceQaModal
+} from './qa-ribbon-splice.js';

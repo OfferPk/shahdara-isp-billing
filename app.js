@@ -56,7 +56,8 @@ import {
   setupSpliceMfdOffsetModal,
   setupSpliceSleeveCureModal,
   setupFiberCleaveQualityModal,
-  setupOtdrGhostArtifactModal
+  setupOtdrGhostArtifactModal,
+  setupRibbonSpliceQaModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3475,6 +3476,7 @@ export let customerSpliceMfdOffsetModalController;
 export let customerSpliceSleeveCureModalController;
 export let customerFiberCleaveQualityModalController;
 export let customerOtdrGhostArtifactModalController;
+export let customerRibbonSpliceQaModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -3964,6 +3966,32 @@ if (typeof document !== 'undefined') {
           if (c) customerOtdrGhostArtifactModalController?.populateCustomer(c);
         }
         customerOtdrGhostArtifactModalController?.recalculate();
+      }
+    });
+  }
+
+  const ribbonModal = $('#ribbonSpliceQaModal');
+  const openRibbonSpliceQaBtn = $('#openRibbonSpliceQaBtn');
+  if (ribbonModal) {
+    customerRibbonSpliceQaModalController = setupRibbonSpliceQaModal({
+      state,
+      dialogElement: ribbonModal,
+      triggerButton: openRibbonSpliceQaBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openRibbonSpliceQaBtn) {
+    openRibbonSpliceQaBtn.addEventListener('click', () => {
+      if (ribbonModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const routeInput = $('#ribbonSpliceRouteInput');
+            if (routeInput) routeInput.value = `${c.name || 'Subscriber'} Premises Drop Ribbon - ${c.area || 'Shahdara'}`;
+          }
+        }
+        ribbonModal.showModal();
       }
     });
   }

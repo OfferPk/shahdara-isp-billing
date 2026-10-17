@@ -6057,6 +6057,28 @@ export {
   setupRocev2Modal
 } from './dashboard-rocev2.js';
 
+export {
+  OLP_CONSTANTS,
+  getOlpSelectedSpanId,
+  setOlpSelectedSpanId,
+  getOlpSwitchMode,
+  setOlpSwitchMode,
+  getOlpRevertiveMode,
+  setOlpRevertiveMode,
+  getOlpWorkingFiberCut,
+  setOlpWorkingFiberCut,
+  getOlpProtectionFiberCut,
+  setOlpProtectionFiberCut,
+  resetOlpSimState,
+  calculateOlpSwitchDynamics,
+  calculateOlpMetrics,
+  renderOlpDiagramSvg,
+  generateOlpReport,
+  exportOlpJson,
+  exportOlpCsv,
+  setupOlpModal
+} from './dashboard-olp-protection.js';
+
 
 
 

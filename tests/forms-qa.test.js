@@ -10613,3 +10613,410 @@ test('setupFiberCleaveQualityModal wires interactive controls, calculation and h
   assert.ok(elements['#cleaveLocationInput'].value.includes('Tariq Mehmood'));
 });
 
+test('qa-otdr-ghost-artifact constants and presets conform to Telcordia GR-196-CORE specifications', async () => {
+  const {
+    OTDR_GHOST_ARTIFACT_STORAGE_KEY,
+    GHOST_OTDR_WAVELENGTHS,
+    ARTIFACT_CLASSIFICATIONS,
+    GHOST_QA_VERDICTS,
+    SHAH_OTDR_GHOST_PRESETS
+  } = await import('../form-validation.js');
+
+  assert.equal(OTDR_GHOST_ARTIFACT_STORAGE_KEY, 'shahdara_otdr_ghost_artifact_certs_v1');
+  assert.ok(GHOST_OTDR_WAVELENGTHS['W1310']);
+  assert.ok(GHOST_OTDR_WAVELENGTHS['W1550']);
+
+  assert.ok(ARTIFACT_CLASSIFICATIONS['GHOST_DOUBLE_BOUNCE']);
+  assert.equal(ARTIFACT_CLASSIFICATIONS['GHOST_DOUBLE_BOUNCE'].isGhost, true);
+  assert.equal(ARTIFACT_CLASSIFICATIONS['GENUINE_REFLECTIVE'].isGhost, false);
+
+  assert.ok(GHOST_QA_VERDICTS['VERIFIED_GHOST']);
+  assert.equal(GHOST_QA_VERDICTS['VERIFIED_GHOST'].isGhostConfirmed, true);
+  assert.equal(GHOST_QA_VERDICTS['GENUINE_FAULT'].isGhostConfirmed, false);
+
+  assert.ok(SHAH_OTDR_GHOST_PRESETS['PRESET_BARADARI_GHOST_2X']);
+  assert.ok(SHAH_OTDR_GHOST_PRESETS['PRESET_JIA_MUSA_REAL_SPLICE']);
+});
+
+test('calculateGhostDistanceMatches detects double-bounce and triple-bounce cavity echos', async () => {
+  const { calculateGhostDistanceMatches } = await import('../form-validation.js');
+
+  const match2x = calculateGhostDistanceMatches(2.10, 4.20);
+  assert.equal(match2x.isDistanceCorrelated, true);
+  assert.equal(match2x.matchType, 'DOUBLE_BOUNCE_2X');
+  assert.equal(match2x.ratio, 2.0);
+
+  const match3x = calculateGhostDistanceMatches(1.70, 5.10);
+  assert.equal(match3x.isDistanceCorrelated, true);
+  assert.equal(match3x.matchType, 'TRIPLE_BOUNCE_3X');
+  assert.equal(match3x.ratio, 3.0);
+
+  const nonMatch = calculateGhostDistanceMatches(2.00, 3.40);
+  assert.equal(nonMatch.isDistanceCorrelated, false);
+  assert.equal(nonMatch.matchType, 'NONE');
+});
+
+test('evaluateOtdrGhostArtifact distinguishes genuine optical joints from false ghost echos', async () => {
+  const { evaluateOtdrGhostArtifact } = await import('../form-validation.js');
+
+  // Verified Ghost Echo (double distance + zero step loss)
+  const ghost = evaluateOtdrGhostArtifact({
+    spanLengthKm: 10.0,
+    primaryEventDistanceKm: 2.0,
+    primaryReflectanceDb: -26.0,
+    candidateEventDistanceKm: 4.0,
+    candidateReflectanceDb: -40.0,
+    candidateStepLossDb: 0.005,
+    wavelengthId: 'W1310'
+  });
+  assert.equal(ghost.verdict.code, 'GHOST_CONFIRMED');
+  assert.equal(ghost.isGhostConfirmed, true);
+  assert.equal(ghost.cancelTruckRoll, true);
+  assert.equal(ghost.dispatchSplicer, false);
+
+  // Genuine Physical Fault (physical step loss > 0.05 dB)
+  const genuine = evaluateOtdrGhostArtifact({
+    spanLengthKm: 10.0,
+    primaryEventDistanceKm: 2.0,
+    candidateEventDistanceKm: 4.0,
+    candidateStepLossDb: 0.180,
+    wavelengthId: 'W1310'
+  });
+  assert.equal(genuine.verdict.code, 'REAL_FAULT');
+  assert.equal(genuine.isGhostConfirmed, false);
+  assert.equal(genuine.cancelTruckRoll, false);
+  assert.equal(genuine.dispatchSplicer, true);
+
+  // Ambiguous Echo (partial distance correlation with slight step loss)
+  const ambiguous = evaluateOtdrGhostArtifact({
+    spanLengthKm: 10.0,
+    primaryEventDistanceKm: 2.0,
+    candidateEventDistanceKm: 4.05,
+    candidateStepLossDb: 0.060,
+    wavelengthId: 'W1310'
+  });
+  assert.equal(ambiguous.verdict.code, 'SUSPECT_ECHO');
+});
+
+test('renderOtdrGhostArtifactSvg produces valid vector diagram with cavity ray arc', async () => {
+  const { evaluateOtdrGhostArtifact, renderOtdrGhostArtifactSvg } = await import('../form-validation.js');
+
+  const analysis = evaluateOtdrGhostArtifact({
+    spanLengthKm: 12.0,
+    primaryEventDistanceKm: 2.5,
+    primaryReflectanceDb: -25.0,
+    candidateEventDistanceKm: 5.0,
+    candidateReflectanceDb: -42.0,
+    candidateStepLossDb: 0.008,
+    wavelengthId: 'W1310'
+  });
+
+  const svg = renderOtdrGhostArtifactSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('OTDR GHOST ECHO ARTIFACT &amp; MULTI-PATH REFLECTION METROLOGY'));
+  assert.ok(svg.includes('Primary Joint'));
+  assert.ok(svg.includes('GHOST ECHO'));
+  assert.ok(svg.includes('2× Cavity Bounce Ray'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('validateOtdrGhostInput checks span length and distance bounds', async () => {
+  const { validateOtdrGhostInput } = await import('../form-validation.js');
+
+  const valid = validateOtdrGhostInput({
+    spanLengthKm: 15.0,
+    primaryEventDistanceKm: 3.0,
+    candidateEventDistanceKm: 6.0,
+    candidateStepLossDb: 0.01
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateOtdrGhostInput({
+    spanLengthKm: -5,
+    primaryEventDistanceKm: 20,
+    candidateEventDistanceKm: 30,
+    candidateStepLossDb: -1
+  });
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 2);
+});
+
+test('buildOtdrGhostRecord creates unique ID and complete metrology certificate record', async () => {
+  const { buildOtdrGhostRecord } = await import('../form-validation.js');
+
+  const customer = { id: 'cust_101', name: 'Baradari ODF Feeder', mohalla: 'Baradari', phone: '03001234567' };
+  const record = buildOtdrGhostRecord({
+    customer,
+    spanLengthKm: 12.0,
+    primaryEventDistanceKm: 2.1,
+    candidateEventDistanceKm: 4.2,
+    candidateStepLossDb: 0.006,
+    wavelengthId: 'W1310',
+    technicianName: 'Kamran Lead Splicer',
+    location: 'ODF Rack 01'
+  });
+
+  assert.match(record.id, /^GHO-\d{6}-\d{4}$/);
+  assert.equal(record.customerName, 'Baradari ODF Feeder');
+  assert.equal(record.isGhostConfirmed, true);
+  assert.equal(record.cancelTruckRoll, true);
+  assert.equal(record.technicianName, 'Kamran Lead Splicer');
+});
+
+test('otdr ghost certs localStorage persistence and calculateOtdrGhostMetrics', async () => {
+  const {
+    getSavedOtdrGhostCerts,
+    saveOtdrGhostCert,
+    clearOtdrGhostCerts,
+    calculateOtdrGhostMetrics
+  } = await import('../form-validation.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  assert.deepEqual(getSavedOtdrGhostCerts(mockStorage), []);
+
+  const cert1 = { id: 'GHO-01', isGhostConfirmed: true, cancelTruckRoll: true };
+  const cert2 = { id: 'GHO-02', isGhostConfirmed: false, cancelTruckRoll: false };
+
+  saveOtdrGhostCert(cert1, mockStorage);
+  saveOtdrGhostCert(cert2, mockStorage);
+
+  const loaded = getSavedOtdrGhostCerts(mockStorage);
+  assert.equal(loaded.length, 2);
+
+  const metrics = calculateOtdrGhostMetrics(loaded);
+  assert.equal(metrics.totalCertificates, 2);
+  assert.equal(metrics.ghostConfirmedCount, 1);
+  assert.equal(metrics.genuineFaultCount, 1);
+  assert.equal(metrics.truckRollsCancelledCount, 1);
+  assert.equal(metrics.ghostPercentage, 50);
+
+  clearOtdrGhostCerts(mockStorage);
+  assert.deepEqual(getSavedOtdrGhostCerts(mockStorage), []);
+});
+
+test('generateOtdrGhostArtifactCertHtml creates A4 and 80mm printable slips', async () => {
+  const { generateOtdrGhostArtifactCertHtml } = await import('../form-validation.js');
+
+  const record = {
+    id: 'GHO-202610-1234',
+    dateStr: '2026-10-17',
+    customerName: 'Baradari Feeder Ring',
+    customerMohalla: 'Baradari Zone 1',
+    technicianName: 'Kamran OTDR Lead',
+    location: 'ODF Rack 01',
+    spanLengthKm: 12.0,
+    wavelengthName: '1310 nm',
+    primaryEventDistanceKm: 2.10,
+    primaryReflectanceDb: -28.0,
+    candidateEventDistanceKm: 4.20,
+    candidateReflectanceDb: -42.0,
+    candidateStepLossDb: 0.008,
+    distanceRatio: 2.0,
+    matchType: 'DOUBLE_BOUNCE_2X',
+    verdictLabel: 'Verified Ghost Artifact — Zero Step Loss',
+    isGhostConfirmed: true,
+    cancelTruckRoll: true,
+    notes: 'Ghost reflection confirmed.'
+  };
+
+  const htmlA4 = generateOtdrGhostArtifactCertHtml(record, { format: 'A4' });
+  assert.ok(htmlA4.includes('SHAHDARA OPTICAL NETWORK METROLOGY LABORATORY'));
+  assert.ok(htmlA4.includes('GHO-202610-1234'));
+  assert.ok(htmlA4.includes('CANCELLED (No Digging Needed)'));
+
+  const htmlPos = generateOtdrGhostArtifactCertHtml(record, { format: 'POS' });
+  assert.ok(htmlPos.includes('OTDR GHOST ECHO AUDIT SLIP'));
+  assert.ok(htmlPos.includes('GHO-202610-1234'));
+  assert.ok(htmlPos.includes('80mm'));
+});
+
+test('formatOtdrGhostArtifactCertWhatsApp creates bilingual technician dispatch text', async () => {
+  const { formatOtdrGhostArtifactCertWhatsApp } = await import('../form-validation.js');
+
+  const record = {
+    id: 'GHO-202610-5678',
+    dateStr: '2026-10-17',
+    customerName: 'Vandala Road Drop',
+    customerMohalla: 'Vandala',
+    technicianName: 'Zahid Field Tech',
+    location: 'FAT-06 Splitter',
+    spanLengthKm: 4.8,
+    wavelengthName: '1550 nm',
+    primaryEventDistanceKm: 0.82,
+    primaryReflectanceDb: -22.0,
+    candidateEventDistanceKm: 1.64,
+    candidateStepLossDb: 0.012,
+    distanceRatio: 2.0,
+    matchType: 'DOUBLE_BOUNCE_2X',
+    verdictLabel: 'Verified Ghost Artifact',
+    isGhostConfirmed: true
+  };
+
+  const text = formatOtdrGhostArtifactCertWhatsApp(record);
+  assert.ok(text.includes('SHAHDARA FIBER NETWORK — OTDR GHOST ECHO AUDIT'));
+  assert.ok(text.includes('سرٹیفکیٹ برائے او ٹی ڈی آر گھوسٹ ریفلیکشن جانچ'));
+  assert.ok(text.includes('GHO-202610-5678'));
+  assert.ok(text.includes('جعلی ریفلیکشن (گھوسٹ) ہے'));
+});
+
+test('generateOtdrGhostArtifactCertsCsv exports CSV with UTF-8 BOM', async () => {
+  const { generateOtdrGhostArtifactCertsCsv } = await import('../form-validation.js');
+
+  const records = [
+    {
+      id: 'GHO-01',
+      dateStr: '2026-10-17',
+      customerId: 'c1',
+      customerName: 'Baradari Trunk',
+      customerMohalla: 'Baradari',
+      technicianName: 'Kamran',
+      location: 'ODF',
+      spanLengthKm: 12.0,
+      wavelengthName: '1310 nm',
+      primaryEventDistanceKm: 2.10,
+      primaryReflectanceDb: -28.0,
+      candidateEventDistanceKm: 4.20,
+      candidateReflectanceDb: -42.0,
+      candidateStepLossDb: 0.008,
+      distanceRatio: 2.0,
+      matchType: 'DOUBLE_BOUNCE_2X',
+      verdictCode: 'GHOST_CONFIRMED',
+      verdictLabel: 'Ghost Confirmed',
+      isGhostConfirmed: true,
+      cancelTruckRoll: true,
+      notes: 'Clean'
+    }
+  ];
+
+  const csv = generateOtdrGhostArtifactCertsCsv(records);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('"Certificate ID","Date","Customer ID"'));
+  assert.ok(csv.includes('"GHO-01"'));
+  assert.ok(csv.includes('"Baradari Trunk"'));
+});
+
+test('setupOtdrGhostArtifactModal wires interactive controls, calculation and history', async () => {
+  const { setupOtdrGhostArtifactModal } = await import('../form-validation.js');
+
+  function createMockEl(tagName = 'div') {
+    const el = {
+      tagName: tagName.toUpperCase(),
+      attributes: {},
+      children: [],
+      value: '',
+      innerHTML: '',
+      textContent: '',
+      style: {},
+      className: '',
+      addEventListener(evt, fn) {
+        this._listeners = this._listeners || {};
+        this._listeners[evt] = this._listeners[evt] || [];
+        this._listeners[evt].push(fn);
+      },
+      dispatchEvent(evt) {
+        if (this._listeners && this._listeners[evt.type]) {
+          this._listeners[evt.type].forEach(fn => fn(evt));
+        }
+      },
+      click() {
+        this.dispatchEvent({ type: 'click' });
+      },
+      appendChild(c) {
+        this.children.push(c);
+      },
+      querySelector(selector) {
+        return this._childrenMap ? this._childrenMap[selector] || null : null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+      setAttribute(k, v) { this.attributes[k] = v; },
+      removeAttribute(k) { delete this.attributes[k]; }
+    };
+    return el;
+  }
+
+  const dialog = createMockEl('dialog');
+  dialog.ownerDocument = {
+    createElement(tag) { return createMockEl(tag); }
+  };
+
+  const elements = {
+    '#ghostPresetSelect': createMockEl('select'),
+    '#ghostWavelengthSelect': createMockEl('select'),
+    '#ghostSpanInput': createMockEl('input'),
+    '#ghostPrimaryDistInput': createMockEl('input'),
+    '#ghostPrimaryReflInput': createMockEl('input'),
+    '#ghostCandidateDistInput': createMockEl('input'),
+    '#ghostCandidateReflInput': createMockEl('input'),
+    '#ghostCandidateLossInput': createMockEl('input'),
+    '#ghostTechnicianInput': createMockEl('input'),
+    '#ghostLocationInput': createMockEl('input'),
+    '#ghostNotesInput': createMockEl('input'),
+    '#ghostSvgContainer': createMockEl('div'),
+    '#ghostRatioBadge': createMockEl('div'),
+    '#ghostStepLossBadge': createMockEl('div'),
+    '#ghostActionBadge': createMockEl('div'),
+    '#ghostVerdictPill': createMockEl('div'),
+    '#ghostHistoryTbody': createMockEl('tbody'),
+    '#ghostHistorySearch': createMockEl('input'),
+    '#ghostHistoryFilter': createMockEl('select'),
+    '#ghostSaveCertBtn': createMockEl('button'),
+    '#ghostPrintA4Btn': createMockEl('button'),
+    '#ghostPrintPosBtn': createMockEl('button'),
+    '#ghostExportCsvBtn': createMockEl('button'),
+    '#ghostWhatsAppBtn': createMockEl('button'),
+    '#ghostCloseBtn': createMockEl('button')
+  };
+  dialog._childrenMap = elements;
+
+  const trigger = createMockEl('button');
+  const store = {};
+  const mockStorage = {
+    getItem(k) { return store[k] || null; },
+    setItem(k, v) { store[k] = String(v); },
+    removeItem(k) { delete store[k]; }
+  };
+
+  const toasts = [];
+  const controller = setupOtdrGhostArtifactModal({
+    dialogElement: dialog,
+    triggerButton: trigger,
+    storage: mockStorage,
+    onToast: (msg) => toasts.push(msg)
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.recalculate, 'function');
+  assert.equal(typeof controller.populateCustomer, 'function');
+  assert.equal(typeof controller.renderHistory, 'function');
+
+  // Verify dropdowns populated
+  assert.ok(elements['#ghostWavelengthSelect'].children.length > 0);
+  assert.ok(elements['#ghostPresetSelect'].children.length > 0);
+
+  // Recalculate creates SVG
+  const analysis = controller.recalculate();
+  assert.ok(analysis.distMatches.ratio >= 0);
+  assert.ok(elements['#ghostSvgContainer'].innerHTML.includes('<svg'));
+
+  // Save cert
+  elements['#ghostSaveCertBtn'].click();
+  assert.ok(toasts.some(t => t.includes('Saved OTDR Ghost Certificate')));
+
+  // History rendered
+  assert.ok(elements['#ghostHistoryTbody'].innerHTML.includes('GHO-'));
+
+  // Customer population
+  controller.populateCustomer({ name: 'Vandala Drop', mohalla: 'Vandala' });
+  assert.ok(elements['#ghostLocationInput'].value.includes('Vandala Drop'));
+});
+
+

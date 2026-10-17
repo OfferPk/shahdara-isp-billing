@@ -2032,19 +2032,32 @@ let fieldDiagnosticsModalController = setupFieldDiagnosticsModal({
 });
 
 // Setup Technician Field Collection Route Sheet & Mobile Dispatcher
-let fieldRouteSheetController = setupFieldRouteSheet({
+export let fieldRouteSheetController = setupFieldRouteSheet({
   getState: () => state,
   onNavigateCustomer: (customerId) => {
     switchView('customers');
     selectCustomer(customerId);
   },
   onCollectPayment: (customerId) => {
-    switchView('customers');
-    selectCustomer(customerId);
-    const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment') || $('#currentBillPaymentShortcut');
-    if (btn) btn.click();
+    if (window.quickCollectModalController?.selectAndOpen) {
+      window.quickCollectModalController.selectAndOpen(customerId);
+    } else {
+      switchView('customers');
+      selectCustomer(customerId);
+      const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment') || $('#currentBillPaymentShortcut');
+      if (btn) btn.click();
+    }
   },
-  onToast: (msg) => toast(msg)
+  onQuickProfile: (customerId) => {
+    if (window.mobileQuickProfileController?.open) {
+      window.mobileQuickProfileController.open(customerId);
+    } else {
+      switchView('customers');
+      selectCustomer(customerId);
+    }
+  },
+  onToast: (msg) => toast(msg),
+  storage: typeof localStorage !== 'undefined' ? localStorage : null
 });
 
 // Setup Technician Field Work Orders & Customer Service Dispatch Sheet
@@ -2354,6 +2367,9 @@ window.quickCollectModalController = setupQuickCollectModal({
     renderTransactions();
     renderMonthlyReport();
     updateNavigationBadges(state);
+    if (typeof fieldRouteSheetController?.recalculate === 'function') {
+      fieldRouteSheetController.recalculate();
+    }
   },
   onToast: (msg) => toast(msg),
   onSelectCustomer: (customerId) => {

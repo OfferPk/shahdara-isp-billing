@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from '../receipt.js';
+import fs from 'node:fs';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, generateReceiptNumber, generatePaymentReceiptHtml, buildPaymentReceipt } from '../receipt.js';
 import { createBillPackageSnapshot } from '../package-catalog.js';
 import { createReceiptWhatsAppDraft } from '../profile-ui.js';
 
@@ -196,4 +197,138 @@ test('printed package terms retain the agreed Limited/Unlimited threshold and ca
   assert.match(PACKAGE_TERMS_NOTE, /PKR 3,000 سے کم قیمت والے تمام پیکیجز محدود/);
   assert.match(PACKAGE_TERMS_NOTE, /PKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited/);
   assert.match(PACKAGE_TERMS_NOTE, /مقررہ ڈیٹا حد لاگو نہیں ہوتی/);
+});
+
+test('generateReceiptNumber produces permanent, formatted Pakistani ISP receipt identifiers', () => {
+  const num1 = generateReceiptNumber({
+    customerNumber: 42,
+    paymentDate: '2026-10-17',
+    paymentId: 'pay-uuid-789a',
+    billMonth: '2026-10'
+  });
+  assert.equal(num1, 'REC-2610-0042-789A');
+
+  const num2 = generateReceiptNumber({
+    customerNumber: 1500,
+    paymentDate: '2026-08-05',
+    paymentId: 'rec99',
+    billMonth: '2026-08'
+  });
+  assert.equal(num2, 'REC-2608-1500-EC99');
+
+  // Fallback defaults
+  const numFallback = generateReceiptNumber({});
+  assert.match(numFallback, /^REC-\d{4}-\d{4}-[A-Z0-9]+$/);
+});
+
+test('buildPaymentReceipt includes permanentReceiptNumber, receiptNumber, and urduNote', () => {
+  const savedPayment = payment('pay-abc1', 1200, '2026-10-17');
+  const { customer, bill } = fixture({ dueAmount: 2000, payments: [savedPayment] });
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+
+  assert.ok(receipt.receiptNumber);
+  assert.equal(receipt.receiptNumber, receipt.permanentReceiptNumber);
+  assert.match(receipt.receiptNumber, /^REC-2610-0042-/);
+  assert.equal(receipt.urduNote, RECEIPT_URDU_NOTE);
+
+  // Custom stored receiptNumber on payment is preserved
+  const paymentWithCustomNo = payment('pay-custom', 500, '2026-10-17', { receiptNumber: 'REC-MANUAL-001' });
+  const cust2 = fixture({ dueAmount: 1000, payments: [paymentWithCustomNo] });
+  const receiptCustom = buildPaymentReceipt(cust2.customer, cust2.bill, paymentWithCustomNo);
+  assert.equal(receiptCustom.receiptNumber, 'REC-MANUAL-001');
+});
+
+test('generatePaymentReceiptHtml produces full A4 layout with Urdu note and signatures', () => {
+  const savedPayment = payment('pay-a4', 2000, '2026-10-17');
+  const { customer, bill } = fixture({ dueAmount: 2000, payments: [savedPayment] });
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+
+  const html = generatePaymentReceiptHtml(receipt, {
+    format: 'a4',
+    businessName: 'Shahdara Fiber Net',
+    businessPhone: '0321-9988776'
+  });
+
+  assert.ok(html.includes('class="receipt-sheet a4-receipt"'));
+  assert.ok(html.includes('Shahdara Fiber Net'));
+  assert.ok(html.includes('0321-9988776'));
+  assert.ok(html.includes(receipt.receiptNumber));
+  assert.ok(html.includes('Synthetic Customer'));
+  assert.ok(html.includes('#42'));
+  assert.ok(html.includes('5 Mbps'));
+  assert.ok(html.includes('PKR 2,000'));
+  assert.ok(html.includes('PAID'));
+  assert.ok(html.includes(RECEIPT_URDU_NOTE));
+  assert.ok(html.includes('Collector'));
+  assert.ok(html.includes('Shahdara ISP'));
+});
+
+test('generatePaymentReceiptHtml produces 80mm thermal slip layout with exact balance and status', () => {
+  const savedPayment = payment('pay-80', 700, '2026-10-17');
+  const { customer, bill } = fixture({ dueAmount: 2000, payments: [savedPayment] });
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+
+  const html = generatePaymentReceiptHtml(receipt, { format: 'thermal-80' });
+
+  assert.ok(html.includes('class="receipt-sheet thermal-receipt thermal-80"'));
+  assert.ok(html.includes('data-receipt-format="thermal-80"'));
+  assert.ok(html.includes(receipt.receiptNumber));
+  assert.ok(html.includes('PKR 700'));
+  assert.ok(html.includes('PARTIAL'));
+  assert.ok(html.includes('PKR 1,300'));
+  assert.ok(html.includes('Balance Due / باقی واجبات'));
+  assert.ok(html.includes(RECEIPT_URDU_NOTE));
+});
+
+test('generatePaymentReceiptHtml produces 58mm mini mobile thermal slip layout', () => {
+  const savedPayment = payment('pay-58', 1500, '2026-10-17');
+  const { customer, bill } = fixture({ dueAmount: 1500, payments: [savedPayment] });
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+
+  const html = generatePaymentReceiptHtml(receipt, { format: 'thermal-58' });
+
+  assert.ok(html.includes('class="receipt-sheet thermal-receipt thermal-58"'));
+  assert.ok(html.includes('data-receipt-format="thermal-58"'));
+  assert.ok(html.includes('(58mm)'));
+  assert.ok(html.includes(receipt.receiptNumber));
+  assert.ok(html.includes('PKR 1,500'));
+  assert.ok(html.includes('PAID'));
+  assert.ok(html.includes(RECEIPT_URDU_NOTE));
+});
+
+test('generatePaymentReceiptHtml reflects late fee surcharge and discounts in all layouts', () => {
+  const savedPayment = payment('pay-discounted', 1200, '2026-10-17', {
+    discount: 300,
+    discountReason: 'Promo waiver'
+  });
+  const { customer, bill } = fixture({ dueAmount: 2000, payments: [savedPayment] });
+  bill.lateFee = 200;
+  bill.lateFeeReason = '5th overdue fine';
+  const receipt = buildPaymentReceipt(customer, bill, savedPayment);
+
+  const a4Html = generatePaymentReceiptHtml(receipt, { format: 'a4' });
+  assert.ok(a4Html.includes('+PKR 200'));
+  assert.ok(a4Html.includes('-PKR 300'));
+  assert.ok(a4Html.includes('Promo waiver'));
+
+  const t80Html = generatePaymentReceiptHtml(receipt, { format: 'thermal-80' });
+  assert.ok(t80Html.includes('+PKR 200'));
+  assert.ok(t80Html.includes('-PKR 300'));
+
+  const t58Html = generatePaymentReceiptHtml(receipt, { format: 'thermal-58' });
+  assert.ok(t58Html.includes('+PKR 200'));
+  assert.ok(t58Html.includes('-PKR 300'));
+});
+
+test('@media print CSS stylesheet contains A4, 80mm, and 58mm thermal media definitions', () => {
+  const css = fs.readFileSync('styles.css', 'utf8');
+  assert.match(css, /@media\s*print/);
+  assert.match(css, /@page\s*\{\s*size:\s*A4/i);
+  assert.match(css, /body\.printing-receipt/);
+  assert.match(css, /body\.printing-thermal/);
+  assert.match(css, /body\.printing-thermal-80/);
+  assert.match(css, /body\.printing-thermal-58/);
+  assert.match(css, /width:\s*76mm\s*!important/);
+  assert.match(css, /width:\s*48mm\s*!important/);
+  assert.match(css, /\.thermal58-receipt-button/);
 });

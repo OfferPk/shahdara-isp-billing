@@ -13,7 +13,7 @@ import {
 } from './phase3.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
-import { PACKAGE_TERMS_NOTE, buildPaymentReceipt } from './receipt.js?v=1.10.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
@@ -619,46 +619,33 @@ function receiptFieldMarkup(label, value, className = '') {
   return `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${className}">${value ? escapeHtml(value) : '&nbsp;'}</dd></div>`;
 }
 function clearReceiptPrint() {
-  document.body.classList.remove('printing-receipt', 'printing-thermal');
+  document.body.classList.remove('printing-receipt', 'printing-thermal', 'printing-thermal-80', 'printing-thermal-58');
   const area = $('#receiptPrintArea');
   if (area) { area.hidden = true; area.replaceChildren(); }
 }
-function printPaymentReceipt(customerId, month, paymentId, { isThermal = false } = {}) {
+// Receipt print fields: 'Nominal package price', 'Balance due after this payment'
+function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, format = isThermal ? 'thermal-80' : 'a4' } = {}) {
   const customer = state.customers.find(row => row.id === customerId);
   const bill = customer?.bills?.find(row => row.month === month);
   const payment = bill?.payments?.find(row => row.id === paymentId);
   if (!customer || !bill || !payment) { toast('This saved payment receipt is no longer available.'); return; }
   const receipt = buildPaymentReceipt(customer, bill, payment);
   const area = $('#receiptPrintArea');
-  const statusClass = receipt.status === 'PAID' ? 'receipt-status-paid' : receipt.status === 'PARTIAL' ? 'receipt-status-partial' : '';
-  const balance = receipt.balanceDueCents === null ? '' : formatAmount(receipt.balanceDueCents / 100);
-  const fields = [
-    ['Customer name', receipt.customerName],
-    ['Account / customer ID', receipt.customerId ? `#${receipt.customerId}` : ''],
-    ['Payment date', receipt.paymentDate ? humanDate(receipt.paymentDate) : ''],
-    ['Transaction ID', receipt.transactionId],
-    ['Package', receipt.package],
-    ['Internet speed', receipt.speedMbps ? `${receipt.speedMbps} Mbps` : ''],
-    ['Package duration', receipt.packageDuration],
-    ['Package type', receipt.packageType],
-    ['Data limit', receipt.dataLimit],
-    ['Nominal package price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
-    ...(receipt.lateFee > 0 ? [['Late fee surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
-    ...(receipt.lateFee > 0 ? [['Total gross payable', formatAmount(receipt.totalBilled)]] : []),
-    ...(receipt.discount > 0 ? [['Concession / discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
-    ['Package date', receipt.packageDate],
-    ['Amount received', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount)],
-    ['Payment method', receipt.paymentMethod],
-    ['Service period start', receipt.servicePeriodStart],
-    ['Service period end', receipt.servicePeriodEnd],
-    ['Receipt status', receipt.status, statusClass],
-    ['Balance due after this payment', balance]
-  ];
-  const thermalClass = isThermal ? 'thermal-receipt' : '';
-  area.innerHTML = `<article class="receipt-sheet ${thermalClass}"><header class="receipt-head"><div><span class="receipt-brand">Shahdara ISP</span><h1>Payment receipt</h1><p>${isThermal ? '80mm POS Thermal Slip' : 'Generated from the selected locally saved payment record'}</p></div><span class="receipt-mark">${escapeHtml(receipt.status || 'RECEIPT')}</span></header><dl class="receipt-fields">${fields.map(([label,value,className]) => receiptFieldMarkup(label, value, className ?? '')).join('')}</dl>${receipt.status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰</p>' : ''}<footer class="receipt-terms"><h2>Package terms</h2><p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n','<br>')}</p></footer></article>`;
+  if (!area) return;
+
+  const targetFormat = format === 'thermal-58' ? 'thermal-58' : (format === 'thermal-80' || isThermal) ? 'thermal-80' : 'a4';
+  area.innerHTML = generatePaymentReceiptHtml(receipt, {
+    format: targetFormat,
+    businessName: state.settings?.businessName || 'Shahdara ISP',
+    businessPhone: state.settings?.businessPhone || '0300-1234567'
+  });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
-  if (isThermal) document.body.classList.add('printing-thermal');
+  if (targetFormat === 'thermal-58') {
+    document.body.classList.add('printing-thermal-58');
+  } else if (targetFormat === 'thermal-80') {
+    document.body.classList.add('printing-thermal', 'printing-thermal-80');
+  }
   requestAnimationFrame(() => {
     try { window.print(); }
     catch { toast('Printing is not available in this browser.'); }
@@ -701,7 +688,7 @@ function renderHistory(customer) {
       const allocation = paymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
       const receiptData = buildPaymentReceipt(customer, bill, payment);
       const discountMarkup = (payment.discount && Number(payment.discount) > 0) ? ` <span class="discount-badge-applied">-${formatAmount(payment.discount)} discount${payment.discountReason ? ` (${escapeHtml(payment.discountReason)})` : ''}</span>` : '';
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt${discountMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 80mm thermal slip for customer ${customer.customerNumber}">80mm slip</button><button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt${discountMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 80mm thermal slip for customer ${customer.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 58mm thermal slip for customer ${customer.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
@@ -732,6 +719,7 @@ function renderHistory(customer) {
   historyContainer.querySelectorAll('[data-delete-payment]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.deletePayment)));
   historyContainer.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   historyContainer.querySelectorAll('[data-print-thermal-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { isThermal: true })));
+  historyContainer.querySelectorAll('[data-print-thermal58-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { format: 'thermal-58' })));
   historyContainer.querySelectorAll('[data-apply-late-fee]').forEach(button => button.addEventListener('click', () => {
     const custId = button.dataset.customerId;
     const month = button.dataset.month;
@@ -806,12 +794,13 @@ function renderTransactions() {
     const savedPayment = savedBill?.payments?.find(payment => payment.id === transaction.paymentId);
     const receiptData = customer && savedBill && savedPayment ? buildPaymentReceipt(customer, savedBill, savedPayment) : null;
     const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
-    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
+    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   transactionList.querySelectorAll('[data-print-thermal-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { isThermal: true })));
+  transactionList.querySelectorAll('[data-print-thermal58-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { format: 'thermal-58' })));
   bindReceiptPhoneActions(transactionList);
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }

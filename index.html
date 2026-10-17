@@ -242,6 +242,15 @@
             <span class="quick-action-sub">Ledger QA &amp; Correctness</span>
           </span>
         </button>
+        <button id="quickActionLateFeeManager" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="18"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Late Fee &amp; Discounts</span>
+            <span class="quick-action-sub">Owner policy &amp; concessions</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -18431,6 +18440,125 @@
           <button id="duesAgingPrintBtn" class="secondary-button" type="button">🖨️ Print Report</button>
         </div>
         <button id="closeDuesAgingSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  <!-- Late Fee & Discounts Policy Manager Modal Dialog -->
+  <dialog id="lateFeeManagerModal" class="billing-modal late-fee-modal" aria-labelledby="lateFeeModalTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="lateFeeModalTitle">Late Fee &amp; Discounts Policy Manager</h2>
+          <span class="urdu-subtitle">جرمانہ تاخیر اور رعایتی کھاتہ پالیسی و وصولی</span>
+        </div>
+        <button id="closeLateFeeModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- Owner Configuration Panel -->
+        <section class="late-fee-policy-card" aria-label="Owner policy configuration">
+          <div class="late-fee-policy-header">
+            <strong>⚙️ Owner Policy Settings (OFF by Default · Explicit Action Only)</strong>
+            <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:bold;">
+              <input type="checkbox" id="lateFeePolicyToggle">
+              <span>Enable Late Fee Policy</span>
+            </label>
+          </div>
+          <p class="field-help" style="margin-bottom:10px;">
+            In accordance with local ISP rules, late fees are never applied automatically in the background or during bill generation. Enabling this policy sets the default amount and flags overdue bills for your explicit review and authorization.
+          </p>
+          <div class="late-fee-policy-grid">
+            <label>
+              Default Surcharge (PKR)
+              <input type="number" id="lateFeeDefaultAmountInput" min="1" step="10" value="100" placeholder="100">
+            </label>
+            <label>
+              Grace Period (Days after 5th)
+              <input type="number" id="lateFeeGraceDaysInput" min="0" step="1" value="0" placeholder="0">
+            </label>
+            <label style="grid-column: span 2;">
+              Default Reason Note
+              <input type="text" id="lateFeeReasonInput" maxlength="100" value="Late payment surcharge / جرمانہ تاخیر ادائیگی">
+            </label>
+            <div>
+              <button id="saveLateFeePolicyBtn" class="primary-button" type="button">Save Policy</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- KPI Summary Cards -->
+        <div class="audit-kpi-ribbon">
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Overdue Subscriptions</span>
+            <strong id="lateFeeKpiOverdueCount" class="audit-kpi-value text-danger">0</strong>
+            <span class="audit-kpi-sub">Past calendar due date</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Fee Eligible Bills</span>
+            <strong id="lateFeeKpiEligibleCount" class="audit-kpi-value" style="color:#f59e0b;">0</strong>
+            <span class="audit-kpi-sub">Unpaid &amp; no fee applied</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Late Fees Applied</span>
+            <strong id="lateFeeKpiAppliedTotal" class="audit-kpi-value text-danger">PKR 0</strong>
+            <span class="audit-kpi-sub">Active surcharge ledger</span>
+          </div>
+          <div class="audit-kpi-card">
+            <span class="audit-kpi-label">Discounts Granted</span>
+            <strong id="lateFeeKpiDiscountsTotal" class="audit-kpi-value text-success">PKR 0</strong>
+            <span class="audit-kpi-sub">Total balance concessions</span>
+          </div>
+        </div>
+
+        <!-- Action Toolbar -->
+        <div class="audit-action-bar">
+          <div class="audit-action-left" style="display:flex; gap:8px;">
+            <button id="lateFeeBatchApplyBtn" class="primary-button" type="button">
+              ⚡ Apply Fee to Selected
+            </button>
+            <button id="lateFeeBatchWaiveBtn" class="secondary-button" type="button">
+              🛡️ Waive Selected
+            </button>
+          </div>
+          <div class="audit-action-right" style="display:flex; gap:8px;">
+            <button id="lateFeePrintA4Btn" class="secondary-button" type="button">
+              📄 Print A4 Report
+            </button>
+            <button id="lateFeePrintThermalBtn" class="secondary-button" type="button">
+              🧾 80mm Slip
+            </button>
+            <button id="lateFeeExportCsvBtn" class="secondary-button" type="button">
+              📥 Export CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Pure Vector SVG Chart -->
+        <div id="lateFeeChartContainer" style="margin: 12px 0;"></div>
+
+        <!-- Overdue & Late Fees Ledger Table -->
+        <div class="table-scroll-wrapper" style="max-height: 380px; overflow-y: auto;">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th style="width:36px;"><input type="checkbox" id="lateFeeSelectAllCheckbox" aria-label="Select all"></th>
+                <th>Customer</th>
+                <th>Month</th>
+                <th>Due Date</th>
+                <th>Base Bill</th>
+                <th>Late Fee</th>
+                <th>Discounts</th>
+                <th>Balance Due</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="lateFeeRosterTableBody"></tbody>
+          </table>
+          <p id="lateFeeRosterEmpty" class="empty-state" hidden>No overdue bills found. All customers are currently settled or within due dates.</p>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <button id="closeLateFeeSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

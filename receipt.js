@@ -43,6 +43,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
   const packageLabel = packageSnapshot?.label ?? packageAtServiceStart(customer, bill.month);
   const speedMatch = packageLabel.match(/\b(\d+(?:\.\d+)?)\s*Mbps\b/i);
   const billDue = positiveAmount(bill.dueAmount);
+  const lateFee = positiveAmount(bill.lateFee) || 0;
   const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
   const packageType = packageSnapshot?.packageType ?? classifyPackagePrice(nominalPrice);
   const customerBills = Array.isArray(customer.bills) ? customer.bills : [];
@@ -54,14 +55,14 @@ export function buildPaymentReceipt(customer, bill, payment) {
   let status = 'RECEIVED';
   let balanceDueCents = null;
   if (billDue !== null && selectedIndex >= 0) {
-    const dueCents = cents(billDue);
+    const dueCents = cents(billDue) + cents(lateFee);
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
     const paidBeforeCents = orderedPayments.slice(0, selectedIndex)
-      .reduce((sum, row) => sum + cents(positiveAmount(row.amount) ?? 0), 0);
-    const receivedThroughCents = orderedPayments.slice(0, selectedIndex + 1)
-      .reduce((sum, row) => sum + cents(positiveAmount(row.amount) ?? 0), 0);
+      .reduce((sum, row) => sum + cents(positiveAmount(row.amount) ?? 0) + cents(positiveAmount(row.discount) ?? 0), 0);
+    const thisEffectiveCents = cents(positiveAmount(payment.amount) ?? 0) + cents(positiveAmount(payment.discount) ?? 0);
+    const receivedThroughCents = paidBeforeCents + thisEffectiveCents;
     const coveredBeforeReceipt = carryInCents + paidBeforeCents >= dueCents;
     balanceDueCents = Math.max(0, dueCents - carryInCents - receivedThroughCents);
     if (coveredBeforeReceipt) status = 'CREDIT RECEIVED';
@@ -89,6 +90,11 @@ export function buildPaymentReceipt(customer, bill, payment) {
     packageType,
     dataLimit,
     nominalPrice,
+    lateFee,
+    lateFeeReason: text(bill.lateFeeReason),
+    totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee,
+    discount: positiveAmount(payment.discount) || 0,
+    discountReason: text(payment.discountReason),
     paidAmount:positiveAmount(payment.amount),
     paymentMethod:text(payment.method),
     packageDate,

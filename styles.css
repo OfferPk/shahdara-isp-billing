@@ -8442,3 +8442,147 @@ html, body {
   color: #f87171;
   border-color: rgba(239, 68, 68, 0.4);
 }
+
+/* Late Fee & Discounts Policy Management */
+.late-fee-modal {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.late-fee-policy-card {
+  background: var(--surface-bg, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.late-fee-policy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.late-fee-policy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.late-fee-policy-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-color, #334155);
+}
+
+.late-fee-policy-grid input[type="number"],
+.late-fee-policy-grid input[type="text"] {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 6px;
+  background: var(--input-bg, #ffffff);
+  color: var(--text-color, #1e293b);
+  font-size: 0.9rem;
+}
+
+.apply-late-fee-btn {
+  background: #f59e0b;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.apply-late-fee-btn:hover {
+  background: #d97706;
+}
+
+.waive-late-fee-btn {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.waive-late-fee-btn:hover {
+  background: #fef2f2;
+}
+
+.late-fee-badge-applied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.discount-badge-applied {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #d1fae5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .late-fee-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .late-fee-policy-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .late-fee-policy-grid label {
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .late-fee-policy-grid input[type="number"],
+[data-theme="dark"] .late-fee-policy-grid input[type="text"] {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .late-fee-badge-applied {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+[data-theme="dark"] .discount-badge-applied {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+[data-theme="dark"] .waive-late-fee-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+}
+

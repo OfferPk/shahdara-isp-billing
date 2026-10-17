@@ -13,8 +13,16 @@ import {
   SERVICE_CONTRACTS_KEY, validatePakistanCnic, validateCustomerCnic, formatCnicDisplay, validateServiceContract, buildServiceContractData, getSavedServiceContracts, saveServiceContract,
   formatServiceContractWhatsApp, generateServiceContractCsv, generateServiceContractHtml, setupServiceContractModal,
   PAKISTAN_CNIC_PROVINCES, parsePakistaniCnicDetails, calculateKycComplianceAudit, filterKycComplianceRecords,
-  generateKycNoticeWhatsAppText, generateKycComplianceCsv, generateKycCompliancePrintHtml, setupKycComplianceModal
+  generateKycNoticeWhatsAppText, generateKycComplianceCsv, generateKycCompliancePrintHtml, setupKycComplianceModal,
+  LATE_FEE_CONFIG_KEY, DEFAULT_LATE_FEE_CONFIG, getLateFeeConfig, saveLateFeeConfig, validatePaymentDiscount,
+  calculateNetBillSettlement, isBillOverdue, evaluateBillLateFeeEligibility, findOverdueBillsWithLateFeeStatus,
+  applyLateFeeToEligibleBills, waiveLateFeeFromBills, formatLateFeeNoticeWhatsApp, formatReceiptWithDiscountAndFeeWhatsApp,
+  generateLateFeeDiscountsCsv, generateLateFeeAuditPrintHtml, renderLateFeeDiscountsSvg, setupLateFeeModal
 } from '../form-validation.js';
+import {
+  applyLateFeeToBill, waiveLateFeeFromBill, calculatePaymentAllocations, addPayment, correctPayment, deletePayment, saveBillMonth
+} from '../core.js';
+import { buildPaymentReceipt } from '../receipt.js';
 
 
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
@@ -14705,6 +14713,462 @@ test('DOM, styles, and app.js integration for mid-month package change pro-rata 
   assert.ok(appJs.includes('proRatedBillAmount'), 'app.js handles proRatedBillAmount');
   assert.ok(appJs.includes('proRataAdjustment'), 'app.js handles proRataAdjustment');
   assert.ok(appJs.includes('prorated_package_change'), 'app.js issues prorated_package_change adjustment voucher');
+});
+
+// ============================================================================
+// BILLING DISCOUNTS & OWNER-CONTROLLED LATE FEE TEST SUITE
+// ============================================================================
+
+test('Late Fee Policy configuration defaults to OFF and persists valid settings', () => {
+  const mockStorage = {
+    _data: {},
+    getItem(k) { return this._data[k] || null; },
+    setItem(k, v) { this._data[k] = String(v); }
+  };
+
+  // 1. Default config is disabled (OFF by default)
+  const defaultConfig = getLateFeeConfig(mockStorage);
+  assert.equal(defaultConfig.enabled, false, 'Late fee policy must be disabled by default');
+  assert.equal(defaultConfig.defaultAmount, 100);
+  assert.equal(defaultConfig.graceDays, 0);
+
+  // 2. Save custom owner configuration
+  const saved = saveLateFeeConfig({
+    enabled: true,
+    defaultAmount: 250,
+    graceDays: 3,
+    reason: 'Owner surcharge for late payment'
+  }, mockStorage);
+
+  assert.equal(saved, true);
+
+  // 3. Retrieve saved config
+  const reloaded = getLateFeeConfig(mockStorage);
+  assert.equal(reloaded.enabled, true);
+  assert.equal(reloaded.defaultAmount, 250);
+  assert.equal(reloaded.graceDays, 3);
+  assert.equal(reloaded.reason, 'Owner surcharge for late payment');
+
+  // 4. Invalid values fallback gracefully
+  saveLateFeeConfig({
+    enabled: false,
+    defaultAmount: -50,
+    graceDays: -2
+  }, mockStorage);
+  const sanitized = getLateFeeConfig(mockStorage);
+  assert.equal(sanitized.enabled, false);
+  assert.equal(sanitized.defaultAmount, 250);
+  assert.equal(sanitized.graceDays, 3);
+});
+
+test('validatePaymentDiscount enforces non-negative numbers within balance ceiling', () => {
+  // 1. Valid zero discount
+  const zero = validatePaymentDiscount(0, 1500);
+  assert.equal(zero.valid, true);
+  assert.equal(zero.amount, 0);
+
+  // 2. Valid partial discount
+  const valid = validatePaymentDiscount(200, 1500);
+  assert.equal(valid.valid, true);
+  assert.equal(valid.amount, 200);
+
+  // 3. Valid 100% discount matching balance ceiling
+  const full = validatePaymentDiscount('1500', 1500);
+  assert.equal(full.valid, true);
+  assert.equal(full.amount, 1500);
+
+  // 4. Negative discount rejected
+  const neg = validatePaymentDiscount(-50, 1500);
+  assert.equal(neg.valid, false);
+  assert.match(neg.message, /cannot be negative/i);
+
+  // 5. Exceeding max payable ceiling rejected
+  const excessive = validatePaymentDiscount(1600, 1500);
+  assert.equal(excessive.valid, false);
+  assert.match(excessive.message, /cannot exceed/i);
+
+  // 6. Non-numeric value rejected
+  const invalid = validatePaymentDiscount('abc', 1500);
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.message, /valid number/i);
+});
+
+test('calculateNetBillSettlement computes base + late fee - discount with non-negative bounds', () => {
+  // 1. Standard calculation
+  const res1 = calculateNetBillSettlement({
+    billDue: 2000,
+    lateFee: 200,
+    discount: 150,
+    paymentAmount: 500
+  });
+  assert.equal(res1.grossPayable, 2200);
+  assert.equal(res1.netBeforePayment, 2200);
+  assert.equal(res1.discountApplied, 150);
+  assert.equal(res1.balanceDue, 1550);
+
+  // 2. Discount exceeding gross capped at 0 net payable
+  const res2 = calculateNetBillSettlement({
+    billDue: 1000,
+    lateFee: 0,
+    discount: 1200,
+    paymentAmount: 0
+  });
+  assert.equal(res2.grossPayable, 1000);
+  assert.equal(res2.discountApplied, 1000);
+  assert.equal(res2.balanceDue, 0);
+});
+
+test('isBillOverdue and evaluateBillLateFeeEligibility respect due date, grace period, and payment status', () => {
+  const refDate = new Date('2026-10-15T12:00:00+05:00');
+
+  // 1. Past due date is overdue
+  const overdueBill = { month: '2026-10', dueDate: '2026-10-05', dueAmount: 1500, payments: [] };
+  const custOverdue = { id: 'cust-ov', customerNumber: 77, name: 'Tariq', archived: false, bills: [overdueBill] };
+  assert.equal(isBillOverdue(overdueBill, refDate).isOverdue, true);
+
+  // 2. Future due date is not overdue
+  const futureBill = { month: '2026-10', dueDate: '2026-10-25', dueAmount: 1500, payments: [] };
+  const custFuture = { id: 'cust-fut', customerNumber: 78, name: 'Amir', archived: false, bills: [futureBill] };
+  assert.equal(isBillOverdue(futureBill, refDate).isOverdue, false);
+
+  // 3. Paid bill is not eligible for late fee
+  const paidBill = { month: '2026-10', dueDate: '2026-10-05', dueAmount: 1500, payments: [{ id: 'p-paid', amount: 1500, date: '2026-10-06' }] };
+  const custPaid = { id: 'cust-pd', customerNumber: 79, name: 'Zahid', archived: false, bills: [paidBill] };
+  const evalPaid = evaluateBillLateFeeEligibility(custPaid, paidBill, {
+    config: { enabled: true, defaultAmount: 100, graceDays: 0 },
+    referenceDate: refDate
+  });
+  assert.equal(evalPaid.eligible, false);
+  assert.equal(evalPaid.balanceDue, 0);
+
+  // 4. Overdue bill is eligible when policy enabled
+  const evalEligible = evaluateBillLateFeeEligibility(custOverdue, overdueBill, {
+    config: { enabled: true, defaultAmount: 150, graceDays: 0 },
+    referenceDate: refDate
+  });
+  assert.equal(evalEligible.eligible, true);
+  assert.equal(evalEligible.suggestedLateFee, 150);
+
+  // 5. Overdue bill is NOT eligible if policy is disabled (OFF by default)
+  const evalDisabled = evaluateBillLateFeeEligibility(custOverdue, overdueBill, {
+    config: { enabled: false, defaultAmount: 150, graceDays: 0 },
+    referenceDate: refDate
+  });
+  assert.equal(evalDisabled.eligible, false);
+  assert.equal(evalDisabled.policyEnabled, false);
+
+  // 6. Grace period protects bill within grace days
+  const graceBill = { month: '2026-10', dueDate: '2026-10-14', dueAmount: 1500, payments: [] };
+  const custGrace = { id: 'cust-grc', customerNumber: 80, name: 'Rashid', archived: false, bills: [graceBill] };
+  const evalGrace = evaluateBillLateFeeEligibility(custGrace, graceBill, {
+    config: { enabled: true, defaultAmount: 150, graceDays: 3 },
+    referenceDate: refDate
+  });
+  assert.equal(evalGrace.eligible, false);
+  assert.equal(evalGrace.isOverdue, false);
+});
+
+test('applyLateFeeToBill and waiveLateFeeFromBill update bill and maintain immutable audit history', () => {
+  let state = {
+    customers: [{
+      id: 'cust-101',
+      customerNumber: 101,
+      name: 'Muhammad Tariq',
+      bills: [{
+        month: '2026-09',
+        dueDate: '2026-09-05',
+        dueAmount: 1800,
+        payments: []
+      }]
+    }]
+  };
+
+  // 1. Apply late fee
+  state = applyLateFeeToBill(state, 'cust-101', '2026-09', {
+    amount: 150,
+    reason: 'Owner authorized late fee for September'
+  }, new Date('2026-09-10T12:00:00+05:00'));
+
+  const billAfterFee = state.customers[0].bills[0];
+  assert.equal(billAfterFee.lateFee, 150);
+  assert.equal(billAfterFee.lateFeeReason, 'Owner authorized late fee for September');
+  assert.ok(billAfterFee.lateFeeAppliedAt);
+  assert.equal(billAfterFee.amountHistory.length, 1);
+  assert.equal(billAfterFee.amountHistory[0].type, 'late_fee_applied');
+  assert.equal(billAfterFee.amountHistory[0].lateFee, 150);
+
+  // 2. Waive late fee
+  state = waiveLateFeeFromBill(state, 'cust-101', '2026-09', {
+    reason: 'Waived on owner request'
+  }, new Date('2026-09-12T12:00:00+05:00'));
+
+  const billAfterWaive = state.customers[0].bills[0];
+  assert.equal(billAfterWaive.lateFee, 0);
+  assert.equal(billAfterWaive.lateFeeReason, 'Waived on owner request');
+  assert.equal(billAfterWaive.amountHistory.length, 2);
+  assert.equal(billAfterWaive.amountHistory[1].type, 'late_fee_waived');
+  assert.equal(billAfterWaive.amountHistory[1].previousLateFee, 150);
+});
+
+test('calculatePaymentAllocations correctly deducts discounts without generating carry-forward cash credit', () => {
+  const customer = {
+    id: 'cust-202',
+    customerNumber: 202,
+    name: 'Customer 202',
+    bills: [
+      {
+        month: '2026-09',
+        dueAmount: 2000,
+        lateFee: 100,
+        payments: [
+          {
+            id: 'pay-1',
+            date: '2026-09-10',
+            amount: 1500,
+            discount: 300,
+            discountReason: 'Flood relief discount'
+          }
+        ]
+      },
+      {
+        month: '2026-10',
+        dueAmount: 2000,
+        lateFee: 0,
+        payments: []
+      }
+    ]
+  };
+
+  const alloc = calculatePaymentAllocations({ customers: [customer] });
+  const sep = alloc.byCustomerMonth.get(JSON.stringify(['cust-202', '2026-09']));
+  const oct = alloc.byCustomerMonth.get(JSON.stringify(['cust-202', '2026-10']));
+
+  // Sep bill gross: 2000 + 100 lateFee = 2100
+  assert.equal(sep.baseAmountCents, 200000);
+  assert.equal(sep.lateFeeCents, 10000);
+  assert.equal(sep.billAmountCents, 210000);
+
+  // Sep discount: 300 (30000 cents)
+  assert.equal(sep.discountAppliedCents, 30000);
+
+  // After 300 discount, net payable was 1800.
+  // Payment of 1500 paid leaves 300 balance due.
+  assert.equal(sep.sameMonthAppliedCents, 150000);
+  assert.equal(sep.balanceDueCents, 30000);
+
+  // Crucial test: Discount waived bill balance, but did NOT spill over as carry-forward credit into October!
+  assert.equal(sep.excessGeneratedCents, 0, 'Discounts must never generate cash credit');
+  assert.equal(oct.balanceDueCents, 200000);
+});
+
+test('buildPaymentReceipt reflects late fee surcharge, discount concessions, and accurate net balance', () => {
+  const customer = {
+    id: 'cust-303',
+    customerNumber: 303,
+    name: 'Nasir Iqbal',
+    phone: '03001234567',
+    bills: [{
+      month: '2026-10',
+      dueDate: '2026-10-05',
+      dueAmount: 2500,
+      lateFee: 200,
+      lateFeeReason: 'Overdue surcharge',
+      payments: [{
+        id: 'pay-oct',
+        date: '2026-10-12',
+        amount: 2000,
+        method: 'Cash at counter',
+        discount: 200,
+        discountReason: 'Loyalty discount'
+      }]
+    }]
+  };
+
+  const receipt = buildPaymentReceipt(customer, customer.bills[0], customer.bills[0].payments[0]);
+
+  assert.equal(receipt.lateFee, 200);
+  assert.equal(receipt.lateFeeReason, 'Overdue surcharge');
+  assert.equal(receipt.totalBilled, 2700, 'Total gross billed should be 2500 + 200');
+  assert.equal(receipt.discount, 200);
+  assert.equal(receipt.discountReason, 'Loyalty discount');
+  assert.equal(receipt.paidAmount, 2000);
+
+  // Balance due: 2700 gross - 200 discount - 2000 cash = 500
+  assert.equal(receipt.balanceDueCents, 50000);
+  assert.equal(receipt.status, 'PARTIAL');
+});
+
+test('batch operations applyLateFeeToEligibleBills and waiveLateFeeFromBills operate safely on multiple bills', () => {
+  let state = {
+    customers: [
+      {
+        id: 'c1',
+        customerNumber: 1,
+        name: 'Alpha',
+        bills: [{ month: '2026-08', dueAmount: 1000, payments: [] }]
+      },
+      {
+        id: 'c2',
+        customerNumber: 2,
+        name: 'Beta',
+        bills: [{ month: '2026-08', dueAmount: 1200, payments: [] }]
+      }
+    ]
+  };
+
+  const targets = [
+    { customerId: 'c1', month: '2026-08' },
+    { customerId: 'c2', month: '2026-08' }
+  ];
+
+  // Batch apply
+  state = applyLateFeeToEligibleBills(state, targets, { amount: 120, reason: 'Batch fee' });
+  assert.equal(state.customers[0].bills[0].lateFee, 120);
+  assert.equal(state.customers[1].bills[0].lateFee, 120);
+
+  // Batch waive
+  state = waiveLateFeeFromBills(state, targets, { reason: 'Batch waiver' });
+  assert.equal(state.customers[0].bills[0].lateFee, 0);
+  assert.equal(state.customers[1].bills[0].lateFee, 0);
+});
+
+test('formatLateFeeNoticeWhatsApp and formatReceiptWithDiscountAndFeeWhatsApp format bilingual notices with accurate balances', () => {
+  const customer = {
+    id: 'cust-wa',
+    customerNumber: 44,
+    name: 'Kashif Mehmood',
+    phone: '03019876543',
+    mohalla: 'Imamia Colony'
+  };
+
+  const row = {
+    month: '2026-09',
+    dueDate: '2026-09-05',
+    daysOverdue: 10,
+    dueAmount: 1800,
+    lateFee: 150,
+    lateFeeReason: 'Overdue surcharge',
+    hasLateFee: true,
+    discounts: 50,
+    balanceDue: 1900
+  };
+
+  const waNotice = formatLateFeeNoticeWhatsApp({ customer, row });
+  assert.ok(waNotice.includes('Kashif Mehmood'));
+  assert.ok(waNotice.includes('#44'));
+  assert.ok(waNotice.includes('PKR 1800'));
+  assert.ok(waNotice.includes('+PKR 150'));
+  assert.ok(waNotice.includes('PKR 1900'));
+  assert.ok(waNotice.includes('لیٹ فیس'));
+
+  const receipt = {
+    customerNumber: 44,
+    receiptNumber: 'REC-44-01',
+    paymentDate: '2026-09-15',
+    paymentMethod: 'Cash',
+    amount: 1500,
+    totalBilled: 1950,
+    lateFee: 150,
+    lateFeeReason: 'Overdue surcharge',
+    discount: 50,
+    discountReason: 'Promo discount',
+    balanceDueCents: 40000
+  };
+
+  const waReceipt = formatReceiptWithDiscountAndFeeWhatsApp(customer, receipt);
+  assert.ok(waReceipt.includes('PAYMENT RECEIPT'));
+  assert.ok(waReceipt.includes('PKR 1500'));
+  assert.ok(waReceipt.includes('+PKR 150'));
+  assert.ok(waReceipt.includes('-PKR 50'));
+  assert.ok(waReceipt.includes('PKR 400'));
+});
+
+test('generateLateFeeDiscountsCsv, generateLateFeeAuditPrintHtml, and renderLateFeeDiscountsSvg generate valid outputs', () => {
+  const state = {
+    customers: [{
+      id: 'c-test',
+      customerNumber: 99,
+      name: 'Test Customer',
+      mohalla: 'Main Bazaar',
+      bills: [{
+        month: '2026-08',
+        dueDate: '2026-08-05',
+        dueAmount: 2000,
+        lateFee: 100,
+        lateFeeReason: 'Overdue',
+        payments: [{
+          id: 'p1',
+          date: '2026-08-10',
+          amount: 1000,
+          discount: 100
+        }]
+      }]
+    }]
+  };
+
+  // 1. CSV
+  const csv = generateLateFeeDiscountsCsv(state, { referenceDate: new Date('2026-08-20') });
+  assert.ok(csv.includes('Customer Number,Customer Name,Phone,Mohalla,Bill Month,Due Date,Days Overdue,Base Bill (PKR),Late Fee (PKR),Late Fee Applied At,Late Fee Reason,Discounts Granted (PKR),Balance Due (PKR),Status'));
+  assert.ok(csv.includes('99,Test Customer'));
+  assert.ok(csv.includes('100'));
+
+  // 2. Print HTML (A4 & thermal)
+  const a4 = generateLateFeeAuditPrintHtml({ state, format: 'a4', referenceDate: new Date('2026-08-20') });
+  assert.ok(a4.includes('SHAHDARA BROADBAND ISP'));
+  assert.ok(a4.includes('Overdue Bills, Late Fees & Discounts Audit Ledger'));
+  assert.ok(a4.includes('Test Customer'));
+
+  const thermal = generateLateFeeAuditPrintHtml({ state, format: 'thermal', referenceDate: new Date('2026-08-20') });
+  assert.ok(thermal.includes('80mm'));
+  assert.ok(thermal.includes('Overdue Dues & Late Fees Manifest'));
+
+  // 3. SVG
+  const svg = renderLateFeeDiscountsSvg({
+    totalOverdueCount: 5,
+    eligibleCount: 3,
+    appliedCount: 2,
+    totalLateFeeAppliedPkr: 200,
+    totalDiscountsGivenPkr: 150,
+    totalOverdueBalancePkr: 4500,
+    policyEnabled: true
+  });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('PKR 4500'));
+  assert.ok(svg.includes('+PKR 200'));
+  assert.ok(svg.includes('-PKR 150'));
+  assert.ok(svg.includes('ENABLED'));
+});
+
+test('DOM elements for Late Fee Manager modal, quick action button, and discount inputs exist in index.html, styles.css, and app.js', () => {
+  const indexHtml = read('index.html');
+  const stylesCss = read('styles.css');
+  const appJs = read('app.js');
+
+  // 1. index.html checks
+  assert.ok(indexHtml.includes('id="quickActionLateFeeManager"'), 'index.html contains quickActionLateFeeManager button');
+  assert.ok(indexHtml.includes('id="lateFeeManagerModal"'), 'index.html contains lateFeeManagerModal dialog');
+  assert.ok(indexHtml.includes('id="lateFeePolicyToggle"'), 'index.html contains policy toggle checkbox');
+  assert.ok(indexHtml.includes('id="lateFeeDefaultAmountInput"'), 'index.html contains default amount input');
+  assert.ok(indexHtml.includes('id="lateFeeGraceDaysInput"'), 'index.html contains grace days input');
+  assert.ok(indexHtml.includes('id="lateFeeBatchApplyBtn"'), 'index.html contains batch apply button');
+  assert.ok(indexHtml.includes('id="lateFeeBatchWaiveBtn"'), 'index.html contains batch waive button');
+  assert.ok(indexHtml.includes('id="lateFeePrintA4Btn"'), 'index.html contains print A4 button');
+  assert.ok(indexHtml.includes('id="lateFeeExportCsvBtn"'), 'index.html contains export CSV button');
+
+  // 2. styles.css checks
+  assert.ok(stylesCss.includes('.late-fee-modal'), 'styles.css has .late-fee-modal');
+  assert.ok(stylesCss.includes('.late-fee-policy-card'), 'styles.css has .late-fee-policy-card');
+  assert.ok(stylesCss.includes('.late-fee-policy-grid'), 'styles.css has .late-fee-policy-grid');
+  assert.ok(stylesCss.includes('.apply-late-fee-btn'), 'styles.css has .apply-late-fee-btn');
+  assert.ok(stylesCss.includes('.waive-late-fee-btn'), 'styles.css has .waive-late-fee-btn');
+  assert.ok(stylesCss.includes('[data-theme="dark"] .late-fee-modal'), 'styles.css has dark mode for late-fee-modal');
+
+  // 3. app.js checks
+  assert.ok(appJs.includes('lateFeeModalController'), 'app.js includes lateFeeModalController');
+  assert.ok(appJs.includes('setupLateFeeModal'), 'app.js calls setupLateFeeModal');
+  assert.ok(appJs.includes('discountReason'), 'app.js handles discountReason');
+  assert.ok(appJs.includes('data-apply-late-fee'), 'app.js handles data-apply-late-fee clicks');
+  assert.ok(appJs.includes('data-waive-late-fee'), 'app.js handles data-waive-late-fee clicks');
 });
 
 

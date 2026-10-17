@@ -466,7 +466,7 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
         <div class="batch-slip-grid">
           <div class="batch-slip-field">
             <span class="batch-field-label">Customer ID / Name:</span>
-            <strong>#${customer.id} · ${customer.name || 'Unnamed'}</strong>
+            <strong>#${customer.customerNumber || customer.id} · ${customer.name || 'Unnamed'}</strong>
           </div>
           <div class="batch-slip-field">
             <span class="batch-field-label">Billing Month:</span>
@@ -497,11 +497,16 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
             <strong class="batch-balance">PKR ${balance.toLocaleString()}</strong>
           </div>
         </div>
+        <div class="batch-slip-actions">
+          <button type="button" class="btn-xs whatsapp-btn batch-slip-wa-btn" data-cust-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Send WhatsApp bill reminder">
+            <span>💬 WhatsApp Reminder</span>
+          </button>
+        </div>
         <footer class="batch-slip-footer">
           <div class="batch-slip-note">Payment is due by 5th of each month. Inquiries: Shahdara ISP Support</div>
           <div class="batch-slip-stub">
             <span class="batch-stub-cut">✂ Office Tear-off Stub</span>
-            <span>#${customer.id} · ${customer.name} · PKR ${balance.toLocaleString()} due for ${month}</span>
+            <span>#${customer.customerNumber || customer.id} · ${customer.name} · PKR ${balance.toLocaleString()} due for ${month}</span>
           </div>
         </footer>
       </article>
@@ -567,7 +572,7 @@ export function wirePhoneInputMask(inputEl) {
  * @param {Date} [options.referenceDate=new Date()]
  * @returns {Object}
  */
-export function formatCustomerStatement(customer, { range = 'all', referenceDate = new Date() } = {}) {
+export function formatCustomerStatement(customer, { range = 'all', referenceDate = new Date(), storage = null, adjustments = null } = {}) {
   if (!customer) {
     return {
       customer: null,
@@ -616,7 +621,39 @@ export function formatCustomerStatement(customer, { range = 'all', referenceDate
     }
   }
 
-  // Sort chronologically ascending. On same date, bills come before payments so charge is debited before credited.
+  // Gather customer adjustment vouchers (discounts, waivers, pro-rata package migrations)
+  const voucherList = Array.isArray(adjustments) ? adjustments : (() => {
+    if (!storage) return [];
+    try {
+      const raw = storage.getItem(ADJUSTMENT_VOUCHERS_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  if (Array.isArray(voucherList)) {
+    for (const v of voucherList) {
+      if (v && (v.customerId === customer.id || (v.customerNumber && String(v.customerNumber) === String(customer.customerNumber)))) {
+        const vDate = v.date || v.appliedDate || (v.month ? `${v.month}-05` : '1970-01-01');
+        const adjAmount = Number(v.amount ?? 0);
+        const isCredit = v.type === 'credit' || adjAmount < 0 || v.category === 'discount' || v.category === 'waiver' || v.category === 'prorated_package_change';
+        const absAmount = Math.abs(adjAmount);
+        allEvents.push({
+          date: vDate,
+          type: 'adjustment',
+          month: v.month || '',
+          description: `Adjustment · ${v.categoryLabel || v.category || 'Manual Adjustment'}${v.reason ? ` (${v.reason})` : ''}`,
+          charge: isCredit ? 0 : absAmount,
+          credit: isCredit ? absAmount : 0,
+          method: 'Voucher',
+          ref: v.id || v.voucherId || ''
+        });
+      }
+    }
+  }
+
+  // Sort chronologically ascending. On same date, bills come before payments/adjustments so charge is debited before credited.
   allEvents.sort((a, b) => {
     const cmp = String(a.date).localeCompare(String(b.date));
     if (cmp !== 0) return cmp;
@@ -810,6 +847,73 @@ export function generateCustomerStatementHtml(statement) {
       </footer>
     </article>
   `;
+}
+
+/**
+ * Formats a concise bilingual Urdu & English WhatsApp summary of the customer account ledger statement.
+ * @param {Object} statement - Result of formatCustomerStatement
+ * @returns {string} Formatted text suitable for WhatsApp dispatch
+ */
+export function formatCustomerStatementWhatsApp(statement) {
+  if (!statement || !statement.customer) {
+    return 'Customer ledger information is currently unavailable.';
+  }
+
+  const { customer, range, openingBalance, totalBilled, totalPaid, currentBalance, events } = statement;
+  const rangeLabels = {
+    all: 'All-time Ledger / مکمل کھاتہ',
+    '3m': 'Last 3 Months / گزشتہ 3 ماہ',
+    '6m': 'Last 6 Months / گزشتہ 6 ماہ',
+    '12m': 'Last 12 Months / گزشتہ سال',
+    ytd: 'Current Calendar Year / سال رواں'
+  };
+  const rangeLabel = rangeLabels[range] || 'All-time Ledger / مکمل کھاتہ';
+  const today = new Date().toISOString().slice(0, 10);
+  const custId = customer.customerNumber ? `#${customer.customerNumber}` : `#${customer.id}`;
+
+  const lines = [
+    `*Shahdara ISP - Customer Account Statement*`,
+    `*شاہدرہ انٹرنیٹ سروسز - کھاتہ اسٹیٹمنٹ*`,
+    `--------------------------------`,
+    `👤 *Subscriber:* ${customer.name} (${custId})`,
+    `📍 *Area / Mohalla:* ${customer.area || 'Shahdara Area'}`,
+    `📦 *Package:* ${customer.package || 'Internet Package'}`,
+    `📅 *Statement Date:* ${today}`,
+    `⏳ *Period:* ${rangeLabel}`,
+    `--------------------------------`,
+    `📊 *FINANCIAL SUMMARY / مالیاتی خلاصہ:*`
+  ];
+
+  if (openingBalance !== 0) {
+    lines.push(`• Opening Balance / پچھلا بقایا: *PKR ${Number(openingBalance).toLocaleString()}*`);
+  }
+  lines.push(`• Total Billed Charges / کل بلز: *PKR ${Number(totalBilled).toLocaleString()}*`);
+  lines.push(`• Total Payments Received / کل وصولی: *PKR ${Number(totalPaid).toLocaleString()}*`);
+  lines.push(`• Net Current Balance / موجودہ بقایا: *PKR ${Number(currentBalance).toLocaleString()}*`);
+
+  if (currentBalance > 0) {
+    lines.push(`⚠️ *Status:* Dues Pending (برائے مہربانی بقایا جات جلد ادا فرمائیں)`);
+  } else {
+    lines.push(`✅ *Status:* Account Settled / Clear (اکاؤنٹ کلیئر ہے، شکریہ)`);
+  }
+
+  if (Array.isArray(events) && events.length > 0) {
+    lines.push(`--------------------------------`);
+    lines.push(`📝 *RECENT TRANSACTIONS / حالیہ لین دین:*`);
+    const recent = events.slice(-5);
+    for (const ev of recent) {
+      const typeIcon = ev.type === 'bill' ? '🧾' : ev.type === 'payment' ? '💵' : '⚙️';
+      const amtStr = ev.charge > 0 ? `+PKR ${Number(ev.charge).toLocaleString()}` : `-PKR ${Number(ev.credit).toLocaleString()}`;
+      lines.push(`${typeIcon} ${ev.date} · ${ev.description}: ${amtStr} (Bal: PKR ${Number(ev.runningBalance).toLocaleString()})`);
+    }
+  }
+
+  lines.push(`--------------------------------`);
+  lines.push(`💳 *Payment Modes:* EasyPaisa · JazzCash · Cash Collection`);
+  lines.push(`📞 *Helpdesk & Inquiries:* Shahdara ISP Support`);
+  lines.push(`_Automated billing summary generated by Shahdara ISP Billing System._`);
+
+  return lines.join('\n');
 }
 
 /**

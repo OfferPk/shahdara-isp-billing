@@ -850,6 +850,16 @@
             </div>
             <div id="dashboardOltChassisChart" class="chart-svg-container" role="img" aria-label="Optical OLT Chassis Line Card Slot Elevation and Splitter Link Budget Chart"></div>
           </article>
+          <article class="dashboard-chart-card chart-card-srv6">
+            <div class="chart-card-header chart-card-header-flex">
+              <div>
+                <h4 class="chart-title">Carrier SRv6 (RFC 8986 / 8754) Network Programming Matrix</h4>
+                <p class="chart-subtitle">IPv6 Segment Routing Header (SRH), End.DT4/DT6 Tenant VRF, Micro-SID (uSID) &amp; Path MTU Telemetry</p>
+              </div>
+              <button id="dashboardOpenSrv6ModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">SRv6 Policy Diagnostics</button>
+            </div>
+            <div id="dashboardSrv6Chart" class="chart-svg-container" role="img" aria-label="Carrier Segment Routing over IPv6 Network Programming and Path MTU Chart"></div>
+          </article>
         </div>
 
 
@@ -4828,6 +4838,87 @@
               <button id="oltChassisExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
             </div>
             <button id="oltChassisCopyReportBtn" class="primary-button" type="button">📋 Copy OLT Audit Report</button>
+          </div>
+        </div>
+      </dialog>
+      <dialog id="dashboardSrv6Modal" class="dashboard-modal srv6-modal" aria-labelledby="dashboardSrv6ModalTitle">
+        <div class="dashboard-modal-card srv6-modal-card">
+          <div class="dashboard-modal-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+            <div>
+              <h3 id="dashboardSrv6ModalTitle">Carrier SRv6 (RFC 8986 / 8754) Network Programming Matrix</h3>
+              <p class="modal-subtitle" style="margin: 0; font-size: 0.85rem; color: var(--text-muted, #94a3b8);">IPv6 Segment Routing Header (SRH), End.DT4/DT6 Tenant VRFs, Micro-SID (uSID) Compression &amp; Path MTU Analysis</p>
+            </div>
+            <button id="dashboardSrv6ModalCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">✕</button>
+          </div>
+
+          <div class="sim-controls-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="sim-control-group">
+              <label for="srv6PolicySelect">Target SRv6 Policy:</label>
+              <select id="srv6PolicySelect" class="form-select">
+                <option value="shahdara-core-srv6-l3vpn">Shahdara Core L3VPN (Baradari to Begum Kot, End.DT4)</option>
+                <option value="jia-musa-dual-stack-broadband">Jia Musa Dual-Stack Broadband Ingress (End.DT46)</option>
+                <option value="nayatel-transit-te-strict">Nayatel Strict Low-Latency TE Path (End.X)</option>
+                <option value="medical-plaza-teleradiology-dx2">Shahdara Medical Plaza VPWS (End.DX2)</option>
+                <option value="vandala-wholesale-backhaul-jumbo">Vandala Wholesale 9000-MTU Jumbo SRv6 (End.DT4)</option>
+              </select>
+            </div>
+
+            <div class="sim-control-group">
+              <label for="srv6PayloadSlider">Customer L3 Payload: <span id="srv6PayloadLabel" class="sim-val-pill">1420 Bytes</span></label>
+              <input type="range" id="srv6PayloadSlider" min="500" max="8900" step="20" value="1420" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group">
+              <label for="srv6MtuSlider">Interface Link MTU: <span id="srv6MtuLabel" class="sim-val-pill">1500 Bytes</span></label>
+              <input type="range" id="srv6MtuSlider" min="1280" max="9216" step="100" value="1500" class="otdr-slider">
+            </div>
+
+            <div class="sim-control-group" style="display: flex; align-items: center; gap: 8px; padding-top: 18px;">
+              <input type="checkbox" id="srv6MicroSidToggle" style="width: 18px; height: 18px; cursor: pointer;">
+              <label for="srv6MicroSidToggle" style="cursor: pointer; font-size: 0.85rem; font-weight: 600;">Enable Micro-SID (uSID) Compression</label>
+            </div>
+          </div>
+
+          <div class="srv6-action-bar" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px;">
+            <button id="srv6ResetBtn" class="secondary-button" type="button">🔄 Reset Policy Baseline</button>
+          </div>
+
+          <div class="srv6-stat-grid">
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Forwarding Health</span>
+              <span id="srv6StatStatus" class="srv6-stat-val optimal">Optimal</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">SRv6 Overhead</span>
+              <span id="srv6StatOverhead" class="srv6-stat-val">96 B (6.4%)</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Effective PMTU</span>
+              <span id="srv6StatPmtu" class="srv6-stat-val">1404 B</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Headroom Margin</span>
+              <span id="srv6StatHeadroom" class="srv6-stat-val">+84 B</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">uSID Compression</span>
+              <span id="srv6StatSavings" class="srv6-stat-val">Disabled</span>
+            </div>
+            <div class="srv6-stat-card">
+              <span class="srv6-stat-label">Est. Latency</span>
+              <span id="srv6StatLatency" class="srv6-stat-val">~1.500 ms</span>
+            </div>
+          </div>
+
+          <div id="srv6ModalDiagramContainer" class="otdr-modal-chart-wrap" role="img" aria-label="Carrier SRv6 Packet Header Encapsulation and Segment Journey Diagram"></div>
+
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <button id="srv6FilterAreaBtn" class="secondary-button" type="button">Inspect Linked Subscribers</button>
+              <button id="srv6ExportJsonBtn" class="secondary-button" type="button">Export JSON</button>
+              <button id="srv6ExportCsvBtn" class="secondary-button" type="button">Export CSV</button>
+            </div>
+            <button id="srv6CopyReportBtn" class="primary-button" type="button">📋 Copy SRv6 Audit Report</button>
           </div>
         </div>
       </dialog>

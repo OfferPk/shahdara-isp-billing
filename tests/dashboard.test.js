@@ -15412,6 +15412,326 @@ test('index.html and dashboard.css contain Optical OLT Chassis markup and styles
   assert.ok(css.includes('.olt-chassis-svg'));
 });
 
+test('SRV6_CONSTANTS and SHAHDARA_SRV6_POLICIES define valid RFC 8986 and RFC 8754 configurations', async () => {
+  const { SRV6_CONSTANTS, SHAHDARA_SRV6_POLICIES } = await import('../dashboard.js');
+
+  assert.equal(SRV6_CONSTANTS.HEADER_SIZES.IPV6_BASE_BYTES, 40);
+  assert.equal(SRV6_CONSTANTS.HEADER_SIZES.SRH_BASE_BYTES, 8);
+  assert.equal(SRV6_CONSTANTS.HEADER_SIZES.CLASSIC_SID_BYTES, 16);
+  assert.equal(SRV6_CONSTANTS.HEADER_SIZES.USID_BLOCK_BYTES, 16);
+
+  assert.ok(SRV6_CONSTANTS.BEHAVIORS.END.includes('End'));
+  assert.ok(SRV6_CONSTANTS.BEHAVIORS.END_DT4.includes('End.DT4'));
+  assert.ok(SRV6_CONSTANTS.BEHAVIORS.END_DT6.includes('End.DT6'));
+  assert.ok(SRV6_CONSTANTS.BEHAVIORS.END_DX2.includes('End.DX2'));
+
+  assert.equal(SHAHDARA_SRV6_POLICIES.length, 5);
+  SHAHDARA_SRV6_POLICIES.forEach(p => {
+    assert.ok(p.id);
+    assert.ok(p.name);
+    assert.ok(p.type);
+    assert.ok(p.primaryArea);
+    assert.ok(p.targetArea);
+    assert.ok(p.ingressPe);
+    assert.ok(p.egressPe);
+    assert.ok(Array.isArray(p.segmentList) && p.segmentList.length >= 2);
+    assert.ok(p.interfaceMtu >= 1500);
+    assert.ok(p.monthlyRevenuePkr > 1000000);
+  });
+});
+
+test('calculateSrv6HeaderOverhead and calculateEffectivePathMtu compute correct byte budgets', async () => {
+  const { calculateSrv6HeaderOverhead, calculateEffectivePathMtu } = await import('../dashboard.js');
+
+  // Classic 128-bit SID overhead with 3 SIDs: 40 + 8 + (3 * 16) = 96 Bytes
+  const classic3 = calculateSrv6HeaderOverhead(3, false);
+  assert.equal(classic3.ipv6Base, 40);
+  assert.equal(classic3.srhBase, 8);
+  assert.equal(classic3.sidListBytes, 48);
+  assert.equal(classic3.totalOverhead, 96);
+  assert.equal(classic3.mode, 'Classic SRv6 (128-bit SIDs)');
+
+  // Micro-SID (uSID) with 3 SIDs: 40 + 8 + 16 = 64 Bytes
+  const usid3 = calculateSrv6HeaderOverhead(3, true);
+  assert.equal(usid3.ipv6Base, 40);
+  assert.equal(usid3.srhBase, 8);
+  assert.equal(usid3.sidListBytes, 16);
+  assert.equal(usid3.totalOverhead, 64);
+  assert.equal(usid3.mode, 'uSID (Micro-Segment Routing)');
+
+  // Effective Path MTU
+  assert.equal(calculateEffectivePathMtu(1500, 96), 1404);
+  assert.equal(calculateEffectivePathMtu(1500, 64), 1436);
+  assert.equal(calculateEffectivePathMtu(9000, 96), 8904);
+});
+
+test('calculateSrv6Dynamics and state mutators evaluate headroom, latency, and status transitions', async () => {
+  const {
+    calculateSrv6Dynamics,
+    getSrv6SelectedPolicyId,
+    setSrv6SelectedPolicyId,
+    getSrv6PayloadBytes,
+    setSrv6PayloadBytes,
+    getSrv6InterfaceMtu,
+    setSrv6InterfaceMtu,
+    getSrv6MicroSidMode,
+    setSrv6MicroSidMode,
+    getSrv6SegmentsLeft,
+    setSrv6SegmentsLeft,
+    resetSrv6SimState,
+    SRV6_CONSTANTS
+  } = await import('../dashboard.js');
+
+  resetSrv6SimState();
+  assert.equal(getSrv6SelectedPolicyId(), 'shahdara-core-srv6-l3vpn');
+
+  // Baseline dynamics
+  const dyn = calculateSrv6Dynamics();
+  assert.equal(dyn.policy.id, 'shahdara-core-srv6-l3vpn');
+  assert.equal(dyn.overhead.totalOverhead, 96);
+  assert.equal(dyn.payloadBytes, 1420);
+  assert.equal(dyn.interfaceMtu, 1500);
+  assert.equal(dyn.totalPacketBytes, 1516); // 1420 + 96 = 1516 > 1500 MTU -> Fragmentation risk
+  assert.equal(dyn.status, SRV6_CONSTANTS.STATUS.FRAGMENTATION_RISK);
+  assert.equal(dyn.statusClass, 'critical');
+
+  // Switch to uSID compression
+  setSrv6MicroSidMode(true);
+  const dynUsid = calculateSrv6Dynamics();
+  assert.equal(dynUsid.overhead.totalOverhead, 64);
+  assert.equal(dynUsid.totalPacketBytes, 1484); // 1420 + 64 = 1484 <= 1500 MTU
+  assert.equal(dynUsid.headroomBytes, 16); // Headroom < 50 -> Elevated MTU
+  assert.equal(dynUsid.status, SRV6_CONSTANTS.STATUS.ELEVATED_MTU);
+  assert.equal(dynUsid.statusClass, 'degraded');
+  assert.equal(dynUsid.compressionSavingsBytes, 32);
+
+  // Set safe payload
+  setSrv6PayloadBytes(1380);
+  const dynSafe = calculateSrv6Dynamics();
+  assert.equal(dynSafe.headroomBytes, 56);
+  assert.equal(dynSafe.status, SRV6_CONSTANTS.STATUS.OPTIMAL);
+  assert.equal(dynSafe.statusClass, 'optimal');
+
+  // Test mutators and reset
+  setSrv6SelectedPolicyId('vandala-wholesale-backhaul-jumbo');
+  assert.equal(getSrv6SelectedPolicyId(), 'vandala-wholesale-backhaul-jumbo');
+  assert.equal(getSrv6InterfaceMtu(), 9000);
+
+  setSrv6SegmentsLeft(1);
+  assert.equal(getSrv6SegmentsLeft(), 1);
+
+  resetSrv6SimState();
+  assert.equal(getSrv6SelectedPolicyId(), 'shahdara-core-srv6-l3vpn');
+  assert.equal(getSrv6InterfaceMtu(), 1500);
+});
+
+test('calculateSrv6Metrics aggregates carrier bandwidth, policies, and revenue', async () => {
+  const { calculateSrv6Metrics } = await import('../dashboard.js');
+
+  const metrics = calculateSrv6Metrics();
+  assert.equal(metrics.totalPolicies, 5);
+  assert.ok(metrics.totalBandwidthGbps >= 120);
+  assert.ok(metrics.totalRevenuePkr > 10000000);
+  assert.ok(metrics.totalSubscribers > 2000);
+  assert.ok(metrics.avgOverheadBytes > 50);
+  assert.ok(metrics.currentDynamics);
+});
+
+test('renderSrv6DiagramSvg, generateSrv6Report, exportSrv6Json, and exportSrv6Csv generate valid outputs', async () => {
+  const {
+    calculateSrv6Dynamics,
+    renderSrv6DiagramSvg,
+    generateSrv6Report,
+    exportSrv6Json,
+    exportSrv6Csv
+  } = await import('../dashboard.js');
+
+  const dyn = calculateSrv6Dynamics();
+
+  // 1. SVG
+  const svgLight = renderSrv6DiagramSvg(dyn, { isDark: false });
+  assert.ok(svgLight.includes('<svg'));
+  assert.ok(svgLight.includes('IPv6 Outer'));
+  assert.ok(svgLight.includes('SRH Base'));
+  assert.ok(svgLight.includes('SID List'));
+  assert.ok(svgLight.includes('ACTIVE SID POINTER'));
+
+  const svgDark = renderSrv6DiagramSvg(dyn, { isDark: true });
+  assert.ok(svgDark.includes('#0f172a'));
+
+  // 2. Report
+  const report = generateSrv6Report(dyn);
+  assert.ok(report.includes('SHAHDARA METRO CARRIER NETWORK - SRv6 RFC 8986/8754 AUDIT REPORT'));
+  assert.ok(report.includes('Policy Identifier'));
+  assert.ok(report.includes('PROGRAMMED SEGMENT LIST'));
+
+  // 3. JSON
+  const jsonStr = exportSrv6Json(dyn);
+  const parsed = JSON.parse(jsonStr);
+  assert.ok(parsed.standard.includes('RFC 8986'));
+  assert.ok(parsed.policy.id);
+  assert.ok(parsed.telemetry.totalPacketBytes > 0);
+
+  // 4. CSV
+  const csvStr = exportSrv6Csv(dyn);
+  assert.ok(csvStr.includes('PolicyId,PolicyName,ServiceType'));
+  assert.ok(csvStr.includes('shahdara-core-srv6-l3vpn'));
+});
+
+test('setupSrv6Modal wires controls, updates SVG charts, and handles user interactions', async () => {
+  const { setupSrv6Modal } = await import('../dashboard.js');
+
+  const listeners = {};
+  function createMockEl(id) {
+    listeners[id] = {};
+    return {
+      id,
+      value: '',
+      checked: false,
+      innerHTML: '',
+      textContent: '',
+      open: false,
+      style: {},
+      className: '',
+      addEventListener(event, fn) {
+        listeners[id][event] = fn;
+      },
+      click() {
+        if (listeners[id].click) listeners[id].click();
+      },
+      input() {
+        if (listeners[id].input) listeners[id].input();
+      },
+      change() {
+        if (listeners[id].change) listeners[id].change();
+      },
+      showModal() {
+        this.open = true;
+      },
+      close() {
+        this.open = false;
+      },
+      setAttribute(k, v) {
+        if (k === 'open') this.open = true;
+      },
+      removeAttribute(k) {
+        if (k === 'open') this.open = false;
+      }
+    };
+  }
+
+  const elements = {
+    dashboardSrv6Modal: createMockEl('dashboardSrv6Modal'),
+    dashboardOpenSrv6ModalBtn: createMockEl('dashboardOpenSrv6ModalBtn'),
+    dashboardSrv6ModalCloseBtn: createMockEl('dashboardSrv6ModalCloseBtn'),
+    dashboardSrv6Chart: createMockEl('dashboardSrv6Chart'),
+    srv6ModalDiagramContainer: createMockEl('srv6ModalDiagramContainer'),
+    srv6PolicySelect: createMockEl('srv6PolicySelect'),
+    srv6PayloadSlider: createMockEl('srv6PayloadSlider'),
+    srv6PayloadLabel: createMockEl('srv6PayloadLabel'),
+    srv6MtuSlider: createMockEl('srv6MtuSlider'),
+    srv6MtuLabel: createMockEl('srv6MtuLabel'),
+    srv6MicroSidToggle: createMockEl('srv6MicroSidToggle'),
+    srv6ResetBtn: createMockEl('srv6ResetBtn'),
+    srv6StatStatus: createMockEl('srv6StatStatus'),
+    srv6StatOverhead: createMockEl('srv6StatOverhead'),
+    srv6StatPmtu: createMockEl('srv6StatPmtu'),
+    srv6StatHeadroom: createMockEl('srv6StatHeadroom'),
+    srv6StatSavings: createMockEl('srv6StatSavings'),
+    srv6StatLatency: createMockEl('srv6StatLatency'),
+    srv6FilterAreaBtn: createMockEl('srv6FilterAreaBtn'),
+    srv6ExportJsonBtn: createMockEl('srv6ExportJsonBtn'),
+    srv6ExportCsvBtn: createMockEl('srv6ExportCsvBtn'),
+    srv6CopyReportBtn: createMockEl('srv6CopyReportBtn')
+  };
+
+  elements.srv6PolicySelect.value = 'shahdara-core-srv6-l3vpn';
+  elements.srv6PayloadSlider.value = '1420';
+  elements.srv6MtuSlider.value = '1500';
+
+  const mockDoc = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+    documentElement: {
+      getAttribute: () => 'light'
+    }
+  };
+
+  let filteredArea = null;
+  let toastMsg = null;
+
+  const controller = setupSrv6Modal({}, {
+    document: mockDoc,
+    onFilterArea: area => { filteredArea = area; },
+    onToast: msg => { toastMsg = msg; }
+  });
+
+  assert.ok(controller);
+  controller.open();
+  assert.equal(elements.dashboardSrv6Modal.open, true);
+  assert.ok(elements.dashboardSrv6Chart.innerHTML.includes('<svg'));
+  assert.ok(elements.srv6ModalDiagramContainer.innerHTML.includes('<svg'));
+
+  // Test slider adjustment
+  elements.srv6PayloadSlider.value = '1300';
+  elements.srv6PayloadSlider.input();
+  assert.equal(elements.srv6PayloadLabel.textContent, '1300 Bytes');
+
+  // Test checkbox toggle
+  elements.srv6MicroSidToggle.checked = true;
+  elements.srv6MicroSidToggle.change();
+  assert.ok(elements.srv6StatSavings.textContent.includes('+'));
+
+  // Test reset
+  elements.srv6ResetBtn.click();
+  assert.ok(toastMsg.includes('reset to baseline'));
+
+  // Test export buttons
+  elements.srv6ExportJsonBtn.click();
+  assert.ok(toastMsg.includes('JSON'));
+
+  elements.srv6ExportCsvBtn.click();
+  assert.ok(toastMsg.includes('CSV'));
+
+  elements.srv6CopyReportBtn.click();
+  assert.ok(toastMsg.includes('audit report'));
+
+  // Test filter area
+  elements.srv6FilterAreaBtn.click();
+  assert.equal(filteredArea, 'Baradari');
+
+  controller.close();
+  assert.equal(elements.dashboardSrv6Modal.open, false);
+});
+
+test('index.html and dashboard.css contain SRv6 markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('chart-card-srv6'));
+  assert.ok(html.includes('id="dashboardSrv6Chart"'));
+  assert.ok(html.includes('id="dashboardOpenSrv6ModalBtn"'));
+  assert.ok(html.includes('id="dashboardSrv6Modal"'));
+  assert.ok(html.includes('id="srv6PolicySelect"'));
+  assert.ok(html.includes('id="srv6PayloadSlider"'));
+  assert.ok(html.includes('id="srv6MtuSlider"'));
+  assert.ok(html.includes('id="srv6MicroSidToggle"'));
+  assert.ok(html.includes('id="srv6ResetBtn"'));
+  assert.ok(html.includes('id="srv6ModalDiagramContainer"'));
+  assert.ok(html.includes('id="srv6ExportJsonBtn"'));
+  assert.ok(html.includes('id="srv6ExportCsvBtn"'));
+  assert.ok(html.includes('id="srv6CopyReportBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./dashboard.css'), 'utf-8');
+  assert.ok(css.includes('.chart-card-srv6'));
+  assert.ok(css.includes('.srv6-modal-card'));
+  assert.ok(css.includes('.srv6-svg'));
+  assert.ok(css.includes('.srv6-stat-grid'));
+});
+
+
 
 
 

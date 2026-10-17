@@ -5786,6 +5786,32 @@ export {
   setupOltChassisModal
 } from './dashboard-olt-chassis.js';
 
+export {
+  SRV6_CONSTANTS,
+  SHAHDARA_SRV6_POLICIES,
+  getSrv6SelectedPolicyId,
+  setSrv6SelectedPolicyId,
+  getSrv6PayloadBytes,
+  setSrv6PayloadBytes,
+  getSrv6InterfaceMtu,
+  setSrv6InterfaceMtu,
+  getSrv6MicroSidMode,
+  setSrv6MicroSidMode,
+  getSrv6SegmentsLeft,
+  setSrv6SegmentsLeft,
+  resetSrv6SimState,
+  calculateSrv6HeaderOverhead,
+  calculateEffectivePathMtu,
+  calculateSrv6Dynamics,
+  calculateSrv6Metrics,
+  renderSrv6DiagramSvg,
+  generateSrv6Report,
+  exportSrv6Json,
+  exportSrv6Csv,
+  setupSrv6Modal
+} from './dashboard-srv6.js';
+
+
 
 
 

@@ -11629,3 +11629,276 @@ test('DOM & CSS integration for Fast Connector QA Suite', () => {
   assert.ok(stylesCss.includes('#fastConnectorSvgContainer'));
   assert.ok(stylesCss.includes('[data-theme="dark"] #fastConnectorQaModal'));
 });
+
+test('calculateWindPressure and calculateAerodynamicWindForce compute physical cross-wind loads', async () => {
+  const { calculateWindPressure, calculateAerodynamicWindForce } = await import('../form-validation.js');
+
+  // Calm condition (0 km/h) -> 0 Pa, 0 N/m
+  assert.equal(calculateWindPressure(0), 0);
+  assert.equal(calculateAerodynamicWindForce(0, 10.5), 0);
+
+  // Moderate wind (36 km/h = 10 m/s) -> P = 0.613 * 10^2 = 61.3 Pa
+  const p36 = calculateWindPressure(36);
+  assert.ok(Math.abs(p36 - 61.3) < 0.1, `Expected ~61.3 Pa, got ${p36}`);
+
+  // Cable OD 10mm (0.01m) -> W_wind = 61.3 * 0.01 * 1.0 = 0.613 N/m
+  const w36 = calculateAerodynamicWindForce(36, 10.0);
+  assert.ok(Math.abs(w36 - 0.613) < 0.01, `Expected ~0.613 N/m, got ${w36}`);
+
+  // Monsoon gale (100 km/h = 27.78 m/s) -> P ≈ 473 Pa
+  const p100 = calculateWindPressure(100);
+  assert.ok(p100 > 450 && p100 < 500, `Expected ~473 Pa, got ${p100}`);
+});
+
+test('calculateResultantUnitLoad calculates vector sum of gravity weight and wind force', async () => {
+  const { calculateResultantUnitLoad } = await import('../form-validation.js');
+
+  // Cable 0.1 kg/m (weight ~0.98 N/m), zero wind
+  const calm = calculateResultantUnitLoad(0.1, 0);
+  assert.ok(Math.abs(calm.unitGravityWeightN - 0.9807) < 0.01);
+  assert.equal(calm.unitWindForceN, 0);
+  assert.ok(Math.abs(calm.resultantUnitLoadN - 0.9807) < 0.01);
+  assert.equal(calm.blowoutAngleDeg, 0);
+
+  // Equal gravity and wind: weight 1.0 N/m, wind 1.0 N/m -> sqrt(2) ≈ 1.414, angle 45°
+  const angled = calculateResultantUnitLoad(1.0 / 9.80665, 1.0);
+  assert.ok(Math.abs(angled.resultantUnitLoadN - 1.4142) < 0.02);
+  assert.ok(Math.abs(angled.blowoutAngleDeg - 45.0) < 0.5);
+});
+
+test('calculateMidspanSag computes parabolic catenary sag and geometric components', async () => {
+  const { calculateMidspanSag } = await import('../form-validation.js');
+
+  // 100m span, W = 1.0 N/m, H = 1000 N: Sag = (1.0 * 10000) / (8 * 1000) = 10000 / 8000 = 1.25m
+  const sag = calculateMidspanSag(1.0, 100.0, 1000.0, 0.0);
+  assert.equal(sag.resultantSagM, 1.25);
+  assert.equal(sag.verticalSagM, 1.25);
+  assert.equal(sag.horizontalBlowoutSagM, 0);
+  assert.equal(sag.sagPercentOfSpan, 1.25);
+
+  // 30° blowout angle
+  const sagAngled = calculateMidspanSag(1.0, 100.0, 1000.0, 30.0);
+  assert.equal(sagAngled.resultantSagM, 1.25);
+  assert.ok(Math.abs(sagAngled.verticalSagM - 1.083) < 0.01);
+  assert.ok(Math.abs(sagAngled.horizontalBlowoutSagM - 0.625) < 0.01);
+});
+
+test('calculateMaxCableTension and stress percentage evaluations evaluate limits', async () => {
+  const { calculateMaxCableTension, calculateEverydayStressPercent, calculateMaxWorkingTensionPercent } = await import('../form-validation.js');
+
+  // H = 1000 N, W = 1.5 N/m, S = 2.0 m -> T_max = 1000 + (1.5 * 2.0) = 1003 N
+  const tMax = calculateMaxCableTension(1000.0, 1.5, 2.0);
+  assert.equal(tMax, 1003.0);
+
+  // RTS = 10,000 N (10 kN). Baseline tension = 1500 N -> EDS = 15.0%
+  const eds = calculateEverydayStressPercent(1500.0, 10000.0);
+  assert.equal(eds, 15.0);
+
+  // Storm max tension = 3800 N -> MWT = 38.0%
+  const mwt = calculateMaxWorkingTensionPercent(3800.0, 10000.0);
+  assert.equal(mwt, 38.0);
+});
+
+test('calculateAeolianFrequencyAndDampers determines vortex shedding and damper requirements', async () => {
+  const { calculateAeolianFrequencyAndDampers } = await import('../form-validation.js');
+
+  // Short span (45m), low EDS (14%) -> no dampers required
+  const shortSpan = calculateAeolianFrequencyAndDampers(45.0, 10.0, 14.0);
+  assert.equal(shortSpan.dampersRequired, false);
+  assert.equal(shortSpan.recommendedDamperCount, 0);
+  assert.ok(shortSpan.vortexFrequencyHz > 50 && shortSpan.vortexFrequencyHz < 80);
+
+  // Medium span (85m > 70m) -> 2 dampers required
+  const medSpan = calculateAeolianFrequencyAndDampers(85.0, 10.5, 16.0);
+  assert.equal(medSpan.dampersRequired, true);
+  assert.equal(medSpan.recommendedDamperCount, 2);
+  assert.match(medSpan.damperType, /Spiral Vibration Damper/);
+
+  // Long span (180m > 150m) -> 4 dampers required
+  const longSpan = calculateAeolianFrequencyAndDampers(180.0, 12.8, 17.5);
+  assert.equal(longSpan.dampersRequired, true);
+  assert.equal(longSpan.recommendedDamperCount, 4);
+});
+
+test('evaluateAdssSagTension evaluates field spans and generates appropriate verdicts', async () => {
+  const { evaluateAdssSagTension, SHAH_ADSS_PRESETS } = await import('../form-validation.js');
+
+  // Evaluate Vandala Road Commercial preset (65m span, 8.5m pole, 48°C heat, Req ≥ 5.5m)
+  const pVandala = SHAH_ADSS_PRESETS.PRESET_VANDALA_COMMERCIAL_ROAD;
+  const repVandala = evaluateAdssSagTension(pVandala);
+
+  assert.ok(repVandala.sagProfile.verticalSagM > 0);
+  assert.ok(repVandala.netGroundClearanceM > 5.5, `Net clearance ${repVandala.netGroundClearanceM}m should exceed 5.5m`);
+  assert.equal(repVandala.clearancePass, true);
+  assert.ok(repVandala.edsPercent <= 18.0);
+  assert.equal(repVandala.verdict.id, 'CERTIFIED_OPTIMAL');
+
+  // Evaluate low pole height causing clearance hazard
+  const repHazard = evaluateAdssSagTension({
+    cableTypeId: 'ADSS_24F_100M',
+    envConditionId: 'LAHORE_SUMMER_HEAT',
+    crossingClassId: 'COMMERCIAL_ROADWAY', // Requires 5.5m
+    spanLengthM: 100.0,
+    poleAttachmentHeightM: 6.0, // Very low pole
+    initialTensionN: 400.0 // Low tension causes high sag
+  });
+  assert.equal(repHazard.clearancePass, false);
+  assert.equal(repHazard.verdict.id, 'FAILED_CLEARANCE_HAZARD');
+  assert.ok(repHazard.deficiencyList.some(d => d.includes('Ground clearance')));
+
+  // Evaluate excessive stringing tension causing fatigue failure
+  const repOvertension = evaluateAdssSagTension({
+    cableTypeId: 'ADSS_24F_100M', // RTS = 10,000 N
+    envConditionId: 'SPRING_EDS_NOMINAL',
+    crossingClassId: 'RESIDENTIAL_STREET',
+    spanLengthM: 50.0,
+    poleAttachmentHeightM: 8.0,
+    initialTensionN: 2500.0 // 2500 N = 25% RTS (> 20% limit)
+  });
+  assert.equal(repOvertension.verdict.id, 'FAILED_OVERTENSION_FATIGUE');
+});
+
+test('validateAdssSagTensionInput validates mandatory form fields and engineering limits', async () => {
+  const { validateAdssSagTensionInput } = await import('../form-validation.js');
+
+  const valid = validateAdssSagTensionInput({
+    customer: 'Muhammad Arshad',
+    route: 'Pole A-01 to Pole A-02',
+    spanLengthM: 65,
+    poleAttachmentHeightM: 8.5,
+    initialTensionN: 1100
+  });
+  assert.equal(valid.valid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateAdssSagTensionInput({
+    customer: '',
+    route: '',
+    spanLengthM: -5,
+    poleAttachmentHeightM: 1.0,
+    initialTensionN: 10
+  });
+  assert.equal(invalid.valid, false);
+  assert.ok(invalid.errors.length >= 4);
+});
+
+test('buildAdssSagTensionRecord, LocalStorage persistence and metrics management', async () => {
+  const {
+    buildAdssSagTensionRecord,
+    saveAdssSagTensionCert,
+    getSavedAdssSagTensionCerts,
+    updateAdssSagTensionCertStatus,
+    clearAdssSagTensionCerts,
+    calculateAdssSagTensionMetrics,
+    SHAH_ADSS_PRESETS
+  } = await import('../form-validation.js');
+
+  clearAdssSagTensionCerts();
+  assert.deepEqual(getSavedAdssSagTensionCerts(), []);
+
+  const p = SHAH_ADSS_PRESETS.PRESET_VANDALA_COMMERCIAL_ROAD;
+  const rec1 = buildAdssSagTensionRecord(p);
+  assert.ok(rec1.certId.startsWith('ADSS-'));
+  assert.equal(rec1.customer, p.customer);
+
+  saveAdssSagTensionCert(rec1);
+  const saved1 = getSavedAdssSagTensionCerts();
+  assert.equal(saved1.length, 1);
+  assert.equal(saved1[0].certId, rec1.certId);
+
+  updateAdssSagTensionCertStatus(rec1.certId, 'RESOLVED');
+  const savedUpdated = getSavedAdssSagTensionCerts();
+  assert.equal(savedUpdated[0].status, 'RESOLVED');
+
+  const metrics = calculateAdssSagTensionMetrics(savedUpdated);
+  assert.equal(metrics.totalInspections, 1);
+  assert.equal(metrics.passRatePercent, 100.0);
+  assert.equal(metrics.avgSpanLengthM, p.spanLengthM);
+
+  clearAdssSagTensionCerts();
+});
+
+test('renderAdssSagTensionSvg produces valid vector SVG markup with telemetry elements', async () => {
+  const { evaluateAdssSagTension, renderAdssSagTensionSvg, SHAH_ADSS_PRESETS } = await import('../form-validation.js');
+
+  const analysis = evaluateAdssSagTension(SHAH_ADSS_PRESETS.PRESET_BARADARI_RAVI_CROSSING);
+  const svg = renderAdssSagTensionSvg(analysis);
+
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('class="adss-sag-tension-svg"'));
+  assert.ok(svg.includes('POLE A'));
+  assert.ok(svg.includes('POLE B'));
+  assert.ok(svg.includes('SPAN L = 160m'));
+  assert.ok(svg.includes('Sag:'));
+  assert.ok(svg.includes('Clearance:'));
+  assert.ok(svg.includes('TENSION:'));
+  assert.ok(svg.includes('EDS:'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateAdssSagTensionCertHtml, formatAdssSagTensionCertWhatsApp, and CSV export', async () => {
+  const {
+    buildAdssSagTensionRecord,
+    generateAdssSagTensionCertHtml,
+    formatAdssSagTensionCertWhatsApp,
+    generateAdssSagTensionCertsCsv,
+    SHAH_ADSS_PRESETS
+  } = await import('../form-validation.js');
+
+  const rec = buildAdssSagTensionRecord(SHAH_ADSS_PRESETS.PRESET_BEGUM_KOT_WAPDA_GRID);
+
+  const a4Html = generateAdssSagTensionCertHtml(rec, { format: 'a4' });
+  assert.ok(a4Html.includes('Outside Plant Aerial ADSS &amp; Span Sag QA Certificate'));
+  assert.ok(a4Html.includes(rec.certId));
+  assert.ok(a4Html.includes('WAPDA 11kV Medium-Voltage Electrical Line Separation'));
+
+  const thermalHtml = generateAdssSagTensionCertHtml(rec, { format: 'thermal' });
+  assert.ok(thermalHtml.includes('AERIAL ADSS SAG &amp; TENSION SLIP'));
+  assert.ok(thermalHtml.includes(rec.certId));
+
+  const waText = formatAdssSagTensionCertWhatsApp(rec);
+  assert.ok(waText.includes('SHAHDARA ISP · AERIAL ADSS SAG & TENSION QA'));
+  assert.ok(waText.includes(rec.certId));
+  assert.ok(waText.includes('Lineworker:'));
+
+  const csv = generateAdssSagTensionCertsCsv([rec]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Certificate ID,Date,Customer,Route / Location'));
+  assert.ok(csv.includes(rec.certId));
+});
+
+test('DOM & CSS integration for Outside Plant Aerial ADSS Sag & Tension QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openAdssSagTensionBtn"'));
+  assert.ok(indexHtml.includes('id="adssSagTensionModal"'));
+  assert.ok(indexHtml.includes('id="adssPresetSelect"'));
+  assert.ok(indexHtml.includes('id="adssCustInput"'));
+  assert.ok(indexHtml.includes('id="adssRouteInput"'));
+  assert.ok(indexHtml.includes('id="adssCableTypeSelect"'));
+  assert.ok(indexHtml.includes('id="adssEnvConditionSelect"'));
+  assert.ok(indexHtml.includes('id="adssCrossingClassSelect"'));
+  assert.ok(indexHtml.includes('id="adssSpanLengthInput"'));
+  assert.ok(indexHtml.includes('id="adssPoleHeightInput"'));
+  assert.ok(indexHtml.includes('id="adssTensionInput"'));
+  assert.ok(indexHtml.includes('id="adssDamperCheckbox"'));
+  assert.ok(indexHtml.includes('id="adssSaveCertBtn"'));
+  assert.ok(indexHtml.includes('id="adssPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="adssPrintThermalBtn"'));
+  assert.ok(indexHtml.includes('id="adssCopyWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="adssExportCsvBtn"'));
+  assert.ok(indexHtml.includes('id="adssSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupAdssSagTensionModal'));
+  assert.ok(appJs.includes('customerAdssSagTensionModalController'));
+  assert.ok(appJs.includes('#openAdssSagTensionBtn'));
+  assert.ok(appJs.includes('#adssSagTensionModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#adssSagTensionModal'));
+  assert.ok(stylesCss.includes('#adssSvgContainer'));
+});

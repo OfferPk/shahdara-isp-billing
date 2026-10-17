@@ -6121,3 +6121,24 @@ export {
   exportCleaverAuditsCsv,
   setupMobileCleaverModal
 } from './nav-fiber-cleaver.js';
+
+export {
+  OLTS_CERT_STORAGE_KEY,
+  OLTS_WAVELENGTHS,
+  REFERENCE_METHODS,
+  OLTS_CONNECTOR_TYPES,
+  OLTS_SPLICE_TYPES,
+  OLTS_PRESETS,
+  calculateTier1LossBudget,
+  calculateBidirectionalCertification,
+  renderOltsCertificationSvg,
+  renderOltsReferenceDiagramSvg,
+  generateOltsAuditReport,
+  generateOltsWhatsAppDispatch,
+  loadOltsAuditLog,
+  saveOltsAuditLog,
+  clearOltsAuditLog,
+  exportOltsAuditsCsv,
+  setupMobileOltsModal
+} from './nav-olts-cert.js';
+

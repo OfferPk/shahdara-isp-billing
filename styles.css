@@ -6285,7 +6285,9 @@ html, body {
   #spectralAttenuationModal,
   #spectralAttenuationModal .dashboard-modal-card,
   #foscSealModal,
-  #foscSealModal .dashboard-modal-card {
+  #foscSealModal .dashboard-modal-card,
+  #thermalCyclingModal,
+  #thermalCyclingModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;

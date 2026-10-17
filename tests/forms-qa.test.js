@@ -13589,4 +13589,216 @@ test('DOM & CSS integration for Outside Plant Fiber Splice Enclosure (FOSC) QA S
   assert.ok(stylesCss.includes('#foscSealModal'));
 });
 
+test('calculateThermalCyclingPhysics calculates thermal strain, micro-bending loss shift, and gel stability', async () => {
+  const { calculateThermalCyclingPhysics } = await import('../form-validation.js');
+
+  const analysis = calculateThermalCyclingPhysics({
+    profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
+    polymerId: 'PBT_POLYBUTYLENE',
+    gelId: 'SYNTHETIC_POLYBUTENE_GEL',
+    spanLengthKm: 4.8,
+    fiberCount: 24,
+    testMinTempC: -2,
+    testMaxTempC: 48,
+    measuredMaxDeltaAlphaDbKm: 0.038
+  });
+
+  assert.ok(analysis.profile);
+  assert.equal(analysis.profile.id, 'SHAHDARA_ROOFTOP_DIURNAL');
+  assert.ok(analysis.polymer);
+  assert.equal(analysis.polymer.id, 'PBT_POLYBUTYLENE');
+  assert.equal(analysis.deltaT, 50);
+  assert.ok(analysis.thermalStrainPercent > 0);
+  assert.equal(analysis.isGelFrozen, false);
+  assert.equal(analysis.isGelDripping, false);
+  assert.equal(analysis.measuredMaxDeltaAlphaDbKm, 0.038);
+  assert.ok(analysis.totalLinkThermalPenaltyDb > 0);
+  assert.equal(analysis.verdict.id, 'CERTIFIED_THERMAL_STABLE_PASS');
+});
+
+test('calculateThermalCyclingPhysics correctly flags Conditional Pass and Failed Hazard states', async () => {
+  const { calculateThermalCyclingPhysics } = await import('../form-validation.js');
+
+  // Conditional Pass due to mild drift (e.g. 0.085 dB/km)
+  const cond = calculateThermalCyclingPhysics({
+    profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
+    polymerId: 'POLYPROPYLENE_PP',
+    gelId: 'SYNTHETIC_POLYBUTENE_GEL',
+    measuredMaxDeltaAlphaDbKm: 0.085
+  });
+  assert.equal(cond.verdict.id, 'CONDITIONAL_PASS_MILD_DRIFT');
+
+  // Failed Hazard due to gel freezing crystallization below minimum temperature
+  const freezeFail = calculateThermalCyclingPhysics({
+    profileId: 'ARCTIC_FROST_FREEZE',
+    polymerId: 'PBT_POLYBUTYLENE',
+    gelId: 'MINERAL_PETROLEUM_JELLY', // Freezes at -8°C
+    testMinTempC: -15, // Below freeze point
+    testMaxTempC: 15,
+    measuredMaxDeltaAlphaDbKm: 0.185
+  });
+  assert.equal(freezeFail.isGelFrozen, true);
+  assert.equal(freezeFail.verdict.id, 'FAILED_THERMAL_MICROBEND_HAZARD');
+});
+
+test('validateThermalCyclingInput checks required fields and boundaries', async () => {
+  const { validateThermalCyclingInput } = await import('../form-validation.js');
+
+  const valid = validateThermalCyclingInput({
+    subscriberName: 'Baradari Plaza Feeder',
+    spanLengthKm: 4.8,
+    testMinTempC: -2,
+    testMaxTempC: 48,
+    measuredMaxDeltaAlphaDbKm: 0.038
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateThermalCyclingInput({
+    subscriberName: '',
+    spanLengthKm: -1,
+    testMinTempC: 50,
+    testMaxTempC: 20, // Min greater than Max
+    measuredMaxDeltaAlphaDbKm: -0.5
+  });
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 4);
+});
+
+test('buildThermalCyclingCertRecord produces valid record with THM- identifier', async () => {
+  const { buildThermalCyclingCertRecord } = await import('../form-validation.js');
+
+  const record = buildThermalCyclingCertRecord({
+    subscriberName: 'Vandala Road Aerial Drop',
+    routeDescription: 'Pole 18 to Pole 22',
+    profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
+    polymerId: 'LSZH_COMPOUND',
+    gelId: 'DRY_WATER_SWELLABLE_YARN',
+    spanLengthKm: 2.1
+  });
+
+  assert.ok(record.id.startsWith('THM-'));
+  assert.equal(record.subscriberName, 'Vandala Road Aerial Drop');
+  assert.ok(record.analysis);
+  assert.equal(record.analysis.polymer.id, 'LSZH_COMPOUND');
+});
+
+test('LocalStorage persistence and calculateThermalCyclingMetrics aggregator', async () => {
+  const {
+    getSavedThermalCyclingCerts,
+    saveThermalCyclingCert,
+    updateThermalCyclingCertStatus,
+    clearThermalCyclingCerts,
+    calculateThermalCyclingMetrics,
+    buildThermalCyclingCertRecord
+  } = await import('../form-validation.js');
+
+  clearThermalCyclingCerts();
+  assert.deepEqual(getSavedThermalCyclingCerts(), []);
+
+  const r1 = buildThermalCyclingCertRecord({
+    id: 'THM-202610-1001',
+    subscriberName: 'Test Thermal Alpha',
+    profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
+    measuredMaxDeltaAlphaDbKm: 0.035
+  });
+
+  saveThermalCyclingCert(r1);
+  const loaded = getSavedThermalCyclingCerts();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'THM-202610-1001');
+
+  updateThermalCyclingCertStatus('THM-202610-1001', 'RE_INSPECTED');
+  const reloaded = getSavedThermalCyclingCerts();
+  assert.equal(reloaded[0].status, 'RE_INSPECTED');
+
+  const metrics = calculateThermalCyclingMetrics(reloaded);
+  assert.equal(metrics.totalCertificates, 1);
+  assert.ok(metrics.passRatePercent >= 0);
+  assert.ok(metrics.avgDeltaAlphaDbKm > 0);
+
+  clearThermalCyclingCerts();
+  assert.equal(getSavedThermalCyclingCerts().length, 0);
+});
+
+test('renderThermalCyclingQaSvg, printable certificates, WhatsApp and CSV generator output valid content', async () => {
+  const {
+    calculateThermalCyclingPhysics,
+    renderThermalCyclingQaSvg,
+    generateThermalCyclingCertHtml,
+    formatThermalCyclingCertWhatsApp,
+    generateThermalCyclingCertsCsv,
+    buildThermalCyclingCertRecord
+  } = await import('../form-validation.js');
+
+  const analysis = calculateThermalCyclingPhysics({
+    profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
+    spanLengthKm: 4.8
+  });
+
+  const svg = renderThermalCyclingQaSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('BUFFER TUBE CUTAWAY'));
+  assert.ok(svg.includes('24-Hr Temperature Wave'));
+
+  const record = buildThermalCyclingCertRecord({
+    id: 'THM-202610-9999',
+    subscriberName: 'Jia Musa Main Highway Duct',
+    routeDescription: 'Central Exchange ODF to Manhole 06',
+    profileId: 'SUBMERGED_CANAL_DAMPED'
+  });
+
+  const a4Html = generateThermalCyclingCertHtml(record, { format: 'A4' });
+  assert.ok(a4Html.includes('THM-202610-9999'));
+  assert.ok(a4Html.includes('Jia Musa Main Highway Duct'));
+  assert.ok(a4Html.includes('IEC 60794-1-22 Method F1'));
+
+  const posHtml = generateThermalCyclingCertHtml(record, { format: 'POS80' });
+  assert.ok(posHtml.includes('thermal-pos-slip'));
+  assert.ok(posHtml.includes('THM-202610-9999'));
+
+  const wa = formatThermalCyclingCertWhatsApp(record);
+  assert.ok(wa.includes('SHAHDARA ISP NETWORK - FIBER THERMAL CYCLING QA'));
+  assert.ok(wa.includes('Jia Musa Main Highway Duct'));
+
+  const csv = generateThermalCyclingCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('THM-202610-9999'));
+  assert.ok(csv.includes('Jia Musa Main Highway Duct'));
+});
+
+test('DOM & CSS integration for Optical Fiber Environmental Temperature Cycling QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openThermalCyclingBtn"'));
+  assert.ok(indexHtml.includes('id="thermalCyclingModal"'));
+  assert.ok(indexHtml.includes('id="thmPresetSelect"'));
+  assert.ok(indexHtml.includes('id="thmProfileSelect"'));
+  assert.ok(indexHtml.includes('id="thmPolymerSelect"'));
+  assert.ok(indexHtml.includes('id="thmGelSelect"'));
+  assert.ok(indexHtml.includes('id="thmMinTempInput"'));
+  assert.ok(indexHtml.includes('id="thmMaxTempInput"'));
+  assert.ok(indexHtml.includes('id="thmSpanInput"'));
+  assert.ok(indexHtml.includes('id="thmFiberCountInput"'));
+  assert.ok(indexHtml.includes('id="thmMeasuredDriftInput"'));
+  assert.ok(indexHtml.includes('id="thmSaveBtn"'));
+  assert.ok(indexHtml.includes('id="thmPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="thmPrintPosBtn"'));
+  assert.ok(indexHtml.includes('id="thmWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="thmCsvExportBtn"'));
+  assert.ok(indexHtml.includes('id="thmSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupThermalCyclingModal'));
+  assert.ok(appJs.includes('customerThermalCyclingModalController'));
+  assert.ok(appJs.includes('#openThermalCyclingBtn'));
+  assert.ok(appJs.includes('#thermalCyclingModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#thermalCyclingModal'));
+});
+
 

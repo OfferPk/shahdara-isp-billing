@@ -12319,3 +12319,24 @@ export {
   generateFiberCleaveQualityCertsCsv,
   setupFiberCleaveQualityModal
 } from './qa-cleave-quality.js';
+
+export {
+  OTDR_GHOST_ARTIFACT_STORAGE_KEY,
+  GHOST_OTDR_WAVELENGTHS,
+  ARTIFACT_CLASSIFICATIONS,
+  GHOST_QA_VERDICTS,
+  SHAH_OTDR_GHOST_PRESETS,
+  calculateGhostDistanceMatches,
+  evaluateOtdrGhostArtifact,
+  renderOtdrGhostArtifactSvg,
+  validateOtdrGhostInput,
+  buildOtdrGhostRecord,
+  getSavedOtdrGhostCerts,
+  saveOtdrGhostCert,
+  clearOtdrGhostCerts,
+  calculateOtdrGhostMetrics,
+  generateOtdrGhostArtifactCertHtml,
+  formatOtdrGhostArtifactCertWhatsApp,
+  generateOtdrGhostArtifactCertsCsv,
+  setupOtdrGhostArtifactModal
+} from './qa-otdr-ghost-artifact.js';

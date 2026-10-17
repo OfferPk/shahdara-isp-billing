@@ -11020,3 +11020,340 @@ test('setupOtdrGhostArtifactModal wires interactive controls, calculation and hi
 });
 
 
+
+// ============================================================================
+// Optical Fiber Ribbon Mass Fusion Splice Pitch Skew & 12-Fiber Core Offset QA Tests
+// ============================================================================
+
+test('calculateMarcuseCoreOffsetLoss computes lateral transverse offset attenuation accurately', async () => {
+  const { calculateMarcuseCoreOffsetLoss } = await import('../qa-ribbon-splice.js');
+
+  // Zero offset yields zero loss
+  assert.equal(calculateMarcuseCoreOffsetLoss(0, 9.2), 0.0);
+
+  // 0.5 µm offset with 9.2 µm MFD (w0 = 4.6 µm)
+  // Loss = 4.343 * (2 * 0.25 / 21.16) = 4.343 * 0.02363 = 0.103 dB
+  const loss05 = calculateMarcuseCoreOffsetLoss(0.5, 9.2);
+  assert.ok(loss05 > 0.09 && loss05 < 0.12);
+
+  // 1.0 µm offset
+  // Loss = 4.343 * (2 * 1.0 / 21.16) = 0.410 dB
+  const loss10 = calculateMarcuseCoreOffsetLoss(1.0, 9.2);
+  assert.ok(loss10 > 0.39 && loss10 < 0.43);
+
+  // Fallbacks for invalid inputs
+  assert.equal(calculateMarcuseCoreOffsetLoss(-1, 9.2), 0.0);
+  assert.ok(calculateMarcuseCoreOffsetLoss(0.3, 0) > 0);
+});
+
+test('calculateCleaveTiltLoss and calculateRibbonArcThermalLoss model angular tilt and parabolic thermal arc profile', async () => {
+  const { calculateCleaveTiltLoss, calculateRibbonArcThermalLoss } = await import('../qa-ribbon-splice.js');
+
+  // Zero cleave angle
+  assert.equal(calculateCleaveTiltLoss(0, 1310), 0.0);
+
+  // 1.0 degree cleave angle
+  const loss1Deg = calculateCleaveTiltLoss(1.0, 1310, 1.467, 9.2);
+  assert.ok(loss1Deg > 0.30 && loss1Deg < 0.40);
+
+  // Higher wavelength 1550nm has lower angular tilt penalty
+  const loss1550 = calculateCleaveTiltLoss(1.0, 1550, 1.467, 10.4);
+  assert.ok(loss1550 < loss1Deg);
+
+  // Arc thermal loss: Center fibers (6 & 7) have near-zero thermal deficit
+  const lossCenter = calculateRibbonArcThermalLoss(6, 12, 0.90);
+  const lossEdge = calculateRibbonArcThermalLoss(1, 12, 0.90);
+  assert.ok(lossCenter < lossEdge);
+  assert.ok(lossEdge > 0.01);
+
+  // High arc balance (0.99) minimizes thermal deficit across all fibers
+  const lossBalancedEdge = calculateRibbonArcThermalLoss(1, 12, 0.99);
+  assert.ok(lossBalancedEdge < 0.005);
+});
+
+test('calculateRibbonPitchSkew calculates ribbon width, skew angle, and pitch variation percent', async () => {
+  const { calculateRibbonPitchSkew } = await import('../qa-ribbon-splice.js');
+
+  // 12-fiber ribbon, nominal pitch 250µm, cleave delta 2.0µm
+  // Width = (12 - 1) * 250 = 2750 µm
+  const skew = calculateRibbonPitchSkew(12, 250.0, 1.0, 2.0);
+  assert.equal(skew.ribbonWidthUm, 2750.0);
+  assert.equal(skew.cleaveLengthDiffUm, 2.0);
+  assert.equal(skew.pitchVariationPercent, 0.4); // 1.0 / 250 * 100 = 0.4%
+  assert.ok(skew.skewAngleDeg > 0.03 && skew.skewAngleDeg < 0.06);
+
+  // Higher cleave delta increases skew angle
+  const highSkew = calculateRibbonPitchSkew(12, 250.0, 2.5, 6.0);
+  assert.ok(highSkew.skewAngleDeg > skew.skewAngleDeg);
+});
+
+test('evaluateRibbonSpliceAnalysis evaluates 12 fibers, assigns TIA-598-D colors, and determines correct verdicts', async () => {
+  const { evaluateRibbonSpliceAnalysis, TIA598_RIBBON_COLORS } = await import('../qa-ribbon-splice.js');
+
+  // Lab Grade Pristine Splice (Fujikura 90R12, low variation, high balance)
+  const labAnalysis = evaluateRibbonSpliceAnalysis({
+    splicerId: 'FUJIKURA_90R12',
+    fiberCount: 12,
+    pitchNominalUm: 250.0,
+    pitchVariationUm: 0.2,
+    cleaveLengthDiffUm: 0.5,
+    arcBalanceFactor: 0.995,
+    wavelengthNm: 1310
+  });
+
+  assert.equal(labAnalysis.fiberCount, 12);
+  assert.equal(labAnalysis.fiberResults.length, 12);
+  assert.equal(labAnalysis.verdict.id, 'CERTIFIED_EXCELLENCE');
+  assert.ok(labAnalysis.metrics.meanLossDb <= 0.05);
+  assert.ok(labAnalysis.metrics.maxLossDb <= 0.05);
+
+  // Verify TIA-598-D colors assigned sequentially
+  assert.equal(labAnalysis.fiberResults[0].color, 'Blue');
+  assert.equal(labAnalysis.fiberResults[1].color, 'Orange');
+  assert.equal(labAnalysis.fiberResults[2].color, 'Green');
+  assert.equal(labAnalysis.fiberResults[11].color, 'Aqua');
+
+  // Severely degraded splice (Legacy splicer, high pitch variation, poor arc balance)
+  const badAnalysis = evaluateRibbonSpliceAnalysis({
+    splicerId: 'LEGACY_RIBBON_SPLICER',
+    fiberCount: 12,
+    pitchNominalUm: 250.0,
+    pitchVariationUm: 5.0,
+    cleaveLengthDiffUm: 8.0,
+    arcBalanceFactor: 0.70,
+    wavelengthNm: 1310
+  });
+
+  assert.equal(badAnalysis.verdict.id, 'RE_SPLICE_MANDATED');
+  assert.ok(badAnalysis.metrics.maxLossDb > 0.15);
+  assert.ok(badAnalysis.metrics.failedFiberCount > 0);
+});
+
+test('validateRibbonSpliceInput validates input parameters with actionable errors', async () => {
+  const { validateRibbonSpliceInput } = await import('../qa-ribbon-splice.js');
+
+  const valid = validateRibbonSpliceInput({
+    route: 'Baradari ODF Feeder',
+    technicianName: 'Muhammad Rizwan',
+    pitchVariationUm: 1.0,
+    cleaveLengthDiffUm: 2.0,
+    arcBalanceFactor: 0.95
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  // Missing route
+  const missingRoute = validateRibbonSpliceInput({
+    route: '   ',
+    technicianName: 'Muhammad Rizwan',
+    pitchVariationUm: 1.0,
+    cleaveLengthDiffUm: 2.0,
+    arcBalanceFactor: 0.95
+  });
+  assert.equal(missingRoute.isValid, false);
+  assert.ok(missingRoute.errors.some(e => e.includes('route name')));
+
+  // Bad arc balance
+  const badArc = validateRibbonSpliceInput({
+    route: 'Valid Route',
+    technicianName: 'Technician',
+    pitchVariationUm: 1.0,
+    cleaveLengthDiffUm: 2.0,
+    arcBalanceFactor: 0.30 // Below 0.50
+  });
+  assert.equal(badArc.isValid, false);
+  assert.ok(badArc.errors.some(e => e.includes('Arc balance factor')));
+});
+
+test('buildRibbonSpliceRecord generates sequential RBN-YYYYMM-XXXX record and persistence functions work', async () => {
+  const {
+    buildRibbonSpliceRecord,
+    getSavedRibbonSpliceCerts,
+    saveRibbonSpliceCert,
+    updateRibbonSpliceCertStatus,
+    clearRibbonSpliceCerts
+  } = await import('../qa-ribbon-splice.js');
+
+  const mockState = { ribbonSpliceCerts: [] };
+
+  const record = buildRibbonSpliceRecord({
+    route: 'Jia Musa Trunk',
+    technicianName: 'Tariq Mehmood',
+    splicerId: 'FUJIKURA_90R12',
+    fiberCount: 12,
+    wavelengthNm: 1310,
+    pitchVariationUm: 0.8,
+    cleaveLengthDiffUm: 1.2,
+    arcBalanceFactor: 0.98,
+    notes: 'Clean splice'
+  }, mockState);
+
+  assert.match(record.id, /^RBN-\d{6}-0001$/);
+  assert.equal(record.route, 'Jia Musa Trunk');
+  assert.equal(record.fiberCount, 12);
+  assert.ok(record.analysis);
+
+  // Save to state
+  saveRibbonSpliceCert(record, mockState);
+  const loaded = getSavedRibbonSpliceCerts(mockState);
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, record.id);
+
+  // Update status
+  updateRibbonSpliceCertStatus(record.id, 'APPROVED_REWORK', mockState);
+  const updated = getSavedRibbonSpliceCerts(mockState);
+  assert.equal(updated[0].status, 'APPROVED_REWORK');
+
+  // Clear
+  clearRibbonSpliceCerts(mockState);
+  assert.equal(getSavedRibbonSpliceCerts(mockState).length, 0);
+});
+
+test('calculateRibbonSpliceMetrics aggregates KPI metrics and handles search filtering', async () => {
+  const { calculateRibbonSpliceMetrics } = await import('../qa-ribbon-splice.js');
+
+  const sampleCerts = [
+    {
+      id: 'RBN-202610-0001',
+      route: 'Baradari ODF Feeder',
+      technicianName: 'Rizwan',
+      status: 'CERTIFIED_EXCELLENCE',
+      analysis: { metrics: { meanLossDb: 0.025, maxLossDb: 0.038 } }
+    },
+    {
+      id: 'RBN-202610-0002',
+      route: 'Ravi Siphon Crossing',
+      technicianName: 'Tariq',
+      status: 'STANDARD_PASS',
+      analysis: { metrics: { meanLossDb: 0.055, maxLossDb: 0.088 } }
+    },
+    {
+      id: 'RBN-202610-0003',
+      route: 'Begum Kot Trunk',
+      technicianName: 'Khurram',
+      status: 'RE_SPLICE_MANDATED',
+      analysis: { metrics: { meanLossDb: 0.125, maxLossDb: 0.185 } }
+    }
+  ];
+
+  const metrics = calculateRibbonSpliceMetrics(sampleCerts);
+  assert.equal(metrics.total, 3);
+  assert.equal(metrics.certifiedExcellence, 1);
+  assert.equal(metrics.standardPass, 1);
+  assert.equal(metrics.reSpliceMandated, 1);
+  assert.ok(metrics.passRatePercent > 60 && metrics.passRatePercent < 70);
+  assert.equal(metrics.maxRecordedLossDb, 0.185);
+
+  // Search filter
+  const filtered = calculateRibbonSpliceMetrics(sampleCerts, { searchQuery: 'Ravi' });
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.standardPass, 1);
+});
+
+test('renderRibbonSpliceQaSvg generates valid SVG with 12 fibers, plasma arc glow, and bar chart', async () => {
+  const { evaluateRibbonSpliceAnalysis, renderRibbonSpliceQaSvg } = await import('../qa-ribbon-splice.js');
+
+  const analysis = evaluateRibbonSpliceAnalysis({
+    splicerId: 'SUMITOMO_72M12',
+    fiberCount: 12,
+    pitchNominalUm: 250.0,
+    pitchVariationUm: 1.0,
+    cleaveLengthDiffUm: 1.5,
+    arcBalanceFactor: 0.96,
+    wavelengthNm: 1550
+  });
+
+  const svg = renderRibbonSpliceQaSvg(analysis, { width: 760, height: 360 });
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('12-FIBER MASS RIBBON FUSION SPLICE MATRIX'));
+  assert.ok(svg.includes('ELECTRIC PLASMA ARC DISCHARGE CORE AXIS'));
+  assert.ok(svg.includes('ribbon-fiber-group'));
+  assert.ok(svg.includes('ribbon-chart-bar'));
+  assert.ok(svg.includes('0.05 (Lab)'));
+  assert.ok(svg.includes('0.10 (OSP)'));
+  assert.ok(svg.includes('</svg>'));
+});
+
+test('generateRibbonSpliceCertHtml generates both A4 accreditation certificate and 80mm thermal slip', async () => {
+  const { evaluateRibbonSpliceAnalysis, generateRibbonSpliceCertHtml } = await import('../qa-ribbon-splice.js');
+
+  const cert = {
+    id: 'RBN-202610-0001',
+    createdAt: '2026-10-17T08:00:00.000Z',
+    route: 'Baradari ODF Feeder',
+    splicerName: 'Fujikura 90R12 Automated Mass Splicer',
+    technicianName: 'Muhammad Rizwan',
+    fiberCount: 12,
+    wavelengthNm: 1310,
+    analysis: evaluateRibbonSpliceAnalysis({ fiberCount: 12 })
+  };
+
+  const a4Html = generateRibbonSpliceCertHtml(cert, { format: 'a4' });
+  assert.ok(a4Html.includes('SHAHDARA FIBER OPTIC METROLOGY LABORATORY'));
+  assert.ok(a4Html.includes('RBN-202610-0001'));
+  assert.ok(a4Html.includes('Baradari ODF Feeder'));
+  assert.ok(a4Html.includes('TIA-598-D 12-FIBER INDIVIDUAL CHANNEL AUDIT TABLE'));
+  assert.ok(a4Html.includes('Muhammad Rizwan'));
+
+  const thermalHtml = generateRibbonSpliceCertHtml(cert, { format: 'thermal' });
+  assert.ok(thermalHtml.includes('MASS RIBBON FUSION QA SLIP'));
+  assert.ok(thermalHtml.includes('RBN-202610-0001'));
+  assert.ok(thermalHtml.includes('MEAN LOSS:'));
+});
+
+test('formatRibbonSpliceCertWhatsApp and generateRibbonSpliceCertsCsv produce compliant outputs', async () => {
+  const { evaluateRibbonSpliceAnalysis, formatRibbonSpliceCertWhatsApp, generateRibbonSpliceCertsCsv } = await import('../qa-ribbon-splice.js');
+
+  const cert = {
+    id: 'RBN-202610-0005',
+    createdAt: '2026-10-17T08:00:00.000Z',
+    route: 'Jia Musa Ring Backbone',
+    splicerName: 'Fujikura 90R12',
+    technicianName: 'Zubair Ahmad',
+    fiberCount: 12,
+    wavelengthNm: 1310,
+    analysis: evaluateRibbonSpliceAnalysis({ fiberCount: 12 })
+  };
+
+  const whatsapp = formatRibbonSpliceCertWhatsApp(cert);
+  assert.ok(whatsapp.includes('12-FIBER MASS RIBBON FUSION QA CERTIFICATE'));
+  assert.ok(whatsapp.includes('RBN-202610-0005'));
+  assert.ok(whatsapp.includes('Jia Musa Ring Backbone'));
+  assert.ok(whatsapp.includes('ITU-T G.650.1 / Telcordia GR-765-CORE'));
+
+  const csv = generateRibbonSpliceCertsCsv([cert]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('CertificateID,CreatedAt,Route,Splicer'));
+  assert.ok(csv.includes('RBN-202610-0005'));
+  assert.ok(csv.includes('F1_Blue_Db,F2_Orange_Db'));
+});
+
+test('DOM & CSS integration for Ribbon Splice QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openRibbonSpliceQaBtn"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceQaModal"'));
+  assert.ok(indexHtml.includes('id="ribbonSplicePresetSelect"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceRouteInput"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceSplicerSelect"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceFiberCountSelect"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceSaveBtn"'));
+  assert.ok(indexHtml.includes('id="ribbonSplicePrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="ribbonSplicePrintThermalBtn"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceCsvBtn"'));
+  assert.ok(indexHtml.includes('id="ribbonSpliceWhatsAppBtn"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupRibbonSpliceQaModal'));
+  assert.ok(appJs.includes('customerRibbonSpliceQaModalController'));
+  assert.ok(appJs.includes('#openRibbonSpliceQaBtn'));
+  assert.ok(appJs.includes('#ribbonSpliceQaModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#ribbonSpliceQaModal'));
+  assert.ok(stylesCss.includes('#ribbonSpliceSvgContainer'));
+  assert.ok(stylesCss.includes('[data-theme="dark"] #ribbonSpliceQaModal'));
+});

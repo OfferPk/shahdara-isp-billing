@@ -2564,6 +2564,20 @@ document.addEventListener('keydown', event => {
       if (selectedBtn) selectedBtn.focus?.();
       return;
     }
+    const activeModals = [
+      $('#accountStatementModal'),
+      $('#paymentReminderModal'),
+      $('#batchReceiptModal'),
+      $('#customerLedgerAuditModal'),
+      $('#customerBillInvoiceModal')
+    ];
+    for (const m of activeModals) {
+      if (m && (m.open || m.hasAttribute('open'))) {
+        if (m.close) m.close();
+        else m.removeAttribute('open');
+        return;
+      }
+    }
   }
   if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) {
     event.preventDefault();
@@ -3243,9 +3257,15 @@ function renderBatchReceipts() {
   const month = $('#batchReceiptMonthSelect')?.value || selectedBillingMonth;
   const filter = $('#batchReceiptFilterSelect')?.value || 'all';
   const html = generateBatchReceiptHtml(state.customers, month, state, { filter });
-  const container = $('#batchReceiptContainer');
+  const container = $('#batchReceiptPreviewContainer') || $('#batchReceiptContainer');
   if (container) container.innerHTML = html;
 }
+
+const batchReceiptModal = $('#batchReceiptModal');
+const closeBatchReceiptModal = () => {
+  if (batchReceiptModal?.close) batchReceiptModal.close();
+  else batchReceiptModal?.removeAttribute('open');
+};
 
 $('#batchReceiptPrintBtn')?.addEventListener('click', () => {
   const monthSelect = $('#batchReceiptMonthSelect');
@@ -3254,13 +3274,29 @@ $('#batchReceiptPrintBtn')?.addEventListener('click', () => {
     monthSelect.innerHTML = months.map(m => `<option value="${m}" ${m === selectedBillingMonth ? 'selected' : ''}>${monthName(m)} (${m})</option>`).join('');
   }
   renderBatchReceipts();
-  $('#batchReceiptModal')?.showModal();
+  if (batchReceiptModal?.showModal) batchReceiptModal.showModal();
+  else batchReceiptModal?.setAttribute('open', '');
 });
 
 $('#batchReceiptMonthSelect')?.addEventListener('change', renderBatchReceipts);
 $('#batchReceiptFilterSelect')?.addEventListener('change', renderBatchReceipts);
-$('#closeBatchReceiptModal')?.addEventListener('click', () => $('#batchReceiptModal')?.close());
-$('#triggerBatchPrintBtn')?.addEventListener('click', () => window.print());
+$('#closeBatchReceiptModal')?.addEventListener('click', closeBatchReceiptModal);
+$('#batchReceiptModalCloseBtn')?.addEventListener('click', closeBatchReceiptModal);
+batchReceiptModal?.addEventListener('click', (e) => {
+  if (e.target === batchReceiptModal) closeBatchReceiptModal();
+});
+$('#triggerBatchPrintBtn')?.addEventListener('click', () => {
+  document.body.classList.add('printing-batch');
+  requestAnimationFrame(() => {
+    try {
+      window.print();
+    } catch {
+      toast('Printing is not supported in this browser.');
+    } finally {
+      document.body.classList.remove('printing-batch');
+    }
+  });
+});
 
 let currentStatementData = null;
 

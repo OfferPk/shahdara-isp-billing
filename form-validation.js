@@ -12518,4 +12518,25 @@ export {
   setupConduitPullingModal
 } from './qa-conduit-pulling-tension.js';
 
+export {
+  SPECTRAL_ATTENUATION_STORAGE_KEY,
+  SPECTRAL_FIBER_TYPES,
+  MOISTURE_INGRESS_LEVELS,
+  SPECTRAL_QA_VERDICTS,
+  SHAHDARA_SPECTRAL_PRESETS,
+  calculateSpectralAttenuation,
+  validateSpectralAttenuationInput,
+  buildSpectralAttenuationCertRecord,
+  getSavedSpectralAttenuationCerts,
+  saveSpectralAttenuationCert,
+  updateSpectralAttenuationCertStatus,
+  clearSpectralAttenuationCerts,
+  calculateSpectralAttenuationMetrics,
+  renderSpectralAttenuationQaSvg,
+  generateSpectralAttenuationCertHtml,
+  formatSpectralAttenuationCertWhatsApp,
+  generateSpectralAttenuationCertsCsv,
+  setupSpectralAttenuationModal
+} from './qa-spectral-attenuation.js';
+
 

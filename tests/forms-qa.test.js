@@ -13102,4 +13102,265 @@ test('DOM & CSS integration for Outside Plant Conduit Pulling Tension QA Suite',
   assert.ok(stylesCss.includes('#conduitPullingModal'));
 });
 
+/* -------------------------------------------------------------------------- */
+/* SPECTRAL ATTENUATION & WATER PEAK (1383nm) QA CERTIFICATION TEST SUITE     */
+/* -------------------------------------------------------------------------- */
+
+test('SPECTRAL_FIBER_TYPES & MOISTURE_INGRESS_LEVELS catalog schemas validate physical properties', async () => {
+  const {
+    SPECTRAL_FIBER_TYPES,
+    MOISTURE_INGRESS_LEVELS,
+    SPECTRAL_QA_VERDICTS
+  } = await import('../form-validation.js');
+
+  assert.ok(SPECTRAL_FIBER_TYPES['G652D_LOW_WATER_PEAK']);
+  assert.equal(SPECTRAL_FIBER_TYPES['G652D_LOW_WATER_PEAK'].baseWaterPeakDbKm, 0.04);
+  assert.equal(SPECTRAL_FIBER_TYPES['G652D_LOW_WATER_PEAK'].eBandTransmissionAllowed, true);
+
+  assert.ok(SPECTRAL_FIBER_TYPES['G652AB_LEGACY_HIGH_PEAK']);
+  assert.equal(SPECTRAL_FIBER_TYPES['G652AB_LEGACY_HIGH_PEAK'].baseWaterPeakDbKm, 1.38);
+  assert.equal(SPECTRAL_FIBER_TYPES['G652AB_LEGACY_HIGH_PEAK'].eBandTransmissionAllowed, false);
+
+  assert.ok(MOISTURE_INGRESS_LEVELS['DRY_HERMETIC_SEALED']);
+  assert.equal(MOISTURE_INGRESS_LEVELS['DRY_HERMETIC_SEALED'].excessWaterPeakDbKm, 0.0);
+
+  assert.ok(MOISTURE_INGRESS_LEVELS['FLOODED_DUCT_CONDENSATION']);
+  assert.ok(MOISTURE_INGRESS_LEVELS['FLOODED_DUCT_CONDENSATION'].excessWaterPeakDbKm > 0.5);
+
+  assert.ok(SPECTRAL_QA_VERDICTS['CERTIFIED_FULL_SPECTRUM_PASS']);
+  assert.ok(SPECTRAL_QA_VERDICTS['FAILED_WATER_INGRESS_HAZARD']);
+});
+
+test('calculateSpectralAttenuation computes baseline Rayleigh slope and transparent water peak for G.652.D', async () => {
+  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+
+  const res = calculateSpectralAttenuation({
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    moistureIngressId: 'DRY_HERMETIC_SEALED',
+    spanLengthKm: 15.0,
+    spliceCount: 4,
+    connectorCount: 2
+  });
+
+  assert.ok(res.alpha1310 > 0.30 && res.alpha1310 < 0.40);
+  assert.ok(res.alpha1383 <= 0.35); // Low water peak requirement
+  assert.ok(res.alpha1550 < res.alpha1310); // C-band loss lower than O-band
+  assert.equal(res.isEBandUsable, true);
+  assert.equal(res.verdict.id, 'CERTIFIED_FULL_SPECTRUM_PASS');
+  assert.ok(res.curvePoints.length > 30);
+});
+
+test('calculateSpectralAttenuation identifies legacy high water peak on G.652.A/B fibers', async () => {
+  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+
+  const res = calculateSpectralAttenuation({
+    fiberTypeId: 'G652AB_LEGACY_HIGH_PEAK',
+    moistureIngressId: 'DRY_HERMETIC_SEALED',
+    spanLengthKm: 8.0
+  });
+
+  assert.ok(res.alpha1383 > 1.0);
+  assert.equal(res.isEBandUsable, false);
+  assert.equal(res.verdict.id, 'FAILED_WATER_INGRESS_HAZARD');
+});
+
+test('calculateSpectralAttenuation models moisture ingress attenuation spike', async () => {
+  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+
+  const dry = calculateSpectralAttenuation({
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    moistureIngressId: 'DRY_HERMETIC_SEALED',
+    spanLengthKm: 10.0
+  });
+
+  const flooded = calculateSpectralAttenuation({
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    moistureIngressId: 'FLOODED_DUCT_CONDENSATION',
+    spanLengthKm: 10.0
+  });
+
+  assert.ok(flooded.alpha1383 > dry.alpha1383);
+  assert.ok(flooded.waterPeakDeltaDbKm > dry.waterPeakDeltaDbKm);
+  assert.equal(flooded.isEBandUsable, false);
+});
+
+test('calculateSpectralAttenuation evaluates discrete wavelengths and cumulative link loss', async () => {
+  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+
+  const res = calculateSpectralAttenuation({
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    spanLengthKm: 20.0,
+    spliceCount: 4,
+    connectorCount: 2
+  });
+
+  assert.equal(res.discreteResults.length, 6);
+  const w1310 = res.discreteResults.find(w => w.lambdaNm === 1310);
+  const w1550 = res.discreteResults.find(w => w.lambdaNm === 1550);
+
+  assert.ok(w1310);
+  assert.ok(w1550);
+  assert.ok(w1310.totalLossDb > w1550.totalLossDb);
+  assert.ok(w1310.jointLossDb > 0.5); // (4 * 0.05) + (2 * 0.25) = 0.70 dB
+});
+
+test('validateSpectralAttenuationInput checks required fields and bounds', async () => {
+  const { validateSpectralAttenuationInput } = await import('../form-validation.js');
+
+  const valid = validateSpectralAttenuationInput({
+    subscriberName: 'Baradari Ring Trunk',
+    routeDescription: 'ODF to Ring FAT',
+    spanLengthKm: 12.5,
+    spliceCount: 4,
+    connectorCount: 2
+  });
+  assert.equal(valid.isValid, true);
+  assert.equal(valid.errors.length, 0);
+
+  const invalid = validateSpectralAttenuationInput({
+    subscriberName: '',
+    routeDescription: '',
+    spanLengthKm: -1,
+    spliceCount: 100,
+    connectorCount: -2
+  });
+  assert.equal(invalid.isValid, false);
+  assert.ok(invalid.errors.length >= 4);
+});
+
+test('buildSpectralAttenuationCertRecord generates valid record with SPT- identifier', async () => {
+  const { buildSpectralAttenuationCertRecord } = await import('../form-validation.js');
+
+  const record = buildSpectralAttenuationCertRecord({
+    subscriberName: 'Ravi Siphon South Crossing',
+    routeDescription: 'HDPE Sub-Duct Manhole 04',
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    spanLengthKm: 16.2
+  });
+
+  assert.ok(record.id.startsWith('SPT-'));
+  assert.equal(record.subscriberName, 'Ravi Siphon South Crossing');
+  assert.ok(record.analysis);
+  assert.ok(record.analysis.alpha1383 > 0);
+});
+
+test('LocalStorage persistence and calculateSpectralAttenuationMetrics aggregator', async () => {
+  const {
+    getSavedSpectralAttenuationCerts,
+    saveSpectralAttenuationCert,
+    updateSpectralAttenuationCertStatus,
+    clearSpectralAttenuationCerts,
+    calculateSpectralAttenuationMetrics,
+    buildSpectralAttenuationCertRecord
+  } = await import('../form-validation.js');
+
+  clearSpectralAttenuationCerts();
+  assert.deepEqual(getSavedSpectralAttenuationCerts(), []);
+
+  const r1 = buildSpectralAttenuationCertRecord({
+    id: 'SPT-202610-1001',
+    subscriberName: 'Test Trunk Alpha',
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    spanLengthKm: 10.0
+  });
+
+  saveSpectralAttenuationCert(r1);
+  const loaded = getSavedSpectralAttenuationCerts();
+  assert.equal(loaded.length, 1);
+  assert.equal(loaded[0].id, 'SPT-202610-1001');
+
+  updateSpectralAttenuationCertStatus('SPT-202610-1001', 'VERIFIED_AUDIT');
+  const reloaded = getSavedSpectralAttenuationCerts();
+  assert.equal(reloaded[0].status, 'VERIFIED_AUDIT');
+
+  const metrics = calculateSpectralAttenuationMetrics(reloaded);
+  assert.equal(metrics.totalCertificates, 1);
+  assert.ok(metrics.passRatePercent > 0);
+  assert.ok(metrics.avgWaterPeakDbKm > 0);
+
+  clearSpectralAttenuationCerts();
+  assert.equal(getSavedSpectralAttenuationCerts().length, 0);
+});
+
+test('renderSpectralAttenuationQaSvg, printable certificates, WhatsApp and CSV generator output valid content', async () => {
+  const {
+    calculateSpectralAttenuation,
+    renderSpectralAttenuationQaSvg,
+    generateSpectralAttenuationCertHtml,
+    formatSpectralAttenuationCertWhatsApp,
+    generateSpectralAttenuationCertsCsv,
+    buildSpectralAttenuationCertRecord
+  } = await import('../form-validation.js');
+
+  const analysis = calculateSpectralAttenuation({
+    fiberTypeId: 'G652D_LOW_WATER_PEAK',
+    spanLengthKm: 12.0
+  });
+
+  const svg = renderSpectralAttenuationQaSvg(analysis);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('SPECTRAL ATTENUATION METROLOGY'));
+  assert.ok(svg.includes('WATER PEAK (1383nm)'));
+
+  const record = buildSpectralAttenuationCertRecord({
+    id: 'SPT-202610-9999',
+    subscriberName: 'Baradari ODF Feeder',
+    routeDescription: 'Central Feeder',
+    fiberTypeId: 'G652D_LOW_WATER_PEAK'
+  });
+
+  const a4Html = generateSpectralAttenuationCertHtml(record, { format: 'A4' });
+  assert.ok(a4Html.includes('SPT-202610-9999'));
+  assert.ok(a4Html.includes('Baradari ODF Feeder'));
+  assert.ok(a4Html.includes('Multi-Wavelength Discrete Optical Event'));
+
+  const posHtml = generateSpectralAttenuationCertHtml(record, { format: 'POS80' });
+  assert.ok(posHtml.includes('POS-80'));
+  assert.ok(posHtml.includes('SPECTRAL ATTENUATION QA FIELD SLIP'));
+
+  const wa = formatSpectralAttenuationCertWhatsApp(record);
+  assert.ok(wa.includes('SHAHDARA ISP SPECTRAL ATTENUATION QA CERTIFICATE'));
+  assert.ok(wa.includes('Baradari ODF Feeder'));
+
+  const csv = generateSpectralAttenuationCertsCsv([record]);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('SPT-202610-9999'));
+  assert.ok(csv.includes('Baradari ODF Feeder'));
+});
+
+test('DOM & CSS integration for Optical Fiber Spectral Attenuation QA Suite', () => {
+  const indexHtml = read('index.html');
+  const appJs = read('app.js');
+  const stylesCss = read('styles.css');
+
+  // Verify button and modal in index.html
+  assert.ok(indexHtml.includes('id="openSpectralAttenuationBtn"'));
+  assert.ok(indexHtml.includes('id="spectralAttenuationModal"'));
+  assert.ok(indexHtml.includes('id="sptPresetSelect"'));
+  assert.ok(indexHtml.includes('id="sptSubscriberInput"'));
+  assert.ok(indexHtml.includes('id="sptRouteInput"'));
+  assert.ok(indexHtml.includes('id="sptFiberTypeSelect"'));
+  assert.ok(indexHtml.includes('id="sptMoistureSelect"'));
+  assert.ok(indexHtml.includes('id="sptSpanInput"'));
+  assert.ok(indexHtml.includes('id="sptSpliceInput"'));
+  assert.ok(indexHtml.includes('id="sptConnectorInput"'));
+  assert.ok(indexHtml.includes('id="sptTechnicianInput"'));
+  assert.ok(indexHtml.includes('id="sptNotesInput"'));
+  assert.ok(indexHtml.includes('id="sptSaveBtn"'));
+  assert.ok(indexHtml.includes('id="sptPrintA4Btn"'));
+  assert.ok(indexHtml.includes('id="sptPrintPosBtn"'));
+  assert.ok(indexHtml.includes('id="sptWhatsAppBtn"'));
+  assert.ok(indexHtml.includes('id="sptCsvExportBtn"'));
+  assert.ok(indexHtml.includes('id="sptSvgContainer"'));
+
+  // Verify app.js wiring
+  assert.ok(appJs.includes('setupSpectralAttenuationModal'));
+  assert.ok(appJs.includes('customerSpectralAttenuationModalController'));
+  assert.ok(appJs.includes('#openSpectralAttenuationBtn'));
+  assert.ok(appJs.includes('#spectralAttenuationModal'));
+
+  // Verify styles.css
+  assert.ok(stylesCss.includes('#spectralAttenuationModal'));
+});
+
 

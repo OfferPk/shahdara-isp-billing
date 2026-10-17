@@ -3054,6 +3054,7 @@ function renderInventory() {
 }
 let expenseSortKey = 'date';
 let expenseSortAsc = false;
+let expenseMonthFilter = 'all';
 let expenseCategoryFilter = 'all';
 let expenseSearchQuery = '';
 
@@ -3082,7 +3083,17 @@ function renderExpenses() {
   const current=buildPhase3Analytics(state,new Date()).currentMonth,monthRows=allRows.filter(row=>row.date.slice(0,7)===current);
   $('#expenseCurrentMonthTotal').textContent=monthRows.length?formatAmount(monthRows.reduce((sum,row)=>sum+Number(row.amount),0)):'No entries';
 
+  const expenseMonths=[...new Set([...payrollMonths,...allRows.map(r=>r.date?r.date.slice(0,7):'')].filter(Boolean))].sort().reverse();
+  const expenseMonthSelect=$('#expenseMonthFilter');
+  if(expenseMonthSelect){
+    const currentVal=expenseMonthFilter;
+    expenseMonthSelect.innerHTML='<option value="all">All months</option>'+expenseMonths.map(month=>`<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
+    expenseMonthSelect.value=expenseMonths.includes(currentVal)?currentVal:'all';
+    expenseMonthFilter=expenseMonthSelect.value;
+  }
+
   const filteredRows=allRows.filter(row=>{
+    if(expenseMonthFilter!=='all'&&(!row.date||row.date.slice(0,7)!==expenseMonthFilter))return false;
     if(expenseCategoryFilter!=='all'&&row.category!==expenseCategoryFilter)return false;
     if(expenseSearchQuery){
       const q=expenseSearchQuery.toLowerCase();
@@ -3092,6 +3103,19 @@ function renderExpenses() {
     }
     return true;
   });
+
+  const filteredTotal=filteredRows.reduce((sum,row)=>sum+(Number(row.amount)||0),0);
+  const filteredTotalEl=$('#expenseFilteredTotal');
+  if(filteredTotalEl)filteredTotalEl.textContent=formatAmount(filteredTotal);
+  const filteredHelpEl=$('#expenseFilteredHelp');
+  if(filteredHelpEl){
+    const hasFilter=expenseMonthFilter!=='all'||expenseCategoryFilter!=='all'||Boolean(expenseSearchQuery);
+    if(hasFilter){
+      filteredHelpEl.textContent=`${filteredRows.length} of ${allRows.length} entries matching filters`;
+    }else{
+      filteredHelpEl.textContent=allRows.length?`${allRows.length} total entries`:'No expense entries recorded';
+    }
+  }
 
   filteredRows.sort((a,b)=>{
     let cmp=0;
@@ -3105,7 +3129,7 @@ function renderExpenses() {
     return expenseSortAsc?cmp:-cmp;
   });
 
-  $('#expenseTable').innerHTML=filteredRows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
+  $('#expenseTable').innerHTML=filteredRows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td class="expense-actions"><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
   $('#expensesEmpty').hidden=allRows.length>0;
   const filterEmpty=$('#expensesFilterEmpty');
   if(filterEmpty)filterEmpty.hidden=allRows.length===0||filteredRows.length>0;
@@ -3155,6 +3179,10 @@ document.querySelectorAll('[data-sort-expense]').forEach(th=>{
     }
   });
 });
+$('#expenseMonthFilter')?.addEventListener('change',e=>{
+  expenseMonthFilter=e.currentTarget.value;
+  renderExpenses();
+});
 $('#expenseCategoryFilter')?.addEventListener('change',e=>{
   expenseCategoryFilter=e.currentTarget.value;
   renderExpenses();
@@ -3164,8 +3192,10 @@ $('#expenseSearchInput')?.addEventListener('input',e=>{
   renderExpenses();
 });
 $('#clearExpenseFilters')?.addEventListener('click',()=>{
+  expenseMonthFilter='all';
   expenseCategoryFilter='all';
   expenseSearchQuery='';
+  const mSel=$('#expenseMonthFilter');if(mSel)mSel.value='all';
   const cat=$('#expenseCategoryFilter');if(cat)cat.value='all';
   const inp=$('#expenseSearchInput');if(inp)inp.value='';
   renderExpenses();
@@ -3394,7 +3424,19 @@ $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
 });
 
 $('#exportExpensesCsvBtn')?.addEventListener('click', () => {
-  const expenses = state.expenses || [];
+  const allRows = state.expenses || [];
+  const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery);
+  const expenses = hasFilter ? allRows.filter(row => {
+    if (expenseMonthFilter !== 'all' && (!row.date || row.date.slice(0, 7) !== expenseMonthFilter)) return false;
+    if (expenseCategoryFilter !== 'all' && row.category !== expenseCategoryFilter) return false;
+    if (expenseSearchQuery) {
+      const q = expenseSearchQuery.toLowerCase();
+      const matchCat = String(row.category || '').toLowerCase().includes(q);
+      const matchNotes = String(row.notes || '').toLowerCase().includes(q);
+      if (!matchCat && !matchNotes) return false;
+    }
+    return true;
+  }) : allRows;
   const headers = [
     { key: 'date', label: 'Date' },
     { key: 'category', label: 'Category' },
@@ -3404,7 +3446,7 @@ $('#exportExpensesCsvBtn')?.addEventListener('click', () => {
   const csv = generateCsvContent(headers, expenses);
   const filename = `expenses-${new Date().toISOString().slice(0, 10)}.csv`;
   downloadCsvFile(filename, csv);
-  toast(`Exported ${expenses.length} expense records to CSV.`);
+  toast(`Exported ${expenses.length} expense record${expenses.length === 1 ? '' : 's'} to CSV.`);
 });
 
 $('#exportInventoryCsvBtn')?.addEventListener('click', () => {

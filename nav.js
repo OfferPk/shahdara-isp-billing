@@ -6201,3 +6201,19 @@ export {
   setupMobileOtdrLaunchModal
 } from './nav-otdr-launch-cable.js';
 
+export {
+  BARE_FIBER_ADAPTER_STORAGE_KEY,
+  BFA_CONNECTOR_TYPES,
+  INDEX_MATCHING_CONDITIONS,
+  VGROOVE_CONDITIONS,
+  BFA_PRESETS,
+  calculateBareFiberAdapterMetrics,
+  renderBareFiberAdapterSvg,
+  formatBareFiberAdapterWhatsApp,
+  loadBareFiberAdapterAuditLog,
+  saveBareFiberAdapterAuditLog,
+  clearBareFiberAdapterAuditLog,
+  generateBareFiberAdapterCsv,
+  setupMobileBareFiberAdapterModal
+} from './nav-bare-fiber-adapter.js';
+

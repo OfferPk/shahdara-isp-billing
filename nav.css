@@ -5990,5 +5990,50 @@ kbd {
   }
 }
 
+/* ==========================================================================
+   Bare Fiber Adapter (BFA) & Temporary Splice Assistant (agent2)
+   ========================================================================== */
+.bfa-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bfa-svg-wrap {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: #090d16;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.bfa-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.mobile-bfa-modal {
+  max-width: 860px;
+  width: 95%;
+  border-radius: 16px;
+}
+
+[data-theme="dark"] .mobile-bfa-modal {
+  background: #090d16;
+  border-color: #1e3a5f;
+}
+
+@media (max-width: 640px) {
+  .bfa-card {
+    padding: 14px;
+    gap: 12px;
+  }
+}
+
 
 

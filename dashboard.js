@@ -5721,5 +5721,18 @@ export {
   setupPseudowireModal
 } from './dashboard-pseudowire.js';
 
+export {
+  BFD_CONSTANTS,
+  SHAHDARA_BFD_SESSIONS,
+  calculateBfdDynamics,
+  calculateBfdMetrics,
+  renderBfdDiagramSvg,
+  generateBfdReport,
+  exportBfdJson,
+  exportBfdCsv,
+  setupBfdModal
+} from './dashboard-bfd.js';
+
+
 
 

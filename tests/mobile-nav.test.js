@@ -13712,3 +13712,196 @@ test('Quick Collect: DOM integration and markup in index.html, styles.css, app.j
   assert.ok(typeof nav.formatQuickCollectWhatsAppReceipt === 'function');
   assert.ok(typeof nav.setupQuickCollectModal === 'function');
 });
+
+/* -------------------------------------------------------------------------- */
+/* Fast Customer Search Sheet & Recent Accounts Test Suite (agent2)           */
+/* -------------------------------------------------------------------------- */
+
+test('Fast Customer Search: recordRecentCustomer, getRecentCustomers, and clearRecentCustomers manage cache', async () => {
+  const { recordRecentCustomer, getRecentCustomers, clearRecentCustomers, RECENT_CUSTOMERS_STORAGE_KEY } = await import('../nav-customer-search.js');
+
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  const mockState = {
+    customers: [
+      { id: 'c-1', customerNumber: 10, name: 'Nasir Jamshed', phone: '03001234567', area: 'Baradari', archived: false },
+      { id: 'c-2', customerNumber: 11, name: 'Imran Nazir', phone: '03217654321', area: 'Begum Kot', archived: false },
+      { id: 'c-arch', customerNumber: 12, name: 'Old Account', phone: '03330000000', area: 'Jia Musa', archived: true }
+    ]
+  };
+
+  // 1. Record customer 1
+  recordRecentCustomer(mockState.customers[0], mockStorage);
+  let recents = getRecentCustomers(mockState, mockStorage);
+  assert.equal(recents.length, 1);
+  assert.equal(recents[0].name, 'Nasir Jamshed');
+
+  // 2. Record customer 2
+  recordRecentCustomer(mockState.customers[1], mockStorage);
+  recents = getRecentCustomers(mockState, mockStorage);
+  assert.equal(recents.length, 2);
+  assert.equal(recents[0].name, 'Imran Nazir'); // Newest first
+  assert.equal(recents[1].name, 'Nasir Jamshed');
+
+  // 3. Re-record customer 1 (should move to front, no duplicate)
+  recordRecentCustomer(mockState.customers[0], mockStorage);
+  recents = getRecentCustomers(mockState, mockStorage);
+  assert.equal(recents.length, 2);
+  assert.equal(recents[0].name, 'Nasir Jamshed');
+  assert.equal(recents[1].name, 'Imran Nazir');
+
+  // 4. Record archived customer (should not be returned in getRecentCustomers)
+  recordRecentCustomer(mockState.customers[2], mockStorage);
+  recents = getRecentCustomers(mockState, mockStorage);
+  assert.equal(recents.length, 2); // archived filtered out
+
+  // 5. Clear recent cache
+  clearRecentCustomers(mockStorage);
+  recents = getRecentCustomers(mockState, mockStorage);
+  assert.equal(recents.length, 0);
+});
+
+test('Fast Customer Search: searchFastCustomers filters by status chip and matches queries', async () => {
+  const { searchFastCustomers } = await import('../nav-customer-search.js');
+
+  const mockState = {
+    customers: [
+      {
+        id: 'cust-pending',
+        customerNumber: 50,
+        name: 'Shoaib Akhtar',
+        phone: '03009998877',
+        area: 'Ravi Siphon',
+        mohalla: 'Bridge End',
+        archived: false,
+        bills: [
+          { month: '2026-10', dueAmount: 3000, payments: [] }
+        ]
+      },
+      {
+        id: 'cust-partial',
+        customerNumber: 51,
+        name: 'Wasim Akram',
+        phone: '03215554433',
+        area: 'Baradari Sector A',
+        mohalla: 'Lane 2',
+        archived: false,
+        bills: [
+          { month: '2026-10', dueAmount: 2500, payments: [{ id: 'p-1', amount: 1000, date: '2026-10-05', method: 'Cash' }] }
+        ]
+      },
+      {
+        id: 'cust-paid',
+        customerNumber: 52,
+        name: 'Waqar Younis',
+        phone: '03331112233',
+        area: 'Shahdara Town',
+        mohalla: 'Main Road',
+        archived: false,
+        bills: [
+          { month: '2026-10', dueAmount: 2000, payments: [{ id: 'p-2', amount: 2000, date: '2026-10-02', method: 'JazzCash' }] }
+        ]
+      }
+    ]
+  };
+
+  const refDate = new Date('2026-10-15T10:00:00Z');
+
+  // 1. Status Filter: 'pending'
+  const pendingResults = searchFastCustomers(mockState, { statusFilter: 'pending' }, refDate);
+  assert.equal(pendingResults.length, 1);
+  assert.equal(pendingResults[0].name, 'Shoaib Akhtar');
+  assert.equal(pendingResults[0].totalDues, 3000);
+
+  // 2. Status Filter: 'partial'
+  const partialResults = searchFastCustomers(mockState, { statusFilter: 'partial' }, refDate);
+  assert.equal(partialResults.length, 1);
+  assert.equal(partialResults[0].name, 'Wasim Akram');
+  assert.equal(partialResults[0].totalDues, 1500);
+
+  // 3. Status Filter: 'paid'
+  const paidResults = searchFastCustomers(mockState, { statusFilter: 'paid' }, refDate);
+  assert.equal(paidResults.length, 1);
+  assert.equal(paidResults[0].name, 'Waqar Younis');
+  assert.equal(paidResults[0].totalDues, 0);
+
+  // 4. Query search by name
+  const nameSearch = searchFastCustomers(mockState, { query: 'wasim' }, refDate);
+  assert.equal(nameSearch.length, 1);
+  assert.equal(nameSearch[0].name, 'Wasim Akram');
+
+  // 5. Query search by phone
+  const phoneSearch = searchFastCustomers(mockState, { query: '9998877' }, refDate);
+  assert.equal(phoneSearch.length, 1);
+  assert.equal(phoneSearch[0].name, 'Shoaib Akhtar');
+
+  // 6. Query search by customer number #52
+  const numSearch = searchFastCustomers(mockState, { query: '#52' }, refDate);
+  assert.equal(numSearch.length, 1);
+  assert.equal(numSearch[0].name, 'Waqar Younis');
+});
+
+test('Fast Customer Search: renderFastCustomerSearchResultsHtml produces accessible cards with action buttons', async () => {
+  const { renderFastCustomerSearchResultsHtml } = await import('../nav-customer-search.js');
+
+  const customers = [
+    {
+      id: 'cust-test',
+      customerNumber: 77,
+      name: 'Babar Azam',
+      phone: '03005556677',
+      area: 'Begum Kot Main',
+      billingStatus: 'pending',
+      totalDues: 2000
+    }
+  ];
+
+  const html = renderFastCustomerSearchResultsHtml(customers);
+  assert.ok(html.includes('#77'));
+  assert.ok(html.includes('Babar Azam'));
+  assert.ok(html.includes('03005556677'));
+  assert.ok(html.includes('Begum Kot Main'));
+  assert.ok(html.includes('2,000'));
+  assert.ok(html.includes('PENDING'));
+  assert.ok(html.includes('data-fcs-action="collect"'));
+  assert.ok(html.includes('data-fcs-action="profile"'));
+  assert.ok(html.includes('data-fcs-action="whatsapp"'));
+
+  const emptyHtml = renderFastCustomerSearchResultsHtml([], { isRecent: true });
+  assert.ok(emptyHtml.includes('No recent customers'));
+});
+
+test('Fast Customer Search: DOM integration and markup in index.html, styles.css, app.js, and nav.js', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileCustomerSearchModal"'));
+  assert.ok(html.includes('id="closeMobileCustomerSearchModalBtn"'));
+  assert.ok(html.includes('id="fastCustomerSearchInput"'));
+  assert.ok(html.includes('id="fastCustomerSearchResults"'));
+  assert.ok(html.includes('id="fastCustomerSearchCountBadge"'));
+  assert.ok(html.includes('id="mobileCustomerSearchTrigger"'));
+
+  const styles = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(styles.includes('#mobileCustomerSearchModal'));
+  assert.ok(styles.includes('.fcs-card'));
+  assert.ok(styles.includes('[data-theme="dark"] #mobileCustomerSearchModal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupFastCustomerSearchModal'));
+  assert.ok(app.includes('window.fastCustomerSearchController'));
+
+  const nav = await import('../nav.js');
+  assert.ok(typeof nav.recordRecentCustomer === 'function');
+  assert.ok(typeof nav.getRecentCustomers === 'function');
+  assert.ok(typeof nav.clearRecentCustomers === 'function');
+  assert.ok(typeof nav.searchFastCustomers === 'function');
+  assert.ok(typeof nav.renderFastCustomerSearchResultsHtml === 'function');
+  assert.ok(typeof nav.setupFastCustomerSearchModal === 'function');
+});

@@ -10291,4 +10291,283 @@ test('index.html, nav.css, and app.js correctly integrate Mobile Fast Connector 
   assert.ok(app.includes('mobileFastConnectorModalController'));
 });
 
+test('nav.js correctly re-exports OTDR Launch Cable assistant constants and functions', async () => {
+  const nav = await import('../nav.js');
+  assert.equal(typeof nav.OTDR_LAUNCH_STORAGE_KEY, 'string');
+  assert.ok(nav.OTDR_PULSE_WIDTHS.PULSE_5NS);
+  assert.ok(nav.OTDR_PULSE_WIDTHS.PULSE_30NS);
+  assert.ok(nav.OTDR_PULSE_WIDTHS.PULSE_100NS);
+  assert.ok(nav.OTDR_LAUNCH_FIBER_TYPES.G652D);
+  assert.ok(Array.isArray(nav.OTDR_LAUNCH_WAVELENGTHS));
+  assert.ok(Array.isArray(nav.OTDR_LAUNCH_PRESETS));
+  assert.equal(typeof nav.calculateOtdrLaunchMetrics, 'function');
+  assert.equal(typeof nav.renderOtdrLaunchDiagramSvg, 'function');
+  assert.equal(typeof nav.formatOtdrLaunchWhatsApp, 'function');
+  assert.equal(typeof nav.generateOtdrLaunchCsv, 'function');
+  assert.equal(typeof nav.setupMobileOtdrLaunchModal, 'function');
+});
+
+test('calculateOtdrLaunchMetrics accurately handles optimal setup, blind zone, and ghost reflection', async () => {
+  const { calculateOtdrLaunchMetrics } = await import('../nav-otdr-launch-cable.js');
+
+  // 1. Optimal setup: 500m launch + 300m tail, 30ns pulse
+  const optimal = calculateOtdrLaunchMetrics({
+    pulseWidthKey: 'PULSE_30NS',
+    fiberTypeKey: 'G652D',
+    wavelength: 1310,
+    launchCableLengthM: 500,
+    futLengthM: 2400,
+    tailCableLengthM: 300,
+    nearEndReflectanceDb: -52.0,
+    nearEndLossDb: 0.25,
+    farEndLossDb: 0.28
+  });
+
+  assert.equal(optimal.isOverallPass, true);
+  assert.equal(optimal.hasLaunchCable, true);
+  assert.equal(optimal.isNearEndMeasurable, true);
+  assert.equal(optimal.hasTailCable, true);
+  assert.equal(optimal.isFarEndMeasurable, true);
+  assert.equal(optimal.isHighReflectance, false);
+  assert.equal(optimal.ghostEchoDetected, false);
+  assert.equal(optimal.launchVerdict, 'OPTIMAL');
+  assert.equal(optimal.tailVerdict, 'OPTIMAL');
+  assert.equal(optimal.qualityRating, 'EXCELLENT');
+  assert.ok(optimal.totalLinkLossDb > 0);
+
+  // 2. Direct connection without launch spool (Blind Zone)
+  const blind = calculateOtdrLaunchMetrics({
+    pulseWidthKey: 'PULSE_100NS',
+    launchCableLengthM: 0,
+    futLengthM: 2000,
+    tailCableLengthM: 0
+  });
+
+  assert.equal(blind.hasLaunchCable, false);
+  assert.equal(blind.isNearEndMeasurable, false);
+  assert.equal(blind.isOverallPass, false);
+  assert.ok(blind.launchVerdict.includes('BLIND ZONE'));
+  assert.ok(blind.qualityRating.includes('FAIL'));
+
+  // 3. Ghost reflection detected from poor reflectance
+  const ghost = calculateOtdrLaunchMetrics({
+    pulseWidthKey: 'PULSE_30NS',
+    launchCableLengthM: 500,
+    futLengthM: 3000,
+    tailCableLengthM: 300,
+    nearEndReflectanceDb: -26.0 // High reflectance!
+  });
+
+  assert.equal(ghost.isHighReflectance, true);
+  assert.equal(ghost.ghostEchoDetected, true);
+  assert.equal(ghost.ghostDistanceM, 1000); // 2 * 500m
+  assert.equal(ghost.isOverallPass, false);
+  assert.ok(ghost.ghostDescription.includes('GHOST ECHO'));
+
+  // 4. Underlength launch spool (< ADZ * 2.5)
+  const shortLaunch = calculateOtdrLaunchMetrics({
+    pulseWidthKey: 'PULSE_100NS', // ADZ = 40m, needs >= 100m
+    launchCableLengthM: 50,
+    futLengthM: 2000,
+    tailCableLengthM: 100
+  });
+  assert.equal(shortLaunch.isLaunchAdequate, false);
+  assert.ok(shortLaunch.launchVerdict.includes('UNDERLENGTH'));
+});
+
+test('renderOtdrLaunchDiagramSvg outputs complete vector waveform and telemetry', async () => {
+  const { calculateOtdrLaunchMetrics, renderOtdrLaunchDiagramSvg } = await import('../nav-otdr-launch-cable.js');
+
+  const dyn = calculateOtdrLaunchMetrics({
+    pulseWidthKey: 'PULSE_30NS',
+    launchCableLengthM: 500,
+    futLengthM: 2400,
+    tailCableLengthM: 300,
+    nearEndReflectanceDb: -52.0
+  });
+
+  const svg = renderOtdrLaunchDiagramSvg(dyn);
+  assert.ok(svg.includes('<svg class="otdr-launch-svg"'));
+  assert.ok(svg.includes('OTDR'));
+  assert.ok(svg.includes('LAUNCH: 500m'));
+  assert.ok(svg.includes('ODF BULKHEAD'));
+  assert.ok(svg.includes('FIBER UNDER TEST (FUT): 2400m'));
+  assert.ok(svg.includes('DROP TERM'));
+  assert.ok(svg.includes('TAIL: 300m'));
+  assert.ok(svg.includes('NEAR-END ODF BULKHEAD'));
+  assert.ok(svg.includes('TOTAL LINK LOSS BUDGET'));
+});
+
+test('formatOtdrLaunchWhatsApp and generateOtdrLaunchCsv output structured field logs', async () => {
+  const { calculateOtdrLaunchMetrics, formatOtdrLaunchWhatsApp, generateOtdrLaunchCsv } = await import('../nav-otdr-launch-cable.js');
+
+  const dyn = calculateOtdrLaunchMetrics({
+    pulseWidthKey: 'PULSE_30NS',
+    launchCableLengthM: 500,
+    futLengthM: 2400,
+    tailCableLengthM: 300
+  });
+
+  const wa = formatOtdrLaunchWhatsApp(dyn, { area: 'Shahdara Town', technicianName: 'Sajjad Malik' });
+  assert.ok(wa.includes('SHAHDARA ISP · FTTH OTDR LAUNCH CABLE AUDIT'));
+  assert.ok(wa.includes('شاہدہرا آپٹیکل ٹائم ڈومین ریفلیکٹومیٹر لانچ رپورٹ'));
+  assert.ok(wa.includes('Shahdara Town'));
+  assert.ok(wa.includes('Sajjad Malik'));
+  assert.ok(wa.includes('PASSED'));
+
+  const records = [
+    {
+      timestamp: '2026-10-17T06:20:00Z',
+      area: 'Shahdara Town',
+      technicianName: 'Sajjad Malik',
+      wavelength: 1310,
+      pulseWidth: '30 ns',
+      launchLenM: 500,
+      futLenM: 2400,
+      tailLenM: 300,
+      nearEndLossDb: 0.25,
+      nearEndReflectanceDb: -52.0,
+      farEndLossDb: 0.28,
+      totalLinkLossDb: 1.65,
+      ghostEchoDetected: false,
+      qualityRating: 'EXCELLENT',
+      isOverallPass: true
+    }
+  ];
+
+  const csv = generateOtdrLaunchCsv(records);
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Timestamp,Area,Technician,Wavelength (nm)'));
+  assert.ok(csv.includes('"Shahdara Town"'));
+  assert.ok(csv.includes('PASS'));
+});
+
+test('setupMobileOtdrLaunchModal binds DOM events and executes controller actions', async () => {
+  const { setupMobileOtdrLaunchModal } = await import('../nav-otdr-launch-cable.js');
+
+  let modalShown = false;
+  let modalClosed = false;
+
+  function makeMockElement(id, initialVal = '') {
+    const elListeners = {};
+    return {
+      id,
+      value: initialVal,
+      textContent: '',
+      innerHTML: '',
+      dataset: {},
+      addEventListener: (evt, handler) => {
+        elListeners[evt] = handler;
+      },
+      trigger: (evt) => {
+        if (elListeners[evt]) elListeners[evt]({ target: { value: initialVal } });
+      },
+      showModal: () => { modalShown = true; },
+      close: () => { modalClosed = true; },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    };
+  }
+
+  const elements = {
+    mobileOtdrLaunchModal: makeMockElement('mobileOtdrLaunchModal'),
+    mobileMoreOtdrLaunchBtn: makeMockElement('mobileMoreOtdrLaunchBtn'),
+    mobileOtdrLaunchModalCloseBtn: makeMockElement('mobileOtdrLaunchModalCloseBtn'),
+    otdrLaunchPresetSelect: makeMockElement('otdrLaunchPresetSelect', 'shahdara-town-feeder-optimal'),
+    otdrLaunchPulseSelect: makeMockElement('otdrLaunchPulseSelect', 'PULSE_30NS'),
+    otdrLaunchFiberSelect: makeMockElement('otdrLaunchFiberSelect', 'G652D'),
+    otdrLaunchWaveSelect: makeMockElement('otdrLaunchWaveSelect', '1310'),
+    otdrLaunchCableSlider: makeMockElement('otdrLaunchCableSlider', '500'),
+    otdrLaunchCableLabel: makeMockElement('otdrLaunchCableLabel'),
+    otdrLaunchFutSlider: makeMockElement('otdrLaunchFutSlider', '2400'),
+    otdrLaunchFutLabel: makeMockElement('otdrLaunchFutLabel'),
+    otdrLaunchTailSlider: makeMockElement('otdrLaunchTailSlider', '300'),
+    otdrLaunchTailLabel: makeMockElement('otdrLaunchTailLabel'),
+    otdrLaunchNearLossSlider: makeMockElement('otdrLaunchNearLossSlider', '0.25'),
+    otdrLaunchNearLossLabel: makeMockElement('otdrLaunchNearLossLabel'),
+    otdrLaunchReflSlider: makeMockElement('otdrLaunchReflSlider', '-52.0'),
+    otdrLaunchReflLabel: makeMockElement('otdrLaunchReflLabel'),
+    otdrLaunchAreaSelect: makeMockElement('otdrLaunchAreaSelect', 'Shahdara Town'),
+    otdrLaunchTechInput: makeMockElement('otdrLaunchTechInput', 'Sajjad Malik'),
+    otdrLaunchDiagramContainer: makeMockElement('otdrLaunchDiagramContainer'),
+    otdrLaunchResetBtn: makeMockElement('otdrLaunchResetBtn'),
+    otdrLaunchSaveBtn: makeMockElement('otdrLaunchSaveBtn'),
+    otdrLaunchWhatsAppBtn: makeMockElement('otdrLaunchWhatsAppBtn'),
+    otdrLaunchExportCsvBtn: makeMockElement('otdrLaunchExportCsvBtn')
+  };
+
+  const mockDoc = {
+    getElementById: (id) => elements[id] || null
+  };
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: (k) => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v))
+  };
+
+  let lastToast = null;
+  const controller = setupMobileOtdrLaunchModal({}, {
+    document: mockDoc,
+    storage: mockStorage,
+    onToast: (msg) => { lastToast = msg; }
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.update, 'function');
+  assert.equal(typeof controller.getMetrics, 'function');
+
+  controller.open();
+  assert.equal(modalShown, true);
+
+  controller.close();
+  assert.equal(modalClosed, true);
+
+  elements.otdrLaunchSaveBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('audit saved'));
+  const audits = controller.getSavedAudits();
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].launchLenM, 500);
+
+  elements.otdrLaunchResetBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('baseline'));
+});
+
+test('index.html, nav.css, and app.js correctly integrate Mobile OTDR Launch Cable Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreOtdrLaunchBtn"'));
+  assert.ok(html.includes('id="mobileOtdrLaunchModal"'));
+  assert.ok(html.includes('id="mobileOtdrLaunchModalCloseBtn"'));
+  assert.ok(html.includes('id="otdrLaunchPresetSelect"'));
+  assert.ok(html.includes('id="otdrLaunchAreaSelect"'));
+  assert.ok(html.includes('id="otdrLaunchTechInput"'));
+  assert.ok(html.includes('id="otdrLaunchPulseSelect"'));
+  assert.ok(html.includes('id="otdrLaunchFiberSelect"'));
+  assert.ok(html.includes('id="otdrLaunchWaveSelect"'));
+  assert.ok(html.includes('id="otdrLaunchCableSlider"'));
+  assert.ok(html.includes('id="otdrLaunchFutSlider"'));
+  assert.ok(html.includes('id="otdrLaunchTailSlider"'));
+  assert.ok(html.includes('id="otdrLaunchNearLossSlider"'));
+  assert.ok(html.includes('id="otdrLaunchReflSlider"'));
+  assert.ok(html.includes('id="otdrLaunchDiagramContainer"'));
+  assert.ok(html.includes('id="otdrLaunchSaveBtn"'));
+  assert.ok(html.includes('id="otdrLaunchWhatsAppBtn"'));
+  assert.ok(html.includes('id="otdrLaunchExportCsvBtn"'));
+  assert.ok(html.includes('id="otdrLaunchResetBtn"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.otdr-launch-card'));
+  assert.ok(css.includes('.otdr-launch-svg-wrap'));
+  assert.ok(css.includes('.mobile-otdr-launch-modal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileOtdrLaunchModal'));
+  assert.ok(app.includes('mobileOtdrLaunchModalController'));
+});
+
 

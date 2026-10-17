@@ -10570,4 +10570,274 @@ test('index.html, nav.css, and app.js correctly integrate Mobile OTDR Launch Cab
   assert.ok(app.includes('mobileOtdrLaunchModalController'));
 });
 
+// ==========================================================================
+// Tests for Bare Fiber Adapter (BFA) & Temporary Splice Assistant (agent2)
+// ==========================================================================
+
+test('calculateBareFiberAdapterMetrics calculates correct metrics for optimal SC/APC coupling', async () => {
+  const { calculateBareFiberAdapterMetrics, BFA_CONNECTOR_TYPES } = await import('../nav.js');
+
+  const result = calculateBareFiberAdapterMetrics({
+    connectorType: 'SC_APC',
+    indexMatching: 'FRESH_IMF',
+    vgrooveCondition: 'PRISTINE',
+    bareGlassStripMm: 12.0,
+    clampRetentionN: 3.5,
+    cleaveQuality: 'OPTIMAL'
+  });
+
+  assert.ok(result);
+  assert.equal(result.connectorType, 'SC_APC');
+  assert.equal(result.isStripPass, true);
+  assert.equal(result.isClampSufficient, true);
+  assert.equal(result.isIlPass, true);
+  assert.equal(result.isRlPass, true);
+  assert.equal(result.verdict, 'PASS');
+  assert.ok(result.estimatedIlDb <= 0.40);
+  assert.ok(result.estimatedRlDb >= 50.0);
+  assert.equal(result.gapWarning, null);
+});
+
+test('calculateBareFiberAdapterMetrics detects under-inserted air gap and loose clamp failures', async () => {
+  const { calculateBareFiberAdapterMetrics } = await import('../nav.js');
+
+  const underResult = calculateBareFiberAdapterMetrics({
+    connectorType: 'SC_UPC',
+    indexMatching: 'AIR_GAP_DRY',
+    vgrooveCondition: 'PRISTINE',
+    bareGlassStripMm: 10.0, // Under-inserted < 10.8mm
+    clampRetentionN: 1.5, // Loose clamp < 2.0N
+    cleaveQuality: 'ACCEPTABLE'
+  });
+
+  assert.ok(underResult);
+  assert.equal(underResult.isStripPass, false);
+  assert.equal(underResult.isClampSufficient, false);
+  assert.ok(underResult.gapWarning && underResult.gapWarning.includes('under-inserted'));
+  assert.equal(underResult.verdict, 'FAIL');
+});
+
+test('calculateBareFiberAdapterMetrics detects chipped cleave and damaged V-groove caution/fail', async () => {
+  const { calculateBareFiberAdapterMetrics } = await import('../nav.js');
+
+  const chippedResult = calculateBareFiberAdapterMetrics({
+    connectorType: 'FC_UPC',
+    indexMatching: 'FRESH_IMF',
+    vgrooveCondition: 'DAMAGED',
+    bareGlassStripMm: 15.5, // Over-stripped > 14.0mm
+    clampRetentionN: 3.0,
+    cleaveQuality: 'CHIPPED'
+  });
+
+  assert.ok(chippedResult);
+  assert.equal(chippedResult.isStripPass, false);
+  assert.ok(chippedResult.gapWarning && chippedResult.gapWarning.includes('Excess bare glass'));
+  assert.ok(chippedResult.estimatedIlDb > 0.35); // Exceeds FC_UPC limit
+  assert.equal(chippedResult.verdict, 'FAIL');
+});
+
+test('renderBareFiberAdapterSvg returns valid SVG with elements and labels', async () => {
+  const { calculateBareFiberAdapterMetrics, renderBareFiberAdapterSvg } = await import('../nav.js');
+
+  const dynamics = calculateBareFiberAdapterMetrics({
+    connectorType: 'SC_APC',
+    indexMatching: 'FRESH_IMF',
+    vgrooveCondition: 'PRISTINE',
+    bareGlassStripMm: 12.0,
+    clampRetentionN: 3.5
+  });
+
+  const svg = renderBareFiberAdapterSvg(dynamics, {
+    connectorType: 'SC_APC',
+    bareGlassStripMm: 12.0,
+    clampRetentionN: 3.5
+  });
+
+  assert.ok(svg.startsWith('<svg'));
+  assert.ok(svg.includes('class="bfa-svg"'));
+  assert.ok(svg.includes('Zirconia Ferrule Body'));
+  assert.ok(svg.includes('Ceramic Alignment V-Groove Channel'));
+  assert.ok(svg.includes('Magnetic Fiber Clamp'));
+  assert.ok(svg.includes('INSERTION LOSS (IL)'));
+  assert.ok(svg.includes('RETURN LOSS (RL)'));
+});
+
+test('formatBareFiberAdapterWhatsApp and generateBareFiberAdapterCsv output properly formatted data', async () => {
+  const { calculateBareFiberAdapterMetrics, formatBareFiberAdapterWhatsApp, generateBareFiberAdapterCsv } = await import('../nav.js');
+
+  const dynamics = calculateBareFiberAdapterMetrics({
+    connectorType: 'SC_APC',
+    indexMatching: 'FRESH_IMF',
+    vgrooveCondition: 'PRISTINE',
+    bareGlassStripMm: 12.0,
+    clampRetentionN: 3.5
+  });
+
+  const waMsg = formatBareFiberAdapterWhatsApp(dynamics, {
+    technicianName: 'Arshad Ali',
+    area: 'Shahdara Town',
+    notes: 'Emergency cable cut verification'
+  });
+
+  assert.ok(waMsg.includes('SHAHDARA ISP - BARE FIBER ADAPTER'));
+  assert.ok(waMsg.includes('Arshad Ali'));
+  assert.ok(waMsg.includes('Shahdara Town'));
+  assert.ok(waMsg.includes('IEC 60793-1-40'));
+
+  const csv = generateBareFiberAdapterCsv([
+    {
+      id: 'bfa-101',
+      timestamp: '2026-10-17T07:30:00Z',
+      technicianName: 'Arshad Ali',
+      area: 'Shahdara Town',
+      connectorType: 'SC_APC',
+      indexMatching: 'FRESH_IMF',
+      vgrooveCondition: 'PRISTINE',
+      actualStripMm: 12.0,
+      clampRetentionN: 3.5,
+      estimatedIlDb: 0.23,
+      estimatedRlDb: 56.0,
+      verdict: 'PASS',
+      notes: 'Optimal coupling'
+    }
+  ]);
+
+  assert.ok(csv.startsWith('\uFEFF'));
+  assert.ok(csv.includes('Audit_ID,Timestamp,Technician,Area,Connector_Type'));
+  assert.ok(csv.includes('bfa-101'));
+  assert.ok(csv.includes('Arshad Ali'));
+});
+
+test('setupMobileBareFiberAdapterModal initializes, handles UI events and manages audit logs', async () => {
+  const { setupMobileBareFiberAdapterModal, loadBareFiberAdapterAuditLog } = await import('../nav.js');
+
+  let modalShown = false;
+  let modalClosed = false;
+
+  function createMockElem(tag = 'div') {
+    const listeners = {};
+    return {
+      tagName: tag.toUpperCase(),
+      value: '',
+      textContent: '',
+      innerHTML: '',
+      addEventListener: (evt, handler) => {
+        listeners[evt] = listeners[evt] || [];
+        listeners[evt].push(handler);
+      },
+      trigger: (evt) => {
+        (listeners[evt] || []).forEach(fn => fn({ preventDefault: () => {} }));
+      },
+      querySelectorAll: () => [],
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    };
+  }
+
+  const elements = {
+    mobileBareFiberAdapterModal: {
+      showModal: () => { modalShown = true; },
+      close: () => { modalClosed = true; },
+      setAttribute: () => {},
+      removeAttribute: () => {}
+    },
+    mobileBareFiberAdapterModalCloseBtn: createMockElem('button'),
+    mobileMoreBareFiberAdapterBtn: createMockElem('button'),
+    bfaPresetSelect: createMockElem('select'),
+    bfaAreaSelect: createMockElem('select'),
+    bfaTechInput: createMockElem('input'),
+    bfaConnectorTypeSelect: createMockElem('select'),
+    bfaImfSelect: createMockElem('select'),
+    bfaVgrooveSelect: createMockElem('select'),
+    bfaStripSlider: createMockElem('input'),
+    bfaStripLabel: createMockElem('span'),
+    bfaClampSlider: createMockElem('input'),
+    bfaClampLabel: createMockElem('span'),
+    bfaCleaveSelect: createMockElem('select'),
+    bfaNotesInput: createMockElem('input'),
+    bfaResetBtn: createMockElem('button'),
+    bfaSaveBtn: createMockElem('button'),
+    bfaWhatsAppBtn: createMockElem('button'),
+    bfaExportCsvBtn: createMockElem('button'),
+    bfaDiagramContainer: createMockElem('div'),
+    bfaHistoryTbody: createMockElem('tbody'),
+    bfaHistorySearch: createMockElem('input'),
+    bfaHistoryVerdictFilter: createMockElem('select')
+  };
+
+  const mockDoc = {
+    getElementById: (id) => elements[id] || null
+  };
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: (k) => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v)),
+    removeItem: (k) => mockStore.delete(k)
+  };
+
+  let lastToast = null;
+  const controller = setupMobileBareFiberAdapterModal({}, {
+    document: mockDoc,
+    storage: mockStorage,
+    onToast: (msg) => { lastToast = msg; }
+  });
+
+  assert.ok(controller);
+  assert.equal(typeof controller.open, 'function');
+  assert.equal(typeof controller.close, 'function');
+  assert.equal(typeof controller.update, 'function');
+  assert.equal(typeof controller.getMetrics, 'function');
+
+  controller.open();
+  assert.equal(modalShown, true);
+
+  controller.close();
+  assert.equal(modalClosed, true);
+
+  elements.bfaSaveBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('audit saved'));
+  const audits = controller.getSavedAudits();
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].connectorType, 'SC_APC');
+
+  elements.bfaResetBtn.trigger('click');
+  assert.ok(lastToast && lastToast.includes('baseline'));
+});
+
+test('index.html, nav.css, and app.js correctly integrate Mobile Bare Fiber Adapter Assistant', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreBareFiberAdapterBtn"'));
+  assert.ok(html.includes('id="mobileBareFiberAdapterModal"'));
+  assert.ok(html.includes('id="mobileBareFiberAdapterModalCloseBtn"'));
+  assert.ok(html.includes('id="bfaPresetSelect"'));
+  assert.ok(html.includes('id="bfaAreaSelect"'));
+  assert.ok(html.includes('id="bfaTechInput"'));
+  assert.ok(html.includes('id="bfaConnectorTypeSelect"'));
+  assert.ok(html.includes('id="bfaImfSelect"'));
+  assert.ok(html.includes('id="bfaVgrooveSelect"'));
+  assert.ok(html.includes('id="bfaCleaveSelect"'));
+  assert.ok(html.includes('id="bfaNotesInput"'));
+  assert.ok(html.includes('id="bfaStripSlider"'));
+  assert.ok(html.includes('id="bfaClampSlider"'));
+  assert.ok(html.includes('id="bfaDiagramContainer"'));
+  assert.ok(html.includes('id="bfaSaveBtn"'));
+  assert.ok(html.includes('id="bfaWhatsAppBtn"'));
+  assert.ok(html.includes('id="bfaExportCsvBtn"'));
+  assert.ok(html.includes('id="bfaResetBtn"'));
+  assert.ok(html.includes('id="bfaHistoryTbody"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.bfa-card'));
+  assert.ok(css.includes('.bfa-svg-wrap'));
+  assert.ok(css.includes('.mobile-bfa-modal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileBareFiberAdapterModal'));
+  assert.ok(app.includes('mobileBareFiberAdapterModalController'));
+});
+
 

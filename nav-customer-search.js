@@ -446,6 +446,11 @@ export function setupFastCustomerSearchModal({
       if (typeof onSelectCustomer === 'function') {
         onSelectCustomer(customerId);
       }
+    } else if (action === 'quick-profile') {
+      closeModal();
+      if (typeof window !== 'undefined' && window.mobileQuickProfileController?.open) {
+        window.mobileQuickProfileController.open(customerId);
+      }
     } else if (action === 'whatsapp') {
       const phone = btn.getAttribute('data-phone');
       if (phone) {

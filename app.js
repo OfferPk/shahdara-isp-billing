@@ -79,6 +79,7 @@ import {
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
+import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 
 
 
@@ -91,6 +92,11 @@ const reportList = $('#monthlyReportList');
 let storageAvailable = true;
 let persistenceBlocked = false;
 let readFailureMessage = '';
+export let collectionTargetController = null;
+export let duesAgingController = null;
+export let topDefaultersModalController = null;
+export let areaCollectionsModalController = null;
+export let lateFeeModalController = null;
 let state;
 try {
   state = readState(localStorage);
@@ -3891,10 +3897,6 @@ export let customerSpectralAttenuationModalController;
 export let customerFoscSealModalController;
 export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
-export let collectionTargetController;
-export let duesAgingController;
-export let topDefaultersModalController;
-export let lateFeeModalController;
 if (typeof document !== 'undefined') {
   collectionTargetController = setupCollectionTargetModal(state);
   duesAgingController = setupDuesAgingModal(state, {
@@ -3907,6 +3909,17 @@ if (typeof document !== 'undefined') {
   topDefaultersModalController = setupTopDefaultersModal(() => state, {
     onFilterCustomer: (customerId) => {
       selectCustomer(customerId);
+      switchView('customers');
+    },
+    onToast: (msg) => toast(msg)
+  });
+  areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
+    onFilterCustomerArea: (areaName) => {
+      const search = $('#globalCustomerSearch');
+      if (search) {
+        search.value = areaName;
+        renderGlobalSearch();
+      }
       switchView('customers');
     },
     onToast: (msg) => toast(msg)
@@ -4760,6 +4773,22 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const areaCollectionsModal = $('#areaCollectionsModal');
+  if (areaCollectionsModal && !areaCollectionsModalController) {
+    areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
+      onFilterCustomerArea: (areaName) => {
+        const search = $('#globalCustomerSearch');
+        if (search) {
+          search.value = areaName;
+          renderGlobalSearch();
+        }
+        switchView('customers');
+      },
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+
   const lateFeeModal = $('#lateFeeManagerModal');
   if (lateFeeModal && !lateFeeModalController) {
     lateFeeModalController = setupLateFeeModal({
@@ -4814,4 +4843,5 @@ window.addEventListener('popstate', event => {
 window.addEventListener('hashchange', handleRouteFromHash);
 if (typeof window !== 'undefined' && window.location?.hash) {
   handleRouteFromHash();
+}
 }

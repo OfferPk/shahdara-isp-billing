@@ -168,7 +168,26 @@ export const TRANSLATIONS = {
     toast_lang_changed_ur: 'زبان اردو میں تبدیل کر دی گئی ہے۔',
     toast_lang_changed_en: 'Language switched to English.',
     toast_copy_success: 'Copied to clipboard!',
-    toast_receipt_shared: 'Receipt marked as shared on WhatsApp.'
+    toast_receipt_shared: 'Receipt marked as shared on WhatsApp.',
+
+    // Pending Actions Center
+    drawer_pending_actions: 'Pending Actions',
+    pending_actions_title: 'Pending Actions Center',
+    pending_actions_subtitle: 'Unshared WhatsApp receipts, collection promises & offline queue',
+    pending_tab_all: 'All Pending',
+    pending_tab_receipts: '📱 WhatsApp Receipts',
+    pending_tab_promises: '🤝 Promises Due',
+    pending_tab_offline: '💾 Offline Queue',
+    pending_no_actions: 'No pending actions! All receipts shared and follow-ups completed.',
+    pending_share_all: 'Mark All Shared',
+    pending_copy_digest: 'Copy Action List',
+    pending_send_wa: 'Send WhatsApp',
+    pending_mark_shared: 'Mark Shared',
+    pending_collect: 'Collect Cash',
+    pending_call: 'Call',
+    pending_remind: 'Remind',
+    pending_mark_done: 'Mark Done',
+    pending_new_promise: '+ Schedule Promise'
   },
 
   ur: {
@@ -317,7 +336,26 @@ export const TRANSLATIONS = {
     toast_lang_changed_ur: 'زبان اردو میں تبدیل کر دی گئی ہے۔',
     toast_lang_changed_en: 'Language switched to English.',
     toast_copy_success: 'کلپ بورڈ پر کاپی ہو گیا!',
-    toast_receipt_shared: 'رسید واٹس ایپ پر شیئر مارک ہو گئی۔'
+    toast_receipt_shared: 'رسید واٹس ایپ پر شیئر مارک ہو گئی۔',
+
+    // Pending Actions Center (اردو)
+    drawer_pending_actions: 'زیر التواء کام',
+    pending_actions_title: 'ایکشن سینٹر - زیر التواء کام',
+    pending_actions_subtitle: 'غیر ارسال شدہ واٹس ایپ رسیدیں، وعدے اور آف لائن کیو',
+    pending_tab_all: 'تمام زیر التواء',
+    pending_tab_receipts: '📱 واٹس ایپ رسیدیں',
+    pending_tab_promises: '🤝 ادائیگی کے وعدے',
+    pending_tab_offline: '💾 آف لائن کیو',
+    pending_no_actions: 'کوئی زیر التواء کام نہیں! تمام رسیدیں بھیج دی گئیں اور کام مکمل ہیں۔',
+    pending_share_all: 'سب شیئرڈ مارک کریں',
+    pending_copy_digest: 'فہرست کاپی کریں',
+    pending_send_wa: 'واٹس ایپ بھیجیں',
+    pending_mark_shared: 'شیئرڈ مارک کریں',
+    pending_collect: 'رقم وصول کریں',
+    pending_call: 'کال کریں',
+    pending_remind: 'یاد دہانی',
+    pending_mark_done: 'مکمل ہو گیا',
+    pending_new_promise: '+ نیا وعدہ درج کریں'
   }
 };
 

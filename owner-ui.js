@@ -196,7 +196,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));
     if(action==='home'){switchView('customers');document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));$('#billingDashboard').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});}
-    else if(action==='collection'){switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}}
     else if(action==='reports'){switchView('reports');$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
   }));
   document.querySelectorAll('[data-mobile-more]').forEach(button=>button.addEventListener('click',()=>{

@@ -17,6 +17,11 @@ import {
   PAYMENT_METHODS
 } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
+import {
+  isReceiptShared,
+  markReceiptShared,
+  renderReceiptSharedBadgeHtml
+} from './nav-quick-profile.js';
 
 export const QUICK_COLLECT_STORAGE_KEY = 'shahdara_quick_collect_last_used_v1';
 export const QUICK_COLLECT_AUDIT_KEY = 'shahdara_quick_collect_audits_v1';
@@ -452,12 +457,15 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
  */
 export function renderQuickCollectReceiptCardHtml(receipt) {
   const isSettled = receipt.newTotalDues <= 0;
+  const shared = isReceiptShared(receipt.id);
+  const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
   return `
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
       <div class="qc-receipt-header">
         <span class="qc-receipt-badge ${isSettled ? 'settled' : 'partial'}">
           ${isSettled ? '✓ Settle in Full' : '⏳ Partial Payment'}
         </span>
+        ${sharedBadge}
         <span class="qc-receipt-id">${escapeHtml(receipt.receiptNumber)}</span>
       </div>
 
@@ -809,15 +817,45 @@ export function setupQuickCollectModal({
   });
 
   // WhatsApp receipt dispatch
-  whatsAppBtn?.addEventListener('click', () => {
+  whatsAppBtn?.addEventListener('click', async () => {
     if (!activeReceipt) return;
-    const { url } = formatQuickCollectWhatsAppReceipt(activeReceipt);
+    const { url, text } = formatQuickCollectWhatsAppReceipt(activeReceipt);
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
-    } else {
+      markReceiptShared(activeReceipt.id, {
+        method: 'whatsapp',
+        phone: activeReceipt.phone,
+        customerId: activeReceipt.customerId,
+        amount: activeReceipt.amount
+      });
       if (typeof onToast === 'function') {
+        onToast('WhatsApp receipt draft opened.');
+      }
+    } else {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          markReceiptShared(activeReceipt.id, {
+            method: 'clipboard',
+            phone: '',
+            customerId: activeReceipt.customerId,
+            amount: activeReceipt.amount
+          });
+          if (typeof onToast === 'function') {
+            onToast('No phone saved. Receipt copied to clipboard!');
+          }
+        } catch {
+          if (typeof onToast === 'function') {
+            onToast('No phone number saved for customer.');
+          }
+        }
+      } else if (typeof onToast === 'function') {
         onToast('No phone number saved for customer.');
       }
+    }
+
+    if (receiptCardContainer) {
+      receiptCardContainer.innerHTML = renderQuickCollectReceiptCardHtml(activeReceipt);
     }
   });
 

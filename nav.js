@@ -6436,5 +6436,20 @@ export {
   setupFastCustomerSearchModal
 } from './nav-customer-search.js';
 
+export {
+  RECEIPT_SHARED_STORAGE_KEY,
+  escapeHtml as escapeQuickProfileHtml,
+  formatPakistaniPhone,
+  markReceiptShared,
+  isReceiptShared,
+  getSharedReceipts,
+  clearSharedReceipts,
+  executeReceiptWhatsAppShare,
+  calculateCustomerQuickProfile,
+  renderReceiptSharedBadgeHtml,
+  renderQuickProfileCardHtml,
+  setupMobileQuickProfileModal
+} from './nav-quick-profile.js';
+
 
 

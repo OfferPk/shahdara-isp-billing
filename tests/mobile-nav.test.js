@@ -13905,3 +13905,218 @@ test('Fast Customer Search: DOM integration and markup in index.html, styles.css
   assert.ok(typeof nav.renderFastCustomerSearchResultsHtml === 'function');
   assert.ok(typeof nav.setupFastCustomerSearchModal === 'function');
 });
+
+test('Mobile Customer Quick Profile & WhatsApp Receipt Delivery Suite: state, actions, badges, and DOM integration', async () => {
+  const {
+    RECEIPT_SHARED_STORAGE_KEY,
+    markReceiptShared,
+    isReceiptShared,
+    getSharedReceipts,
+    clearSharedReceipts,
+    formatPakistaniPhone,
+    executeReceiptWhatsAppShare,
+    calculateCustomerQuickProfile,
+    renderReceiptSharedBadgeHtml,
+    renderQuickProfileCardHtml,
+    setupMobileQuickProfileModal
+  } = await import('../nav-quick-profile.js');
+
+  const { createInitialState, addCustomer, addPayment, saveBillMonth } = await import('../core.js');
+
+  const mockStorage = {
+    store: {},
+    getItem(k) { return this.store[k] ?? null; },
+    setItem(k, v) { this.store[k] = String(v); },
+    removeItem(k) { delete this.store[k]; }
+  };
+
+  // 1. Phone Formatter
+  assert.equal(formatPakistaniPhone('03001234567'), '0300-1234567');
+  assert.equal(formatPakistaniPhone('923001234567'), '0300-1234567');
+  assert.equal(formatPakistaniPhone('3001234567'), '0300-1234567');
+  assert.equal(formatPakistaniPhone(''), 'No phone saved');
+
+  // 2. Receipt Shared Storage API
+  clearSharedReceipts(mockStorage);
+  assert.deepEqual(getSharedReceipts(mockStorage), {});
+  assert.equal(isReceiptShared('rec-101', mockStorage), null);
+
+  const savedRecord = markReceiptShared('rec-101', {
+    method: 'whatsapp',
+    phone: '03001234567',
+    customerId: 'cust-1',
+    customerNumber: 10,
+    amount: 2000
+  }, mockStorage);
+
+  assert.equal(savedRecord.shared, true);
+  assert.equal(savedRecord.method, 'whatsapp');
+  assert.equal(savedRecord.recipientPhone, '03001234567');
+
+  const retrieved = isReceiptShared('rec-101', mockStorage);
+  assert.ok(retrieved);
+  assert.equal(retrieved.shared, true);
+  assert.equal(retrieved.method, 'whatsapp');
+
+  // 3. Receipt Shared Badge Generator
+  const sharedBadge = renderReceiptSharedBadgeHtml(true, retrieved);
+  assert.ok(sharedBadge.includes('badge-receipt-shared'));
+  assert.ok(sharedBadge.includes('WhatsApp Sent'));
+
+  const unsharedBadge = renderReceiptSharedBadgeHtml(false);
+  assert.ok(unsharedBadge.includes('badge-receipt-unshared'));
+  assert.ok(unsharedBadge.includes('WhatsApp Pending'));
+
+  // 4. executeReceiptWhatsAppShare with mock clipboard and window
+  let openedUrl = null;
+  const mockWindow = {
+    open(u) { openedUrl = u; }
+  };
+  let clipboardText = null;
+  const mockClipboard = {
+    async writeText(t) { clipboardText = t; }
+  };
+
+  const sampleCustomer = {
+    id: 'cust-1',
+    customerNumber: 15,
+    name: 'Haris Rauf',
+    phone: '03001234567',
+    area: 'Jia Musa',
+    bills: []
+  };
+
+  const sampleReceipt = {
+    id: 'pay-202',
+    customerId: 'cust-1',
+    customerNumber: 15,
+    customerName: 'Haris Rauf',
+    amount: 1500,
+    date: '2026-10-10',
+    method: 'Cash',
+    month: '2026-10',
+    billAmount: 2000,
+    balanceDueCents: 50000,
+    billStatus: 'partial'
+  };
+
+  // Valid WhatsApp share
+  const waResult = await executeReceiptWhatsAppShare(sampleCustomer, sampleReceipt, {
+    storage: mockStorage,
+    windowObj: mockWindow,
+    clipboardObj: mockClipboard
+  });
+  assert.equal(waResult.success, true);
+  assert.equal(waResult.method, 'whatsapp');
+  assert.ok(waResult.url.includes('wa.me/923001234567'));
+  assert.ok(openedUrl.includes('wa.me/923001234567'));
+  assert.equal(isReceiptShared('pay-202', mockStorage)?.shared, true);
+
+  // Fallback clipboard share when customer has no phone
+  const noPhoneCustomer = { ...sampleCustomer, phone: '' };
+  const clipResult = await executeReceiptWhatsAppShare(noPhoneCustomer, { ...sampleReceipt, id: 'pay-303' }, {
+    storage: mockStorage,
+    windowObj: mockWindow,
+    clipboardObj: mockClipboard
+  });
+  assert.equal(clipResult.success, true);
+  assert.equal(clipResult.method, 'clipboard');
+  assert.equal(clipResult.wasCopied, true);
+  assert.ok(clipboardText.includes('SHAHDARA ISP'));
+  assert.equal(isReceiptShared('pay-303', mockStorage)?.method, 'clipboard');
+
+  // 5. Customer Quick Profile Calculation
+  const refDate = new Date('2026-10-17T12:00:00+05:00');
+  let state = createInitialState([]);
+  state = addCustomer(state, 'Naseem Shah', refDate, {
+    monthlySellingAmount: 2500,
+    phone: '03009876543',
+    zone: 'Ravi Siphon Road',
+    mohalla: 'Street 4'
+  });
+  state.customers[0].area = 'Ravi Siphon Road';
+  const customer = state.customers[0];
+
+  // Create bill and record a partial payment
+  state = saveBillMonth(state, customer.id, { month: '2026-10', dueAmount: '2500', status: 'pending' }, refDate);
+  state = addPayment(state, customer.id, '2026-10', {
+    amount: 1000,
+    date: '2026-10-06',
+    method: 'JazzCash',
+    paidBy: 'Brother'
+  }, refDate);
+
+  const profile = calculateCustomerQuickProfile(state.customers[0], state, {
+    referenceDate: refDate,
+    storage: mockStorage
+  });
+
+  assert.equal(profile.name, 'Naseem Shah');
+  assert.equal(profile.customerNumber, 1);
+  assert.equal(profile.formattedPhone, '0300-9876543');
+  assert.equal(profile.area, 'Ravi Siphon Road');
+  assert.equal(profile.mohalla, 'Street 4');
+  assert.equal(profile.totalOutstandingPkr, 1500); // 2500 - 1000
+  assert.equal(profile.currentMonthStatus, 'PARTIAL');
+  assert.ok(profile.lastPayment);
+  assert.equal(profile.lastPayment.amount, 1000);
+  assert.equal(profile.lastPayment.method, 'JazzCash');
+  assert.equal(profile.lastPayment.paidBy, 'Brother');
+  assert.equal(profile.lastPayment.isShared, false);
+  assert.ok(profile.whatsappReminderUrl);
+
+  // Mark last payment as shared and re-verify profile
+  markReceiptShared(profile.lastPayment.id, { method: 'whatsapp' }, mockStorage);
+  const updatedProfile = calculateCustomerQuickProfile(state.customers[0], state, {
+    referenceDate: refDate,
+    storage: mockStorage
+  });
+  assert.equal(updatedProfile.lastPayment.isShared, true);
+
+  // 6. Quick Profile Card HTML Generator
+  const cardHtml = renderQuickProfileCardHtml(updatedProfile);
+  assert.ok(cardHtml.includes('#1'));
+  assert.ok(cardHtml.includes('Naseem Shah'));
+  assert.ok(cardHtml.includes('Ravi Siphon Road'));
+  assert.ok(cardHtml.includes('1,500'));
+  assert.ok(cardHtml.includes('PARTIAL'));
+  assert.ok(cardHtml.includes('data-mqp-action="collect"'));
+  assert.ok(cardHtml.includes('data-mqp-action="whatsapp"'));
+  assert.ok(cardHtml.includes('data-mqp-action="call"'));
+  assert.ok(cardHtml.includes('data-mqp-action="profile"'));
+  assert.ok(cardHtml.includes('badge-receipt-shared'));
+
+  // 7. Markup and Bindings Verification
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileQuickProfileModal"'));
+  assert.ok(html.includes('id="mobileQuickProfileCloseBtn"'));
+  assert.ok(html.includes('id="mobileQuickProfileBody"'));
+
+  const styles = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(styles.includes('.mobile-quick-profile-modal'));
+  assert.ok(styles.includes('.mqp-card'));
+  assert.ok(styles.includes('.mqp-balance-hero'));
+  assert.ok(styles.includes('.mqp-actions-grid'));
+  assert.ok(styles.includes('.badge-receipt-shared'));
+  assert.ok(styles.includes('.badge-receipt-unshared'));
+  assert.ok(styles.includes('[data-theme="dark"] .mobile-quick-profile-modal'));
+
+  const appCode = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(appCode.includes('setupMobileQuickProfileModal'));
+  assert.ok(appCode.includes('window.mobileQuickProfileController'));
+
+  const nav = await import('../nav.js');
+  assert.ok(typeof nav.markReceiptShared === 'function');
+  assert.ok(typeof nav.isReceiptShared === 'function');
+  assert.ok(typeof nav.getSharedReceipts === 'function');
+  assert.ok(typeof nav.clearSharedReceipts === 'function');
+  assert.ok(typeof nav.formatPakistaniPhone === 'function');
+  assert.ok(typeof nav.executeReceiptWhatsAppShare === 'function');
+  assert.ok(typeof nav.calculateCustomerQuickProfile === 'function');
+  assert.ok(typeof nav.renderReceiptSharedBadgeHtml === 'function');
+  assert.ok(typeof nav.renderQuickProfileCardHtml === 'function');
+  assert.ok(typeof nav.setupMobileQuickProfileModal === 'function');
+});

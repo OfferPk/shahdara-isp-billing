@@ -1,5 +1,6 @@
 import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions, summarizeCustomerTenure } from './core.js';
 import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
+import { calculateDuesAgingBreakdown } from './dashboard-dues-aging.js';
 
 function escapeXml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -3733,7 +3734,8 @@ export function calculateDelinquencyRecoveryPipeline(state, referenceDate = new 
     dailyPacingTarget,
     stages,
     topDelinquentAreas,
-    topDelinquentAccounts
+    topDelinquentAccounts,
+    duesAging: calculateDuesAgingBreakdown(state, referenceDate)
   };
 }
 
@@ -3907,6 +3909,21 @@ export function setupDelinquencyPipelineModal(state, { referenceDate = new Date(
         }
       } else if (typeof onToast === 'function') {
         onToast('Clipboard not supported in this environment.');
+      }
+    });
+  }
+
+  const openAgingBtn = document.getElementById('delinquencyOpenAgingModalBtn');
+  if (openAgingBtn && !openAgingBtn.dataset?.wired) {
+    if (openAgingBtn.dataset) openAgingBtn.dataset.wired = 'true';
+    else if (openAgingBtn.setAttribute) openAgingBtn.setAttribute('data-wired', 'true');
+    openAgingBtn.addEventListener('click', () => {
+      if (modal.close) modal.close();
+      else modal.removeAttribute('open');
+      const agingModal = document.getElementById('duesAgingModal');
+      if (agingModal) {
+        if (agingModal.showModal) agingModal.showModal();
+        else agingModal.setAttribute('open', '');
       }
     });
   }
@@ -6078,6 +6095,19 @@ export {
   exportOlpCsv,
   setupOlpModal
 } from './dashboard-olp-protection.js';
+
+export {
+  DUES_AGING_BUCKETS,
+  parseBillDueDate,
+  calculateDaysOverdue,
+  resolveAgingBucketKey,
+  calculateDuesAgingBreakdown,
+  renderDuesAgingSvg,
+  generateDuesAgingCsv,
+  generateDuesAgingBriefing,
+  setupDuesAgingModal
+} from './dashboard-dues-aging.js';
+
 
 
 

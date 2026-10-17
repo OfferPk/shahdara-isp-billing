@@ -74,6 +74,7 @@ import {
   saveAdjustmentVoucher
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
+import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 
 
 
@@ -3837,8 +3838,16 @@ export let customerFoscSealModalController;
 export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
 export let collectionTargetController;
+export let duesAgingController;
 if (typeof document !== 'undefined') {
   collectionTargetController = setupCollectionTargetModal(state);
+  duesAgingController = setupDuesAgingModal(state, {
+    onFilterCustomer: (customerId) => {
+      selectCustomer(customerId);
+      switchView('customers');
+    },
+    onToast: (msg) => toast(msg)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -4653,6 +4662,17 @@ if (typeof document !== 'undefined') {
   const targetModal = $('#collectionTargetModal');
   if (targetModal && !collectionTargetController) {
     collectionTargetController = setupCollectionTargetModal(state);
+  }
+
+  const duesAgingModal = $('#duesAgingModal');
+  if (duesAgingModal && !duesAgingController) {
+    duesAgingController = setupDuesAgingModal(state, {
+      onFilterCustomer: (customerId) => {
+        selectCustomer(customerId);
+        switchView('customers');
+      },
+      onToast: (msg) => toast(msg)
+    });
   }
 }
 

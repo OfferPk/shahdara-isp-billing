@@ -501,7 +501,10 @@
                 <h4 class="chart-title">Delinquency Recovery Pipeline &amp; Escalation Pacing</h4>
                 <p class="chart-subtitle">Aging stages, weighted recovery probability, and field collector pacing</p>
               </div>
-              <button id="dashboardOpenDelinquencyModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Recovery Pipeline</button>
+              <div>
+                <button id="dashboardOpenDelinquencyModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Recovery Pipeline</button>
+                <button id="dashboardOpenDuesAgingBtn" class="chart-action-link" type="button" aria-haspopup="dialog" style="margin-left: 8px;">Dues Aging (0–90+d)</button>
+              </div>
             </div>
             <div id="dashboardDelinquencyChart" class="chart-svg-container" role="img" aria-label="Delinquency Recovery Pipeline and Aging Escalation Chart"></div>
           </article>
@@ -1814,7 +1817,8 @@
             </table>
           </div>
 
-          <div class="sim-modal-footer" style="margin-top: 14px;">
+          <div class="sim-modal-footer" style="margin-top: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <button id="delinquencyOpenAgingModalBtn" class="secondary-button" type="button">📊 Full Aging Breakdown (0–90+ Days)</button>
             <button id="dashboardCopyDelinquencyReportBtn" class="primary-button" type="button">📋 Copy Recovery Briefing</button>
           </div>
         </div>
@@ -18307,6 +18311,118 @@
         <button id="printTargetA4Btn" class="secondary-button" type="button">🖨 Print A4</button>
         <button id="printTargetPosBtn" class="secondary-button" type="button">🧾 Print POS</button>
         <button id="closeCollectionTargetSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Outstanding Dues Aging & Receivables Analysis Modal Dialog -->
+  <dialog id="duesAgingModal" class="billing-modal dues-aging-modal" aria-labelledby="duesAgingModalTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">ACCOUNTS RECEIVABLE &amp; CASHFLOW INTEGRITY</div>
+          <h2 id="duesAgingModalTitle">Outstanding Dues Aging Report</h2>
+          <span class="urdu-subtitle">واجبات کی مدت اور بقایاجات کی تفصیلی رپورٹ (0 تا 90+ دن)</span>
+        </div>
+        <button id="closeDuesAgingModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- KPI Metric Cards Grid -->
+        <div class="aging-kpi-summary-grid">
+          <div class="aging-kpi-card">
+            <span class="aging-kpi-label">Total Outstanding Receivables</span>
+            <span id="duesAgingTotalOutstandingVal" class="aging-kpi-value">PKR 0</span>
+            <span class="aging-kpi-sub">Across all active accounts</span>
+          </div>
+          <div class="aging-kpi-card">
+            <span class="aging-kpi-label">Delinquent Accounts</span>
+            <span id="duesAgingTotalAccountsVal" class="aging-kpi-value">0</span>
+            <span class="aging-kpi-sub">Accounts with unpaid dues</span>
+          </div>
+          <div class="aging-kpi-card">
+            <span class="aging-kpi-label">Critical Dues (61+ Days)</span>
+            <span id="duesAgingCriticalDuesVal" class="aging-kpi-value">PKR 0</span>
+            <span id="duesAgingCriticalSub" class="aging-kpi-sub">0% of total receivables</span>
+          </div>
+          <div class="aging-kpi-card">
+            <span class="aging-kpi-label">Portfolio Aging Metric</span>
+            <span id="duesAgingWeightedDaysVal" class="aging-kpi-value">0 days</span>
+            <span id="duesAgingRiskStatusBadge" class="sim-delta-badge badge-expansion">Low Risk</span>
+          </div>
+        </div>
+
+        <!-- Pure SVG Aging Distribution Chart -->
+        <div class="aging-chart-wrapper" style="margin-top: 16px;">
+          <h4 class="modal-section-title">Aging Receivables Distribution (0-30 / 31-60 / 61-90 / 90+ Days)</h4>
+          <div id="duesAgingSvgChart" class="chart-svg-container" style="min-height: 220px;" role="img" aria-label="Dues aging distribution chart"></div>
+        </div>
+
+        <!-- Filtering & Search Toolbar -->
+        <div class="aging-toolbar-container" style="margin-top: 18px;">
+          <div class="aging-bucket-tabs-wrapper">
+            <div id="duesAgingBucketFilters" class="aging-bucket-tabs" role="tablist" aria-label="Filter by aging bucket">
+              <button class="aging-tab-btn active" type="button" data-bucket-filter="all" role="tab" aria-selected="true">
+                All Accounts <span class="bucket-count-badge">0</span>
+              </button>
+              <button class="aging-tab-btn" type="button" data-bucket-filter="b0_30" role="tab" aria-selected="false">
+                0–30 Days <span class="bucket-count-badge">0</span>
+              </button>
+              <button class="aging-tab-btn" type="button" data-bucket-filter="b31_60" role="tab" aria-selected="false">
+                31–60 Days <span class="bucket-count-badge">0</span>
+              </button>
+              <button class="aging-tab-btn" type="button" data-bucket-filter="b61_90" role="tab" aria-selected="false">
+                61–90 Days <span class="bucket-count-badge">0</span>
+              </button>
+              <button class="aging-tab-btn" type="button" data-bucket-filter="b90_plus" role="tab" aria-selected="false">
+                90+ Days <span class="bucket-count-badge">0</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="aging-filter-controls">
+            <div class="aging-search-box">
+              <input id="duesAgingSearchInput" type="search" class="aging-search-input" placeholder="Search by name, account #, phone, area..." aria-label="Search subscribers">
+            </div>
+            <div class="aging-area-select-box">
+              <select id="duesAgingAreaSelect" class="aging-area-select" aria-label="Filter by Area">
+                <option value="all">All Areas / Sectors</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Customer Drill-Down Ledger Table -->
+        <div class="modal-table-scroll-wrapper" style="margin-top: 10px; max-height: 380px; overflow-y: auto;">
+          <table class="data-table dues-aging-table" style="width: 100%; font-size: 12px;">
+            <thead>
+              <tr>
+                <th>Subscriber</th>
+                <th>Area</th>
+                <th>Phone</th>
+                <th class="num-cell">0–30d</th>
+                <th class="num-cell">31–60d</th>
+                <th class="num-cell">61–90d</th>
+                <th class="num-cell">90+d</th>
+                <th class="num-cell">Total Due</th>
+                <th>Overdue Age</th>
+                <th style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="duesAgingTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px;">
+          <button id="duesAgingExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+          <button id="duesAgingCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
+          <button id="duesAgingPrintBtn" class="secondary-button" type="button">🖨️ Print Report</button>
+        </div>
+        <button id="closeDuesAgingSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

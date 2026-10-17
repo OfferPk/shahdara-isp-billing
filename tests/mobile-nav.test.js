@@ -9504,3 +9504,246 @@ test('index.html and nav.css contain mobile OLTS certification markup and styles
   assert.ok(css.includes('.olts-metrics-grid'));
   assert.ok(css.includes('.olts-metric-card'));
 });
+
+test('nav-fiber-identifier constants and models adhere to ITU-T L.40 standards', async () => {
+  const {
+    FIBER_IDENTIFIER_STORAGE_KEY,
+    CLAMP_ADAPTER_HEADS,
+    DETECTED_SIGNAL_MODES,
+    TRAFFIC_DIRECTIONS,
+    IDENTIFIER_PRESETS
+  } = await import('../nav-fiber-identifier.js');
+
+  assert.equal(FIBER_IDENTIFIER_STORAGE_KEY, 'shahdara_fiber_identifier_audits_v1');
+
+  // Clamp Heads
+  assert.ok(CLAMP_ADAPTER_HEADS.HEAD_250UM);
+  assert.equal(CLAMP_ADAPTER_HEADS.HEAD_250UM.diameterUm, 250);
+  assert.equal(CLAMP_ADAPTER_HEADS.HEAD_250UM.maxInsertionLossDb, 0.3);
+  assert.ok(CLAMP_ADAPTER_HEADS.HEAD_900UM);
+  assert.equal(CLAMP_ADAPTER_HEADS.HEAD_900UM.diameterUm, 900);
+  assert.ok(CLAMP_ADAPTER_HEADS.HEAD_2000UM);
+  assert.ok(CLAMP_ADAPTER_HEADS.HEAD_3000UM);
+
+  // Signal Modes
+  assert.ok(DETECTED_SIGNAL_MODES.DARK);
+  assert.equal(DETECTED_SIGNAL_MODES.DARK.safeToCut, true);
+  assert.ok(DETECTED_SIGNAL_MODES.CW_TRAFFIC);
+  assert.equal(DETECTED_SIGNAL_MODES.CW_TRAFFIC.safeToCut, false);
+  assert.ok(DETECTED_SIGNAL_MODES.TONE_270HZ);
+  assert.equal(DETECTED_SIGNAL_MODES.TONE_270HZ.toneFreqHz, 270);
+  assert.ok(DETECTED_SIGNAL_MODES.TONE_1KHZ);
+  assert.equal(DETECTED_SIGNAL_MODES.TONE_1KHZ.toneFreqHz, 1000);
+  assert.ok(DETECTED_SIGNAL_MODES.TONE_2KHZ);
+  assert.equal(DETECTED_SIGNAL_MODES.TONE_2KHZ.toneFreqHz, 2000);
+
+  // Directions
+  assert.ok(TRAFFIC_DIRECTIONS.LEFT_TO_RIGHT);
+  assert.ok(TRAFFIC_DIRECTIONS.RIGHT_TO_LEFT);
+  assert.ok(TRAFFIC_DIRECTIONS.NONE);
+
+  // Presets
+  assert.ok(IDENTIFIER_PRESETS.ACTIVE_GPON_DOWNSTREAM);
+  assert.ok(IDENTIFIER_PRESETS.TEST_TONE_1KHZ_FDT);
+  assert.ok(IDENTIFIER_PRESETS.DARK_SPARE_CORE);
+  assert.ok(IDENTIFIER_PRESETS.HIGH_POWER_FEEDER);
+  assert.ok(IDENTIFIER_PRESETS.REVERSE_UPSTREAM_BURST);
+});
+
+test('evaluateLiveFiberDetection correctly enforces safety interlock between live traffic and dark fiber', async () => {
+  const { evaluateLiveFiberDetection } = await import('../nav-fiber-identifier.js');
+
+  // Case 1: Active CW Traffic (-18.5 dBm) - MUST NOT CUT
+  const liveRes = evaluateLiveFiberDetection({
+    opticalPowerDbm: -18.5,
+    signalModeId: 'CW_TRAFFIC',
+    directionId: 'LEFT_TO_RIGHT',
+    headId: 'HEAD_900UM',
+    wavelengthNm: 1490
+  });
+  assert.equal(liveRes.safeToCut, false);
+  assert.equal(liveRes.statusText, 'ACTIVE TRAFFIC DETECTED');
+  assert.equal(liveRes.statusColor, '#ef4444');
+  assert.equal(liveRes.direction.id, 'LEFT_TO_RIGHT');
+  assert.ok(liveRes.advisoryUrdu.includes('خبردار'));
+
+  // Case 2: Dark Fiber (-55 dBm) - SAFE TO CUT
+  const darkRes = evaluateLiveFiberDetection({
+    opticalPowerDbm: -55.0,
+    signalModeId: 'DARK',
+    directionId: 'NONE',
+    headId: 'HEAD_250UM',
+    wavelengthNm: 1550
+  });
+  assert.equal(darkRes.safeToCut, true);
+  assert.equal(darkRes.statusText, 'DARK FIBER (SAFE TO CUT)');
+  assert.equal(darkRes.statusColor, '#10b981');
+  assert.equal(darkRes.direction.id, 'NONE');
+  assert.ok(darkRes.advisoryUrdu.includes('تسلی بخش'));
+
+  // Case 3: Modulated 1 kHz Test Tone
+  const toneRes = evaluateLiveFiberDetection({
+    opticalPowerDbm: -12.0,
+    signalModeId: 'TONE_1KHZ',
+    directionId: 'LEFT_TO_RIGHT',
+    headId: 'HEAD_250UM'
+  });
+  assert.equal(toneRes.safeToCut, false);
+  assert.ok(toneRes.statusText.includes('1000 Hz'));
+  assert.equal(toneRes.statusColor, '#f59e0b');
+  assert.ok(toneRes.audioBeepCadence.includes('1000 Hz'));
+
+  // Case 4: Reverse Upstream Traffic
+  const revRes = evaluateLiveFiberDetection({
+    opticalPowerDbm: -22.4,
+    signalModeId: 'CW_TRAFFIC',
+    directionId: 'RIGHT_TO_LEFT',
+    headId: 'HEAD_900UM'
+  });
+  assert.equal(revRes.safeToCut, false);
+  assert.equal(revRes.direction.id, 'RIGHT_TO_LEFT');
+  assert.ok(revRes.direction.arrowText.includes('REVERSE'));
+});
+
+test('renderFiberIdentifierSvg produces valid vector visualization across all signal modes', async () => {
+  const { renderFiberIdentifierSvg } = await import('../nav-fiber-identifier.js');
+
+  const liveSvg = renderFiberIdentifierSvg({
+    opticalPowerDbm: -18.5,
+    signalModeId: 'CW_TRAFFIC',
+    directionId: 'LEFT_TO_RIGHT',
+    headName: '900 µm Tight Buffer',
+    safeToCut: false,
+    statusColor: '#ef4444',
+    coreName: 'FAT-12 Drop Core #4'
+  });
+  assert.ok(liveSvg.includes('<svg'));
+  assert.ok(liveSvg.includes('viewBox="0 0 760 300"'));
+  assert.ok(liveSvg.includes('PD-L'));
+  assert.ok(liveSvg.includes('PD-R'));
+  assert.ok(liveSvg.includes('-18.5 dBm'));
+  assert.ok(liveSvg.includes('TRAFFIC'));
+  assert.ok(liveSvg.includes('DO NOT CUT'));
+  assert.ok(liveSvg.includes('FAT-12 Drop Core #4'));
+
+  const darkSvg = renderFiberIdentifierSvg({
+    opticalPowerDbm: -55.0,
+    signalModeId: 'DARK',
+    directionId: 'NONE',
+    headName: '250 µm Bare Fiber',
+    safeToCut: true,
+    statusColor: '#10b981',
+    coreName: 'Spare Trunk Core #12'
+  });
+  assert.ok(darkSvg.includes('LO (DARK)'));
+  assert.ok(darkSvg.includes('SAFE TO CUT'));
+
+  const toneSvg = renderFiberIdentifierSvg({
+    opticalPowerDbm: -12.0,
+    signalModeId: 'TONE_1KHZ',
+    directionId: 'LEFT_TO_RIGHT',
+    headName: '250 µm Bare Fiber',
+    safeToCut: false,
+    statusColor: '#f59e0b',
+    coreName: 'Tracer Core #01'
+  });
+  assert.ok(toneSvg.includes('TONE_1KHZ'));
+});
+
+test('generateFiberIdentifierReport and generateFiberIdentifierWhatsAppDispatch create accurate field logs', async () => {
+  const { generateFiberIdentifierReport, generateFiberIdentifierWhatsAppDispatch } = await import('../nav-fiber-identifier.js');
+
+  const auditData = {
+    coreName: 'Shahdara Main Trunk Core #3',
+    technician: 'Noman Bashir',
+    location: 'Ravi Road FDT-01',
+    headName: '900 µm Tight Buffer',
+    opticalPowerDbm: -18.5,
+    signalMode: 'CW Traffic',
+    direction: 'L ➔ R',
+    wavelengthNm: 1490,
+    safeToCut: false,
+    statusText: 'ACTIVE TRAFFIC DETECTED',
+    advisoryUrdu: '⚠️ خبردار: فائبر پر لائیو ٹریفک موجود ہے۔',
+    diagnostics: ['Live customer payload present']
+  };
+
+  const report = generateFiberIdentifierReport(auditData);
+  assert.ok(report.includes('SHAHDARA ISP - OPTICAL LIVE FIBER IDENTIFIER AUDIT'));
+  assert.ok(report.includes('Noman Bashir'));
+  assert.ok(report.includes('-18.5 dBm'));
+  assert.ok(report.includes('ACTIVE TRAFFIC DETECTED'));
+
+  const wa = generateFiberIdentifierWhatsAppDispatch(auditData);
+  assert.ok(wa.includes('LIVE FIBER IDENTIFIER AUDIT'));
+  assert.ok(wa.includes('*-18.5 dBm*'));
+  assert.ok(wa.includes('NO - ACTIVE TRAFFIC'));
+});
+
+test('Fiber identifier audit persistence and CSV export operate reliably', async () => {
+  const {
+    loadFiberIdentifierAuditLog,
+    saveFiberIdentifierAuditLog,
+    clearFiberIdentifierAuditLog,
+    exportFiberIdentifierAuditsCsv
+  } = await import('../nav-fiber-identifier.js');
+
+  const mockStore = new Map();
+  const mockStorage = {
+    getItem: k => mockStore.get(k) || null,
+    setItem: (k, v) => mockStore.set(k, String(v)),
+    removeItem: k => mockStore.delete(k)
+  };
+
+  assert.deepEqual(loadFiberIdentifierAuditLog(mockStorage), []);
+
+  const list = saveFiberIdentifierAuditLog({
+    coreName: 'Core-Beta',
+    opticalPowerDbm: -19.2,
+    signalMode: 'CW Traffic',
+    direction: 'L ➔ R',
+    safeToCut: false,
+    statusText: 'ACTIVE TRAFFIC'
+  }, mockStorage);
+
+  assert.equal(list.length, 1);
+  assert.ok(list[0].id.startsWith('IDENT_'));
+  assert.equal(list[0].coreName, 'Core-Beta');
+
+  const csv = exportFiberIdentifierAuditsCsv(list);
+  assert.ok(csv.includes('Record ID,Timestamp,Core Name'));
+  assert.ok(csv.includes('"Core-Beta"'));
+  assert.ok(csv.includes('-19.2'));
+
+  clearFiberIdentifierAuditLog(mockStorage);
+  assert.deepEqual(loadFiberIdentifierAuditLog(mockStorage), []);
+});
+
+test('index.html and nav.css contain mobile fiber identifier markup and styles', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreFiberIdentifierBtn"'));
+  assert.ok(html.includes('id="mobileFiberIdentifierModal"'));
+  assert.ok(html.includes('id="identPresetSelect"'));
+  assert.ok(html.includes('id="identHeadSelect"'));
+  assert.ok(html.includes('id="identPowerDbm"'));
+  assert.ok(html.includes('id="identModeSelect"'));
+  assert.ok(html.includes('id="identDirSelect"'));
+  assert.ok(html.includes('id="identSvgContainer"'));
+  assert.ok(html.includes('id="identPowerDisplay"'));
+  assert.ok(html.includes('id="identStatusBadge"'));
+  assert.ok(html.includes('id="identSaveAuditBtn"'));
+  assert.ok(html.includes('id="identWhatsappBtn"'));
+  assert.ok(html.includes('id="identExportCsvBtn"'));
+  assert.ok(html.includes('id="identHistoryTbody"'));
+
+  const css = fs.readFileSync(path.resolve('./nav.css'), 'utf-8');
+  assert.ok(css.includes('.mobile-identifier-modal'));
+  assert.ok(css.includes('.identifier-card'));
+  assert.ok(css.includes('.identifier-svg-wrap'));
+  assert.ok(css.includes('.identifier-metrics-grid'));
+  assert.ok(css.includes('.identifier-metric-card'));
+});
+

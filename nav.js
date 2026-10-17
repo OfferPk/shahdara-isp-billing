@@ -6142,3 +6142,20 @@ export {
   setupMobileOltsModal
 } from './nav-olts-cert.js';
 
+export {
+  FIBER_IDENTIFIER_STORAGE_KEY,
+  CLAMP_ADAPTER_HEADS,
+  DETECTED_SIGNAL_MODES,
+  TRAFFIC_DIRECTIONS,
+  IDENTIFIER_PRESETS,
+  evaluateLiveFiberDetection,
+  renderFiberIdentifierSvg,
+  generateFiberIdentifierReport,
+  generateFiberIdentifierWhatsAppDispatch,
+  loadFiberIdentifierAuditLog,
+  saveFiberIdentifierAuditLog,
+  clearFiberIdentifierAuditLog,
+  exportFiberIdentifierAuditsCsv,
+  setupMobileFiberIdentifierModal
+} from './nav-fiber-identifier.js';
+

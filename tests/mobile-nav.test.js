@@ -14489,3 +14489,112 @@ test('Mobile Field Collection Rounds, Door-to-Door Dues Recovery & Dispatch Suit
   assert.ok(appCode.includes('fieldRouteSheetController'));
   assert.ok(appCode.includes('quickCollectModalController'));
 });
+
+
+test('bilingual English / Urdu UI localization engine and RTL layout support (agent2 - Item 6)', async () => {
+  const {
+    LANGUAGE_STORAGE_KEY,
+    DEFAULT_LANGUAGE,
+    SUPPORTED_LANGUAGES,
+    TRANSLATIONS,
+    getAppLanguage,
+    t,
+    applyLanguageDirection,
+    updateDocumentTranslations,
+    setAppLanguage,
+    toggleAppLanguage,
+    formatBilingualCurrency,
+    formatBilingualStatus,
+    renderLanguageToggleBtnHtml,
+    setupLanguageToggle
+  } = await import('../nav.js');
+
+  // 1. Storage & Fallback tests
+  const store = {};
+  const mockStorage = {
+    getItem: (k) => store[k] ?? null,
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; }
+  };
+
+  assert.equal(getAppLanguage(mockStorage), 'en');
+  assert.equal(getAppLanguage(null), 'en');
+  mockStorage.setItem(LANGUAGE_STORAGE_KEY, 'invalid');
+  assert.equal(getAppLanguage(mockStorage), 'en');
+  mockStorage.setItem(LANGUAGE_STORAGE_KEY, 'ur');
+  assert.equal(getAppLanguage(mockStorage), 'ur');
+
+  // 2. Translation & Interpolation
+  assert.equal(t('lang_name', 'en'), 'English');
+  assert.equal(t('lang_name', 'ur'), 'اردو');
+  assert.equal(t('nav_collection', 'en'), 'Collect');
+  assert.equal(t('nav_collection', 'ur'), 'وصولی');
+  assert.equal(t('status_paid', 'en'), 'Paid');
+  assert.equal(t('status_paid', 'ur'), 'مکمل ادا شدہ');
+  assert.equal(t('qc_title', 'ur'), '⚡ فوری نقد وصولی (2-Tap)');
+  assert.equal(t('search_title', 'ur'), '🔍 فوری صارف تلاش');
+  assert.equal(t('rounds_title', 'ur'), '📋 فیلڈ وصولی روٹ لسٹ');
+  assert.equal(t('nonexistent_key', 'en'), 'nonexistent_key');
+
+  // 3. Direction & Class Manipulation
+  const docRootAttrs = {};
+  const classList = new Set();
+  const mockDocRoot = {
+    setAttribute: (attr, val) => { docRootAttrs[attr] = val; },
+    classList: {
+      add: (cls) => classList.add(cls),
+      remove: (cls) => classList.delete(cls),
+      contains: (cls) => classList.has(cls)
+    }
+  };
+
+  applyLanguageDirection('ur', mockDocRoot);
+  assert.equal(docRootAttrs['dir'], 'rtl');
+  assert.equal(docRootAttrs['lang'], 'ur');
+  assert.equal(classList.has('lang-ur'), true);
+
+  applyLanguageDirection('en', mockDocRoot);
+  assert.equal(docRootAttrs['dir'], 'ltr');
+  assert.equal(docRootAttrs['lang'], 'en');
+  assert.equal(classList.has('lang-ur'), false);
+
+  // 4. toggleAppLanguage & setAppLanguage
+  mockStorage.setItem(LANGUAGE_STORAGE_KEY, 'en');
+  const toggled1 = toggleAppLanguage(mockStorage, mockDocRoot);
+  assert.equal(toggled1, 'ur');
+  assert.equal(mockStorage.getItem(LANGUAGE_STORAGE_KEY), 'ur');
+  assert.equal(docRootAttrs['dir'], 'rtl');
+
+  const toggled2 = toggleAppLanguage(mockStorage, mockDocRoot);
+  assert.equal(toggled2, 'en');
+  assert.equal(mockStorage.getItem(LANGUAGE_STORAGE_KEY), 'en');
+  assert.equal(docRootAttrs['dir'], 'ltr');
+
+  // 5. Bilingual Currency & Status formatting
+  assert.equal(formatBilingualCurrency(2500, 'en'), 'PKR 2,500');
+  assert.equal(formatBilingualCurrency(2500, 'ur'), 'روپے 2,500');
+  assert.equal(formatBilingualStatus('paid', 'en'), 'Paid');
+  assert.equal(formatBilingualStatus('paid', 'ur'), 'مکمل ادا شدہ');
+  assert.equal(formatBilingualStatus('pending', 'ur'), 'واجب الادا بقایا');
+
+  // 6. renderLanguageToggleBtnHtml
+  const btnHtmlEn = renderLanguageToggleBtnHtml('en', 'myToggleBtn');
+  assert.ok(btnHtmlEn.includes('id="myToggleBtn"'));
+  assert.ok(btnHtmlEn.includes('اردو'));
+  const btnHtmlUr = renderLanguageToggleBtnHtml('ur', 'myToggleBtn');
+  assert.ok(btnHtmlUr.includes('English'));
+
+  // 7. HTML and CSS Markups Verification
+  const indexHtml = read('index.html');
+  assert.ok(indexHtml.includes('id="languageToggleBtn"'));
+  assert.ok(indexHtml.includes('id="drawerLanguageToggleBtn"'));
+
+  const navCss = read('nav.css');
+  assert.ok(navCss.includes('.language-toggle-btn'));
+  assert.ok(navCss.includes('[dir="rtl"]'));
+  assert.ok(navCss.includes('.lang-ur'));
+
+  const appJs = read('app.js');
+  assert.ok(appJs.includes('setupLanguageToggle'));
+  assert.ok(appJs.includes('languageController'));
+});

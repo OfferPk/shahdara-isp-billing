@@ -6279,7 +6279,9 @@ html, body {
   #cableJettingModal,
   #cableJettingModal .dashboard-modal-card,
   #tubeSlittingAccessModal,
-  #tubeSlittingAccessModal .dashboard-modal-card {
+  #tubeSlittingAccessModal .dashboard-modal-card,
+  #conduitPullingModal,
+  #conduitPullingModal .dashboard-modal-card {
     border: none !important;
     box-shadow: none !important;
     background: #fff !important;

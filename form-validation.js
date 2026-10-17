@@ -12494,4 +12494,28 @@ export {
   setupTubeSlittingAccessModal
 } from './qa-tube-slitting-access.js';
 
+export {
+  CONDUIT_PULLING_STORAGE_KEY,
+  CONDUIT_PULL_CABLE_TYPES,
+  CONDUIT_TYPES,
+  PULLING_LUBRICANT_MODES,
+  CONDUIT_PULLING_VERDICTS,
+  SHAHDARA_CONDUIT_PRESETS,
+  calculateConduitFillRatio,
+  calculateWeightCorrectionFactor,
+  calculateConduitPullingTension,
+  validateConduitPullingInput,
+  buildConduitPullingCertRecord,
+  getSavedConduitPullingCerts,
+  saveConduitPullingCert,
+  updateConduitPullingCertStatus,
+  clearConduitPullingCerts,
+  calculateConduitPullingMetrics,
+  renderConduitPullingQaSvg,
+  generateConduitPullingCertHtml,
+  formatConduitPullingCertWhatsApp,
+  generateConduitPullingCertsCsv,
+  setupConduitPullingModal
+} from './qa-conduit-pulling-tension.js';
+
 

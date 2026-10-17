@@ -62,7 +62,8 @@ import {
   setupAdssSagTensionModal,
   setupArmoredCableCrushModal,
   setupCableJettingModal,
-  setupTubeSlittingAccessModal
+  setupTubeSlittingAccessModal,
+  setupConduitPullingModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3544,6 +3545,7 @@ export let customerAdssSagTensionModalController;
 export let customerArmoredCableCrushModalController;
 export let customerCableJettingModalController;
 export let customerTubeSlittingModalController;
+export let customerConduitPullingModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4197,6 +4199,34 @@ if (typeof document !== 'undefined') {
           }
         }
         tubeSlittingModal.showModal();
+      }
+    });
+  }
+
+  const conduitPullingModal = $('#conduitPullingModal');
+  const openConduitPullingBtn = $('#openConduitPullingBtn');
+  if (conduitPullingModal) {
+    customerConduitPullingModalController = setupConduitPullingModal({
+      state,
+      dialogElement: conduitPullingModal,
+      triggerButton: openConduitPullingBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openConduitPullingBtn) {
+    openConduitPullingBtn.addEventListener('click', () => {
+      if (conduitPullingModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#cndSubscriberInput');
+            if (custInput) custInput.value = c.name || 'Subscriber';
+            const routeInput = $('#cndRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Building Riser Conduit to Unit`;
+          }
+        }
+        conduitPullingModal.showModal();
       }
     });
   }

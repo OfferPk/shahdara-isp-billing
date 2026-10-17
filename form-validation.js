@@ -12471,3 +12471,27 @@ export {
   setupCableJettingModal
 } from './qa-cable-jetting-blowing.js';
 
+export {
+  TUBE_SLITTING_STORAGE_KEY,
+  TUBE_SLITTER_TOOL_TYPES,
+  BUFFER_TUBE_TYPES,
+  TUBE_SLITTING_VERDICTS,
+  SHAH_TUBE_SLITTING_PRESETS,
+  calculateTubeSlitWallPenetration,
+  calculateInducedSlitLossDb,
+  evaluateTubeSlittingAccess,
+  validateTubeSlittingInput,
+  buildTubeSlittingCertRecord,
+  getSavedTubeSlittingCerts,
+  saveTubeSlittingCert,
+  updateTubeSlittingCertStatus,
+  clearTubeSlittingCerts,
+  calculateTubeSlittingMetrics,
+  renderTubeSlittingAccessSvg,
+  generateTubeSlittingCertHtml,
+  formatTubeSlittingCertWhatsApp,
+  generateTubeSlittingCertsCsv,
+  setupTubeSlittingAccessModal
+} from './qa-tube-slitting-access.js';
+
+

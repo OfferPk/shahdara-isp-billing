@@ -5982,6 +5982,34 @@ export {
   setupPtpTbcModal
 } from './dashboard-ptp-tbc.js';
 
+export {
+  RPKI_CONSTANTS,
+  SHAHDARA_RPKI_GATEWAYS,
+  SHAHDARA_RPKI_PREFIXES,
+  getRpkiSelectedGatewayId,
+  setRpkiSelectedGatewayId,
+  getRpkiSelectedPrefixId,
+  setRpkiSelectedPrefixId,
+  getRpkiHijackSimulationMode,
+  setRpkiHijackSimulationMode,
+  getRpkiRovPolicyMode,
+  setRpkiRovPolicyMode,
+  getRpkiFlapsPerMinute,
+  setRpkiFlapsPerMinute,
+  getRpkiElapsedFlapMinutes,
+  setRpkiElapsedFlapMinutes,
+  resetRpkiSimState,
+  calculateRouteFlapDamping,
+  calculateRovValidationState,
+  calculateRpkiDynamics,
+  calculateRpkiMetrics,
+  renderRpkiDiagramSvg,
+  generateRpkiReport,
+  exportRpkiJson,
+  exportRpkiCsv,
+  setupRpkiModal
+} from './dashboard-rpki.js';
+
 
 
 

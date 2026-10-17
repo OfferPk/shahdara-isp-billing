@@ -66,7 +66,8 @@ import {
   setupTubeSlittingAccessModal,
   setupConduitPullingModal,
   setupSpectralAttenuationModal,
-  setupFoscSealModal
+  setupFoscSealModal,
+  setupThermalCyclingModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3561,6 +3562,7 @@ export let customerTubeSlittingModalController;
 export let customerConduitPullingModalController;
 export let customerSpectralAttenuationModalController;
 export let customerFoscSealModalController;
+export let customerThermalCyclingModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4298,6 +4300,34 @@ if (typeof document !== 'undefined') {
           }
         }
         foscSealModal.showModal();
+      }
+    });
+  }
+
+  const thermalCyclingModal = $('#thermalCyclingModal');
+  const openThermalCyclingBtn = $('#openThermalCyclingBtn');
+  if (thermalCyclingModal) {
+    customerThermalCyclingModalController = setupThermalCyclingModal({
+      state,
+      dialogElement: thermalCyclingModal,
+      triggerButton: openThermalCyclingBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openThermalCyclingBtn) {
+    openThermalCyclingBtn.addEventListener('click', () => {
+      if (thermalCyclingModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#thmSubscriberInput');
+            if (custInput) custInput.value = `${c.name || 'Shahdara'} Feeder Span`;
+            const routeInput = $('#thmRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Route Distribution Cable`;
+          }
+        }
+        thermalCyclingModal.showModal();
       }
     });
   }

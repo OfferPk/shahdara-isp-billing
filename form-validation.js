@@ -12561,3 +12561,25 @@ export {
   generateFoscSealCertsCsv,
   setupFoscSealModal
 } from './qa-fosc-seal-inspection.js';
+
+export {
+  FIBER_THERMAL_CYCLE_STORAGE_KEY,
+  THERMAL_CYCLE_PROFILES,
+  BUFFER_TUBE_POLYMERS,
+  FILLING_GEL_COMPOUNDS,
+  THERMAL_QA_VERDICTS,
+  SHAHDARA_THERMAL_PRESETS,
+  calculateThermalCyclingPhysics,
+  validateThermalCyclingInput,
+  buildThermalCyclingCertRecord,
+  getSavedThermalCyclingCerts,
+  saveThermalCyclingCert,
+  updateThermalCyclingCertStatus,
+  clearThermalCyclingCerts,
+  calculateThermalCyclingMetrics,
+  renderThermalCyclingQaSvg,
+  generateThermalCyclingCertHtml,
+  formatThermalCyclingCertWhatsApp,
+  generateThermalCyclingCertsCsv,
+  setupThermalCyclingModal
+} from './qa-thermal-cycling.js';

@@ -13084,6 +13084,222 @@ test('index.html, styles.css, app.js, and nav.js contain all OTDR Dead Zone bind
   assert.ok(typeof nav.setupMobileOtdrDeadzoneModal === 'function');
 });
 
+test('Tube Shaving: parameter calculations for standard sizes and materials', async () => {
+  const {
+    calculateTubeShavingParameters,
+    TUBE_SPECS,
+    TUBE_MATERIALS
+  } = await import('../nav-tube-shaving.js');
+
+  assert.ok(TUBE_SPECS['2.0']);
+  assert.strictEqual(TUBE_SPECS['2.0'].wallThickness, 0.35);
+
+  const res20 = calculateTubeShavingParameters({
+    tubeSize: '2.0',
+    material: 'PBT',
+    ambientTemp: 22,
+    bladeCycles: 10,
+    measuredMinor: 2.0,
+    measuredMajor: 2.0
+  });
+
+  assert.strictEqual(res20.nominalDiameterMm, 2.0);
+  assert.strictEqual(res20.wallThicknessMm, 0.35);
+  assert.strictEqual(res20.ovalityPercent, 0);
+  assert.strictEqual(res20.ovalityRisk, 'low');
+  assert.strictEqual(res20.thermalRisk, 'low');
+  assert.strictEqual(res20.bladeRisk, 'low');
+  assert.ok(res20.maxBladeDepthMm > 0.25 && res20.maxBladeDepthMm < 0.35);
+  assert.strictEqual(res20.bladePenetrationPercent, 80);
+
+  const res28 = calculateTubeShavingParameters({
+    tubeSize: '2.8',
+    material: 'PBT',
+    ambientTemp: 25,
+    bladeCycles: 15,
+    measuredMinor: 2.8,
+    measuredMajor: 2.8
+  });
+  assert.strictEqual(res28.nominalDiameterMm, 2.8);
+  assert.strictEqual(res28.wallThicknessMm, 0.45);
+  assert.strictEqual(res28.fiberCount, 24);
+  assert.ok(res28.maxBladeDepthMm > 0.30);
+});
+
+test('Tube Shaving: ovality detection and crushing margin risk', async () => {
+  const { calculateTubeShavingParameters } = await import('../nav-tube-shaving.js');
+
+  // Minor ovality (5%)
+  const minorOval = calculateTubeShavingParameters({
+    tubeSize: '2.0',
+    measuredMinor: 1.95,
+    measuredMajor: 2.05
+  });
+  assert.strictEqual(minorOval.ovalityPercent, 5.0);
+  assert.strictEqual(minorOval.ovalityRating, 'Minor Ovality');
+  assert.strictEqual(minorOval.ovalityRisk, 'medium');
+
+  // Severe crushing / flattening (12%)
+  const severeOval = calculateTubeShavingParameters({
+    tubeSize: '2.0',
+    measuredMinor: 1.86,
+    measuredMajor: 2.10
+  });
+  assert.strictEqual(severeOval.ovalityPercent, 12.0);
+  assert.strictEqual(severeOval.ovalityRisk, 'critical');
+  assert.ok(severeOval.ovalityRecommendation.includes('High risk of blade pinching'));
+  assert.ok(severeOval.riskScore >= 45);
+});
+
+test('Tube Shaving: thermal brittleness and blade wear degradation', async () => {
+  const { calculateTubeShavingParameters } = await import('../nav-tube-shaving.js');
+
+  // Freezing winter conditions (7°C for PBT)
+  const coldTest = calculateTubeShavingParameters({
+    tubeSize: '2.0',
+    material: 'PBT',
+    ambientTemp: 7,
+    bladeCycles: 10
+  });
+  assert.strictEqual(coldTest.thermalRisk, 'critical');
+  assert.ok(coldTest.thermalStatus.includes('Severely Brittle'));
+  assert.ok(coldTest.thermalAlert.includes('Pre-warm tube'));
+  assert.ok(coldTest.effectiveMarginMm > 0.07); // Extra margin penalty applied
+
+  // Excessive blade wear (> 70 cuts)
+  const dullBlade = calculateTubeShavingParameters({
+    tubeSize: '2.0',
+    bladeCycles: 85
+  });
+  assert.strictEqual(dullBlade.bladeRisk, 'critical');
+  assert.ok(dullBlade.bladeStatus.includes('Dull / Worn Out'));
+  assert.ok(dullBlade.riskScore >= 40);
+});
+
+test('Tube Shaving: SVG cross-section rendering and TIA-598-D colors', async () => {
+  const { calculateTubeShavingParameters, renderTubeCrossSectionSvg } = await import('../nav-tube-shaving.js');
+
+  const calc = calculateTubeShavingParameters({
+    tubeSize: '2.0',
+    fiberCount: 12,
+    material: 'PBT'
+  });
+
+  const svg = renderTubeCrossSectionSvg(calc);
+  assert.ok(svg.includes('<svg'));
+  assert.ok(svg.includes('id="tubeWallGrad"'));
+  assert.ok(svg.includes('id="innerCoreGrad"'));
+  assert.ok(svg.includes('Fiber #1 (Blue)'));
+  assert.ok(svg.includes('Fiber #12 (Aqua)'));
+  assert.ok(svg.includes('Parameters'));
+  assert.ok(svg.includes('Dia: 2.0 mm'));
+  assert.ok(svg.includes('Cut: 80%'));
+});
+
+test('Tube Shaving: history logging, summary metrics, and CSV export', async () => {
+  const {
+    saveTubeShavingRecord,
+    getTubeShavingHistory,
+    clearTubeShavingHistory,
+    generateTubeShavingSummary,
+    exportTubeShavingReportCsv
+  } = await import('../nav-tube-shaving.js');
+
+  clearTubeShavingHistory();
+  assert.strictEqual(getTubeShavingHistory().length, 0);
+
+  saveTubeShavingRecord({
+    location: 'Kot Abdul Malik Splice Closure #4',
+    tubeSize: '2.0',
+    wallThicknessMm: 0.35,
+    material: 'PBT',
+    fiberCount: 12,
+    maxBladeDepthMm: 0.28,
+    effectiveMarginMm: 0.07,
+    ovalityPercent: 2.5,
+    riskScore: 20,
+    overallRating: 'Low Risk',
+    ambientTempC: 22,
+    bladeCycles: 15,
+    windowLengthCm: 60,
+    technicianNote: 'Mid-span expressed loop bypass'
+  });
+
+  saveTubeShavingRecord({
+    location: 'Shahdara Chowk ODF Main',
+    tubeSize: '2.8',
+    wallThicknessMm: 0.45,
+    material: 'PBT',
+    fiberCount: 24,
+    maxBladeDepthMm: 0.37,
+    effectiveMarginMm: 0.08,
+    ovalityPercent: 8.5,
+    riskScore: 65,
+    overallRating: 'Elevated Risk',
+    ambientTempC: 8,
+    bladeCycles: 75,
+    windowLengthCm: 80,
+    technicianNote: 'Pre-warmed with heat pack'
+  });
+
+  const history = getTubeShavingHistory();
+  assert.strictEqual(history.length, 2);
+
+  const summary = generateTubeShavingSummary(history);
+  assert.strictEqual(summary.totalShaves, 2);
+  assert.strictEqual(summary.highRiskCount, 1);
+  assert.strictEqual(summary.bladeWearAlerts, 1);
+
+  const csv = exportTubeShavingReportCsv(history);
+  assert.ok(csv.includes('Timestamp,Location,Tube Size (mm),Wall (mm)'));
+  assert.ok(csv.includes('Kot Abdul Malik Splice Closure #4'));
+  assert.ok(csv.includes('Shahdara Chowk ODF Main'));
+
+  clearTubeShavingHistory();
+  assert.strictEqual(getTubeShavingHistory().length, 0);
+});
+
+test('Tube Shaving: markup and integration presence in index.html, styles.css, app.js and nav.js', async () => {
+  const fs = await import('fs');
+  const path = await import('path');
+
+  const html = fs.readFileSync(path.resolve('./index.html'), 'utf-8');
+  assert.ok(html.includes('id="mobileMoreTubeShavingBtn"'));
+  assert.ok(html.includes('id="mobileTubeShavingModal"'));
+  assert.ok(html.includes('id="closeMobileTubeShavingModalBtn"'));
+  assert.ok(html.includes('id="shaveTubeSize"'));
+  assert.ok(html.includes('id="shaveMaterial"'));
+  assert.ok(html.includes('id="shaveFiberCount"'));
+  assert.ok(html.includes('id="shaveMinorDia"'));
+  assert.ok(html.includes('id="shaveMajorDia"'));
+  assert.ok(html.includes('id="shaveAmbientTemp"'));
+  assert.ok(html.includes('id="shaveBladeCycles"'));
+  assert.ok(html.includes('id="shaveWindowLength"'));
+  assert.ok(html.includes('id="shaveSvgContainer"'));
+  assert.ok(html.includes('id="shaveOutMaxBladeDepth"'));
+  assert.ok(html.includes('id="shaveOutMargin"'));
+  assert.ok(html.includes('id="shaveOutCutPercent"'));
+  assert.ok(html.includes('id="shaveOutOvality"'));
+  assert.ok(html.includes('id="shaveOutThermal"'));
+  assert.ok(html.includes('id="shaveOutBlade"'));
+  assert.ok(html.includes('id="shaveOutRiskBadge"'));
+  assert.ok(html.includes('id="shaveSaveRecordBtn"'));
+  assert.ok(html.includes('id="shaveExportCsvBtn"'));
+  assert.ok(html.includes('id="shaveClearHistoryBtn"'));
+
+  const stylesCss = fs.readFileSync(path.resolve('./styles.css'), 'utf-8');
+  assert.ok(stylesCss.includes('#mobileTubeShavingModal'));
+
+  const app = fs.readFileSync(path.resolve('./app.js'), 'utf-8');
+  assert.ok(app.includes('setupMobileTubeShavingModal'));
+
+  const nav = await import('../nav.js');
+  assert.ok(typeof nav.calculateTubeShavingParameters === 'function');
+  assert.ok(typeof nav.renderTubeCrossSectionSvg === 'function');
+  assert.ok(typeof nav.setupMobileTubeShavingModal === 'function');
+});
+
+
 
 
 

@@ -6398,3 +6398,18 @@ export {
   exportDeadZoneAuditsCsv,
   setupMobileOtdrDeadzoneModal
 } from './nav-otdr-deadzone.js';
+
+export {
+  TUBE_SPECS,
+  TUBE_MATERIALS,
+  FIBER_COLORS_TIA598,
+  calculateTubeShavingParameters,
+  renderTubeCrossSectionSvg,
+  saveTubeShavingRecord,
+  getTubeShavingHistory,
+  clearTubeShavingHistory,
+  exportTubeShavingReportCsv,
+  generateTubeShavingSummary,
+  setupMobileTubeShavingModal
+} from './nav-tube-shaving.js';
+

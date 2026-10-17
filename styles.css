@@ -6334,5 +6334,48 @@ html, body {
   color: #f87171;
 }
 
+/* Field Optical Fiber Buffer Tube Mid-Span Stripper & Shaving Gauge Assistant */
+#mobileTubeShavingModal .cleaning-modal-card {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal .cleaning-modal-card {
+  background: #1e293b;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal input,
+[data-theme="dark"] #mobileTubeShavingModal select {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal div[style*="background:#f1f5f9"] {
+  background: #0f172a !important;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal div[style*="color:#0f172a"] {
+  color: #f8fafc !important;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal #shaveOutAlertBox {
+  background: #2d2305 !important;
+  border-color: #854d0e !important;
+  color: #fef08a !important;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal thead[style*="background:#f8fafc"] {
+  background: #0f172a !important;
+}
+
+[data-theme="dark"] #mobileTubeShavingModal td,
+[data-theme="dark"] #mobileTubeShavingModal th {
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+
 
 

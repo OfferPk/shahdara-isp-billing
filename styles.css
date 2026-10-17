@@ -7678,4 +7678,419 @@ html, body {
   }
 }
 
+/* ==========================================================================
+   Mobile Customer Quick Profile Sheet & WhatsApp Delivery Badges (agent2)
+   ========================================================================== */
+.mobile-quick-profile-modal {
+  width: 95%;
+  max-width: 480px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-surface, #ffffff);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  overflow: hidden;
+}
+
+.mobile-quick-profile-card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobile-quick-profile-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.mqp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mqp-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mqp-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-space(135deg, #0284c7, #0369a1);
+  background-color: #0284c7;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 6px -1px rgba(2, 132, 199, 0.25);
+}
+
+.mqp-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.mqp-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mqp-name {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-color, #0f172a);
+  line-height: 1.3;
+}
+
+.mqp-area {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+
+/* Balance Hero */
+.mqp-balance-hero {
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 1px solid transparent;
+}
+
+.mqp-balance-hero.is-settled {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.mqp-balance-hero.is-partial {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.mqp-balance-hero.is-overdue {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.mqp-balance-eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+
+.mqp-balance-amount {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.mqp-currency {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.mqp-val {
+  font-size: 1.85rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.mqp-balance-status {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+/* Detail chips strip */
+.mqp-details-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.mqp-detail-item {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+}
+
+.mqp-detail-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.mqp-detail-val {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-color, #0f172a);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Last Payment Box */
+.mqp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mqp-section-heading {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted, #64748b);
+  letter-spacing: 0.04em;
+}
+
+.mqp-last-payment-box {
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--bg-subtle, #f8fafc);
+  border: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mqp-last-payment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mqp-last-payment-amt {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #10b981;
+}
+
+.mqp-last-payment-date {
+  font-size: 0.8rem;
+  color: var(--text-muted, #64748b);
+}
+
+.mqp-last-payment-method {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(2, 132, 199, 0.1);
+  color: #0284c7;
+  font-weight: 600;
+}
+
+.mqp-last-payment-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  border-top: 1px dashed var(--border-color, #e2e8f0);
+  padding-top: 6px;
+}
+
+.mqp-no-payment {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+  padding: 8px 0;
+}
+
+/* WhatsApp Receipt Delivery Badges */
+.badge-receipt-shared {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-receipt-unshared {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+/* 48px Touch Action Grid */
+.mqp-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.mqp-action-btn {
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: transform 0.1s ease, filter 0.15s ease, background 0.15s ease;
+}
+
+.mqp-action-btn:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+}
+
+.mqp-action-btn:active {
+  transform: translateY(1px);
+}
+
+.mqp-btn-collect {
+  background: #10b981;
+  color: #ffffff;
+  border-color: #059669;
+}
+
+.mqp-btn-whatsapp {
+  background: #25d366;
+  color: #ffffff;
+  border-color: #128c7e;
+}
+
+.mqp-btn-call {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0369a1;
+}
+
+.mqp-btn-profile {
+  background: var(--bg-surface, #ffffff);
+  color: var(--text-color, #0f172a);
+  border-color: var(--border-color, #cbd5e1);
+}
+
+.mqp-btn-disabled {
+  background: var(--bg-subtle, #f1f5f9);
+  color: var(--text-muted, #94a3b8);
+  border-color: var(--border-color, #e2e8f0);
+  cursor: not-allowed;
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .mobile-quick-profile-modal {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .mqp-name {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .mqp-area,
+[data-theme="dark"] .mqp-detail-label,
+[data-theme="dark"] .mqp-section-heading,
+[data-theme="dark"] .mqp-last-payment-date {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .mqp-detail-item,
+[data-theme="dark"] .mqp-last-payment-box {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .mqp-detail-val {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .mqp-balance-hero.is-settled {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .mqp-balance-hero.is-partial {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+[data-theme="dark"] .mqp-balance-hero.is-overdue {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .mqp-last-payment-sub {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .badge-receipt-shared {
+  background: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .badge-receipt-unshared {
+  background: #1e293b;
+  color: #94a3b8;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .mqp-btn-profile {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .mqp-btn-disabled {
+  background: #1e293b;
+  color: #64748b;
+  border-color: #334155;
+}
+
 

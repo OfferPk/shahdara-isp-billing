@@ -232,7 +232,17 @@ export function updateNavigationBadges(state, options = {}) {
 
   function setBadges(target, count, label, alertClass = false) {
     if (!hasDoc) return;
-    const badges = document.querySelectorAll(`[data-nav-badge="${target}"]`);
+    const directBadges = Array.from(document.querySelectorAll(`[data-nav-badge="${target}"]`) || []);
+    let aliasBadges = [];
+    try {
+      aliasBadges = Array.from(document.querySelectorAll(`[data-nav-badge-alias="${target}"]`) || []);
+    } catch {}
+    const seen = new Set();
+    const badges = [...directBadges, ...aliasBadges].filter(b => {
+      if (seen.has(b)) return false;
+      seen.add(b);
+      return true;
+    });
     badges.forEach(badge => {
       badge.textContent = count > 99 ? '99+' : String(count);
       badge.hidden = count === 0;
@@ -249,6 +259,7 @@ export function updateNavigationBadges(state, options = {}) {
   setBadges('expenses', expensesCount, 'recorded expenses');
   setBadges('inventory', inventoryCount, 'inventory items');
   setBadges('collection', overdueCount, 'subscribers with pending dues', overdueCount > 0);
+  setBadges('dues', overdueCount, 'subscribers with pending dues', overdueCount > 0);
   setBadges('field-route', overdueCount, 'stops pending collection', overdueCount > 0);
   setBadges('work-orders', pendingWorkOrders, 'active field work orders', pendingWorkOrders > 0);
   setBadges('sync-conflicts', conflictsCount, 'unresolved sync conflicts', conflictsCount > 0);

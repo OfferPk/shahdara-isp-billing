@@ -86,6 +86,10 @@ export const TRANSLATIONS = {
     // More Sheet Menu
     more_menu_title: 'More Features & Tools',
     more_language_toggle: '🌐 Language: اردو / English',
+    more_menu_group_billing: 'Billing & Business',
+    more_menu_group_field: 'Field Operations & Diagnostics',
+    more_backup: 'Backup & Restore',
+    more_bills: 'Bills',
 
     // Status Badges
     status_paid: 'Paid',
@@ -254,6 +258,10 @@ export const TRANSLATIONS = {
     // More Sheet Menu
     more_menu_title: 'مزید فیچرز اور کاروباری ٹولز',
     more_language_toggle: '🌐 زبان: English / اردو',
+    more_menu_group_billing: 'بلنگ اور کاروباری امور',
+    more_menu_group_field: 'فیلڈ آپریشنز اور تشخیصی ٹولز',
+    more_backup: 'بیک اپ اور بحالی',
+    more_bills: 'بلز اور کھاتہ جات',
 
     // Status Badges
     status_paid: 'مکمل ادا شدہ',
@@ -527,6 +535,18 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
 
   const routeBtn = container.querySelector('[data-open-field-route] span:not(.nav-drawer-icon):not(.nav-drawer-badge)');
   if (routeBtn) routeBtn.textContent = t('drawer_rounds', activeLang);
+
+  // 7b. Update More Sheet Menu
+  const moreMenu = container.querySelector('#mobileMoreMenu');
+  if (moreMenu) {
+    const titleEl = moreMenu.querySelector('.more-menu-title');
+    if (titleEl) titleEl.textContent = t('more_menu_title', activeLang);
+    const sectionLabels = moreMenu.querySelectorAll('.more-menu-section-label');
+    if (sectionLabels.length >= 2) {
+      sectionLabels[0].textContent = t('more_menu_group_billing', activeLang);
+      sectionLabels[1].textContent = t('more_menu_group_field', activeLang);
+    }
+  }
 
   // 8. Update Quick Collect Modal
   const qcTitle = container.querySelector('#quickCollectTitle');

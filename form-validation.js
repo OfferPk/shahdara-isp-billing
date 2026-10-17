@@ -12419,3 +12419,28 @@ export {
   generateAdssSagTensionCertsCsv,
   setupAdssSagTensionModal
 } from './qa-adss-sag-tension.js';
+
+export {
+  ARMORED_CABLE_CRUSH_STORAGE_KEY,
+  ARMOR_TYPES,
+  BURIAL_ENVIRONMENTS,
+  ARMORED_CABLE_VERDICTS,
+  SHAH_ARMORED_PRESETS,
+  calculateImpactEnergyJoules,
+  calculateRadialCrushDeflection,
+  calculateInducedCrushLossDb,
+  evaluateBurialDepthCompliance,
+  evaluateArmoredCableCrush,
+  validateArmoredCableCrushInput,
+  buildArmoredCableCrushRecord,
+  getSavedArmoredCableCrushCerts,
+  saveArmoredCableCrushCert,
+  updateArmoredCableCrushCertStatus,
+  clearArmoredCableCrushCerts,
+  calculateArmoredCableCrushMetrics,
+  renderArmoredCableCrushSvg,
+  generateArmoredCableCrushCertHtml,
+  formatArmoredCableCrushCertWhatsApp,
+  generateArmoredCableCrushCertsCsv,
+  setupArmoredCableCrushModal
+} from './qa-armored-cable-crush.js';

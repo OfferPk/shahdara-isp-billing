@@ -7813,7 +7813,8 @@ html, body {
 /* ==========================================================================
    BILLING CORRECTNESS & LEDGER RECONCILIATION MODAL STYLES
    ========================================================================== */
-.billing-correctness-modal {
+.billing-correctness-modal,
+.data-integrity-modal {
   width: 95vw;
   max-width: 1040px;
   border-radius: 12px;
@@ -7824,13 +7825,15 @@ html, body {
   color: var(--text-main, #0f172a);
 }
 
-.billing-correctness-modal .billing-modal-content {
+.billing-correctness-modal .billing-modal-content,
+.data-integrity-modal .billing-modal-content {
   display: flex;
   flex-direction: column;
   max-height: 90vh;
 }
 
-.billing-correctness-modal .billing-modal-header {
+.billing-correctness-modal .billing-modal-header,
+.data-integrity-modal .billing-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -7838,19 +7841,22 @@ html, body {
   border-bottom: 1px solid var(--border-color, #e2e8f0);
 }
 
-.billing-correctness-modal .billing-modal-title-group h2 {
+.billing-correctness-modal .billing-modal-title-group h2,
+.data-integrity-modal .billing-modal-title-group h2 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
 }
 
-.billing-correctness-modal .urdu-subtitle {
+.billing-correctness-modal .urdu-subtitle,
+.data-integrity-modal .urdu-subtitle {
   font-size: 0.9rem;
   color: var(--text-muted, #64748b);
   direction: rtl;
 }
 
-.billing-correctness-modal .billing-modal-body {
+.billing-correctness-modal .billing-modal-body,
+.data-integrity-modal .billing-modal-body {
   padding: 20px;
   overflow-y: auto;
   display: flex;
@@ -7963,22 +7969,39 @@ html, body {
   color: #075985;
 }
 
-.billing-correctness-modal .billing-modal-footer {
+.billing-correctness-modal .billing-modal-footer,
+.data-integrity-modal .billing-modal-footer {
   padding: 12px 20px;
   border-top: 1px solid var(--border-color, #e2e8f0);
   display: flex;
   justify-content: flex-end;
 }
 
+.integrity-fix-btn {
+  background: #10b981 !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.integrity-fix-btn:disabled {
+  background: #94a3b8 !important;
+  border-color: #cbd5e1 !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Dark mode overrides */
-[data-theme="dark"] .billing-correctness-modal {
+[data-theme="dark"] .billing-correctness-modal,
+[data-theme="dark"] .data-integrity-modal {
   background: #0f172a;
   border-color: #334155;
   color: #f8fafc;
 }
 
 [data-theme="dark"] .billing-correctness-modal .billing-modal-header,
+[data-theme="dark"] .data-integrity-modal .billing-modal-header,
 [data-theme="dark"] .billing-correctness-modal .billing-modal-footer,
+[data-theme="dark"] .data-integrity-modal .billing-modal-footer,
 [data-theme="dark"] .audit-card-header {
   border-color: #334155;
   background: #1e293b;
@@ -9547,6 +9570,12 @@ html, body {
   .backup-actions #verifyStorageIntegrityBtn,
   .backup-controls-panel .backup-actions #verifyStorageIntegrityBtn {
     grid-column: 1 / -1;
+    min-height: 44px;
+  }
+  .backup-actions #openDataIntegrityBtn,
+  .backup-controls-panel .backup-actions #openDataIntegrityBtn {
+    grid-column: 1 / -1;
+    min-height: 44px;
   }
   .csv-preview-table-wrap {
     max-height: 220px;

@@ -255,6 +255,15 @@
             <span class="quick-action-sub">Ledger QA &amp; Correctness</span>
           </span>
         </button>
+        <button id="quickActionDataIntegrity" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Data Integrity</span>
+            <span class="quick-action-sub">Orphans, Dups &amp; Fixes</span>
+          </span>
+        </button>
         <button id="quickActionLateFeeManager" class="quick-action-tile" type="button">
           <span class="quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="8"/><line x1="12" y1="16" x2="12" y2="18"/></svg>
@@ -6061,7 +6070,7 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection" class="has-badge">Collection<span id="bottomNavBadgeCollection" class="bottom-nav-badge badge-alert" data-nav-badge="collection" data-nav-badge-alias="dues" hidden>0</span></button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><div class="more-menu-header"><span class="more-menu-title" data-i18n="more_menu_title">More Features &amp; Tools</span></div><div class="more-menu-section-label" data-i18n="more_menu_group_billing">Billing &amp; Business</div><button type="button" data-mobile-more="customers">Customers</button><button type="button" data-mobile-more="collection">Collection</button><button type="button" data-mobile-more="bills">Bills</button><button type="button" data-mobile-more="expenses">Expenses</button><button type="button" data-mobile-more="reports">Reports</button><button type="button" data-mobile-more="backup">Backup &amp; Restore</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="analytics">Business Analytics</button><div class="more-menu-section-label" data-i18n="more_menu_group_field">Field Operations &amp; Diagnostics</div><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button><button type="button" id="mobileMoreSplitterTreeBtn" data-mobile-more="splitter-tree" data-open-splitter-tree>Splitter Tree ODN</button><button type="button" id="mobileMoreMacroBendBtn" data-mobile-more="macro-bend" data-open-macro-bend>Macro-Bend Loss</button><button type="button" id="mobileMoreAttenuatorBtn" data-mobile-more="attenuator" data-open-attenuator>Optical Attenuator</button><button type="button" id="mobileMoreOrlBtn" data-mobile-more="orl" data-open-orl>Return Loss (ORL)</button><button type="button" id="mobileMoreCleaverBtn" data-mobile-more="fiber-cleaver" data-open-fiber-cleaver>Fiber Cleaver Blade</button><button type="button" id="mobileMoreOltsBtn" data-mobile-more="olts" data-open-olts>Tier-1 OLTS Cert</button><button type="button" id="mobileMoreFiberIdentifierBtn" data-mobile-more="fiber-identifier" data-open-fiber-identifier>Live Fiber Identifier</button><button type="button" id="mobileMoreMpoBtn" data-mobile-more="mpo-polarity" data-open-mpo-polarity>MPO Polarity &amp; Pinning</button><button type="button" id="mobileMoreFastConnectorBtn" data-mobile-more="fast-connector" data-open-fast-connector>Fast Connector (FIC)</button><button type="button" id="mobileMoreOtdrLaunchBtn" data-mobile-more="otdr-launch" data-open-otdr-launch>OTDR Launch Cable</button><button type="button" id="mobileMoreBareFiberAdapterBtn" data-mobile-more="bare-fiber-adapter" data-open-bare-fiber-adapter>Bare Fiber Adapter</button><button type="button" id="mobileMoreSlsToneBtn" data-mobile-more="sls-tone" data-open-sls-tone>Light Source (SLS)</button><button type="button" id="mobileMoreFiberTalksetBtn" data-mobile-more="fiber-talkset" data-open-fiber-talkset>Fiber Talk Set (FOTS)</button><button type="button" id="mobileMoreWdmSpectrumBtn" data-mobile-more="wdm-spectrum" data-open-wdm-spectrum>WDM Spectrum (OSA)</button><button type="button" id="mobileMoreMidspanAccessBtn" data-mobile-more="midspan-access" data-open-midspan-access>Mid-Span Buffer Slitter</button><button type="button" id="mobileMorePowerLoggerBtn" data-mobile-more="power-logger" data-open-power-logger>Power Logger &amp; Flap</button><button type="button" id="mobileMoreDropRetentionBtn" data-mobile-more="drop-retention" data-open-drop-retention>Clamp Retention &amp; Sag</button><button type="button" id="mobileMoreRefJumpersBtn" data-mobile-more="ref-jumpers" data-open-ref-jumpers>TRC Test Cords</button><button type="button" id="mobileMoreRibbonSeparatorBtn" data-mobile-more="ribbon-separator" data-open-ribbon-separator>Ribbon Separator</button><button type="button" id="mobileMoreMechanicalSpliceBtn" data-mobile-more="mechanical-splice" data-open-mechanical-splice>Mechanical Splice</button><button type="button" id="mobileMoreFiberMicroscopeBtn" data-mobile-more="fiber-microscope" data-open-fiber-microscope>Fiber VIP Microscope</button><button type="button" id="mobileMoreConnectorCleaningBtn" data-mobile-more="connector-cleaning" data-open-connector-cleaning>Connector Cleaning</button><button type="button" id="mobileMoreOtdrDeadzoneBtn" data-mobile-more="otdr-deadzone" data-open-otdr-deadzone>OTDR Dead Zone</button><button type="button" id="mobileMoreTubeShavingBtn" data-mobile-more="tube-shaving" data-open-tube-shaving>Tube Shaving Gauge</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><div class="more-menu-header"><span class="more-menu-title" data-i18n="more_menu_title">More Features &amp; Tools</span></div><div class="more-menu-section-label" data-i18n="more_menu_group_billing">Billing &amp; Business</div><button type="button" data-mobile-more="customers">Customers</button><button type="button" data-mobile-more="collection">Collection</button><button type="button" data-mobile-more="bills">Bills</button><button type="button" data-mobile-more="expenses">Expenses</button><button type="button" data-mobile-more="reports">Reports</button><button type="button" data-mobile-more="backup">Backup &amp; Restore</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="integrity" id="mobileMoreDataIntegrityBtn">Data Integrity</button><div class="more-menu-section-label" data-i18n="more_menu_group_field">Field Operations &amp; Diagnostics</div><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button><button type="button" id="mobileMoreSplitterTreeBtn" data-mobile-more="splitter-tree" data-open-splitter-tree>Splitter Tree ODN</button><button type="button" id="mobileMoreMacroBendBtn" data-mobile-more="macro-bend" data-open-macro-bend>Macro-Bend Loss</button><button type="button" id="mobileMoreAttenuatorBtn" data-mobile-more="attenuator" data-open-attenuator>Optical Attenuator</button><button type="button" id="mobileMoreOrlBtn" data-mobile-more="orl" data-open-orl>Return Loss (ORL)</button><button type="button" id="mobileMoreCleaverBtn" data-mobile-more="fiber-cleaver" data-open-fiber-cleaver>Fiber Cleaver Blade</button><button type="button" id="mobileMoreOltsBtn" data-mobile-more="olts" data-open-olts>Tier-1 OLTS Cert</button><button type="button" id="mobileMoreFiberIdentifierBtn" data-mobile-more="fiber-identifier" data-open-fiber-identifier>Live Fiber Identifier</button><button type="button" id="mobileMoreMpoBtn" data-mobile-more="mpo-polarity" data-open-mpo-polarity>MPO Polarity &amp; Pinning</button><button type="button" id="mobileMoreFastConnectorBtn" data-mobile-more="fast-connector" data-open-fast-connector>Fast Connector (FIC)</button><button type="button" id="mobileMoreOtdrLaunchBtn" data-mobile-more="otdr-launch" data-open-otdr-launch>OTDR Launch Cable</button><button type="button" id="mobileMoreBareFiberAdapterBtn" data-mobile-more="bare-fiber-adapter" data-open-bare-fiber-adapter>Bare Fiber Adapter</button><button type="button" id="mobileMoreSlsToneBtn" data-mobile-more="sls-tone" data-open-sls-tone>Light Source (SLS)</button><button type="button" id="mobileMoreFiberTalksetBtn" data-mobile-more="fiber-talkset" data-open-fiber-talkset>Fiber Talk Set (FOTS)</button><button type="button" id="mobileMoreWdmSpectrumBtn" data-mobile-more="wdm-spectrum" data-open-wdm-spectrum>WDM Spectrum (OSA)</button><button type="button" id="mobileMoreMidspanAccessBtn" data-mobile-more="midspan-access" data-open-midspan-access>Mid-Span Buffer Slitter</button><button type="button" id="mobileMorePowerLoggerBtn" data-mobile-more="power-logger" data-open-power-logger>Power Logger &amp; Flap</button><button type="button" id="mobileMoreDropRetentionBtn" data-mobile-more="drop-retention" data-open-drop-retention>Clamp Retention &amp; Sag</button><button type="button" id="mobileMoreRefJumpersBtn" data-mobile-more="ref-jumpers" data-open-ref-jumpers>TRC Test Cords</button><button type="button" id="mobileMoreRibbonSeparatorBtn" data-mobile-more="ribbon-separator" data-open-ribbon-separator>Ribbon Separator</button><button type="button" id="mobileMoreMechanicalSpliceBtn" data-mobile-more="mechanical-splice" data-open-mechanical-splice>Mechanical Splice</button><button type="button" id="mobileMoreFiberMicroscopeBtn" data-mobile-more="fiber-microscope" data-open-fiber-microscope>Fiber VIP Microscope</button><button type="button" id="mobileMoreConnectorCleaningBtn" data-mobile-more="connector-cleaning" data-open-connector-cleaning>Connector Cleaning</button><button type="button" id="mobileMoreOtdrDeadzoneBtn" data-mobile-more="otdr-deadzone" data-open-otdr-deadzone>OTDR Dead Zone</button><button type="button" id="mobileMoreTubeShavingBtn" data-mobile-more="tube-shaving" data-open-tube-shaving>Tube Shaving Gauge</button></div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">
@@ -6457,7 +6466,7 @@
     </section>
   </main>
 
-  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><section class="backup-manager" aria-label="Automatic local backup"><div class="backup-manager-heading"><strong>Automatic local backup</strong><span>Saved only on this device</span></div><label for="backupFrequencySelect">Automatic frequency<select id="backupFrequencySelect"><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label><button id="backupNowButton" class="primary-button" type="button">Backup Now</button><dl class="backup-summary"><div><dt>Last successful backup</dt><dd id="backupLastSuccess">Checking…</dd></div><div><dt>Backup size</dt><dd id="backupLastSize">Not available</dd></div><div><dt>Status</dt><dd id="backupStatus" role="status" aria-live="polite">Checking local backup storage…</dd></div></dl><p class="backup-local-note">Automatic checks run when the app opens or resumes; they cannot run while it is closed. App-private backups may be removed if app/browser data is cleared or the app is uninstalled. Download a JSON copy for safekeeping elsewhere.</p><label for="savedLocalBackupSelect">Saved local backups<select id="savedLocalBackupSelect"><option value="">Choose a saved backup</option></select></label><button id="restoreLocalBackupButton" class="secondary-button" type="button" disabled>Review &amp; Restore Backup</button></section><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review JSON backup file</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden><button id="downloadCustomerCsvTemplateBtn" class="secondary-button" type="button" title="Download sample CSV customer template">Download CSV Template</button><button id="importCustomerCsvBtn" class="secondary-button" type="button" title="Import customers from CSV file">Import Customers (CSV)</button><input id="customerCsvFileInput" type="file" accept=".csv,text/csv" hidden><button id="verifyStorageIntegrityBtn" class="secondary-button" type="button" title="Audit all local storage keys and offline database resilience">Storage Health Audit</button></div></div></div></div></footer>
+  <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><section class="backup-manager" aria-label="Automatic local backup"><div class="backup-manager-heading"><strong>Automatic local backup</strong><span>Saved only on this device</span></div><label for="backupFrequencySelect">Automatic frequency<select id="backupFrequencySelect"><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label><button id="backupNowButton" class="primary-button" type="button">Backup Now</button><dl class="backup-summary"><div><dt>Last successful backup</dt><dd id="backupLastSuccess">Checking…</dd></div><div><dt>Backup size</dt><dd id="backupLastSize">Not available</dd></div><div><dt>Status</dt><dd id="backupStatus" role="status" aria-live="polite">Checking local backup storage…</dd></div></dl><p class="backup-local-note">Automatic checks run when the app opens or resumes; they cannot run while it is closed. App-private backups may be removed if app/browser data is cleared or the app is uninstalled. Download a JSON copy for safekeeping elsewhere.</p><label for="savedLocalBackupSelect">Saved local backups<select id="savedLocalBackupSelect"><option value="">Choose a saved backup</option></select></label><button id="restoreLocalBackupButton" class="secondary-button" type="button" disabled>Review &amp; Restore Backup</button></section><div class="backup-actions"><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review JSON backup file</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden><button id="downloadCustomerCsvTemplateBtn" class="secondary-button" type="button" title="Download sample CSV customer template">Download CSV Template</button><button id="importCustomerCsvBtn" class="secondary-button" type="button" title="Import customers from CSV file">Import Customers (CSV)</button><input id="customerCsvFileInput" type="file" accept=".csv,text/csv" hidden><button id="verifyStorageIntegrityBtn" class="secondary-button" type="button" title="Audit all local storage keys and offline database resilience">Storage Health Audit</button><button id="openDataIntegrityBtn" class="secondary-button" type="button" title="Scan for orphan receipts, duplicate IDs, missing customer numbers, and fix database inconsistencies">Data Integrity &amp; Fixes</button></div></div></div></div></footer>
 
   <dialog id="jsonBackupDialog" class="modal backup-modal">
     <section>
@@ -18435,6 +18444,120 @@
 
       <footer class="billing-modal-footer">
         <button id="closeBillingCorrectnessSecondaryBtn" class="secondary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Database Data Integrity & Safe Repair QA Suite Dialog -->
+  <dialog id="dataIntegrityModal" class="billing-modal data-integrity-modal">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2>Database Data Integrity &amp; Safe Repair Suite</h2>
+          <span class="urdu-subtitle">ڈیٹا انٹیگریٹی چیکر، یتیم رسیدیں اور محفوظ آٹو مرمت</span>
+        </div>
+        <button id="closeDataIntegrityModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- Action Toolbar -->
+        <div class="audit-action-bar">
+          <div class="audit-action-left">
+            <button id="runDataIntegrityScanBtn" class="primary-button audit-run-btn" type="button">
+              🛡️ Scan Database Now
+            </button>
+            <button id="applyDataIntegrityFixesBtn" class="primary-button integrity-fix-btn" type="button" disabled>
+              ⚡ Fix All Safe Issues
+            </button>
+            <select id="dataIntegrityFilterSelect" class="select-input disc-filter-select" aria-label="Filter integrity findings">
+              <option value="all">All Issues &amp; Findings</option>
+              <option value="critical">Critical Issues (Orphans/Dups)</option>
+              <option value="warning">Warnings (Unpriced/Missing #)</option>
+              <option value="info">Informational</option>
+            </select>
+          </div>
+          <div class="audit-action-right">
+            <button id="exportDataIntegrityCsvBtn" class="secondary-button" type="button">
+              📊 Export CSV
+            </button>
+            <button id="printDataIntegrityA4Btn" class="secondary-button" type="button">
+              📄 Print A4 Certificate
+            </button>
+            <button id="printDataIntegrityPosBtn" class="secondary-button" type="button">
+              🧾 Print 80mm Slip
+            </button>
+            <button id="shareDataIntegrityWhatsAppBtn" class="secondary-button" type="button">
+              💬 WhatsApp Summary
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Metrics Grid -->
+        <div class="audit-kpi-grid">
+          <div class="audit-kpi-card">
+            <div class="kpi-label">INTEGRITY SCORE</div>
+            <div id="integrityScoreVal" class="kpi-value text-success">—</div>
+            <div id="integrityStatusHelp" class="kpi-subtext">Click Scan Database Now</div>
+          </div>
+          <div class="audit-kpi-card">
+            <div class="kpi-label">RECORDS AUDITED</div>
+            <div id="integrityTotalAuditedVal" class="kpi-value">0</div>
+            <div class="kpi-subtext">Profiles, bills, payments, vouchers</div>
+          </div>
+          <div class="audit-kpi-card">
+            <div class="kpi-label">ISSUES FOUND</div>
+            <div id="integrityIssuesFoundVal" class="kpi-value text-danger">0</div>
+            <div id="integrityCriticalHelp" class="kpi-subtext">0 critical, 0 warnings</div>
+          </div>
+          <div class="audit-kpi-card">
+            <div class="kpi-label">SAFE AUTO-FIXABLE</div>
+            <div id="integrityAutoFixVal" class="kpi-value text-primary">0</div>
+            <div class="kpi-subtext">With pre-repair backup</div>
+          </div>
+        </div>
+
+        <!-- Visual Diagnostic SVG Chart -->
+        <div class="audit-chart-card">
+          <div class="audit-card-header">
+            <h3>Integrity Health Gauge &amp; Diagnostics</h3>
+            <span id="integrityBadgeStatus" class="badge-status-pill badge-neutral">Ready to scan</span>
+          </div>
+          <div id="dataIntegritySvgContainer" class="audit-svg-container">
+            <!-- Populated dynamically by renderDataIntegritySvg -->
+          </div>
+        </div>
+
+        <!-- Issues Inspection & Safe Repair Table -->
+        <div class="audit-table-card">
+          <div class="audit-card-header">
+            <h3>Detected Inconsistencies &amp; Anomaly Logs</h3>
+            <span class="audit-card-sub">Review each issue and applied automatic safe resolution</span>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table billing-disc-table">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">Severity</th>
+                  <th style="width: 160px;">Rule / Type</th>
+                  <th style="width: 180px;">Entity Details</th>
+                  <th>Description</th>
+                  <th style="width: 200px;">Suggested Safe Action</th>
+                </tr>
+              </thead>
+              <tbody id="dataIntegrityTableBody">
+                <tr>
+                  <td colspan="5" class="text-center" style="padding:16px; color:#64748b;">
+                    Click "Scan Database Now" to inspect all offline records.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <button id="closeDataIntegritySecondaryBtn" class="secondary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

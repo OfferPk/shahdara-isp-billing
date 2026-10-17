@@ -58,7 +58,8 @@ import {
   setupFiberCleaveQualityModal,
   setupOtdrGhostArtifactModal,
   setupRibbonSpliceQaModal,
-  setupFastConnectorQaModal
+  setupFastConnectorQaModal,
+  setupAdssSagTensionModal
 } from './form-validation.js?v=1.10.0';
 
 
@@ -3505,6 +3506,7 @@ export let customerFiberCleaveQualityModalController;
 export let customerOtdrGhostArtifactModalController;
 export let customerRibbonSpliceQaModalController;
 export let customerFastConnectorQaModalController;
+export let customerAdssSagTensionModalController;
 if (typeof document !== 'undefined') {
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
@@ -4048,6 +4050,34 @@ if (typeof document !== 'undefined') {
           }
         }
         fastModal.showModal();
+      }
+    });
+  }
+
+  const adssModal = $('#adssSagTensionModal');
+  const openAdssSagTensionBtn = $('#openAdssSagTensionBtn');
+  if (adssModal) {
+    customerAdssSagTensionModalController = setupAdssSagTensionModal({
+      state,
+      dialogElement: adssModal,
+      triggerButton: openAdssSagTensionBtn,
+      onToast: (msg) => toast(msg)
+    });
+  }
+
+  if (openAdssSagTensionBtn) {
+    openAdssSagTensionBtn.addEventListener('click', () => {
+      if (adssModal) {
+        if (state.selectedCustomerId) {
+          const c = state.customers.find(cust => cust.id === state.selectedCustomerId);
+          if (c) {
+            const custInput = $('#adssCustInput');
+            if (custInput) custInput.value = c.name || 'Subscriber';
+            const routeInput = $('#adssRouteInput');
+            if (routeInput) routeInput.value = `${c.area || 'Shahdara'} Aerial Drop Span to Demarcation`;
+          }
+        }
+        adssModal.showModal();
       }
     });
   }

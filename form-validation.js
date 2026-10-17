@@ -12444,3 +12444,30 @@ export {
   generateArmoredCableCrushCertsCsv,
   setupArmoredCableCrushModal
 } from './qa-armored-cable-crush.js';
+
+export {
+  CABLE_JETTING_STORAGE_KEY,
+  JETTING_CABLE_TYPES,
+  JETTING_DUCT_TYPES,
+  JETTING_EQUIPMENT_TYPES,
+  CABLE_JETTING_VERDICTS,
+  SHAH_JETTING_PRESETS,
+  calculateDuctFillRatio,
+  calculateCriticalBucklingPushForce,
+  calculateViscousDragForce,
+  calculateCapstanCurvatureFactor,
+  evaluateCableJettingPhysics,
+  validateCableJettingInput,
+  buildCableJettingCertRecord,
+  getSavedCableJettingCerts,
+  saveCableJettingCert,
+  updateCableJettingCertStatus,
+  clearCableJettingCerts,
+  calculateCableJettingMetrics,
+  renderCableJettingAnalysisSvg,
+  generateCableJettingCertHtml,
+  formatCableJettingCertWhatsApp,
+  generateCableJettingCertsCsv,
+  setupCableJettingModal
+} from './qa-cable-jetting-blowing.js';
+

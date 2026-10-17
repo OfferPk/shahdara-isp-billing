@@ -5862,6 +5862,31 @@ export {
   setupOpticalEvmModal
 } from './dashboard-optical-evm.js';
 
+export {
+  OTN_CONSTANTS,
+  SHAHDARA_OTN_TRUNKS,
+  getOtnSelectedTrunkId,
+  setOtnSelectedTrunkId,
+  getOtnBerMultiplier,
+  setOtnBerMultiplier,
+  getOtnCustomFec,
+  setOtnCustomFec,
+  getOtnSimulatedDefect,
+  setOtnSimulatedDefect,
+  resetOtnSimState,
+  calculateEffectivePreFecBer,
+  estimatePostFecBer,
+  calculateFecHeadroomMargin,
+  calculateBip8Statistics,
+  calculateOtnDynamics,
+  calculateOtnMetrics,
+  renderOtnDiagramSvg,
+  generateOtnReport,
+  exportOtnJson,
+  exportOtnCsv,
+  setupOtnModal
+} from './dashboard-otn.js';
+
 
 
 

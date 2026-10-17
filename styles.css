@@ -8586,3 +8586,160 @@ html, body {
   background: rgba(239, 68, 68, 0.15);
 }
 
+/* ==========================================================================
+   Top Defaulters & High-Risk Receivables Modal Styles
+   ========================================================================== */
+.top-defaulters-modal {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.defaulters-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.defaulter-kpi-card {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.defaulter-kpi-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulter-kpi-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-color, #0f172a);
+}
+
+.defaulter-kpi-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulters-chart-wrapper {
+  background: var(--card-bg, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.defaulters-toolbar-container {
+  margin-bottom: 12px;
+}
+
+.defaulters-filter-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.defaulter-search-box {
+  flex: 1;
+  min-width: 220px;
+}
+
+.defaulter-search-input,
+.defaulter-area-select,
+.defaulter-limit-select,
+.defaulter-risk-select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--input-bg, #ffffff);
+  color: var(--text-color, #1e293b);
+  font-size: 0.85rem;
+}
+
+.top-defaulters-table th,
+.top-defaulters-table td {
+  padding: 8px 10px;
+  vertical-align: middle;
+}
+
+.defaulter-rank-cell {
+  font-weight: 800;
+  color: var(--text-muted, #64748b);
+  text-align: center;
+}
+
+.defaulter-subtext {
+  font-size: 0.75rem;
+  color: var(--text-muted, #64748b);
+}
+
+.defaulter-months-tags {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.unpaid-month-tag {
+  background: var(--badge-bg, #f1f5f9);
+  color: var(--text-color, #334155);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.defaulter-dues-cell strong {
+  color: #dc2626;
+  font-size: 0.95rem;
+}
+
+.defaulter-wa-btn {
+  background: #25d366;
+  color: #ffffff;
+  border: none;
+  font-weight: 600;
+}
+
+.defaulter-wa-btn:hover {
+  background: #128c7e;
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .top-defaulters-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .defaulter-kpi-card,
+[data-theme="dark"] .defaulters-chart-wrapper {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .defaulter-search-input,
+[data-theme="dark"] .defaulter-area-select,
+[data-theme="dark"] .defaulter-limit-select,
+[data-theme="dark"] .defaulter-risk-select {
+  background: #0f172a;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .unpaid-month-tag {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+

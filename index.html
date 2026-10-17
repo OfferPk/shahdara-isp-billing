@@ -251,6 +251,15 @@
             <span class="quick-action-sub">Owner policy &amp; concessions</span>
           </span>
         </button>
+        <button id="quickActionTopDefaulters" class="quick-action-tile" type="button">
+          <span class="quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+          </span>
+          <span class="quick-action-text">
+            <span class="quick-action-label">Top Defaulters</span>
+            <span class="quick-action-sub">Recovery &amp; Disconnections</span>
+          </span>
+        </button>
       </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
@@ -513,6 +522,7 @@
               <div>
                 <button id="dashboardOpenDelinquencyModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Recovery Pipeline</button>
                 <button id="dashboardOpenDuesAgingBtn" class="chart-action-link" type="button" aria-haspopup="dialog" style="margin-left: 8px;">Dues Aging (0–90+d)</button>
+                <button id="dashboardOpenTopDefaultersBtn" class="chart-action-link" type="button" aria-haspopup="dialog" style="margin-left: 8px;">Top Defaulters</button>
               </div>
             </div>
             <div id="dashboardDelinquencyChart" class="chart-svg-container" role="img" aria-label="Delinquency Recovery Pipeline and Aging Escalation Chart"></div>
@@ -18442,6 +18452,8 @@
         <button id="closeDuesAgingSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
+  </dialog>
+
   <!-- Late Fee & Discounts Policy Manager Modal Dialog -->
   <dialog id="lateFeeManagerModal" class="billing-modal late-fee-modal" aria-labelledby="lateFeeModalTitle">
     <div class="billing-modal-content">
@@ -18559,6 +18571,116 @@
 
       <footer class="billing-modal-footer">
         <button id="closeLateFeeSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Top Defaulters & Delinquency Recovery Modal Dialog -->
+  <dialog id="topDefaultersModal" class="billing-modal top-defaulters-modal" aria-labelledby="topDefaultersModalTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">HIGH-RISK RECEIVABLES &amp; RECOVERY TRIAGE</div>
+          <h2 id="topDefaultersModalTitle">Top Defaulters &amp; Delinquent Subscribers</h2>
+          <span class="urdu-subtitle">ٹاپ نادہندگان فہرست اور فوری وصولیاتی مہم</span>
+        </div>
+        <button id="closeTopDefaultersModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body">
+        <!-- KPI Metric Cards Grid -->
+        <div class="defaulters-kpi-grid">
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Top Defaulters Total Dues</span>
+            <span id="topDefaultersKpiTopDues" class="defaulter-kpi-value">PKR 0</span>
+            <span class="defaulter-kpi-sub">Across filtered top accounts</span>
+          </div>
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Receivables Concentration</span>
+            <span id="topDefaultersKpiConcentration" class="defaulter-kpi-value">0%</span>
+            <span class="defaulter-kpi-sub">% of total ISP outstanding debt</span>
+          </div>
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Total Portfolio Outstanding</span>
+            <span id="topDefaultersKpiTotalDebt" class="defaulter-kpi-value">PKR 0</span>
+            <span class="defaulter-kpi-sub">All active &amp; delinquent accounts</span>
+          </div>
+          <div class="defaulter-kpi-card">
+            <span class="defaulter-kpi-label">Critical Risk Accounts (3m+)</span>
+            <span id="topDefaultersKpiCriticalCount" class="defaulter-kpi-value text-danger">0</span>
+            <span class="defaulter-kpi-sub">Severe disconnection candidates</span>
+          </div>
+        </div>
+
+        <!-- Pure Vector SVG Debt Concentration Chart -->
+        <div class="defaulters-chart-wrapper" style="margin-top: 16px;">
+          <h4 class="modal-section-title">Top Defaulters Debt Concentration Chart</h4>
+          <div id="topDefaultersChartContainer" class="chart-svg-container" style="min-height: 220px;" role="img" aria-label="Top defaulters debt concentration visualizer"></div>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="defaulters-toolbar-container" style="margin-top: 16px;">
+          <div class="defaulters-filter-controls">
+            <div class="defaulter-search-box">
+              <input id="topDefaultersSearchInput" type="search" class="defaulter-search-input" placeholder="Search name, account #, phone, area..." aria-label="Search defaulters">
+            </div>
+            <div class="defaulter-select-box">
+              <select id="topDefaultersAreaSelect" class="defaulter-area-select" aria-label="Filter by Area">
+                <option value="all">All Areas / Sectors</option>
+              </select>
+            </div>
+            <div class="defaulter-select-box">
+              <select id="topDefaultersLimitSelect" class="defaulter-limit-select" aria-label="Account Limit">
+                <option value="10">Top 10</option>
+                <option value="20" selected>Top 20</option>
+                <option value="50">Top 50</option>
+                <option value="0">All Defaulters</option>
+              </select>
+            </div>
+            <div class="defaulter-select-box">
+              <select id="topDefaultersRiskSelect" class="defaulter-risk-select" aria-label="Risk Level">
+                <option value="all">All Risk Levels</option>
+                <option value="critical">Critical (3m+ / 60d+)</option>
+                <option value="high">High (2m / 30d+)</option>
+                <option value="moderate">Moderate (1m)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Defaulters Table -->
+        <div class="modal-table-scroll-wrapper" style="margin-top: 10px; max-height: 380px; overflow-y: auto;">
+          <table class="data-table top-defaulters-table" style="width: 100%; font-size: 12px;">
+            <thead>
+              <tr>
+                <th style="width: 45px;">Rank</th>
+                <th>Subscriber</th>
+                <th>Area</th>
+                <th>Unpaid Months &amp; Age</th>
+                <th>Last Payment</th>
+                <th>Outstanding</th>
+                <th>Risk</th>
+                <th style="text-align: right; width: 140px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="topDefaultersTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+          <p id="topDefaultersEmptyState" class="empty-state" hidden style="text-align: center; padding: 24px; color: var(--text-muted, #64748b);">
+            No delinquent accounts matching criteria. All subscribers are in good standing!
+          </p>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+          <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
+          <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
+          <button id="topDefaultersPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
+        </div>
+        <button id="closeTopDefaultersSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

@@ -1288,41 +1288,83 @@ export function downloadCustomerStatementCsv(statement, doc = (typeof document !
 }
 
 /**
+ * Normalizes any Pakistani mobile number format to international wa.me format (923XXXXXXXXX).
+ * Handles:
+ *  - 03001234567, 0300 1234567, 0300-1234567, 0300.1234567
+ *  - +92 300 1234567, +923001234567, +92-300-1234567
+ *  - 00923001234567, 0092 300 1234567
+ *  - 923001234567
+ *  - (0300) 1234567, +92 (300) 123-4567
+ * Returns { valid: boolean, intlDigits: string, formattedPhone: string, raw: string, error?: string }
+ */
+export function normalizePakistaniWhatsAppPhone(phoneStr) {
+  if (!phoneStr || typeof phoneStr !== 'string') {
+    return { valid: false, intlDigits: '', formattedPhone: '', raw: '', error: 'Phone number is required' };
+  }
+  const raw = phoneStr.trim();
+  const digits = raw.replace(/\D/g, '');
+  let intlDigits = '';
+
+  if (digits.startsWith('0092') && digits.length === 14) {
+    intlDigits = digits.slice(2);
+  } else if (digits.startsWith('92') && digits.length === 12) {
+    intlDigits = digits;
+  } else if (digits.startsWith('03') && digits.length === 11) {
+    intlDigits = '92' + digits.slice(1);
+  } else if (digits.startsWith('3') && digits.length === 10) {
+    intlDigits = '92' + digits;
+  } else if (digits.length >= 10 && digits.length <= 15 && !digits.startsWith('0')) {
+    intlDigits = digits;
+  }
+
+  const isPakistani = intlDigits.startsWith('92');
+  if (isPakistani) {
+    if (intlDigits.length !== 12 || !intlDigits.startsWith('923')) {
+      return {
+        valid: false,
+        intlDigits: '',
+        formattedPhone: raw,
+        raw,
+        error: 'Pakistani mobile numbers must be 11 digits starting with 03 (e.g. 0300 1234567)'
+      };
+    }
+  } else if (!intlDigits || intlDigits.length < 10) {
+    return { valid: false, intlDigits: '', formattedPhone: raw, raw, error: 'Invalid phone number format' };
+  }
+
+  const formattedPhone = isPakistani
+    ? `+92 ${intlDigits.slice(2, 5)} ${intlDigits.slice(5)}`
+    : `+${intlDigits}`;
+
+  return {
+    valid: true,
+    intlDigits,
+    formattedPhone,
+    raw
+  };
+}
+
+/**
  * Normalizes a Pakistani or international phone number and builds a WhatsApp click-to-chat URL.
  * Handles 03XX, +923XX, 00923XX, removes non-digit characters.
  * @param {string} phoneStr
  * @param {string} [messageText='']
- * @returns {{ url: string, validPhone: boolean, formattedPhone: string, text: string }}
+ * @returns {{ url: string, validPhone: boolean, formattedPhone: string, text: string, intlDigits?: string, error?: string }}
  */
 export function formatWhatsAppUrl(phoneStr, messageText = '') {
-  if (!phoneStr || typeof phoneStr !== 'string') {
-    return { url: '', validPhone: false, formattedPhone: '', text: messageText };
-  }
-  const digits = phoneStr.replace(/\D/g, '');
-  let intlDigits = '';
-
-  if (digits.startsWith('92') && digits.length >= 12) {
-    intlDigits = digits;
-  } else if (digits.startsWith('0092') && digits.length >= 14) {
-    intlDigits = digits.slice(2);
-  } else if (digits.startsWith('03') && digits.length === 11) {
-    intlDigits = '92' + digits.slice(1);
-  } else if (digits.length >= 10 && digits.length <= 15) {
-    intlDigits = digits;
-  }
-
-  if (!intlDigits || intlDigits.length < 10) {
-    return { url: '', validPhone: false, formattedPhone: phoneStr.trim(), text: messageText };
+  const norm = normalizePakistaniWhatsAppPhone(phoneStr);
+  if (!norm.valid) {
+    return { url: '', validPhone: false, formattedPhone: String(phoneStr ?? '').trim(), text: messageText, error: norm.error };
   }
 
   const encodedText = encodeURIComponent(messageText);
-  const url = `https://wa.me/${intlDigits}${messageText ? `?text=${encodedText}` : ''}`;
-  const formattedPhone = `+${intlDigits.slice(0, 2)} ${intlDigits.slice(2, 5)} ${intlDigits.slice(5)}`;
+  const url = `https://wa.me/${norm.intlDigits}${messageText ? `?text=${encodedText}` : ''}`;
 
   return {
     url,
     validPhone: true,
-    formattedPhone,
+    formattedPhone: norm.formattedPhone,
+    intlDigits: norm.intlDigits,
     text: messageText
   };
 }

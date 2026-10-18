@@ -1072,6 +1072,7 @@ export function sortDailyClosingReceipts(receipts = [], col = 'customerNumber', 
  * @returns {Object} Controller object with open, close, and render methods
  */
 export function setupDailyClosingModal(getState, {
+  referenceDate = new Date(),
   onToast
 } = {}) {
   const modal = document.getElementById('dailyClosingModal');
@@ -1125,7 +1126,7 @@ export function setupDailyClosingModal(getState, {
   const openTriggerBtn = document.getElementById('openDailyClosingModalBtn');
   const quickActionBtn = document.getElementById('quickActionDailyClosing');
 
-  let activeDateStr = formatDateYmd(new Date());
+  let activeDateStr = (dateInput && dateInput.value) ? dateInput.value : formatDateYmd(referenceDate);
 
   function render() {
     const state = typeof getState === 'function' ? getState() : {};

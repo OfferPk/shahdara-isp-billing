@@ -18462,6 +18462,7 @@
                    class="qc-input qc-amount-input">
             <div class="qc-quick-amount-chips" aria-label="Suggested quick amounts">
               <button type="button" class="quick-amount-chip" data-quick-amount="full">Full Balance</button>
+              <button type="button" class="quick-amount-chip" data-quick-amount="current">Current Month</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="half">50%</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="1000">1,000</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="1500">1,500</button>
@@ -18477,7 +18478,14 @@
 
             <div class="qc-field-group">
               <label for="quickCollectMethodSelect" class="qc-label">Payment Method <span class="qc-required">*</span></label>
-              <select id="quickCollectMethodSelect" required class="qc-input"></select>
+              <div class="qc-method-chips" role="radiogroup" aria-label="Payment method">
+                <button type="button" class="quick-method-chip is-active" data-method="Cash">💵 Cash</button>
+                <button type="button" class="quick-method-chip" data-method="JazzCash">📱 JazzCash</button>
+                <button type="button" class="quick-method-chip" data-method="Easypaisa">🟢 Easypaisa</button>
+                <button type="button" class="quick-method-chip" data-method="Bank">🏦 Bank</button>
+                <button type="button" class="quick-method-chip" data-method="Raast">⚡ Raast</button>
+              </div>
+              <select id="quickCollectMethodSelect" required class="qc-input" style="display:none;"></select>
             </div>
           </div>
 
@@ -18517,8 +18525,14 @@
           <button id="quickCollectWhatsAppBtn" class="primary-button qc-wa-btn" type="button">
             💬 Share via WhatsApp
           </button>
+          <button id="quickCollectShareImageBtn" class="secondary-button" type="button">
+            📷 Share as Image
+          </button>
           <button id="quickCollectPrintReceiptBtn" class="secondary-button" type="button">
             🖨️ Print Receipt Slip
+          </button>
+          <button id="quickCollectUndoBtn" class="secondary-button qc-undo-btn" type="button" style="border-color:var(--overdue, #c62828);color:var(--overdue, #c62828);">
+            ↩ Undo Payment (10s)
           </button>
           <button id="quickCollectAnotherBtn" class="secondary-button" type="button">
             ➕ Collect Another Customer

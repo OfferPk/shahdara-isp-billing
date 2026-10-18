@@ -11237,3 +11237,99 @@ dialog::backdrop {
   }
 }
 
+/* Quick Collect 3-Tap Flow (#220) & Method Chips */
+.qc-method-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.quick-method-chip {
+  flex: 1 1 auto;
+  min-height: 44px;
+  min-width: 60px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #dce6e1);
+  background: #fafcfb;
+  color: var(--ink, #14211e);
+  font: 600 13px 'DM Sans', sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+}
+.quick-method-chip:hover {
+  background: #f0f6f3;
+  border-color: #60a68d;
+}
+.quick-method-chip.is-active {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+  border-color: var(--primary, #0e5b4d);
+  box-shadow: 0 2px 8px rgba(14, 91, 77, 0.25);
+}
+
+[data-theme="dark"] .quick-method-chip {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+[data-theme="dark"] .quick-method-chip:hover {
+  background: #1b332b;
+  border-color: #3fbf9f;
+}
+[data-theme="dark"] .quick-method-chip.is-active {
+  background: #3fbf9f;
+  color: #00201a;
+  border-color: #3fbf9f;
+}
+
+/* Toast with Undo Action Button (#220) */
+#toast {
+  position: fixed;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1090;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: min(340px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 10px 16px;
+  background: #14211e;
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  font-size: 13px;
+  font-weight: 500;
+  box-sizing: border-box;
+}
+#toast[hidden] {
+  display: none !important;
+}
+.toast-text {
+  flex: 1;
+}
+.toast-action-btn {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-height: 36px;
+  white-space: nowrap;
+}
+.toast-action-btn:hover {
+  background: #147562;
+}
+
+

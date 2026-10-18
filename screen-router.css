@@ -88,6 +88,19 @@ body.sr-screen-mode[data-screen="customers"] #customerPane > .pane-footer { orde
 
 /* Customers screen: the list leads; hide the duplicate small "+" since the header has the big button. */
 body.sr-screen-mode[data-screen="customers"] .customer-pane .pane-heading { margin-top: 0; }
+/* Inventory / Expenses: the list (with its filters) comes before the long add/edit form.
+   "+ Add Item" / "+ Add Expense" in the header still jumps straight to the form. */
+body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inventoryItemForm),
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) { display: flex; flex-direction: column; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inventoryItemForm) > .table-heading,
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-heading { order: 0; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inventoryItemForm) > .table-filter-toolbar,
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-filter-toolbar { order: 1; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inventoryItemForm) > .table-scroll,
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-scroll { order: 2; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inventoryItemForm) > *:not(.table-heading):not(.table-filter-toolbar):not(.table-scroll),
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > *:not(.table-heading):not(.table-filter-toolbar):not(.table-scroll) { order: 3; margin-top: 16px; }
+
 
 @media (max-width: 620px) {
   .sr-screen-header {
@@ -114,3 +127,14 @@ body.sr-screen-mode[data-screen="customers"] .customer-pane .pane-heading { marg
 [data-theme="dark"] .sr-screen-subtitle { color: #9fb5ac; }
 
 @media print { .sr-screen-header { display: none !important; } }
+
+/* Inventory / Expenses screens: put the main list card right under the title, before the
+   tall metric cards, so the list is what you see first (same idea as Customers/Transactions). */
+body.sr-screen-mode[data-screen="inventory"] #inventoryView > .phase3-pane,
+body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane { display: flex; flex-direction: column; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView > .phase3-pane > *,
+body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane > * { order: 2; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView > .phase3-pane > .phase3-heading,
+body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane > .phase3-heading { order: 0; }
+body.sr-screen-mode[data-screen="inventory"] #inventoryView > .phase3-pane > .table-card:has(#inventoryItemForm),
+body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane > .table-card:has(#expenseForm) { order: 1; }

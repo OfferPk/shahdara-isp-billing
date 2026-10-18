@@ -6,8 +6,8 @@ const SCREENS = {
   transactions: { view: '#transactionsView', title: 'Transactions', action: '+ Add Payment' },
   reports: { view: '#billingReportsView', title: 'Monthly Report', action: '+ Add Payment' },
   analytics: { view: '#analyticsView', title: 'Area Analytics', action: null },
-  inventory: { view: '#inventoryView', title: 'Inventory', action: '+ Add Item' },
-  expenses: { view: '#expensesView', title: 'Expenses', action: '+ Add Expense' }
+  inventory: { view: '#inventoryView', title: 'Inventory', action: '+ Add Item', list: '#inventoryStockFilter' },
+  expenses: { view: '#expensesView', title: 'Expenses', action: '+ Add Expense', list: '#expenseMonthFilter' }
 };
 
 function trackErrors(page) {
@@ -50,6 +50,8 @@ async function expectScreen(page, name) {
     await expect(page.locator('#srPrimaryAction')).toBeHidden();
   }
   await inFirstScreen(page, page.locator(`${spec.view}`));
+  // The list (its filters) comes before the tall metric cards and the add form.
+  if (spec.list) await inFirstScreen(page, page.locator(spec.list));
 }
 
 test.describe('Screen router (#212)', () => {

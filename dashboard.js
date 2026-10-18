@@ -513,162 +513,19 @@ export function generateDashboardBriefingText(state, referenceDate = new Date())
 }
 
 /**
- * Calculates end-of-day register closing metrics, comparing today's collected receipts
- * against average daily revenue benchmark run rate, breakdown by payment channel, and daily closing status.
+ * Re-export Daily Cash Closing & Till Reconciliation functions from dashboard-daily-closing.js
  */
-export function calculateDailyClosingSummary(state, referenceDate = new Date()) {
-  const kpis = calculateDashboardKpis(state, referenceDate);
-  const currentMonth = kpis.currentMonth;
-  const todayStr = referenceDate.toISOString().slice(0, 10);
+export {
+  calculateDailyClosingSummary,
+  generateDailyClosingSlipText,
+  generateDailyClosingWhatsApp,
+  generateDailyClosingPrintHtml,
+  generateDailyClosingCsv,
+  renderDailyClosingSvg,
+  setupDailyClosingCard,
+  setupDailyClosingModal
+} from './dashboard-daily-closing.js';
 
-  // Determine days in current month
-  const [yearStr, monthNumStr] = currentMonth.split('-');
-  const year = parseInt(yearStr, 10);
-  const monthNum = parseInt(monthNumStr, 10);
-  const daysInMonth = new Date(year, monthNum, 0).getDate();
-
-  const dailyTarget = kpis.currentMonthBilled > 0 ? Math.round(kpis.currentMonthBilled / daysInMonth) : 0;
-
-  let todayCollectedCents = 0;
-  let todayCount = 0;
-  const methodMap = new Map();
-
-  for (const customer of (state.customers ?? [])) {
-    if (customer.archived) continue;
-    const bills = Array.isArray(customer.bills) ? customer.bills : [];
-    for (const bill of bills) {
-      const payments = Array.isArray(bill.payments) ? bill.payments : [];
-      for (const p of payments) {
-        if (p.date === todayStr) {
-          const amt = Number(p.amount) || 0;
-          if (amt > 0) {
-            todayCollectedCents += Math.round(amt * 100);
-            todayCount++;
-            const method = (p.method && String(p.method).trim()) ? String(p.method).trim() : 'Cash';
-            methodMap.set(method, (methodMap.get(method) || 0) + amt);
-          }
-        }
-      }
-    }
-  }
-
-  const todayCollected = Math.round(todayCollectedCents / 100);
-  const targetAttainment = dailyTarget > 0 ? Math.round((todayCollected / dailyTarget) * 100) : (todayCollected > 0 ? 100 : 0);
-  const averageTicket = todayCount > 0 ? Math.round(todayCollected / todayCount) : 0;
-
-  const methods = [...methodMap.entries()].map(([method, amount]) => ({
-    method,
-    amount,
-    percent: todayCollected > 0 ? Math.round((amount / todayCollected) * 100) : 0
-  })).sort((a, b) => b.amount - a.amount);
-
-  let closingStatus = 'no-activity';
-  let statusLabel = 'No Activity Today';
-  if (todayCount > 0) {
-    if (targetAttainment >= 100) {
-      closingStatus = 'exceeded';
-      statusLabel = 'Target Met (100%+)';
-    } else if (targetAttainment >= 60) {
-      closingStatus = 'on-track';
-      statusLabel = 'On Track';
-    } else {
-      closingStatus = 'below-target';
-      statusLabel = 'Below Target';
-    }
-  }
-
-  return {
-    todayStr,
-    todayCollected,
-    todayCount,
-    dailyTarget,
-    targetAttainment,
-    averageTicket,
-    methods,
-    closingStatus,
-    statusLabel
-  };
-}
-
-/**
- * Generates an executive daily closing summary text snippet for quick WhatsApp or clipboard dispatch.
- */
-export function generateDailyClosingSlipText(state, referenceDate = new Date()) {
-  const summary = calculateDailyClosingSummary(state, referenceDate);
-  const lines = [
-    `💰 SHAHDARA ISP — DAILY REGISTER CLOSING`,
-    `Date: ${summary.todayStr} PKT`,
-    `-----------------------------------------`,
-    `• Total Collections Today: ${formatPKR(summary.todayCollected)} (${summary.todayCount} transactions)`,
-    `• Daily Benchmark Target: ${formatPKR(summary.dailyTarget)} (${summary.targetAttainment}% attainment)`,
-    `• Average Ticket Size: ${formatPKR(summary.averageTicket)}`,
-    `• Closing Status: ${summary.statusLabel}`,
-    ``,
-    `[ PAYMENT METHODS TODAY ]`
-  ];
-
-  if (summary.methods.length > 0) {
-    summary.methods.forEach(m => {
-      lines.push(`• ${m.method}: ${formatPKR(m.amount)} (${m.percent}%)`);
-    });
-  } else {
-    lines.push(`• No receipts recorded for ${summary.todayStr}`);
-  }
-
-  lines.push(`-----------------------------------------`, `Verified Local Device Register`);
-  return lines.join('\n');
-}
-
-/**
- * Sets up and updates the daily closing card on the billing dashboard.
- */
-export function setupDailyClosingCard(state, referenceDate = new Date(), { onToast, clipboard } = {}) {
-  const summary = calculateDailyClosingSummary(state, referenceDate);
-  const valueEl = document.getElementById('dashboardDailyClosingValue');
-  const periodEl = document.getElementById('dashboardDailyClosingPeriod');
-  const badgeEl = document.getElementById('dashboardClosingStatusBadge');
-  const slipBtn = document.getElementById('quickActionDailyClosingSlip');
-
-  if (valueEl) {
-    valueEl.textContent = summary.todayCount > 0
-      ? `${formatPKR(summary.todayCollected)} (${summary.todayCount} txs)`
-      : 'No payment entries';
-  }
-
-  if (periodEl) {
-    periodEl.textContent = `Target: ${formatPKR(summary.dailyTarget)} / day · ${summary.targetAttainment}% attainment`;
-  }
-
-  if (badgeEl) {
-    badgeEl.textContent = summary.statusLabel;
-    badgeEl.className = `closing-badge badge-${summary.closingStatus}`;
-  }
-
-  if (slipBtn) {
-    const isWired = slipBtn.dataset ? slipBtn.dataset.wired : slipBtn.getAttribute?.('data-wired');
-    if (!isWired) {
-      if (slipBtn.dataset) slipBtn.dataset.wired = 'true';
-      else if (slipBtn.setAttribute) slipBtn.setAttribute('data-wired', 'true');
-
-      slipBtn.addEventListener('click', async () => {
-        const text = generateDailyClosingSlipText(state, referenceDate);
-        let copied = false;
-        const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
-        if (clip && typeof clip.writeText === 'function') {
-          try {
-            await clip.writeText(text);
-            copied = true;
-          } catch {
-            copied = false;
-          }
-        }
-        if (typeof onToast === 'function') {
-          onToast(copied ? 'Daily closing slip copied to clipboard!' : 'Daily closing summary ready.');
-        }
-      });
-    }
-  }
-}
 
 /**
  * Wires the quick action tiles to their respective callbacks.

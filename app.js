@@ -3784,9 +3784,14 @@ function renderExpenses() {
   if (filterEmpty) filterEmpty.hidden = allRows.length === 0 || sortedRows.length > 0;
   const countBadge = $('#expenseTableCount');
   if (countBadge) {
-    if (!allRows.length) countBadge.textContent = '';
-    else if (filteredRows.length === allRows.length) countBadge.textContent = `${allRows.length} expense${allRows.length === 1 ? '' : 's'}`;
-    else countBadge.textContent = `Showing ${filteredRows.length} of ${allRows.length} expenses`;
+    if (!allRows.length) {
+      countBadge.textContent = '';
+      countBadge.hidden = true;
+    } else {
+      countBadge.hidden = false;
+      if (filteredRows.length === allRows.length) countBadge.textContent = `${allRows.length} expense${allRows.length === 1 ? '' : 's'}`;
+      else countBadge.textContent = `Showing ${filteredRows.length} of ${allRows.length} expenses`;
+    }
   }
 
   document.querySelectorAll('[data-sort-expense]').forEach(th => {

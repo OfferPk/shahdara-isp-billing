@@ -523,7 +523,9 @@ export {
   generateDailyClosingCsv,
   renderDailyClosingSvg,
   setupDailyClosingCard,
-  setupDailyClosingModal
+  setupDailyClosingModal,
+  filterDailyClosingReceipts,
+  sortDailyClosingReceipts
 } from './dashboard-daily-closing.js';
 
 

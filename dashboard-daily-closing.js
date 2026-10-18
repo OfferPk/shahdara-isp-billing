@@ -858,7 +858,7 @@ export function renderDailyClosingSvg(summary) {
     ? '#f59e0b'
     : '#94a3b8';
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" class="daily-closing-svg" role="img" aria-label="Daily register closing visualization">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" class="daily-closing-svg" role="img" aria-label="Daily register closing visualization" style="height: auto; max-width: 100%; display: block;">
   <defs>
     <linearGradient id="dcCashGrad" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#10b981"/>
@@ -898,8 +898,8 @@ export function renderDailyClosingSvg(summary) {
   <text x="20" y="68" font-size="10" font-weight="700" fill="var(--text-muted, #64748b)">COLLECTIONS MIX (${escapeXml(formatPKR(total))})</text>
   <rect x="20" y="76" width="${barWidth}" height="20" rx="4" fill="#e2e8f0"/>
   ${total > 0 ? `
-    <rect x="20" y="76" width="${cashW}" height="20" rx="${digitalW === 0 ? 4 : '4 0 0 4'}" fill="url(#dcCashGrad)"/>
-    <rect x="${20 + cashW}" y="76" width="${digitalW}" height="20" rx="${cashW === 0 ? 4 : '0 4 4 0'}" fill="url(#dcDigitalGrad)"/>
+    <rect x="20" y="76" width="${cashW}" height="20" rx="4" fill="url(#dcCashGrad)"/>
+    <rect x="${20 + cashW}" y="76" width="${digitalW}" height="20" rx="4" fill="url(#dcDigitalGrad)"/>
   ` : ''}
 
   <!-- Legend -->
@@ -977,6 +977,66 @@ export function setupDailyClosingCard(state, referenceDate = new Date(), { onToa
 }
 
 /**
+ * Filters a list of customer receipts for the daily closing register by search query.
+ *
+ * @param {Array<Object>} receipts - Array of receipts
+ * @param {string} query - Search term
+ * @returns {Array<Object>} Filtered receipts
+ */
+export function filterDailyClosingReceipts(receipts = [], query = '') {
+  if (!Array.isArray(receipts)) return [];
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return [...receipts];
+
+  return receipts.filter(r => {
+    if (!r) return false;
+    const custNum = String(r.customerNumber || '').toLowerCase();
+    const name = String(r.customerName || '').toLowerCase();
+    const mohalla = String(r.mohalla || '').toLowerCase();
+    const month = String(r.billMonth || '').toLowerCase();
+    const method = String(r.method || '').toLowerCase();
+    const paidBy = String(r.paidBy || '').toLowerCase();
+    const amount = String(r.amount || '');
+
+    return custNum.includes(q) ||
+      name.includes(q) ||
+      mohalla.includes(q) ||
+      month.includes(q) ||
+      method.includes(q) ||
+      paidBy.includes(q) ||
+      amount.includes(q);
+  });
+}
+
+/**
+ * Sorts customer receipts for the daily closing register.
+ *
+ * @param {Array<Object>} receipts - Array of receipts
+ * @param {string} col - Column key to sort by
+ * @param {boolean} [asc=true] - Sort ascending
+ * @returns {Array<Object>} Sorted array
+ */
+export function sortDailyClosingReceipts(receipts = [], col = 'customerNumber', asc = true) {
+  if (!Array.isArray(receipts)) return [];
+  const list = [...receipts];
+  return list.sort((a, b) => {
+    let valA = a ? a[col] : undefined;
+    let valB = b ? b[col] : undefined;
+
+    if (col === 'customerNumber' || col === 'amount') {
+      const numA = Number(valA) || 0;
+      const numB = Number(valB) || 0;
+      return asc ? numA - numB : numB - numA;
+    }
+
+    const strA = String(valA || '').toLowerCase();
+    const strB = String(valB || '').toLowerCase();
+    const cmp = strA.localeCompare(strB);
+    return asc ? cmp : -cmp;
+  });
+}
+
+/**
  * Controller for the detailed interactive Daily Cash Closing Modal dialog.
  *
  * @param {Function} getState - State accessor
@@ -1011,6 +1071,18 @@ export function setupDailyClosingModal(getState, {
   const receiptsTableBody = document.getElementById('dailyClosingReceiptsTableBody');
   const receiptsEmptyEl = document.getElementById('dailyClosingReceiptsEmpty');
   const expensesEmptyEl = document.getElementById('dailyClosingExpensesEmpty');
+
+  // Receipts Table Filter & Sort Controls
+  let receiptsSortCol = 'customerNumber';
+  let receiptsSortAsc = true;
+  let receiptsSearchQuery = '';
+
+  const receiptsSearchInput = document.getElementById('dailyClosingReceiptsSearch');
+  const receiptsCountEl = document.getElementById('dailyClosingReceiptsCount');
+  const receiptsResetBtn = document.getElementById('resetDailyClosingReceiptsBtn');
+  const receiptsHeaders = modal && typeof modal.querySelectorAll === 'function'
+    ? modal.querySelectorAll('th[data-sort-dcr]')
+    : [];
 
   // Action buttons
   const copySlipBtn = document.getElementById('dcCopySlipBtn');
@@ -1090,11 +1162,42 @@ export function setupDailyClosingModal(getState, {
       }
     }
 
-    // Render Receipts Table
+    // Render Receipts Table with live search and sorting
     if (receiptsTableBody) {
-      if (summary.receipts.length > 0) {
+      const filteredReceipts = filterDailyClosingReceipts(summary.receipts, receiptsSearchQuery);
+      const sortedReceipts = sortDailyClosingReceipts(filteredReceipts, receiptsSortCol, receiptsSortAsc);
+
+      if (receiptsCountEl) {
+        if (summary.receipts.length === 0) {
+          receiptsCountEl.textContent = '0 Receipts';
+        } else if (receiptsSearchQuery) {
+          receiptsCountEl.textContent = `${filteredReceipts.length} of ${summary.receipts.length} Receipts`;
+        } else {
+          receiptsCountEl.textContent = `${summary.receipts.length} Receipts`;
+        }
+      }
+
+      if (receiptsResetBtn) {
+        receiptsResetBtn.style.display = receiptsSearchQuery ? 'inline-block' : 'none';
+      }
+
+      if (receiptsHeaders && receiptsHeaders.length) {
+        receiptsHeaders.forEach(th => {
+          const col = th.getAttribute('data-sort-dcr');
+          const indicator = th.querySelector('.sort-indicator');
+          if (col === receiptsSortCol) {
+            th.setAttribute('aria-sort', receiptsSortAsc ? 'ascending' : 'descending');
+            if (indicator) indicator.textContent = receiptsSortAsc ? '▲' : '▼';
+          } else {
+            th.setAttribute('aria-sort', 'none');
+            if (indicator) indicator.textContent = '⇅';
+          }
+        });
+      }
+
+      if (sortedReceipts.length > 0) {
         if (receiptsEmptyEl) receiptsEmptyEl.hidden = true;
-        receiptsTableBody.innerHTML = summary.receipts.map(r => `
+        receiptsTableBody.innerHTML = sortedReceipts.map(r => `
           <tr>
             <td style="padding: 8px 10px; font-family: monospace;">#${r.customerNumber}</td>
             <td style="padding: 8px 10px; font-weight: 600;">${escapeHtml(r.customerName)}</td>
@@ -1110,7 +1213,23 @@ export function setupDailyClosingModal(getState, {
           </tr>
         `).join('');
       } else {
-        if (receiptsEmptyEl) receiptsEmptyEl.hidden = false;
+        if (receiptsEmptyEl) {
+          receiptsEmptyEl.hidden = false;
+          if (summary.receipts.length > 0) {
+            receiptsEmptyEl.innerHTML = `No receipts matching &ldquo;<strong>${escapeHtml(receiptsSearchQuery)}</strong>&rdquo; on this date. <button type="button" id="dailyClosingReceiptsClearInlineBtn" class="link-btn" style="background:none; border:none; color:#0e5b4d; text-decoration:underline; cursor:pointer; font-size:11px; padding:0; margin-left:4px;">Clear search</button>`;
+            const inlineClearBtn = document.getElementById('dailyClosingReceiptsClearInlineBtn');
+            if (inlineClearBtn) {
+              inlineClearBtn.addEventListener('click', () => {
+                receiptsSearchQuery = '';
+                if (receiptsSearchInput) receiptsSearchInput.value = '';
+                render();
+                if (receiptsSearchInput) receiptsSearchInput.focus();
+              });
+            }
+          } else {
+            receiptsEmptyEl.textContent = 'No customer receipts recorded for this date.';
+          }
+        }
         receiptsTableBody.innerHTML = '';
       }
     }
@@ -1118,6 +1237,8 @@ export function setupDailyClosingModal(getState, {
 
   function open() {
     activeDateStr = formatDateYmd(new Date());
+    receiptsSearchQuery = '';
+    if (receiptsSearchInput) receiptsSearchInput.value = '';
     render();
     if (typeof modal.showModal === 'function') {
       modal.showModal();
@@ -1259,6 +1380,48 @@ export function setupDailyClosingModal(getState, {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       if (onToast) onToast(`Exported daily closing CSV for ${activeDateStr}`);
+    });
+  }
+
+  // Receipts Search and Clear Wiring
+  if (receiptsSearchInput) {
+    receiptsSearchInput.addEventListener('input', () => {
+      receiptsSearchQuery = receiptsSearchInput.value || '';
+      render();
+    });
+  }
+
+  if (receiptsResetBtn) {
+    receiptsResetBtn.addEventListener('click', () => {
+      receiptsSearchQuery = '';
+      if (receiptsSearchInput) receiptsSearchInput.value = '';
+      render();
+      if (receiptsSearchInput) receiptsSearchInput.focus();
+    });
+  }
+
+  // Receipts Table Column Sorting Wiring
+  if (receiptsHeaders && receiptsHeaders.length) {
+    receiptsHeaders.forEach(th => {
+      const handleSort = () => {
+        const col = th.getAttribute('data-sort-dcr');
+        if (!col) return;
+        if (receiptsSortCol === col) {
+          receiptsSortAsc = !receiptsSortAsc;
+        } else {
+          receiptsSortCol = col;
+          receiptsSortAsc = col === 'amount' ? false : true;
+        }
+        render();
+      };
+
+      th.addEventListener('click', handleSort);
+      th.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleSort();
+        }
+      });
     });
   }
 

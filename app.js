@@ -80,7 +80,10 @@ import {
   isBillOverdue,
   generateAreaIntelligenceCsv,
   generatePackageSummaryCsv,
-  generateAreaSummaryCsv
+  generateAreaSummaryCsv,
+  validateExpenseFormFields,
+  buildPayrollExpensePrefill,
+  validateStaffAttendanceDate
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
@@ -3566,6 +3569,15 @@ function renderExpenses() {
     expenseMonthFilter=expenseMonthSelect.value;
   }
 
+  const expenseAreaSelect=$('#expenseArea');
+  if(expenseAreaSelect){
+    const curVal=expenseAreaSelect.value;
+    const areas=typeof getUniqueCustomerAreas==='function'?getUniqueCustomerAreas(state.customers||[]):[];
+    const options=['<option value="">General / Unallocated</option>'].concat(areas.map(a=>`<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`));
+    expenseAreaSelect.innerHTML=options.join('');
+    if(curVal&&areas.includes(curVal))expenseAreaSelect.value=curVal;
+  }
+
   const filteredRows=allRows.filter(row=>{
     if(expenseMonthFilter!=='all'&&(!row.date||row.date.slice(0,7)!==expenseMonthFilter))return false;
     if(expenseCategoryFilter!=='all'&&row.category!==expenseCategoryFilter)return false;
@@ -3573,7 +3585,8 @@ function renderExpenses() {
       const q=expenseSearchQuery.toLowerCase();
       const matchCat=String(row.category||'').toLowerCase().includes(q);
       const matchNotes=String(row.notes||'').toLowerCase().includes(q);
-      if(!matchCat&&!matchNotes)return false;
+      const matchArea=String(row.area||row.mohalla||'').toLowerCase().includes(q);
+      if(!matchCat&&!matchNotes&&!matchArea)return false;
     }
     return true;
   });
@@ -3599,11 +3612,13 @@ function renderExpenses() {
       cmp=a.category.localeCompare(b.category)||b.date.localeCompare(a.date);
     }else if(expenseSortKey==='amount'){
       cmp=(Number(a.amount)||0)-(Number(b.amount)||0)||b.date.localeCompare(a.date);
+    }else if(expenseSortKey==='area'){
+      cmp=String(a.area||'').localeCompare(String(b.area||''))||b.date.localeCompare(a.date);
     }
     return expenseSortAsc?cmp:-cmp;
   });
 
-  $('#expenseTable').innerHTML=filteredRows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td class="expense-actions"><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
+  $('#expenseTable').innerHTML=filteredRows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td class="expense-actions"><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
   $('#expensesEmpty').hidden=allRows.length>0;
   const filterEmpty=$('#expensesFilterEmpty');
   if(filterEmpty)filterEmpty.hidden=allRows.length===0||filteredRows.length>0;
@@ -3622,17 +3637,123 @@ function renderExpenses() {
     if(indicator)indicator.textContent=isCurrent?(expenseSortAsc?'↑':'↓'):'';
   });
 
-  $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{const row=allRows.find(item=>item.id===button.dataset.editExpense);if(!row)return;$('#expenseId').value=row.id;$('#expenseDate').value=row.date;$('#expenseAmount').value=row.amount;$('#expenseCategory').value=row.category;$('#expenseNotes').value=row.notes??'';$('#expenseSubmit').textContent='Save expense correction';$('#expenseCancel').hidden=false;$('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});}));
-  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{const row=allRows.find(item=>item.id===button.dataset.deleteExpense);if(!row||!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category} expense dated ${row.date}?`))return;try{state=deleteExpense(state,row.id);save();toast('Expense entry deleted from this device.');}catch(error){toast(error.message);}}));
+  $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{
+    const row=allRows.find(item=>item.id===button.dataset.editExpense);
+    if(!row)return;
+    $('#expenseId').value=row.id;
+    $('#expenseDate').value=row.date;
+    $('#expenseAmount').value=row.amount;
+    $('#expenseCategory').value=row.category;
+    if($('#expenseArea'))$('#expenseArea').value=row.area??'';
+    $('#expenseNotes').value=row.notes??'';
+    $('#expenseSubmit').textContent='Save expense correction';
+    $('#expenseCancel').hidden=false;
+    clearExpenseInlineErrors();
+    const notice=$('#expensePayrollPrefillNotice');if(notice)notice.hidden=true;
+    $('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});
+  }));
+  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{
+    const row=allRows.find(item=>item.id===button.dataset.deleteExpense);
+    if(!row)return;
+    const areaNote=row.area?` [${row.area}]`:'';
+    if(!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category}${areaNote} expense dated ${row.date}?`))return;
+    try{
+      state=deleteExpense(state,row.id);
+      save();
+      toast('Expense entry deleted from this device.');
+    }catch(error){
+      toast(error.message);
+    }
+  }));
   updateNavigationBadges(state);
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
-function resetExpenseForm() { $('#expenseForm').reset();$('#expenseId').value='';$('#expenseSubmit').textContent='Record actual expense';$('#expenseCancel').hidden=true;const expNotice=$('#expenseDraftNotice');if(expNotice)expNotice.hidden=true; }
+
+function clearExpenseInlineErrors() {
+  ['expenseDateError', 'expenseAmountError', 'expenseCategoryError', 'expenseAreaError', 'expenseNotesError'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = ''; el.hidden = true; }
+  });
+}
+
+function showExpenseInlineErrors(errors) {
+  clearExpenseInlineErrors();
+  let firstEl = null;
+  if (errors.date) {
+    const el = document.getElementById('expenseDateError');
+    if (el) { el.textContent = errors.date; el.hidden = false; }
+    if (!firstEl) firstEl = document.getElementById('expenseDate');
+  }
+  if (errors.amount) {
+    const el = document.getElementById('expenseAmountError');
+    if (el) { el.textContent = errors.amount; el.hidden = false; }
+    if (!firstEl) firstEl = document.getElementById('expenseAmount');
+  }
+  if (errors.category) {
+    const el = document.getElementById('expenseCategoryError');
+    if (el) { el.textContent = errors.category; el.hidden = false; }
+    if (!firstEl) firstEl = document.getElementById('expenseCategory');
+  }
+  if (errors.area) {
+    const el = document.getElementById('expenseAreaError');
+    if (el) { el.textContent = errors.area; el.hidden = false; }
+    if (!firstEl) firstEl = document.getElementById('expenseArea');
+  }
+  if (errors.notes) {
+    const el = document.getElementById('expenseNotesError');
+    if (el) { el.textContent = errors.notes; el.hidden = false; }
+    if (!firstEl) firstEl = document.getElementById('expenseNotes');
+  }
+  if (firstEl && typeof firstEl.focus === 'function') firstEl.focus();
+}
+
+function resetExpenseForm() {
+  $('#expenseForm').reset();
+  $('#expenseId').value='';
+  if($('#expenseArea'))$('#expenseArea').value='';
+  $('#expenseSubmit').textContent='Record actual expense';
+  $('#expenseCancel').hidden=true;
+  const expNotice=$('#expenseDraftNotice');
+  if(expNotice)expNotice.hidden=true;
+  const prefillNotice=$('#expensePayrollPrefillNotice');
+  if(prefillNotice)prefillNotice.hidden=true;
+  clearExpenseInlineErrors();
+}
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
-$('#expenseForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={date:data.get('date'),amount:data.get('amount'),category:data.get('category'),notes:data.get('notes')};try{const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;state=id?updateExpense(state,id,fields):addExpense(state,fields);save();expenseDraftController?.clear();resetExpenseForm();toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');}catch(error){toast(error.message);}});
+$('#expenseForm').addEventListener('submit',event=>{
+  event.preventDefault();
+  const data=new FormData(event.currentTarget);
+  const rawFields={
+    date:data.get('date'),
+    amount:data.get('amount'),
+    category:data.get('category'),
+    area:data.get('area')||'',
+    notes:data.get('notes')
+  };
+  const val=validateExpenseFormFields(rawFields);
+  if(!val.valid){
+    showExpenseInlineErrors(val.errors);
+    const firstMsg=Object.values(val.errors)[0];
+    toast(firstMsg||'Please correct the highlighted form errors.');
+    return;
+  }
+  clearExpenseInlineErrors();
+  const fields=val.cleanFields;
+  try{
+    const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;
+    if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;
+    state=id?updateExpense(state,id,fields):addExpense(state,fields);
+    save();
+    expenseDraftController?.clear();
+    resetExpenseForm();
+    toast(id?'Expense correction saved on this device.':'Actual expense recorded on this device.');
+  }catch(error){
+    toast(error.message);
+  }
+});
 $('#expenseCancel').addEventListener('click',resetExpenseForm);
 document.querySelectorAll('[data-sort-expense]').forEach(th=>{
   const toggle=()=>{
@@ -3841,8 +3962,120 @@ if (newCustCnicEl) wireCnicInputMask(newCustCnicEl);
     }
   });
 });
-$('#saadAttendanceForm').addEventListener('submit',event=>{event.preventDefault();const date=new FormData(event.currentTarget).get('date');try{if((state.saadAttendanceDays??[]).includes(date)){toast('That attendance date is already recorded; no duplicate was added.');return;}state=addSaadAttendanceDay(state,date);save();event.currentTarget.reset();toast('Saad attendance day recorded on this device.');}catch(error){toast(error.message);}});
-$('#umairWorkdayForm').addEventListener('submit',event=>{event.preventDefault();const date=new FormData(event.currentTarget).get('date');try{if((state.umairWorkdays??[]).includes(date)){toast('That workday is already recorded; no duplicate expense was added.');return;}state=addUmairWorkday(state,date);save();event.currentTarget.reset();toast('Umair workday recorded on this device.');}catch(error){toast(error.message);}});
+$('#saadAttendanceForm').addEventListener('submit',event=>{
+  event.preventDefault();
+  let date=new FormData(event.currentTarget).get('date');
+  const errEl=$('#saadAttendanceError');
+  const res=validateStaffAttendanceDate(date,state.saadAttendanceDays??[],'Saad attendance date');
+  if(!res.valid){
+    if(errEl){errEl.textContent=res.error;errEl.hidden=false;}
+    toast(res.error);
+    return;
+  }
+  date=res.date;
+  if(errEl){errEl.textContent='';errEl.hidden=true;}
+  try{
+    state=addSaadAttendanceDay(state,date);
+    save();
+    event.currentTarget.reset();
+    toast('Saad attendance day recorded on this device.');
+  }catch(error){
+    toast(error.message);
+  }
+});
+
+$('#umairWorkdayForm').addEventListener('submit',event=>{
+  event.preventDefault();
+  let date=new FormData(event.currentTarget).get('date');
+  const errEl=$('#umairWorkdayError');
+  const res=validateStaffAttendanceDate(date,state.umairWorkdays??[],'Umair workday date');
+  if(!res.valid){
+    if(errEl){errEl.textContent=res.error;errEl.hidden=false;}
+    toast(res.error);
+    return;
+  }
+  date=res.date;
+  if(errEl){errEl.textContent='';errEl.hidden=true;}
+  try{
+    state=addUmairWorkday(state,date);
+    save();
+    event.currentTarget.reset();
+    toast('Umair workday recorded on this device.');
+  }catch(error){
+    toast(error.message);
+  }
+});
+
+$('#logSaadTodayBtn')?.addEventListener('click',()=>{
+  const input=$('#saadAttendanceDate');
+  if(input){
+    input.value=localDate();
+    input.focus();
+    const errEl=$('#saadAttendanceError');
+    if(errEl){errEl.textContent='';errEl.hidden=true;}
+  }
+});
+
+$('#logUmairTodayBtn')?.addEventListener('click',()=>{
+  const input=$('#umairWorkdayDate');
+  if(input){
+    input.value=localDate();
+    input.focus();
+    const errEl=$('#umairWorkdayError');
+    if(errEl){errEl.textContent='';errEl.hidden=true;}
+  }
+});
+
+$('#recordSaadSalaryExpenseBtn')?.addEventListener('click',()=>{
+  const prefill=buildPayrollExpensePrefill('saad',state,selectedPayrollMonth);
+  $('#expenseId').value='';
+  $('#expenseDate').value=prefill.date;
+  $('#expenseAmount').value=prefill.amount;
+  $('#expenseCategory').value=prefill.category;
+  if($('#expenseArea'))$('#expenseArea').value=prefill.area||'';
+  $('#expenseNotes').value=prefill.notes;
+  $('#expenseSubmit').textContent='Record actual expense';
+  $('#expenseCancel').hidden=false;
+  clearExpenseInlineErrors();
+  const notice=$('#expensePayrollPrefillNotice');
+  if(notice){
+    notice.textContent=`Prefilled from ${monthName(selectedPayrollMonth)} payroll for Saad: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
+    notice.hidden=false;
+  }
+  const form=$('#expenseForm');
+  if(form){
+    form.scrollIntoView({behavior:'smooth',block:'center'});
+    form.classList.add('prefilled-pulse');
+    setTimeout(()=>form.classList.remove('prefilled-pulse'),1500);
+  }
+  toast(`Prefilled ${monthName(selectedPayrollMonth)} salary for Saad (${formatAmount(Number(prefill.amount))})`);
+});
+
+$('#recordUmairSalaryExpenseBtn')?.addEventListener('click',()=>{
+  const prefill=buildPayrollExpensePrefill('umair',state,selectedPayrollMonth);
+  $('#expenseId').value='';
+  $('#expenseDate').value=prefill.date;
+  $('#expenseAmount').value=prefill.amount;
+  $('#expenseCategory').value=prefill.category;
+  if($('#expenseArea'))$('#expenseArea').value=prefill.area||'';
+  $('#expenseNotes').value=prefill.notes;
+  $('#expenseSubmit').textContent='Record actual expense';
+  $('#expenseCancel').hidden=false;
+  clearExpenseInlineErrors();
+  const notice=$('#expensePayrollPrefillNotice');
+  if(notice){
+    notice.textContent=`Prefilled from ${monthName(selectedPayrollMonth)} payroll for Umair: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
+    notice.hidden=false;
+  }
+  const form=$('#expenseForm');
+  if(form){
+    form.scrollIntoView({behavior:'smooth',block:'center'});
+    form.classList.add('prefilled-pulse');
+    setTimeout(()=>form.classList.remove('prefilled-pulse'),1500);
+  }
+  toast(`Prefilled ${monthName(selectedPayrollMonth)} payout for Umair (${formatAmount(Number(prefill.amount))})`);
+});
+
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
 $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
 $('#areaIntelMonth').addEventListener('change',event=>{

@@ -13476,5 +13476,79 @@ export function validateStaffAttendanceDate(date, existingDates = [], label = 'D
   return { valid: true, date: d };
 }
 
+/**
+ * Pure filter helper for expense rows supporting month, category, and text search across category, notes, and area.
+ *
+ * @param {Array<Object>} [expenses=[]] - List of expense objects
+ * @param {Object} [filters={}] - Filter criteria
+ * @param {string} [filters.month='all'] - Calendar month YYYY-MM or 'all'
+ * @param {string} [filters.category='all'] - Expense category or 'all'
+ * @param {string} [filters.query=''] - Search term
+ * @returns {Array<Object>} Filtered expense objects
+ */
+export function filterExpenseRows(expenses = [], { month = 'all', category = 'all', query = '' } = {}) {
+  const q = String(query || '').trim().toLowerCase();
+  return (expenses || []).filter(row => {
+    if (month && month !== 'all' && (!row.date || row.date.slice(0, 7) !== month)) return false;
+    if (category && category !== 'all' && row.category !== category) return false;
+    if (q) {
+      const matchCat = String(row.category || '').toLowerCase().includes(q);
+      const matchNotes = String(row.notes || '').toLowerCase().includes(q);
+      const matchArea = String(row.area || row.mohalla || '').toLowerCase().includes(q);
+      if (!matchCat && !matchNotes && !matchArea) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Pure sort helper for expense rows by date, category, amount, or area.
+ *
+ * @param {Array<Object>} [expenses=[]] - List of expense objects
+ * @param {'date'|'category'|'amount'|'area'} [sortKey='date'] - Sort key
+ * @param {boolean} [sortAsc=false] - Ascending vs descending
+ * @returns {Array<Object>} Sorted copy of expense objects
+ */
+export function sortExpenseRows(expenses = [], sortKey = 'date', sortAsc = false) {
+  return [...(expenses || [])].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === 'date') {
+      cmp = String(a.date || '').localeCompare(String(b.date || '')) || String(a.id || '').localeCompare(String(b.id || ''));
+    } else if (sortKey === 'category') {
+      cmp = String(a.category || '').localeCompare(String(b.category || '')) || String(b.date || '').localeCompare(String(a.date || ''));
+    } else if (sortKey === 'amount') {
+      cmp = (Number(a.amount) || 0) - (Number(b.amount) || 0) || String(b.date || '').localeCompare(String(a.date || ''));
+    } else if (sortKey === 'area') {
+      cmp = String(a.area || a.mohalla || '').localeCompare(String(b.area || b.mohalla || '')) || String(b.date || '').localeCompare(String(a.date || ''));
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+}
+
+/**
+ * Generates RFC-4180 compliant CSV export for expense entries with UTF-8 BOM.
+ *
+ * @param {Array<Object>} [expenses=[]] - List of expense objects
+ * @returns {string} CSV content
+ */
+export function generateExpensesCsv(expenses = []) {
+  const headers = [
+    { key: 'date', label: 'Date' },
+    { key: 'category', label: 'Category' },
+    { key: 'amount', label: 'Amount (PKR)' },
+    { key: 'area', label: 'Area / Mohalla' },
+    { key: 'notes', label: 'Notes' }
+  ];
+  const rows = (expenses || []).map(row => ({
+    date: row.date || '',
+    category: row.category || '',
+    amount: String(row.amount || 0),
+    area: row.area || row.mohalla || 'Unallocated',
+    notes: row.notes || ''
+  }));
+  return generateCsvContent(headers, rows);
+}
+
+
 
 

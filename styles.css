@@ -10718,6 +10718,18 @@ html, body {
   #logUmairTodayBtn {
     min-height: 44px;
   }
+  .payroll-date-list .delete-incident {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #resetExpenseFiltersInlineBtn {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 .expense-area-badge {
@@ -10744,6 +10756,71 @@ html, body {
 [data-theme="dark"] .expense-area-unallocated {
   color: #64748b;
 }
+
+th[data-sort-expense] {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+th[data-sort-expense]:hover {
+  background: #f1f5f9;
+}
+
+[data-theme="dark"] th[data-sort-expense]:hover {
+  background: #1e293b;
+}
+
+th[data-sort-expense]:focus-visible {
+  outline: 2px solid #0e5b4d;
+  outline-offset: -2px;
+}
+
+[data-theme="dark"] th[data-sort-expense]:focus-visible {
+  outline-color: #34d399;
+}
+
+#expenseTableCount {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  color: #475569;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+[data-theme="dark"] #expenseTableCount {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+#resetExpenseFiltersInlineBtn {
+  background: none;
+  border: none;
+  color: #0e5b4d;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+#resetExpenseFiltersInlineBtn:hover {
+  text-decoration: underline;
+  color: #083c32;
+}
+
+[data-theme="dark"] #resetExpenseFiltersInlineBtn {
+  color: #34d399;
+}
+
+[data-theme="dark"] #resetExpenseFiltersInlineBtn:hover {
+  color: #6ee7b7;
+}
+
 
 
 

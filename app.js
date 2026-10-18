@@ -83,7 +83,10 @@ import {
   generateAreaSummaryCsv,
   validateExpenseFormFields,
   buildPayrollExpensePrefill,
-  validateStaffAttendanceDate
+  validateStaffAttendanceDate,
+  filterExpenseRows,
+  sortExpenseRows,
+  generateExpensesCsv
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
@@ -3578,63 +3581,44 @@ function renderExpenses() {
     if(curVal&&areas.includes(curVal))expenseAreaSelect.value=curVal;
   }
 
-  const filteredRows=allRows.filter(row=>{
-    if(expenseMonthFilter!=='all'&&(!row.date||row.date.slice(0,7)!==expenseMonthFilter))return false;
-    if(expenseCategoryFilter!=='all'&&row.category!==expenseCategoryFilter)return false;
-    if(expenseSearchQuery){
-      const q=expenseSearchQuery.toLowerCase();
-      const matchCat=String(row.category||'').toLowerCase().includes(q);
-      const matchNotes=String(row.notes||'').toLowerCase().includes(q);
-      const matchArea=String(row.area||row.mohalla||'').toLowerCase().includes(q);
-      if(!matchCat&&!matchNotes&&!matchArea)return false;
-    }
-    return true;
+  const filteredRows = filterExpenseRows(allRows, {
+    month: expenseMonthFilter,
+    category: expenseCategoryFilter,
+    query: expenseSearchQuery
   });
 
-  const filteredTotal=filteredRows.reduce((sum,row)=>sum+(Number(row.amount)||0),0);
-  const filteredTotalEl=$('#expenseFilteredTotal');
-  if(filteredTotalEl)filteredTotalEl.textContent=formatAmount(filteredTotal);
-  const filteredHelpEl=$('#expenseFilteredHelp');
-  if(filteredHelpEl){
-    const hasFilter=expenseMonthFilter!=='all'||expenseCategoryFilter!=='all'||Boolean(expenseSearchQuery);
-    if(hasFilter){
-      filteredHelpEl.textContent=`${filteredRows.length} of ${allRows.length} entries matching filters`;
-    }else{
-      filteredHelpEl.textContent=allRows.length?`${allRows.length} total entries`:'No expense entries recorded';
+  const filteredTotal = filteredRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const filteredTotalEl = $('#expenseFilteredTotal');
+  if (filteredTotalEl) filteredTotalEl.textContent = formatAmount(filteredTotal);
+  const filteredHelpEl = $('#expenseFilteredHelp');
+  if (filteredHelpEl) {
+    const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery);
+    if (hasFilter) {
+      filteredHelpEl.textContent = `${filteredRows.length} of ${allRows.length} entries matching filters`;
+    } else {
+      filteredHelpEl.textContent = allRows.length ? `${allRows.length} total entries` : 'No expense entries recorded';
     }
   }
 
-  filteredRows.sort((a,b)=>{
-    let cmp=0;
-    if(expenseSortKey==='date'){
-      cmp=a.date.localeCompare(b.date)||a.id.localeCompare(b.id);
-    }else if(expenseSortKey==='category'){
-      cmp=a.category.localeCompare(b.category)||b.date.localeCompare(a.date);
-    }else if(expenseSortKey==='amount'){
-      cmp=(Number(a.amount)||0)-(Number(b.amount)||0)||b.date.localeCompare(a.date);
-    }else if(expenseSortKey==='area'){
-      cmp=String(a.area||'').localeCompare(String(b.area||''))||b.date.localeCompare(a.date);
-    }
-    return expenseSortAsc?cmp:-cmp;
-  });
+  const sortedRows = sortExpenseRows(filteredRows, expenseSortKey, expenseSortAsc);
 
-  $('#expenseTable').innerHTML=filteredRows.map(row=>`<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${phase3Cell(row.notes||'Not recorded')}</td><td class="expense-actions"><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
-  $('#expensesEmpty').hidden=allRows.length>0;
-  const filterEmpty=$('#expensesFilterEmpty');
-  if(filterEmpty)filterEmpty.hidden=allRows.length===0||filteredRows.length>0;
-  const countBadge=$('#expenseTableCount');
-  if(countBadge){
-    if(!allRows.length)countBadge.textContent='';
-    else if(filteredRows.length===allRows.length)countBadge.textContent=`${allRows.length} expense${allRows.length===1?'':'s'}`;
-    else countBadge.textContent=`Showing ${filteredRows.length} of ${allRows.length} expenses`;
+  $('#expenseTable').innerHTML = sortedRows.map(row => `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${phase3Cell(row.notes || 'Not recorded')}</td><td class="expense-actions"><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
+  $('#expensesEmpty').hidden = allRows.length > 0;
+  const filterEmpty = $('#expensesFilterEmpty');
+  if (filterEmpty) filterEmpty.hidden = allRows.length === 0 || sortedRows.length > 0;
+  const countBadge = $('#expenseTableCount');
+  if (countBadge) {
+    if (!allRows.length) countBadge.textContent = '';
+    else if (filteredRows.length === allRows.length) countBadge.textContent = `${allRows.length} expense${allRows.length === 1 ? '' : 's'}`;
+    else countBadge.textContent = `Showing ${filteredRows.length} of ${allRows.length} expenses`;
   }
 
-  document.querySelectorAll('[data-sort-expense]').forEach(th=>{
-    const key=th.dataset.sortExpense;
-    const isCurrent=key===expenseSortKey;
-    th.setAttribute('aria-sort',isCurrent?(expenseSortAsc?'ascending':'descending'):'none');
-    const indicator=th.querySelector('.sort-indicator');
-    if(indicator)indicator.textContent=isCurrent?(expenseSortAsc?'↑':'↓'):'';
+  document.querySelectorAll('[data-sort-expense]').forEach(th => {
+    const key = th.dataset.sortExpense;
+    const isCurrent = key === expenseSortKey;
+    th.setAttribute('aria-sort', isCurrent ? (expenseSortAsc ? 'ascending' : 'descending') : 'none');
+    const indicator = th.querySelector('.sort-indicator');
+    if (indicator) indicator.textContent = isCurrent ? (expenseSortAsc ? '▲' : '▼') : '⇅';
   });
 
   $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{
@@ -3786,15 +3770,17 @@ $('#expenseSearchInput')?.addEventListener('input',e=>{
   expenseSearchQuery=e.currentTarget.value.trim();
   renderExpenses();
 });
-$('#clearExpenseFilters')?.addEventListener('click',()=>{
-  expenseMonthFilter='all';
-  expenseCategoryFilter='all';
-  expenseSearchQuery='';
-  const mSel=$('#expenseMonthFilter');if(mSel)mSel.value='all';
-  const cat=$('#expenseCategoryFilter');if(cat)cat.value='all';
-  const inp=$('#expenseSearchInput');if(inp)inp.value='';
+const resetExpenseFiltersHandler = () => {
+  expenseMonthFilter = 'all';
+  expenseCategoryFilter = 'all';
+  expenseSearchQuery = '';
+  const mSel = $('#expenseMonthFilter'); if (mSel) mSel.value = 'all';
+  const cat = $('#expenseCategoryFilter'); if (cat) cat.value = 'all';
+  const inp = $('#expenseSearchInput'); if (inp) inp.value = '';
   renderExpenses();
-});
+};
+$('#clearExpenseFilters')?.addEventListener('click', resetExpenseFiltersHandler);
+$('#resetExpenseFiltersInlineBtn')?.addEventListener('click', resetExpenseFiltersHandler);
 document.querySelectorAll('[data-sort-inventory]').forEach(th=>{
   const toggle=()=>{
     const key=th.dataset.sortInventory;
@@ -4037,10 +4023,13 @@ $('#recordSaadSalaryExpenseBtn')?.addEventListener('click',()=>{
   $('#expenseSubmit').textContent='Record actual expense';
   $('#expenseCancel').hidden=false;
   clearExpenseInlineErrors();
-  const notice=$('#expensePayrollPrefillNotice');
-  if(notice){
-    notice.textContent=`Prefilled from ${monthName(selectedPayrollMonth)} payroll for Saad: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
-    notice.hidden=false;
+  const notice = $('#expensePayrollPrefillNotice');
+  const prefillText = $('#expensePayrollPrefillText');
+  if (notice) {
+    if (prefillText) {
+      prefillText.textContent = `Prefilled from ${monthName(selectedPayrollMonth)} payroll for Saad: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
+    }
+    notice.hidden = false;
   }
   const form=$('#expenseForm');
   if(form){
@@ -4062,10 +4051,13 @@ $('#recordUmairSalaryExpenseBtn')?.addEventListener('click',()=>{
   $('#expenseSubmit').textContent='Record actual expense';
   $('#expenseCancel').hidden=false;
   clearExpenseInlineErrors();
-  const notice=$('#expensePayrollPrefillNotice');
-  if(notice){
-    notice.textContent=`Prefilled from ${monthName(selectedPayrollMonth)} payroll for Umair: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
-    notice.hidden=false;
+  const notice = $('#expensePayrollPrefillNotice');
+  const prefillText = $('#expensePayrollPrefillText');
+  if (notice) {
+    if (prefillText) {
+      prefillText.textContent = `Prefilled from ${monthName(selectedPayrollMonth)} payroll for Umair: PKR ${Number(prefill.amount).toLocaleString('en-PK')}. Click "Record actual expense" below to post into the ledger.`;
+    }
+    notice.hidden = false;
   }
   const form=$('#expenseForm');
   if(form){
@@ -4074,6 +4066,11 @@ $('#recordUmairSalaryExpenseBtn')?.addEventListener('click',()=>{
     setTimeout(()=>form.classList.remove('prefilled-pulse'),1500);
   }
   toast(`Prefilled ${monthName(selectedPayrollMonth)} payout for Umair (${formatAmount(Number(prefill.amount))})`);
+});
+
+$('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
+  const notice = $('#expensePayrollPrefillNotice');
+  if (notice) notice.hidden = true;
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
@@ -4223,27 +4220,15 @@ $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
 $('#exportExpensesCsvBtn')?.addEventListener('click', () => {
   const allRows = state.expenses || [];
   const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery);
-  const expenses = hasFilter ? allRows.filter(row => {
-    if (expenseMonthFilter !== 'all' && (!row.date || row.date.slice(0, 7) !== expenseMonthFilter)) return false;
-    if (expenseCategoryFilter !== 'all' && row.category !== expenseCategoryFilter) return false;
-    if (expenseSearchQuery) {
-      const q = expenseSearchQuery.toLowerCase();
-      const matchCat = String(row.category || '').toLowerCase().includes(q);
-      const matchNotes = String(row.notes || '').toLowerCase().includes(q);
-      if (!matchCat && !matchNotes) return false;
-    }
-    return true;
-  }) : allRows;
-  const headers = [
-    { key: 'date', label: 'Date' },
-    { key: 'category', label: 'Category' },
-    { key: 'amount', label: 'Amount (PKR)' },
-    { key: 'notes', label: 'Notes' }
-  ];
-  const csv = generateCsvContent(headers, expenses);
-  const filename = `expenses-${new Date().toISOString().slice(0, 10)}.csv`;
+  const expenses = filterExpenseRows(allRows, {
+    month: expenseMonthFilter,
+    category: expenseCategoryFilter,
+    query: expenseSearchQuery
+  });
+  const csv = generateExpensesCsv(expenses);
+  const filename = `shahdara-expenses-${hasFilter ? 'filtered' : 'all'}-${new Date().toISOString().slice(0, 10)}.csv`;
   downloadCsvFile(filename, csv);
-  toast(`Exported ${expenses.length} expense record${expenses.length === 1 ? '' : 's'} to CSV.`);
+  toast(`Exported ${expenses.length} expense ${expenses.length === 1 ? 'entry' : 'entries'} to CSV.`);
 });
 
 $('#exportInventoryCsvBtn')?.addEventListener('click', () => {

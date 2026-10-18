@@ -56,6 +56,12 @@ export function setupNavigationDrawer({
   if (toggleBtn && !toggleBtn.dataset.wiredDrawer) {
     toggleBtn.dataset.wiredDrawer = 'true';
     toggleBtn.addEventListener('click', () => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+        if (document.body?.classList?.contains('sidebar-rail-collapsed')) {
+          document.body.classList.remove('sidebar-rail-collapsed');
+        }
+        return;
+      }
       if (drawer.classList.contains('is-open')) closeDrawer();
       else openDrawer();
     });
@@ -2455,7 +2461,18 @@ export function setupMobileSpeedDial({
           closeSpeedDial();
           triggerHaptic('light');
 
-          if (action === 'more-tools' || action === 'field-tools') {
+          if (action === 'action-sheet') {
+            const toggle = document.getElementById('mobileActionSheetToggle');
+            if (toggle) toggle.click();
+            else {
+              const sheet = document.getElementById('mobileActionSheet');
+              if (sheet) {
+                sheet.hidden = false;
+                const backdrop = document.getElementById('mobileActionSheetBackdrop');
+                if (backdrop) backdrop.hidden = false;
+              }
+            }
+          } else if (action === 'more-tools' || action === 'field-tools') {
             openFieldTools();
           } else if (action === 'search' && typeof onSearchRoster === 'function') {
             onSearchRoster();

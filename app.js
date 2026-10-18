@@ -77,7 +77,10 @@ import {
   saveAdjustmentVoucher,
   setupLateFeeModal,
   getLateFeeConfig,
-  isBillOverdue
+  isBillOverdue,
+  generateAreaIntelligenceCsv,
+  generatePackageSummaryCsv,
+  generateAreaSummaryCsv
 } from './form-validation.js?v=1.10.0';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
@@ -3102,6 +3105,7 @@ function prepareAreaIntelFilters(data) {
 }
 let areaSortKey = null;
 let areaSortAsc = true;
+let areaSearchQuery = '';
 
 function renderAreaIntelligence() {
   const from=$('#areaIntelFrom')?.value,to=$('#areaIntelTo')?.value,table=$('#areaIntelligenceTable');if(!table)return;
@@ -3141,9 +3145,39 @@ function renderAreaIntelligence() {
           const vA = a.collectionRate === null ? -1 : a.collectionRate;
           const vB = b.collectionRate === null ? -1 : b.collectionRate;
           cmp = vA - vB;
+        } else if (areaSortKey === 'averageCustomerValue') {
+          const vA = a.averageCustomerValue === null ? -1 : a.averageCustomerValue;
+          const vB = b.averageCustomerValue === null ? -1 : b.averageCustomerValue;
+          cmp = vA - vB;
+        } else if (areaSortKey === 'expenses') {
+          const vA = a.expenses === null ? -1 : a.expenses;
+          const vB = b.expenses === null ? -1 : b.expenses;
+          cmp = vA - vB;
+        } else if (areaSortKey === 'estimatedProfit') {
+          const vA = a.estimatedProfit === null ? -Infinity : a.estimatedProfit;
+          const vB = b.estimatedProfit === null ? -Infinity : b.estimatedProfit;
+          cmp = vA - vB;
         }
         return areaSortAsc ? cmp : -cmp;
       });
+    }
+
+    if (areaSearchQuery.trim()) {
+      const q = areaSearchQuery.trim().toLowerCase();
+      areaRows = areaRows.filter(row => {
+        const areaStr = (row.area || '').toLowerCase();
+        const parentStr = (row.parentArea || '').toLowerCase();
+        return areaStr.includes(q) || parentStr.includes(q);
+      });
+    }
+
+    const countBadge = $('#areaIntelRowCount');
+    if (countBadge) {
+      if (areaSearchQuery.trim()) {
+        countBadge.textContent = `Showing ${areaRows.length} of ${area.rows.length}`;
+      } else {
+        countBadge.textContent = `${area.rows.length} area/zone rows`;
+      }
     }
 
     document.querySelectorAll('[data-sort-area]').forEach(th => {
@@ -3163,10 +3197,31 @@ function renderAreaIntelligence() {
       const amountOrMissing=value=>value===null?'Not recorded':formatAmount(value);
       return `<tr class="area-row-${phase3Cell(row.level)}"><th scope="row"><span class="location-summary-label location-summary-${phase3Cell(row.level)}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${phase3Cell(row.level==='unassigned'?'Unassigned':row.level)}</span><span class="location-summary-value">${phase3Cell(label.replace(/^(?:Area|Mohalla|Zone):\s*/,''))}</span></span></th><td>${row.totalCustomers}</td><td title="${phase3Cell(row.activeCustomerSource)}">${phase3Cell(active)}</td><td>${phase3Cell(amountOrMissing(row.billedAmount))}</td><td>${phase3Cell(amountOrMissing(row.collectedAmount))}</td><td>${phase3Cell(amountOrMissing(row.outstanding))}</td><td>${row.collectionRate===null?'Not set':`${row.collectionRate}%`}</td><td>${phase3Cell(amountOrMissing(row.averageCustomerValue))}</td><td title="${phase3Cell(row.expensesSource)}">${phase3Cell(amountOrMissing(row.expenses))}</td><td title="${phase3Cell(row.estimatedProfitBasis)}">${phase3Cell(amountOrMissing(row.estimatedProfit))}</td></tr>`;
     }).join('');
-    $('#areaIntelligenceEmpty').hidden=areaRows.length>0;
+
+    const emptyEl = $('#areaIntelligenceEmpty');
+    if (emptyEl) {
+      emptyEl.hidden = areaRows.length > 0;
+      if (areaRows.length === 0 && areaSearchQuery.trim()) {
+        emptyEl.innerHTML = `No areas or zones match "${phase3Cell(areaSearchQuery.trim())}". <button id="resetAreaIntelFiltersBtn" class="secondary-button btn-sm" type="button" style="margin-left: 8px;">Reset filter</button>`;
+        $('#resetAreaIntelFiltersBtn')?.addEventListener('click', () => {
+          const searchInp = $('#areaIntelSearch');
+          if (searchInp) searchInp.value = '';
+          areaSearchQuery = '';
+          renderAreaIntelligence();
+        });
+      } else {
+        emptyEl.textContent = 'No area / zone values or matching financial records are saved for this selection.';
+      }
+    }
+
     basis.textContent=`${from} to ${to}. ${area.basis.customers} ${area.basis.activeCustomers} ${area.basis.billing} ${area.basis.collection} ${area.basis.outstanding} ${area.basis.collectionRate} ${area.basis.averageCustomerValue} ${area.basis.expenses} ${area.basis.profit}${area.unallocatedExpenseCount?` ${area.unallocatedExpenseCount} expense record(s) in this range have no location tag.`:''} ${packages.basis}`;
   } catch(error) {
-    table.replaceChildren();$('#areaIntelligenceEmpty').hidden=false;$('#areaIntelligenceEmpty').textContent=error.message;
+    table.replaceChildren();
+    const emptyEl = $('#areaIntelligenceEmpty');
+    if (emptyEl) {
+      emptyEl.hidden=false;
+      emptyEl.textContent=error.message;
+    }
     for(const host of [areaChart,zoneChart,packageChart])host.innerHTML=`<p class="empty-state">${phase3Cell(error.message)}</p>`;
     basis.textContent='Select a valid date range to calculate the local area and package summaries.';
   }
@@ -3219,11 +3274,69 @@ function renderAnalytics() {
   $('#areaSummaryEmpty').hidden=namedAreas;
   const unassigned=data.unassignedArea;
   $('#areaSummaryUnassigned').textContent=`Area not set: ${unassigned.profiles} profile${unassigned.profiles===1?'':'s'} (${unassigned.activeConfiguredSubscriptions} active configured; ${unassigned.withZone} with a zone, ${unassigned.withoutZone} without). ${unassigned.namedAreaProfilesWithoutZone} assigned profile${unassigned.namedAreaProfilesWithoutZone===1?'':'s'} have no zone. Profiles without an area are excluded from named-area rows.`;
-  $('#packageSummaryTable').innerHTML=data.packageRows.map(row=>`<tr class="summary-row summary-row-package"><th scope="row">${phase3Cell(row.package)}</th><td>${row.customers}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill snapshots'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.excludedSubscriptions}</td><td>${row.newSubscriptions}</td><td>${row.expired}</td><td>${row.churn}</td><td>${row.arpu===null?'Not set':`<strong class="summary-arpu">${phase3Cell(formatAmount(row.arpu))}</strong>`}</td></tr>`).join('');
+  latestAnalyticsData = data;
+  renderPackageSummaryTable();
   const configuredPackages=data.packageRows.some(row=>row.packageKey!=='__package_not_set__');
   $('#packageSummaryEmpty').hidden=configuredPackages;
   $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
+}
+let packageSortKey = null;
+let packageSortAsc = true;
+let latestAnalyticsData = null;
+
+function renderPackageSummaryTable() {
+  if (!latestAnalyticsData) return;
+  const table = $('#packageSummaryTable');
+  if (!table) return;
+  let rows = [...latestAnalyticsData.packageRows];
+  if (packageSortKey) {
+    rows.sort((a, b) => {
+      let cmp = 0;
+      if (packageSortKey === 'package') {
+        cmp = (a.package || '').localeCompare(b.package || '');
+      } else if (packageSortKey === 'customers') {
+        cmp = (a.customers || 0) - (b.customers || 0);
+      } else if (packageSortKey === 'activeCustomers') {
+        cmp = (a.activeCustomers || 0) - (b.activeCustomers || 0);
+      } else if (packageSortKey === 'billedRevenue') {
+        const vA = a.hasBilledRevenue ? (a.billedRevenue || 0) : -1;
+        const vB = b.hasBilledRevenue ? (b.billedRevenue || 0) : -1;
+        cmp = vA - vB;
+      } else if (packageSortKey === 'outstanding') {
+        const vA = a.hasBillHistory ? (a.outstanding || 0) : -1;
+        const vB = b.hasBillHistory ? (b.outstanding || 0) : -1;
+        cmp = vA - vB;
+      } else if (packageSortKey === 'excludedSubscriptions') {
+        cmp = (a.excludedSubscriptions || 0) - (b.excludedSubscriptions || 0);
+      } else if (packageSortKey === 'newSubscriptions') {
+        cmp = (a.newSubscriptions || 0) - (b.newSubscriptions || 0);
+      } else if (packageSortKey === 'expired') {
+        cmp = (a.expired || 0) - (b.expired || 0);
+      } else if (packageSortKey === 'churn') {
+        cmp = (a.churn || 0) - (b.churn || 0);
+      } else if (packageSortKey === 'arpu') {
+        const vA = a.arpu === null ? -1 : a.arpu;
+        const vB = b.arpu === null ? -1 : b.arpu;
+        cmp = vA - vB;
+      }
+      return packageSortAsc ? cmp : -cmp;
+    });
+  }
+
+  document.querySelectorAll('[data-sort-pkgsum]').forEach(th => {
+    const key = th.dataset.sortPkgsum;
+    const indicator = th.querySelector('.sort-indicator');
+    if (packageSortKey === key) {
+      th.setAttribute('aria-sort', packageSortAsc ? 'ascending' : 'descending');
+      if (indicator) indicator.textContent = packageSortAsc ? ' ↑' : ' ↓';
+    } else {
+      th.setAttribute('aria-sort', 'none');
+      if (indicator) indicator.textContent = '';
+    }
+  });
+
+  table.innerHTML = rows.map(row => `<tr class="summary-row summary-row-package"><th scope="row">${phase3Cell(row.package)}</th><td>${row.customers}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue ? phase3Cell(formatAmount(row.billedRevenue)) : 'No bill snapshots'}</td><td>${row.hasBillHistory ? phase3Cell(formatAmount(row.outstanding)) : 'No bill entries'}</td><td>${row.excludedSubscriptions}</td><td>${row.newSubscriptions}</td><td>${row.expired}</td><td>${row.churn}</td><td>${row.arpu === null ? 'Not set' : `<strong class="summary-arpu">${phase3Cell(formatAmount(row.arpu))}</strong>`}</td></tr>`).join('');
 }
 let inventorySortKey = 'name';
 let inventorySortAsc = true;
@@ -3545,6 +3658,25 @@ document.querySelectorAll('[data-sort-area]').forEach(th=>{
     }
   });
 });
+document.querySelectorAll('[data-sort-pkgsum]').forEach(th => {
+  const toggle = () => {
+    const key = th.dataset.sortPkgsum;
+    if (packageSortKey === key) {
+      packageSortAsc = !packageSortAsc;
+    } else {
+      packageSortKey = key;
+      packageSortAsc = (key === 'package');
+    }
+    renderPackageSummaryTable();
+  };
+  th.addEventListener('click', toggle);
+  th.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      toggle();
+    }
+  });
+});
 function wirePhoneValidationHelper(inputId,hintId){
   const input=$(inputId);
   const hint=$(hintId);
@@ -3644,6 +3776,71 @@ $('#areaIntelMonth').addEventListener('change',event=>{
   $('#areaIntelFrom').value=`${month}-01`;$('#areaIntelTo').value=month===localDate().slice(0,7)?localDate():`${month}-${String(lastDay).padStart(2,'0')}`;renderAnalytics();
 });
 ['#areaIntelFrom','#areaIntelTo'].forEach(selector=>$(selector).addEventListener('change',()=>{if($('#areaIntelMonth').value)$('#areaIntelMonth').value='';renderAnalytics();}));
+$('#areaIntelSearch')?.addEventListener('input', e => {
+  areaSearchQuery = e.target.value || '';
+  renderAreaIntelligence();
+});
+$('#exportAreaIntelCsvBtn')?.addEventListener('click', () => {
+  try {
+    const from = $('#areaIntelFrom')?.value || '';
+    const to = $('#areaIntelTo')?.value || '';
+    const area = buildAreaIntelligence(state, { startDate: from, endDate: to }, new Date());
+    let exportRows = [...area.rows];
+    if (areaSearchQuery.trim()) {
+      const q = areaSearchQuery.trim().toLowerCase();
+      exportRows = exportRows.filter(row => (row.area || '').toLowerCase().includes(q) || (row.parentArea || '').toLowerCase().includes(q));
+    }
+    const csv = generateAreaIntelligenceCsv(exportRows, { from, to });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shahdara-area-intelligence-${from}-to-${to}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Exported Area Intelligence CSV.');
+  } catch (err) {
+    toast(err.message || 'Error exporting CSV.');
+  }
+});
+$('#exportPackageSummaryCsvBtn')?.addEventListener('click', () => {
+  try {
+    const data = latestAnalyticsData || buildPhase3Analytics(state, new Date());
+    const csv = generatePackageSummaryCsv(data.packageRows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shahdara-package-summary-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Exported Package Summary CSV.');
+  } catch (err) {
+    toast(err.message || 'Error exporting CSV.');
+  }
+});
+$('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
+  try {
+    const data = latestAnalyticsData || buildPhase3Analytics(state, new Date());
+    const csv = generateAreaSummaryCsv(data.areaRows);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `shahdara-area-summary-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Exported Location Summary CSV.');
+  } catch (err) {
+    toast(err.message || 'Error exporting CSV.');
+  }
+});
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
 renderPhase3();

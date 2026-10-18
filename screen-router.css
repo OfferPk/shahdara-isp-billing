@@ -155,3 +155,42 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane > .tabl
   .table-filter-select, .table-filter-input, .table-filter-clear { min-height: 48px; }
   .table-filter-select, .table-filter-input { font-size: 16px; }
 }
+
+/* #257 Expenses screen: list first, then the "Add or correct an expense" heading directly above
+   its form ("+ Add Expense" in the screen header jumps there). Empty-state lines stay with the table. */
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm)::before {
+  content: "Recorded expenses"; order: 0; display: block; margin: 0 0 4px;
+  color: var(--ink, #172e29); font: 700 16px Manrope, system-ui, sans-serif;
+}
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-filter-toolbar { order: 1; margin-top: 0; }
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-scroll,
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > #expensesEmpty,
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > #expensesFilterEmpty { order: 2; margin-top: 8px; }
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-heading { order: 3; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #dce6e1); }
+body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > #expenseForm { order: 4; margin-top: 8px; }
+
+/* #257 Phone filter toolbars stack in a column, where the search group's `flex: 1 1 240px` turned
+   into a 240px-tall box with ~100px blank gaps. Size it to its content; selects fill the row. */
+@media (max-width: 620px) {
+  .table-filter-toolbar > .table-filter-group,
+  .table-filter-toolbar > .table-filter-group.search-group { flex: 0 0 auto; }
+  .table-filter-toolbar > .table-filter-group > .table-filter-select { flex: 1 1 auto; width: 100%; }
+  .table-filter-toolbar > .table-filter-group.search-group > .table-filter-input { flex: 1 1 auto; min-width: 0; }
+}
+
+/* #256 Desktop Customers screen with no customer open: the detail pane only said "Your ledger
+   starts empty", so hide it and give the list the full width as a card grid. Opening a customer
+   (the welcome state hides) brings back the normal list + ledger layout. */
+@media (min-width: 621px) {
+  body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) { grid-template-columns: minmax(0, 1fr); }
+  body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) > #detailPane { display: none; }
+  body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) > #customerPane {
+    position: relative; top: auto; height: auto; min-height: 0; overflow: visible;
+  }
+  body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) #customerList {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-items: start;
+  }
+  body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) .customer-list-search { max-width: 640px; }
+  /* The pull-to-refresh hint sits above the pane and was only hidden by its overflow clipping. */
+  body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) #pullToRefreshIndicator { display: none; }
+}

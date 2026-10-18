@@ -141,3 +141,48 @@ test.describe('Screen router (#212)', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('Screen router layout fixes (#256, #257)', () => {
+  test('#256 desktop Customers: full-width list, no misleading "ledger starts empty" pane', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'Desktop layout');
+    const errors = trackErrors(page);
+    await page.goto('/#/customers');
+    await expect(page.locator('#srScreenTitle')).toHaveText('Customers');
+    await expect(page.locator('#detailPane')).toBeHidden();
+    await expect(page.getByText('Your ledger starts empty')).toHaveCount(0);
+    const listBox = await page.locator('#customerList').boundingBox();
+    expect(listBox.width).toBeGreaterThan(900);
+    const tops = await page.locator('#customerList > li').evaluateAll(lis => lis.slice(0, 3).map(li => Math.round(li.getBoundingClientRect().top)));
+    expect(tops[1]).toBe(tops[0]); // several customers per row
+    await inFirstScreen(page, page.locator('#customerList > li').nth(2));
+    // Opening a customer brings back the list + ledger layout.
+    await page.locator('#customerList > li').first().locator('.customer-select').click();
+    await expect(page.locator('#customerDetail')).toBeVisible();
+    await expect(page.locator('#detailPane')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('#257 mobile Expenses: compact filters, list first, form right under its heading', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Phone layout');
+    const errors = trackErrors(page);
+    await page.goto('/#/expenses');
+    await expect(page.locator('#srPrimaryAction')).toHaveText('+ Add Expense');
+    await inFirstScreen(page, page.locator('#srPrimaryAction'));
+    const card = page.locator('#expensesView .table-card:has(#expenseForm)');
+    const search = await card.locator('.table-filter-group.search-group').boundingBox();
+    expect(search.height).toBeLessThan(120);
+    const toolbar = await card.locator('.table-filter-toolbar').boundingBox();
+    expect(toolbar.height).toBeLessThan(260);
+    const heading = await card.locator('.table-heading').boundingBox();
+    const form = await page.locator('#expenseForm').boundingBox();
+    const table = await card.locator('.table-scroll').boundingBox();
+    expect(table.y).toBeLessThan(heading.y); // list before the add form
+    expect(form.y - (heading.y + heading.height)).toBeLessThan(40); // heading labels the form
+    await expect(page.locator('#expensesEmpty')).toContainText('+ Add Expense');
+    const empty = await page.locator('#expensesEmpty').boundingBox();
+    expect(empty.y).toBeLessThan(heading.y);
+    await page.locator('#srPrimaryAction').click();
+    await expect(page.locator('#expenseForm')).toBeInViewport();
+    expect(errors).toEqual([]);
+  });
+});

@@ -21,7 +21,7 @@ import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY 
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip } from './qa-backup-csv-import.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal } from './nav.js?v=1.10.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.10.0';
 
 
 
@@ -2700,116 +2700,116 @@ let mobileCleaverModalController = setupMobileCleaverModal(state, {
   onToast: (msg) => toast(msg)
 });
 
-// Setup Field Technician Tier-1 Optical Loss Test Set (OLTS) Certification Assistant
-let mobileOltsModalController = setupMobileOltsModal(state, {
+// Setup Field Technician Tier-1 Optical Loss Test Set (OLTS) Certification Assistant (Lazy loaded for low-end phone performance)
+let mobileOltsModalController = createLazyModalController(() => setupMobileOltsModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Live Fiber Traffic Identifier & Tone Detector Assistant
-let mobileFiberIdentifierModalController = setupMobileFiberIdentifierModal(state, {
+let mobileFiberIdentifierModalController = createLazyModalController(() => setupMobileFiberIdentifierModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field MPO/MTP Multi-Fiber Push-On Ribbon Trunk Polarity & Pinning Assistant
-let mobileMpoModalController = setupMobileMpoModal(state, {
+let mobileMpoModalController = createLazyModalController(() => setupMobileMpoModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Fiber Mechanical Fast Connector Assistant
-let mobileFastConnectorModalController = setupMobileFastConnectorModal(state, {
+let mobileFastConnectorModalController = createLazyModalController(() => setupMobileFastConnectorModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field OTDR Launch Cable & Pulse Suppression Assistant
-let mobileOtdrLaunchModalController = setupMobileOtdrLaunchModal(state, {
+let mobileOtdrLaunchModalController = createLazyModalController(() => setupMobileOtdrLaunchModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Bare Fiber Adapter (BFA) & Temporary Splice Assistant
-let mobileBareFiberAdapterModalController = setupMobileBareFiberAdapterModal(state, {
+let mobileBareFiberAdapterModalController = createLazyModalController(() => setupMobileBareFiberAdapterModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Stabilized Light Source (SLS) & Modulated Tone Generator Assistant
-let mobileSlsToneModalController = setupMobileSlsToneModal(state, {
+let mobileSlsToneModalController = createLazyModalController(() => setupMobileSlsToneModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Fiber Talk Set (FOTS) & Laser Voice Communicator Assistant
-let mobileFiberTalksetModalController = setupMobileFiberTalksetModal(state, {
+let mobileFiberTalksetModalController = createLazyModalController(() => setupMobileFiberTalksetModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field CWDM / DWDM Optical Channel Grid & Spectrum Allocation Assistant
-let mobileWdmSpectrumModalController = setupMobileWdmSpectrumModal(state, {
+let mobileWdmSpectrumModalController = createLazyModalController(() => setupMobileWdmSpectrumModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Drop Cable Mid-Span Buffer Tube Slitter Assistant
-let mobileMidspanAccessModalController = setupMobileMidspanAccessModal(state, {
+let mobileMidspanAccessModalController = createLazyModalController(() => setupMobileMidspanAccessModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Continuous Power Logging & Fiber Flapping Detector Assistant
-let mobilePowerLoggerModalController = setupMobilePowerLoggerModal(state, {
+let mobilePowerLoggerModalController = createLazyModalController(() => setupMobilePowerLoggerModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Fiber Drop Cable Tensile Pull & Clamping Retention Assistant
-let mobileDropRetentionModalController = setupMobileDropRetentionModal(state, {
+let mobileDropRetentionModalController = createLazyModalController(() => setupMobileDropRetentionModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Reference Test Cords (TRC) & Zero-Loss Baseline Referencing Assistant
-let mobileRefJumpersModalController = setupMobileRefJumpersModal(state, {
+let mobileRefJumpersModalController = createLazyModalController(() => setupMobileRefJumpersModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Mass Fusion Ribbon Fiber De-Ribbonizer & Single-Core Breakout Assistant
-let mobileRibbonSeparatorModalController = setupMobileRibbonSeparatorModal(state, {
+let mobileRibbonSeparatorModalController = createLazyModalController(() => setupMobileRibbonSeparatorModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Mechanical Splice & Index Matching Gel Restoration Assistant
-let mobileMechanicalSpliceModalController = setupMobileMechanicalSpliceModal(state, {
+let mobileMechanicalSpliceModalController = createLazyModalController(() => setupMobileMechanicalSpliceModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Fiber Microscope VIP Surface Analysis Assistant
-let mobileFiberMicroscopeModalController = setupMobileFiberMicroscopeModal({
+let mobileFiberMicroscopeModalController = createLazyModalController(() => setupMobileFiberMicroscopeModal({
   doc: document,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Connector Cleaning & Sanitation Assistant
-let mobileConnectorCleaningModalController = setupMobileConnectorCleaningModal({
+let mobileConnectorCleaningModalController = createLazyModalController(() => setupMobileConnectorCleaningModal({
   doc: document,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field OTDR Dead Zone & Pulse Width Calibration Assistant
-let mobileOtdrDeadzoneModalController = setupMobileOtdrDeadzoneModal({
+let mobileOtdrDeadzoneModalController = createLazyModalController(() => setupMobileOtdrDeadzoneModal({
   doc: document,
   onToast: (msg) => toast(msg)
-});
+}));
 
 // Setup Field Optical Fiber Buffer Tube Mid-Span Stripper & Shaving Gauge Assistant
-setupMobileTubeShavingModal();
+deferLowPriorityInit(() => setupMobileTubeShavingModal(), { delay: 1500 });
 
 // Setup 2-Tap Quick Collect Mobile Field Flow (agent2 - shahdara-mobile-nav)
 window.quickCollectModalController = setupQuickCollectModal({
@@ -2900,6 +2900,81 @@ if (closePendingSecondaryBtn) {
     window.pendingActionsController?.close();
   });
 }
+
+// Setup PWA Install Prompt & Low-End Phone Speed Engine (agent2 - shahdara-mobile-nav)
+window.pwaInstallController = setupPwaInstallPrompt({
+  doc: document,
+  storage: typeof localStorage !== 'undefined' ? localStorage : null,
+  onToast: (msg) => toast(msg)
+});
+
+// Setup PWA Status & Offline Health Modal (agent2 - shahdara-mobile-nav)
+window.pwaStatusController = setupPwaStatusModal({
+  doc: document,
+  onToast: (msg) => toast(msg),
+  onTriggerInstall: () => window.pwaInstallController?.triggerInstall(),
+  onQuickCollect: () => window.quickCollectModalController?.open(),
+  onAddCustomer: () => {
+    switchView('customers');
+    const addBtn = $('#addCustomerButton') || $('#quickActionAddCustomer');
+    if (addBtn) addBtn.click();
+  },
+  onTodayDues: () => {
+    switchView('customers');
+    const pendingFilter = document.querySelector('[data-customer-billing-filter="pending"]');
+    if (pendingFilter) pendingFilter.click();
+  }
+});
+
+const navDrawerPwaStatusBtn = $('#navDrawerPwaStatusBtn');
+if (navDrawerPwaStatusBtn) {
+  navDrawerPwaStatusBtn.addEventListener('click', () => {
+    const drawer = $('#navDrawer');
+    if (drawer && drawer.classList.contains('is-open')) {
+      const closeBtn = $('#navDrawerClose');
+      if (closeBtn) closeBtn.click();
+      else drawer.classList.remove('is-open');
+    }
+    window.pwaStatusController?.open();
+  });
+}
+
+const mobileMorePwaStatusBtn = $('#mobileMorePwaStatusBtn');
+if (mobileMorePwaStatusBtn) {
+  mobileMorePwaStatusBtn.addEventListener('click', () => {
+    const moreMenu = $('#mobileMoreMenu');
+    if (moreMenu) moreMenu.hidden = true;
+    window.pwaStatusController?.open();
+  });
+}
+
+// Setup PWA Shortcuts URL handler (#quick-collect, #add-customer, #today-dues)
+setupPwaShortcuts({
+  onQuickCollect: () => window.quickCollectModalController?.open(),
+  onAddCustomer: () => {
+    switchView('customers');
+    const addBtn = $('#addCustomerButton') || $('#quickActionAddCustomer');
+    if (addBtn) addBtn.click();
+  },
+  onTodayDues: () => {
+    switchView('customers');
+    const pendingFilter = document.querySelector('[data-customer-billing-filter="pending"]');
+    if (pendingFilter) pendingFilter.click();
+  },
+  onCollectionRounds: () => {
+    fieldRouteSheetController?.open?.();
+  },
+  onPendingActions: () => {
+    window.pendingActionsController?.open?.();
+  },
+  onFastSearch: () => {
+    window.fastCustomerSearchController?.open?.();
+  },
+  onPwaStatus: () => {
+    window.pwaStatusController?.open?.();
+  },
+  toast: (msg) => toast(msg)
+});
 
 // Setup Floating Mobile Speed Dial / Quick Action Dock
 
@@ -5848,6 +5923,9 @@ function handleRouteFromHash() {
       selectCustomer(cid, { pushHistory: false });
       return;
     }
+  }
+  if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(raw)) {
+    return;
   }
   const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'];
   if (validViews.includes(raw)) {

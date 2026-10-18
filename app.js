@@ -4330,7 +4330,7 @@ $('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
 renderPhase3();
-refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderAnalytics,renderInventory,renderExpenses}).refresh;
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses}).refresh;
 
 // Phase 12 · Form draft auto-save and restoration
 customerDraftController = wireFormDraftAutosave($('#addCustomerForm'), 'addCustomerForm', {

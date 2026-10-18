@@ -218,3 +218,68 @@ body.sr-screen-mode[data-screen="transactions"] .transactions-heading .transacti
   /* The pull-to-refresh hint sits above the pane and was only hidden by its overflow clipping. */
   body.sr-screen-mode[data-screen="customers"] .app-shell:has(#welcomeState:not([hidden])) #pullToRefreshIndicator { display: none; }
 }
+
+/* #267 Dedicated screens for More menu: Bills, Backup & Restore, Owner Assistant, Dues Recovery, Smart Alerts */
+body.sr-screen-mode[data-screen="bills"] #billingReportsView .report-heading h2,
+body.sr-screen-mode[data-screen="bills"] #billingReportsView .report-heading .transactions-subtitle {
+  display: none;
+}
+
+body.sr-screen-mode[data-screen="recovery"] .report-pane,
+body.sr-screen-mode[data-screen="alerts"] .report-pane {
+  display: flex;
+  flex-direction: column;
+}
+body.sr-screen-mode[data-screen="recovery"] #duesRecoveryPanel {
+  order: -1;
+  margin-top: 0 !important;
+  margin-bottom: 24px;
+}
+body.sr-screen-mode[data-screen="alerts"] #smartAlertsPanel {
+  order: -1;
+  margin-top: 0 !important;
+  margin-bottom: 24px;
+}
+
+/* Owner Assistant screen: uncollapse billingDashboard, keep only ownerCommandCenter */
+body.sr-screen-mode[data-screen="assistant"] #billingDashboard {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  overflow: visible !important;
+}
+body.sr-screen-mode[data-screen="assistant"] #billingDashboard > *:not(#ownerCommandCenter) {
+  display: none !important;
+}
+body.sr-screen-mode[data-screen="assistant"] #ownerCommandCenter {
+  margin-top: 0 !important;
+}
+body.sr-screen-mode[data-screen="assistant"] #customersView,
+body.sr-screen-mode[data-screen="assistant"] .customer-pane {
+  display: none !important;
+}
+
+/* Backup & Restore screen: unhide and pull backupControls to top */
+body.sr-screen-mode[data-screen="backup"] #customersView,
+body.sr-screen-mode[data-screen="backup"] .customer-pane {
+  display: none !important;
+}
+body.sr-screen-mode[data-screen="backup"] .app-footer {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+body.sr-screen-mode[data-screen="backup"] .app-footer > span,
+body.sr-screen-mode[data-screen="backup"] .app-footer .footer-export,
+body.sr-screen-mode[data-screen="backup"] .app-footer .backup-controls-toggle {
+  display: none !important;
+}
+body.sr-screen-mode[data-screen="backup"] #backupControls {
+  display: block !important;
+  margin-top: 0 !important;
+}
+

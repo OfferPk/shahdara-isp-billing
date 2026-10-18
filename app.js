@@ -1993,6 +1993,24 @@ setupKeyboardShortcuts({
       s.select?.();
     }
   },
+  onQuickCollect: () => {
+    window.quickCollectModalController?.open();
+  },
+  onFastSearch: () => {
+    window.fastCustomerSearchController?.open();
+  },
+  onPendingActions: () => {
+    window.pendingActionsController?.open();
+  },
+  onCollectionRounds: () => {
+    $('#quickActionTileRounds')?.click();
+  },
+  onToggleLanguage: () => {
+    $('#languageToggleBtn')?.click();
+  },
+  onTopDefaulters: () => {
+    $('#quickActionTopDefaulters')?.click();
+  },
   onToast: toast
 });
 mobileActionSheetController = setupMobileActionSheet({

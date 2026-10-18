@@ -2,6 +2,8 @@
  * Navigation Drawer & Responsive Navigation Management (agent2 - shahdara-mobile-nav)
  */
 
+import { trapModalFocus } from './nav-accessibility.js';
+
 export function setupNavigationDrawer({
   onNavigate,
   onBackup
@@ -608,6 +610,12 @@ export function setupKeyboardShortcuts({
   onToggleDrawer,
   onToggleRail,
   onSearchFocus,
+  onQuickCollect,
+  onFastSearch,
+  onPendingActions,
+  onCollectionRounds,
+  onToggleLanguage,
+  onTopDefaulters,
   onToast
 } = {}) {
   if (typeof document === 'undefined') {
@@ -618,15 +626,25 @@ export function setupKeyboardShortcuts({
   const closeBtn = document.getElementById('shortcutsModalCloseBtn');
   const helpBtn = document.getElementById('shortcutsHelpButton');
   const drawerHelpBtn = document.getElementById('navDrawerShortcutsBtn');
+  const moreHelpBtn = document.getElementById('mobileMoreShortcutsBtn');
+
+  let releaseTrap = null;
 
   function openHelp() {
     if (modal) {
       if (modal.showModal) modal.showModal();
       else modal.setAttribute('open', '');
+      releaseTrap = trapModalFocus(modal, {
+        onEscape: closeHelp
+      });
     }
   }
 
   function closeHelp() {
+    if (releaseTrap) {
+      releaseTrap();
+      releaseTrap = null;
+    }
     if (modal) {
       if (modal.close) modal.close();
       else modal.removeAttribute('open');
@@ -637,6 +655,16 @@ export function setupKeyboardShortcuts({
     if (helpBtn.dataset) helpBtn.dataset.wiredShortcuts = 'true';
     else if (helpBtn.setAttribute) helpBtn.setAttribute('data-wired-shortcuts', 'true');
     helpBtn.addEventListener('click', openHelp);
+  }
+
+  if (moreHelpBtn && !moreHelpBtn.dataset?.wiredShortcuts) {
+    if (moreHelpBtn.dataset) moreHelpBtn.dataset.wiredShortcuts = 'true';
+    else if (moreHelpBtn.setAttribute) moreHelpBtn.setAttribute('data-wired-shortcuts', 'true');
+    moreHelpBtn.addEventListener('click', () => {
+      const moreMenu = document.getElementById('mobileMoreMenu');
+      if (moreMenu) moreMenu.hidden = true;
+      openHelp();
+    });
   }
 
   if (drawerHelpBtn && !drawerHelpBtn.dataset?.wiredShortcuts) {
@@ -720,6 +748,50 @@ export function setupKeyboardShortcuts({
       if (navMap[keyNum]) {
         event.preventDefault();
         if (typeof onNavigate === 'function') onNavigate(navMap[keyNum]);
+        return;
+      }
+
+      const altKeyLower = event.key ? event.key.toLowerCase() : '';
+      if (altKeyLower === 'c') {
+        event.preventDefault();
+        if (typeof onQuickCollect === 'function') onQuickCollect();
+        else document.getElementById('quickActionTileQuickCollect')?.click();
+        return;
+      }
+      if (altKeyLower === 's') {
+        event.preventDefault();
+        if (typeof onFastSearch === 'function') onFastSearch();
+        else document.getElementById('mobileCustomerSearchTrigger')?.click();
+        return;
+      }
+      if (altKeyLower === 'p') {
+        event.preventDefault();
+        if (typeof onPendingActions === 'function') onPendingActions();
+        else document.getElementById('topbarPendingActionsBtn')?.click();
+        return;
+      }
+      if (altKeyLower === 'r') {
+        event.preventDefault();
+        if (typeof onCollectionRounds === 'function') onCollectionRounds();
+        else document.getElementById('quickActionTileRounds')?.click();
+        return;
+      }
+      if (altKeyLower === 'd') {
+        event.preventDefault();
+        if (typeof onTopDefaulters === 'function') onTopDefaulters();
+        else document.getElementById('quickActionTopDefaulters')?.click();
+        return;
+      }
+      if (altKeyLower === 'l') {
+        event.preventDefault();
+        if (typeof onToggleLanguage === 'function') onToggleLanguage();
+        else document.getElementById('languageToggleBtn')?.click();
+        return;
+      }
+      if (altKeyLower === 't') {
+        event.preventDefault();
+        if (typeof onToggleTheme === 'function') onToggleTheme();
+        else document.getElementById('themeToggle')?.click();
         return;
       }
     }
@@ -811,6 +883,48 @@ export function setupKeyboardShortcuts({
         } else {
           document.getElementById('sidebarRailToggle')?.click();
         }
+        return;
+      }
+
+      if (keyLower === 'c') {
+        event.preventDefault();
+        if (typeof onQuickCollect === 'function') onQuickCollect();
+        else document.getElementById('quickActionTileQuickCollect')?.click();
+        return;
+      }
+
+      if (keyLower === 's') {
+        event.preventDefault();
+        if (typeof onFastSearch === 'function') onFastSearch();
+        else document.getElementById('mobileCustomerSearchTrigger')?.click();
+        return;
+      }
+
+      if (keyLower === 'p') {
+        event.preventDefault();
+        if (typeof onPendingActions === 'function') onPendingActions();
+        else document.getElementById('topbarPendingActionsBtn')?.click();
+        return;
+      }
+
+      if (keyLower === 'r') {
+        event.preventDefault();
+        if (typeof onCollectionRounds === 'function') onCollectionRounds();
+        else document.getElementById('quickActionTileRounds')?.click();
+        return;
+      }
+
+      if (keyLower === 'd') {
+        event.preventDefault();
+        if (typeof onTopDefaulters === 'function') onTopDefaulters();
+        else document.getElementById('quickActionTopDefaulters')?.click();
+        return;
+      }
+
+      if (keyLower === 'l') {
+        event.preventDefault();
+        if (typeof onToggleLanguage === 'function') onToggleLanguage();
+        else document.getElementById('languageToggleBtn')?.click();
         return;
       }
     }
@@ -6066,6 +6180,19 @@ export {
   updatePendingActionsBadges,
   setupPendingActionsModal
 } from './nav-pending-actions.js';
+
+export {
+  A11Y_LIVE_REGION_ID,
+  A11Y_ALERT_REGION_ID,
+  ensureLiveRegions,
+  announceToScreenReader,
+  trapModalFocus,
+  announcePaymentSuccess,
+  setupAccessibleKeyboardShortcuts,
+  A11Y_AUDIT_CHECKLIST,
+  verifyAccessibilityStandards
+} from './nav-accessibility.js';
+
 
 
 

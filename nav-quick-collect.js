@@ -22,6 +22,10 @@ import {
   markReceiptShared,
   renderReceiptSharedBadgeHtml
 } from './nav-quick-profile.js';
+import {
+  announcePaymentSuccess,
+  trapModalFocus
+} from './nav-accessibility.js';
 
 export const QUICK_COLLECT_STORAGE_KEY = 'shahdara_quick_collect_last_used_v1';
 export const QUICK_COLLECT_AUDIT_KEY = 'shahdara_quick_collect_audits_v1';
@@ -664,6 +668,8 @@ export function setupQuickCollectModal({
     }
   }
 
+  let releaseFocusTrap = null;
+
   function openModal(defaultCustomerId = null) {
     updateCounts();
     if (defaultCustomerId) {
@@ -685,9 +691,18 @@ export function setupQuickCollectModal({
     } else {
       modal.setAttribute('open', '');
     }
+
+    releaseFocusTrap = trapModalFocus(modal, {
+      onEscape: closeModal
+    });
   }
 
   function closeModal() {
+    if (releaseFocusTrap) {
+      releaseFocusTrap();
+      releaseFocusTrap = null;
+    }
+
     if (typeof modal.close === 'function') {
       try {
         if (modal.open) modal.close();
@@ -808,6 +823,13 @@ export function setupQuickCollectModal({
 
       showStep('success');
       updateCounts();
+
+      // Accessible screen reader announcement and programmatic focus
+      announcePaymentSuccess(receipt);
+      setTimeout(() => {
+        const successHeading = document.getElementById('quickCollectSuccessHeading') || whatsAppBtn;
+        successHeading?.focus();
+      }, 60);
 
     } catch (err) {
       if (typeof onToast === 'function') {

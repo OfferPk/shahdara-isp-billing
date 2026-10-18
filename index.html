@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="./dashboard.css?v=1.10.0">
   <link rel="stylesheet" href="./nav.css?v=1.10.0">
   <link rel="stylesheet" href="./screen-router.css?v=1.10.0">
+  <link rel="stylesheet" href="./bulk-collect.css?v=1.10.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -18406,7 +18407,7 @@
 
         <div class="qc-filter-pills" role="tablist" aria-label="Customer filter">
           <button type="button" class="quick-collect-filter-chip is-active" data-filter="all-dues" role="tab" aria-selected="true">
-            With Dues (<span id="quickCollectDuesCount">0</span>)
+            Pending (<span id="quickCollectDuesCount">0</span>)
           </button>
           <button type="button" class="quick-collect-filter-chip" data-filter="high-dues" role="tab" aria-selected="false">
             High Dues ≥ 2k (<span id="quickCollectHighDuesCount">0</span>)
@@ -19896,5 +19897,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   <script type="module" src="./app.js?v=1.10.0"></script>
   <script type="module" src="./screen-router.js?v=1.10.0"></script>
+  <script type="module" src="./bulk-collect.js?v=1.10.0"></script>
+  <script type="module" src="./collect-setup.js?v=1.10.0"></script>
 </body>
 </html>

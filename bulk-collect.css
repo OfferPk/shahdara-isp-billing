@@ -1,0 +1,136 @@
+/* Bulk Collect Cash (bulk-collect.js). Mobile-first; matches Quick Collect / app greens. */
+.bc-open-btn {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px 8px;
+  width: 100%; min-height: 48px; padding: 8px 14px;
+  border: 1px dashed var(--green, #0e5b4d); border-radius: 12px;
+  background: var(--mint, #e6f3ee); color: var(--green-dark, #094338);
+  font: 700 0.95rem 'DM Sans', system-ui, sans-serif; cursor: pointer;
+}
+.bc-open-btn small { font-weight: 500; font-size: 0.75rem; color: var(--muted, #586e65); }
+.bc-open-btn:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+
+.qc-all-collected h4 { color: var(--green-dark, #094338); }
+.qc-show-all-btn { margin-top: 10px; min-height: 44px; }
+
+#bulkCollectModal.bulk-collect-modal { width: min(640px, calc(100vw - 16px)); max-width: none; padding: 0; }
+#bulkCollectModal .bulk-collect-card {
+  display: flex; flex-direction: column; gap: 12px;
+  max-height: calc(100dvh - 24px); overflow-y: auto; padding: 16px;
+}
+#bulkCollectModal .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+#bulkCollectModal h2 { margin: 2px 0 0; font: 700 1.25rem Manrope, system-ui, sans-serif; }
+
+.bc-batch-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.bc-field { display: grid; gap: 4px; min-width: 0; color: #546b61; font-size: 0.75rem; font-weight: 700; }
+.bc-field input, .bc-field select {
+  width: 100%; min-height: 44px; padding: 0 10px; font-size: 16px;
+  border: 1px solid var(--line, #dce6e1); border-radius: 10px; background: var(--surface, #fff); color: var(--ink, #172e29);
+}
+.bc-field input:disabled { background: var(--surface-soft, #f6f9f7); color: var(--muted, #586e65); }
+.bc-totals {
+  display: grid; align-content: center; gap: 1px; padding: 8px 12px; border-radius: 12px;
+  background: var(--green, #0e5b4d); color: #fff;
+}
+.bc-totals-label { font-size: 0.68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; opacity: .85; }
+.bc-totals strong { font: 800 1.2rem Manrope, system-ui, sans-serif; }
+.bc-totals span:last-child { font-size: 0.78rem; opacity: .9; }
+
+.bc-entry { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line, #dce6e1); border-radius: 14px; background: var(--surface-soft, #f6f9f7); }
+.bc-selected { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; min-height: 22px; font-size: 0.85rem; color: var(--muted, #586e65); }
+.bc-selected strong { color: var(--ink, #172e29); font-size: 0.95rem; }
+.bc-selected em { font-style: normal; font-weight: 700; color: var(--amber, #9a5e06); }
+.bc-entry-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.bc-entry-grid .bc-note { grid-column: 1 / -1; }
+.bc-add-btn { min-height: 48px; font-size: 0.95rem; }
+.bc-add-btn:disabled, #bulkCollectSaveBtn:disabled { opacity: .5; cursor: not-allowed; }
+
+.bc-picker { display: grid; gap: 6px; }
+.bc-hint { margin: 0; font-size: 0.72rem; color: var(--muted, #586e65); }
+.bc-pick-list { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; padding: 2px; }
+.bc-pick-card {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  min-height: 54px; padding: 8px 10px; text-align: left; cursor: pointer;
+  border: 1px solid var(--line, #e2e8f0); border-radius: 10px; background: var(--surface, #fff); color: var(--ink, #172e29);
+}
+.bc-pick-card.is-selected { border-color: var(--green, #0e5b4d); background: var(--mint, #e6f3ee); box-shadow: inset 0 0 0 1px var(--green, #0e5b4d); }
+.bc-pick-card.is-in-batch { opacity: .8; border-style: dashed; }
+.bc-check { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line, #cbd5e1); color: #fff; font-weight: 800; }
+.bc-pick-card.is-selected .bc-check { background: var(--green, #0e5b4d); border-color: var(--green, #0e5b4d); }
+.bc-pick-info { display: grid; min-width: 0; }
+.bc-pick-name { font-weight: 700; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-pick-meta { font-size: 0.75rem; color: var(--muted, #586e65); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bc-pick-due { font-weight: 800; font-size: 0.85rem; color: #b42318; white-space: nowrap; }
+.bc-added-tag { color: var(--green, #0e5b4d); }
+
+.bc-review { display: grid; gap: 6px; }
+.bc-review-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bc-review-head h3 { margin: 0; font: 700 1rem Manrope, system-ui, sans-serif; }
+.bc-review-head .secondary-button { min-height: 44px; }
+.bc-review-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bc-review-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--line, #dce6e1); border-radius: 10px; background: var(--surface, #fff);
+}
+.bc-review-main { display: grid; min-width: 0; font-size: 0.88rem; }
+.bc-review-meta { font-size: 0.72rem; color: var(--muted, #586e65); overflow-wrap: anywhere; }
+.bc-review-amt { font-size: 0.9rem; white-space: nowrap; }
+.bc-dup-flag { color: var(--amber, #9a5e06); }
+.bc-remove-btn {
+  min-height: 44px; min-width: 44px; padding: 0 10px; border-radius: 9px; cursor: pointer;
+  border: 1px solid #f3c4c0; background: #fff5f4; color: #b42318; font-weight: 700; font-size: 0.78rem;
+}
+.bc-review-empty { padding: 10px; text-align: center; font-size: 0.82rem; color: var(--muted, #586e65); }
+.bc-status { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); }
+.bc-status[data-kind="error"] { background: #fff1f0; color: #b42318; }
+.bc-footer { position: sticky; bottom: -16px; margin: 0 -16px -16px; padding: 10px 16px 16px; background: linear-gradient(transparent, var(--surface, #fff) 30%); }
+#bulkCollectSaveBtn { width: 100%; min-height: 52px; font-size: 1rem; font-weight: 800; border-radius: 12px; }
+
+#bulkDuplicateDialog.bulk-duplicate-modal { width: min(400px, calc(100vw - 28px)); padding: 18px; border-color: #f0c36d; }
+#bulkDuplicateDialog h2 { margin: 0 0 8px; font: 800 1.15rem Manrope, system-ui, sans-serif; color: var(--amber, #9a5e06); }
+.bc-dup-body p { margin: 0 0 10px; font-size: 0.88rem; }
+.bc-dup-grid { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--amber-bg, #fff5df); }
+.bc-dup-grid dt { font-size: 0.75rem; font-weight: 700; color: #7a5a17; }
+.bc-dup-grid dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.bc-dup-warn { color: var(--muted, #586e65); font-size: 0.78rem !important; }
+.bc-dup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.bc-dup-actions button { min-height: 48px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+.bc-dup-confirm { border: 1px solid #b42318; background: #b42318; color: #fff; }
+
+@media (max-width: 380px) {
+  .bc-batch-row, .bc-entry-grid { grid-template-columns: 1fr; }
+}
+
+[data-theme="dark"] .bc-pick-card, [data-theme="dark"] .bc-review-item { background: var(--surface, #14241f); border-color: var(--line, #253d35); }
+[data-theme="dark"] .bc-entry { background: #10201b; }
+[data-theme="dark"] .bc-dup-grid { background: #3a2c10; }
+[data-theme="dark"] .bc-dup-grid dt { color: #f0c36d; }
+[data-theme="dark"] .bc-remove-btn { background: #3a1513; border-color: #6b2622; color: #ffb4ab; }
+[data-theme="dark"] .bc-footer { background: linear-gradient(transparent, var(--surface, #14241f) 30%); }
+
+/* Quick Collect card was 95vw inside a padded dialog, so at 390px it overflowed to the right
+   (noted in #241). Fit it to the dialog instead; the desktop max width is unchanged. */
+#quickCollectModal .quick-collect-card { width: 100%; max-width: 620px; min-width: 0; }
+#quickCollectModal .qc-customer-card { min-width: 0; }
+
+/* #248 empty state + "Set packages & monthly fee" dialog (collect-setup.js) */
+.qc-needs-setup p strong { color: var(--ink, #172e29); }
+.qc-setup-actions { display: grid; gap: 8px; width: 100%; max-width: 320px; margin: 10px auto 0; }
+.qc-setup-actions button { min-height: 48px; width: 100%; font-size: 0.9rem; }
+.qc-generate-result { margin: 10px 0 0; font-size: 0.82rem; font-weight: 600; color: var(--amber, #9a5e06); }
+#collectSetupModal.collect-setup-modal { width: min(520px, calc(100vw - 16px)); padding: 0; }
+#collectSetupModal .collect-setup-card { display: flex; flex-direction: column; gap: 10px; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 16px; }
+#collectSetupModal .modal-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+#collectSetupModal h2 { margin: 2px 0 0; font: 700 1.2rem Manrope, system-ui, sans-serif; }
+.cs-note { margin: 0; font-size: 0.8rem; color: var(--muted, #586e65); }
+.cs-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.cs-list-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; font-weight: 700; }
+.cs-select-all { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.cs-select-all input, .cs-row input { width: 22px; height: 22px; accent-color: var(--green, #0e5b4d); }
+.cs-list { display: grid; gap: 6px; max-height: 320px; overflow-y: auto; }
+.cs-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 6px 10px; border: 1px solid var(--line, #dce6e1); border-radius: 10px; cursor: pointer; background: var(--surface, #fff); }
+.cs-row span { display: grid; min-width: 0; }
+.cs-row small { color: var(--muted, #586e65); font-size: 0.75rem; }
+.cs-empty { margin: 0; padding: 12px; text-align: center; color: var(--muted, #586e65); }
+.cs-apply { min-height: 52px; font-size: 1rem; font-weight: 800; border-radius: 12px; }
+.cs-apply:disabled { opacity: .5; cursor: not-allowed; }
+[data-theme="dark"] .cs-row { background: var(--surface, #14241f); border-color: var(--line, #253d35); }

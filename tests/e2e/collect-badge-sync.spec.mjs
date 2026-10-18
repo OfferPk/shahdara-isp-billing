@@ -50,15 +50,14 @@ test.describe('Issue #255: Collect badge synchronization with pending dues', () 
     const bulkModal = page.locator('#bulkCollectModal');
     await expect(bulkModal).toBeVisible();
 
-    // Pick 3 customers in Bulk Collect
-    const cards = bulkModal.locator('.bc-pick-card');
-    await expect(cards.first()).toBeVisible();
-
-    // Multi-select 3 customers
-    await cards.nth(0).click();
-    await cards.nth(1).click();
-    await cards.nth(2).click();
-    await page.locator('#bulkCollectAddBtn').click();
+    // Add 3 customers in Bulk Collect (v2 rows: due prefilled in each row's amount box;
+    // an added row leaves the list, so the next pending customer moves to the top).
+    const rows = bulkModal.locator('.bc-row');
+    await expect(rows.first()).toBeVisible();
+    for (let i = 0; i < 3; i++) {
+      await rows.first().locator('[data-bulk-add]').click();
+      await expect(page.locator('#bulkCollectCount')).toHaveText(`${i + 1} customer${i ? 's' : ''}`);
+    }
     await expect(page.locator('#bulkCollectCount')).toHaveText('3 customers');
 
     // Save payments

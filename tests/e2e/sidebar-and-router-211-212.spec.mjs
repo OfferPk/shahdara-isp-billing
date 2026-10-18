@@ -45,15 +45,14 @@ test.describe('Mobile bottom navigation 5-item bar (#211)', () => {
     await page.locator('#mobileActionSheetClose').click();
     await expect(page.locator('#mobileActionSheet')).toBeHidden();
 
-    // Verify Action sheet trigger in FAB speed dial
+    // Verify Action sheet stays available via More menu, and speed dial FAB operates
     const speedDialFab = page.locator('#speedDialTrigger');
     await expect(speedDialFab).toBeVisible();
     await speedDialFab.click();
-
-    const actionSheetFabBtn = page.locator('#speedDialActionSheetBtn');
-    await expect(actionSheetFabBtn).toBeVisible();
-    await actionSheetFabBtn.click();
-    await expect(page.locator('#mobileActionSheet')).toBeVisible();
+    await expect(page.locator('#speedDialMenu')).toBeVisible();
+    await expect(page.locator('#speedDialMenu button.speed-dial-action')).toHaveCount(5);
+    await speedDialFab.click();
+    await expect(page.locator('#speedDialMenu')).toBeHidden();
 
     expect(errors).toEqual([]);
   });
@@ -77,9 +76,9 @@ test.describe('Desktop persistent sidebar navigation (#212)', () => {
     const backdrop = page.locator('#navDrawerBackdrop');
     await expect(backdrop).toBeHidden();
 
-    // Drawer close and hamburger toggle should be hidden on desktop
+    // Drawer close should be hidden on desktop (persistent sidebar)
     await expect(page.locator('#navDrawerClose')).toBeHidden();
-    await expect(page.locator('#navDrawerToggle')).toBeHidden();
+    await expect(page.locator('#navDrawerToggle')).toBeVisible();
 
     // Verify grouped drawer navigation items
     const homeNav = page.locator('#navDrawer [data-nav-target="home"]');

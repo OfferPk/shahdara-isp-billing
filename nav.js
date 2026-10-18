@@ -56,6 +56,12 @@ export function setupNavigationDrawer({
   if (toggleBtn && !toggleBtn.dataset.wiredDrawer) {
     toggleBtn.dataset.wiredDrawer = 'true';
     toggleBtn.addEventListener('click', () => {
+      if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+        if (document.body?.classList?.contains('sidebar-rail-collapsed')) {
+          document.body.classList.remove('sidebar-rail-collapsed');
+        }
+        return;
+      }
       if (drawer.classList.contains('is-open')) closeDrawer();
       else openDrawer();
     });

@@ -869,6 +869,9 @@ function switchView(view, { pushHistory = true } = {}) {
     }
   }
 }
+if (typeof window !== 'undefined') {
+  window.switchView = switchView;
+}
 for (const [name, [tabId]] of Object.entries(profileTabMap)) $(`#${tabId}`).addEventListener('click', () => activateProfileTab(name));
 $('.profile-tabs').addEventListener('keydown', event => {
   const names = Object.keys(profileTabMap);

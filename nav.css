@@ -436,9 +436,12 @@ body.drawer-open {
     pointer-events: none !important;
   }
 
-  .nav-drawer-close,
-  .nav-drawer-toggle {
+  .nav-drawer-close {
     display: none !important;
+  }
+
+  body.drawer-open {
+    overflow: auto !important;
   }
 
   .topbar,

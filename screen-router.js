@@ -298,7 +298,8 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     if (applying) return;
     const target = url != null && String(url).includes('#') ? String(url).slice(String(url).indexOf('#')) : '';
     if (target && isCollectHash(target)) return collect.push(state);
-    const result = nativePush(state, title, url);
+    const useReplace = Boolean(history.state && history.state.modalDialogId);
+    const result = useReplace ? nativeReplace(state, title, url) : nativePush(state, title, url);
     if (!pendingIntent && !applying && url != null) {
       const route = parseRoute(String(url).includes('#') ? String(url).slice(String(url).indexOf('#')) : '');
       if (route && route.screen !== HOME) {

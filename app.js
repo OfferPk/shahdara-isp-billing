@@ -2316,20 +2316,24 @@ if (!storageAvailable) toast('Browser storage is unavailable. Entries may not pe
 void checkAutomaticBackup();
 
 function initTheme() {
-  const toggle = $('#themeToggle');
-  if (!toggle) return;
+  const toggles = document.querySelectorAll('#themeToggle, #drawerThemeToggleBtn, .theme-toggle');
+  if (!toggles.length) return;
   const getTheme = () => document.documentElement.getAttribute('data-theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   const applyTheme = (theme) => {
     document.documentElement.setAttribute('data-theme', theme);
     try { localStorage.setItem('shahdara_theme', theme); } catch {}
     const meta = $('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', theme === 'dark' ? '#0c1412' : '#0e5b4d');
-    toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
-    toggle.setAttribute('title', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+    toggles.forEach(toggle => {
+      toggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+      toggle.setAttribute('title', theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme');
+    });
   };
-  toggle.addEventListener('click', () => {
-    const next = getTheme() === 'dark' ? 'light' : 'dark';
-    applyTheme(next);
+  toggles.forEach(toggle => {
+    toggle.addEventListener('click', () => {
+      const next = getTheme() === 'dark' ? 'light' : 'dark';
+      applyTheme(next);
+    });
   });
   applyTheme(getTheme());
 }

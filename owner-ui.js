@@ -191,13 +191,13 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   $('#mobileMoreButton')?.addEventListener('click',()=>{const menu=$('#mobileMoreMenu'),open=menu.hidden;menu.hidden=!open;$('#mobileMoreButton').setAttribute('aria-expanded',String(open));});
   document.querySelectorAll('[data-mobile-nav]').forEach(button=>button.addEventListener('click',()=>{
     const action=button.dataset.mobileNav;
-    if(action==='more'){document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));return;}
+    if(action==='more'){document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));try{history.pushState({view:'more'},'','#more');}catch{}return;}
     $('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');
     document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));
-    if(action==='home'){switchView('customers');document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));$('#billingDashboard').scrollIntoView({behavior:'smooth',block:'start'});}
-    else if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});}
-    else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}}
-    else if(action==='reports'){switchView('reports');$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
+    if(action==='home'){switchView('customers');document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));$('#billingDashboard').scrollIntoView({behavior:'smooth',block:'start'});try{history.pushState({view:'home'},'','#home');}catch{}}
+    else if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});try{history.pushState({view:'customers'},'','#customers');}catch{}}
+    else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}try{history.pushState({view:'collection'},'','#collect');}catch{}}
+    else if(action==='reports'){switchView('reports');$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});try{history.pushState({view:'reports'},'','#reports');}catch{}}
   }));
   document.querySelectorAll('[data-mobile-more]').forEach(button=>button.addEventListener('click',()=>{
     const action=button.dataset.mobileMore;$('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');

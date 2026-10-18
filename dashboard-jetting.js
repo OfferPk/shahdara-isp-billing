@@ -430,7 +430,7 @@ export function renderDuctJettingSvg(metrics) {
   const maxReachW = Math.min(220, Math.round((dynamics.maxJettingDistanceM / maxScaleMeters) * 220));
 
   return `
-    <svg class="chart-svg duct-jetting-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img"
+    <svg class="chart-svg duct-jetting-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img"
       aria-label="Underground Duct Hydraulic Pressure and Cable Jetting Friction Diagram">
       <defs>
         <linearGradient id="ductWallGrad" x1="0" y1="0" x2="0" y2="1">

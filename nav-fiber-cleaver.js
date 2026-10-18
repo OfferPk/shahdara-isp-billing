@@ -353,7 +353,7 @@ export function renderCleaverDialSvg(metrics, options = {}) {
   const angleNeedleX = angleBarX + Math.min(angleBarWidth, (metrics.measuredCleaveAngle / maxDisplayAngle) * angleBarWidth);
 
   return `
-<svg class="cleaver-dial-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fiber Cleaver Rotary Blade Wear and Quality Gauge">
+<svg class="cleaver-dial-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fiber Cleaver Rotary Blade Wear and Quality Gauge">
   <defs>
     <linearGradient id="cleaverBgGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#090d16" />

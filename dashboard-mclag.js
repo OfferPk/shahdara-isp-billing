@@ -450,7 +450,7 @@ export function renderMclagDiagramSvg(metrics, { compact = false } = {}) {
 
   if (compact) {
     return `
-      <svg class="mclag-svg mclag-compact-svg" viewBox="0 0 560 220" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MC-LAG Dual-Chassis Summary Diagram">
+      <svg class="mclag-svg mclag-compact-svg" viewBox="0 0 560 220" width="100%" style="height: auto; max-width: 100%; display: block;" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MC-LAG Dual-Chassis Summary Diagram">
         <!-- Chassis A -->
         <rect x="40" y="30" width="180" height="65" rx="6" fill="currentColor" fill-opacity="0.05" stroke="${switchAColor}" stroke-width="2" />
         <text x="50" y="52" font-size="11" font-weight="700" fill="currentColor">CHASSIS A (Master)</text>
@@ -484,7 +484,7 @@ export function renderMclagDiagramSvg(metrics, { compact = false } = {}) {
   }
 
   return `
-    <svg class="mclag-svg mclag-modal-svg" viewBox="0 0 780 340" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MC-LAG Dual-Chassis Architecture & Forwarding Topology Diagram">
+    <svg class="mclag-svg mclag-modal-svg" viewBox="0 0 780 340" width="100%" style="height: auto; max-width: 100%; display: block;" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MC-LAG Dual-Chassis Architecture & Forwarding Topology Diagram">
       <defs>
         <linearGradient id="mclagChassisGrad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#0284c7" stop-opacity="0.15"/>

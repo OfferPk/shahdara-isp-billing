@@ -520,7 +520,7 @@ export function renderOtdrTraceSvg(otdrData, options = {}) {
   const height = options.height || 260;
 
   if (!otdrData || !otdrData.selectedRoute) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="OTDR Fiber Fault Locator Trace">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="OTDR Fiber Fault Locator Trace">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
         No OTDR fiber telemetry available
@@ -680,7 +680,7 @@ export function renderOtdrTraceSvg(otdrData, options = {}) {
   }
 
   return `
-    <svg class="chart-svg otdr-trace-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="OTDR Fiber Fault Locator Trace">
+    <svg class="chart-svg otdr-trace-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="OTDR Fiber Fault Locator Trace">
       <defs>
         <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="${traceColor}" stop-opacity="0.35" />

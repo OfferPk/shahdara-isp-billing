@@ -487,7 +487,7 @@ export function renderBillingCorrectnessSvg(auditData, options = {}) {
   const paidOffset = circumference - (circumference * Math.min(100, Math.max(0, paidRatio))) / 100;
 
   return `
-<svg viewBox="0 0 920 420" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" class="billing-correctness-svg" role="img" aria-label="Billing Correctness Audit Diagram">
+<svg viewBox="0 0 920 420" width="100%" height="420" xmlns="http://www.w3.org/2000/svg" class="billing-correctness-svg" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Billing Correctness Audit Diagram">
   <defs>
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0f172a"/>
@@ -1232,6 +1232,23 @@ export function setupBillingCorrectnessModal({ getState, storage = globalThis.lo
   if (shareWaBtn) shareWaBtn.addEventListener('click', () => shareWhatsApp());
   if (exportCsvBtn) exportCsvBtn.addEventListener('click', () => exportCsv());
   if (discFilterSelect) discFilterSelect.addEventListener('change', () => renderDiscrepancies());
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        const rect = modal.getBoundingClientRect();
+        const isInDialog = (
+          rect.top <= e.clientY &&
+          e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX &&
+          e.clientX <= rect.left + rect.width
+        );
+        if (!isInDialog && typeof modal.close === 'function') {
+          modal.close();
+        }
+      }
+    });
+  }
 
   return {
     open() {

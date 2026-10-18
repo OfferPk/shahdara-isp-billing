@@ -247,7 +247,7 @@ export function renderReferenceJumpersSvg(metrics, options = {}) {
   const yCenter = 100;
 
   return `
-  <svg class="ref-jumpers-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Optical Reference Test Cords and Referencing Method Diagram">
+  <svg class="ref-jumpers-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Optical Reference Test Cords and Referencing Method Diagram">
     <!-- Background Canvas -->
     <rect width="${width}" height="${height}" rx="10" fill="${bgColor}" stroke="${borderColor}" stroke-width="1.5"/>
 

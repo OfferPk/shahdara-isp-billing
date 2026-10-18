@@ -321,7 +321,7 @@ export function renderOtdrGhostArtifactSvg(analysis) {
   `;
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" class="otdr-ghost-svg" width="100%" height="auto" role="img" aria-label="OTDR Ghost Echo Elimination Diagram">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" class="otdr-ghost-svg" width="100%" height="${height}" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="OTDR Ghost Echo Elimination Diagram">
       <defs>
         <linearGradient id="traceGrad" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#38bdf8"/>
@@ -333,7 +333,7 @@ export function renderOtdrGhostArtifactSvg(analysis) {
       <rect width="${width}" height="${height}" rx="12" fill="#0b1120" stroke="#1e293b" stroke-width="1.5"/>
 
       <!-- Header Banner -->
-      <rect x="0" y="0" width="${width}" height="42" fill="#0f172a" rx="12 12 0 0"/>
+      <rect x="0" y="0" width="${width}" height="42" fill="#0f172a" rx="12"/>
       <text x="24" y="26" fill="#f8fafc" font-size="13" font-weight="700" letter-spacing="0.5">OTDR GHOST ECHO ARTIFACT &amp; MULTI-PATH REFLECTION METROLOGY</text>
       <text x="${width - 24}" y="26" text-anchor="end" fill="#94a3b8" font-size="11">TELCORDIA GR-196-CORE / ITU-T G.650.1</text>
 

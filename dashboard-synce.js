@@ -453,7 +453,7 @@ export function calculateSyncEMetrics(state, options = {}) {
  */
 export function renderSyncEClockSvg(syncData, { compact = false, width = 560, height = 280 } = {}) {
   if (!syncData || !syncData.selectedNode) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="SyncE Clock Synchronization: No data">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="SyncE Clock Synchronization: No data">
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" fill="var(--muted, #71817c)">No clock telemetry recorded</text>
     </svg>`;
   }
@@ -480,7 +480,7 @@ export function renderSyncEClockSvg(syncData, { compact = false, width = 560, he
       ? '#ef4444'
       : (selectedNode.absPhaseErrorNs > SYNCE_CONSTANTS.TARGET_PHASE_ERROR_MAX_NS ? '#f59e0b' : '#10b981');
 
-    return `<svg class="chart-svg synce-compact-svg" viewBox="0 0 ${cWidth} ${cHeight}" width="100%" height="auto" role="img" aria-label="SyncE Phase Error Dial: ${selectedNode.name}, ${selectedNode.effectivePhaseErrorNs} ns, Status ${selectedNode.syncStateLabel}">
+    return `<svg class="chart-svg synce-compact-svg" viewBox="0 0 ${cWidth} ${cHeight}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="SyncE Phase Error Dial: ${selectedNode.name}, ${selectedNode.effectivePhaseErrorNs} ns, Status ${selectedNode.syncStateLabel}">
       <!-- Gauge Track Arc -->
       <path d="M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}" fill="none" stroke="var(--line, #e2ece7)" stroke-width="12" stroke-linecap="round"/>
       
@@ -642,7 +642,7 @@ export function renderSyncEClockSvg(syncData, { compact = false, width = 560, he
     ? '#ef4444'
     : (selectedNode.absPhaseErrorNs > SYNCE_CONSTANTS.TARGET_PHASE_ERROR_MAX_NS ? '#f59e0b' : '#0284c7');
 
-  return `<svg class="chart-svg synce-modal-svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" height="auto" role="img" aria-label="SyncE Clock Synchronization Tree and Phase Error Trajectory">
+  return `<svg class="chart-svg synce-modal-svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="SyncE Clock Synchronization Tree and Phase Error Trajectory">
     <!-- Header Labels -->
     <text x="70" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--muted, #71817c)">
       CARRIER ETHERNET CLOCK TOPOLOGY TREE (ITU-T G.8262 ESMC &amp; IEEE 1588v2 PTP)

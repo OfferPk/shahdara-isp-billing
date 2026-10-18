@@ -1017,6 +1017,12 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
   if (closeSecondaryBtn) closeSecondaryBtn.addEventListener('click', () => { modal.close?.() || (modal.hidden = true); });
   if (openTile) openTile.addEventListener('click', () => { modal.showModal?.() || (modal.hidden = false); renderModalContent(); });
 
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.close?.();
+    });
+  }
+
   return {
     open: () => {
       modal.showModal?.() || (modal.hidden = false);

@@ -238,7 +238,7 @@ export function renderRibbonSeparatorSvg(metrics, options = {}) {
   });
 
   return `
-  <svg class="ribbon-separator-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="12-Fiber Ribbon De-Ribbonizer and Breakout Diagram">
+  <svg class="ribbon-separator-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="12-Fiber Ribbon De-Ribbonizer and Breakout Diagram">
     <!-- Background Canvas -->
     <rect width="${width}" height="${height}" rx="10" fill="${bgColor}" stroke="${borderColor}" stroke-width="1.5"/>
 

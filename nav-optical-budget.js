@@ -442,7 +442,7 @@ export function renderMobileOpticalBudgetSvg(budgetResult, { compact = false } =
   const statusColor = b.evaluation.pass ? (b.headroomMarginDb >= 4.0 ? '#10b981' : '#0284c7') : (b.headroomMarginDb >= 0 ? '#f59e0b' : '#ef4444');
 
   return `
-    <svg class="optical-budget-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Optical Link Budget Waterfall Power Chart">
+    <svg class="optical-budget-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Optical Link Budget Waterfall Power Chart">
       <!-- Background -->
       <rect x="0" y="0" width="${width}" height="${height}" rx="8" fill="transparent" />
 

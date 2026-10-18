@@ -353,7 +353,7 @@ export function renderMplsTpDiagramSvg(dynamics, options = {}) {
   const protectionRailColor = isProtectionCut ? '#ef4444' : isProtectionActive ? '#3b82f6' : '#94a3b8';
 
   return `
-  <svg class="mpls-tp-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MPLS-TP 1:1 Path Protection Architecture and Microsecond OAM Telemetry">
+  <svg class="mpls-tp-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MPLS-TP 1:1 Path Protection Architecture and Microsecond OAM Telemetry">
     <!-- Canvas Background -->
     <rect width="${width}" height="${height}" rx="10" fill="${bgColor}" stroke="${borderColor}" stroke-width="1.5"/>
 

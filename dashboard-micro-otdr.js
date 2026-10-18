@@ -762,7 +762,7 @@ export function renderMicroOtdrTraceSvg(metrics, { compact = false } = {}) {
   const statusLabel = m.linkStatus === 'Critical' ? 'CRITICAL FIBER BREAK' : m.linkStatus === 'Warning' ? 'LINK DEGRADATION' : 'LINK OPTIMAL';
 
   return `
-    <svg class="micro-otdr-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Micro-OTDR Reflection Event Trace Diagram">
+    <svg class="micro-otdr-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Micro-OTDR Reflection Event Trace Diagram">
       <defs>
         <linearGradient id="otdrTraceGradient" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#0284c7" stop-opacity="0.35"/>

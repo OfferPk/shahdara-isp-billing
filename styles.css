@@ -10526,6 +10526,95 @@ html, body {
   }
 }
 
+/* Daily Closing Receipts Table and Interactive Controls */
+.daily-closing-receipts-toolbar input[type="search"] {
+  background: var(--bg-surface, #ffffff);
+  color: var(--text-primary, #0f172a);
+  border: 1px solid var(--border-color, #cbd5e1);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.daily-closing-receipts-toolbar input[type="search"]:focus {
+  outline: none;
+  border-color: #0e5b4d;
+  box-shadow: 0 0 0 2px rgba(14, 91, 77, 0.2);
+}
+
+.daily-closing-receipts-wrap th[data-sort-dcr] {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.daily-closing-receipts-wrap th[data-sort-dcr]:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.daily-closing-receipts-wrap th[data-sort-dcr]:focus {
+  outline: 2px solid #0e5b4d;
+  outline-offset: -2px;
+}
+
+.daily-closing-receipts-wrap th[data-sort-dcr] .sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.daily-closing-receipts-wrap th[data-sort-dcr][aria-sort="ascending"] .sort-indicator,
+.daily-closing-receipts-wrap th[data-sort-dcr][aria-sort="descending"] .sort-indicator {
+  opacity: 1;
+  color: #0e5b4d;
+}
+
+[data-theme="dark"] .daily-closing-receipts-toolbar input[type="search"] {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .daily-closing-receipts-toolbar input[type="search"]:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="dark"] .daily-closing-receipts-wrap th[data-sort-dcr]:hover {
+  background: #334155 !important;
+}
+
+[data-theme="dark"] .daily-closing-receipts-wrap th[data-sort-dcr]:focus {
+  outline-color: #10b981;
+}
+
+[data-theme="dark"] .daily-closing-receipts-wrap th[data-sort-dcr][aria-sort="ascending"] .sort-indicator,
+[data-theme="dark"] .daily-closing-receipts-wrap th[data-sort-dcr][aria-sort="descending"] .sort-indicator {
+  color: #34d399;
+}
+
+[data-theme="dark"] #dailyClosingReceiptsCount {
+  background: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] #dailyClosingReceiptsClearInlineBtn {
+  color: #34d399 !important;
+}
+
+@media (max-width: 640px) {
+  .daily-closing-receipts-toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .daily-closing-receipts-toolbar input[type="search"] {
+    min-height: 44px;
+    font-size: 14px;
+  }
+  .daily-closing-receipts-toolbar button {
+    min-height: 44px;
+  }
+}
+
 
 
 

@@ -2,6 +2,8 @@
  * form-validation.js - Form validation and phone format helpers for Shahdara ISP Billing
  * Local-only, accessible, no external dependencies.
  */
+import { buildPayrollSummary } from './core.js';
+import { EXPENSE_CATEGORIES } from './phase3.js';
 
 /**
  * Validates a Pakistani or international phone number.
@@ -13330,5 +13332,149 @@ export function generateAreaSummaryCsv(areaRows) {
 
   return '\uFEFF' + [headers.map(escapeCsv).join(','), ...csvRows].join('\r\n');
 }
+
+/**
+ * Validates fields of the expense ledger form.
+ *
+ * @param {Object} fields - { date, amount, category, notes, area }
+ * @returns {{ valid: boolean, errors: Object, cleanFields: Object }}
+ */
+export function validateExpenseFormFields(fields = {}) {
+  const errors = {};
+  const date = String(fields.date || '').trim();
+  const amountStr = String(fields.amount || '').trim();
+  const category = String(fields.category || '').trim();
+  const notes = String(fields.notes || '').trim();
+  const area = String(fields.area || fields.mohalla || '').trim();
+
+  // Date validation
+  if (!date) {
+    errors.date = 'Payment date is required.';
+  } else if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    errors.date = 'Payment date must be in YYYY-MM-DD format.';
+  } else {
+    const parsed = new Date(`${date}T00:00:00Z`);
+    if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+      errors.date = 'Payment date must be a valid calendar date.';
+    }
+  }
+
+  // Amount validation
+  if (!amountStr) {
+    errors.amount = 'Expense amount is required.';
+  } else {
+    const amt = Number(amountStr);
+    if (!Number.isFinite(amt) || amt < 0.01) {
+      errors.amount = 'Expense amount must be greater than zero.';
+    }
+  }
+
+  // Category validation
+  const validCategories = Array.isArray(EXPENSE_CATEGORIES) ? EXPENSE_CATEGORIES : [
+    'Nayatel bill', 'Electricity', 'Salary — Saad', 'Salary — Umair',
+    'Cable', 'ONU', 'Routers', 'Charger', 'Repairs', 'OLT', 'Tools',
+    'RADIUS server bill', 'Other expenses'
+  ];
+  if (!category) {
+    errors.category = 'Choose a valid expense category.';
+  } else if (!validCategories.includes(category)) {
+    errors.category = 'Selected expense category is not recognized.';
+  }
+
+  // Notes validation (max 1000)
+  if (notes.length > 1000) {
+    errors.notes = 'Notes must be 1000 characters or fewer.';
+  }
+
+  // Area validation (max 100)
+  if (area.length > 100) {
+    errors.area = 'Area / Mohalla must be 100 characters or fewer.';
+  }
+
+  const valid = Object.keys(errors).length === 0;
+  return {
+    valid,
+    errors,
+    cleanFields: {
+      date,
+      amount: valid && amountStr ? Number(Number(amountStr).toFixed(2)) : 0,
+      category,
+      notes,
+      area
+    }
+  };
+}
+
+/**
+ * Pre-fills an expense form object from calculated monthly payroll (Saad base+increment or Umair workdays).
+ *
+ * @param {'saad'|'umair'} type - Staff member
+ * @param {Object} state - Application state
+ * @param {string} month - Calendar month YYYY-MM
+ * @param {Date} [referenceDate=new Date()] - Reference date
+ * @returns {Object} Pre-filled expense fields { date, category, amount, notes, area }
+ */
+export function buildPayrollExpensePrefill(type, state, month, referenceDate = new Date()) {
+  const payroll = buildPayrollSummary(state, month, referenceDate);
+  const now = referenceDate instanceof Date ? referenceDate : new Date();
+  const todayStr = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(now);
+
+  if (type === 'saad') {
+    const salary = Number(payroll.saadMonthlySalary) || 0;
+    const base = Number(payroll.saadBaseMonthlySalary) || 15000;
+    const count = Number(payroll.eligibleActivePaidCustomerCount) || 0;
+    return {
+      date: todayStr,
+      category: 'Salary — Saad',
+      amount: String(salary),
+      notes: `Monthly salary for ${month} (PKR ${base.toLocaleString('en-PK')} base + PKR 200 × ${count} eligible customer${count === 1 ? '' : 's'})`,
+      area: ''
+    };
+  } else if (type === 'umair') {
+    const expense = Number(payroll.umairMonthlyExpense) || 0;
+    const count = Number(payroll.umairWorkdayCount) || 0;
+    return {
+      date: todayStr,
+      category: 'Salary — Umair',
+      amount: String(expense),
+      notes: `Workday payout for ${month} (${count} logged workday${count === 1 ? '' : 's'} @ PKR 1,000/day)`,
+      area: ''
+    };
+  }
+
+  throw new Error(`Unknown payroll type: ${type}`);
+}
+
+/**
+ * Validates a staff attendance or workday date entry.
+ *
+ * @param {string} date - Date string YYYY-MM-DD
+ * @param {Array<string>} [existingDates=[]] - Already logged dates
+ * @param {string} [label='Date'] - Friendly label
+ * @returns {{ valid: boolean, duplicate?: boolean, error?: string, date: string }}
+ */
+export function validateStaffAttendanceDate(date, existingDates = [], label = 'Date') {
+  const d = String(date || '').trim();
+  if (!d) {
+    return { valid: false, error: `${label} is required.`, date: '' };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+    return { valid: false, error: `${label} must be a valid date in YYYY-MM-DD format.`, date: d };
+  }
+  const parsed = new Date(`${d}T00:00:00Z`);
+  if (isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== d) {
+    return { valid: false, error: `${label} must be a valid calendar date.`, date: d };
+  }
+  if (Array.isArray(existingDates) && existingDates.includes(d)) {
+    return { valid: false, duplicate: true, error: `That ${label.toLowerCase()} is already recorded; no duplicate was added.`, date: d };
+  }
+  return { valid: true, date: d };
+}
+
 
 

@@ -117,7 +117,8 @@ export function inventorySummary(state) {
 export function addExpense(state,fields,referenceDate=new Date()) {
   const date=requireDate(fields.date,'Payment date'); const category=EXPENSE_CATEGORIES.includes(fields.category)?fields.category:(()=>{throw new Error('Choose a valid expense category.');})();
   const amount=requireAmount(fields.amount,{label:'Expense amount'}); const notes=requireText(fields.notes??'',1000,'Notes',false);
-  const expense={id:makeId(),date,amount,category,notes,createdAt:new Date(referenceDate).toISOString()};
+  const area=nonblank(fields.area)?requireText(fields.area,100,'Area / Mohalla',false):(nonblank(fields.mohalla)?requireText(fields.mohalla,100,'Area / Mohalla',false):'');
+  const expense={id:makeId(),date,amount,category,notes,area,createdAt:new Date(referenceDate).toISOString()};
   return {...state,expenses:[...(state.expenses??[]),expense]};
 }
 export function updateExpense(state,expenseId,fields,referenceDate=new Date()) {
@@ -126,6 +127,7 @@ export function updateExpense(state,expenseId,fields,referenceDate=new Date()) {
     date:Object.hasOwn(fields,'date')?requireDate(fields.date,'Payment date'):row.date,
     category:Object.hasOwn(fields,'category')?(EXPENSE_CATEGORIES.includes(fields.category)?fields.category:(()=>{throw new Error('Choose a valid expense category.');})()):row.category,
     amount:Object.hasOwn(fields,'amount')?requireAmount(fields.amount,{label:'Expense amount'}):row.amount,
+    area:Object.hasOwn(fields,'area')?(nonblank(fields.area)?requireText(fields.area,100,'Area / Mohalla',false):''):(Object.hasOwn(fields,'mohalla')?(nonblank(fields.mohalla)?requireText(fields.mohalla,100,'Area / Mohalla',false):''):(row.area??'')),
     notes:Object.hasOwn(fields,'notes')?requireText(fields.notes,1000,'Notes',false):row.notes,updatedAt:new Date(referenceDate).toISOString()});
   return {...state,expenses:next};
 }
@@ -483,7 +485,7 @@ export function validatePhase3State(source) {
     if(!INVENTORY_STATES.includes(movement.toState)&&movement.toState!==null)throw new Error('Backup contains an invalid stock destination.');if(!INVENTORY_STATES.includes(movement.fromState)&&movement.fromState!==null)throw new Error('Backup contains an invalid stock source.');requireText(movement.notes??'',1000,'Notes',false);return {...movement};
   });
   const expenses=(source.expenses??[]).map((expense,index)=>{
-    if(!expense||typeof expense.id!=='string'||!expense.id||expenseIds.has(expense.id))throw new Error(`Expense ${index+1} has an invalid or duplicate ID.`);expenseIds.add(expense.id);requireDate(expense.date,'Payment date');requireAmount(expense.amount,{label:'Expense amount'});if(!EXPENSE_CATEGORIES.includes(expense.category))throw new Error('Backup contains an invalid expense category.');requireText(expense.notes??'',1000,'Notes',false);return {...expense};
+    if(!expense||typeof expense.id!=='string'||!expense.id||expenseIds.has(expense.id))throw new Error(`Expense ${index+1} has an invalid or duplicate ID.`);expenseIds.add(expense.id);requireDate(expense.date,'Payment date');requireAmount(expense.amount,{label:'Expense amount'});if(!EXPENSE_CATEGORIES.includes(expense.category))throw new Error('Backup contains an invalid expense category.');requireText(expense.notes??'',1000,'Notes',false);if(nonblank(expense.area))requireText(expense.area,100,'Expense area',false);return {...expense};
   });
   const saadAttendanceDays=validateDateEntries(source.saadAttendanceDays,'Attendance date');
   const umairWorkdays=validateDateEntries(source.umairWorkdays,'Work date');

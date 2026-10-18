@@ -350,7 +350,14 @@ function renderDashboard() {
   }
   collectionTargetController?.refresh();
   setupDashboardQuickActions({
-    onReceivePayment: () => { switchView('customers'); openPaymentEntry(); },
+    onReceivePayment: () => {
+      if (window.quickCollectModalController?.open) {
+        window.quickCollectModalController.open();
+      } else {
+        switchView('customers');
+        openPaymentEntry();
+      }
+    },
     onAddCustomer: () => {
       $('#addCustomerForm').reset();
       $('#addCustomerError').hidden = true;
@@ -1642,7 +1649,15 @@ $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSear
 $('#showCustomersButton').addEventListener('click', () => switchView('customers'));
 function openPaymentEntry(month = selectedBillingMonth) {
   const customer = selectedCustomer();
-  if (!customer) { $('#globalCustomerSearch').focus(); toast('Search for a customer, then open their payment form.'); return; }
+  if (!customer) {
+    if (window.quickCollectModalController?.open) {
+      window.quickCollectModalController.open();
+      return;
+    }
+    $('#globalCustomerSearch').focus();
+    toast('Search for a customer, then open their payment form.');
+    return;
+  }
   const card = historyContainer.querySelector(`[data-month-card="${CSS.escape(month)}"]`);
   if (!card) { toast('That billing month is outside the available history.'); return; }
   card.open = true;

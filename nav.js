@@ -2,12 +2,13 @@
  * Navigation Drawer & Responsive Navigation Management (agent2 - shahdara-mobile-nav)
  */
 
-import { trapModalFocus } from './nav-accessibility.js';
+import { trapModalFocus, initUniversalDialogController } from './nav-accessibility.js';
 
 export function setupNavigationDrawer({
   onNavigate,
   onBackup
 } = {}) {
+  initUniversalDialogController();
   const toggleBtn = document.getElementById('navDrawerToggle');
   const drawer = document.getElementById('navDrawer');
   const backdrop = document.getElementById('navDrawerBackdrop');
@@ -6190,7 +6191,8 @@ export {
   announcePaymentSuccess,
   setupAccessibleKeyboardShortcuts,
   A11Y_AUDIT_CHECKLIST,
-  verifyAccessibilityStandards
+  verifyAccessibilityStandards,
+  initUniversalDialogController
 } from './nav-accessibility.js';
 
 export {

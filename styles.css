@@ -5022,7 +5022,7 @@ html, body {
    ========================================================================== */
 .agreement-modal-card {
   max-width: 860px;
-  width: 95vw;
+  width: 100%;
   max-height: 90vh;
   overflow-y: auto;
   display: flex;
@@ -5177,7 +5177,7 @@ html, body {
    ========================================================================== */
 .dispute-modal-card {
   max-width: 860px;
-  width: 95vw;
+  width: 100%;
   max-height: 90vh;
   overflow-y: auto;
   display: flex;
@@ -5330,7 +5330,7 @@ html, body {
    ========================================================================== */
 .kyc-modal-card {
   max-width: 920px;
-  width: 95vw;
+  width: 100%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -7039,7 +7039,7 @@ html, body {
 /* Quick Collect (2-Tap Mobile Field Flow) Styles (agent2 - shahdara-mobile-nav) */
 #quickCollectModal .quick-collect-card {
   max-width: 620px;
-  width: 95vw;
+  width: 100%;
   max-height: 92vh;
   overflow-y: auto;
   display: flex;
@@ -7582,7 +7582,7 @@ html, body {
 /* Fast Customer Search Sheet Styles (agent2 - shahdara-mobile-nav) */
 #mobileCustomerSearchModal .fast-customer-search-card {
   max-width: 640px;
-  width: 95vw;
+  width: 100%;
   max-height: 90vh;
   overflow-y: auto;
   display: flex;
@@ -10844,10 +10844,180 @@ th[data-sort-expense]:focus-visible {
   color: #6ee7b7;
 }
 
+/* ==========================================================================
+   STANDARDIZED RESPONSIVE DIALOGS & BOTTOM-SHEET COMPONENT (#215)
+   ========================================================================== */
 
+dialog,
+dialog.modal,
+dialog.dashboard-modal,
+dialog.billing-modal,
+.field-tools-dialog,
+.command-palette-dialog,
+.pwa-status-dialog {
+  box-sizing: border-box;
+}
 
+dialog::backdrop {
+  background: rgba(15, 23, 20, 0.65);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
 
+.close-button,
+.modal-close-btn,
+.billing-modal-close {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  cursor: pointer;
+}
 
+@media (max-width: 640px) {
+  dialog,
+  dialog.modal,
+  dialog.dashboard-modal,
+  dialog.billing-modal,
+  dialog.field-tools-dialog,
+  dialog.command-palette-dialog,
+  dialog.pwa-status-dialog,
+  dialog.quick-collect-modal,
+  dialog.fast-customer-search-modal,
+  dialog.agreement-modal,
+  dialog.dispute-modal,
+  dialog.kyc-modal {
+    width: calc(100vw - 16px) !important;
+    max-width: min(560px, calc(100vw - 16px)) !important;
+    max-height: calc(100dvh - 32px) !important;
+    max-height: calc(100vh - 32px) !important;
+    margin: auto !important;
+    padding: 16px 14px !important;
+    box-sizing: border-box !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    border-radius: 18px !important;
+  }
 
+  /* Universal containment for all child sections inside any dialog */
+  dialog > section,
+  dialog > div,
+  dialog form,
+  dialog .quick-collect-card,
+  dialog .fast-customer-search-card,
+  dialog .dashboard-modal-card,
+  dialog .billing-modal-content,
+  dialog .statement-modal-card,
+  dialog .batch-receipt-card,
+  dialog .optical-map-modal-card,
+  dialog .cleaning-modal-card,
+  dialog .agreement-modal-card,
+  dialog .dispute-modal-card,
+  dialog .kyc-modal-card,
+  dialog .shortcuts-modal-card,
+  dialog .bulk-duplicate-card,
+  dialog .command-palette-box,
+  dialog .pwa-status-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
 
+  /* Sticky header with wrapping title and right-aligned close button */
+  .modal-heading,
+  .dashboard-modal-header,
+  .billing-modal-header,
+  dialog .modal-heading {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    position: sticky !important;
+    top: -16px !important;
+    z-index: 5 !important;
+    background: inherit !important;
+    padding-top: 2px !important;
+    padding-bottom: 8px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .modal-heading > div,
+  .dashboard-modal-header > div,
+  .billing-modal-header > div,
+  .billing-modal-title-group {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+
+  .modal-heading h2,
+  .modal-heading h3,
+  .dashboard-modal-header h3,
+  .billing-modal-header h2 {
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    font-size: clamp(16px, 4.5vw, 19px) !important;
+    margin: 0 !important;
+  }
+
+  /* Universal 48px x 48px close touch target */
+  .close-button,
+  .modal-close-btn,
+  .billing-modal-close,
+  button[aria-label*="close" i],
+  button[aria-label*="Close" i] {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    width: 48px !important;
+    height: 48px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    font-size: 24px !important;
+    line-height: 1 !important;
+    border-radius: 12px !important;
+    touch-action: manipulation;
+  }
+
+  /* Sticky footer action bar */
+  .modal-actions,
+  .dashboard-modal-actions,
+  .billing-modal-footer,
+  .statement-modal-actions,
+  .pwa-modal-footer,
+  .bc-dup-actions {
+    position: sticky !important;
+    bottom: -16px !important;
+    z-index: 5 !important;
+    background: inherit !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+    margin-top: 14px !important;
+    padding-top: 8px !important;
+    padding-bottom: 4px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Quick Collect responsive list & chips */
+  .qc-customer-list,
+  .qc-customer-card,
+  .qc-search-box,
+  .qc-filter-pills {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+}
 

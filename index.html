@@ -6102,6 +6102,29 @@
           <div class="customer-filter-group service-filter-toolbar" role="group" aria-label="Filter by manual service status; counts exclude archived profiles"><span class="customer-filter-label">Service</span><button class="customer-filter-button" type="button" data-customer-service-filter="all" aria-pressed="true">All</button><button class="customer-filter-button" type="button" data-customer-service-filter="active" aria-pressed="false" aria-label="Filter by manual service status Active"><span>Active</span> <span id="serviceCountActive" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="offline" aria-pressed="false" aria-label="Filter by manual service status Offline"><span>Offline</span> <span id="serviceCountOffline" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="not-set" aria-pressed="false" aria-label="Filter by manual service status Not set"><span>Not set</span> <span id="serviceCountNotSet" class="service-count-badge" aria-hidden="true">—</span></button><span id="serviceStateCountsAnnouncement" class="sr-only" role="status" aria-live="polite">Manual service counts loading</span></div>
           <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month"><span class="customer-filter-label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false">Not set</button></div>
           <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
+          <div class="customer-filter-row-secondary">
+            <label class="customer-filter-area" for="customerFilterArea">Area / Mohalla
+              <select id="customerFilterArea" aria-label="Filter roster by area or mohalla">
+                <option value="all" selected>All areas</option>
+              </select>
+            </label>
+            <label class="customer-sort-label" for="customerSortSelect">Sort roster
+              <select id="customerSortSelect" aria-label="Sort customer roster">
+                <option value="number-asc" selected>Customer # (1 → 99)</option>
+                <option value="number-desc">Customer # (99 → 1)</option>
+                <option value="name-asc">Name (A → Z)</option>
+                <option value="name-desc">Name (Z → A)</option>
+                <option value="mohalla-asc">Area (A → Z)</option>
+                <option value="balance-desc">Dues / Balance (High → Low)</option>
+                <option value="balance-asc">Dues / Balance (Low → High)</option>
+                <option value="received-desc">Collected (High → Low)</option>
+              </select>
+            </label>
+            <div class="customer-view-toggle" role="group" aria-label="Roster view layout">
+              <button id="customerViewCardsBtn" class="customer-view-btn is-active" type="button" aria-pressed="true" title="Card View">🗂️ Cards</button>
+              <button id="customerViewTableBtn" class="customer-view-btn" type="button" aria-pressed="false" title="Table View">📋 Table</button>
+            </div>
+          </div>
         </section>
         <div class="customer-list-search">
           <label class="customer-list-search-label" for="customerListSearch">Search this list</label>
@@ -6109,6 +6132,38 @@
           <p id="customerListSearchHelp" class="customer-list-search-help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
         </div>
         <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
+        <div id="customerTableWrap" class="customer-table-wrap" hidden>
+          <div class="customer-table-scroll">
+            <table id="customerRosterTable" class="customer-roster-table" aria-label="Customer Roster Table">
+              <thead>
+                <tr>
+                  <th scope="col" class="col-num" data-sort-cust="number">#</th>
+                  <th scope="col" class="col-name" data-sort-cust="name">Customer</th>
+                  <th scope="col" class="col-area" data-sort-cust="mohalla">Area / Mohalla</th>
+                  <th scope="col" class="col-plan" data-sort-cust="package">Plan</th>
+                  <th scope="col" class="col-service">Service</th>
+                  <th scope="col" class="col-billing">Status</th>
+                  <th scope="col" class="col-balance" data-sort-cust="balance">Balance Due</th>
+                  <th scope="col" class="col-action">Action</th>
+                </tr>
+              </thead>
+              <tbody id="customerRosterTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <nav id="customerPagination" class="table-pagination" aria-label="Customer list pagination">
+          <button id="customerPrevPage" class="pagination-btn" type="button" aria-label="Previous customer page">← Previous</button>
+          <span id="customerPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
+          <button id="customerNextPage" class="pagination-btn" type="button" aria-label="Next customer page">Next →</button>
+          <label class="pagination-size-label" for="customerPageSize">Per page
+            <select id="customerPageSize" aria-label="Customers per page">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="60">60</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+        </nav>
         <details id="archivedCustomersPanel" class="archived-customers-panel"><summary>Archived customers <span id="archivedCustomerCount" class="count-badge">0</span></summary><ul id="archivedCustomerList" class="archived-customer-list" aria-label="Archived customer profiles"></ul></details>
         <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
         <div class="pane-footer"><span class="local-lock" aria-hidden="true">▣</span> Billing entries never leave this browser.</div>
@@ -6277,6 +6332,15 @@
           <label for="transactionRecencyFilter">Recent payments<select id="transactionRecencyFilter" aria-describedby="transactionFilterHelp"><option value="all" selected>All history</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label>
           <label for="transactionMethodFilter">Payment method<select id="transactionMethodFilter"><option value="all" selected>All methods</option><option value="Cash">Cash</option><option value="EasyPaisa">EasyPaisa</option><option value="JazzCash">JazzCash</option><option value="Bank Transfer">Bank Transfer</option><option value="Other">Other</option></select></label>
           <label for="transactionDateFilter">Exact payment date<input id="transactionDateFilter" type="date"></label>
+          <label for="transactionSortSelect">Sort by
+            <select id="transactionSortSelect" aria-label="Sort transactions">
+              <option value="date-desc" selected>Date (Newest first)</option>
+              <option value="date-asc">Date (Oldest first)</option>
+              <option value="amount-desc">Amount (Highest first)</option>
+              <option value="amount-asc">Amount (Lowest first)</option>
+              <option value="number-asc">Customer # (Ascending)</option>
+            </select>
+          </label>
           <div class="transaction-filter-actions">
             <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
             <button id="exportTransactionsCsvBtn" class="secondary-button" type="button" title="Export transactions to CSV">Export CSV</button>
@@ -6315,6 +6379,19 @@
         </div>
         <div class="report-search-bar">
           <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area...">
+          <label class="report-sort-label" for="reportSortSelect">Sort report
+            <select id="reportSortSelect" aria-label="Sort monthly report">
+              <option value="number-asc" selected>Customer # (1 → 99)</option>
+              <option value="number-desc">Customer # (99 → 1)</option>
+              <option value="name-asc">Name (A → Z)</option>
+              <option value="name-desc">Name (Z → A)</option>
+              <option value="balance-desc">Balance Due (High → Low)</option>
+              <option value="balance-asc">Balance Due (Low → High)</option>
+              <option value="collected-desc">Collected (High → Low)</option>
+              <option value="billed-desc">Billed (High → Low)</option>
+              <option value="status-asc">Status</option>
+            </select>
+          </label>
           <div class="report-search-actions">
             <button id="exportMonthlyReportCsvBtn" class="secondary-button" type="button" title="Export monthly report to CSV">Export CSV</button>
             <button id="batchReceiptPrintBtn" class="secondary-button" type="button" title="Print monthly billing slips">Print Slips</button>

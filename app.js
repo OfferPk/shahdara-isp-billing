@@ -28,6 +28,7 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 
 import {
   validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
+  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
@@ -474,23 +475,95 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   }).join('');
   return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" aria-label="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span class="customer-billing-badge ${billing.className}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}">${escapeHtml(billingLabel)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
+let customerCurrentPage = 1;
+let customerPageSize = 15;
+let customerSortBy = 'number-asc';
+let customerAreaFilter = 'all';
+let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem('shahdara_customer_view_mode')) || 'cards';
+
 function renderCustomers() {
   const customerQuery = customerListQuery();
   const healthAllocations = calculatePaymentAllocations(state);
-  const filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery });
-  const active = filtered.filter(customer => !customer.archived);
-  const archived = filtered.filter(customer => customer.archived);
+
+  // Sync unique areas into dropdown
+  const areaSelect = $('#customerFilterArea');
+  if (areaSelect) {
+    const areas = getUniqueCustomerAreas(state.customers.filter(c => !c.archived));
+    const currentVal = customerAreaFilter;
+    areaSelect.innerHTML = '<option value="all">All areas</option>' + areas.map(a => `<option value="${escapeHtml(a)}"${a === currentVal ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
+    if (!areas.includes(currentVal) && currentVal !== 'all') {
+      customerAreaFilter = 'all';
+      areaSelect.value = 'all';
+    } else {
+      areaSelect.value = customerAreaFilter;
+    }
+  }
+
+  const sortSelect = $('#customerSortSelect');
+  if (sortSelect) sortSelect.value = customerSortBy;
+
+  let filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery });
+  if (customerAreaFilter !== 'all') {
+    filtered = filterCustomersByArea(filtered, customerAreaFilter);
+  }
+
+  let active = filtered.filter(customer => !customer.archived);
+  let archived = filtered.filter(customer => customer.archived);
+
+  // Apply Sorting
+  active = sortCustomerRoster(active, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
+  archived = sortCustomerRoster(archived, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
+
   const searched = searchCustomers(state, customerQuery);
   const activeTotal = searched.filter(customer => !customer.archived).length;
   const archivedTotal = searched.filter(customer => customer.archived).length;
-  customerList.innerHTML = active.map(customer => customerCardMarkup(customer, false, healthAllocations)).join('');
+
+  // Pagination for Active Roster
+  const paged = paginateRows(active, customerCurrentPage, customerPageSize);
+  customerCurrentPage = paged.page;
+
+  const pagNav = $('#customerPagination');
+  if (pagNav) {
+    pagNav.hidden = active.length === 0;
+    const pageInfo = $('#customerPageInfo');
+    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages} (${active.length} total)`;
+    const prevBtn = $('#customerPrevPage');
+    if (prevBtn) prevBtn.disabled = paged.page <= 1;
+    const nextBtn = $('#customerNextPage');
+    if (nextBtn) nextBtn.disabled = paged.page >= paged.totalPages;
+  }
+
+  const tableWrap = $('#customerTableWrap');
+  const tableBody = $('#customerRosterTableBody');
+  const cardsBtn = $('#customerViewCardsBtn');
+  const tableBtn = $('#customerViewTableBtn');
+
+  if (customerViewMode === 'table') {
+    if (customerList) customerList.hidden = true;
+    if (tableWrap) tableWrap.hidden = false;
+    if (cardsBtn) { cardsBtn.classList.remove('is-active'); cardsBtn.setAttribute('aria-pressed', 'false'); }
+    if (tableBtn) { tableBtn.classList.add('is-active'); tableBtn.setAttribute('aria-pressed', 'true'); }
+    if (tableBody) {
+      tableBody.innerHTML = paged.items.map(customer => renderCustomerTableRowMarkup(customer, { selectedCustomerId, selectedBillingMonth, allocations: healthAllocations })).join('');
+      tableBody.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
+    }
+  } else {
+    if (customerList) {
+      customerList.hidden = false;
+      customerList.innerHTML = paged.items.map(customer => customerCardMarkup(customer, false, healthAllocations)).join('');
+    }
+    if (tableWrap) tableWrap.hidden = true;
+    if (cardsBtn) { cardsBtn.classList.add('is-active'); cardsBtn.setAttribute('aria-pressed', 'true'); }
+    if (tableBtn) { tableBtn.classList.remove('is-active'); tableBtn.setAttribute('aria-pressed', 'false'); }
+  }
+
   $('#archivedCustomerList').innerHTML = archived.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
-  $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
+  $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
   $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
   $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {
-    emptySearch.textContent = customerQuery.trim() ? 'No matching customers.' : 'No customers match these service and billing filters.';
+    emptySearch.textContent = customerQuery.trim() || customerAreaFilter !== 'all' ? 'No matching customers.' : 'No customers match these service and billing filters.';
     emptySearch.hidden = active.length > 0 || archived.length > 0;
   }
   document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerServiceFilter === selectedServiceFilter ? 'true' : 'false'));
@@ -760,10 +833,12 @@ function renderHistory(customer) {
 let transactionMethodFilter = 'all';
 let transactionCurrentPage = 1;
 let transactionPageSize = 15;
+let transactionSortBy = 'date-desc';
 
 let reportSearchQuery = '';
 let reportCurrentPage = 1;
 let reportPageSize = 15;
+let reportSortBy = 'number-asc';
 
 function renderTransactions() {
   const date = $('#transactionDateFilter').value;
@@ -774,6 +849,10 @@ function renderTransactions() {
   if (transactionMethodFilter !== 'all') {
     transactions = transactions.filter(tx => String(tx.method || '').toLowerCase() === transactionMethodFilter.toLowerCase());
   }
+
+  const sortSelect = $('#transactionSortSelect');
+  if (sortSelect) sortSelect.value = transactionSortBy;
+  transactions = sortTransactionsList(transactions, transactionSortBy);
 
   const total = listTransactions(state).length;
   $('#transactionsCount').textContent = `${transactions.length} of ${total} recorded ${total === 1 ? 'payment' : 'payments'}`;
@@ -834,7 +913,11 @@ function renderMonthlyReport() {
   if (collEl) collEl.textContent = formatAmount(totalCollected);
   if (balEl) balEl.textContent = formatAmount(totalBalance);
 
-  const paged = paginateRows(rows, reportCurrentPage, reportPageSize);
+  const sortSelect = $('#reportSortSelect');
+  if (sortSelect) sortSelect.value = reportSortBy;
+
+  const sortedRows = sortMonthlyReportRows(rows, reportSortBy);
+  const paged = paginateRows(sortedRows, reportCurrentPage, reportPageSize);
   reportCurrentPage = paged.page;
 
   const pagNav = $('#monthlyReportPagination');
@@ -1539,6 +1622,7 @@ $('#showReportsButton').addEventListener('click', () => { switchView('reports');
 $('#transactionDateFilter').addEventListener('input', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+$('#transactionSortSelect')?.addEventListener('change', event => { transactionSortBy = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#txPrevPage').addEventListener('click', () => { if (transactionCurrentPage > 1) { transactionCurrentPage--; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
 $('#txNextPage').addEventListener('click', () => { transactionCurrentPage++; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); });
 $('#txPageSize').addEventListener('change', event => { transactionPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); transactionCurrentPage = 1; renderTransactions(); });
@@ -1560,9 +1644,71 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   renderMonthlyReport();
 });
 $('#reportCustomerSearch').addEventListener('input', event => { reportSearchQuery = event.currentTarget.value; reportCurrentPage = 1; renderMonthlyReport(); });
+$('#reportSortSelect')?.addEventListener('change', event => { reportSortBy = event.currentTarget.value; reportCurrentPage = 1; renderMonthlyReport(); });
 $('#reportPrevPage').addEventListener('click', () => { if (reportCurrentPage > 1) { reportCurrentPage--; renderMonthlyReport(); $('#monthlyReportList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
 $('#reportNextPage').addEventListener('click', () => { reportCurrentPage++; renderMonthlyReport(); $('#monthlyReportList').scrollIntoView({ behavior:'smooth', block:'start' }); });
 $('#reportPageSize').addEventListener('change', event => { reportPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); reportCurrentPage = 1; renderMonthlyReport(); });
+
+$('#customerFilterArea')?.addEventListener('change', event => {
+  customerAreaFilter = event.currentTarget.value;
+  customerCurrentPage = 1;
+  renderCustomers();
+});
+$('#customerSortSelect')?.addEventListener('change', event => {
+  customerSortBy = event.currentTarget.value;
+  customerCurrentPage = 1;
+  renderCustomers();
+});
+$('#customerViewCardsBtn')?.addEventListener('click', () => {
+  customerViewMode = 'cards';
+  try { localStorage.setItem('shahdara_customer_view_mode', 'cards'); } catch {}
+  renderCustomers();
+});
+$('#customerViewTableBtn')?.addEventListener('click', () => {
+  customerViewMode = 'table';
+  try { localStorage.setItem('shahdara_customer_view_mode', 'table'); } catch {}
+  renderCustomers();
+});
+$('#customerRosterTableBody')?.addEventListener('click', event => {
+  const btn = event.target.closest('[data-customer-id]');
+  if (btn && btn.dataset.customerId) {
+    selectCustomer(btn.dataset.customerId);
+  }
+});
+$('#customerPrevPage')?.addEventListener('click', () => {
+  if (customerCurrentPage > 1) {
+    customerCurrentPage--;
+    renderCustomers();
+    const list = $('#customerList') || $('#customerTableWrap');
+    if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+$('#customerNextPage')?.addEventListener('click', () => {
+  customerCurrentPage++;
+  renderCustomers();
+  const list = $('#customerList') || $('#customerTableWrap');
+  if (list) list.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('#customerPageSize')?.addEventListener('change', event => {
+  customerPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value);
+  customerCurrentPage = 1;
+  renderCustomers();
+});
+document.querySelectorAll('[data-sort-cust]').forEach(th => {
+  th.addEventListener('click', () => {
+    const field = th.dataset.sortCust;
+    if (customerSortBy === `${field}-asc`) {
+      customerSortBy = `${field}-desc`;
+    } else {
+      customerSortBy = `${field}-asc`;
+    }
+    const select = $('#customerSortSelect');
+    if (select) select.value = customerSortBy;
+    customerCurrentPage = 1;
+    renderCustomers();
+  });
+});
+
 function setBillingMonth(month) {
   if (!monthsForHistory().includes(month)) return;
   selectedBillingMonth = month;
@@ -1573,9 +1719,9 @@ function setBillingMonth(month) {
 }
 $('#reportMonth').addEventListener('change', event => setBillingMonth(event.currentTarget.value));
 $('#customerFilterMonth').addEventListener('change', event => setBillingMonth(event.currentTarget.value));
-document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; renderCustomers(); }));
-document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; renderCustomers(); }));
-document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; renderMonthlyReport(); }));
+document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; customerCurrentPage = 1; renderCustomers(); }));
+document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; customerCurrentPage = 1; renderCustomers(); }));
+document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; reportCurrentPage = 1; renderMonthlyReport(); }));
 function resetDuplicateReview() {
   $('#duplicateCustomerReview').hidden = true;
   $('#duplicateCustomerMatches').replaceChildren();

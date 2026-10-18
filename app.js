@@ -1748,13 +1748,14 @@ $('#customerTableExpandBtn')?.addEventListener('click', () => {
 $('#exportCustomerRosterCsvBtn')?.addEventListener('click', () => {
   const activeCustomers = state.customers.filter(c => !c.archived);
   const areaFiltered = filterCustomersByArea(activeCustomers, customerAreaFilter);
-  const query = customerQuery.trim();
+  // Read the live roster query at click time (#235: `customerQuery` only exists inside renderCustomers).
+  const query = customerListQuery().trim();
   const searchFiltered = query ? searchCustomers(state, query).filter(c => !c.archived && (customerAreaFilter === 'all' || (c.mohalla || c.area || '') === customerAreaFilter)) : areaFiltered;
   const statusFiltered = filterCustomersByStatus(state, {
     serviceStatus: selectedServiceFilter,
     billingStatus: selectedBillingFilter,
     month: selectedBillingMonth,
-    customerQuery
+    customerQuery: query
   });
   const targetList = activeCustomers.filter(c => searchFiltered.some(sf => sf.id === c.id) && statusFiltered.some(st => st.id === c.id));
   const allocations = calculatePaymentAllocations(state);
@@ -1767,7 +1768,7 @@ $('#exportCustomerRosterCsvBtn')?.addEventListener('click', () => {
     billingMonth: selectedBillingMonth,
     allocations
   });
-  const filename = `shahdara_customer_roster_${selectedBillingMonth || 'all'}.csv`;
+  const filename = `shahdara-customer-roster-${selectedBillingMonth || 'all'}.csv`;
   downloadCsvFile(filename, csv);
   toast(`Exported ${sorted.length} customer records to CSV.`);
 });

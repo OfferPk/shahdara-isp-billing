@@ -330,7 +330,8 @@
           </div>
           <strong id="dashboardDailyClosingValue" class="summary-value">No payment entries</strong>
           <p id="dashboardDailyClosingPeriod" class="summary-period">Benchmark target: calculating...</p>
-          <div class="daily-closing-actions">
+          <div class="daily-closing-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDailyRegisterBtn" class="action-btn-sm daily-slip-btn" type="button">📖 Daily Register</button>
             <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button">📋 Daily Slip</button>
           </div>
         </article>
@@ -19403,22 +19404,25 @@
           <table class="data-table mom-growth-table" style="width: 100%; font-size: 12px;">
             <thead>
               <tr>
-                <th style="padding: 8px 10px;">Month</th>
-                <th style="padding: 8px 10px; text-align: right;">Active Subs (MoM Δ)</th>
-                <th style="padding: 8px 10px; text-align: right;">New</th>
-                <th style="padding: 8px 10px; text-align: right;">Churn</th>
-                <th style="padding: 8px 10px; text-align: right;">Billed (PKR)</th>
-                <th style="padding: 8px 10px; text-align: right;">Collected (PKR)</th>
-                <th style="padding: 8px 10px; text-align: right;">Cash MoM %</th>
-                <th style="padding: 8px 10px; text-align: right;">Expenses</th>
-                <th style="padding: 8px 10px; text-align: right;">Net Profit</th>
-                <th style="padding: 8px 10px; text-align: right;">Efficiency %</th>
+                <th data-sort-mom="month" style="padding: 8px 10px; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Month <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="activeSubscribers" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Active Subs (MoM Δ) <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="newSubscribers" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">New <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="churnedSubscribers" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Churn <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="billedAmount" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Billed (PKR) <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="cashCollections" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Collected (PKR) <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="collectionGrowthPct" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Cash MoM % <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="operatingExpenses" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Expenses <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="netProfit" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Net Profit <span class="sort-indicator" aria-hidden="true">⇅</span></th>
+                <th data-sort-mom="collectionEfficiency" style="padding: 8px 10px; text-align: right; cursor: pointer;" tabindex="0" role="button" aria-sort="none">Efficiency % <span class="sort-indicator" aria-hidden="true">⇅</span></th>
               </tr>
             </thead>
             <tbody id="momGrowthTableBody">
               <!-- Populated dynamically -->
             </tbody>
           </table>
+          <p id="momGrowthEmptyState" class="empty-state" hidden style="text-align: center; padding: 24px; color: var(--text-muted, #64748b);">
+            No subscriber or financial records recorded for this window.
+          </p>
         </div>
       </div>
 

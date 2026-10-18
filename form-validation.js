@@ -2440,7 +2440,7 @@ export function setupDailyRegisterModal({
   const whatsappBtn = document.getElementById('sendWhatsAppRegisterBtn');
   const csvBtn = document.getElementById('exportDailyRegisterCsvBtn');
   const copyBtn = document.getElementById('copyRegisterTextBtn');
-  const triggerBtn = document.getElementById('quickActionDailyClosingSlip');
+  const triggerBtn = document.getElementById('openDailyRegisterBtn');
 
   let currentDate = new Date().toISOString().slice(0, 10);
   let currentRegisterData = null;
@@ -2592,6 +2592,16 @@ export function setupDailyRegisterModal({
   }
 
   // Event Listeners
+  if (modal && !modal.dataset?.wiredRegBackdrop) {
+    if (modal.dataset) modal.dataset.wiredRegBackdrop = 'true';
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) close();
+    });
+    modal.addEventListener('cancel', () => {
+      close();
+    });
+  }
+
   if (closeBtn && !closeBtn.dataset?.wiredReg) {
     if (closeBtn.dataset) closeBtn.dataset.wiredReg = 'true';
     closeBtn.addEventListener('click', close);
@@ -2628,21 +2638,20 @@ export function setupDailyRegisterModal({
     }
   }
 
-  // Quick Action / Trigger button
-  if (triggerBtn && !triggerBtn.dataset?.wiredDailyModal) {
-    if (triggerBtn.dataset) triggerBtn.dataset.wiredDailyModal = 'true';
-    triggerBtn.addEventListener('click', () => {
-      open();
-    });
-  }
+  // Quick Action / Trigger buttons
+  const triggerElements = [
+    triggerBtn,
+    document.getElementById('quickActionDailyRegisterTile')
+  ].filter(Boolean);
 
-  const triggerTile = document.getElementById('quickActionDailyRegisterTile');
-  if (triggerTile && !triggerTile.dataset?.wiredDailyModal) {
-    if (triggerTile.dataset) triggerTile.dataset.wiredDailyModal = 'true';
-    triggerTile.addEventListener('click', () => {
-      open();
-    });
-  }
+  triggerElements.forEach(btn => {
+    if (!btn.dataset?.wiredDailyModal) {
+      if (btn.dataset) btn.dataset.wiredDailyModal = 'true';
+      btn.addEventListener('click', () => {
+        open();
+      });
+    }
+  });
 
   // Export CSV
   if (csvBtn && !csvBtn.dataset?.wiredReg) {

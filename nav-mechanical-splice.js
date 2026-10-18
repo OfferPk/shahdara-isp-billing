@@ -227,7 +227,7 @@ export function renderMechanicalSpliceSvg(metrics, options = {}) {
   const centerY = 135;
 
   return `
-  <svg class="mechanical-splice-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mechanical Splice Assembly and Index Matching Gel Diagram">
+  <svg class="mechanical-splice-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mechanical Splice Assembly and Index Matching Gel Diagram">
     <!-- Background Canvas -->
     <rect width="${width}" height="${height}" rx="10" fill="${bgColor}" stroke="${borderColor}" stroke-width="1.5"/>
 

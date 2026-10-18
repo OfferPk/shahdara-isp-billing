@@ -921,6 +921,23 @@ export function setupCollectionTargetModal(state, options = {}) {
     closeBtn.addEventListener('click', () => modal.close());
   }
 
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        const rect = modal.getBoundingClientRect();
+        const isInDialog = (
+          rect.top <= e.clientY &&
+          e.clientY <= rect.top + rect.height &&
+          rect.left <= e.clientX &&
+          e.clientX <= rect.left + rect.width
+        );
+        if (!isInDialog && typeof modal.close === 'function') {
+          modal.close();
+        }
+      }
+    });
+  }
+
   // Initial render for dashboard chart
   render();
 

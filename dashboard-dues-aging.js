@@ -399,7 +399,7 @@ export function renderDuesAgingSvg(agingData, options = {}) {
   const padding = { top: 30, right: 30, bottom: 50, left: 60 };
 
   if (!agingData || agingData.totalOutstanding === 0) {
-    return `<svg class="chart-svg dues-aging-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Dues Aging Report: Clean Ledger">
+    return `<svg class="chart-svg dues-aging-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Dues Aging Report: Clean Ledger">
       <rect width="100%" height="100%" rx="8" fill="var(--surface, #1e2624)" fill-opacity="0.2"/>
       <g transform="translate(${width / 2}, ${height / 2})">
         <circle r="26" fill="#10b981" fill-opacity="0.15" stroke="#10b981" stroke-width="2"/>
@@ -456,7 +456,7 @@ export function renderDuesAgingSvg(agingData, options = {}) {
     `;
   });
 
-  return `<svg class="chart-svg dues-aging-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Dues Aging Breakdown Chart: Total Outstanding ${formatPKR(agingData.totalOutstanding)} across ${agingData.totalAccounts} accounts">
+  return `<svg class="chart-svg dues-aging-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Dues Aging Breakdown Chart: Total Outstanding ${formatPKR(agingData.totalOutstanding)} across ${agingData.totalAccounts} accounts">
     <rect width="100%" height="100%" rx="8" fill="var(--surface, #1e2624)" fill-opacity="0.1"/>
     ${gridMarkup}
     <!-- Base axis line -->

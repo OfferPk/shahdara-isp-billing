@@ -452,7 +452,7 @@ export function renderSpliceClosureSvg(metrics) {
   const loopArcRadius = Math.max(18, Math.min(50, Math.round(radius * 1.2)));
 
   return `
-    <svg class="chart-svg splice-closure-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img"
+    <svg class="chart-svg splice-closure-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img"
       aria-label="Fiber Optic Splice Closure Tray Capacity and Micro-Bend Loss Diagram">
       <defs>
         <linearGradient id="canisterGrad" x1="0" y1="0" x2="1" y2="0">

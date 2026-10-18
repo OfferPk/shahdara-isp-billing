@@ -466,7 +466,7 @@ export function renderFiberCleaveQualitySvg(analysis) {
   const dialRotation = (bladeMetrics.channel - 1) * 22.5;
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" class="cleave-analysis-svg" width="100%" height="auto" role="img" aria-label="Optical Fiber Cleave Analysis Diagram">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" class="cleave-analysis-svg" width="100%" height="${height}" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Optical Fiber Cleave Analysis Diagram">
       <defs>
         <linearGradient id="fiberCladdingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
           <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
@@ -487,7 +487,7 @@ export function renderFiberCleaveQualitySvg(analysis) {
       <rect width="${width}" height="${height}" rx="12" fill="#0b1120" stroke="#1e293b" stroke-width="1.5"/>
 
       <!-- Header Banner -->
-      <rect x="0" y="0" width="${width}" height="42" fill="#0f172a" rx="12 12 0 0"/>
+      <rect x="0" y="0" width="${width}" height="42" fill="#0f172a" rx="12"/>
       <text x="24" y="26" fill="#f8fafc" font-size="13" font-weight="700" letter-spacing="0.5">FIBER CLEAVE ANGLE &amp; END-FACE TOPOGRAPHY METROLOGY</text>
       <text x="${width - 24}" y="26" text-anchor="end" fill="#94a3b8" font-size="11">ITU-T G.650.1 / TELCORDIA GR-765-CORE</text>
 

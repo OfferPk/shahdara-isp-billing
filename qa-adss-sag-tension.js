@@ -810,7 +810,7 @@ export function renderAdssSagTensionSvg(analysis) {
   const clearanceBadgeColor = analysis.clearancePass ? '#16a34a' : '#dc2626';
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="auto" class="adss-sag-tension-svg" style="background:#090d16; border-radius:8px; font-family:system-ui,-apple-system,sans-serif;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%"  class="adss-sag-tension-svg" style="background:#090d16; border-radius:8px; font-family:system-ui,-apple-system,sans-serif;">
       <defs>
         <linearGradient id="adssPoleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stop-color="#475569" />

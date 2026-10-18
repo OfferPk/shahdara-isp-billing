@@ -429,7 +429,7 @@ export function calculateRoadmMetrics(state, options = {}) {
  */
 export function renderRoadmOpticalSvg(roadmData, { compact = false, width = 560, height = 280 } = {}) {
   if (!roadmData || !roadmData.selectedNode || !roadmData.selectedChannel) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="ROADM Optical Bypass: No data">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="ROADM Optical Bypass: No data">
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" fill="var(--muted, #71817c)">No optical ROADM telemetry recorded</text>
     </svg>`;
   }
@@ -458,7 +458,7 @@ export function renderRoadmOpticalSvg(roadmData, { compact = false, width = 560,
       ? '#ef4444'
       : (selectedChannel.rerouted ? '#f59e0b' : '#10b981');
 
-    return `<svg class="chart-svg roadm-compact-svg" viewBox="0 0 ${cWidth} ${cHeight}" width="100%" height="auto" role="img" aria-label="ROADM Optical Power Dial: ${selectedChannel.name}, ${selectedChannel.effectiveOutputPowerDbm} dBm, OSNR ${selectedChannel.effectiveOsnrDb} dB">
+    return `<svg class="chart-svg roadm-compact-svg" viewBox="0 0 ${cWidth} ${cHeight}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="ROADM Optical Power Dial: ${selectedChannel.name}, ${selectedChannel.effectiveOutputPowerDbm} dBm, OSNR ${selectedChannel.effectiveOsnrDb} dB">
       <!-- Gauge Track Arc -->
       <path d="M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}" fill="none" stroke="var(--line, #e2ece7)" stroke-width="12" stroke-linecap="round"/>
       
@@ -597,7 +597,7 @@ export function renderRoadmOpticalSvg(roadmData, { compact = false, width = 560,
     `;
   });
 
-  return `<svg class="chart-svg roadm-modal-svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" height="auto" role="img" aria-label="ROADM Flex-Grid WSS Switching Architecture and Optical Spectrum Plot">
+  return `<svg class="chart-svg roadm-modal-svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="ROADM Flex-Grid WSS Switching Architecture and Optical Spectrum Plot">
     <!-- Header Labels -->
     <text x="70" y="16" font-family="'DM Sans', system-ui, sans-serif" font-size="10" font-weight="700" fill="var(--muted, #71817c)">
       LCOS FLEX-GRID WAVELENGTH SELECTIVE SWITCH (ITU-T G.694.1 ROADM ARCHITECTURE)

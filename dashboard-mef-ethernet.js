@@ -276,7 +276,7 @@ export function renderMefCarrierEthernetSvg(metrics, options = {}) {
 
   if (isCompact) {
     return `
-<svg class="mef-ethernet-svg mef-compact-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Carrier Ethernet Bandwidth Profile Summary">
+<svg class="mef-ethernet-svg mef-compact-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Carrier Ethernet Bandwidth Profile Summary">
   <defs>
     <linearGradient id="mefCompactBg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0b1329" />
@@ -330,7 +330,7 @@ export function renderMefCarrierEthernetSvg(metrics, options = {}) {
   const teFillY = bucketHeight * (1 - metrics.ebsFillPct / 100);
 
   return `
-<svg class="mef-ethernet-svg mef-full-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MEF 10.3 Carrier Ethernet Bandwidth Profile and Token Bucket Diagram">
+<svg class="mef-ethernet-svg mef-full-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MEF 10.3 Carrier Ethernet Bandwidth Profile and Token Bucket Diagram">
   <defs>
     <linearGradient id="mefFullBg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#090f1f" />

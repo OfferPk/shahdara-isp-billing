@@ -374,7 +374,7 @@ export function renderVehicleInventorySvg(summary) {
   });
 
   return `
-    <svg class="chart-svg van-inventory-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img"
+    <svg class="chart-svg van-inventory-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img"
       aria-label="Technician Vehicle Cargo Bay Inventory Rack Visualizer">
       <defs>
         <linearGradient id="vanRoofGrad" x1="0" y1="0" x2="1" y2="0">

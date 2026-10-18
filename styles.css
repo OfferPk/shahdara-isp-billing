@@ -7929,6 +7929,7 @@ html, body {
   gap: 8px;
 }
 
+.audit-kpi-grid,
 .audit-kpi-ribbon {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
@@ -7945,19 +7946,22 @@ html, body {
   gap: 4px;
 }
 
-.audit-kpi-label {
+.audit-kpi-label,
+.audit-kpi-card .kpi-label {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted, #64748b);
   text-transform: uppercase;
 }
 
-.audit-kpi-value {
+.audit-kpi-value,
+.audit-kpi-card .kpi-value {
   font-size: 1.25rem;
   font-weight: 800;
 }
 
-.audit-kpi-sub {
+.audit-kpi-sub,
+.audit-kpi-card .kpi-subtext {
   font-size: 0.75rem;
   color: var(--text-muted, #94a3b8);
 }
@@ -8077,6 +8081,35 @@ html, body {
 [data-theme="dark"] .badge-info {
   background: rgba(56, 189, 248, 0.2);
   color: #bae6fd;
+}
+
+@media (max-width: 620px) {
+  .audit-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .audit-action-left,
+  .audit-action-right {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 8px;
+  }
+  .audit-action-left button,
+  .audit-action-left select,
+  .audit-action-right button {
+    width: 100%;
+    min-height: 44px;
+  }
+  .audit-kpi-grid,
+  .audit-kpi-ribbon {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .audit-kpi-card {
+    padding: 10px 12px;
+  }
 }
 
 /* Monthly Collection vs Target Styles */

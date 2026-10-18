@@ -505,7 +505,7 @@ export function renderMonthlyTrendSvg(trends, { targetRevenue = null } = {}) {
   const height = 240;
 
   if (maxVal === 0 && (!targetRevenue || targetRevenue <= 0)) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Monthly Revenue and Collections Trend: No data recorded yet">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Monthly Revenue and Collections Trend: No data recorded yet">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 12})" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -589,7 +589,7 @@ export function renderMonthlyTrendSvg(trends, { targetRevenue = null } = {}) {
     </g>
   `;
 
-  return `<svg class="chart-svg chart-trend-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Monthly Revenue and Collections Trend Bar Chart">
+  return `<svg class="chart-svg chart-trend-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Monthly Revenue and Collections Trend Bar Chart">
     ${legendSvg}
     ${gridLinesSvg}
     ${targetSvg}
@@ -605,7 +605,7 @@ export function renderBillStatusDonutSvg({ paid = 0, unpaid = 0, partial = 0, to
   const height = 240;
 
   if (total === 0) {
-    return `<svg class="chart-svg chart-donut-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Current Month Bill Status: No bills recorded">
+    return `<svg class="chart-svg chart-donut-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Current Month Bill Status: No bills recorded">
       <circle cx="${width / 2}" cy="100" r="50" fill="none" stroke="var(--line, #e2ece7)" stroke-width="20" />
       <text x="${width / 2}" y="98" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--muted, #71817c)">0 Bills</text>
       <text x="${width / 2}" y="115" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">This month</text>
@@ -629,7 +629,7 @@ export function renderBillStatusDonutSvg({ paid = 0, unpaid = 0, partial = 0, to
 
   const percentPaid = Math.round((paid / total) * 100);
 
-  return `<svg class="chart-svg chart-donut-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Current Month Bill Payment Breakdown: ${paid} paid, ${partial} partial, ${unpaid} unpaid out of ${total} total bills">
+  return `<svg class="chart-svg chart-donut-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Current Month Bill Payment Breakdown: ${paid} paid, ${partial} partial, ${unpaid} unpaid out of ${total} total bills">
     <g transform="rotate(-90 ${cx} ${cy})">
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line, #e2ece7)" stroke-width="${strokeW}" />
       ${paid > 0 ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#10b981" stroke-width="${strokeW}" stroke-dasharray="${paidLen} ${C}" stroke-dashoffset="${paidOffset}"><title>Paid: ${paid} (${percentPaid}%)</title></circle>` : ''}
@@ -667,7 +667,7 @@ export function renderAreaDuesSvg(areas) {
   const height = 220;
 
   if (!areas || areas.length === 0) {
-    return `<svg class="chart-svg chart-area-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Outstanding Dues by Area: All areas clear">
+    return `<svg class="chart-svg chart-area-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Outstanding Dues by Area: All areas clear">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 8})" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(16, 185, 129, 0.1)" />
@@ -702,7 +702,7 @@ export function renderAreaDuesSvg(areas) {
     `;
   });
 
-  return `<svg class="chart-svg chart-area-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Outstanding Dues by Area Bar Chart">
+  return `<svg class="chart-svg chart-area-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Outstanding Dues by Area Bar Chart">
     <defs>
       <linearGradient id="areaDuesGradient" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="#f59e0b" />
@@ -722,7 +722,7 @@ export function renderPackageDistributionSvg(packageData) {
   const height = 240;
 
   if (!packages || packages.length === 0 || totalTracked === 0) {
-    return `<svg class="chart-svg chart-pkg-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Package Tier Distribution: No packages recorded">
+    return `<svg class="chart-svg chart-pkg-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Package Tier Distribution: No packages recorded">
       <circle cx="${width / 2}" cy="96" r="50" fill="none" stroke="var(--line, #e2ece7)" stroke-width="20" />
       <text x="${width / 2}" y="98" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-weight="700" font-size="13" fill="var(--muted, #71817c)">0 Packages</text>
       <text x="${width / 2}" y="115" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="10" fill="var(--muted, #71817c)">No data</text>
@@ -766,7 +766,7 @@ export function renderPackageDistributionSvg(packageData) {
     `;
   });
 
-  return `<svg class="chart-svg chart-pkg-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Package Tier Distribution Donut Chart: ${totalTracked} subscribers">
+  return `<svg class="chart-svg chart-pkg-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Package Tier Distribution Donut Chart: ${totalTracked} subscribers">
     <g transform="rotate(-90 ${cx} ${cy})">
       <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--line, #e2ece7)" stroke-width="${strokeW}" />
       ${circlesSvg}
@@ -791,7 +791,7 @@ export function renderCustomerHealthSvg(healthData) {
   const height = 210;
 
   if (totalTracked === 0) {
-    return `<svg class="chart-svg chart-health-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Health Matrix: No customer accounts">
+    return `<svg class="chart-svg chart-health-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Health Matrix: No customer accounts">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 8})" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -859,7 +859,7 @@ export function renderCustomerHealthSvg(healthData) {
     `;
   }).join('');
 
-  return `<svg class="chart-svg chart-health-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Health and Delinquency Distribution Chart: ${goodStanding.count || 0} in good standing, ${watchlist.count || 0} in watchlist, ${delinquent.count || 0} delinquent, ${offline.count || 0} offline out of ${totalTracked} total subscribers">
+  return `<svg class="chart-svg chart-health-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Health and Delinquency Distribution Chart: ${goodStanding.count || 0} in good standing, ${watchlist.count || 0} in watchlist, ${delinquent.count || 0} delinquent, ${offline.count || 0} offline out of ${totalTracked} total subscribers">
     <g class="health-bar-container">
       <rect x="${plotX}" y="${plotY}" width="${barW}" height="${barH}" rx="4" fill="var(--line, #e2ece7)" />
       ${segmentsSvg}
@@ -875,7 +875,7 @@ export function renderCustomerHealthSvg(healthData) {
  */
 export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {}) {
   if (!data || !Array.isArray(data.methods) || data.totalCount === 0 || data.totalAmount === 0) {
-    return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Payment Methods: No recorded payments for this period">
+    return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Payment Methods: No recorded payments for this period">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 10})" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -946,7 +946,7 @@ export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {})
     `;
   }).join('');
 
-  return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Payment Methods Settlement Distribution: Total collected ${formatPKR(data.totalAmount)} across ${data.totalCount} receipts. Physical cash: ${data.cashPercent}%, digital mobile: ${data.digitalPercent}%">
+  return `<svg class="chart-svg chart-methods-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Payment Methods Settlement Distribution: Total collected ${formatPKR(data.totalAmount)} across ${data.totalCount} receipts. Physical cash: ${data.cashPercent}%, digital mobile: ${data.digitalPercent}%">
     <g class="donut-slices-group">
       ${slicesSvg}
       <circle cx="${cx}" cy="${cy}" r="${r - 1}" fill="var(--surface, #ffffff)" />
@@ -972,7 +972,7 @@ export function renderPaymentMethodSvg(data, { width = 480, height = 240 } = {})
  */
 export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } = {}) {
   if (!riskData || riskData.totalCustomers === 0) {
-    return `<svg class="chart-svg chart-churn-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Retention and Churn Risk: No customer profiles">
+    return `<svg class="chart-svg chart-churn-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Retention and Churn Risk: No customer profiles">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 10})" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -1022,7 +1022,7 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
   const cardW = 224;
   const cardX = 236;
 
-  return `<svg class="chart-svg chart-churn-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Retention and Churn Risk Gauge: Score ${score}%, ${escapeXml(riskData.riskTierLabel)}. ${riskData.highRisk.count} high-risk accounts (${formatPKR(riskData.highRisk.totalDue)} dues), ${riskData.moderateRisk.count} moderate-risk accounts (${formatPKR(riskData.moderateRisk.totalDue)} dues)">
+  return `<svg class="chart-svg chart-churn-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Retention and Churn Risk Gauge: Score ${score}%, ${escapeXml(riskData.riskTierLabel)}. ${riskData.highRisk.count} high-risk accounts (${formatPKR(riskData.highRisk.totalDue)} dues), ${riskData.moderateRisk.count} moderate-risk accounts (${formatPKR(riskData.moderateRisk.totalDue)} dues)">
     <!-- Semicircle track zones -->
     <g class="gauge-zones">
       <path d="${greenArc}" fill="#10b981" opacity="0.85">
@@ -1098,7 +1098,7 @@ export function renderChurnRiskGaugeSvg(riskData, { width = 480, height = 240 } 
  */
 export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', width = 520, height = 270 } = {}) {
   if (!heatmapData || !Array.isArray(heatmapData.areas) || heatmapData.areas.length === 0) {
-    return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Geographic Collection Heatmap: No area data available">
+    return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Geographic Collection Heatmap: No area data available">
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" fill="var(--muted, #71817c)">No area collection data recorded for this period.</text>
     </svg>`;
   }
@@ -1134,7 +1134,7 @@ export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', wi
   `;
 
   if (visibleAreas.length === 0) {
-    return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Geographic Collection Heatmap: No matching areas">
+    return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Geographic Collection Heatmap: No matching areas">
       ${headerMarkup}
       <text x="${width / 2}" y="${height / 2 + 20}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="12" fill="var(--muted, #71817c)">No operational areas match the "${escapeXml(filter)}" recovery filter.</text>
     </svg>`;
@@ -1177,7 +1177,7 @@ export function renderAreaCollectionHeatmapSvg(heatmapData, { filter = 'all', wi
   const footerY = height - 12;
   const footerText = `Overall Collection Efficiency: ${summary.overallRecoveryRate}% · ${summary.totalAreas} Operational Zones`;
 
-  return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Geographic Collection Heatmap: Overall recovery ${summary.overallRecoveryRate}%, ${summary.highRecoveryCount} optimal, ${summary.moderateRecoveryCount} moderate, ${summary.laggingCount} lagging zones">
+  return `<svg class="chart-svg chart-heatmap-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Geographic Collection Heatmap: Overall recovery ${summary.overallRecoveryRate}%, ${summary.highRecoveryCount} optimal, ${summary.moderateRecoveryCount} moderate, ${summary.laggingCount} lagging zones">
     ${headerMarkup}
     ${rowsMarkup}
     <text x="${width / 2}" y="${footerY}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5" fill="var(--muted, #71817c)">${escapeXml(footerText)}</text>
@@ -1347,7 +1347,7 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
   const plotHeight = height - padding.top - padding.bottom;
 
   if (!seasonalData || (!seasonalData.hasCurrentYearData && !seasonalData.hasPriorYearData)) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Seasonal Cashflow Comparison: No historical multi-year records">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Seasonal Cashflow Comparison: No historical multi-year records">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, ${height / 2 - 12})" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -1422,7 +1422,7 @@ export function renderSeasonalCashflowSvg(seasonalData, options = {}) {
     ? `${seasonalData.ytdGrowthPercent >= 0 ? '+' : ''}${seasonalData.ytdGrowthPercent}%`
     : 'N/A';
 
-  return `<svg class="chart-svg seasonal-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Seasonal Cashflow Trend: ${seasonalData.currentYear} vs ${seasonalData.priorYear}">
+  return `<svg class="chart-svg seasonal-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Seasonal Cashflow Trend: ${seasonalData.currentYear} vs ${seasonalData.priorYear}">
     <defs>
       <linearGradient id="seasonalGrad" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="#0e5b4d" stop-opacity="0.25" />
@@ -1610,7 +1610,7 @@ export function renderPackageMarginSvg(marginData, options = {}) {
   const height = topPad + Math.max(displayPackages.length, 1) * rowHeight + bottomPad;
 
   if (!marginData || marginData.totalSubscribers === 0 || displayPackages.length === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} 220" width="100%" height="auto" role="img" aria-label="Package Margin & Bandwidth Cost: No subscribers configured">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} 220" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Package Margin & Bandwidth Cost: No subscribers configured">
       <rect width="${width}" height="220" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 98)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -1655,7 +1655,7 @@ export function renderPackageMarginSvg(marginData, options = {}) {
 
   const footerY = height - 16;
 
-  return `<svg class="chart-svg margin-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Package Margin and Bandwidth Cost Chart">
+  return `<svg class="chart-svg margin-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Package Margin and Bandwidth Cost Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(175, 18)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
@@ -1685,7 +1685,7 @@ export function renderCustomerLtvCohortsSvg(ltvData, { metric = currentLtvMetric
   const height = 240;
 
   if (!ltvData || ltvData.totalTrackedCustomers === 0 || ltvData.overallTotalLtv === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Lifetime Value Cohorts: No payment data">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Lifetime Value Cohorts: No payment data">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -1739,7 +1739,7 @@ export function renderCustomerLtvCohortsSvg(ltvData, { metric = currentLtvMetric
 
   const footerY = height - 14;
 
-  return `<svg class="chart-svg ltv-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Lifetime Value Cohorts Chart">
+  return `<svg class="chart-svg ltv-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Lifetime Value Cohorts Chart">
     <defs>
       <linearGradient id="ltvBarGrad" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="#0e5b4d" />
@@ -1776,7 +1776,7 @@ export function renderIncidentImpactSvg(matrixData) {
   const height = 240;
 
   if (!matrixData || matrixData.totalRecordedIncidents === 0 || (matrixData.areaBreakdown ?? []).length === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Network Incident and Outage Matrix: No incidents logged">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Network Incident and Outage Matrix: No incidents logged">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(16, 185, 129, 0.08)" />
@@ -1835,7 +1835,7 @@ export function renderIncidentImpactSvg(matrixData) {
 
   const footerY = height - 14;
 
-  return `<svg class="chart-svg incident-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Network Incident and Outage Matrix Chart">
+  return `<svg class="chart-svg incident-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Network Incident and Outage Matrix Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
@@ -1866,7 +1866,7 @@ export function renderCashflowProjectionSvg(projectionData) {
   const height = 240;
 
   if (!projectionData || !projectionData.monthlyForecasts || projectionData.monthlyForecasts.length === 0 || projectionData.totalProjectedBilled === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Forward Cashflow Projections: No recurring subscribers configured">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Forward Cashflow Projections: No recurring subscribers configured">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -1948,7 +1948,7 @@ export function renderCashflowProjectionSvg(projectionData) {
 
   const footerY = height - 10;
 
-  return `<svg class="chart-svg projection-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Forward Cashflow Projections &amp; Scenario Modeler Chart">
+  return `<svg class="chart-svg projection-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Forward Cashflow Projections &amp; Scenario Modeler Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <!-- Chart Legend & Scenario Header -->
@@ -1993,7 +1993,7 @@ export function renderUpstreamGatewaySvg(gatewayData) {
   const height = 240;
 
   if (!gatewayData || gatewayData.gateways.length === 0 || gatewayData.totalBandwidthCapacityMbps === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Upstream ISP Transit: No gateways assigned">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Upstream ISP Transit: No gateways assigned">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -2048,7 +2048,7 @@ export function renderUpstreamGatewaySvg(gatewayData) {
 
   const footerY = height - 12;
 
-  return `<svg class="chart-svg upstream-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Upstream ISP Transit &amp; Multi-Homed Failover Chart">
+  return `<svg class="chart-svg upstream-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Upstream ISP Transit &amp; Multi-Homed Failover Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
@@ -2079,7 +2079,7 @@ export function renderAcquisitionRoiSvg(roiData) {
   const height = 240;
 
   if (!roiData || roiData.totalPortfolioAcquisitions === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Acquisition ROI: No subscribers tracked">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Acquisition ROI: No subscribers tracked">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -2141,7 +2141,7 @@ export function renderAcquisitionRoiSvg(roiData) {
 
   const footerY = height - 12;
 
-  return `<svg class="chart-svg acquisition-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Acquisition Channel ROI and Payback Velocity Chart">
+  return `<svg class="chart-svg acquisition-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Acquisition Channel ROI and Payback Velocity Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(150, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
@@ -2172,7 +2172,7 @@ export function renderBandwidthShapingSvg(metrics) {
   const height = 240;
 
   if (!metrics || metrics.totalProvisionedBandwidthMbps === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Bandwidth Shaping: No active subscribers">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Bandwidth Shaping: No active subscribers">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -2219,7 +2219,7 @@ export function renderBandwidthShapingSvg(metrics) {
 
   const statusColor = metrics.congestionStatus === 'Healthy Bandwidth Headroom' ? '#047857' : (metrics.congestionStatus === 'Moderate Congestion' ? '#d97706' : '#dc2626');
 
-  return `<svg class="chart-svg shaping-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Peak Bandwidth Utilization and Diurnal Traffic Curve">
+  return `<svg class="chart-svg shaping-chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Peak Bandwidth Utilization and Diurnal Traffic Curve">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 20)" font-family="'DM Sans', system-ui, sans-serif" font-size="9.5">
@@ -2259,7 +2259,7 @@ export function renderFiberDistributionSvg(metrics) {
   const height = 240;
 
   if (!metrics || !metrics.hubs || metrics.hubs.length === 0 || metrics.totalDeployedPorts === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Fiber Distribution Hub: No active drops">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub: No active drops">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -2321,7 +2321,7 @@ export function renderFiberDistributionSvg(metrics) {
     `;
   }).join('');
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Fiber Distribution Hub & Optical Splitter Capacity Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 20)">
@@ -2648,7 +2648,7 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   const height = 240;
 
   if (!pipelineData || pipelineData.totalDelinquentAccounts === 0 || pipelineData.totalDelinquentDues === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Delinquency Recovery Pipeline: Clean Ledger">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Delinquency Recovery Pipeline: Clean Ledger">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -2702,7 +2702,7 @@ export function renderDelinquencyPipelineSvg(pipelineData, options = {}) {
   const topArea = pipelineData.topDelinquentAreas[0];
   const topAreaText = topArea ? `${escapeXml(topArea.areaName)} (${formatPKR(topArea.totalOverdue)})` : 'None';
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Subscriber Delinquency Recovery &amp; Escalation Pipeline Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 20)">
@@ -2733,7 +2733,7 @@ export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
   const height = 240;
 
   if (!cpeData || cpeData.totalCpeFleet === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Premises Equipment CPE and ONU Asset Lifecycle: No equipment tracked">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Premises Equipment CPE and ONU Asset Lifecycle: No equipment tracked">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <g transform="translate(${width / 2}, 105)" text-anchor="middle">
         <circle cx="0" cy="-14" r="24" fill="rgba(14, 91, 77, 0.08)" />
@@ -2770,7 +2770,7 @@ export function renderCpeAssetLifecycleSvg(cpeData, options = {}) {
   const dormantCardX = leftPad + cardW + cardGap;
   const sparesCardX = leftPad + (cardW + cardGap) * 2;
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Customer Premises Equipment CPE and ONU Asset Lifecycle Chart">
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Customer Premises Equipment CPE and ONU Asset Lifecycle Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 22)">
@@ -2835,7 +2835,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
   const height = options.height || 260;
 
   if (!powerData || !Array.isArray(powerData.hubs) || powerData.hubs.length === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Power Outage and OLT Battery Health Chart">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Power Outage and OLT Battery Health Chart">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
         No distribution hub power telemetry recorded
@@ -2918,7 +2918,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
     `;
   }).join('');
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Power Outage and OLT Battery Health Chart">
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Power Outage and OLT Battery Health Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 20)">
@@ -2950,7 +2950,7 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
   const height = options.height || 260;
 
   if (!densityData || !Array.isArray(densityData.areas) || densityData.areas.length === 0) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
         No delinquent collection route stops recorded
@@ -3032,7 +3032,7 @@ export function renderRouteDensityMatrixSvg(densityData, options = {}) {
     `;
   }).join('');
 
-  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
+  return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Area Collection Route Density and Collector Pacing Chart">
     <rect width="${width}" height="${height}" rx="10" fill="transparent" />
 
     <g transform="translate(${leftPad}, 20)">

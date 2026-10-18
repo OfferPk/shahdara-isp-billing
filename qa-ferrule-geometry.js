@@ -442,7 +442,7 @@ export function renderFerruleGeometryAnalysisSvg(calc, options = {}) {
   const contactFill = calc.isPhysicalContact ? '#10b981' : '#ef4444';
 
   return `
-<svg class="ferrule-geometry-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ferrule End-Face Geometric Interferometry Analysis Diagram">
+<svg class="ferrule-geometry-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ferrule End-Face Geometric Interferometry Analysis Diagram">
   <defs>
     <!-- Background Gradient -->
     <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">

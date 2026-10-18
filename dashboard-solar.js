@@ -363,7 +363,7 @@ export function renderSolarInverterSvg(solarData, options = {}) {
   const height = options.height || 260;
 
   if (!solarData || !solarData.selectedHub) {
-    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Solar Hybrid Inverter Monitor Chart">
+    return `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Solar Hybrid Inverter Monitor Chart">
       <rect width="${width}" height="${height}" rx="10" fill="transparent" />
       <text x="${width / 2}" y="${height / 2}" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="13" fill="var(--muted, #71817c)">
         No solar inverter telemetry available
@@ -434,7 +434,7 @@ export function renderSolarInverterSvg(solarData, options = {}) {
   const gradientId = `solarGrad-${hub.id}`;
 
   return `
-    <svg class="chart-svg solar-inverter-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" role="img" aria-label="Solar Hybrid Inverter Monitor Chart">
+    <svg class="chart-svg solar-inverter-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" role="img" aria-label="Solar Hybrid Inverter Monitor Chart">
       <defs>
         <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.45" />

@@ -486,7 +486,7 @@ export function renderBidirectionalOtdrSvg({
   }).join('');
 
   return `
-    <svg class="bidirectional-otdr-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" style="background:#0b1329; border-radius:8px; border:1px solid #1e293b; user-select:none;">
+    <svg class="bidirectional-otdr-svg" viewBox="0 0 ${width} ${height}" width="100%"  xmlns="http://www.w3.org/2000/svg" style="background:#0b1329; border-radius:8px; border:1px solid #1e293b; user-select:none;">
       <!-- Title & Header HUD -->
       <text x="${padLeft}" y="20" fill="#f8fafc" font-size="12" font-weight="700" font-family="sans-serif">
         BIDIRECTIONAL OTDR TRACE AVERAGING [${result.wavelengthNm}nm]

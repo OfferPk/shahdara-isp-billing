@@ -363,7 +363,7 @@ export function renderBendLossAnalysisSvg(result = {}) {
   });
 
   return `
-    <svg class="bend-loss-analysis-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fiber Core Bending Radius and Evanescent Cladding Leakage Diagram">
+    <svg class="bend-loss-analysis-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fiber Core Bending Radius and Evanescent Cladding Leakage Diagram">
       <defs>
         <radialGradient id="bendCoreGlow" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.9" />

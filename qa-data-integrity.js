@@ -754,7 +754,7 @@ export function renderDataIntegritySvg({
   const barX = 340;
   const barWidth = 260;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" class="data-integrity-svg" aria-label="Database Integrity Health Gauge ${score}%">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="100%" height="${height}" class="data-integrity-svg" style="height: auto; max-width: 100%; display: block;" aria-label="Database Integrity Health Gauge ${score}%">
     <defs>
       <linearGradient id="integrityGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
         <stop offset="0%" stop-color="${gaugeColor}" stop-opacity="0.8"/>

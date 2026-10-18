@@ -5357,6 +5357,45 @@ if (typeof document !== 'undefined') {
       toast: (msg) => toast(msg)
     });
   }
+
+  const openCorrectnessBtn = $('#openBillingCorrectnessBtn');
+  if (openCorrectnessBtn && !openCorrectnessBtn.dataset.wired) {
+    openCorrectnessBtn.dataset.wired = 'true';
+    openCorrectnessBtn.addEventListener('click', () => {
+      billingCorrectnessModalController?.open();
+    });
+  }
+  const mobileMoreCorrectnessBtn = $('#mobileMoreBillingCorrectnessBtn');
+  if (mobileMoreCorrectnessBtn && !mobileMoreCorrectnessBtn.dataset.wired) {
+    mobileMoreCorrectnessBtn.dataset.wired = 'true';
+    mobileMoreCorrectnessBtn.addEventListener('click', () => {
+      const moreMenu = $('#mobileMoreMenu');
+      if (moreMenu) moreMenu.hidden = true;
+      billingCorrectnessModalController?.open();
+    });
+  }
+  const mobileMoreTargetBtn = $('#mobileMoreCollectionTargetBtn');
+  if (mobileMoreTargetBtn && !mobileMoreTargetBtn.dataset.wired) {
+    mobileMoreTargetBtn.dataset.wired = 'true';
+    mobileMoreTargetBtn.addEventListener('click', () => {
+      const moreMenu = $('#mobileMoreMenu');
+      if (moreMenu) moreMenu.hidden = true;
+      collectionTargetController?.open();
+    });
+  }
+
+  if (typeof window !== 'undefined') {
+    window.billingCorrectnessModalController = billingCorrectnessModalController;
+    window.dataIntegrityModalController = dataIntegrityModalController;
+    window.collectionTargetController = collectionTargetController;
+    window.duesAgingController = duesAgingController;
+    window.topDefaultersModalController = topDefaultersModalController;
+    window.areaCollectionsModalController = areaCollectionsModalController;
+    window.packageRevenueModalController = packageRevenueModalController;
+    window.pnlModalController = pnlModalController;
+    window.momGrowthModalController = momGrowthModalController;
+    window.lateFeeModalController = lateFeeModalController;
+  }
 }
 
 

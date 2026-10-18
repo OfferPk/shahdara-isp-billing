@@ -355,7 +355,7 @@ export function renderMobileOrlSvg(calcResult, options = {}) {
   const optThresholdX = meterX + ((std.optimalOrlDb - minScale) / (maxScale - minScale)) * meterW;
 
   return `
-    <svg class="orl-svg" viewBox="0 0 ${width} ${height}" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Optical Return Loss Wave Schematic">
+    <svg class="orl-svg" viewBox="0 0 ${width} ${height}" width="100%" style="height: auto; max-width: 100%; display: block;" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Optical Return Loss Wave Schematic">
       <defs>
         <linearGradient id="orlFiberGrad" x1="0" y1="0" x2="1" y2="0">
           <stop offset="0%" stop-color="#38bdf8"/>

@@ -771,7 +771,7 @@ export function renderCableJettingAnalysisSvg(recordOrAnalysis = {}) {
   const statusColor = verdict.color || '#16a34a';
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%" height="auto" class="cable-jetting-analysis-svg" style="background:#090d16; border-radius:8px; font-family:system-ui,-apple-system,sans-serif;">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="100%"  class="cable-jetting-analysis-svg" style="background:#090d16; border-radius:8px; font-family:system-ui,-apple-system,sans-serif;">
       <defs>
         <linearGradient id="compressorGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#0284c7" />

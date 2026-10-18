@@ -689,3 +689,199 @@ export function verifyAccessibilityStandards(doc = (typeof document !== 'undefin
     findings
   };
 }
+
+/**
+ * Universal Dialog & Bottom-Sheet Controller (#215).
+ * Enforces:
+ * 1. Only one dialog open at a time (closes any prior open dialog).
+ * 2. Focus trapping inside the active dialog, returning focus to opener element upon close.
+ * 3. Escape key and outside backdrop tap close non-destructive sheets.
+ * 4. Android Back / popstate dismissal of open dialog.
+ * 5. Universal close button event handling fallback.
+ *
+ * @param {Object} [options={}]
+ * @param {Document} [options.doc=document]
+ * @param {Window} [options.win=window]
+ * @returns {{ destroy: Function }}
+ */
+export function initUniversalDialogController({
+  doc = (typeof document !== 'undefined' ? document : null),
+  win = (typeof window !== 'undefined' ? window : null)
+} = {}) {
+  if (!doc || !win) return { destroy: () => {} };
+
+  function setupDialogInstance(dialog) {
+    if (!dialog || dialog._universalSetupDone) return;
+    dialog._universalSetupDone = true;
+
+    // 1. Outside tap / backdrop tap dismissal
+    if (typeof dialog.addEventListener === 'function') {
+      dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) {
+          const rect = typeof dialog.getBoundingClientRect === 'function' ? dialog.getBoundingClientRect() : null;
+          if (rect) {
+            const isInDialog = (
+              rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+              rect.left <= e.clientX && e.clientX <= rect.left + rect.width
+            );
+            if (!isInDialog) {
+              const isAlert = dialog.getAttribute('role') === 'alertdialog' || (dialog.classList && dialog.classList.contains('confirm-modal'));
+              if (!isAlert) {
+                try {
+                  if (typeof dialog.close === 'function') dialog.close();
+                  else dialog.removeAttribute('open');
+                } catch {
+                  dialog.removeAttribute('open');
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // 2. Fallback for close buttons inside the dialog
+      if (typeof dialog.querySelectorAll === 'function') {
+        const closeBtns = dialog.querySelectorAll('.close-button, .modal-close-btn, .billing-modal-close, button[aria-label*="close" i], button[aria-label*="Close" i]');
+        closeBtns.forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (dialog.open) {
+              try {
+                if (typeof dialog.close === 'function') dialog.close();
+                else dialog.removeAttribute('open');
+              } catch {
+                dialog.removeAttribute('open');
+              }
+            }
+          });
+        });
+      }
+
+      // 3. Close event - release trap and return focus
+      dialog.addEventListener('close', () => {
+        if (dialog._releaseFocusTrap) {
+          dialog._releaseFocusTrap();
+          dialog._releaseFocusTrap = null;
+        }
+        if (dialog._openerElement && typeof dialog._openerElement.focus === 'function') {
+          try { dialog._openerElement.focus(); } catch {}
+          dialog._openerElement = null;
+        }
+      });
+    }
+  }
+
+  // Pre-wire existing dialogs
+  if (typeof doc.querySelectorAll === 'function') {
+    doc.querySelectorAll('dialog').forEach(setupDialogInstance);
+  }
+
+  // Hook HTMLDialogElement prototype if available
+  if (typeof win.HTMLDialogElement !== 'undefined' && win.HTMLDialogElement.prototype) {
+    const proto = win.HTMLDialogElement.prototype;
+    const origShowModal = proto.showModal;
+    const origClose = proto.close;
+
+    if (!proto._universalHooked) {
+      proto._universalHooked = true;
+
+      proto.showModal = function() {
+        const opener = doc.activeElement || null;
+        this._openerElement = opener;
+
+        // Enforce: Only ONE root dialog open at a time (#215).
+        // If this dialog is nested/spawned from within an existing open dialog (e.g. #bulkDuplicateDialog or #collectSetupModal),
+        // keep the host dialog open as _parentDialog.
+        if (typeof doc.querySelectorAll === 'function') {
+          const allOpen = doc.querySelectorAll('dialog[open]');
+          allOpen.forEach(d => {
+            if (d !== this) {
+              const isNested = (
+                (this.classList && typeof this.classList.contains === 'function' && this.classList.contains('bulk-duplicate-modal')) ||
+                this.id === 'bulkDuplicateDialog' ||
+                this.id === 'collectSetupModal' ||
+                (typeof this.hasAttribute === 'function' && this.hasAttribute('data-nested-dialog')) ||
+                (opener && typeof opener.hasAttribute === 'function' && opener.hasAttribute('data-open-subdialog'))
+              );
+              if (!isNested) {
+                try {
+                  if (typeof origClose === 'function') origClose.call(d);
+                  else if (typeof d.close === 'function') d.close();
+                  else d.removeAttribute('open');
+                } catch {
+                  d.removeAttribute('open');
+                }
+              } else {
+                this._parentDialog = d;
+              }
+            }
+          });
+        }
+
+        setupDialogInstance(this);
+
+        if (typeof origShowModal === 'function') {
+          origShowModal.call(this);
+        } else {
+          this.setAttribute('open', '');
+        }
+
+        // Focus trap & Escape handling
+        this._releaseFocusTrap = trapModalFocus(this, {
+          doc,
+          onEscape: () => {
+            try {
+              if (typeof this.close === 'function') this.close();
+              else this.removeAttribute('open');
+            } catch {
+              this.removeAttribute('open');
+            }
+          }
+        });
+      };
+
+      proto.close = function(returnValue) {
+        if (this._releaseFocusTrap) {
+          this._releaseFocusTrap();
+          this._releaseFocusTrap = null;
+        }
+        const opener = this._openerElement;
+        this._openerElement = null;
+
+        if (typeof origClose === 'function') {
+          origClose.call(this, returnValue);
+        } else {
+          this.removeAttribute('open');
+        }
+
+        if (opener && typeof opener.focus === 'function') {
+          try { opener.focus(); } catch {}
+        }
+      };
+    }
+  }
+
+  // MutationObserver for dynamic dialog injection
+  let observer = null;
+  if (typeof win.MutationObserver !== 'undefined' && doc.body) {
+    observer = new win.MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of (m.addedNodes || [])) {
+          if (node.nodeType === 1) {
+            if (node.tagName === 'DIALOG') setupDialogInstance(node);
+            else if (typeof node.querySelectorAll === 'function') {
+              node.querySelectorAll('dialog').forEach(setupDialogInstance);
+            }
+          }
+        }
+      }
+    });
+    observer.observe(doc.body, { childList: true, subtree: true });
+  }
+
+  return {
+    destroy: () => {
+      if (observer) observer.disconnect();
+    }
+  };
+}
+

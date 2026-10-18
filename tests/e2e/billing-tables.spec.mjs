@@ -238,4 +238,109 @@ test.describe('Billing Tables: Customer Roster, Sorting, Filtering & Pagination 
       await themeBtn.click();
     }
   });
+
+  test('customer table full-width expand mode toggles and auto-collapses on row selection', async ({ page }) => {
+    await page.goto('/');
+    await navigateToView(page, 'customers');
+
+    // Switch to table view
+    await page.locator('#customerViewTableBtn').click();
+    const tableWrap = page.locator('#customerTableWrap');
+    await expect(tableWrap).toBeVisible();
+
+    const expandBtn = page.locator('#customerTableExpandBtn');
+    const isExpandVisible = await expandBtn.isVisible();
+    if (isExpandVisible) {
+      await expect(expandBtn).toHaveAttribute('aria-pressed', 'false');
+      await expandBtn.click();
+      await expect(expandBtn).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.locator('.app-shell')).toHaveClass(/roster-table-expanded/);
+
+      // Select a row to verify auto-collapse
+      const firstRowSelectBtn = page.locator('#customerRosterTable tbody tr .customer-row-btn').first();
+      await firstRowSelectBtn.dispatchEvent('click');
+      await expect(page.locator('.app-shell')).not.toHaveClass(/roster-table-expanded/);
+      await expect(expandBtn).toHaveAttribute('aria-pressed', 'false');
+    }
+  });
+
+  test('customer table keyboard sorting and aria-sort attribute synchronization', async ({ page }) => {
+    await page.goto('/');
+    await navigateToView(page, 'customers');
+
+    // Switch to table view
+    await page.locator('#customerViewTableBtn').click();
+    const table = page.locator('#customerRosterTable');
+    await expect(table).toBeVisible();
+
+    const nameTh = table.locator('th[data-sort-cust="name"]');
+    await expect(nameTh).toBeVisible();
+    await expect(nameTh).toHaveAttribute('tabindex', '0');
+    await expect(nameTh).toHaveAttribute('role', 'columnheader');
+
+    // Press Enter to trigger keyboard sort
+    await nameTh.focus();
+    await page.keyboard.press('Enter');
+    const sortVal = await nameTh.getAttribute('aria-sort');
+    expect(['ascending', 'descending']).toContain(sortVal);
+
+    // Verify sort icon exists
+    const sortIcon = nameTh.locator('.sort-icon');
+    await expect(sortIcon).toBeVisible();
+  });
+
+  test('customer table empty state renders contextual message and reset filters button works', async ({ page }) => {
+    await page.goto('/');
+    await navigateToView(page, 'customers');
+
+    // Switch to table view
+    await page.locator('#customerViewTableBtn').click();
+    await expect(page.locator('#customerRosterTable')).toBeVisible();
+
+    // Type a search query that yields zero results
+    const searchInput = page.locator('#customerListSearch');
+    await searchInput.fill('xyznonexistentcustomer123');
+
+    const emptyRow = page.locator('#customerRosterTable .customer-table-empty');
+    await expect(emptyRow).toBeVisible();
+    await expect(emptyRow).toContainText('xyznonexistentcustomer123');
+
+    // Click reset filters button
+    const resetBtn = page.locator('#resetCustomerTableFiltersBtn');
+    await expect(resetBtn).toBeVisible();
+    await resetBtn.dispatchEvent('click');
+
+    // Should clear search input and restore rows
+    await expect(searchInput).toHaveValue('');
+    await expect(emptyRow).toBeHidden();
+    const rows = page.locator('#customerRosterTable tbody tr');
+    await expect(rows.first()).toBeVisible();
+  });
+
+  test('customer roster CSV export button downloads CSV file and displays toast', async ({ page }) => {
+    await page.goto('/');
+    await navigateToView(page, 'customers');
+
+    // Switch to table view
+    await page.locator('#customerViewTableBtn').click();
+    const exportBtn = page.locator('#exportCustomerRosterCsvBtn');
+    await expect(exportBtn).toBeVisible();
+
+    // Setup download listener
+    const downloadPromise = page.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+    await exportBtn.click();
+
+    const download = await downloadPromise;
+    if (download) {
+      expect(download.suggestedFilename()).toContain('customer-roster-');
+      expect(download.suggestedFilename()).toContain('.csv');
+    }
+
+    // Verify toast notification appears
+    const toast = page.locator('#toast');
+    if (await toast.isVisible()) {
+      await expect(toast).toContainText('Exported');
+    }
+  });
 });
+

@@ -17,6 +17,7 @@ import {
   formatPKR
 } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
+import { trapModalFocus } from './nav-accessibility.js';
 
 export const RECENT_CUSTOMERS_STORAGE_KEY = 'shahdara_recent_customers_v1';
 
@@ -357,6 +358,8 @@ export function setupFastCustomerSearchModal({
     }
   }
 
+  let releaseFocusTrap = null;
+
   function openModal() {
     activeStatusFilter = 'all';
     statusChips.forEach(chip => {
@@ -376,12 +379,22 @@ export function setupFastCustomerSearchModal({
       modal.setAttribute('open', '');
     }
 
+    releaseFocusTrap = trapModalFocus(modal, {
+      initialFocus: searchInput,
+      onEscape: closeModal
+    });
+
     setTimeout(() => {
       searchInput?.focus();
     }, 60);
   }
 
   function closeModal() {
+    if (releaseFocusTrap) {
+      releaseFocusTrap();
+      releaseFocusTrap = null;
+    }
+
     if (typeof modal.close === 'function') {
       try {
         if (modal.open) modal.close();

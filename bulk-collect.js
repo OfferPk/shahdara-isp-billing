@@ -262,7 +262,10 @@ function buildDialogs(doc) {
 
   <dialog id="bulkDuplicateDialog" class="modal bulk-duplicate-modal" aria-labelledby="bulkDuplicateTitle" aria-describedby="bulkDuplicateBody">
     <section class="bulk-duplicate-card">
-      <h2 id="bulkDuplicateTitle">⚠ Already added</h2>
+      <div class="modal-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h2 id="bulkDuplicateTitle" style="margin:0;">⚠ Already added</h2>
+        <button id="closeBulkDuplicateModalBtn" class="close-button" type="button" aria-label="Close duplicate alert">×</button>
+      </div>
       <div id="bulkDuplicateBody" class="bc-dup-body"></div>
       <div class="bc-dup-actions">
         <button id="bulkDuplicateCancelBtn" class="secondary-button" type="button">Cancel · Skip</button>
@@ -399,6 +402,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     if (dupDialog.open) dupDialog.close(); else dupDialog.removeAttribute('open');
     const r = resolveDup; resolveDup = null; r?.(result);
   };
+  $('closeBulkDuplicateModalBtn')?.addEventListener('click', () => closeDup(false));
   $('bulkDuplicateCancelBtn').addEventListener('click', () => closeDup(false));
   $('bulkDuplicateConfirmBtn').addEventListener('click', () => closeDup(true));
   dupDialog.addEventListener('cancel', e => { e.preventDefault(); closeDup(false); });

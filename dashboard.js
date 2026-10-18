@@ -560,7 +560,6 @@ export function setupDashboardQuickActions({
   wire('quickActionAddCustomer', onAddCustomer);
   wire('homeActionAddCustomer', onAddCustomer);
   wire('homeActionDuesList', onDuesList);
-  wire('quickActionTopDefaulters', onDuesList);
   wire('quickActionDailyClosing', onDailyClosing);
   wire('homeActionDailyClosing', onDailyClosing);
   wire('quickActionRecordExpense', onRecordExpense);

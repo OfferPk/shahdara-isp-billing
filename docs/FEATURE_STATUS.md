@@ -1,6 +1,6 @@
 # Feature & Interactive Control Status (Automated Button Audit)
 
-*Last updated: 2026-10-18T20:33:06.690Z via tests/e2e/button-audit.spec.mjs (#216)*
+*Last updated: 2026-10-18T20:51:00.728Z via tests/e2e/button-audit.spec.mjs (#216)*
 
 **Summary:** 61 / 61 controls verified working (0 no-effect buttons, 0 broken).
 
@@ -28,45 +28,45 @@
 | 20 | `#/expenses` | Clear Expense Filters | `#clearExpenseFilters` | Resets expense filters to default | **Working** |
 | 21 | `#/inventory` | Export Inventory CSV | `#exportInventoryCsvBtn` | Downloads equipment inventory CSV file | **Working** |
 | 22 | `/#/home` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 23 | `/#/home` | networkStatusPill | `#networkStatusPill` | Opened dialog | **Working** |
-| 24 | `/#/home` | commandPaletteTrigger | `#commandPaletteTrigger` | Opened dialog | **Working** |
-| 25 | `/#/home` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 26 | `/#/home` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 27 | `/#/home` | shortcutsHelpButton | `#shortcutsHelpButton` | Opened dialog | **Working** |
-| 28 | `/#/home` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 29 | `/#/home` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 23 | `/#/home` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
+| 24 | `/#/home` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
+| 25 | `/#/home` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
+| 26 | `/#/home` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 27 | `/#/home` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
+| 28 | `/#/home` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
+| 29 | `/#/home` | clearGlobalSearch | `#clearGlobalSearch` | Opened dialog | **Working** |
 | 30 | `/#/customers` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 31 | `/#/customers` | networkStatusPill | `#networkStatusPill` | Opened dialog | **Working** |
-| 32 | `/#/customers` | commandPaletteTrigger | `#commandPaletteTrigger` | Opened dialog | **Working** |
-| 33 | `/#/customers` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 34 | `/#/customers` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 35 | `/#/customers` | shortcutsHelpButton | `#shortcutsHelpButton` | Opened dialog | **Working** |
-| 36 | `/#/customers` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 37 | `/#/customers` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 31 | `/#/customers` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
+| 32 | `/#/customers` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
+| 33 | `/#/customers` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
+| 34 | `/#/customers` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 35 | `/#/customers` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
+| 36 | `/#/customers` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
+| 37 | `/#/customers` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
 | 38 | `/#/transactions` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 39 | `/#/transactions` | networkStatusPill | `#networkStatusPill` | Opened dialog | **Working** |
-| 40 | `/#/transactions` | commandPaletteTrigger | `#commandPaletteTrigger` | Opened dialog | **Working** |
-| 41 | `/#/transactions` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 42 | `/#/transactions` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 43 | `/#/transactions` | shortcutsHelpButton | `#shortcutsHelpButton` | Opened dialog | **Working** |
-| 44 | `/#/transactions` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 45 | `/#/transactions` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 39 | `/#/transactions` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
+| 40 | `/#/transactions` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
+| 41 | `/#/transactions` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
+| 42 | `/#/transactions` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 43 | `/#/transactions` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
+| 44 | `/#/transactions` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
+| 45 | `/#/transactions` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
 | 46 | `/#/reports` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 47 | `/#/reports` | networkStatusPill | `#networkStatusPill` | Opened dialog | **Working** |
-| 48 | `/#/reports` | commandPaletteTrigger | `#commandPaletteTrigger` | Opened dialog | **Working** |
-| 49 | `/#/reports` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 50 | `/#/reports` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 51 | `/#/reports` | shortcutsHelpButton | `#shortcutsHelpButton` | Opened dialog | **Working** |
-| 52 | `/#/reports` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 53 | `/#/reports` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 47 | `/#/reports` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
+| 48 | `/#/reports` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
+| 49 | `/#/reports` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
+| 50 | `/#/reports` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 51 | `/#/reports` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
+| 52 | `/#/reports` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
+| 53 | `/#/reports` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
 | 54 | `/#/expenses` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 55 | `/#/expenses` | networkStatusPill | `#networkStatusPill` | Opened dialog | **Working** |
-| 56 | `/#/expenses` | commandPaletteTrigger | `#commandPaletteTrigger` | Opened dialog | **Working** |
-| 57 | `/#/expenses` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 58 | `/#/expenses` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 59 | `/#/expenses` | shortcutsHelpButton | `#shortcutsHelpButton` | Opened dialog | **Working** |
-| 60 | `/#/expenses` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 61 | `/#/expenses` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 55 | `/#/expenses` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
+| 56 | `/#/expenses` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
+| 57 | `/#/expenses` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
+| 58 | `/#/expenses` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
+| 59 | `/#/expenses` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
+| 60 | `/#/expenses` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
+| 61 | `/#/expenses` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
 
 ### Notes
 - **`#ownerVoiceButton`**: Voice recognition is safely stubbed in headless Chromium environments.

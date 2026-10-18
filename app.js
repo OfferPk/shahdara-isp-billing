@@ -86,6 +86,7 @@ import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
+import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 
 
@@ -106,6 +107,7 @@ export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
 export let pnlModalController = null;
 export let momGrowthModalController = null;
+export let dailyClosingModalController = null;
 export let lateFeeModalController = null;
 let state;
 try {
@@ -4650,6 +4652,9 @@ if (typeof document !== 'undefined') {
   momGrowthModalController = setupMomGrowthModal(() => state, {
     onToast: (msg) => toast(msg)
   });
+  dailyClosingModalController = setupDailyClosingModal(() => state, {
+    onToast: (msg) => toast(msg)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -5571,6 +5576,13 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const dailyClosingModal = $('#dailyClosingModal');
+  if (dailyClosingModal && !dailyClosingModalController) {
+    dailyClosingModalController = setupDailyClosingModal(() => state, {
+      onToast: (msg) => toast(msg)
+    });
+  }
+
   const lateFeeModal = $('#lateFeeManagerModal');
   if (lateFeeModal && !lateFeeModalController) {
     lateFeeModalController = setupLateFeeModal({
@@ -5622,6 +5634,7 @@ if (typeof document !== 'undefined') {
     window.packageRevenueModalController = packageRevenueModalController;
     window.pnlModalController = pnlModalController;
     window.momGrowthModalController = momGrowthModalController;
+    window.dailyClosingModalController = dailyClosingModalController;
     window.lateFeeModalController = lateFeeModalController;
   }
 }

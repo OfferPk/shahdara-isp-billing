@@ -169,13 +169,37 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expen
 body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-heading { order: 3; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line, #dce6e1); }
 body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > #expenseForm { order: 4; margin-top: 8px; }
 
-/* #257 Phone filter toolbars stack in a column, where the search group's `flex: 1 1 240px` turned
-   into a 240px-tall box with ~100px blank gaps. Size it to its content; selects fill the row. */
+/* #257 / #264 Phone filter toolbars stack in a column. Search input gets full width so placeholder
+   fits completely; Clear and Export CSV buttons sit side by side on the next row with 48px touch targets. */
 @media (max-width: 620px) {
   .table-filter-toolbar > .table-filter-group,
-  .table-filter-toolbar > .table-filter-group.search-group { flex: 0 0 auto; }
+  .table-filter-toolbar > .table-filter-group.search-group { flex: 0 0 auto; width: 100%; }
+  .table-filter-toolbar > .table-filter-group.search-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
   .table-filter-toolbar > .table-filter-group > .table-filter-select { flex: 1 1 auto; width: 100%; }
-  .table-filter-toolbar > .table-filter-group.search-group > .table-filter-input { flex: 1 1 auto; min-width: 0; }
+  .table-filter-toolbar > .table-filter-group.search-group > .table-filter-input {
+    flex: 1 1 100%;
+    width: 100%;
+    min-width: 0;
+  }
+  .table-filter-toolbar > .table-filter-group.search-group > .table-filter-clear,
+  .table-filter-toolbar > .table-filter-group.search-group > #exportExpensesCsvBtn {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
+/* #264 Deduplicate repeated titles in screen mode: the screen header already announces the screen,
+   so drop the redundant duplicate h2 headings on Expenses and Transactions. */
+body.sr-screen-mode[data-screen="expenses"] #expensesView .phase3-heading h2,
+body.sr-screen-mode[data-screen="transactions"] .transactions-heading h2,
+body.sr-screen-mode[data-screen="transactions"] .transactions-heading .transactions-subtitle {
+  display: none;
 }
 
 /* #256 Desktop Customers screen with no customer open: the detail pane only said "Your ledger

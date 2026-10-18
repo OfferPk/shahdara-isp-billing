@@ -25,6 +25,11 @@ import {
 } from './nav-quick-collect.js';
 
 export const BULK_COLLECT_HASH = '#/bulk-collect';
+/** #/bulk-collect, plus the #collect/bulk and #/collect/bulk aliases (#263). */
+export const isBulkCollectHash = (hash = '') => {
+  const raw = String(hash).trim().toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+  return raw === 'bulk-collect' || raw === 'collect/bulk';
+};
 export const BULK_ALL_COLLECTED_TEXT = 'Sab ka bill wusool ho gaya';
 
 const cents = value => Math.round(Number(value) * 100);
@@ -537,11 +542,14 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     if (qc?.isOpen?.()) qc.close();
     searchInput.value = '';
     renderAll();
-    if (win.location.hash !== BULK_COLLECT_HASH) {
+    if (!isBulkCollectHash(win.location.hash)) {
+      // One history entry per sheet: Back closes Bulk and returns to where it was opened
+      // (usually Quick Collect at #/collect, which re-opens) — the batch is kept in memory.
       hashOnOpen = win.location.hash || '#/home';
-      win.history.pushState({ ...(win.history.state || {}), bulkCollect: true }, '', BULK_COLLECT_HASH);
-    } else if (hashOnOpen === null) {
-      hashOnOpen = '#/home';
+      win.history.pushState({ bulkCollect: true, bulkFrom: hashOnOpen }, '', BULK_COLLECT_HASH);
+    } else {
+      if (win.location.hash !== BULK_COLLECT_HASH) win.history.replaceState({ ...(win.history.state || {}), bulkCollect: true }, '', BULK_COLLECT_HASH);
+      if (hashOnOpen === null) hashOnOpen = '#/home';
     }
     try { if (!modal.open) modal.showModal(); } catch { modal.setAttribute('open', ''); }
     win.setTimeout(() => searchInput.focus({ preventScroll: true }), 50);
@@ -555,8 +563,15 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     if (searchInput.value) { e.preventDefault(); nextCustomer(); }
   });
   modal.addEventListener('close', () => {
-    if (win.location.hash === BULK_COLLECT_HASH) {
-      win.history.replaceState({ ...(win.history.state || {}), bulkCollect: false }, '', hashOnOpen || '#/home');
+    // Closed with × / Esc while still on its own route: step back (Back already moved off it).
+    if (isBulkCollectHash(win.location.hash)) {
+      const from = win.history.state?.bulkCollect ? win.history.state.bulkFrom : null;
+      if (from) {
+        // × / Esc closes Bulk and the Quick Collect sheet under it (phone Back steps one sheet at a time).
+        if (/^#\/?(collect|quick-collect)\/?$/i.test(from)) win.screenRouter?.collect?.skipNextOpen?.();
+        win.history.back();
+      }
+      else win.history.replaceState({ ...(win.history.state || {}), bulkCollect: false }, '', '#/home');
     }
     hashOnOpen = null;
     getController()?.refresh?.();
@@ -575,17 +590,17 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     pick.insertBefore(btn, pick.firstElementChild);
   }
 
-  const onHash = () => { if (win.location.hash === BULK_COLLECT_HASH && !modal.open) open(); };
+  const onHash = () => { if (isBulkCollectHash(win.location.hash) && !modal.open) open(); };
   win.addEventListener('hashchange', onHash);
   win.addEventListener('popstate', () => {
-    if (win.location.hash === BULK_COLLECT_HASH) { if (!modal.open) open(); }
+    if (isBulkCollectHash(win.location.hash)) { if (!modal.open) open(); }
     else if (modal.open) { hashOnOpen = null; close(); }
   });
 
   const api = { open, close, isOpen: () => modal.open, refresh: () => { if (modal.open) renderAll(); }, get batch() { return batch; } };
   win.bulkCollect = api;
   // Deep link: #/bulk-collect (wait for the app to finish its own startup).
-  if (win.location.hash === BULK_COLLECT_HASH) win.setTimeout(onHash, 0);
+  if (isBulkCollectHash(win.location.hash)) win.setTimeout(onHash, 0);
   return api;
 }
 

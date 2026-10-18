@@ -13,6 +13,12 @@
  *
  * The module only observes clicks (capture phase) and history; it never replaces the
  * app's own navigation handlers in app.js / owner-ui.js / nav.js.
+ *
+ * Quick Collect is a route too (#263): #/collect (also #collect, #quick-collect). Opening the
+ * sheet from anywhere pushes #/collect; phone/browser Back closes it and returns to the screen
+ * underneath; a deep link or reload on #/collect opens it. Bulk Collect (#/bulk-collect,
+ * bulk-collect.js) stacks on top: one Back closes Bulk and re-opens Quick Collect, while
+ * Bulk's × closes both and returns to the screen underneath.
  */
 
 export const SCREENS = {
@@ -40,6 +46,13 @@ export function parseRoute(hash = '') {
 }
 
 export const routeHash = screen => `#/${screen}`;
+
+export const COLLECT_HASH = '#/collect';
+/** True for the Quick Collect route: #/collect, #collect, #collect/ and the PWA #quick-collect. */
+export function isCollectHash(hash = '') {
+  const raw = String(hash).trim().toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
+  return raw === 'collect' || raw === 'quick-collect';
+}
 
 /**
  * Which screen a click on `element` navigates to, or null if it is not a navigation control.
@@ -219,6 +232,8 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
 
   // Navigation the app performs on its own (keyboard shortcuts, search results, customer links).
   history.pushState = function pushState(state, title, url) {
+    const target = url != null && String(url).includes('#') ? String(url).slice(String(url).indexOf('#')) : '';
+    if (target && isCollectHash(target)) return collect.push(state);
     const result = nativePush(state, title, url);
     if (!pendingIntent && !applying && url != null) {
       const route = parseRoute(String(url).includes('#') ? String(url).slice(String(url).indexOf('#')) : '');
@@ -229,6 +244,8 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     }
     return result;
   };
+
+  const collect = setupCollectRoute({ doc, win, nativePush, nativeReplace });
 
   const onHistory = () => {
     const route = parseRoute(win.location.hash);
@@ -247,8 +264,103 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
 
   return {
     get current() { return current; },
+    collect,
     go(screen) { if (screen === HOME || SCREENS[screen]) navigate({ screen }, win.location.hash); }
   };
+}
+
+/**
+ * Quick Collect as a history route (#263). Watches the #quickCollectModal `open` attribute,
+ * so every way of opening it (bottom-bar Collect, Home tiles, customer "Collect", shortcuts)
+ * and closing it (×, Esc, backdrop tap, Bulk Collect taking over) stays in sync with history.
+ */
+export function setupCollectRoute({ doc, win, nativePush, nativeReplace }) {
+  const history = win.history;
+  const modal = () => doc.getElementById('quickCollectModal');
+  const controller = () => win.quickCollectModalController;
+  const hash = () => win.location.hash;
+  let openTimer = null;
+
+  function push(state) {
+    const from = hash();
+    if (isCollectHash(from)) {
+      if (from !== COLLECT_HASH) nativeReplace({ ...(history.state || {}), ...(state || {}), collect: true }, '', COLLECT_HASH);
+      return undefined;
+    }
+    return nativePush({ ...(state || {}), collect: true, collectFrom: from || '#/home' }, '', COLLECT_HASH);
+  }
+
+  function openSheet(tries = 0) {
+    win.clearTimeout(openTimer);
+    const m = modal();
+    if (!isCollectHash(hash()) || m?.open) return;
+    const ctl = controller();
+    if (ctl?.open) { ctl.open(); return; }
+    // The controller is set up by app.js after start-up; a deep link can arrive first.
+    if (tries < 50) openTimer = win.setTimeout(() => openSheet(tries + 1), 100);
+  }
+
+  function onOpened() {
+    if (!isCollectHash(hash())) push(null);
+    else if (hash() !== COLLECT_HASH) nativeReplace({ ...(history.state || {}), collect: true }, '', COLLECT_HASH);
+  }
+
+  let leaving = false; // a history.back() off #/collect is in flight
+  let skipOpen = false; // the next arrival on #/collect should step past it (Bulk × closes both)
+  function leave() {
+    if (history.state?.collect && history.state.collectFrom) { leaving = true; history.back(); } // back to the screen underneath
+    else nativeReplace({ ...(history.state || {}), collect: false }, '', '#/home'); // opened by deep link
+  }
+
+  function onClosed() {
+    // Defer: Bulk Collect closes this sheet and pushes #/bulk-collect in the same task.
+    win.setTimeout(() => {
+      if (modal()?.open || !isCollectHash(hash()) || leaving) return;
+      leave();
+    }, 0);
+  }
+
+  function sync() {
+    const m = modal();
+    if (isCollectHash(hash())) {
+      if (leaving) return;
+      if (skipOpen) { skipOpen = false; leave(); return; }
+      openSheet();
+      return;
+    }
+    leaving = false;
+    if (m?.open) {
+      if (controller()?.close) controller().close();
+      else { try { m.close(); } catch { m.removeAttribute('open'); } }
+    }
+  }
+
+  let observed = null;
+  function observe() {
+    const m = modal();
+    if (!m || m === observed || typeof win.MutationObserver === 'undefined') return Boolean(m);
+    observed = m;
+    let wasOpen = m.open;
+    new win.MutationObserver(() => {
+      if (m.open === wasOpen) return;
+      wasOpen = m.open;
+      if (m.open) onOpened(); else onClosed();
+    }).observe(m, { attributes: true, attributeFilter: ['open'] });
+    return true;
+  }
+  if (!observe()) {
+    // Quick Collect's dialog may be injected later.
+    const bodyObserver = new win.MutationObserver(() => { if (observe()) bodyObserver.disconnect(); });
+    bodyObserver.observe(doc.body, { childList: true, subtree: true });
+  }
+
+  win.addEventListener('popstate', sync);
+  win.addEventListener('hashchange', sync);
+  if (isCollectHash(hash())) {
+    if (hash() !== COLLECT_HASH) nativeReplace({ ...(history.state || {}), collect: true }, '', COLLECT_HASH);
+    win.setTimeout(openSheet, 0);
+  }
+  return { push, open: () => { if (!isCollectHash(hash())) push(null); openSheet(); }, sync, skipNextOpen: () => { skipOpen = true; } };
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {

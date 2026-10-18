@@ -924,8 +924,14 @@ export function renderDailyClosingSvg(summary) {
  * @param {Date} [referenceDate=new Date()] - Reference date
  * @param {Object} [options={}] - Options (e.g. { onToast, clipboard })
  */
-export function setupDailyClosingCard(state, referenceDate = new Date(), { onToast, clipboard } = {}) {
-  const summary = calculateDailyClosingSummary(state, referenceDate);
+export function setupDailyClosingCard(state, referenceDate = new Date(), options = {}) {
+  const onToast = options.onToast;
+  const clipboard = options.clipboard;
+  const getState = typeof options.getState === 'function' ? options.getState : (typeof state === 'function' ? state : () => state);
+  const activeState = getState() || state;
+  const activeRefDate = options.getReferenceDate ? options.getReferenceDate() : (referenceDate || new Date());
+
+  const summary = calculateDailyClosingSummary(activeState, activeRefDate);
   const valueEl = document.getElementById('dashboardDailyClosingValue');
   const periodEl = document.getElementById('dashboardDailyClosingPeriod');
   const badgeEl = document.getElementById('dashboardClosingStatusBadge');
@@ -957,7 +963,9 @@ export function setupDailyClosingCard(state, referenceDate = new Date(), { onToa
       else if (slipBtn.setAttribute) slipBtn.setAttribute('data-wired', 'true');
 
       slipBtn.addEventListener('click', async () => {
-        const text = generateDailyClosingSlipText(state, referenceDate);
+        const liveState = getState() || state;
+        const liveDate = new Date();
+        const text = generateDailyClosingSlipText(liveState, liveDate);
         let copied = false;
         const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
         if (clip && typeof clip.writeText === 'function') {
@@ -968,8 +976,28 @@ export function setupDailyClosingCard(state, referenceDate = new Date(), { onToa
             copied = false;
           }
         }
+        if (!copied && typeof document !== 'undefined') {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            copied = document.execCommand('copy');
+            document.body.removeChild(ta);
+          } catch {
+            copied = false;
+          }
+        }
         if (typeof onToast === 'function') {
           onToast(copied ? 'Daily closing slip copied to clipboard!' : 'Daily closing summary ready.');
+        }
+
+        // Open daily closing modal for interactive review with Copy, WhatsApp, and Print (#238)
+        const modal = document.getElementById('dailyClosingModal');
+        if (modal && typeof modal.showModal === 'function' && !modal.open) {
+          modal.showModal();
         }
       });
     }

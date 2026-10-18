@@ -380,7 +380,10 @@ function renderDashboard() {
   });
   setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
   setupDashboardBriefingButton(state, referenceDate, { onToast: toast });
-  setupDailyClosingCard(state, referenceDate, { onToast: toast });
+  setupDailyClosingCard(state, referenceDate, {
+    getState: () => state,
+    onToast: toast
+  });
   setupAreaDrilldownModal(state, referenceDate, {
     onFilterRoster: (areaName) => {
       switchView('customers');

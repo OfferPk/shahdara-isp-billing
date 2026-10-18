@@ -798,21 +798,21 @@ export function initUniversalDialogController({
               const isNested = (
                 (this.classList && typeof this.classList.contains === 'function' && this.classList.contains('bulk-duplicate-modal')) ||
                 this.id === 'bulkDuplicateDialog' ||
-                this.id === 'collectSetupModal' ||
-                this.id === 'bulkCollectModal' ||
-                (d.id === 'quickCollectModal' && (this.id === 'bulkCollectModal' || this.id === 'collectSetupModal')) ||
+                (this.id === 'collectSetupModal' && (d.id === 'quickCollectModal' || d.id === 'bulkCollectModal')) ||
+                (this.id === 'bulkCollectModal' && d.id === 'quickCollectModal') ||
                 (typeof this.hasAttribute === 'function' && this.hasAttribute('data-nested-dialog')) ||
                 (opener && typeof opener.hasAttribute === 'function' && opener.hasAttribute('data-open-subdialog')) ||
-                (opener && typeof opener.closest === 'function' && opener.closest('dialog') === d)
+                (this.parentElement && typeof this.parentElement.closest === 'function' && this.parentElement.closest('dialog') === d)
               );
               if (!isNested) {
                 try {
-                  if (typeof origClose === 'function') origClose.call(d);
-                  else if (typeof d.close === 'function') d.close();
-                  else d.removeAttribute('open');
+                  if (typeof d.close === 'function') d.close();
+                  else if (typeof origClose === 'function') origClose.call(d);
                 } catch {
-                  d.removeAttribute('open');
+                  try { if (typeof origClose === 'function') origClose.call(d); } catch {}
                 }
+                d.open = false;
+                try { d.removeAttribute('open'); } catch {}
               } else {
                 this._parentDialog = d;
               }

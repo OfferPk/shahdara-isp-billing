@@ -8,7 +8,8 @@
 // manifest: HTML src/href, JS static/dynamic imports and re-exports, CSS @import/url(),
 // and manifest icons. Every local file reached is copied. A reference to a missing
 // file fails the build instead of shipping a broken site.
-import { cp, mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -96,8 +97,28 @@ export async function build({ root = ROOT, dist = DIST, quiet = false } = {}) {
     await mkdir(path.dirname(path.join(dist, file)), { recursive: true });
     await cp(path.join(root, file), path.join(dist, file));
   }
+  if (files.includes('sw.js')) await writeServiceWorker({ root, dist, files });
   if (!quiet) console.log(`Built static app in dist/ (${files.length} runtime files)`);
   return files;
+}
+
+// Generate dist/sw.js: precache exactly the published files and version the cache by their content,
+// so every deploy installs a new worker and drops the previous cache (#210).
+export async function writeServiceWorker({ root = ROOT, dist = DIST, files }) {
+  const hash = createHash('sha256');
+  const precached = files.filter(file => file !== 'sw.js');
+  for (const file of precached) hash.update(file).update('\0').update(await readFile(path.join(root, file)));
+  const source = await readFile(path.join(root, 'sw.js'), 'utf8');
+  const cacheMatch = source.match(/const CACHE_NAME = '([^']+)';/);
+  const filesMatch = source.match(/const APP_FILES = \[[^\]]*\];/);
+  if (!cacheMatch || !filesMatch) throw new Error('Build failed: sw.js must declare CACHE_NAME and APP_FILES');
+  const cacheName = `${cacheMatch[1]}-${hash.digest('hex').slice(0, 10)}`;
+  const appFiles = ['./', ...precached.map(file => `./${file}`)];
+  const output = source
+    .replace(cacheMatch[0], `const CACHE_NAME = '${cacheName}';`)
+    .replace(filesMatch[0], `const APP_FILES = ${JSON.stringify(appFiles)};`);
+  await writeFile(path.join(dist, 'sw.js'), output);
+  return { cacheName, appFiles };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

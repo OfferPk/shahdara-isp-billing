@@ -460,6 +460,56 @@ function renderDashboard() {
     }
   }
   collectionTargetController?.refresh();
+  // Home Screen Overload Redesign (#213): Populate compact KPI strip
+  const kpiTodayEl = $('#kpiTodayCollection');
+  if (kpiTodayEl) {
+    kpiTodayEl.textContent = todayPayments ? formatAmount(totals.todayCollection) : 'PKR 0';
+  }
+  const kpiMonthEl = $('#kpiMonthCollectionBilled');
+  if (kpiMonthEl) {
+    const collStr = formatAmount(kpis.currentMonthCollection || 0);
+    const billStr = formatAmount(kpis.currentMonthBilled || 0);
+    kpiMonthEl.textContent = `${collStr} / ${billStr}`;
+    const kpiRateSub = $('#kpiMonthRateSub');
+    if (kpiRateSub) {
+      kpiRateSub.textContent = kpis.collectionRate !== null ? `${kpis.collectionRate}% collected` : '0% collected';
+    }
+  }
+  const kpiDuesEl = $('#kpiTotalDue');
+  if (kpiDuesEl) {
+    kpiDuesEl.textContent = retainedBills.length === 0 ? 'PKR 0' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : 'Not set';
+  }
+  const kpiDefaultersEl = $('#kpiCustomersWithDues');
+  if (kpiDefaultersEl) {
+    let defaultersCount = 0;
+    const alloc = calculatePaymentAllocations(state);
+    for (const c of state.customers) {
+      if (c.archived) continue;
+      const bills = Array.isArray(c.bills) ? c.bills : [];
+      const hasDue = bills.some(b => {
+        if (b.dueAmount === null || b.dueAmount === undefined || b.dueAmount === '' || Number(b.dueAmount) <= 0) return false;
+        return derivedBillStatus(c, b, alloc) !== 'paid';
+      });
+      if (hasDue) defaultersCount++;
+    }
+    kpiDefaultersEl.textContent = `${defaultersCount} customer${defaultersCount === 1 ? '' : 's'}`;
+  }
+
+  // Wire #homeActionDuesList
+  const duesListBtn = $('#homeActionDuesList');
+  if (duesListBtn && !duesListBtn.dataset?.wiredDues) {
+    if (duesListBtn.dataset) duesListBtn.dataset.wiredDues = 'true';
+    else duesListBtn.setAttribute('data-wired-dues', 'true');
+    duesListBtn.addEventListener('click', () => {
+      try {
+        window.location.hash = '#/recovery';
+      } catch {
+        switchView('reports');
+        $('#duesRecoveryPanel')?.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
+
   setupDashboardQuickActions({
     onReceivePayment: () => {
       if (window.quickCollectModalController?.open) {
@@ -475,6 +525,18 @@ function renderDashboard() {
       resetDuplicateReview();
       $('#addCustomerDialog').showModal();
       $('#newCustomerName').focus();
+    },
+    onDuesList: () => {
+      try {
+        window.location.hash = '#/recovery';
+      } catch {
+        switchView('reports');
+        $('#duesRecoveryPanel')?.scrollIntoView({ behavior: 'smooth' });
+      }
+    },
+    onDailyClosing: () => {
+      const modal = $('#dailyClosingModal');
+      if (modal?.showModal) modal.showModal();
     },
     onRecordExpense: () => { switchView('expenses'); renderExpenses(); },
     onMonthlyReport: () => { switchView('reports'); renderMonthlyReport(); },

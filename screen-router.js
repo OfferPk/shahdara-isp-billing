@@ -38,7 +38,7 @@ export const SCREENS = {
 export const HOME = 'home';
 
 const TAB_TO_SCREEN = Object.fromEntries(Object.entries(SCREENS).map(([name, s]) => [s.tab, name]));
-const TILE_TO_SCREEN = { quickActionRecordExpense: 'expenses', quickActionMonthlyReports: 'reports', quickActionAnalytics: 'analytics' };
+const TILE_TO_SCREEN = { quickActionRecordExpense: 'expenses', quickActionMonthlyReports: 'reports', quickActionAnalytics: 'analytics', homeActionDuesList: 'recovery' };
 
 /** Parse a location hash into a route, or null when the hash is not a screen route. */
 export function parseRoute(hash = '') {

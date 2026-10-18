@@ -88,6 +88,10 @@ export const TRANSLATIONS = {
     more_language_toggle: '🌐 Language: اردو / English',
     more_menu_group_billing: 'Billing & Business',
     more_menu_group_field: 'Field Operations & Diagnostics',
+    more_menu_group_reports: '📊 Billing & Business: Reports & Analytics',
+    more_menu_group_money: '💰 Money & Operations',
+    more_menu_group_customers: '👥 Customers & Data',
+    more_menu_group_settings: '⚙️ Settings & Tools',
     more_backup: 'Backup & Restore',
     more_bills: 'Bills',
 
@@ -303,6 +307,10 @@ export const TRANSLATIONS = {
     more_language_toggle: '🌐 زبان: English / اردو',
     more_menu_group_billing: 'بلنگ اور کاروباری امور',
     more_menu_group_field: 'فیلڈ آپریشنز اور تشخیصی ٹولز',
+    more_menu_group_reports: '📊 بلنگ و کاروباری رپورٹس اور تجزیات',
+    more_menu_group_money: '💰 رقوم اور کیش آپریشنز',
+    more_menu_group_customers: '👥 صارفین اور ڈیٹا کھاتہ',
+    more_menu_group_settings: '⚙️ ترتیبات اور فیلڈ ٹولز',
     more_backup: 'بیک اپ اور بحالی',
     more_bills: 'بلز اور کھاتہ جات',
 
@@ -628,10 +636,16 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
     const titleEl = moreMenu.querySelector('.more-menu-title');
     if (titleEl) titleEl.textContent = t('more_menu_title', activeLang);
     const sectionLabels = moreMenu.querySelectorAll('.more-menu-section-label');
-    if (sectionLabels.length >= 2) {
-      sectionLabels[0].textContent = t('more_menu_group_billing', activeLang);
-      sectionLabels[1].textContent = t('more_menu_group_field', activeLang);
-    }
+    sectionLabels.forEach((label, idx) => {
+      const key = label.getAttribute('data-i18n');
+      if (key && typeof t(key, activeLang) === 'string') {
+        label.textContent = t(key, activeLang);
+      } else if (idx === 0) {
+        label.textContent = t('more_menu_group_billing', activeLang);
+      } else if (idx === 1) {
+        label.textContent = t('more_menu_group_field', activeLang);
+      }
+    });
   }
 
   // 8. Update Quick Collect Modal

@@ -66,12 +66,15 @@ export const TRANSLATIONS = {
     drawer_group_ledger: 'Ledger & Collections',
     drawer_group_operations: 'Operations',
     drawer_group_assistant: 'Assistant & Tools',
+    drawer_home: 'Home',
     drawer_customers: 'Customers',
     drawer_transactions: 'Transactions',
+    drawer_bills: 'Monthly Bills',
     drawer_reports: 'Monthly Report',
     drawer_analytics: 'Area Analytics',
     drawer_inventory: 'Inventory & Materials',
     drawer_expenses: 'Expenses',
+    drawer_field_tools: 'Field Tools…',
     drawer_assistant: 'Owner Assistant',
     drawer_alerts: 'Smart Alerts',
     drawer_recovery: 'Dues Recovery',
@@ -285,12 +288,15 @@ export const TRANSLATIONS = {
     drawer_group_ledger: 'کھاتہ جات اور وصولیاں',
     drawer_group_operations: 'آپریشنز اور سامان',
     drawer_group_assistant: 'معاون اور ٹولز',
+    drawer_home: 'ہوم',
     drawer_customers: 'کسٹمرز کی فہرست',
     drawer_transactions: 'ادائیگیوں کا ریکارڈ',
+    drawer_bills: 'ماہانہ بل',
     drawer_reports: 'ماہانہ کلوزنگ رپورٹ',
     drawer_analytics: 'علاقائی تجزیہ (Area)',
     drawer_inventory: 'اسٹاک اور سامان (تار، راؤٹر)',
     drawer_expenses: 'روزمرہ کے اخراجات',
+    drawer_field_tools: 'فیلڈ ٹولز…',
     drawer_assistant: 'مالک کا ڈیجیٹل اسسٹنٹ',
     drawer_alerts: 'اہم الرٹس و الرٹ سسٹم',
     drawer_recovery: 'بقایا جات کی ریکوری',
@@ -609,15 +615,19 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
 
   // 7. Update Drawer navigation items
   const drawerNavMap = {
+    home: 'drawer_home',
     customers: 'drawer_customers',
     transactions: 'drawer_transactions',
+    bills: 'drawer_bills',
     reports: 'drawer_reports',
     analytics: 'drawer_analytics',
     inventory: 'drawer_inventory',
     expenses: 'drawer_expenses',
     assistant: 'drawer_assistant',
     alerts: 'drawer_alerts',
-    recovery: 'drawer_recovery'
+    recovery: 'drawer_recovery',
+    backup: 'drawer_backup',
+    'field-tools': 'drawer_field_tools'
   };
   Object.entries(drawerNavMap).forEach(([target, key]) => {
     const btn = container.querySelector(`[data-nav-target="${target}"]`);

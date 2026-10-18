@@ -1346,7 +1346,12 @@ function selectCustomer(id, { pushHistory = true } = {}) {
   }
   appShell.classList.add('show-detail');
   if (pushHistory && typeof window !== 'undefined' && window.location) {
-    try { history.pushState({ customerId: id }, '', `#customer=${encodeURIComponent(id)}`); } catch {}
+    try {
+      const cust = state.customers.find(c => c.id === id);
+      const displayParam = cust?.customerNumber || id;
+      history.pushState({ customerId: id }, '', `#/customers/${encodeURIComponent(displayParam)}`);
+      // history.pushState({ customerId: id }, '', `#customer=${encodeURIComponent(id)}`);
+    } catch {}
   }
   renderCustomers();
   renderDetail();
@@ -2422,7 +2427,21 @@ initTheme();
 
 navDrawer = setupNavigationDrawer({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    if (target === 'home') {
+      window.screenRouter?.go('home');
+    } else if (target === 'bills') {
+      window.screenRouter?.go('bills');
+    } else if (target === 'backup' || target === 'settings') {
+      window.screenRouter?.go('backup');
+    } else if (target === 'field-tools' || target === 'tools') {
+      window.screenRouter?.go('field-tools');
+    } else if (target === 'assistant') {
+      window.screenRouter?.go('assistant');
+    } else if (target === 'alerts') {
+      window.screenRouter?.go('alerts');
+    } else if (target === 'recovery') {
+      window.screenRouter?.go('recovery');
+    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
@@ -2430,25 +2449,10 @@ navDrawer = setupNavigationDrawer({
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
       else if (target === 'customers') renderCustomers();
-    } else if (target === 'assistant') {
-      const input = $('#ownerCommandInput');
-      if (input) {
-        input.focus();
-        input.scrollIntoView({ behavior: 'smooth' });
-      }
-    } else if (target === 'alerts') {
-      const alertBtn = $('[data-mobile-more="alerts"]');
-      if (alertBtn) alertBtn.click();
-    } else if (target === 'recovery') {
-      const recBtn = $('[data-mobile-more="recovery"]');
-      if (recBtn) recBtn.click();
     }
   },
   onBackup: () => {
-    const toggle = $('#backupControlsToggle');
-    if (toggle) toggle.click();
-    const panel = $('#backupControls');
-    if (panel && !panel.hidden) panel.scrollIntoView({ behavior: 'smooth' });
+    window.screenRouter?.go('backup');
   }
 });
 
@@ -6403,6 +6407,17 @@ function handleRouteFromHash() {
     if (state.customers.some(c => c.id === cid)) {
       selectCustomer(cid, { pushHistory: false });
       return;
+    }
+  }
+  if (raw.startsWith('customers/') || raw.startsWith('customer/')) {
+    const prefix = raw.startsWith('customers/') ? 'customers/' : 'customer/';
+    const cid = decodeURIComponent(raw.slice(prefix.length).split(/[?#]/)[0].trim());
+    if (cid) {
+      const target = state.customers.find(c => c.id === cid || String(c.customerNumber) === cid || c.id === 'cust-' + cid);
+      if (target) {
+        selectCustomer(target.id, { pushHistory: false });
+        return;
+      }
     }
   }
   if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(raw)) {

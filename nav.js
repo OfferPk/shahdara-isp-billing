@@ -2455,7 +2455,18 @@ export function setupMobileSpeedDial({
           closeSpeedDial();
           triggerHaptic('light');
 
-          if (action === 'more-tools' || action === 'field-tools') {
+          if (action === 'action-sheet') {
+            const toggle = document.getElementById('mobileActionSheetToggle');
+            if (toggle) toggle.click();
+            else {
+              const sheet = document.getElementById('mobileActionSheet');
+              if (sheet) {
+                sheet.hidden = false;
+                const backdrop = document.getElementById('mobileActionSheetBackdrop');
+                if (backdrop) backdrop.hidden = false;
+              }
+            }
+          } else if (action === 'more-tools' || action === 'field-tools') {
             openFieldTools();
           } else if (action === 'search' && typeof onSearchRoster === 'function') {
             onSearchRoster();

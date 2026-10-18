@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Mobile Bottom Navigation & More Sheet Billing Polish', () => {
-  test('bottom nav displays 6 items, dues badge, and handles active states on mobile', async ({ page, isMobile }) => {
+  test('bottom nav displays at most 5 items, dues badge, and handles active states on mobile (#211)', async ({ page, isMobile }) => {
     test.skip(!isMobile, 'Bottom nav is a mobile-specific component');
 
     await page.goto('/');
@@ -9,23 +9,30 @@ test.describe('Mobile Bottom Navigation & More Sheet Billing Polish', () => {
     const bottomNav = page.locator('.mobile-bottom-nav');
     await expect(bottomNav).toBeVisible();
 
-    // Verify all 6 navigation buttons are present
+    // Verify at most 5 navigation buttons are present (Material 3 and #211 specification)
     const navButtons = bottomNav.locator('button');
-    await expect(navButtons).toHaveCount(6);
+    await expect(navButtons).toHaveCount(5);
+    expect(await navButtons.count()).toBeLessThanOrEqual(5);
 
     const homeBtn = page.locator('[data-mobile-nav="home"]');
     const custBtn = page.locator('[data-mobile-nav="customers"]');
-    const actionsBtn = page.locator('#mobileActionSheetToggle');
     const collBtn = page.locator('[data-mobile-nav="collection"]');
     const reportsBtn = page.locator('[data-mobile-nav="reports"]');
     const moreBtn = page.locator('#mobileMoreButton');
 
     await expect(homeBtn).toBeVisible();
     await expect(custBtn).toBeVisible();
-    await expect(actionsBtn).toBeVisible();
     await expect(collBtn).toBeVisible();
     await expect(reportsBtn).toBeVisible();
     await expect(moreBtn).toBeVisible();
+
+    // Actions Sheet folded into More menu (#211)
+    await moreBtn.click();
+    const moreMenu = page.locator('#mobileMoreMenu');
+    await expect(moreMenu).toBeVisible();
+    const actionsBtn = page.locator('#mobileActionSheetToggle');
+    await expect(actionsBtn).toBeVisible();
+    await moreBtn.click();
 
     // Initial state: Home should be active page
     await expect(homeBtn).toHaveAttribute('aria-current', 'page');

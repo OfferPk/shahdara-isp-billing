@@ -25,9 +25,9 @@ export const SCREENS = {
   customers: { view: 'customersView', tab: 'showCustomersButton', title: 'Customers', subtitle: 'Search, add and open customer ledgers', action: { label: '+ Add Customer', click: '#addCustomerButton' }, filters: { selector: '.customer-filter-panel', mobileOnly: false } },
   transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' }, filters: { selector: '.transaction-filters', mobileOnly: true } },
   reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
-  bills: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
-  recovery: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
-  alerts: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
+  bills: { view: 'billingReportsView', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
+  recovery: { view: 'billingReportsView', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
+  alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages' },
@@ -37,7 +37,11 @@ export const SCREENS = {
 
 export const HOME = 'home';
 
-const TAB_TO_SCREEN = Object.fromEntries(Object.entries(SCREENS).map(([name, s]) => [s.tab, name]));
+const TAB_TO_SCREEN = Object.fromEntries(
+  Object.entries(SCREENS)
+    .filter(([_, s]) => Boolean(s.tab))
+    .map(([name, s]) => [s.tab, name])
+);
 const TILE_TO_SCREEN = { quickActionRecordExpense: 'expenses', quickActionMonthlyReports: 'reports', quickActionAnalytics: 'analytics', homeActionDuesList: 'recovery' };
 
 /** Parse a location hash into a route, or null when the hash is not a screen route. */
@@ -45,6 +49,11 @@ export function parseRoute(hash = '') {
   const raw = String(hash).replace(/^#\/?/, '').trim();
   if (!raw || raw === HOME) return { screen: HOME };
   if (raw.startsWith('customer=')) return { screen: 'customers', customer: true };
+  if (raw.startsWith('customers/') || raw.startsWith('customer/')) {
+    const prefix = raw.startsWith('customers/') ? 'customers/' : 'customer/';
+    const customerId = raw.slice(prefix.length).split(/[/?#]/)[0];
+    return { screen: 'customers', customer: true, customerId };
+  }
   const name = raw.split(/[/?]/)[0];
   if (name === 'payments') return { screen: 'transactions' };
   if (name === 'settings') return { screen: 'backup' };
@@ -74,9 +83,12 @@ export function intentForElement(element) {
   const drawer = element.closest('[data-nav-target]');
   if (drawer) {
     const target = drawer.getAttribute('data-nav-target');
+    if (target === 'home') return { screen: HOME };
     if (target === 'payments') return { screen: 'transactions' };
-    if (target === 'settings') return { screen: 'backup' };
+    if (target === 'bills') return { screen: 'bills' };
+    if (target === 'settings' || target === 'backup') return { screen: 'backup' };
     if (target === 'dues') return { screen: 'recovery', anchor: '#duesRecoveryPanel' };
+    if (target === 'field-tools' || target === 'tools') return { screen: 'field-tools', modal: true };
     if (SCREENS[target]) return { screen: target, anchor: SCREENS[target].anchor };
     return null;
   }
@@ -205,10 +217,11 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     const spec = SCREENS[screen];
     if (!spec) return;
     const section = doc.getElementById(spec.view);
-    if (section && section.hidden) {
+    const tabId = spec.tab || (spec.view === 'billingReportsView' ? 'showReportsButton' : null);
+    if (section && section.hidden && tabId) {
       // Ask the app to switch (renders the view); our click listener ignores it while applying.
       applying = true;
-      try { doc.getElementById(spec.tab)?.click(); } finally { applying = false; }
+      try { doc.getElementById(tabId)?.click(); } finally { applying = false; }
     }
   }
 

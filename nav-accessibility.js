@@ -817,6 +817,16 @@ export function initUniversalDialogController({
           });
         }
 
+        if (this.id !== 'quickCollectModal' && this.id !== 'fieldToolsModal' && win.history && typeof win.history.pushState === 'function') {
+          if (!this._historyPushed) {
+            this._historyPushed = true;
+            this._closedByPopState = false;
+            try {
+              win.history.pushState({ ...(win.history.state || {}), modalDialogId: this.id || 'dialog' }, '', (win.location && win.location.href) ? win.location.href : '');
+            } catch {}
+          }
+        }
+
         setupDialogInstance(this);
 
         if (typeof origShowModal === 'function') {
@@ -847,6 +857,14 @@ export function initUniversalDialogController({
         const opener = this._openerElement;
         this._openerElement = null;
 
+        if (this._historyPushed) {
+          this._historyPushed = false;
+          if (!this._closedByPopState && win.history && typeof win.history.back === 'function') {
+            try { win.history.back(); } catch {}
+          }
+          this._closedByPopState = false;
+        }
+
         if (typeof origClose === 'function') {
           origClose.call(this, returnValue);
         } else {
@@ -858,6 +876,28 @@ export function initUniversalDialogController({
         }
       };
     }
+  }
+
+  const onPopState = () => {
+    if (typeof doc.querySelectorAll === 'function') {
+      const openDialogs = doc.querySelectorAll('dialog[open]');
+      openDialogs.forEach(dialog => {
+        if (dialog.id === 'quickCollectModal' || dialog.id === 'fieldToolsModal') return;
+        if (dialog._historyPushed) {
+          dialog._closedByPopState = true;
+          try {
+            if (typeof dialog.close === 'function') dialog.close();
+            else dialog.removeAttribute('open');
+          } catch {
+            dialog.removeAttribute('open');
+          }
+        }
+      });
+    }
+  };
+
+  if (typeof win.addEventListener === 'function') {
+    win.addEventListener('popstate', onPopState);
   }
 
   // MutationObserver for dynamic dialog injection
@@ -881,6 +921,9 @@ export function initUniversalDialogController({
   return {
     destroy: () => {
       if (observer) observer.disconnect();
+      if (typeof win.removeEventListener === 'function') {
+        win.removeEventListener('popstate', onPopState);
+      }
     }
   };
 }

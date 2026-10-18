@@ -36,6 +36,14 @@ import { calculatePolarizationMetrics, setupPolarizationModal, renderPolarizatio
 import { calculateRocev2Metrics, setupRocev2Modal, renderRocev2DiagramSvg } from './dashboard-rocev2.js';
 import { calculateOlpMetrics, setupOlpModal, renderOlpDiagramSvg } from './dashboard-olp-protection.js';
 import { calculateDuesAgingBreakdown, setupDuesAgingModal, renderDuesAgingSvg } from './dashboard-dues-aging.js';
+import { setupY1731Modal } from './dashboard-y1731-oam.js';
+import { setupPseudowireModal } from './dashboard-pseudowire.js';
+import { setupBfdModal } from './dashboard-bfd.js';
+import { setupVplsModal } from './dashboard-vpls.js';
+import { setupCgnatModal } from './dashboard-cgnat.js';
+import { setupOltChassisModal } from './dashboard-olt-chassis.js';
+import { setupSrv6Modal } from './dashboard-srv6.js';
+import { setupOpticalEvmModal } from './dashboard-optical-evm.js';
 
 
 
@@ -3576,6 +3584,29 @@ export function renderDashboardCharts(state, referenceDate = new Date(), options
   }
 
   setupOlpModal(state, { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast });
+
+  // 8 Dashboard Diagnostics Modals (#237)
+  const diagOpts = { referenceDate, onFilterArea: options.onFilterArea, onFilterCustomer: options.onFilterCustomer, onToast: options.onToast };
+  setupY1731Modal(state, diagOpts);
+  setupPseudowireModal(state, diagOpts);
+  setupBfdModal(state, diagOpts);
+  setupVplsModal(state, diagOpts);
+  setupCgnatModal(state, diagOpts);
+  setupOltChassisModal(state, diagOpts);
+  setupSrv6Modal(state, diagOpts);
+  setupOpticalEvmModal(state, diagOpts);
+
+  if (typeof document !== 'undefined') {
+    ['dashboardY1731Modal', 'dashboardPseudowireModal', 'dashboardBfdModal', 'dashboardVplsModal', 'dashboardCgnatModal', 'dashboardOltChassisModal', 'dashboardSrv6Modal', 'dashboardOpticalEvmModal'].forEach(id => {
+      const dlg = document.getElementById(id);
+      if (dlg && !dlg.dataset.backdropWired) {
+        dlg.dataset.backdropWired = 'true';
+        dlg.addEventListener('click', (e) => {
+          if (e.target === dlg && typeof dlg.close === 'function') dlg.close();
+        });
+      }
+    });
+  }
 
   setupDashboardChartsEvents(state, referenceDate);
 }

@@ -430,6 +430,105 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
 }
 
 /**
+ * Generates an RFC-4180 compliant CSV export of the customer roster with UTF-8 BOM.
+ * @param {Array<Object>} customers
+ * @param {Object} [options]
+ * @returns {string} CSV text
+ */
+export function generateCustomerRosterCsv(customers = [], { billingMonth = '', allocations = null } = {}) {
+  const headers = [
+    'Customer #',
+    'Customer Name',
+    'Phone',
+    'CNIC',
+    'Area / Mohalla',
+    'Zone',
+    'Address',
+    'Package Plan',
+    'Monthly Fee (PKR)',
+    'Service Status',
+    `Billing Status (${billingMonth || 'Selected Month'})`,
+    'Balance Due (PKR)',
+    'Total Collections (PKR)'
+  ];
+
+  const escapeCsv = val => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val);
+    if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return `"${str}"`;
+  };
+
+  const rows = (Array.isArray(customers) ? customers : []).map(cust => {
+    const custNum = cust.customerNumber || cust.id;
+    const balance = getCustomerMonthBalance(cust, billingMonth, allocations);
+    const collections = getCustomerTotalCollections(cust);
+    const monthBill = (cust.bills || []).find(b => b.month === billingMonth);
+    let billStatus = 'Not set';
+    if (monthBill) {
+      if (allocations?.byMonth) {
+        const alloc = allocations.byMonth.get(`${cust.id}_${billingMonth}`);
+        if (alloc) billStatus = (alloc.status || 'pending').toUpperCase();
+      } else {
+        const billed = Number(monthBill.dueAmount ?? monthBill.nominalPrice ?? 0);
+        const rec = (monthBill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+        if (rec >= billed && billed > 0) billStatus = 'PAID';
+        else if (rec > 0) billStatus = 'PARTIAL';
+        else if (billed > 0) billStatus = 'PENDING';
+      }
+    }
+    const service = ({ active: 'Active', offline: 'Offline', 'not-set': 'Not set' })[cust.serviceStatus] || 'Not set';
+
+    return [
+      escapeCsv(custNum),
+      escapeCsv(cust.name || ''),
+      escapeCsv(cust.phone || ''),
+      escapeCsv(cust.cnic || ''),
+      escapeCsv(cust.mohalla || cust.area || ''),
+      escapeCsv(cust.zone || ''),
+      escapeCsv(cust.address || ''),
+      escapeCsv(cust.packageSpeed || 'Not set'),
+      escapeCsv(cust.monthlySellingAmount ?? ''),
+      escapeCsv(service),
+      escapeCsv(billStatus),
+      escapeCsv(balance),
+      escapeCsv(collections)
+    ].join(',');
+  });
+
+  return '\uFEFF' + [headers.map(escapeCsv).join(','), ...rows].join('\r\n');
+}
+
+/**
+ * Generates HTML for an empty customer roster table state with reset button.
+ * @param {string} [query]
+ * @param {string} [area]
+ * @returns {string} HTML string
+ */
+export function renderCustomerTableEmptyMarkup(query = '', area = 'all') {
+  const q = String(query || '').trim();
+  const a = area && area !== 'all' ? ` in ${area}` : '';
+  let msg = 'No customers found.';
+  if (q && a) msg = `No customers matching "${q}"${a}.`;
+  else if (q) msg = `No customers matching "${q}".`;
+  else if (a) msg = `No customers found${a}.`;
+
+  return `<tr class="customer-table-empty-row">
+    <td colspan="8" class="table-empty-cell">
+      <div class="customer-table-empty">
+        <span class="empty-icon" aria-hidden="true">🔍</span>
+        <p class="empty-msg">${escapeHtml(msg)}</p>
+        <button id="resetCustomerTableFiltersBtn" class="secondary-button reset-filter-btn" type="button">Reset Filters & Search</button>
+      </div>
+    </td>
+  </tr>`;
+}
+
+
+
+/**
  * Saves a form draft object to local storage.
  * @param {string} formId
  * @param {Record<string, any>} data

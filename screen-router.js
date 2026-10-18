@@ -25,6 +25,11 @@ export const SCREENS = {
   customers: { view: 'customersView', tab: 'showCustomersButton', title: 'Customers', subtitle: 'Search, add and open customer ledgers', action: { label: '+ Add Customer', click: '#addCustomerButton' }, filters: { selector: '.customer-filter-panel', mobileOnly: false } },
   transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' }, filters: { selector: '.transaction-filters', mobileOnly: true } },
   reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
+  bills: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
+  recovery: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
+  alerts: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
+  assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
+  backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages' },
   inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', focus: '#inventoryItemForm' } },
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } }
@@ -41,6 +46,10 @@ export function parseRoute(hash = '') {
   if (!raw || raw === HOME) return { screen: HOME };
   if (raw.startsWith('customer=')) return { screen: 'customers', customer: true };
   const name = raw.split(/[/?]/)[0];
+  if (name === 'payments') return { screen: 'transactions' };
+  if (name === 'settings') return { screen: 'backup' };
+  if (name === 'dues') return { screen: 'recovery' };
+  if (name === 'field-tools' || name === 'tools') return { screen: 'field-tools', modal: true };
   if (SCREENS[name]) return { screen: name };
   return null;
 }
@@ -65,10 +74,10 @@ export function intentForElement(element) {
   const drawer = element.closest('[data-nav-target]');
   if (drawer) {
     const target = drawer.getAttribute('data-nav-target');
-    if (SCREENS[target]) return { screen: target };
-    if (target === 'alerts') return { screen: 'reports', anchor: '#smartAlertsPanel' };
-    if (target === 'recovery') return { screen: 'reports' };
-    if (target === 'assistant') return { screen: HOME, anchor: '#ownerCommandCenter' };
+    if (target === 'payments') return { screen: 'transactions' };
+    if (target === 'settings') return { screen: 'backup' };
+    if (target === 'dues') return { screen: 'recovery', anchor: '#duesRecoveryPanel' };
+    if (SCREENS[target]) return { screen: target, anchor: SCREENS[target].anchor };
     return null;
   }
   const tab = element.closest('[data-mobile-nav]');
@@ -81,12 +90,11 @@ export function intentForElement(element) {
   const more = element.closest('[data-mobile-more]');
   if (more) {
     const action = more.getAttribute('data-mobile-more');
-    if (SCREENS[action]) return { screen: action };
-    if (action === 'bills') return { screen: 'reports' };
-    if (action === 'alerts') return { screen: 'reports', anchor: '#smartAlertsPanel' };
-    if (action === 'recovery') return { screen: 'reports' };
-    if (action === 'assistant') return { screen: HOME, anchor: '#ownerCommandCenter' };
-    if (action === 'backup') return { screen: HOME, anchor: '#backupControls' };
+    if (action === 'payments') return { screen: 'transactions' };
+    if (action === 'settings') return { screen: 'backup' };
+    if (action === 'dues') return { screen: 'recovery', anchor: '#duesRecoveryPanel' };
+    if (action === 'field-tools' || action === 'tools') return { screen: 'field-tools', modal: true };
+    if (SCREENS[action]) return { screen: action, anchor: SCREENS[action].anchor };
     return null;
   }
   const viewTab = element.closest('.view-nav-button');
@@ -128,10 +136,13 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     if (action.click) {
       doc.querySelector(action.click)?.click();
     } else if (action.focus) {
-      const form = doc.querySelector(action.focus);
-      if (form) {
-        form.scrollIntoView({ block: 'start', behavior: 'smooth' });
-        form.querySelector('input:not([type=hidden]):not([disabled]), select, textarea')?.focus({ preventScroll: true });
+      const el = doc.querySelector(action.focus);
+      if (el) {
+        el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        const input = (typeof el.matches === 'function' && el.matches('input, select, textarea'))
+          ? el
+          : el.querySelector('input:not([type=hidden]):not([disabled]), select, textarea');
+        input?.focus({ preventScroll: true });
       }
     }
   });
@@ -163,7 +174,34 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     try { win.scrollTo({ top: 0, left: 0, behavior: 'instant' }); } catch { win.scrollTo(0, 0); }
   };
 
+  function openFieldToolsModal() {
+    const modal = doc.getElementById('fieldToolsModal');
+    if (!modal) return;
+    try {
+      if (!modal.open) {
+        if (typeof modal.showModal === 'function') modal.showModal();
+        else modal.setAttribute('open', '');
+      }
+    } catch {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  doc.getElementById('fieldToolsModal')?.addEventListener('close', () => {
+    if (win.location.hash.includes('field-tools') || win.location.hash.includes('tools')) {
+      if (history.length > 1) history.back();
+      else nativeReplace({ ...(history.state || {}), screen: HOME }, '', routeHash(HOME));
+    }
+  });
+
   function ensureViewVisible(screen) {
+    if (screen === 'backup') {
+      doc.getElementById('backupControls')?.removeAttribute('hidden');
+      return;
+    }
+    if (screen === 'assistant') {
+      return;
+    }
     const spec = SCREENS[screen];
     if (!spec) return;
     const section = doc.getElementById(spec.view);
@@ -175,37 +213,49 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   }
 
   function apply(screen, { anchor = null, scroll = true } = {}) {
+    if (screen === 'field-tools') {
+      openFieldToolsModal();
+      return;
+    }
     const isHome = screen === HOME;
     if (!isHome) ensureViewVisible(screen);
     current = screen;
     body.dataset.screen = screen;
     body.classList.toggle('sr-screen-mode', !isHome);
     header.hidden = isHome;
+    if (screen === 'backup') {
+      doc.getElementById('backupControls')?.removeAttribute('hidden');
+    }
     if (!isHome) {
       const spec = SCREENS[screen];
-      titleEl.textContent = spec.title;
-      subtitleEl.textContent = spec.subtitle || '';
-      if (spec.action) {
-        actionBtn.hidden = false;
-        actionBtn.textContent = spec.action.label;
-        actionBtn.dataset.screenAction = screen;
-      } else {
-        actionBtn.hidden = true;
+      if (spec) {
+        titleEl.textContent = spec.title;
+        subtitleEl.textContent = spec.subtitle || '';
+        if (spec.action) {
+          actionBtn.hidden = false;
+          actionBtn.textContent = spec.action.label;
+          actionBtn.dataset.screenAction = screen;
+        } else {
+          actionBtn.hidden = true;
+        }
+        doc.title = `${spec.title} · Shahdara ISP Billing`;
       }
-      doc.title = `${spec.title} · Shahdara ISP Billing`;
     } else {
       doc.title = 'Shahdara ISP Billing';
     }
     if (!scroll) return;
-    const target = anchor ? doc.querySelector(anchor) : null;
-    // Run after the app's own smooth scrollIntoView so we win the final position.
     win.requestAnimationFrame(() => {
-      if (target && !target.hidden) target.scrollIntoView({ block: 'start', behavior: 'instant' });
-      else instantTop();
+      instantTop();
     });
   }
 
   function navigate(intent, hashBefore) {
+    if (intent.modal || intent.screen === 'field-tools') {
+      const url = routeHash('field-tools');
+      if (win.location.hash !== url) nativePush({ ...(history.state || {}), screen: 'field-tools' }, '', url);
+      openFieldToolsModal();
+      return;
+    }
     // Home keeps today's layout: dashboard followed by the customer list.
     if (intent.screen === HOME) ensureViewVisible('customers');
     const url = routeHash(intent.screen);
@@ -232,6 +282,7 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
 
   // Navigation the app performs on its own (keyboard shortcuts, search results, customer links).
   history.pushState = function pushState(state, title, url) {
+    if (applying) return;
     const target = url != null && String(url).includes('#') ? String(url).slice(String(url).indexOf('#')) : '';
     if (target && isCollectHash(target)) return collect.push(state);
     const result = nativePush(state, title, url);

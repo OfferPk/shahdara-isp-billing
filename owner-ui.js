@@ -212,7 +212,35 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     else if(action==='analytics'){switchView('analytics');renderAnalytics();$('#analyticsView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='inventory'){switchView('inventory');renderInventory();$('#inventoryView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='expenses'){switchView('expenses');renderExpenses();$('#expensesView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='daily-closing'){const modal=$('#dailyClosingModal');if(modal?.showModal)modal.showModal();}
+    else if(action==='field-tools'){const modal=$('#fieldToolsModal');if(modal?.showModal)modal.showModal();else try{window.location.hash='#/field-tools';}catch{}}
   }));
+  document.addEventListener('click', (e) => {
+    const menu = $('#mobileMoreMenu');
+    const btn = $('#mobileMoreButton');
+    if (menu && !menu.hidden && !menu.contains(e.target) && !btn?.contains(e.target)) {
+      menu.hidden = true;
+      btn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      const menu = $('#mobileMoreMenu');
+      if (menu && !menu.hidden) {
+        menu.hidden = true;
+        $('#mobileMoreButton')?.setAttribute('aria-expanded', 'false');
+      }
+    }
+  });
+  if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', () => {
+      const menu = $('#mobileMoreMenu');
+      if (menu && !menu.hidden) {
+        menu.hidden = true;
+        $('#mobileMoreButton')?.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
   refresh();
   return {refresh};
 }

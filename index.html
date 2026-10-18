@@ -208,25 +208,71 @@
         <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
-      <div class="dashboard-quick-actions" role="region" aria-label="Quick actions">
-        <button id="quickActionReceivePayment" class="quick-action-tile" type="button">
-          <span class="quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators">
+        <div class="home-kpi-card kpi-card-today" id="kpiCardToday">
+          <span class="home-kpi-label">Today Collected</span>
+          <strong id="kpiTodayCollection" class="home-kpi-val">PKR 0</strong>
+          <span class="home-kpi-sub">Today's cash</span>
+        </div>
+        <div class="home-kpi-card kpi-card-month" id="kpiCardMonth">
+          <span class="home-kpi-label">Month Collected / Billed</span>
+          <strong id="kpiMonthCollectionBilled" class="home-kpi-val">PKR 0 / 0</strong>
+          <span class="home-kpi-sub" id="kpiMonthRateSub">Current month</span>
+        </div>
+        <div class="home-kpi-card kpi-card-dues" id="kpiCardDues">
+          <span class="home-kpi-label">Total Dues</span>
+          <strong id="kpiTotalDue" class="home-kpi-val">PKR 0</strong>
+          <span class="home-kpi-sub">Outstanding balance</span>
+        </div>
+        <div class="home-kpi-card kpi-card-defaulters" id="kpiCardDefaulters">
+          <span class="home-kpi-label">Customers with Dues</span>
+          <strong id="kpiCustomersWithDues" class="home-kpi-val">0</strong>
+          <span class="home-kpi-sub">Pending accounts</span>
+        </div>
+      </div>
+      <div class="home-primary-actions" id="homePrimaryActions" role="region" aria-label="Primary billing actions">
+        <button id="quickActionReceivePayment" class="home-primary-btn quick-action-tile primary-action-collect" type="button" aria-label="Payment lo - Record customer receipt">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </span>
-          <span class="quick-action-text">
-            <span class="quick-action-label">Receive Payment</span>
-            <span class="quick-action-sub">Record customer receipt</span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label">Payment lo</span>
+            <span class="home-primary-subtitle quick-action-sub">Receive customer payment</span>
           </span>
         </button>
-        <button id="quickActionAddCustomer" class="quick-action-tile" type="button">
-          <span class="quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        <button id="quickActionAddCustomer" class="home-primary-btn quick-action-tile primary-action-customer" type="button" aria-label="Customer add - New connection profile">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
           </span>
-          <span class="quick-action-text">
-            <span class="quick-action-label">Add Customer</span>
-            <span class="quick-action-sub">New connection profile</span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label">Customer add</span>
+            <span class="home-primary-subtitle quick-action-sub">New connection profile</span>
           </span>
         </button>
+        <button id="homeActionDuesList" class="home-primary-btn quick-action-tile primary-action-dues" type="button" aria-label="Dues list - Top defaulters and recovery">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+          </span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label">Dues list</span>
+            <span class="home-primary-subtitle quick-action-sub">Recovery &amp; defaulters</span>
+          </span>
+        </button>
+        <button id="quickActionDailyClosing" class="home-primary-btn quick-action-tile primary-action-closing" type="button" aria-label="Aaj ka hisaab - Cash register & daily closing">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M7 15h2"/><path d="M15 15h2"/></svg>
+          </span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label">Aaj ka hisaab</span>
+            <span class="home-primary-subtitle quick-action-sub">Cash till &amp; closing</span>
+          </span>
+        </button>
+      </div>
+      <div class="dashboard-secondary-region" id="dashboardSecondaryRegion">
+        <div class="dashboard-secondary-header">
+          <span class="dashboard-secondary-title">Operations &amp; Intelligence Tools</span>
+        </div>
+        <div class="dashboard-quick-actions" role="region" aria-label="Operations and intelligence tools">
         <button id="quickActionRecordExpense" class="quick-action-tile" type="button">
           <span class="quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -362,16 +408,8 @@
             <span class="quick-action-sub">Trajectory &amp; Churn</span>
           </span>
         </button>
-        <button id="quickActionDailyClosing" class="quick-action-tile" type="button">
-          <span class="quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M7 15h2"/><path d="M15 15h2"/></svg>
-          </span>
-          <span class="quick-action-text">
-            <span class="quick-action-label">Daily Closing</span>
-            <span class="quick-action-sub">Cash &amp; Till Audit</span>
-          </span>
-        </button>
       </div>
+    </div>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-data-safety" id="dashboardDataSafetyCard">
           <div class="data-safety-card-header">
@@ -6146,7 +6184,90 @@
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions" aria-haspopup="dialog" aria-expanded="false"><span class="mobile-action-plus" aria-hidden="true">+</span><span>Actions</span></button><button type="button" data-mobile-nav="collection" class="has-badge">Collection<span id="bottomNavBadgeCollection" class="bottom-nav-badge badge-alert" data-nav-badge="collection" data-nav-badge-alias="dues" hidden>0</span></button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
-    <div id="mobileMoreMenu" class="mobile-more-menu" hidden><div class="more-menu-header"><span class="more-menu-title" data-i18n="more_menu_title">More Features &amp; Tools</span></div><div class="more-menu-section-label" data-i18n="more_menu_group_billing">Billing &amp; Business</div><button type="button" data-mobile-more="customers">Customers</button><button type="button" data-mobile-more="collection">Collection</button><button type="button" data-mobile-more="bills">Bills</button><button type="button" data-mobile-more="expenses">Expenses</button><button type="button" data-mobile-more="reports">Reports</button><button type="button" data-mobile-more="backup">Backup &amp; Restore</button><button type="button" data-mobile-more="inventory">Inventory</button><button type="button" data-mobile-more="recovery">Dues Recovery</button><button type="button" data-mobile-more="alerts">Smart Alerts</button><button type="button" data-mobile-more="assistant">Owner Assistant</button><button type="button" data-mobile-more="analytics">Business Analytics</button><button type="button" data-mobile-more="integrity" id="mobileMoreDataIntegrityBtn">Data Integrity</button><button type="button" data-mobile-more="correctness" id="mobileMoreBillingCorrectnessBtn" data-open-billing-correctness>Billing Audit</button><button type="button" data-mobile-more="target" id="mobileMoreCollectionTargetBtn" data-open-collection-target>Monthly Target</button><button type="button" data-mobile-more="shortcuts" id="mobileMoreShortcutsBtn">⌨️ Keyboard Shortcuts</button><button type="button" data-mobile-more="pwa-status" id="mobileMorePwaStatusBtn">📲 PWA &amp; App Shortcuts</button><button type="button" data-mobile-more="install-pwa" id="mobileMoreInstallPwaBtn" hidden>⬇️ Install App</button><div class="more-menu-section-label" data-i18n="more_menu_group_field">Field Operations &amp; Diagnostics</div><button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button><button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button><button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button><button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button><button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button><button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button><button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button><button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button><button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button><button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button><button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button><button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button><button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button><button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button><button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button><button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button><button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button><button type="button" id="mobileMoreSplitterTreeBtn" data-mobile-more="splitter-tree" data-open-splitter-tree>Splitter Tree ODN</button><button type="button" id="mobileMoreMacroBendBtn" data-mobile-more="macro-bend" data-open-macro-bend>Macro-Bend Loss</button><button type="button" id="mobileMoreAttenuatorBtn" data-mobile-more="attenuator" data-open-attenuator>Optical Attenuator</button><button type="button" id="mobileMoreOrlBtn" data-mobile-more="orl" data-open-orl>Return Loss (ORL)</button><button type="button" id="mobileMoreCleaverBtn" data-mobile-more="fiber-cleaver" data-open-fiber-cleaver>Fiber Cleaver Blade</button><button type="button" id="mobileMoreOltsBtn" data-mobile-more="olts" data-open-olts>Tier-1 OLTS Cert</button><button type="button" id="mobileMoreFiberIdentifierBtn" data-mobile-more="fiber-identifier" data-open-fiber-identifier>Live Fiber Identifier</button><button type="button" id="mobileMoreMpoBtn" data-mobile-more="mpo-polarity" data-open-mpo-polarity>MPO Polarity &amp; Pinning</button><button type="button" id="mobileMoreFastConnectorBtn" data-mobile-more="fast-connector" data-open-fast-connector>Fast Connector (FIC)</button><button type="button" id="mobileMoreOtdrLaunchBtn" data-mobile-more="otdr-launch" data-open-otdr-launch>OTDR Launch Cable</button><button type="button" id="mobileMoreBareFiberAdapterBtn" data-mobile-more="bare-fiber-adapter" data-open-bare-fiber-adapter>Bare Fiber Adapter</button><button type="button" id="mobileMoreSlsToneBtn" data-mobile-more="sls-tone" data-open-sls-tone>Light Source (SLS)</button><button type="button" id="mobileMoreFiberTalksetBtn" data-mobile-more="fiber-talkset" data-open-fiber-talkset>Fiber Talk Set (FOTS)</button><button type="button" id="mobileMoreWdmSpectrumBtn" data-mobile-more="wdm-spectrum" data-open-wdm-spectrum>WDM Spectrum (OSA)</button><button type="button" id="mobileMoreMidspanAccessBtn" data-mobile-more="midspan-access" data-open-midspan-access>Mid-Span Buffer Slitter</button><button type="button" id="mobileMorePowerLoggerBtn" data-mobile-more="power-logger" data-open-power-logger>Power Logger &amp; Flap</button><button type="button" id="mobileMoreDropRetentionBtn" data-mobile-more="drop-retention" data-open-drop-retention>Clamp Retention &amp; Sag</button><button type="button" id="mobileMoreRefJumpersBtn" data-mobile-more="ref-jumpers" data-open-ref-jumpers>TRC Test Cords</button><button type="button" id="mobileMoreRibbonSeparatorBtn" data-mobile-more="ribbon-separator" data-open-ribbon-separator>Ribbon Separator</button><button type="button" id="mobileMoreMechanicalSpliceBtn" data-mobile-more="mechanical-splice" data-open-mechanical-splice>Mechanical Splice</button><button type="button" id="mobileMoreFiberMicroscopeBtn" data-mobile-more="fiber-microscope" data-open-fiber-microscope>Fiber VIP Microscope</button><button type="button" id="mobileMoreConnectorCleaningBtn" data-mobile-more="connector-cleaning" data-open-connector-cleaning>Connector Cleaning</button><button type="button" id="mobileMoreOtdrDeadzoneBtn" data-mobile-more="otdr-deadzone" data-open-otdr-deadzone>OTDR Dead Zone</button><button type="button" id="mobileMoreTubeShavingBtn" data-mobile-more="tube-shaving" data-open-tube-shaving>Tube Shaving Gauge</button></div>
+    <div id="mobileMoreMenu" class="mobile-more-menu" hidden>
+      <div class="more-menu-header">
+        <span class="more-menu-title" data-i18n="more_menu_title">More Features &amp; Tools</span>
+      </div>
+
+      <!-- Group 1: 📊 Reports & Analytics -->
+      <div class="more-menu-section-label" data-i18n="more_menu_group_reports">📊 Reports &amp; Analytics</div>
+      <button type="button" data-mobile-more="reports">Reports</button>
+      <button type="button" data-mobile-more="bills">Bills</button>
+      <button type="button" data-mobile-more="analytics">Business Analytics</button>
+      <button type="button" data-mobile-more="target" id="mobileMoreCollectionTargetBtn" data-open-collection-target>Monthly Target</button>
+
+      <!-- Group 2: 💰 Money & Operations -->
+      <div class="more-menu-section-label" data-i18n="more_menu_group_money">💰 Money &amp; Operations</div>
+      <button type="button" data-mobile-more="collection">Collection</button>
+      <button type="button" data-mobile-more="expenses">Expenses</button>
+      <button type="button" data-mobile-more="daily-closing" id="mobileMoreDailyClosingBtn">Daily Closing</button>
+
+      <!-- Group 3: 👥 Customers & Data -->
+      <div class="more-menu-section-label" data-i18n="more_menu_group_customers">👥 Customers &amp; Data</div>
+      <button type="button" data-mobile-more="customers">Customer Profiles</button>
+      <button type="button" data-mobile-more="recovery">Dues Recovery</button>
+      <button type="button" data-mobile-more="alerts">Smart Alerts</button>
+      <button type="button" data-mobile-more="assistant">Owner Assistant</button>
+      <button type="button" data-mobile-more="inventory">Inventory</button>
+      <button type="button" data-mobile-more="backup">Backup &amp; Restore</button>
+      <button type="button" data-mobile-more="integrity" id="mobileMoreDataIntegrityBtn">Data Integrity</button>
+      <button type="button" data-mobile-more="correctness" id="mobileMoreBillingCorrectnessBtn" data-open-billing-correctness>Billing Audit</button>
+
+      <!-- Group 4: ⚙️ Settings & Tools -->
+      <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
+      <button type="button" data-mobile-more="shortcuts" id="mobileMoreShortcutsBtn">⌨️ Keyboard Shortcuts</button>
+      <button type="button" data-mobile-more="pwa-status" id="mobileMorePwaStatusBtn">📲 PWA &amp; App Shortcuts</button>
+      <button type="button" data-mobile-more="install-pwa" id="mobileMoreInstallPwaBtn" hidden>⬇️ Install App</button>
+      <button type="button" data-mobile-more="field-tools" id="mobileMoreFieldToolsBtn" class="more-menu-highlight-btn">🧰 Field &amp; Network Tools…</button>
+
+      <!-- Collapsible Section: All 40 Field & Engineering Tools (retained for 100% test & functional backwards compatibility) -->
+      <details class="more-menu-field-details" id="moreMenuFieldToolsDetails">
+        <summary class="more-menu-field-summary"><span>All Field Tools (40 tools)</span><span class="field-summary-arrow" aria-hidden="true">▾</span></summary>
+        <div class="more-menu-field-grid">
+          <button type="button" data-mobile-more="diagnostics" data-open-field-diagnostics>Field Diagnostics</button>
+          <button type="button" data-mobile-more="field-route" data-open-field-route>Field Route Sheet</button>
+          <button type="button" data-mobile-more="work-orders" data-open-work-orders>Field Work Orders</button>
+          <button type="button" data-mobile-more="sync-conflicts" data-open-sync-conflicts>Sync Conflicts</button>
+          <button type="button" data-mobile-more="optical-map" data-open-optical-map>Optical Signal Map</button>
+          <button type="button" data-mobile-more="van-transfer" data-open-van-transfer>Van Stock Transfer</button>
+          <button type="button" id="mobileMoreAerialAlertsBtn" data-mobile-more="aerial-alerts" data-open-aerial-alerts>Aerial Sag Hazards</button>
+          <button type="button" id="mobileMoreOtdrTraceBtn" data-mobile-more="otdr-trace" data-open-otdr-trace>OTDR Fiber Trace</button>
+          <button type="button" id="mobileMoreGpsBreadcrumbsBtn" data-mobile-more="gps-breadcrumbs" data-open-gps-breadcrumbs>Tech GPS Radar</button>
+          <button type="button" id="mobileMoreOpmTesterBtn" data-mobile-more="opm-tester" data-open-opm-tester>Optical Power Meter</button>
+          <button type="button" id="mobileMoreVflTracerBtn" data-mobile-more="vfl-tracer" data-open-vfl-tracer>VFL Laser &amp; Core Tracer</button>
+          <button type="button" id="mobileMoreFusionSpliceBtn" data-mobile-more="fusion-splice" data-open-fusion-splice>Fusion Splice Audit</button>
+          <button type="button" id="mobileMoreWifiSurveyBtn" data-mobile-more="wifi-survey" data-open-wifi-survey>Wi-Fi Survey</button>
+          <button type="button" id="mobileMoreOpticalBudgetBtn" data-mobile-more="optical-budget" data-open-optical-budget>Optical Link Budget</button>
+          <button type="button" id="mobileMoreFdtAllocationBtn" data-mobile-more="fdt-allocation" data-open-fdt-allocation>FAT Port Matrix</button>
+          <button type="button" id="mobileMoreOntDiagnosticsBtn" data-mobile-more="ont-diagnostics" data-open-ont-diagnostics>ONT Diagnostics</button>
+          <button type="button" id="mobileMoreFiberProbeBtn" data-mobile-more="fiber-probe" data-open-fiber-probe>Fiber Probe Scope</button>
+          <button type="button" id="mobileMoreSplitterTreeBtn" data-mobile-more="splitter-tree" data-open-splitter-tree>Splitter Tree ODN</button>
+          <button type="button" id="mobileMoreMacroBendBtn" data-mobile-more="macro-bend" data-open-macro-bend>Macro-Bend Loss</button>
+          <button type="button" id="mobileMoreAttenuatorBtn" data-mobile-more="attenuator" data-open-attenuator>Optical Attenuator</button>
+          <button type="button" id="mobileMoreOrlBtn" data-mobile-more="orl" data-open-orl>Return Loss (ORL)</button>
+          <button type="button" id="mobileMoreCleaverBtn" data-mobile-more="fiber-cleaver" data-open-fiber-cleaver>Fiber Cleaver Blade</button>
+          <button type="button" id="mobileMoreOltsBtn" data-mobile-more="olts" data-open-olts>Tier-1 OLTS Cert</button>
+          <button type="button" id="mobileMoreFiberIdentifierBtn" data-mobile-more="fiber-identifier" data-open-fiber-identifier>Live Fiber Identifier</button>
+          <button type="button" id="mobileMoreMpoBtn" data-mobile-more="mpo-polarity" data-open-mpo-polarity>MPO Polarity &amp; Pinning</button>
+          <button type="button" id="mobileMoreFastConnectorBtn" data-mobile-more="fast-connector" data-open-fast-connector>Fast Connector (FIC)</button>
+          <button type="button" id="mobileMoreOtdrLaunchBtn" data-mobile-more="otdr-launch" data-open-otdr-launch>OTDR Launch Cable</button>
+          <button type="button" id="mobileMoreBareFiberAdapterBtn" data-mobile-more="bare-fiber-adapter" data-open-bare-fiber-adapter>Bare Fiber Adapter</button>
+          <button type="button" id="mobileMoreSlsToneBtn" data-mobile-more="sls-tone" data-open-sls-tone>Light Source (SLS)</button>
+          <button type="button" id="mobileMoreFiberTalksetBtn" data-mobile-more="fiber-talkset" data-open-fiber-talkset>Fiber Talk Set (FOTS)</button>
+          <button type="button" id="mobileMoreWdmSpectrumBtn" data-mobile-more="wdm-spectrum" data-open-wdm-spectrum>WDM Spectrum (OSA)</button>
+          <button type="button" id="mobileMoreMidspanAccessBtn" data-mobile-more="midspan-access" data-open-midspan-access>Mid-Span Buffer Slitter</button>
+          <button type="button" id="mobileMorePowerLoggerBtn" data-mobile-more="power-logger" data-open-power-logger>Power Logger &amp; Flap</button>
+          <button type="button" id="mobileMoreDropRetentionBtn" data-mobile-more="drop-retention" data-open-drop-retention>Clamp Retention &amp; Sag</button>
+          <button type="button" id="mobileMoreRefJumpersBtn" data-mobile-more="ref-jumpers" data-open-ref-jumpers>TRC Test Cords</button>
+          <button type="button" id="mobileMoreRibbonSeparatorBtn" data-mobile-more="ribbon-separator" data-open-ribbon-separator>Ribbon Separator</button>
+          <button type="button" id="mobileMoreMechanicalSpliceBtn" data-mobile-more="mechanical-splice" data-open-mechanical-splice>Mechanical Splice</button>
+          <button type="button" id="mobileMoreFiberMicroscopeBtn" data-mobile-more="fiber-microscope" data-open-fiber-microscope>Fiber VIP Microscope</button>
+          <button type="button" id="mobileMoreConnectorCleaningBtn" data-mobile-more="connector-cleaning" data-open-connector-cleaning>Connector Cleaning</button>
+          <button type="button" id="mobileMoreOtdrDeadzoneBtn" data-mobile-more="otdr-deadzone" data-open-otdr-deadzone>OTDR Dead Zone</button>
+          <button type="button" id="mobileMoreTubeShavingBtn" data-mobile-more="tube-shaving" data-open-tube-shaving>Tube Shaving Gauge</button>
+        </div>
+      </details>
+    </div>
     <section id="customersView" class="page-view" aria-label="Customer profiles">
     <div class="app-shell">
       <section id="customerPane" class="customer-pane" aria-label="Customers">

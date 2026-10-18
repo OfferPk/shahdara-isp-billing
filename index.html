@@ -6123,7 +6123,9 @@
             <div class="customer-view-toggle" role="group" aria-label="Roster view layout">
               <button id="customerViewCardsBtn" class="customer-view-btn is-active" type="button" aria-pressed="true" title="Card View">🗂️ Cards</button>
               <button id="customerViewTableBtn" class="customer-view-btn" type="button" aria-pressed="false" title="Table View">📋 Table</button>
+              <button id="customerTableExpandBtn" class="customer-view-btn customer-expand-btn" type="button" aria-pressed="false" title="Maximize Table / Full Screen Width" hidden>⛶ Expand</button>
             </div>
+            <button id="exportCustomerRosterCsvBtn" class="secondary-button export-roster-btn" type="button" title="Export customer roster to CSV">📥 Export CSV</button>
           </div>
         </section>
         <div class="customer-list-search">
@@ -6137,14 +6139,14 @@
             <table id="customerRosterTable" class="customer-roster-table" aria-label="Customer Roster Table">
               <thead>
                 <tr>
-                  <th scope="col" class="col-num" data-sort-cust="number">#</th>
-                  <th scope="col" class="col-name" data-sort-cust="name">Customer</th>
-                  <th scope="col" class="col-area" data-sort-cust="mohalla">Area / Mohalla</th>
-                  <th scope="col" class="col-plan" data-sort-cust="package">Plan</th>
-                  <th scope="col" class="col-service">Service</th>
-                  <th scope="col" class="col-billing">Status</th>
-                  <th scope="col" class="col-balance" data-sort-cust="balance">Balance Due</th>
-                  <th scope="col" class="col-action">Action</th>
+                  <th scope="col" class="col-num" data-sort-cust="number" role="columnheader" tabindex="0" aria-sort="ascending"># <span class="sort-icon" aria-hidden="true">▲</span></th>
+                  <th scope="col" class="col-name" data-sort-cust="name" role="columnheader" tabindex="0" aria-sort="none">Customer <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-area" data-sort-cust="mohalla" role="columnheader" tabindex="0" aria-sort="none">Area / Mohalla <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-plan" data-sort-cust="package" role="columnheader" tabindex="0" aria-sort="none">Plan <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-service" role="columnheader">Service</th>
+                  <th scope="col" class="col-billing" role="columnheader">Status</th>
+                  <th scope="col" class="col-balance" data-sort-cust="balance" role="columnheader" tabindex="0" aria-sort="none">Balance Due <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-action" role="columnheader">Action</th>
                 </tr>
               </thead>
               <tbody id="customerRosterTableBody"></tbody>

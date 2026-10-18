@@ -302,15 +302,34 @@ function activateProfileTab(name, focus = false) {
 }
 mountCustomerProfileContent();
 
-function toast(message) {
+function toast(message, { actionLabel = null, onAction = null, duration = 2800 } = {}) {
   const element = $('#toast');
   if (!element) return;
-  element.textContent = message;
+  element.replaceChildren();
+  if (typeof message === 'string') {
+    const textSpan = document.createElement('span');
+    textSpan.className = 'toast-text';
+    textSpan.textContent = message;
+    element.appendChild(textSpan);
+  }
+  if (actionLabel && typeof onAction === 'function') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action-btn';
+    btn.textContent = actionLabel;
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      element.hidden = true;
+      try { onAction(); } catch (err) { console.error('Toast action failed:', err); }
+    };
+    element.appendChild(btn);
+  }
   element.hidden = false;
   element.onclick = () => { element.hidden = true; };
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { element.hidden = true; }, 2800);
+  toastTimer = setTimeout(() => { element.hidden = true; }, duration);
 }
+window.toast = toast;
 function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
 function save() {

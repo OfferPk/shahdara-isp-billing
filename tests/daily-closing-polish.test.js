@@ -230,7 +230,7 @@ test('setupDailyClosingModal wires receipts search, column sort, count badge and
   };
 
   try {
-    const controller = setupDailyClosingModal(() => state);
+    const controller = setupDailyClosingModal(() => state, { referenceDate: refDate });
     assert.ok(controller, 'Controller should initialize');
 
     controller.render();

@@ -10,6 +10,7 @@
 
 import {
   addPayment,
+  deletePayment,
   calculatePaymentAllocations,
   derivedBillStatus,
   monthsForHistory,
@@ -195,6 +196,7 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
 
   let earliestUnpaidMonth = null;
   let totalDuesCents = 0;
+  let currentMonthBalanceCents = 0;
   for (const bill of bills) {
     const summary = allocations.forMonth(customer.id, bill.month);
     const balance = summary?.balanceDueCents;
@@ -203,6 +205,9 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
       if (!earliestUnpaidMonth) {
         earliestUnpaidMonth = bill.month;
       }
+    }
+    if (bill.month === currentMonth && typeof balance === 'number') {
+      currentMonthBalanceCents = balance;
     }
   }
 
@@ -255,6 +260,7 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     targetMonth,
     suggestedAmount,
     balanceDue: targetDue,
+    currentMonthBalance: Math.max(0, currentMonthBalanceCents / 100),
     totalDues,
     todayDate: getPakistanLocalDate(referenceDate),
     defaultMethod: lastMethod,
@@ -406,6 +412,124 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
   const wa = formatWhatsAppUrl(receipt.phone, text);
   return { text, url: wa.url || '', validPhone: wa.validPhone, formattedPhone: wa.formattedPhone };
 }
+
+/**
+ * Generates an image Blob for the payment receipt using offscreen canvas.
+ * Falls back to null if Canvas is not supported.
+ *
+ * @param {Object} receipt
+ * @returns {Promise<Blob|null>}
+ */
+export async function generateReceiptImageBlob(receipt) {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  if (!canvas || typeof canvas.getContext !== 'function') return null;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  canvas.width = 600;
+  canvas.height = 540;
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 600, 540);
+
+  // Top header banner
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, 600, 90);
+
+  // Brand title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
+  ctx.fillText('SHAHDARA FIBER NETWORK', 30, 40);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '14px system-ui, -apple-system, sans-serif';
+  ctx.fillText('OFFICIAL PAYMENT RECEIPT / ادائیگی کی رسید', 30, 68);
+
+  // Receipt Number & Date
+  ctx.fillStyle = '#64748b';
+  ctx.font = '13px monospace';
+  ctx.fillText(`Receipt: ${receipt.receiptNumber || 'RCPT'}`, 30, 125);
+  ctx.fillText(`Date: ${receipt.date || ''}`, 420, 125);
+
+  // Divider
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(30, 140);
+  ctx.lineTo(570, 140);
+  ctx.stroke();
+
+  // Customer info
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+  ctx.fillText(receipt.customerName || 'Subscriber', 30, 175);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '14px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`Account #${receipt.customerNumber || ''} · ${receipt.area || 'Shahdara'}${receipt.phone ? ' · ' + receipt.phone : ''}`, 30, 202);
+
+  // Amount box
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(30, 225, 540, 90);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.strokeRect(30, 225, 540, 90);
+
+  ctx.fillStyle = '#64748b';
+  ctx.font = '13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('AMOUNT RECEIVED / وصول شدہ رقم', 50, 255);
+
+  ctx.fillStyle = '#059669';
+  ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
+  ctx.fillText(`PKR ${Number(receipt.amount || 0).toLocaleString('en-PK')}`, 50, 295);
+
+  // Grid details
+  ctx.fillStyle = '#64748b';
+  ctx.font = '13px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Payment Method', 30, 350);
+  ctx.fillText('Billing Month', 230, 350);
+  ctx.fillText('Remaining Balance', 420, 350);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 15px system-ui, -apple-system, sans-serif';
+  ctx.fillText(receipt.method || 'Cash', 30, 375);
+  ctx.fillText(receipt.month || '-', 230, 375);
+
+  const balColor = (receipt.newTotalDues <= 0) ? '#059669' : '#dc2626';
+  ctx.fillStyle = balColor;
+  ctx.fillText(`PKR ${Number(receipt.newTotalDues || 0).toLocaleString('en-PK')}`, 420, 375);
+
+  // Status badge line
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
+  ctx.fillText(receipt.newTotalDues <= 0 ? '✓ Bill settled in full (مکمل ادا شدہ)' : '⏳ Partial payment recorded (جزوی ادائیگی)', 30, 420);
+  if (receipt.paidBy) {
+    ctx.fillText(`Paid by: ${receipt.paidBy}`, 30, 442);
+  }
+
+  // Footer divider
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.beginPath();
+  ctx.moveTo(30, 465);
+  ctx.lineTo(570, 465);
+  ctx.stroke();
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  ctx.fillText('Shahdara ISP Billing & NOC Operations · Computer generated receipt · Shukriya!', 30, 495);
+
+  return new Promise((resolve) => {
+    try {
+      canvas.toBlob((blob) => {
+        resolve(blob);
+      }, 'image/png');
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
 
 /**
  * Generates customer picker list markup.
@@ -637,10 +761,13 @@ export function setupQuickCollectModal({
   const paidByInput = document.getElementById('quickCollectPaidByInput');
   const dueAmountVal = document.getElementById('quickCollectDueAmountVal');
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
+  const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
   // Success Elements
   const receiptCardContainer = document.getElementById('quickCollectReceiptCard');
   const whatsAppBtn = document.getElementById('quickCollectWhatsAppBtn');
+  const shareImageBtn = document.getElementById('quickCollectShareImageBtn');
+  const undoBtn = document.getElementById('quickCollectUndoBtn');
   const printReceiptBtn = document.getElementById('quickCollectPrintReceiptBtn');
   const anotherBtn = document.getElementById('quickCollectAnotherBtn');
   const doneCloseBtn = document.getElementById('quickCollectDoneCloseBtn');
@@ -650,6 +777,30 @@ export function setupQuickCollectModal({
   let activeCustomerId = null;
   let activeDefaults = null;
   let activeReceipt = null;
+  let activeUndoContext = null;
+  let undoTimeoutId = null;
+
+  function syncMethodChips(val) {
+    quickMethodChips.forEach(chip => {
+      const isMatch = chip.getAttribute('data-method') === val;
+      chip.classList.toggle('is-active', isMatch);
+    });
+  }
+
+  // Wire 1-tap method chips
+  quickMethodChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const chosenMethod = chip.getAttribute('data-method');
+      if (methodSelect && chosenMethod) {
+        methodSelect.value = chosenMethod;
+      }
+      syncMethodChips(chosenMethod);
+    });
+  });
+
+  methodSelect?.addEventListener('change', () => {
+    syncMethodChips(methodSelect.value);
+  });
 
   // Populate payment methods select once
   if (methodSelect && methodSelect.options.length <= 1) {
@@ -732,6 +883,7 @@ export function setupQuickCollectModal({
       if (methodSelect) {
         methodSelect.value = activeDefaults.defaultMethod || 'Cash';
       }
+      syncMethodChips(activeDefaults.defaultMethod || 'Cash');
       if (paidByInput) {
         paidByInput.value = activeDefaults.lastPaidBy || '';
       }
@@ -807,6 +959,12 @@ export function setupQuickCollectModal({
     activeCustomerId = null;
     activeDefaults = null;
     activeReceipt = null;
+    if (undoTimeoutId) {
+      clearTimeout(undoTimeoutId);
+      undoTimeoutId = null;
+    }
+    activeUndoContext = null;
+    if (undoBtn) undoBtn.hidden = true;
   }
 
   // Wire search input
@@ -857,6 +1015,11 @@ export function setupQuickCollectModal({
 
       if (type === 'full') {
         amountInput.value = (baseBalance > 0 ? baseBalance : activeDefaults.suggestedAmount).toFixed(2);
+      } else if (type === 'current') {
+        const cur = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
+          ? activeDefaults.currentMonthBalance
+          : activeDefaults.suggestedAmount;
+        amountInput.value = (cur > 0 ? cur : baseBalance).toFixed(2);
       } else if (type === 'half') {
         const half = Math.round(baseBalance / 2);
         amountInput.value = (half > 0 ? half : 500).toFixed(2);
@@ -875,6 +1038,38 @@ export function setupQuickCollectModal({
     showStep('pick');
     renderList();
     searchInput?.focus();
+  });
+
+  function executeUndo() {
+    if (!activeUndoContext) return;
+    const { customerId, month, paymentId, amount, customerName } = activeUndoContext;
+    activeUndoContext = null;
+    if (undoTimeoutId) {
+      clearTimeout(undoTimeoutId);
+      undoTimeoutId = null;
+    }
+    if (undoBtn) undoBtn.hidden = true;
+    try {
+      const state = getState();
+      const nextState = deletePayment(state, customerId, month, paymentId);
+      if (typeof onSaveState === 'function') {
+        onSaveState(nextState);
+      }
+      updateCounts();
+      renderList();
+      showStep('pick');
+      if (typeof onToast === 'function') {
+        onToast(`✓ Payment of PKR ${amount.toLocaleString()} for ${customerName} undone. Ledger restored.`);
+      }
+    } catch (err) {
+      if (typeof onToast === 'function') {
+        onToast(`Could not undo payment: ${err.message}`);
+      }
+    }
+  }
+
+  undoBtn?.addEventListener('click', () => {
+    executeUndo();
   });
 
   // Form submit
@@ -900,6 +1095,25 @@ export function setupQuickCollectModal({
       });
 
       activeReceipt = receipt;
+      activeUndoContext = {
+        customerId: activeCustomerId,
+        month: monthVal,
+        paymentId: receipt.paymentId,
+        amount: amountVal,
+        customerName: receipt.customerName
+      };
+
+      if (undoBtn) {
+        undoBtn.hidden = false;
+        undoBtn.disabled = false;
+        undoBtn.textContent = '↩ Undo Payment (10s)';
+      }
+
+      if (undoTimeoutId) clearTimeout(undoTimeoutId);
+      undoTimeoutId = setTimeout(() => {
+        activeUndoContext = null;
+        if (undoBtn) undoBtn.hidden = true;
+      }, 10000);
 
       // Update parent application state
       if (typeof onSaveState === 'function') {
@@ -907,7 +1121,13 @@ export function setupQuickCollectModal({
       }
 
       if (typeof onToast === 'function') {
-        onToast(`Payment of PKR ${amountVal.toLocaleString()} recorded.`);
+        onToast(`Payment of PKR ${amountVal.toLocaleString()} recorded.`, {
+          actionLabel: 'Undo',
+          onAction: () => {
+            executeUndo();
+          },
+          duration: 10000
+        });
       }
 
       // Render success screen
@@ -975,6 +1195,64 @@ export function setupQuickCollectModal({
     }
   });
 
+  // Share Receipt as Image / PNG download
+  shareImageBtn?.addEventListener('click', async () => {
+    if (!activeReceipt) return;
+    try {
+      const blob = await generateReceiptImageBlob(activeReceipt);
+      if (!blob) {
+        if (typeof onToast === 'function') onToast('Receipt image creation is not supported in this environment.');
+        return;
+      }
+      const filename = `receipt-${activeReceipt.receiptNumber || 'slip'}.png`;
+      const file = (typeof File === 'function') ? new File([blob], filename, { type: 'image/png' }) : null;
+
+      let shared = false;
+      if (file && typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: `Payment Receipt ${activeReceipt.receiptNumber}`,
+            text: `Receipt for ${activeReceipt.customerName} - PKR ${Number(activeReceipt.amount).toLocaleString('en-PK')}`,
+            files: [file]
+          });
+          shared = true;
+        } catch (shareErr) {
+          if (shareErr.name === 'AbortError') return;
+        }
+      }
+
+      if (!shared) {
+        if (typeof URL !== 'undefined' && typeof document !== 'undefined') {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+      }
+
+      markReceiptShared(activeReceipt.id, {
+        method: 'image',
+        phone: activeReceipt.phone,
+        customerId: activeReceipt.customerId,
+        amount: activeReceipt.amount
+      });
+
+      if (receiptCardContainer) {
+        receiptCardContainer.innerHTML = renderQuickCollectReceiptCardHtml(activeReceipt);
+      }
+
+      if (typeof onToast === 'function') {
+        onToast('Receipt image ready (downloaded / shared).');
+      }
+    } catch (err) {
+      if (typeof onToast === 'function') onToast(`Share failed: ${err.message}`);
+    }
+  });
+
   // Print slip
   printReceiptBtn?.addEventListener('click', () => {
     window.print?.();
@@ -982,6 +1260,12 @@ export function setupQuickCollectModal({
 
   // Collect Another loop
   anotherBtn?.addEventListener('click', () => {
+    if (undoTimeoutId) {
+      clearTimeout(undoTimeoutId);
+      undoTimeoutId = null;
+    }
+    activeUndoContext = null;
+    if (undoBtn) undoBtn.hidden = true;
     showStep('pick');
     if (searchInput) searchInput.value = '';
     activeCustomerId = null;

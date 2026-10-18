@@ -73,6 +73,12 @@ test.describe('Screen router (#212)', () => {
     await expectScreen(page, 'customers');
     await inFirstScreen(page, page.locator('#customerListSearch'));
     await inFirstScreen(page, page.locator('#customerList > li').first());
+    // The list must not be squeezed by the filter panel (desktop sticky pane): the first card is really visible.
+    const visible = await page.locator('#customerList > li').first().evaluate(li => {
+      const r = li.getBoundingClientRect(); const l = li.parentElement.getBoundingClientRect();
+      return Math.min(r.bottom, l.bottom, window.innerHeight) - Math.max(r.top, l.top, 0);
+    });
+    expect(visible).toBeGreaterThan(150);
     await page.locator('#srPrimaryAction').click();
     await expect(page.locator('#addCustomerDialog')).toBeVisible();
     // Filters stay reachable: the "Filters & sort" button jumps to the panel below the list.

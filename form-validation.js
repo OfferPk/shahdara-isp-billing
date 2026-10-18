@@ -13146,3 +13146,189 @@ export {
   setupLateFeeModal
 } from './qa-discounts-late-fee.js';
 
+/**
+ * Generates an RFC-4180 compliant CSV export for Area Intelligence.
+ * @param {Array<Object>} rows - Array of area intelligence row objects
+ * @param {Object} [options]
+ * @param {string} [options.from] - Start date
+ * @param {string} [options.to] - End date
+ * @returns {string} CSV content with UTF-8 BOM
+ */
+export function generateAreaIntelligenceCsv(rows, { from = '', to = '' } = {}) {
+  const headers = [
+    'Area / Mohalla / Zone',
+    'Level',
+    'Parent Area',
+    'Total Customers',
+    'Active Customers',
+    'Monthly Billing (PKR)',
+    'Collected (PKR)',
+    'Outstanding (PKR)',
+    'Collection Rate (%)',
+    'Average Customer Value (PKR)',
+    'Expenses (PKR)',
+    'Estimated Profit (PKR)'
+  ];
+
+  const escapeCsv = (val) => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
+  const csvRows = (rows || []).map(row => {
+    const rawArea = String(row.area || '');
+    const cleanArea = rawArea.replace(/^(?:Area|Mohalla|Zone):\s*/, '');
+    const level = row.level === 'unassigned' ? 'Unassigned' : (row.level || 'Area');
+    const parentArea = row.parentArea ? String(row.parentArea).replace(/^(?:Area|Mohalla|Zone):\s*/, '') : '';
+    const totalCustomers = row.totalCustomers ?? 0;
+    const activeCustomers = row.activeCustomers !== null && row.activeCustomers !== undefined ? row.activeCustomers : 'Not recorded';
+    const billedAmount = row.billedAmount !== null && row.billedAmount !== undefined ? row.billedAmount : 0;
+    const collectedAmount = row.collectedAmount !== null && row.collectedAmount !== undefined ? row.collectedAmount : 0;
+    const outstanding = row.outstanding !== null && row.outstanding !== undefined ? row.outstanding : 0;
+    const collectionRate = row.collectionRate !== null && row.collectionRate !== undefined ? `${row.collectionRate}%` : 'Not set';
+    const avgVal = row.averageCustomerValue !== null && row.averageCustomerValue !== undefined ? row.averageCustomerValue : 0;
+    const expenses = row.expenses !== null && row.expenses !== undefined ? row.expenses : 0;
+    const estProfit = row.estimatedProfit !== null && row.estimatedProfit !== undefined ? row.estimatedProfit : 'Not estimated';
+
+    return [
+      escapeCsv(cleanArea),
+      escapeCsv(level),
+      escapeCsv(parentArea),
+      escapeCsv(totalCustomers),
+      escapeCsv(activeCustomers),
+      escapeCsv(billedAmount),
+      escapeCsv(collectedAmount),
+      escapeCsv(outstanding),
+      escapeCsv(collectionRate),
+      escapeCsv(avgVal),
+      escapeCsv(expenses),
+      escapeCsv(estProfit)
+    ].join(',');
+  });
+
+  return '\uFEFF' + [headers.map(escapeCsv).join(','), ...csvRows].join('\r\n');
+}
+
+/**
+ * Generates an RFC-4180 compliant CSV export for Package Summary.
+ * @param {Array<Object>} packageRows - Array of package row objects from buildPhase3Analytics
+ * @returns {string} CSV content with UTF-8 BOM
+ */
+export function generatePackageSummaryCsv(packageRows) {
+  const headers = [
+    'Package',
+    'Profiles',
+    'Active Configured Subscriptions',
+    'Service-Month Billed (PKR)',
+    'Outstanding (PKR)',
+    'Excluded from ARPU',
+    'New Subscriptions',
+    'Expired',
+    'Churn',
+    'ARPU (PKR)'
+  ];
+
+  const escapeCsv = (val) => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
+  const csvRows = (packageRows || []).map(row => {
+    const pkg = row.package || 'Package not set';
+    const profiles = row.customers ?? 0;
+    const active = row.activeCustomers ?? 0;
+    const billed = row.hasBilledRevenue ? (row.billedRevenue ?? 0) : 'No bill snapshots';
+    const outstanding = row.hasBillHistory ? (row.outstanding ?? 0) : 'No bill entries';
+    const excluded = row.excludedSubscriptions ?? 0;
+    const newSubs = row.newSubscriptions ?? 0;
+    const expired = row.expired ?? 0;
+    const churn = row.churn ?? 0;
+    const arpu = row.arpu !== null && row.arpu !== undefined ? row.arpu : 'Not set';
+
+    return [
+      escapeCsv(pkg),
+      escapeCsv(profiles),
+      escapeCsv(active),
+      escapeCsv(billed),
+      escapeCsv(outstanding),
+      escapeCsv(excluded),
+      escapeCsv(newSubs),
+      escapeCsv(expired),
+      escapeCsv(churn),
+      escapeCsv(arpu)
+    ].join(',');
+  });
+
+  return '\uFEFF' + [headers.map(escapeCsv).join(','), ...csvRows].join('\r\n');
+}
+
+/**
+ * Generates an RFC-4180 compliant CSV export for Location Summary (Area & Zone Service Summary).
+ * @param {Array<Object>} areaRows - Array of area summary row objects from buildPhase3Analytics
+ * @returns {string} CSV content with UTF-8 BOM
+ */
+export function generateAreaSummaryCsv(areaRows) {
+  const headers = [
+    'Location',
+    'Level',
+    'Parent Area',
+    'Profiles',
+    'Active Configured Subscriptions',
+    'Service-Month Billed (PKR)',
+    'Outstanding (PKR)',
+    'Excluded from ARPU',
+    'Online %',
+    'Online Count',
+    'Offline Count',
+    'Incidents',
+    'New Connections',
+    'ARPU (PKR)'
+  ];
+
+  const escapeCsv = (val) => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
+  const csvRows = (areaRows || []).map(row => {
+    const rawArea = String(row.area || '');
+    const cleanArea = rawArea === 'Zone not set' ? 'Zone not set' : rawArea.replace(/^(?:Area|Mohalla|Zone):\s*/, '');
+    const level = row.level === 'mohalla' ? 'Mohalla' : (row.level === 'zone' ? 'Zone' : 'Area');
+    const parentArea = row.parentArea ? String(row.parentArea).replace(/^(?:Area|Mohalla|Zone):\s*/, '') : '';
+    const profiles = row.customerCount ?? 0;
+    const active = row.activeCustomers ?? 0;
+    const billed = row.hasBilledRevenue ? (row.billedRevenue ?? 0) : 'No bill snapshots';
+    const outstanding = row.hasBillHistory ? (row.outstanding ?? 0) : 'No bill entries';
+    const excluded = row.excludedSubscriptions ?? 0;
+    const onlinePct = row.onlinePercent !== null && row.onlinePercent !== undefined ? `${row.onlinePercent}%` : 'Not set';
+    const onlineCount = row.online ?? 0;
+    const offlineCount = row.offline ?? 0;
+    const incidents = row.complaints ?? 0;
+    const newConnections = row.newConnections ?? 0;
+    const arpu = row.arpu !== null && row.arpu !== undefined ? row.arpu : 'Not set';
+
+    return [
+      escapeCsv(cleanArea),
+      escapeCsv(level),
+      escapeCsv(parentArea),
+      escapeCsv(profiles),
+      escapeCsv(active),
+      escapeCsv(billed),
+      escapeCsv(outstanding),
+      escapeCsv(excluded),
+      escapeCsv(onlinePct),
+      escapeCsv(onlineCount),
+      escapeCsv(offlineCount),
+      escapeCsv(incidents),
+      escapeCsv(newConnections),
+      escapeCsv(arpu)
+    ].join(',');
+  });
+
+  return '\uFEFF' + [headers.map(escapeCsv).join(','), ...csvRows].join('\r\n');
+}
+
+

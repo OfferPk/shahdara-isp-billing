@@ -676,6 +676,19 @@ export function setupQuickCollectModal({
       openCustomerCollectionForm(defaultCustomerId);
     } else {
       showStep('pick');
+      // #241: never open on an empty picker. If the current filter has no customers
+      // (e.g. "With Dues (0)" before bills are recorded), fall back to "All".
+      const state = getState();
+      if (state && activeFilter !== 'all'
+        && getPendingCollectionCustomers(state, '', activeFilter).length === 0
+        && getPendingCollectionCustomers(state, '', 'all').length > 0) {
+        activeFilter = 'all';
+        filterChips.forEach(c => {
+          const isAll = c.getAttribute('data-filter') === 'all';
+          c.classList.toggle('is-active', isAll);
+          c.setAttribute('aria-selected', String(isAll));
+        });
+      }
       renderList();
       setTimeout(() => {
         searchInput?.focus();

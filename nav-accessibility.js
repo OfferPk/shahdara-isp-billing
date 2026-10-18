@@ -823,9 +823,16 @@ export function initUniversalDialogController({
         const otherOpen = typeof doc.querySelectorAll === 'function'
           ? Array.from(doc.querySelectorAll('dialog[open]')).filter(d => d !== this)
           : [];
+        const hasUserOpener = Boolean(
+          opener &&
+          opener !== doc.body &&
+          opener !== doc.documentElement &&
+          typeof opener.tagName === 'string'
+        );
         const isTopLevel = (
           !this.parentElement?.closest?.('dialog') &&
           otherOpen.length === 0 &&
+          hasUserOpener &&
           !['quickCollectModal', 'bulkCollectModal', 'fieldToolsModal', 'collectSetupModal', 'bulkDuplicateDialog'].includes(this.id)
         );
 

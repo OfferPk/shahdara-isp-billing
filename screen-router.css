@@ -138,3 +138,20 @@ body.sr-screen-mode[data-screen="inventory"] #inventoryView > .phase3-pane > .ph
 body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane > .phase3-heading { order: 0; }
 body.sr-screen-mode[data-screen="inventory"] #inventoryView > .phase3-pane > .table-card:has(#inventoryItemForm),
 body.sr-screen-mode[data-screen="expenses"] #expensesView > .phase3-pane > .table-card:has(#expenseForm) { order: 1; }
+
+/* Desktop Customers screen: the left pane is a fixed-height sticky column. Let the pane itself
+   scroll so the customer list keeps its natural height (it was squeezed to ~24px by the filter
+   panel), with filters/sort below it — reachable by scrolling or "Filters & sort ↓". */
+@media (min-width: 621px) {
+  body.sr-screen-mode[data-screen="customers"] #customerPane { overflow-y: auto; overscroll-behavior: contain; }
+  body.sr-screen-mode[data-screen="customers"] #customerPane > #customerList { flex: 0 0 auto; overflow: visible; }
+  body.sr-screen-mode[data-screen="customers"] #customerPane > * { flex-shrink: 0; }
+}
+
+/* #250: table filter controls (Inventory, Expenses, …) are real 48px touch targets on phones
+   (matches #217), not exactly 44px — 44px measured as 43.99997px after sub-pixel layout and
+   failed the 44px minimum. 16px text also stops iOS zooming into the field. */
+@media (max-width: 620px) {
+  .table-filter-select, .table-filter-input, .table-filter-clear { min-height: 48px; }
+  .table-filter-select, .table-filter-input { font-size: 16px; }
+}

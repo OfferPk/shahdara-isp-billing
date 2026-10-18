@@ -1086,7 +1086,12 @@ export function clearBillingAuditRecords(storage) {
  */
 export function setupBillingCorrectnessModal({ getState, storage = globalThis.localStorage, onToast = () => {} } = {}) {
   const modal = document?.getElementById('billingCorrectnessModal');
-  const openBtn = document?.getElementById('openBillingCorrectnessBtn') || document?.getElementById('quickActionBillingCorrectness');
+  // Wire every visible opener (#236): the Home tile used to be skipped because the
+  // backup-footer button exists in the DOM and short-circuited the `||` lookup.
+  const BILLING_CORRECTNESS_OPENER_IDS = ['quickActionBillingCorrectness', 'openBillingCorrectnessBtn'];
+  const openButtons = BILLING_CORRECTNESS_OPENER_IDS
+    .map(id => (typeof document !== 'undefined' ? document.getElementById(id) : null))
+    .filter(Boolean);
   const closeBtn = document?.getElementById('closeBillingCorrectnessModalBtn');
   const secondaryCloseBtn = document?.getElementById('closeBillingCorrectnessSecondaryBtn');
 
@@ -1205,10 +1210,12 @@ export function setupBillingCorrectnessModal({ getState, storage = globalThis.lo
   }
 
   // Bind Events
-  if (openBtn) {
+  for (const openBtn of openButtons) {
+    if (openBtn.dataset?.billingCorrectnessWired) continue;
+    if (openBtn.dataset) openBtn.dataset.billingCorrectnessWired = 'true';
     openBtn.addEventListener('click', () => {
       runAudit();
-      if (typeof modal?.showModal === 'function') {
+      if (typeof modal?.showModal === 'function' && !modal.open) {
         modal.showModal();
       }
     });

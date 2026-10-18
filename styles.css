@@ -10433,6 +10433,95 @@ html, body {
   cursor: pointer;
 }
 
+/* Daily Cash Closing & Till Reconciliation Modal Suite */
+.daily-closing-modal {
+  max-width: 980px;
+  width: 95vw;
+}
+
+.daily-closing-toolbar button {
+  min-height: 36px;
+}
+
+.daily-closing-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.daily-closing-svg-wrap {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.daily-closing-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+[data-theme="dark"] .daily-closing-modal {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .daily-closing-toolbar {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .daily-closing-toolbar input[type="date"] {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .daily-closing-box,
+[data-theme="dark"] .daily-closing-receipts-wrap {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .daily-closing-box table tr,
+[data-theme="dark"] .daily-closing-receipts-wrap table tr {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .daily-closing-receipts-wrap th {
+  background: #1e293b !important;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .daily-closing-receipts-wrap td {
+  color: #f1f5f9;
+}
+
+@media (max-width: 640px) {
+  .daily-closing-modal {
+    width: 100vw;
+    margin: 0;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .daily-closing-toolbar {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+  .daily-closing-toolbar > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .daily-closing-toolbar button {
+    flex: 1;
+    min-height: 44px;
+  }
+  .daily-closing-modal .billing-modal-footer button {
+    min-height: 44px;
+    width: 100%;
+  }
+}
+
+
 
 
 

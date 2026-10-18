@@ -191,3 +191,167 @@ export function createLocalBackupStore({
     }
   });
 }
+
+export const STORAGE_PERSISTENCE_KEY = 'shahdara_storage_persistence_v1';
+export const LAST_BACKUP_TIME_KEY = 'shahdara_last_backup_time_v1';
+
+export function formatBytes(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '0 B';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(n / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+export function calculateBackupAge(lastBackupAt, now = new Date()) {
+  const currentDate = now instanceof Date ? now : new Date(now);
+  if (!lastBackupAt) {
+    return {
+      days: null,
+      label: 'Never backed up',
+      shortLabel: 'Never',
+      level: 'danger',
+      statusText: 'No backup found. Create a backup to protect your business ledger.'
+    };
+  }
+  const lastDate = lastBackupAt instanceof Date ? lastBackupAt : new Date(lastBackupAt);
+  if (Number.isNaN(lastDate.getTime()) || Number.isNaN(currentDate.getTime())) {
+    return {
+      days: null,
+      label: 'Date unreadable',
+      shortLabel: 'Unknown',
+      level: 'danger',
+      statusText: 'Last backup timestamp is invalid.'
+    };
+  }
+
+  const diffMs = Math.max(0, currentDate.getTime() - lastDate.getTime());
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+
+  if (diffDays === 0) {
+    return {
+      days: 0,
+      label: 'Backed up today',
+      shortLabel: 'Today',
+      level: 'healthy',
+      statusText: 'Ledger backup is current and up to date.'
+    };
+  }
+  if (diffDays === 1) {
+    return {
+      days: 1,
+      label: 'Backed up yesterday',
+      shortLabel: '1d ago',
+      level: 'healthy',
+      statusText: 'Ledger backup is recent.'
+    };
+  }
+  if (diffDays <= 7) {
+    return {
+      days: diffDays,
+      label: `Last backup ${diffDays} days ago`,
+      shortLabel: `${diffDays}d ago`,
+      level: 'healthy',
+      statusText: 'Ledger backup is up to date.'
+    };
+  }
+  if (diffDays <= 14) {
+    return {
+      days: diffDays,
+      label: `Last backup ${diffDays} days ago`,
+      shortLabel: `${diffDays}d ago`,
+      level: 'warning',
+      statusText: 'Backup is over a week old. Download or share a backup.'
+    };
+  }
+  return {
+    days: diffDays,
+    label: `Last backup ${diffDays} days ago`,
+    shortLabel: `${diffDays}d ago`,
+    level: 'danger',
+    statusText: 'Backup is severely outdated (>14 days). Risk of data loss!'
+  };
+}
+
+export async function checkStoragePersistence({ storage = globalThis.navigator?.storage } = {}) {
+  if (!storage || typeof storage.persisted !== 'function') {
+    return { supported: false, persisted: false, status: 'unsupported' };
+  }
+  try {
+    const persisted = await storage.persisted();
+    return { supported: true, persisted: Boolean(persisted), status: persisted ? 'persisted' : 'best-effort' };
+  } catch {
+    return { supported: true, persisted: false, status: 'unknown' };
+  }
+}
+
+export async function requestStoragePersistence({ storage = globalThis.navigator?.storage } = {}) {
+  if (!storage || typeof storage.persist !== 'function') {
+    return { supported: false, persisted: false, status: 'unsupported' };
+  }
+  try {
+    const persisted = await storage.persist();
+    return { supported: true, persisted: Boolean(persisted), status: persisted ? 'persisted' : 'best-effort' };
+  } catch {
+    return { supported: true, persisted: false, status: 'unknown' };
+  }
+}
+
+export async function getStorageEstimateInfo({ storage = globalThis.navigator?.storage } = {}) {
+  if (!storage || typeof storage.estimate !== 'function') {
+    return { supported: false, usageBytes: null, quotaBytes: null, usageFormatted: 'Not available', quotaFormatted: 'Not available', percentUsed: null };
+  }
+  try {
+    const estimate = await storage.estimate();
+    const usageBytes = estimate?.usage ?? 0;
+    const quotaBytes = estimate?.quota ?? 0;
+    const usageFormatted = formatBytes(usageBytes);
+    const quotaFormatted = formatBytes(quotaBytes);
+    const percentUsed = quotaBytes > 0 ? Math.round((usageBytes / quotaBytes) * 100) : 0;
+    return { supported: true, usageBytes, quotaBytes, usageFormatted, quotaFormatted, percentUsed };
+  } catch {
+    return { supported: true, usageBytes: null, quotaBytes: null, usageFormatted: 'Error checking', quotaFormatted: 'Error checking', percentUsed: null };
+  }
+}
+
+export async function shareJsonBackupFile({
+  backupText,
+  filename,
+  shareApi = globalThis.navigator?.share,
+  canShareApi = globalThis.navigator?.canShare
+} = {}) {
+  if (typeof backupText !== 'string' || !backupText) {
+    throw new Error('Backup data is empty or invalid.');
+  }
+  const name = filename || `shahdara-isp-billing-backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+  let canShareFiles = false;
+  let file = null;
+  try {
+    if (typeof File !== 'undefined' && typeof canShareApi === 'function') {
+      file = new File([backupText], name, { type: 'application/json' });
+      canShareFiles = canShareApi({ files: [file] });
+    }
+  } catch {
+    canShareFiles = false;
+  }
+
+  if (canShareFiles && typeof shareApi === 'function') {
+    try {
+      await shareApi({
+        title: 'Shahdara ISP Billing Backup',
+        text: `Shahdara ISP Billing ledger backup (${name}). Save to WhatsApp or Google Drive.`,
+        files: [file]
+      });
+      return { success: true, method: 'share', filename: name };
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        return { success: false, method: 'cancelled', message: 'Share was cancelled by user.' };
+      }
+    }
+  }
+
+  return { success: true, method: 'download', filename: name, backupText };
+}
+

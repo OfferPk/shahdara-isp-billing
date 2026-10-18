@@ -88,3 +88,30 @@ test('build fails loudly when a referenced runtime file is missing', async () =>
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('built service worker precaches exactly the published files under a content-hashed cache (#210)', async () => {
+  const dist = await mkdtemp(path.join(os.tmpdir(), 'shahdara-dist-sw-'));
+  try {
+    const files = await build({ root: ROOT, dist, quiet: true });
+    const sw = await readFile(path.join(dist, 'sw.js'), 'utf8');
+    const cacheName = sw.match(/const CACHE_NAME = '([^']+)';/)?.[1];
+    assert.match(cacheName ?? '', /^shahdara-isp-billing-v\d+-[0-9a-f]{10}$/, 'cache name carries a content hash');
+    const appFiles = JSON.parse(sw.match(/const APP_FILES = (\[[^\]]*\]);/)[1]);
+    const expected = ['./', ...files.filter(f => f !== 'sw.js').map(f => `./${f}`)];
+    assert.deepEqual([...appFiles].sort(), [...expected].sort(), 'precache list == files in dist (minus the worker itself)');
+    assert.ok(appFiles.length > 100);
+    const again = await build({ root: ROOT, dist, quiet: true }) && await readFile(path.join(dist, 'sw.js'), 'utf8');
+    assert.equal(again.match(/const CACHE_NAME = '([^']+)';/)[1], cacheName, 'same sources give the same cache name');
+  } finally {
+    await rm(dist, { recursive: true, force: true });
+  }
+});
+
+test('index.html shows a reload banner when an updated service worker takes control (#210)', async () => {
+  const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+  const head = index.slice(0, index.indexOf('<body>'));
+  assert.match(head, /addEventListener\('controllerchange'/);
+  assert.match(head, /swUpdateBanner/);
+  assert.match(head, /Naya version tayyar hai/);
+  assert.match(head, /location\.reload\(\)/);
+});

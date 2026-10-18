@@ -91,7 +91,7 @@ test('worker install precaches the offline shell before taking control', async (
   await worker.dispatch('install');
   assert.equal(worker.skipWaitingCalls, 1);
   assert.equal(worker.added.length, 1);
-  assert.equal(worker.added[0].name, 'shahdara-isp-billing-v36');
+  assert.equal(worker.added[0].name, 'shahdara-isp-billing-v37');
   assert.deepEqual(worker.added[0].files, [
     './','./index.html','./styles.css','./dashboard.css','./nav.css','./app.js','./dashboard.js','./dashboard-charts.js','./nav.js','./form-validation.js','./profile-labels.js',
     './profile-ui.js','./receipt.js','./package-catalog.js','./core.js','./phase3.js','./owner-insights.js','./owner-ui.js','./backup-store.js','./duplicate-detection.js','./manifest.webmanifest','./icon.svg'
@@ -110,18 +110,19 @@ test('worker activation removes only older Shahdara caches and claims clients', 
     'shahdara-isp-billing-v33',
     'shahdara-isp-billing-v34',
     'shahdara-isp-billing-v35',
-    'shahdara-isp-billing-v36'
+    'shahdara-isp-billing-v36',
+    'shahdara-isp-billing-v37'
   ] });
   await worker.dispatch('activate');
-  assert.deepEqual(worker.deleted, ['shahdara-isp-billing-v19','shahdara-isp-billing-v23','shahdara-isp-billing-v30','shahdara-isp-billing-v31','shahdara-isp-billing-v32','shahdara-isp-billing-v33','shahdara-isp-billing-v34','shahdara-isp-billing-v35']);
-  assert.deepEqual([...worker.names].sort(), ['another-pwa-cache-v3','shahdara-isp-billing-v36','tool-cache'].sort());
+  assert.deepEqual(worker.deleted, ['shahdara-isp-billing-v19','shahdara-isp-billing-v23','shahdara-isp-billing-v30','shahdara-isp-billing-v31','shahdara-isp-billing-v32','shahdara-isp-billing-v33','shahdara-isp-billing-v34','shahdara-isp-billing-v35','shahdara-isp-billing-v36']);
+  assert.deepEqual([...worker.names].sort(), ['another-pwa-cache-v3','shahdara-isp-billing-v37','tool-cache'].sort());
   assert.equal(worker.claimCalls, 1);
 });
 
 test('worker serves a versioned app-module request from its cache despite query parameters', async () => {
   const worker = createWorker({
-    cacheNames:['shahdara-isp-billing-v36'],
-    entries:[['shahdara-isp-billing-v36','/app.js','cached module']]
+    cacheNames:['shahdara-isp-billing-v37'],
+    entries:[['shahdara-isp-billing-v37','/app.js','cached module']]
   });
   const result = await worker.dispatch('fetch', { url:'https://billing.example/app.js?v=1.10.0', method:'GET' });
   assert.equal(result.responded, true);
@@ -132,8 +133,8 @@ test('worker serves a versioned app-module request from its cache despite query 
 
 test('worker falls back to its cached app shell when a same-origin request fails offline', async () => {
   const worker = createWorker({
-    cacheNames:['shahdara-isp-billing-v36'],
-    entries:[['shahdara-isp-billing-v36','./index.html','cached offline shell']]
+    cacheNames:['shahdara-isp-billing-v37'],
+    entries:[['shahdara-isp-billing-v37','./index.html','cached offline shell']]
   });
   const result = await worker.dispatch('fetch', { url:'https://billing.example/uncached-route', method:'GET' });
   assert.equal(result.responded, true);
@@ -148,4 +149,35 @@ test('worker leaves non-GET and cross-origin requests to the browser', async () 
   assert.equal(post.responded, false);
   assert.equal(external.responded, false);
   assert.deepEqual(worker.fetched, []);
+});
+
+test('worker never caches error responses and refetches error responses stored by older workers (#210)', async () => {
+  const worker = createWorker({
+    cacheNames:['shahdara-isp-billing-v37'],
+    entries:[['shahdara-isp-billing-v37','/dashboard-otdr.js',{ ok:false, status:404, type:'basic', body:'stale 404' }]]
+  });
+  const fresh = { ok:true, status:200, type:'basic', body:'fresh module', clone() { return this; } };
+  worker.setFetch(async request => { worker.fetched.push(request.url); return fresh; });
+  const healed = await worker.dispatch('fetch', { url:'https://billing.example/dashboard-otdr.js?v=1.10.0', method:'GET' });
+  assert.equal(healed.response, fresh, 'a cached 404 is not served');
+  assert.deepEqual(worker.fetched, ['https://billing.example/dashboard-otdr.js?v=1.10.0']);
+
+  const missing = { ok:false, status:404, type:'basic', body:'404', clone() { throw new Error('error responses must not be cloned into the cache'); } };
+  worker.setFetch(async () => missing);
+  const notFound = await worker.dispatch('fetch', { url:'https://billing.example/nope.js', method:'GET' });
+  assert.equal(notFound.response, missing);
+});
+
+test('worker fetches page navigations from the network first and falls back to the cached shell offline', async () => {
+  const worker = createWorker({
+    cacheNames:['shahdara-isp-billing-v37'],
+    entries:[['shahdara-isp-billing-v37','./index.html','cached shell']]
+  });
+  const page = { ok:true, status:200, type:'basic', body:'fresh shell', clone() { return this; } };
+  worker.setFetch(async () => page);
+  const online = await worker.dispatch('fetch', { url:'https://billing.example/', method:'GET', mode:'navigate' });
+  assert.equal(online.response, page);
+  worker.setFetch(async () => { throw new Error('offline'); });
+  const offline = await worker.dispatch('fetch', { url:'https://billing.example/', method:'GET', mode:'navigate' });
+  assert.equal(offline.response, 'cached shell');
 });

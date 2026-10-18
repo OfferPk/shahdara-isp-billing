@@ -217,7 +217,24 @@ export const TRANSLATIONS = {
     shortcuts_drawer_toggle: 'Toggle Navigation Drawer',
     shortcuts_help: 'Open Shortcuts Help',
     shortcuts_dismiss: 'Close Active Modal / Drawer',
-    shortcuts_tip: 'Tip: Press shortcuts anywhere except when typing in input or search fields.'
+    shortcuts_tip: 'Tip: Press shortcuts anywhere except when typing in input or search fields.',
+
+    // PWA & Mobile Performance
+    pwa_install_btn: 'Install App',
+    pwa_install_banner_title: 'Install Shahdara ISP Billing',
+    pwa_install_banner_desc: 'Fast 2-tap field collections, works 100% offline, home screen launch.',
+    pwa_install_action: 'Install App',
+    pwa_install_dismiss: 'Not Now',
+    pwa_status_title: 'PWA & Offline System Health',
+    pwa_status_installed: 'Installed (Standalone App)',
+    pwa_status_browser: 'Running in Browser Tab',
+    pwa_status_offline_ready: '100% Offline Ready (Cache v37)',
+    pwa_shortcuts_heading: 'App Shortcuts (Home Screen)',
+    pwa_shortcut_collect: 'Quick Collect Cash (2-Taps)',
+    pwa_shortcut_add_cust: 'Register New Customer',
+    pwa_shortcut_dues: "Today's Overdue & Dues",
+    pwa_update_check: 'Check for Updates',
+    pwa_update_success: 'App cache is up to date!'
   },
 
   ur: {
@@ -415,7 +432,24 @@ export const TRANSLATIONS = {
     shortcuts_drawer_toggle: 'نیویگیشن مینو کھولیں',
     shortcuts_help: 'شارٹ کٹس کی مدد',
     shortcuts_dismiss: 'فعال ونڈو / ڈائیلاگ بند کریں',
-    shortcuts_tip: 'ٹپ: کسی بھی وقت شارٹ کٹ بٹن دبائیں (سوائے ٹائپنگ کے دوران)۔'
+    shortcuts_tip: 'ٹپ: کسی بھی وقت شارٹ کٹ بٹن دبائیں (سوائے ٹائپنگ کے دوران)۔',
+
+    // PWA & Mobile Performance
+    pwa_install_btn: 'ایپ انسٹال کریں',
+    pwa_install_banner_title: 'شاہدرہ بلنگ ایپ انسٹال کریں',
+    pwa_install_banner_desc: 'آف لائن 2 ٹیپ کیش وصولی اور ہوم اسکرین شارٹ کٹس کے ساتھ تیز رفتار استعمال۔',
+    pwa_install_action: 'انسٹال کریں',
+    pwa_install_dismiss: 'ابھی نہیں',
+    pwa_status_title: 'آف لائن سسٹم اور پی ڈبلیو اے معلومات',
+    pwa_status_installed: 'انسٹال شدہ (اسٹینڈ الون ایپ)',
+    pwa_status_browser: 'براؤزر ٹیب میں جاری',
+    pwa_status_offline_ready: '100% آف لائن تیار (کیشے محفوظ)',
+    pwa_shortcuts_heading: 'ہوم اسکرین شارٹ کٹس',
+    pwa_shortcut_collect: 'فوری کیش وصولی (2 ٹیپ)',
+    pwa_shortcut_add_cust: 'نیا گاہک درج کریں',
+    pwa_shortcut_dues: 'آج کے واجب الادا بقایا جات',
+    pwa_update_check: 'ایپ اپ ڈیٹ چیک کریں',
+    pwa_update_success: 'ایپ کیشے بالکل اپ ٹو ڈیٹ ہے!'
   }
 };
 

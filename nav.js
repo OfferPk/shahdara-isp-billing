@@ -6193,6 +6193,25 @@ export {
   verifyAccessibilityStandards
 } from './nav-accessibility.js';
 
+export {
+  PWA_INSTALLED_STORAGE_KEY,
+  PWA_BANNER_DISMISSED_KEY,
+  PWA_METRICS_STORAGE_KEY,
+  CACHE_NAME_VERSION,
+  isStandaloneMode,
+  isPwaInstalled,
+  getPwaInstallState,
+  isIosDevice,
+  parsePwaActionFromUrl,
+  executePwaAction,
+  deferLowPriorityInit,
+  createLazyModalController,
+  measurePwaPerformance,
+  setupPwaInstallPrompt,
+  setupPwaStatusModal,
+  setupPwaShortcuts
+} from './nav-pwa.js';
+
 
 
 

@@ -17,7 +17,11 @@ import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePay
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
-import { createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY } from './backup-store.js?v=1.10.0';
+import {
+  createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
+  calculateBackupAge, checkStoragePersistence, requestStoragePersistence,
+  getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY
+} from './backup-store.js?v=1.10.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip } from './qa-backup-csv-import.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
@@ -156,6 +160,93 @@ const localBackupStore = createLocalBackupStore();
 let automaticBackupInFlight = null;
 let lastAutomaticBackupCheckAt = 0;
 let backupOperationBusy = false;
+let storagePersistenceInfo = { supported: false, persisted: false, status: 'unsupported' };
+let storageEstimateInfo = { supported: false, usageFormatted: 'Not available', quotaFormatted: 'Not available', percentUsed: null };
+let persistenceAutoRequested = false;
+
+async function requestPersistenceOnFirstWrite() {
+  if (persistenceAutoRequested) return;
+  persistenceAutoRequested = true;
+  try {
+    const res = await requestStoragePersistence();
+    storagePersistenceInfo = res;
+    updateDataSafetyUi();
+  } catch { /* best effort */ }
+}
+
+async function refreshStorageSafetyInfo() {
+  try {
+    const [persistence, estimate] = await Promise.all([
+      checkStoragePersistence(),
+      getStorageEstimateInfo()
+    ]);
+    storagePersistenceInfo = persistence;
+    storageEstimateInfo = estimate;
+    updateDataSafetyUi();
+  } catch { /* best effort */ }
+}
+
+function getLatestBackupTimestamp(status = null) {
+  let localTime = null;
+  try { localTime = localStorage.getItem(LAST_BACKUP_TIME_KEY); } catch { /* ignore */ }
+  const storeTime = status?.lastSuccessfulAt;
+  if (!localTime) return storeTime;
+  if (!storeTime) return localTime;
+  return new Date(localTime) > new Date(storeTime) ? localTime : storeTime;
+}
+
+function updateDataSafetyUi(status = null) {
+  const latestBackupAt = getLatestBackupTimestamp(status);
+  const age = calculateBackupAge(latestBackupAt, new Date());
+
+  const bannerBackupBadge = $('#dataSafetyBackupBadge');
+  if (bannerBackupBadge) {
+    bannerBackupBadge.textContent = `Backup: ${age.shortLabel}`;
+    bannerBackupBadge.className = `safety-badge badge-${age.level}`;
+    bannerBackupBadge.title = age.statusText;
+  }
+  const bannerPersistenceBadge = $('#dataSafetyPersistenceBadge');
+  if (bannerPersistenceBadge) {
+    const pText = storagePersistenceInfo.persisted ? 'Protected' : 'Best-Effort';
+    bannerPersistenceBadge.textContent = `Storage: ${pText}`;
+    bannerPersistenceBadge.className = `safety-badge ${storagePersistenceInfo.persisted ? 'badge-healthy' : 'badge-neutral'}`;
+  }
+
+  const card = $('#dashboardDataSafetyCard');
+  if (card) {
+    card.classList.remove('status-healthy', 'status-warning', 'status-danger');
+    card.classList.add(`status-${age.level}`);
+  }
+  const cardBadge = $('#dashboardBackupAgeBadge');
+  if (cardBadge) {
+    cardBadge.textContent = age.label;
+    cardBadge.className = `safety-badge badge-${age.level}`;
+  }
+  const cardValue = $('#dashboardBackupAgeValue');
+  if (cardValue) {
+    cardValue.textContent = age.shortLabel;
+  }
+  const cardEstimate = $('#dashboardBackupStorageEstimate');
+  if (cardEstimate) {
+    const persistStr = storagePersistenceInfo.persisted ? 'Protected' : 'Best-effort';
+    const usageStr = storageEstimateInfo.supported ? `${storageEstimateInfo.usageFormatted} used` : 'Local device only';
+    cardEstimate.textContent = `Storage: ${persistStr} · ${usageStr}`;
+  }
+
+  const footerPersist = $('#backupStoragePersistence');
+  if (footerPersist) {
+    footerPersist.textContent = storagePersistenceInfo.persisted
+      ? 'Protected (Persistent · immune to browser eviction)'
+      : 'Best-effort (Not protected · browser may evict under storage pressure)';
+  }
+  const footerQuota = $('#backupStorageQuota');
+  if (footerQuota) {
+    footerQuota.textContent = storageEstimateInfo.supported
+      ? `${storageEstimateInfo.usageFormatted} of ${storageEstimateInfo.quotaFormatted} (${storageEstimateInfo.percentUsed}% used)`
+      : 'Storage quota API not supported in this browser';
+  }
+}
+
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
 const localDate = (date = new Date()) => { const p=zonedDateTimeParts(date); return `${p.year}-${p.month}-${p.day}`; };
 const localDateTime = (date = new Date()) => { const p=zonedDateTimeParts(date); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
@@ -223,6 +314,7 @@ function toast(message) {
 function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
 function save() {
+  void requestPersistenceOnFirstWrite();
   state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
   if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
   if (persistenceBlocked) {
@@ -451,6 +543,7 @@ function renderDashboard() {
       toast(msg);
     }
   });
+  updateDataSafetyUi();
 }
 function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
 function tenurePresentation(customer) {
@@ -1244,11 +1337,13 @@ async function refreshBackupManager() {
       localBackupStore.getSettings(), localBackupStore.getStatus(), localBackupStore.listBackups()
     ]);
     renderBackupManager({ settings, status, backups });
+    updateDataSafetyUi(status);
     return { settings, status, backups };
   } catch (error) {
     $('#backupStatus').textContent = `Unavailable: ${error.message || 'app-private backup storage could not be opened'}`;
     $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
     $('#restoreLocalBackupButton').disabled = true;
+    updateDataSafetyUi(null);
     return null;
   }
 }
@@ -1261,7 +1356,10 @@ async function saveLocalSnapshot(kind) {
   if (persistenceBlocked || !storageAvailable) throw new Error('Saved ledger data is unavailable or not writable. No backup was created.');
   const createdAt = new Date();
   const backupText = createJsonBackup(state, createdAt);
-  return localBackupStore.saveBackup(backupText, { kind, createdAt });
+  const record = await localBackupStore.saveBackup(backupText, { kind, createdAt });
+  try { localStorage.setItem(LAST_BACKUP_TIME_KEY, createdAt.toISOString()); } catch { /* ignore */ }
+  updateDataSafetyUi();
+  return record;
 }
 async function checkAutomaticBackup() {
   if (persistenceBlocked || !storageAvailable) return;
@@ -1314,8 +1412,63 @@ $('#downloadJsonBackupButton').addEventListener('click', () => {
   if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
   const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
   downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, createJsonBackup(state, new Date()));
+  try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+  updateDataSafetyUi();
   toast('JSON backup downloaded to this device. Store it somewhere safe.');
 });
+
+async function handleShareBackupAction() {
+  if (persistenceBlocked) {
+    toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.');
+    return;
+  }
+  const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
+  const filename = `shahdara-isp-billing-backup-${fileStamp}.json`;
+  const backupText = createJsonBackup(state, new Date());
+
+  try {
+    const result = await shareJsonBackupFile({ backupText, filename });
+    if (result.method === 'share') {
+      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      updateDataSafetyUi();
+      toast('Backup shared successfully! Keep it safe.');
+    } else if (result.method === 'download') {
+      downloadJson(result.filename, result.backupText);
+      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      updateDataSafetyUi();
+      toast('JSON backup downloaded (file share fallback). Store it somewhere safe.');
+    } else if (result.method === 'cancelled') {
+      toast('Share cancelled.');
+    }
+  } catch (error) {
+    toast(`Backup share failed: ${error.message}`);
+  }
+}
+
+async function handleProtectStorageAction() {
+  try {
+    const res = await requestStoragePersistence();
+    storagePersistenceInfo = res;
+    updateDataSafetyUi();
+    if (res.persisted) {
+      toast('Storage protected! Browser will not evict your billing ledger.');
+    } else if (!res.supported) {
+      toast('Storage persistence API is not supported in this browser.');
+    } else {
+      toast('Browser kept storage as best-effort (persistence request declined).');
+    }
+  } catch (error) {
+    toast(`Storage protection request failed: ${error.message}`);
+  }
+}
+
+$('#shareJsonBackupButton')?.addEventListener('click', handleShareBackupAction);
+$('#dataSafetyShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
+$('#dashboardShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
+$('#requestStoragePersistenceBtn')?.addEventListener('click', handleProtectStorageAction);
+$('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
+$('#dashboardProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
+
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
 $('#backupFrequencySelect').addEventListener('change', async event => {
   try {
@@ -6146,6 +6299,7 @@ if (typeof document !== 'undefined') {
     window.dailyClosingModalController = dailyClosingModalController;
     window.lateFeeModalController = lateFeeModalController;
   }
+  void refreshStorageSafetyInfo();
 }
 
 

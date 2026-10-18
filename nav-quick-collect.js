@@ -414,6 +414,82 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
  * @param {string|null} [activeCustomerId=null]
  * @returns {string}
  */
+/**
+ * Empty state shown when nobody has a pending balance: never an empty, broken-looking list.
+ * The button switches the picker to the "All" filter (paid customers included).
+ *
+ * @returns {string}
+ */
+export function customerHasMonthlyFee(customer) {
+  const positive = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v)) && Number(v) > 0;
+  if (positive(customer?.monthlySellingAmount)) return true;
+  return (customer?.monthlyPriceSchedule ?? []).some(entry => positive(entry?.amount));
+}
+
+/** Active customers with no package / monthly fee, so no bill can be generated for them (#248). */
+export function countCustomersWithoutFee(state) {
+  return (state?.customers ?? []).filter(c => !c.archived && !customerHasMonthlyFee(c)).length;
+}
+
+/**
+ * Empty state when nobody owes anything AND customers have no package/fee yet (#248): explain why
+ * the list is empty and offer to set packages / generate this month's bills.
+ */
+export function renderQuickCollectNeedsSetupHtml(withoutFee, { showAll = true } = {}) {
+  return `
+      <div class="qc-empty-state qc-needs-setup" role="status">
+        <span class="qc-empty-icon" aria-hidden="true">🧾</span>
+        <h4>No pending dues</h4>
+        <p><strong data-qc-no-fee-count>${Number(withoutFee)}</strong> customer${withoutFee === 1 ? ' has' : 's have'} no package / monthly fee yet, so no bill is due. Set a package to generate bills.</p>
+        <div class="qc-setup-actions">
+          <button type="button" class="primary-button" data-qc-setup-packages>Set packages &amp; monthly fee</button>
+          <button type="button" class="secondary-button" data-qc-generate-bills>Generate this month's bills</button>
+          ${showAll ? '<button type="button" class="secondary-button qc-show-all-btn" data-qc-show-all>Sab customers dikhayein · Show all</button>' : ''}
+        </div>
+      </div>
+    `;
+}
+
+export function renderQuickCollectAllCollectedHtml() {
+  return `
+      <div class="qc-empty-state qc-all-collected" role="status">
+        <span class="qc-empty-icon" aria-hidden="true">✅</span>
+        <h4>Sab ka bill wusool ho gaya</h4>
+        <p>No pending dues right now — every customer's bill is collected.</p>
+        <button type="button" class="secondary-button qc-show-all-btn" data-qc-show-all>Sab customers dikhayein · Show all</button>
+      </div>
+    `;
+}
+
+/**
+ * Picker contents for a filter: pending (default) lists only customers with an unpaid balance
+ * (partially paid customers stay, with their remaining amount); "all" also shows paid ones.
+ *
+ * @param {Object} state
+ * @param {string} query
+ * @param {('all-dues'|'high-dues'|'all')} filterType
+ * @param {string|null} [activeCustomerId]
+ * @returns {{ html: string, customers: Array<Object>, allCollected: boolean, needsSetup: boolean, withoutFee: number }}
+ */
+export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null) {
+  const customers = getPendingCollectionCustomers(state, query, filterType);
+  const allCollected = customers.length === 0
+    && filterType !== 'all'
+    && !String(query ?? '').trim()
+    && getPendingCollectionCustomers(state, '', 'all-dues').length === 0;
+  const withoutFee = allCollected ? countCustomersWithoutFee(state) : 0;
+  const needsSetup = allCollected && withoutFee > 0;
+  return {
+    customers,
+    allCollected,
+    needsSetup,
+    withoutFee,
+    html: needsSetup
+      ? renderQuickCollectNeedsSetupHtml(withoutFee)
+      : allCollected ? renderQuickCollectAllCollectedHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId)
+  };
+}
+
 export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null) {
   if (!customers || customers.length === 0) {
     return `
@@ -515,7 +591,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
  * @param {Function} options.onSaveState
  * @param {Function} options.onToast
  * @param {Function} [options.onSelectCustomer]
- * @returns {Object} Controller with { open, close, selectAndOpen, isOpen }
+ * @returns {Object} Controller with { open, close, selectAndOpen, isOpen, getState, commitState, refresh }
  */
 export function setupQuickCollectModal({
   getState,
@@ -529,7 +605,10 @@ export function setupQuickCollectModal({
       open: () => {},
       close: () => {},
       selectAndOpen: () => {},
-      isOpen: () => false
+      isOpen: () => false,
+      getState: () => getState(),
+      commitState: (nextState) => { if (typeof onSaveState === 'function') onSaveState(nextState); },
+      refresh: () => {}
     };
   }
 
@@ -595,8 +674,16 @@ export function setupQuickCollectModal({
     const state = getState();
     if (!state || !customerListContainer) return;
     const query = searchInput?.value ?? '';
-    const customers = getPendingCollectionCustomers(state, query, activeFilter);
-    customerListContainer.innerHTML = renderQuickCollectCustomerListHtml(customers, activeCustomerId);
+    customerListContainer.innerHTML = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId).html;
+  }
+
+  function setFilter(filter) {
+    activeFilter = filter || 'all-dues';
+    filterChips.forEach(c => {
+      const isActive = c.getAttribute('data-filter') === activeFilter;
+      c.classList.toggle('is-active', isActive);
+      c.setAttribute('aria-selected', String(isActive));
+    });
   }
 
   function showStep(stepName) {
@@ -676,19 +763,10 @@ export function setupQuickCollectModal({
       openCustomerCollectionForm(defaultCustomerId);
     } else {
       showStep('pick');
-      // #241: never open on an empty picker. If the current filter has no customers
-      // (e.g. "With Dues (0)" before bills are recorded), fall back to "All".
-      const state = getState();
-      if (state && activeFilter !== 'all'
-        && getPendingCollectionCustomers(state, '', activeFilter).length === 0
-        && getPendingCollectionCustomers(state, '', 'all').length > 0) {
-        activeFilter = 'all';
-        filterChips.forEach(c => {
-          const isAll = c.getAttribute('data-filter') === 'all';
-          c.classList.toggle('is-active', isAll);
-          c.setAttribute('aria-selected', String(isAll));
-        });
-      }
+      // Default to pending customers only (fully paid ones are hidden; "All" shows them).
+      // When nothing is pending the picker shows "Sab ka bill wusool ho gaya" instead of
+      // an empty list (replaces the #241 fallback to "All").
+      setFilter('all-dues');
       renderList();
       setTimeout(() => {
         searchInput?.focus();
@@ -747,15 +825,18 @@ export function setupQuickCollectModal({
   // Wire filter tabs
   filterChips.forEach(chip => {
     chip.addEventListener('click', () => {
-      filterChips.forEach(c => c.classList.remove('is-active'));
-      chip.classList.add('is-active');
-      activeFilter = chip.getAttribute('data-filter') || 'all-dues';
+      setFilter(chip.getAttribute('data-filter') || 'all-dues');
       renderList();
     });
   });
 
   // Wire list card selection
   customerListContainer?.addEventListener('click', (e) => {
+    if (e.target.closest('[data-qc-show-all]')) {
+      setFilter('all');
+      renderList();
+      return;
+    }
     const card = e.target.closest('.qc-customer-card');
     if (!card) return;
     const cid = card.getAttribute('data-customer-id');
@@ -950,6 +1031,14 @@ export function setupQuickCollectModal({
     open: openModal,
     close: closeModal,
     selectAndOpen: openCustomerCollectionForm,
-    isOpen: () => modal.hasAttribute('open') || modal.open
+    isOpen: () => modal.hasAttribute('open') || modal.open,
+    // Used by bulk-collect.js: read the live state and save through the same path as a single collection.
+    getState: () => getState(),
+    commitState: (nextState) => {
+      if (typeof onSaveState === 'function') onSaveState(nextState);
+      updateCounts();
+      renderList();
+    },
+    refresh: () => { updateCounts(); renderList(); }
   };
 }

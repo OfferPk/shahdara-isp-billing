@@ -9813,6 +9813,42 @@ html, body {
   border-color: #334155;
 }
 
+.mom-growth-table th[data-sort-mom] {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.mom-growth-table th[data-sort-mom]:hover {
+  background: rgba(14, 91, 77, 0.08);
+}
+
+[data-theme="dark"] .mom-growth-table th[data-sort-mom]:hover {
+  background: #334155;
+}
+
+.mom-growth-table .sort-indicator {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.mom-growth-table th[aria-sort="ascending"] .sort-indicator,
+.mom-growth-table th[aria-sort="descending"] .sort-indicator {
+  opacity: 1;
+  color: var(--accent, #0e5b4d);
+}
+
+[data-theme="dark"] .mom-growth-table th[aria-sort="ascending"] .sort-indicator,
+[data-theme="dark"] .mom-growth-table th[aria-sort="descending"] .sort-indicator {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .mom-growth-table tr.is-active-month {
+  background: rgba(14, 91, 77, 0.22) !important;
+}
+
 [data-theme="dark"] .mom-growth-table td {
   border-color: #334155;
 }
@@ -9821,5 +9857,32 @@ html, body {
   .mom-kpi-grid {
     grid-template-columns: 1fr 1fr;
   }
+  .mom-growth-toolbar button,
+  .mom-growth-modal .billing-modal-footer button {
+    min-height: 44px;
+  }
 }
+
+/* Daily Cash Register (Roshnamcha) Responsive Actions Polish */
+@media (max-width: 620px) {
+  .register-modal-actions {
+    flex-wrap: wrap;
+    justify-content: stretch;
+    gap: 8px;
+  }
+  .register-modal-actions button {
+    flex: 1 1 calc(50% - 8px);
+    min-height: 44px;
+  }
+  .register-controls-bar {
+    padding: 10px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .register-modal-actions button {
+    flex: 1 1 100%;
+  }
+}
+
 

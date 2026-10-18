@@ -81,7 +81,7 @@ export function setupCollectSetup({ win = window, doc = document, getController 
       <input id="collectSetupSearch" class="qc-search-input" type="search" placeholder="Search name, mobile or area…" aria-label="Search customers without a fee">
       <div id="collectSetupList" class="cs-list" role="group" aria-label="Customers without a package or fee"></div>
       <p id="collectSetupStatus" class="bc-status" role="status" aria-live="polite" hidden></p>
-      <button id="collectSetupApplyBtn" class="primary-button cs-apply" type="button" disabled>Set package &amp; generate bills</button>
+      <button id="collectSetupApplyBtn" class="primary-button cs-apply" type="button" disabled>Apply: Set package &amp; generate bills</button>
     </section>
   </dialog>`;
   doc.body.appendChild(wrap.firstElementChild);
@@ -111,7 +111,7 @@ export function setupCollectSetup({ win = window, doc = document, getController 
     $('collectSetupCount').textContent = `${checked.size} selected`;
     selectAll.checked = rows.length > 0 && rows.every(c => checked.has(c.id));
     applyBtn.disabled = checked.size === 0;
-    applyBtn.textContent = checked.size ? `Set package for ${checked.size} & generate bills` : 'Set package & generate bills';
+    applyBtn.textContent = checked.size ? `Apply: Set package for ${checked.size} & generate bills` : 'Apply: Set package & generate bills';
   }
   pkg.addEventListener('change', () => { $('collectSetupFeeLabel').hidden = pkg.value !== ''; });
   search.addEventListener('input', render);
@@ -133,7 +133,11 @@ export function setupCollectSetup({ win = window, doc = document, getController 
       controller.commitState(nextState);
       checked = new Set();
       render();
-      say(`✓ Package set for ${updated} customer${updated === 1 ? '' : 's'} · ${generated} bill${generated === 1 ? '' : 's'} generated. They now show in Quick Collect.`, 'success');
+      const msg = `✓ Package set for ${updated} customer${updated === 1 ? '' : 's'} · ${generated} bill${generated === 1 ? '' : 's'} generated. They now show in Quick Collect.`;
+      say(msg, 'success');
+      win.bulkCollect?.refresh?.();
+      controller?.refresh?.();
+      if (typeof win.toast === 'function') win.toast(msg);
     } catch (err) {
       say(err.message, 'error');
     }
@@ -160,6 +164,9 @@ export function setupCollectSetup({ win = window, doc = document, getController 
       : 'No new bills: customers need a package / monthly fee first.';
     if (statusTarget) { statusTarget.textContent = msg; statusTarget.hidden = false; }
     win.bulkCollect?.refresh?.();
+    if (typeof win.toast === 'function' && generated > 0) {
+      win.toast(msg);
+    }
   }
 
   // Delegated: the buttons live in Quick Collect's / Bulk Collect's empty states.

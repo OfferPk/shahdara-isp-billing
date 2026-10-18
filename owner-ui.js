@@ -8,7 +8,7 @@ import { createWhatsAppFollowupDraft } from './profile-ui.js';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const $ = (selector, root=document) => root.querySelector(selector);
 
-export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderAnalytics, renderInventory, renderExpenses}) {
+export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses}) {
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
@@ -204,7 +204,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     document.querySelectorAll('[data-mobile-more]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));
     if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}}
-    else if(action==='bills'||action==='reports'){switchView('reports');renderMonthlyReport();$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='bills'||action==='reports'){switchView('reports');if(typeof renderMonthlyReport==='function')renderMonthlyReport();$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='backup'){const p=$('#backupControls');if(p){p.hidden=false;$('#backupControlsToggle')?.setAttribute('aria-expanded','true');p.scrollIntoView({behavior:'smooth',block:'center'});}}
     else if(action==='assistant'){switchView('customers');$('#ownerCommandCenter').scrollIntoView({behavior:'smooth',block:'center'});}
     else if(action==='alerts'){switchView('reports');$('#smartAlertsPanel').scrollIntoView({behavior:'smooth',block:'start'});}

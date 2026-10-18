@@ -1,1 +1,59 @@
-{"name":"Shahdara ISP Billing","short_name":"ISP Billing","description":"Offline-first customer billing ledger stored on this device.","start_url":"./","scope":"./","display":"standalone","background_color":"#f4f7f5","theme_color":"#0e5b4d","icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
+{
+  "name": "Shahdara ISP Billing",
+  "short_name": "ISP Billing",
+  "description": "Offline-first customer billing ledger stored on this device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7f5",
+  "theme_color": "#0e5b4d",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick Collect (2 Taps)",
+      "short_name": "Quick Collect",
+      "description": "Collect customer cash payment in 2 taps",
+      "url": "./#quick-collect",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Add Customer",
+      "short_name": "New Customer",
+      "description": "Register a new subscriber in the offline ledger",
+      "url": "./#add-customer",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "Today's Dues & Overdue",
+      "short_name": "Today's Dues",
+      "description": "View subscribers with pending dues and overdue balances",
+      "url": "./#today-dues",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

@@ -28,6 +28,7 @@ import {
   formatPKR,
   PAYMENT_METHODS
 } from './core.js';
+import { trapModalFocus } from './nav-accessibility.js';
 import {
   RECEIPT_SHARED_STORAGE_KEY,
   isReceiptShared,
@@ -888,20 +889,29 @@ export function setupPendingActionsModal(options = {}) {
     });
   }
 
-  // Close modal button
-  if (closeBtn && modal) {
-    closeBtn.addEventListener('click', () => {
+  let releaseFocusTrap = null;
+
+  function closeModal() {
+    if (releaseFocusTrap) {
+      releaseFocusTrap();
+      releaseFocusTrap = null;
+    }
+    if (modal) {
       if (modal.close) modal.close();
       else modal.removeAttribute('open');
-    });
+    }
+  }
+
+  // Close modal button
+  if (closeBtn && modal) {
+    closeBtn.addEventListener('click', closeModal);
   }
 
   // Modal backdrop click
   if (modal) {
     modal.addEventListener('click', e => {
       if (e.target === modal) {
-        if (modal.close) modal.close();
-        else modal.removeAttribute('open');
+        closeModal();
       }
     });
   }
@@ -910,8 +920,7 @@ export function setupPendingActionsModal(options = {}) {
   if (modal) {
     modal.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        if (modal.close) modal.close();
-        else modal.removeAttribute('open');
+        closeModal();
       }
     });
   }
@@ -1019,15 +1028,13 @@ export function setupPendingActionsModal(options = {}) {
       if (modal) {
         if (modal.showModal) modal.showModal();
         else modal.setAttribute('open', '');
+        releaseFocusTrap = trapModalFocus(modal, {
+          onEscape: closeModal
+        });
       }
       render();
     },
-    close: () => {
-      if (modal) {
-        if (modal.close) modal.close();
-        else modal.removeAttribute('open');
-      }
-    },
+    close: closeModal,
     render,
     getSummary: () => getPendingActionsSummary(getState(), { storage })
   };

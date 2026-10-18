@@ -7136,3 +7136,57 @@ body {
 [data-theme="dark"] .topbar-pending-btn:hover {
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* ==========================================================================
+   ACCESSIBILITY & FOCUS VISIBLE POLISH (agent2 - Backlog Item 9)
+   ========================================================================== */
+.view-nav-button:focus-visible,
+.mobile-bottom-nav button:focus-visible,
+.shortcuts-help-button:focus-visible,
+.topbar-pending-btn:focus-visible,
+.mobile-search-trigger:focus-visible,
+.language-toggle-btn:focus-visible,
+.theme-toggle:focus-visible,
+.shortcuts-modal-card .close-button:focus-visible {
+  outline: 2px solid var(--green, #0e5b4d) !important;
+  outline-offset: 2px !important;
+}
+
+[data-theme="dark"] .view-nav-button:focus-visible,
+[data-theme="dark"] .mobile-bottom-nav button:focus-visible,
+[data-theme="dark"] .shortcuts-help-button:focus-visible,
+[data-theme="dark"] .topbar-pending-btn:focus-visible,
+[data-theme="dark"] .mobile-search-trigger:focus-visible,
+[data-theme="dark"] .language-toggle-btn:focus-visible,
+[data-theme="dark"] .theme-toggle:focus-visible,
+[data-theme="dark"] .shortcuts-modal-card .close-button:focus-visible {
+  outline: 2px solid #2dd4bf !important;
+  outline-offset: 2px !important;
+}
+
+.qc-success-banner h3:focus {
+  outline: 2px solid var(--green, #0e5b4d);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+[data-theme="dark"] .qc-success-banner h3:focus {
+  outline: 2px solid #2dd4bf;
+}
+
+/* 44px Minimum Touch Targets for Accessibility on Small Viewports */
+@media (max-width: 620px) {
+  .shortcuts-modal-card .close-button,
+  .quick-collect-filter-chip,
+  .quick-amount-chip,
+  .pending-actions-tab,
+  .shortcuts-help-button,
+  .topbar-pending-btn,
+  .mobile-search-trigger,
+  .language-toggle-btn,
+  .theme-toggle {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+

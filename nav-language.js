@@ -191,7 +191,33 @@ export const TRANSLATIONS = {
     pending_call: 'Call',
     pending_remind: 'Remind',
     pending_mark_done: 'Mark Done',
-    pending_new_promise: '+ Schedule Promise'
+    pending_new_promise: '+ Schedule Promise',
+
+    // Keyboard Shortcuts & Accessibility
+    shortcuts_eyebrow: 'QUICK ACCESS & FIELD OPS',
+    shortcuts_title: 'Keyboard Shortcuts',
+    shortcuts_subtitle: 'Rapid navigation and field collection controls',
+    shortcuts_group_field: 'Field Collection & Actions',
+    shortcuts_quick_collect: 'Quick Collect Cash',
+    shortcuts_fast_search: 'Fast Customer Search',
+    shortcuts_pending_actions: 'Pending Actions Center',
+    shortcuts_collection_route: 'Collection Route Sheet',
+    shortcuts_top_defaulters: 'Dues Recovery & Delinquency',
+    shortcuts_mom_growth: 'MoM Growth & Momentum',
+    shortcuts_group_nav: 'Global Navigation',
+    shortcuts_nav_customers: 'Customers Roster',
+    shortcuts_nav_transactions: 'Transactions History',
+    shortcuts_nav_reports: 'Monthly Reports',
+    shortcuts_nav_analytics: 'Area Analytics',
+    shortcuts_nav_inventory: 'Inventory Stock',
+    shortcuts_nav_expenses: 'Expense Manager',
+    shortcuts_group_system: 'System & Accessibility',
+    shortcuts_lang_toggle: 'Toggle Language (English / اردو)',
+    shortcuts_theme_toggle: 'Toggle Dark / Light Theme',
+    shortcuts_drawer_toggle: 'Toggle Navigation Drawer',
+    shortcuts_help: 'Open Shortcuts Help',
+    shortcuts_dismiss: 'Close Active Modal / Drawer',
+    shortcuts_tip: 'Tip: Press shortcuts anywhere except when typing in input or search fields.'
   },
 
   ur: {
@@ -363,7 +389,33 @@ export const TRANSLATIONS = {
     pending_call: 'کال کریں',
     pending_remind: 'یاد دہانی',
     pending_mark_done: 'مکمل ہو گیا',
-    pending_new_promise: '+ نیا وعدہ درج کریں'
+    pending_new_promise: '+ نیا وعدہ درج کریں',
+
+    // Keyboard Shortcuts & Accessibility
+    shortcuts_eyebrow: 'فوری رسائی اور فیلڈ آپریشنز',
+    shortcuts_title: 'کی بورڈ شارٹ کٹس',
+    shortcuts_subtitle: 'تیز رفتار نیویگیشن اور نقد ریکوری کے کنٹرولز',
+    shortcuts_group_field: 'فیلڈ کلیکشن اور فوری کام',
+    shortcuts_quick_collect: 'فوری نقد وصولی',
+    shortcuts_fast_search: 'فوری گاہک تلاش',
+    shortcuts_pending_actions: 'پینڈنگ ایکشنز سینٹر',
+    shortcuts_collection_route: 'کلیکشن روٹ شیٹ',
+    shortcuts_top_defaulters: 'بقایا جات اور ریکوری لسٹ',
+    shortcuts_mom_growth: 'ماہانہ گروتھ اور مومینٹم',
+    shortcuts_group_nav: 'اہم پیجز اور نیویگیشن',
+    shortcuts_nav_customers: 'صارفین کی فہرست',
+    shortcuts_nav_transactions: 'ادائیگیوں کا کھاتہ',
+    shortcuts_nav_reports: 'ماہانہ کلوزنگ رپورٹس',
+    shortcuts_nav_analytics: 'علاقائی تجزیہ (Area)',
+    shortcuts_nav_inventory: 'اسٹاک اور سامان',
+    shortcuts_nav_expenses: 'اخراجات کا انتظام',
+    shortcuts_group_system: 'سسٹم اور معاونت (Accessibility)',
+    shortcuts_lang_toggle: 'زبان تبدیل کریں (اردو / English)',
+    shortcuts_theme_toggle: 'ڈارک / لائٹ تھیم تبدیل کریں',
+    shortcuts_drawer_toggle: 'نیویگیشن مینو کھولیں',
+    shortcuts_help: 'شارٹ کٹس کی مدد',
+    shortcuts_dismiss: 'فعال ونڈو / ڈائیلاگ بند کریں',
+    shortcuts_tip: 'ٹپ: کسی بھی وقت شارٹ کٹ بٹن دبائیں (سوائے ٹائپنگ کے دوران)۔'
   }
 };
 

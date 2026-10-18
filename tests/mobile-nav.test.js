@@ -14827,3 +14827,123 @@ test('Pending Actions Center & Collection Promises Suite (agent2 - Backlog Item 
   assert.ok(appJs.includes('topbarPendingActionsBtn'));
   assert.ok(appJs.includes('navPendingActionsBtn'));
 });
+
+test('nav-accessibility.js - screen reader announcements, focus traps, payment feedback, and shortcuts', async () => {
+  const {
+    A11Y_LIVE_REGION_ID,
+    A11Y_ALERT_REGION_ID,
+    ensureLiveRegions,
+    announceToScreenReader,
+    trapModalFocus,
+    announcePaymentSuccess,
+    setupAccessibleKeyboardShortcuts,
+    A11Y_AUDIT_CHECKLIST,
+    verifyAccessibilityStandards
+  } = await import('../nav-accessibility.js');
+
+  // 1. ensureLiveRegions and announceToScreenReader
+  const mockElements = new Map();
+  const mockDoc = {
+    body: {
+      appendChild: (el) => { mockElements.set(el.id, el); }
+    },
+    createElement: (tag) => {
+      const attrs = new Map();
+      return {
+        tagName: tag.toUpperCase(),
+        id: '',
+        className: '',
+        textContent: '',
+        setAttribute: (k, v) => attrs.set(k, String(v)),
+        getAttribute: (k) => attrs.get(k) || null
+      };
+    },
+    getElementById: (id) => mockElements.get(id) || null,
+    querySelectorAll: () => []
+  };
+
+  const { politeRegion, alertRegion } = ensureLiveRegions(mockDoc);
+  assert.equal(politeRegion.id, A11Y_LIVE_REGION_ID);
+  assert.equal(politeRegion.getAttribute('aria-live'), 'polite');
+  assert.equal(alertRegion.id, A11Y_ALERT_REGION_ID);
+  assert.equal(alertRegion.getAttribute('aria-live'), 'assertive');
+
+  const announced = announceToScreenReader('Test announcement', { priority: 'polite', timeout: 0, doc: mockDoc });
+  assert.equal(announced, 'Test announcement');
+  assert.equal(politeRegion.textContent, 'Test announcement');
+
+  // 2. announcePaymentSuccess formats bilingual announcements
+  const mockReceipt = {
+    id: 'pay_123',
+    receiptNumber: 'RCP-202610-001',
+    customerName: 'Zahid Khan',
+    amount: 2500
+  };
+
+  const msgEn = announcePaymentSuccess(mockReceipt, { language: 'en', doc: mockDoc });
+  assert.ok(msgEn.includes('Payment of PKR 2,500 for Zahid Khan recorded successfully'));
+  assert.ok(msgEn.includes('RCP-202610-001'));
+
+  const msgUr = announcePaymentSuccess(mockReceipt, { language: 'ur', doc: mockDoc });
+  assert.ok(msgUr.includes('گاہک Zahid Khan کی رقم PKR 2,500 کامیابی سے وصول ہو گئی'));
+  assert.ok(msgUr.includes('RCP-202610-001'));
+
+  // 3. trapModalFocus traps Tab/Shift+Tab and releases cleanly
+  let focusedElement = null;
+  const btn1 = {
+    focus: () => { focusedElement = btn1; },
+    getAttribute: () => null,
+    hidden: false
+  };
+  const btn2 = {
+    focus: () => { focusedElement = btn2; },
+    getAttribute: () => null,
+    hidden: false
+  };
+
+  let keydownHandler = null;
+  const mockModal = {
+    querySelectorAll: () => [btn1, btn2],
+    addEventListener: (evt, fn) => { if (evt === 'keydown') keydownHandler = fn; },
+    removeEventListener: (evt, fn) => { if (evt === 'keydown') keydownHandler = null; },
+    contains: (el) => [btn1, btn2].includes(el),
+    setAttribute: () => {}
+  };
+
+  let escaped = false;
+  const release = trapModalFocus(mockModal, {
+    initialFocus: btn1,
+    onEscape: () => { escaped = true; }
+  });
+
+  assert.equal(typeof release, 'function');
+  assert.ok(keydownHandler);
+
+  // Test Escape
+  keydownHandler({ key: 'Escape', preventDefault: () => {} });
+  assert.equal(escaped, true);
+
+  // Test release
+  release();
+  assert.equal(keydownHandler, null);
+
+  // 4. A11Y_AUDIT_CHECKLIST and verifyAccessibilityStandards
+  assert.ok(Array.isArray(A11Y_AUDIT_CHECKLIST.criteria));
+  assert.ok(A11Y_AUDIT_CHECKLIST.criteria.some(c => c.id === '1.4.3'));
+  assert.ok(A11Y_AUDIT_CHECKLIST.criteria.some(c => c.id === '2.4.7'));
+  assert.ok(A11Y_AUDIT_CHECKLIST.criteria.some(c => c.id === '2.5.5'));
+
+  // 5. HTML and CSS markup accessibility
+  const indexHtml = read('index.html');
+  assert.ok(indexHtml.includes('id="navA11yLiveRegion"'));
+  assert.ok(indexHtml.includes('id="navA11yAlertRegion"'));
+  assert.ok(indexHtml.includes('id="quickCollectSuccessHeading"'));
+  assert.ok(indexHtml.includes('id="keyboardShortcutsModal"'));
+  assert.ok(indexHtml.includes('id="mobileMoreShortcutsBtn"'));
+
+  const navCss = read('nav.css');
+  assert.ok(navCss.includes(':focus-visible'));
+  assert.ok(navCss.includes('.shortcuts-modal'));
+  assert.ok(navCss.includes('min-height: 44px'));
+});
+

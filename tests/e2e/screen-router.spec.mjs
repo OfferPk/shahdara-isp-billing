@@ -18,8 +18,11 @@ function trackErrors(page) {
 }
 
 async function openFromNav(page, target) {
+  const drawer = page.locator('#navDrawer');
   const drawerToggle = page.locator('#navDrawerToggle');
-  if (await drawerToggle.isVisible()) {
+  if (await drawer.isVisible()) {
+    await page.locator(`#navDrawer [data-nav-target="${target}"]`).click();
+  } else if (await drawerToggle.isVisible()) {
     await drawerToggle.click();
     await page.locator(`#navDrawer [data-nav-target="${target}"]`).click();
   } else {

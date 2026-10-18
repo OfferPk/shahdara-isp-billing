@@ -210,7 +210,7 @@ test.describe('Button Audit Suite (#216): Every visible button must have a real 
     expect(errors).toEqual([]);
   });
 
-  test('Topbar and navigation drawer buttons: theme, language, search, shortcuts, and navigation', async ({ page }) => {
+  test('Topbar and navigation drawer buttons: theme, language, search, shortcuts, and navigation', async ({ page, isMobile }) => {
     const errors = trackErrors(page);
     await setupMocks(page);
     await page.goto('/');
@@ -268,7 +268,11 @@ test.describe('Button Audit Suite (#216): Every visible button must have a real 
     await expect(drawerCustBtn).toBeVisible();
     await drawerCustBtn.click();
     await expect(page).toHaveURL(/#\/customers$/);
-    await expect(drawer).toBeHidden();
+    if (isMobile) {
+      await expect(drawer).toBeHidden();
+    } else {
+      await expect(drawer).toBeVisible();
+    }
     auditResults.push({
       route: 'drawer',
       label: 'Drawer item: Customers',

@@ -798,23 +798,52 @@ export function initUniversalDialogController({
               const isNested = (
                 (this.classList && typeof this.classList.contains === 'function' && this.classList.contains('bulk-duplicate-modal')) ||
                 this.id === 'bulkDuplicateDialog' ||
-                this.id === 'collectSetupModal' ||
+                (this.id === 'collectSetupModal' && (d.id === 'quickCollectModal' || d.id === 'bulkCollectModal')) ||
+                (this.id === 'bulkCollectModal' && d.id === 'quickCollectModal') ||
                 (typeof this.hasAttribute === 'function' && this.hasAttribute('data-nested-dialog')) ||
-                (opener && typeof opener.hasAttribute === 'function' && opener.hasAttribute('data-open-subdialog'))
+                (opener && typeof opener.hasAttribute === 'function' && opener.hasAttribute('data-open-subdialog')) ||
+                (this.parentElement && typeof this.parentElement.closest === 'function' && this.parentElement.closest('dialog') === d)
               );
               if (!isNested) {
                 try {
-                  if (typeof origClose === 'function') origClose.call(d);
-                  else if (typeof d.close === 'function') d.close();
-                  else d.removeAttribute('open');
+                  if (typeof d.close === 'function') d.close();
+                  else if (typeof origClose === 'function') origClose.call(d);
                 } catch {
-                  d.removeAttribute('open');
+                  try { if (typeof origClose === 'function') origClose.call(d); } catch {}
                 }
+                d.open = false;
+                try { d.removeAttribute('open'); } catch {}
               } else {
                 this._parentDialog = d;
               }
             }
           });
+        }
+
+        const otherOpen = typeof doc.querySelectorAll === 'function'
+          ? Array.from(doc.querySelectorAll('dialog[open]')).filter(d => d !== this)
+          : [];
+        const hasUserOpener = Boolean(
+          opener &&
+          opener !== doc.body &&
+          opener !== doc.documentElement &&
+          typeof opener.tagName === 'string'
+        );
+        const isTopLevel = (
+          !this.parentElement?.closest?.('dialog') &&
+          otherOpen.length === 0 &&
+          hasUserOpener &&
+          !['quickCollectModal', 'bulkCollectModal', 'fieldToolsModal', 'collectSetupModal', 'bulkDuplicateDialog'].includes(this.id)
+        );
+
+        if (isTopLevel && win.history && typeof win.history.pushState === 'function') {
+          if (!this._historyPushed) {
+            this._historyPushed = true;
+            this._closedByPopState = false;
+            try {
+              win.history.pushState({ ...(win.history.state || {}), modalDialogId: this.id || 'dialog' }, '', (win.location && win.location.href) ? win.location.href : '');
+            } catch {}
+          }
         }
 
         setupDialogInstance(this);
@@ -847,6 +876,22 @@ export function initUniversalDialogController({
         const opener = this._openerElement;
         this._openerElement = null;
 
+        if (this._historyPushed) {
+          const dialogId = this.id;
+          this._historyPushed = false;
+          if (!this._closedByPopState && win.history) {
+            const defer = typeof win.setTimeout === 'function' ? win.setTimeout : (typeof setTimeout === 'function' ? setTimeout : null);
+            if (defer) {
+              defer(() => {
+                if (win.history.state && win.history.state.modalDialogId === dialogId) {
+                  try { win.history.back(); } catch {}
+                }
+              }, 0);
+            }
+          }
+          this._closedByPopState = false;
+        }
+
         if (typeof origClose === 'function') {
           origClose.call(this, returnValue);
         } else {
@@ -858,6 +903,30 @@ export function initUniversalDialogController({
         }
       };
     }
+  }
+
+  const onPopState = () => {
+    if (typeof doc.querySelectorAll === 'function') {
+      const openDialogs = doc.querySelectorAll('dialog[open]');
+      for (const dialog of openDialogs) {
+        if (dialog.id === 'quickCollectModal' || dialog.id === 'fieldToolsModal' || dialog.id === 'bulkCollectModal') continue;
+        if (dialog._historyPushed) {
+          dialog._historyPushed = false;
+          dialog._closedByPopState = true;
+          try {
+            if (typeof dialog.close === 'function') dialog.close();
+            else dialog.removeAttribute('open');
+          } catch {
+            dialog.removeAttribute('open');
+          }
+          break;
+        }
+      }
+    }
+  };
+
+  if (typeof win.addEventListener === 'function') {
+    win.addEventListener('popstate', onPopState);
   }
 
   // MutationObserver for dynamic dialog injection
@@ -881,7 +950,15 @@ export function initUniversalDialogController({
   return {
     destroy: () => {
       if (observer) observer.disconnect();
+      if (typeof win.removeEventListener === 'function') {
+        win.removeEventListener('popstate', onPopState);
+      }
     }
   };
 }
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  initUniversalDialogController();
+}
+
 

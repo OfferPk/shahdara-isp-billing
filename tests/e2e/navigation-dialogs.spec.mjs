@@ -32,7 +32,8 @@ test.describe('Navigation, Views, and Modal Dialogs Verification', () => {
     await custBtn.click();
     await expect(customersView).toBeVisible();
 
-    // 5. Tap Actions sheet toggle -> #mobileActionSheet opens
+    // 5. Open More menu and tap Actions sheet toggle -> #mobileActionSheet opens
+    await page.locator('#mobileMoreButton').click();
     const actionToggle = page.locator('#mobileActionSheetToggle');
     await actionToggle.click();
     const actionSheet = page.locator('#mobileActionSheet');
@@ -46,19 +47,22 @@ test.describe('Navigation, Views, and Modal Dialogs Verification', () => {
     await expect(actionSheet).not.toBeVisible();
 
     // Reopen and test close via Escape key
+    await page.locator('#mobileMoreButton').click();
     await actionToggle.click();
     await expect(actionSheet).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(actionSheet).not.toBeVisible();
 
     // Reopen and test close via backdrop tap (tap in upper exposed area)
+    await page.locator('#mobileMoreButton').click();
     await actionToggle.click();
     await expect(actionSheet).toBeVisible();
     await actionBackdrop.click({ position: { x: 20, y: 50 } });
     await expect(actionSheet).not.toBeVisible();
   });
 
-  test('topbar controls operate search, theme, language, and drawer', async ({ page }) => {
+  test('topbar controls operate search, theme, language, and drawer', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Slide-in drawer open/close behavior is mobile-specific; desktop has persistent sidebar (#212)');
     await page.goto('/');
 
     const html = page.locator('html');
@@ -96,7 +100,8 @@ test.describe('Navigation, Views, and Modal Dialogs Verification', () => {
     await expect(drawer).not.toBeVisible();
   });
 
-  test('drawer navigation switches views and closes drawer automatically', async ({ page }) => {
+  test('drawer navigation switches views and closes drawer automatically', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Slide-in drawer open/close behavior is mobile-specific; desktop has persistent sidebar (#212)');
     await page.goto('/');
 
     // Open drawer

@@ -52,6 +52,7 @@ test.describe('Bilingual English / Urdu (اردو) UI & RTL Layout Verification'
   });
 
   test('navigation drawer opens and displays Urdu translations with RTL alignment', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Slide-in drawer open/close behavior is mobile-specific; desktop has persistent sidebar (#212)');
     await page.goto('/');
 
     // Switch to Urdu

@@ -188,16 +188,28 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       recognition.start();
     }catch{status.textContent='On-device speech could not start. No cloud fallback was used; type your command instead.';}
   });
-  $('#mobileMoreButton')?.addEventListener('click',()=>{const menu=$('#mobileMoreMenu'),open=menu.hidden;menu.hidden=!open;$('#mobileMoreButton').setAttribute('aria-expanded',String(open));});
+  $('#mobileMoreButton')?.addEventListener('click',()=>{
+    const menu=$('#mobileMoreMenu'),open=menu.hidden;
+    menu.hidden=!open;
+    $('#mobileMoreButton').setAttribute('aria-expanded',String(open));
+    if(open){
+      document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item.id==='mobileMoreButton'?'page':'false'));
+      try{history.pushState({view:'more'},'','#more');}catch{}
+    } else {
+      const cur=document.body.dataset.screen||'home';
+      const act=cur==='transactions'?'collection':cur==='reports'?'reports':cur==='customers'?'customers':'home';
+      document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item.dataset.mobileNav===act?'page':'false'));
+    }
+  });
   document.querySelectorAll('[data-mobile-nav]').forEach(button=>button.addEventListener('click',()=>{
     const action=button.dataset.mobileNav;
-    if(action==='more'){document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));try{history.pushState({view:'more'},'','#more');}catch{}return;}
+    if(action==='more'){return;}
     $('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');
     document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));
-    if(action==='home'){switchView('customers');document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));$('#billingDashboard').scrollIntoView({behavior:'smooth',block:'start'});try{history.pushState({view:'home'},'','#home');}catch{}}
-    else if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});try{history.pushState({view:'customers'},'','#customers');}catch{}}
-    else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}try{history.pushState({view:'collection'},'','#collect');}catch{}}
-    else if(action==='reports'){switchView('reports');$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});try{history.pushState({view:'reports'},'','#reports');}catch{}}
+    if(action==='home'){switchView('customers');document.querySelectorAll('[data-mobile-nav]').forEach(item=>item.setAttribute('aria-current',item===button?'page':'false'));$('#billingDashboard').scrollIntoView({behavior:'smooth',block:'start'});if(window.location.hash!=='#home')try{history.pushState({view:'home'},'','#home');}catch{}}
+    else if(action==='customers'){switchView('customers');$('#customersView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='collection'){if(window.quickCollectModalController?.open){window.quickCollectModalController.open();}else{switchView('transactions');$('#transactionsView').scrollIntoView({behavior:'smooth',block:'start'});}}
+    else if(action==='reports'){switchView('reports');$('#billingReportsView').scrollIntoView({behavior:'smooth',block:'start'});}
   }));
   document.querySelectorAll('[data-mobile-more]').forEach(button=>button.addEventListener('click',()=>{
     const action=button.dataset.mobileMore;$('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');

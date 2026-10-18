@@ -192,6 +192,36 @@ export function commitBatch(state, batch, execute = executeQuickCollection) {
   return { nextState: next, receipts };
 }
 
+/**
+ * Bulk picker rows (v2). Search ALWAYS covers every active customer (name, mobile, area,
+ * mohalla, address, customer #; partial, case-insensitive), so a customer is found even when
+ * no package/fee or bill exists yet. Pending customers sort first with their due; others are
+ * marked 'no-bill' ("No bill set") or 'paid' and can still get a manually entered amount.
+ * Empty search: the pending list, or every customer when nobody is pending (never empty).
+ * Customers already in the batch are hidden, except while searching, where they are flagged
+ * `inBatch` so adding them again shows the "Already added" popup.
+ *
+ * @returns {{ rows: Array<Object>, mode: 'pending'|'all'|'search', total: number }}
+ */
+export function searchCustomersForBatch(state, batch, query = '', { limit = 60 } = {}) {
+  const q = String(query ?? '').trim();
+  const inBatch = new Set((batch?.entries ?? []).map(e => e.customerId));
+  const all = getPendingCollectionCustomers(state, q, 'all');
+  const status = c => (c.totalDues > 0 ? 'due' : c.billsCount === 0 ? 'no-bill' : 'paid');
+  let rows = all.map(c => ({ ...c, status: status(c), inBatch: inBatch.has(c.id) }));
+  let mode = 'search';
+  if (!q) {
+    rows = rows.filter(r => !r.inBatch);
+    const pending = rows.filter(r => r.status === 'due');
+    mode = pending.length ? 'pending' : 'all';
+    if (pending.length) rows = pending;
+  }
+  // Pending first (largest due first, as Quick Collect), then everyone else by customer #.
+  const rank = r => (r.inBatch ? 3 : r.status === 'due' ? 0 : 1);
+  rows.sort((a, b) => rank(a) - rank(b) || (b.totalDues - a.totalDues) || (a.customerNumber - b.customerNumber));
+  return { rows: rows.slice(0, limit), mode, total: rows.length };
+}
+
 /* ------------------------------------------------------------------ UI ------------------ */
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -210,51 +240,41 @@ function buildDialogs(doc) {
         <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">×</button>
       </div>
 
-      <div class="bc-batch-row">
-        <label class="bc-field bc-date">Batch date
+      <div class="bc-settings" role="group" aria-label="Batch settings (apply to every payment)">
+        <label class="bc-field bc-date">Date
           <input id="bulkCollectDate" type="date" required>
         </label>
-        <div class="bc-totals" role="status" aria-live="polite">
-          <span class="bc-totals-label">Batch total</span>
-          <strong id="bulkCollectTotal">PKR 0</strong>
-          <span id="bulkCollectCount">0 customers</span>
-        </div>
+        <label class="bc-field">Method
+          <select id="bulkCollectMethod"></select>
+        </label>
+        <label class="bc-field bc-note"><span>Collected by / location <span class="bc-optional">(optional)</span></span>
+          <input id="bulkCollectNote" type="text" maxlength="120" placeholder="e.g. Saad · Jia Musa round">
+        </label>
       </div>
 
-      <form id="bulkCollectEntryForm" class="bc-entry" autocomplete="off" novalidate>
-        <div id="bulkCollectSelected" class="bc-selected" aria-live="polite">Pick customers below ↓</div>
-        <div class="bc-entry-grid">
-          <label class="bc-field">Amount (PKR)
-            <input id="bulkCollectAmount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0">
-          </label>
-          <label class="bc-field">Method
-            <select id="bulkCollectMethod"></select>
-          </label>
-          <label class="bc-field bc-note">Collected by / location
-            <input id="bulkCollectNote" type="text" maxlength="120" placeholder="e.g. Saad · Jia Musa round">
-          </label>
+      <div class="bc-search">
+        <label class="bc-search-label" for="bulkCollectSearch">Find customer</label>
+        <div class="bc-search-box">
+          <span class="bc-search-icon" aria-hidden="true">🔍</span>
+          <input id="bulkCollectSearch" type="search" class="bc-search-input" enterkeyhint="next" autocomplete="off" spellcheck="false"
+                 placeholder="Name, mobile, area or #" aria-describedby="bulkCollectHint" aria-controls="bulkCollectPickList">
         </div>
-        <button id="bulkCollectAddBtn" class="primary-button bc-add-btn" type="submit" disabled>+ Add to batch</button>
-      </form>
-
-      <div class="bc-picker">
-        <div class="qc-search-box">
-          <input id="bulkCollectSearch" type="search" class="qc-search-input" placeholder="Search name, mobile or area…" aria-label="Search pending customers">
-        </div>
-        <p class="bc-hint">Only customers with a pending balance. Tap to select (multi-select allowed).</p>
-        <div id="bulkCollectPickList" class="bc-pick-list" role="listbox" aria-multiselectable="true" aria-label="Pending customers"></div>
+        <p id="bulkCollectHint" class="bc-hint">Type to search all customers · Enter jumps to the amount · Enter again adds.</p>
       </div>
+
+      <div id="bulkCollectPickList" class="bc-pick-list" role="list" aria-label="Customers" aria-live="polite"></div>
 
       <div class="bc-review">
         <div class="bc-review-head">
-          <h3>Review batch</h3>
+          <h3>In this batch <span id="bulkCollectCount" class="bc-count">0 customers</span></h3>
           <button id="bulkCollectUndoBtn" class="secondary-button" type="button" disabled>↶ Undo</button>
         </div>
-        <ol id="bulkCollectReviewList" class="bc-review-list"></ol>
+        <ol id="bulkCollectReviewList" class="bc-review-list" aria-label="Payments in this batch"></ol>
       </div>
 
       <p id="bulkCollectStatus" class="bc-status" role="status" aria-live="polite" hidden></p>
       <div class="bc-footer">
+        <div class="bc-total-line"><span>Batch total</span><strong id="bulkCollectTotal">PKR 0</strong></div>
         <button id="bulkCollectSaveBtn" class="primary-button" type="button" disabled>Save payments</button>
       </div>
     </section>
@@ -276,6 +296,12 @@ function buildDialogs(doc) {
   while (wrap.firstElementChild) doc.body.appendChild(wrap.firstElementChild);
 }
 
+const STATUS_BADGE = {
+  due: c => `<span class="bc-badge bc-badge-due">Due ${esc(pkr(c.totalDues))}</span>`,
+  'no-bill': () => '<span class="bc-badge bc-badge-nobill">No bill set</span>',
+  paid: () => '<span class="bc-badge bc-badge-paid">Paid</span>'
+};
+
 export function setupBulkCollect({ win = window, doc = document, getController = () => win.quickCollectModalController, toast } = {}) {
   if (doc.getElementById('bulkCollectModal')) return win.bulkCollect;
   buildDialogs(doc);
@@ -283,80 +309,74 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   const modal = $('bulkCollectModal');
   const dupDialog = $('bulkDuplicateDialog');
   const dateInput = $('bulkCollectDate');
-  const amountInput = $('bulkCollectAmount');
   const methodSelect = $('bulkCollectMethod');
   const noteInput = $('bulkCollectNote');
-  const addBtn = $('bulkCollectAddBtn');
-  const selectedEl = $('bulkCollectSelected');
   const searchInput = $('bulkCollectSearch');
   const pickList = $('bulkCollectPickList');
   const reviewList = $('bulkCollectReviewList');
   const undoBtn = $('bulkCollectUndoBtn');
   const saveBtn = $('bulkCollectSaveBtn');
+  const statusEl = $('bulkCollectStatus');
 
   methodSelect.innerHTML = PAYMENT_METHODS.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
   methodSelect.value = 'Cash';
 
   let batch = createBatch();
-  let selected = []; // customer ids, in tap order
-  let amountTouched = false;
   let hashOnOpen = null;
   let resolveDup = null;
-  let pendingDuplicateOk = null; // customer id whose duplicate was confirmed, awaiting an amount
+  const typed = new Map(); // customerId -> amount typed in its row (kept across re-renders)
 
-  const statusEl = $('bulkCollectStatus');
   // The page toast sits under the top-layer dialog, so messages are shown inside the dialog.
   const say = (msg, kind = 'info') => {
     statusEl.textContent = msg;
     statusEl.dataset.kind = kind;
     statusEl.hidden = !msg;
-    if (typeof toast === 'function') toast(msg);
+    if (typeof toast === 'function' && msg) toast(msg);
   };
   const state = () => getController()?.getState?.();
 
-  function renderSelected() {
-    const st = state();
-    if (!selected.length) {
-      selectedEl.textContent = 'Pick customers below ↓';
-      amountInput.disabled = false;
-      if (!amountTouched) amountInput.value = '';
-    } else if (selected.length === 1) {
-      const d = entryDefaults(st, batch, selected[0]);
-      selectedEl.innerHTML = `<strong>${esc(d.name)}</strong> <span>#${esc(d.customerNumber)} · ${esc(d.area)}${d.phone ? ' · ' + esc(d.phone) : ''}</span> <em>Pending ${esc(pkr(d.totalDues))}</em>`;
-      amountInput.disabled = false;
-      if (!amountTouched) amountInput.value = d.amount > 0 ? String(d.amount) : '';
-    } else {
-      const total = selected.reduce((s, id) => s + cents(entryDefaults(st, batch, id).amount), 0) / 100;
-      selectedEl.innerHTML = `<strong>${selected.length} customers selected</strong> <em>${esc(pkr(total))} · each customer's pending amount</em>`;
-      amountInput.disabled = true;
-      amountInput.value = String(total);
-    }
-    addBtn.disabled = selected.length === 0;
-    addBtn.textContent = selected.length > 1 ? `+ Add ${selected.length} to batch` : '+ Add to batch';
+  function allModeCaption(st, total) {
+    if (getPendingCollectionCustomers(st, '', 'all-dues').length) return `All pending customers are in the batch — showing everyone else (${total}).`;
+    if (countCustomersWithoutFee(st) > 0) return `No pending dues — showing all customers (${total}). Enter the amount received.`;
+    return `${esc(BULK_ALL_COLLECTED_TEXT)} — showing all customers (${total}). Enter the amount received.`;
   }
 
   function renderPicker() {
     const st = state();
     if (!st) { pickList.innerHTML = ''; return; }
     const query = searchInput.value;
-    const rows = pendingForBatch(st, batch, query);
+    const { rows, mode, total } = searchCustomersForBatch(st, batch, query);
     if (!rows.length) {
-      const noFee = isAllCollected(st) ? countCustomersWithoutFee(st) : 0;
-      pickList.innerHTML = !String(query).trim() && noFee > 0
-        ? renderQuickCollectNeedsSetupHtml(noFee, { showAll: false })
-        : !String(query).trim()
-        ? `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>${esc(isAllCollected(st) ? BULK_ALL_COLLECTED_TEXT : 'Sab pending customers batch mein add ho gaye')}</h4><p>${isAllCollected(st) ? 'No pending dues right now.' : 'Everyone with a pending balance is in this batch — review and save.'}</p></div>`
-        : `<div class="qc-empty-state" role="status"><span class="qc-empty-icon" aria-hidden="true">🔍</span><h4>No pending customer matches</h4><p>Search by name, mobile number or area.</p></div>`;
+      const noFee = countCustomersWithoutFee(st);
+      pickList.innerHTML = String(query).trim()
+        ? `<div class="qc-empty-state" role="status"><span class="qc-empty-icon" aria-hidden="true">🔍</span><h4>No customer matches “${esc(query.trim())}”</h4><p>Search by name, mobile number, area or customer #.</p></div>`
+        : batch.entries.length
+          ? `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>Sab customers batch mein add ho gaye</h4><p>Review the batch below and tap Save.</p></div>`
+          : noFee ? renderQuickCollectNeedsSetupHtml(noFee, { showAll: false })
+            : `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>${esc(BULK_ALL_COLLECTED_TEXT)}</h4></div>`;
       return;
     }
-    pickList.innerHTML = rows.map(c => {
-      const isSel = selected.includes(c.id);
-      return `<button type="button" role="option" aria-selected="${isSel}" class="bc-pick-card${isSel ? ' is-selected' : ''}${c.inBatch ? ' is-in-batch' : ''}" data-bulk-customer="${esc(c.id)}">
-        <span class="bc-check" aria-hidden="true">${isSel ? '✓' : ''}</span>
-        <span class="bc-pick-info"><span class="bc-pick-name">#${esc(c.customerNumber)} ${esc(c.name)}</span>
-        <span class="bc-pick-meta">${esc(c.area)}${c.phone ? ' · ' + esc(c.phone) : ''}</span></span>
-        <span class="bc-pick-due">${c.inBatch ? '<span class="bc-added-tag">Added ✓</span>' : esc(pkr(c.totalDues))}</span>
-      </button>`;
+    const head = mode === 'pending'
+      ? `<p class="bc-list-caption">Pending customers (${total}) · search to find anyone else</p>`
+      : mode === 'all'
+        ? `<p class="bc-list-caption">${allModeCaption(st, total)}</p>`
+        : `<p class="bc-list-caption">${total} match${total === 1 ? '' : 'es'}${total > rows.length ? ` · showing ${rows.length}, keep typing` : ''}</p>`;
+    pickList.innerHTML = head + rows.map(c => {
+      const d = entryDefaults(st, batch, c.id);
+      const value = typed.has(c.id) ? typed.get(c.id) : (d.amount > 0 ? String(d.amount) : '');
+      return `<div class="bc-row${c.inBatch ? ' is-in-batch' : ''}" role="listitem" data-bulk-row="${esc(c.id)}">
+        <div class="bc-row-info">
+          <span class="bc-row-name"><span class="bc-row-num">#${esc(c.customerNumber)}</span> ${esc(c.name)}</span>
+          <span class="bc-row-meta">${esc(c.area)}${c.phone ? ' · ' + esc(c.phone) : ''}</span>
+          <span class="bc-row-badges">${STATUS_BADGE[c.status](c)}${c.inBatch ? '<span class="bc-badge bc-badge-added">In batch ✓</span>' : ''}</span>
+        </div>
+        <div class="bc-row-entry">
+          <input class="bc-amount" type="number" inputmode="decimal" min="0" step="0.01" enterkeyhint="done"
+                 value="${esc(value)}" placeholder="${c.status === 'due' ? '0' : 'Enter amount'}"
+                 data-bulk-amount="${esc(c.id)}" aria-label="Amount for ${esc(c.name)} (PKR)">
+          <button type="button" class="primary-button bc-row-add" data-bulk-add="${esc(c.id)}" aria-label="Add ${esc(c.name)} to batch">Add</button>
+        </div>
+      </div>`;
     }).join('');
   }
 
@@ -364,19 +384,19 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const t = batchTotals(batch);
     $('bulkCollectTotal').textContent = pkr(t.total);
     $('bulkCollectCount').textContent = `${t.count} customer${t.count === 1 ? '' : 's'}`;
-    reviewList.innerHTML = batch.entries.length ? batch.entries.map(e => `
+    reviewList.innerHTML = batch.entries.length ? batch.entries.slice().reverse().map(e => `
       <li class="bc-review-item" data-entry-id="${esc(e.id)}">
-        <div class="bc-review-main"><strong>${esc(e.name)}</strong> <span class="bc-review-meta">#${esc(e.customerNumber)} · ${esc(e.area)}${e.phone ? ' · ' + esc(e.phone) : ''}</span>
-        <span class="bc-review-meta">${esc(e.method)}${e.note ? ' · ' + esc(e.note) : ''}${e.confirmedDuplicate ? ' · <b class="bc-dup-flag">duplicate confirmed</b>' : ''}</span></div>
+        <div class="bc-review-main"><strong class="bc-review-name">${esc(e.name)}</strong>
+          <span class="bc-review-meta">#${esc(e.customerNumber)} · ${esc(e.method)}${e.note ? ' · ' + esc(e.note) : ''}${e.confirmedDuplicate ? ' · <b class="bc-dup-flag">duplicate confirmed</b>' : ''}</span></div>
         <strong class="bc-review-amt">${esc(pkr(e.amount))}</strong>
         <button type="button" class="bc-remove-btn" data-bulk-remove="${esc(e.id)}" aria-label="Remove ${esc(e.name)} from batch">Remove</button>
-      </li>`).join('') : '<li class="bc-review-empty">No payments in this batch yet.</li>';
+      </li>`).join('') : '<li class="bc-review-empty">Nothing added yet — find a customer above and tap Add.</li>';
     undoBtn.disabled = !canUndo(batch);
     saveBtn.disabled = t.count === 0;
     saveBtn.textContent = t.count ? `Save ${t.count} payment${t.count === 1 ? '' : 's'} · ${pkr(t.total)}` : 'Save payments';
   }
 
-  const renderAll = () => { renderSelected(); renderPicker(); renderReview(); };
+  const renderAll = () => { renderPicker(); renderReview(); };
 
   function showDuplicate(fields, duplicate) {
     const amount = duplicate.kind === 'batch' ? duplicate.entry.amount : duplicate.payment.amount;
@@ -407,71 +427,75 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   $('bulkDuplicateConfirmBtn').addEventListener('click', () => closeDup(true));
   dupDialog.addEventListener('cancel', e => { e.preventDefault(); closeDup(false); });
 
-  async function addSelected() {
-    const st = state();
-    if (!st || !selected.length) return;
-    const single = selected.length === 1;
-    const ids = [...selected];
-    let addedCount = 0;
-    for (const id of ids) {
-      const d = entryDefaults(st, batch, id);
-      const fields = { ...d, amount: single ? Number(amountInput.value) : d.amount, method: methodSelect.value || 'Cash', note: noteInput.value };
-      if (!single && !(fields.amount > 0)) continue;
-      let res;
-      try { res = addEntry(batch, st, fields); } catch (err) { say(err.message, 'error'); amountInput.focus(); return; }
-      if (!res.added && res.duplicate && pendingDuplicateOk === id) {
-        pendingDuplicateOk = null;
-        try { res = addEntry(batch, st, fields, { allowDuplicate: true }); } catch (err) { say(err.message, 'error'); amountInput.focus(); return; }
-      }
-      if (!res.added && res.duplicate) {
-        const ok = await showDuplicate(fields, res.duplicate);
-        if (!ok) { selected = selected.filter(x => x !== id); continue; }
-        if (!(fields.amount > 0)) {
-          // Confirmed, but nothing left pending to prefill: keep it selected and ask for the amount.
-          selected = [id];
-          amountTouched = false;
-          renderAll();
-          pendingDuplicateOk = id;
-          say('Confirmed — enter the extra amount, then tap Add.', 'info');
-          amountInput.focus();
-          return;
-        }
-        res = addEntry(batch, st, fields, { allowDuplicate: true });
-      }
-      batch = res.batch;
-      selected = selected.filter(x => x !== id);
-      addedCount++;
-    }
-    amountTouched = false;
+  const amountBox = id => pickList.querySelector(`[data-bulk-amount="${CSS.escape(id)}"]`);
+
+  function nextCustomer() {
+    searchInput.value = '';
     renderAll();
-    if (addedCount) say(`${addedCount} added · batch ${pkr(batchTotals(batch).total)}`);
     searchInput.focus({ preventScroll: true });
   }
 
-  async function toggleCustomer(id) {
+  async function addCustomer(id) {
     const st = state();
-    const row = pendingForBatch(st, batch, searchInput.value).find(r => r.id === id);
-    if (row?.inBatch) {
-      // Already in the batch: tapping it goes straight to the "Already added" check.
-      selected = [id];
-      amountTouched = false;
-      renderSelected();
-      await addSelected();
+    if (!st) return;
+    const box = amountBox(id);
+    const fields = { ...entryDefaults(st, batch, id), amount: Number(box?.value), method: methodSelect.value || 'Cash', note: noteInput.value };
+    let res;
+    try {
+      res = addEntry(batch, st, fields);
+      if (!res.added && res.duplicate) {
+        if (!(await showDuplicate(fields, res.duplicate))) { say('Skipped — already added.'); box?.focus(); return; }
+        res = addEntry(batch, st, fields, { allowDuplicate: true });
+      }
+    } catch (err) {
+      say(err.message, 'error');
+      box?.focus();
+      box?.select?.();
       return;
     }
-    selected = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id];
-    amountTouched = false;
-    renderSelected();
-    renderPicker();
+    batch = res.batch;
+    typed.delete(id);
+    say(`✓ ${res.added.name} · ${pkr(res.added.amount)} added · batch ${pkr(batchTotals(batch).total)}`, 'success');
+    nextCustomer();
   }
 
-  pickList.addEventListener('click', e => {
-    const card = e.target.closest('[data-bulk-customer]');
-    if (card) toggleCustomer(card.getAttribute('data-bulk-customer'));
-  });
+  // Search: live as you type; Enter jumps to the first result's amount; Esc clears.
   searchInput.addEventListener('input', renderPicker);
-  amountInput.addEventListener('input', () => { amountTouched = true; });
-  $('bulkCollectEntryForm').addEventListener('submit', e => { e.preventDefault(); addSelected(); });
+  searchInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const first = pickList.querySelector('[data-bulk-amount]');
+      if (first) { first.focus(); first.select?.(); }
+    } else if (e.key === 'Escape' && searchInput.value) {
+      e.preventDefault();
+      e.stopPropagation();
+      nextCustomer();
+    } else if (e.key === 'ArrowDown') {
+      const first = pickList.querySelector('[data-bulk-amount]');
+      if (first) { e.preventDefault(); first.focus(); first.select?.(); }
+    }
+  });
+  pickList.addEventListener('input', e => {
+    const box = e.target.closest('[data-bulk-amount]');
+    if (box) typed.set(box.getAttribute('data-bulk-amount'), box.value);
+  });
+  pickList.addEventListener('keydown', e => {
+    const box = e.target.closest('[data-bulk-amount]');
+    if (!box) return;
+    if (e.key === 'Enter') { e.preventDefault(); addCustomer(box.getAttribute('data-bulk-amount')); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const boxes = [...pickList.querySelectorAll('[data-bulk-amount]')];
+      const i = boxes.indexOf(box) + (e.key === 'ArrowDown' ? 1 : -1);
+      e.preventDefault();
+      if (i < 0) searchInput.focus(); else if (boxes[i]) { boxes[i].focus(); boxes[i].select?.(); }
+    } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); nextCustomer(); }
+  });
+  pickList.addEventListener('click', e => {
+    const add = e.target.closest('[data-bulk-add]');
+    if (add) { addCustomer(add.getAttribute('data-bulk-add')); return; }
+    const row = e.target.closest('[data-bulk-row]');
+    if (row && !e.target.closest('input')) { const box = row.querySelector('[data-bulk-amount]'); box?.focus(); box?.select?.(); }
+  });
   reviewList.addEventListener('click', e => {
     const btn = e.target.closest('[data-bulk-remove]');
     if (!btn) return;
@@ -488,13 +512,14 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   saveBtn.addEventListener('click', () => {
     const controller = getController();
     const st = state();
-    if (!controller?.commitState || !st) { say('Payments are not ready yet — reload the app.'); return; }
+    if (!controller?.commitState || !st) { say('Payments are not ready yet — reload the app.', 'error'); return; }
     try {
       const totals = batchTotals(batch);
       const { nextState, receipts } = commitBatch(st, batch);
       controller.commitState(nextState);
       batch = createBatch(batch.date);
-      selected = [];
+      typed.clear();
+      searchInput.value = '';
       renderAll();
       say(`✓ ${receipts.length} payment${receipts.length === 1 ? '' : 's'} saved · ${pkr(totals.total)}`, 'success');
     } catch (err) {
@@ -510,6 +535,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     say('');
     const qc = getController();
     if (qc?.isOpen?.()) qc.close();
+    searchInput.value = '';
     renderAll();
     if (win.location.hash !== BULK_COLLECT_HASH) {
       hashOnOpen = win.location.hash || '#/home';
@@ -524,6 +550,10 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   function close() {
     if (modal.open) modal.close(); else modal.removeAttribute('open');
   }
+  // Esc inside the search/amount boxes clears the search; it only closes the dialog when the search is empty.
+  modal.addEventListener('cancel', e => {
+    if (searchInput.value) { e.preventDefault(); nextCustomer(); }
+  });
   modal.addEventListener('close', () => {
     if (win.location.hash === BULK_COLLECT_HASH) {
       win.history.replaceState({ ...(win.history.state || {}), bulkCollect: false }, '', hashOnOpen || '#/home');

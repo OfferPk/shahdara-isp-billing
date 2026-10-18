@@ -26,7 +26,7 @@ import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerC
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.10.0';
-
+import { getPendingCollectionCustomers } from './nav-quick-collect.js?v=1.10.0';
 
 
 
@@ -707,7 +707,15 @@ function renderCustomers() {
   $('#archivedCustomerList').innerHTML = archived.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
   $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
   $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
-  $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
+  const totalActiveCust = state.customers.filter(customer => !customer.archived).length;
+  $('#welcomeCount').textContent = totalActiveCust;
+  try {
+    const pendingCollection = getPendingCollectionCustomers(state, '', 'all-dues');
+    const pendingCount = pendingCollection.length;
+    const totalDuesPKR = pendingCollection.reduce((sum, item) => sum + (item.totalDues || 0), 0);
+    if ($('#welcomePendingCount')) $('#welcomePendingCount').textContent = String(pendingCount);
+    if ($('#welcomeTotalDues')) $('#welcomeTotalDues').textContent = formatPKR(totalDuesPKR);
+  } catch {}
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {
     emptySearch.textContent = customerQuery.trim() || customerAreaFilter !== 'all' ? 'No matching customers.' : 'No customers match these service and billing filters.';
@@ -3957,6 +3965,14 @@ const resetExpenseFiltersHandler = () => {
 };
 $('#clearExpenseFilters')?.addEventListener('click', resetExpenseFiltersHandler);
 $('#resetExpenseFiltersInlineBtn')?.addEventListener('click', resetExpenseFiltersHandler);
+$('#scrollToAddExpenseBtn')?.addEventListener('click', () => {
+  const form = $('#expenseForm');
+  if (form) {
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const firstInput = $('#expenseDate') || $('#expenseAmount');
+    if (firstInput) firstInput.focus();
+  }
+});
 document.querySelectorAll('[data-sort-inventory]').forEach(th=>{
   const toggle=()=>{
     const key=th.dataset.sortInventory;

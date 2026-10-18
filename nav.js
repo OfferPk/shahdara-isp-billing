@@ -3,6 +3,7 @@
  */
 
 import { trapModalFocus, initUniversalDialogController } from './nav-accessibility.js';
+import { getPendingCollectionCustomers } from './nav-quick-collect.js';
 
 export function setupNavigationDrawer({
   onNavigate,
@@ -183,9 +184,28 @@ export function updateNavigationBadges(state, options = {}) {
   for (const c of customers) {
     if (c.archived) continue;
     if (c.status === 'offline') offlineCount++;
-    if (Array.isArray(c.bills)) {
-      const hasUnpaid = c.bills.some(b => Number(b.dueAmount) > 0 && b.status !== 'paid');
-      if (hasUnpaid) overdueCount++;
+  }
+
+  if (typeof options.overdueCount === 'number') {
+    overdueCount = options.overdueCount;
+  } else {
+    let pendingDebtors = null;
+    try {
+      if (typeof getPendingCollectionCustomers === 'function') {
+        pendingDebtors = getPendingCollectionCustomers(state, '', 'all-dues');
+      }
+    } catch {}
+
+    if (Array.isArray(pendingDebtors)) {
+      overdueCount = pendingDebtors.length;
+    } else {
+      for (const c of customers) {
+        if (c.archived) continue;
+        if (Array.isArray(c.bills)) {
+          const hasUnpaid = c.bills.some(b => Number(b.dueAmount) > 0 && b.status !== 'paid');
+          if (hasUnpaid) overdueCount++;
+        }
+      }
     }
   }
 

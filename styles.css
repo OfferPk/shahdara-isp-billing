@@ -446,11 +446,93 @@ textarea { line-height: 1.5; }
   .table-filter-toolbar {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
+  }
+  .table-filter-group {
+    width: 100%;
+  }
+  .table-filter-select {
+    width: 100%;
+  }
+  .table-filter-group.search-group {
+    flex: 0 0 auto;
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .table-filter-group.search-group .table-filter-input {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .table-filter-group.search-group .table-filter-clear,
+  .table-filter-group.search-group .secondary-button {
+    flex: 1 1 auto;
+    text-align: center;
   }
   .table-filter-count {
     margin: 0;
   }
 }
+@media (min-width: 1024px) {
+  .app-shell {
+    grid-template-columns: 390px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .customer-card-stat {
+    min-height: 62px;
+    padding: 7px 9px;
+  }
+  .customer-card-stats {
+    margin-top: 8px;
+    gap: 6px;
+  }
+}
+.welcome-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  max-width: 520px;
+  margin: 22px auto 0;
+}
+.welcome-stat-card {
+  padding: 12px 10px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--line, #e1e9e5);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+.welcome-stat-num {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--green, #0e5b4d);
+  font-variant-numeric: tabular-nums;
+}
+.welcome-stat-label {
+  font-size: 11px;
+  color: var(--muted, #71817c);
+  text-align: center;
+}
+@media (max-width: 480px) {
+  .welcome-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+[data-theme="dark"] .welcome-stat-card {
+  background: var(--bg-surface, #1e293b);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+[data-theme="dark"] .welcome-stat-num {
+  color: #3dd68c;
+}
+
 .phase3-form { gap: 12px; padding: 16px; }
 .phase3-form label, .incident-field { gap: 6px; font-size: 13px; }
 .phase3-form input, .phase3-form select, .phase3-form textarea,

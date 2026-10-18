@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '../..');
+const distDir = path.resolve(__dirname, '../../dist');
+const ROOT_DIR = (process.env.SERVE_ROOT !== 'true' && fs.existsSync(path.join(distDir, 'index.html')))
+  ? distDir
+  : path.resolve(__dirname, '../..');
 const PORT = Number(process.env.PORT) || 4173;
 
 const MIME_TYPES = {

@@ -2535,8 +2535,7 @@ kbd {
   will-change: transform, width, height;
 }
 
-.view-nav,
-.mobile-bottom-nav {
+.view-nav {
   position: relative;
 }
 

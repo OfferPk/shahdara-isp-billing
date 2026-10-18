@@ -197,6 +197,239 @@ export function calculateTransactionSummary(transactions) {
 }
 
 /**
+ * Computes a customer's outstanding balance for a given bill month.
+ * @param {Object} customer
+ * @param {string} month
+ * @param {Object} [allocations]
+ * @returns {number} Balance in PKR
+ */
+export function getCustomerMonthBalance(customer, month, allocations = null) {
+  if (!customer) return 0;
+  if (allocations?.byMonth && month) {
+    const key = `${customer.id}_${month}`;
+    const alloc = allocations.byMonth.get(key);
+    if (alloc && alloc.balanceDueCents !== null && alloc.balanceDueCents !== undefined) {
+      return alloc.balanceDueCents / 100;
+    }
+  }
+  const bill = (customer.bills || []).find(b => b.month === month);
+  if (!bill) return 0;
+  const billed = Number(bill.dueAmount ?? bill.nominalPrice ?? 0);
+  const received = (bill.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  return Math.max(0, billed - received);
+}
+
+/**
+ * Computes a customer's total lifetime payments received.
+ * @param {Object} customer
+ * @returns {number} Total received in PKR
+ */
+export function getCustomerTotalCollections(customer) {
+  if (!customer || !Array.isArray(customer.bills)) return 0;
+  return customer.bills.reduce((total, b) => {
+    return total + (b.payments || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  }, 0);
+}
+
+/**
+ * Sorts customer roster by specified criterion.
+ * @param {Array<Object>} customers
+ * @param {Object} [options]
+ * @param {string} [options.sortBy='number-asc']
+ * @param {string} [options.billingMonth='']
+ * @param {Object} [options.allocations=null]
+ * @returns {Array<Object>} sorted copy
+ */
+export function sortCustomerRoster(customers, { sortBy = 'number-asc', billingMonth = '', allocations = null } = {}) {
+  const list = Array.isArray(customers) ? [...customers] : [];
+  return list.sort((a, b) => {
+    switch (sortBy) {
+      case 'number-asc':
+        return (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
+      case 'number-desc':
+        return (Number(b.customerNumber) || 0) - (Number(a.customerNumber) || 0);
+      case 'name-asc':
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      case 'name-desc':
+        return String(b.name || '').localeCompare(String(a.name || ''));
+      case 'mohalla-asc':
+        return String(a.mohalla || a.area || '').localeCompare(String(b.mohalla || b.area || ''));
+      case 'mohalla-desc':
+        return String(b.mohalla || b.area || '').localeCompare(String(a.mohalla || a.area || ''));
+      case 'balance-desc': {
+        const balA = getCustomerMonthBalance(a, billingMonth, allocations);
+        const balB = getCustomerMonthBalance(b, billingMonth, allocations);
+        return balB - balA;
+      }
+      case 'balance-asc': {
+        const balA = getCustomerMonthBalance(a, billingMonth, allocations);
+        const balB = getCustomerMonthBalance(b, billingMonth, allocations);
+        return balA - balB;
+      }
+      case 'received-desc': {
+        const recA = getCustomerTotalCollections(a);
+        const recB = getCustomerTotalCollections(b);
+        return recB - recA;
+      }
+      case 'package-asc':
+        return String(a.packageSpeed || '').localeCompare(String(b.packageSpeed || ''));
+      default:
+        return (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
+    }
+  });
+}
+
+/**
+ * Filters a list of customers by area/mohalla.
+ * @param {Array<Object>} customers
+ * @param {string} [selectedArea='all']
+ * @returns {Array<Object>}
+ */
+export function filterCustomersByArea(customers, selectedArea = 'all') {
+  const list = Array.isArray(customers) ? customers : [];
+  if (!selectedArea || selectedArea === 'all') return list;
+  const target = selectedArea.trim().toLowerCase();
+  return list.filter(c => String(c.mohalla || c.area || '').trim().toLowerCase() === target);
+}
+
+/**
+ * Extracts sorted unique non-empty areas/mohallas from customers.
+ * @param {Array<Object>} customers
+ * @returns {Array<string>}
+ */
+export function getUniqueCustomerAreas(customers) {
+  const list = Array.isArray(customers) ? customers : [];
+  const set = new Set();
+  for (const c of list) {
+    const a = (c.mohalla || c.area || '').trim();
+    if (a) set.add(a);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Sorts monthly payment report rows by specified key.
+ * @param {Array<Object>} rows
+ * @param {string} [sortBy='number-asc']
+ * @returns {Array<Object>} sorted copy
+ */
+export function sortMonthlyReportRows(rows, sortBy = 'number-asc') {
+  const list = Array.isArray(rows) ? [...rows] : [];
+  return list.sort((a, b) => {
+    switch (sortBy) {
+      case 'number-asc':
+        return (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
+      case 'number-desc':
+        return (Number(b.customerNumber) || 0) - (Number(a.customerNumber) || 0);
+      case 'name-asc':
+        return String(a.customerName || '').localeCompare(String(b.customerName || ''));
+      case 'name-desc':
+        return String(b.customerName || '').localeCompare(String(a.customerName || ''));
+      case 'balance-desc':
+        return (Number(b.balanceDue) || 0) - (Number(a.balanceDue) || 0);
+      case 'balance-asc':
+        return (Number(a.balanceDue) || 0) - (Number(b.balanceDue) || 0);
+      case 'collected-desc':
+        return (Number(b.amountReceived) || 0) - (Number(a.amountReceived) || 0);
+      case 'billed-desc':
+        return (Number(b.billAmount) || 0) - (Number(a.billAmount) || 0);
+      case 'status-asc':
+        return String(a.status || '').localeCompare(String(b.status || ''));
+      default:
+        return (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
+    }
+  });
+}
+
+/**
+ * Sorts transactions list by specified key.
+ * @param {Array<Object>} transactions
+ * @param {string} [sortBy='date-desc']
+ * @returns {Array<Object>} sorted copy
+ */
+export function sortTransactionsList(transactions, sortBy = 'date-desc') {
+  const list = Array.isArray(transactions) ? [...transactions] : [];
+  return list.sort((a, b) => {
+    switch (sortBy) {
+      case 'date-desc':
+        return String(b.date || '').localeCompare(String(a.date || ''));
+      case 'date-asc':
+        return String(a.date || '').localeCompare(String(b.date || ''));
+      case 'amount-desc':
+        return (Number(b.amount) || 0) - (Number(a.amount) || 0);
+      case 'amount-asc':
+        return (Number(a.amount) || 0) - (Number(b.amount) || 0);
+      case 'number-asc':
+        return (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0);
+      default:
+        return String(b.date || '').localeCompare(String(a.date || ''));
+    }
+  });
+}
+
+/**
+ * Generates an accessible, responsive HTML table row for a customer in the roster table.
+ * @param {Object} customer
+ * @param {Object} [options]
+ * @returns {string} HTML string
+ */
+export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = '', selectedBillingMonth = '', allocations = null, archived = false } = {}) {
+  const custNum = customer.customerNumber || customer.id;
+  const isSelected = customer.id === selectedCustomerId;
+  const balance = getCustomerMonthBalance(customer, selectedBillingMonth, allocations);
+  const area = customer.mohalla || customer.area || '—';
+  const plan = customer.packageSpeed || 'Not set';
+  const service = customer.serviceStatus || 'not-set';
+  const serviceLabel = ({ active: 'Active', offline: 'Offline', 'not-set': 'Not set' })[service] || 'Not set';
+
+  const monthBill = (customer.bills || []).find(b => b.month === selectedBillingMonth);
+  let billingStatus = 'not-set';
+  let billingLabel = 'Not set';
+  let billingClass = 'status-empty';
+  if (monthBill) {
+    if (allocations?.byMonth) {
+      const alloc = allocations.byMonth.get(`${customer.id}_${selectedBillingMonth}`);
+      if (alloc) billingStatus = alloc.status || 'pending';
+    } else {
+      const billed = Number(monthBill.dueAmount ?? monthBill.nominalPrice ?? 0);
+      const rec = (monthBill.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      if (rec >= billed && billed > 0) billingStatus = 'paid';
+      else if (rec > 0) billingStatus = 'partial';
+      else if (billed > 0) billingStatus = 'pending';
+    }
+    const map = {
+      paid: { label: 'Paid', cls: 'status-received' },
+      pending: { label: 'Pending', cls: 'status-pending' },
+      partial: { label: 'Partial', cls: 'status-partial' },
+      'not-set': { label: 'Not set', cls: 'status-empty' }
+    };
+    const s = map[billingStatus] || map['not-set'];
+    billingLabel = s.label;
+    billingClass = s.cls;
+  }
+
+  const safeNum = Number(balance || 0).toLocaleString();
+
+  return `<tr class="customer-table-row ${isSelected ? 'is-selected' : ''} ${archived ? 'is-archived' : ''}" data-customer-row="${escapeHtml(customer.id)}">
+    <td class="col-num">#${custNum}${archived ? ' (Archived)' : ''}</td>
+    <td class="col-name">
+      <button class="customer-row-btn" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-label="Open profile for #${custNum} ${escapeHtml(customer.name)}">
+        <strong>${escapeHtml(customer.name)}</strong>
+        ${customer.phone ? `<small class="cust-phone">${escapeHtml(customer.phone)}</small>` : ''}
+      </button>
+    </td>
+    <td class="col-area">${escapeHtml(area)}</td>
+    <td class="col-plan"><span class="table-plan-badge">${escapeHtml(plan)}</span></td>
+    <td class="col-service"><span class="table-service-pill service-${escapeHtml(service)}">${escapeHtml(serviceLabel)}</span></td>
+    <td class="col-billing"><span class="table-billing-badge ${billingClass}">${escapeHtml(billingLabel)}</span></td>
+    <td class="col-balance font-mono ${balance > 0 ? 'text-due' : 'text-clear'}">PKR ${safeNum}</td>
+    <td class="col-action">
+      <button class="secondary-button table-select-btn" type="button" data-customer-id="${escapeHtml(customer.id)}">Open →</button>
+    </td>
+  </tr>`;
+}
+
+/**
  * Saves a form draft object to local storage.
  * @param {string} formId
  * @param {Record<string, any>} data

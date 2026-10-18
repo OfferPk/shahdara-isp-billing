@@ -9918,4 +9918,390 @@ html, body {
   }
 }
 
+/* ==========================================================================
+   BILLING TABLES, ROSTER TABLE, SORTING & PAGINATION SUITE
+   ========================================================================== */
+
+.customer-filter-row-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-color, #e2e8f0);
+}
+
+.customer-filter-area,
+.customer-sort-label,
+.report-sort-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.customer-filter-area select,
+.customer-sort-label select,
+.report-sort-label select,
+#transactionSortSelect {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #0f172a);
+  font-size: 0.85rem;
+  font-weight: 500;
+  min-height: 40px;
+}
+
+.customer-view-toggle {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  overflow: hidden;
+  background: var(--bg-subtle, #f8fafc);
+  margin-left: auto;
+}
+
+.customer-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: 40px;
+  transition: all 0.15s ease-in-out;
+}
+
+.customer-view-btn.is-active {
+  background: var(--primary, #0284c7);
+  color: #ffffff;
+}
+
+.customer-table-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 6px 10px 8px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-card, #ffffff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.customer-table-wrap[hidden] {
+  display: none !important;
+}
+
+.customer-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#customerPagination {
+  margin: 4px 10px 8px;
+  padding: 8px 10px;
+  flex-shrink: 0;
+}
+
+
+.customer-roster-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.customer-roster-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-surface, #f8fafc);
+  z-index: 3;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--border-color, #cbd5e1);
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.customer-roster-table thead th[data-sort-cust] {
+  cursor: pointer;
+}
+
+.customer-roster-table thead th[data-sort-cust]:hover {
+  background: rgba(2, 132, 199, 0.08);
+}
+
+.customer-roster-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  vertical-align: middle;
+}
+
+.customer-table-row:hover {
+  background: var(--bg-subtle, #f8fafc);
+}
+
+.customer-table-row.is-selected {
+  background: rgba(2, 132, 199, 0.12);
+  border-left: 4px solid var(--primary, #0284c7);
+}
+
+.customer-row-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-main, #0f172a);
+}
+
+.customer-row-btn strong {
+  font-size: 0.9rem;
+  color: var(--primary, #0284c7);
+}
+
+.customer-row-btn:hover strong {
+  text-decoration: underline;
+}
+
+.customer-row-btn .cust-phone {
+  font-size: 0.775rem;
+  color: var(--text-muted, #64748b);
+}
+
+.table-plan-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(2, 132, 199, 0.1);
+  color: #0284c7;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.table-service-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.table-service-pill.service-active {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.table-service-pill.service-offline {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.table-service-pill.service-not-set {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.table-billing-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.table-billing-badge.status-received {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.table-billing-badge.status-pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.table-billing-badge.status-partial {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.table-billing-badge.status-empty {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.table-select-btn {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.text-due {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.text-clear {
+  color: #15803d;
+  font-weight: 600;
+}
+
+/* Dark Mode Theme Overrides */
+[data-theme="dark"] .customer-filter-row-secondary {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .customer-filter-area select,
+[data-theme="dark"] .customer-sort-label select,
+[data-theme="dark"] .report-sort-label select,
+[data-theme="dark"] #transactionSortSelect {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .customer-view-toggle {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .customer-view-btn {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .customer-view-btn.is-active {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+[data-theme="dark"] .customer-table-wrap {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .customer-roster-table thead th {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .customer-roster-table thead th[data-sort-cust]:hover {
+  background: rgba(2, 132, 199, 0.2);
+}
+
+[data-theme="dark"] .customer-roster-table tbody td {
+  border-color: #1e293b;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .customer-table-row:hover {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .customer-table-row.is-selected {
+  background: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="dark"] .customer-row-btn {
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .customer-row-btn strong {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .table-plan-badge {
+  background: rgba(2, 132, 199, 0.25);
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .table-service-pill.service-active {
+  background: rgba(22, 101, 52, 0.35);
+  color: #4ade80;
+}
+
+[data-theme="dark"] .table-service-pill.service-offline {
+  background: rgba(185, 28, 28, 0.35);
+  color: #f87171;
+}
+
+[data-theme="dark"] .table-service-pill.service-not-set {
+  background: #334155;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .table-billing-badge.status-received {
+  background: rgba(22, 101, 52, 0.35);
+  color: #4ade80;
+}
+
+[data-theme="dark"] .table-billing-badge.status-pending {
+  background: rgba(180, 83, 9, 0.35);
+  color: #fbbf24;
+}
+
+[data-theme="dark"] .table-billing-badge.status-partial {
+  background: rgba(3, 105, 161, 0.35);
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .table-billing-badge.status-empty {
+  background: #334155;
+  color: #94a3b8;
+}
+
+/* Mobile Responsiveness at 620px and below */
+@media (max-width: 620px) {
+  .customer-filter-row-secondary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .customer-filter-area,
+  .customer-sort-label,
+  .report-sort-label {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .customer-filter-area select,
+  .customer-sort-label select,
+  .report-sort-label select,
+  #transactionSortSelect {
+    width: 60%;
+    min-height: 44px;
+  }
+  .customer-view-toggle {
+    width: 100%;
+    margin-left: 0;
+  }
+  .customer-view-btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 44px;
+  }
+  .col-area,
+  .col-plan {
+    display: none;
+  }
+}
+
+
 

@@ -10814,6 +10814,10 @@ th[data-sort-expense]:focus-visible {
   font-weight: 700;
   letter-spacing: 0.02em;
 }
+#expenseTableCount:empty,
+#expenseTableCount[hidden] {
+  display: none !important;
+}
 
 [data-theme="dark"] #expenseTableCount {
   background: #1e293b;
@@ -11018,6 +11022,218 @@ dialog::backdrop {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
+  }
+}
+
+/* #264: Mobile Expenses empty state card with generous bottom padding so FAB never covers text */
+#expensesView #expensesEmpty,
+#expensesView #expensesFilterEmpty {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 12px 0 0;
+  padding: 24px 16px 88px;
+  background: var(--surface, #ffffff);
+  border: 1px dashed var(--line, #dce6e1);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--muted, #667a72);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+#expensesView #expensesEmpty p {
+  margin: 0;
+}
+
+#expensesView #expensesEmpty .empty-primary {
+  font-size: 14px;
+  color: var(--ink, #12211c);
+  margin-bottom: 4px;
+}
+
+#expensesView #expensesEmpty .empty-secondary {
+  font-size: 12px;
+  color: var(--muted, #667a72);
+}
+
+[data-theme="dark"] #expensesView #expensesEmpty,
+[data-theme="dark"] #expensesView #expensesFilterEmpty {
+  background: #14241f;
+  border-color: #253d35;
+  color: #9ab4aa;
+}
+
+[data-theme="dark"] #expensesView #expensesEmpty .empty-primary {
+  color: #eef6f2;
+}
+
+[data-theme="dark"] #expensesView #expensesEmpty .empty-secondary {
+  color: #9ab4aa;
+}
+
+/* #264: Mobile Expenses responsive card list & clean sort chips (≤ 640px) */
+@media (max-width: 640px) {
+  #expensesView .table-scroll {
+    overflow-x: visible;
+    max-height: none;
+  }
+
+  #expensesView .table-scroll table {
+    min-width: 100% !important;
+    width: 100% !important;
+    display: block;
+  }
+
+  #expensesView .table-scroll thead {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    background: transparent;
+  }
+
+  #expensesView .table-scroll thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+
+  #expensesView .table-scroll thead th.sortable-th {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: static;
+    flex: 1 1 calc(50% - 6px);
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--line, #dfe8e3);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    min-height: 42px;
+    white-space: nowrap;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--ink, #12211c);
+    box-sizing: border-box;
+  }
+
+  #expensesView .table-scroll thead th:not(.sortable-th) {
+    display: none;
+  }
+
+  #expensesView .table-scroll tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+
+  #expensesView .table-scroll tbody tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "category amount"
+      "date area"
+      "notes notes"
+      "actions actions";
+    gap: 6px 10px;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--line, #dfe8e3);
+    border-radius: 12px;
+    padding: 12px 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  #expensesView .table-scroll tbody td,
+  #expensesView .table-scroll tbody th {
+    border: none;
+    padding: 0;
+    background: transparent;
+  }
+
+  #expensesView .table-scroll tbody th[scope="row"] {
+    grid-area: category;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink, #12211c);
+    text-align: left;
+  }
+
+  #expensesView .table-scroll tbody td:nth-child(3) {
+    grid-area: amount;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--primary, #0e5b4d);
+    text-align: right;
+  }
+
+  #expensesView .table-scroll tbody td:nth-child(1) {
+    grid-area: date;
+    font-size: 12px;
+    color: var(--muted, #667a72);
+    text-align: left;
+  }
+
+  #expensesView .table-scroll tbody td:nth-child(4) {
+    grid-area: area;
+    text-align: right;
+  }
+
+  #expensesView .table-scroll tbody td:nth-child(5) {
+    grid-area: notes;
+    font-size: 12px;
+    color: var(--muted, #556b62);
+    border-top: 1px dashed var(--line, #e2ece7);
+    padding-top: 6px;
+    margin-top: 2px;
+    text-align: left;
+  }
+
+  #expensesView .table-scroll tbody td.expense-actions {
+    grid-area: actions;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line, #f0f4f2);
+  }
+
+  #expensesView .table-scroll tbody td.expense-actions button {
+    min-height: 44px;
+    padding: 0 16px;
+    font-size: 13px;
+  }
+
+  [data-theme="dark"] #expensesView .table-scroll thead th.sortable-th {
+    background: #14241f;
+    border-color: #253d35;
+    color: #e8f3ee;
+  }
+
+  [data-theme="dark"] #expensesView .table-scroll tbody tr {
+    background: #14241f;
+    border-color: #253d35;
+    box-shadow: none;
+  }
+
+  [data-theme="dark"] #expensesView .table-scroll tbody th[scope="row"] {
+    color: #eef6f2;
+  }
+
+  [data-theme="dark"] #expensesView .table-scroll tbody td:nth-child(3) {
+    color: #34d399;
+  }
+
+  [data-theme="dark"] #expensesView .table-scroll tbody td:nth-child(5) {
+    border-top-color: #253d35;
+  }
+
+  [data-theme="dark"] #expensesView .table-scroll tbody td.expense-actions {
+    border-top-color: #253d35;
   }
 }
 

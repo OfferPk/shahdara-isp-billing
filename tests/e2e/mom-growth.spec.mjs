@@ -150,4 +150,51 @@ test.describe('Month-over-Month (MoM) Growth & Momentum Suite E2E Verification',
       await expect(modal).not.toBeVisible();
     }
   });
+
+  test('sorts MoM table columns interactively and updates aria-sort', async ({ page }) => {
+    await page.goto('/');
+
+    const quickBtn = page.locator('#quickActionMomGrowth');
+    if (await quickBtn.isVisible()) {
+      await quickBtn.click();
+    } else {
+      const drawerToggle = page.locator('#navDrawerToggle');
+      await drawerToggle.click();
+      const analyticsBtn = page.locator('#navDrawer [data-nav-target="analytics"]');
+      await analyticsBtn.click();
+      await page.locator('#openMomGrowthModalBtn').click();
+    }
+
+    const modal = page.locator('#momGrowthModal');
+    await expect(modal).toBeVisible();
+
+    // Verify sort headers exist and click billed amount header
+    const billedHeader = page.locator('th[data-sort-mom="billedAmount"]');
+    await expect(billedHeader).toBeVisible();
+    await billedHeader.click();
+    await expect(billedHeader).toHaveAttribute('aria-sort', 'descending');
+
+    // Click again to toggle ascending
+    await billedHeader.click();
+    await expect(billedHeader).toHaveAttribute('aria-sort', 'ascending');
+
+    // Close modal
+    await page.locator('#closeMomGrowthModalBtn').click();
+    await expect(modal).not.toBeVisible();
+  });
+
+  test('verifies Daily Register modal opens via #openDailyRegisterBtn and closes via escape', async ({ page }) => {
+    await page.goto('/');
+
+    const openRegisterBtn = page.locator('#openDailyRegisterBtn');
+    if (await openRegisterBtn.isVisible()) {
+      await openRegisterBtn.click();
+      const registerModal = page.locator('#dailyCashRegisterModal');
+      await expect(registerModal).toBeVisible();
+
+      // Test escape key to dismiss
+      await page.keyboard.press('Escape');
+      await expect(registerModal).not.toBeVisible();
+    }
+  });
 });

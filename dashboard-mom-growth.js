@@ -736,9 +736,14 @@ export function setupMomGrowthModal(state = {}, {
   const kpiProfitDelta = document.getElementById('momKpiProfitDelta');
   const kpiMomentumBadge = document.getElementById('momKpiMomentumBadge');
 
+  const emptyState = document.getElementById('momGrowthEmptyState');
+  const sortHeaders = modal ? modal.querySelectorAll('th[data-sort-mom]') : [];
+
   let currentWindow = 6;
   let currentMonth = pktMonth(new Date());
   let currentData = null;
+  let currentSortCol = 'month';
+  let currentSortAsc = false;
 
   function populateMonthSelect() {
     if (!monthSelect) return;
@@ -799,9 +804,42 @@ export function setupMomGrowthModal(state = {}, {
       svgContainer.innerHTML = renderMomGrowthSvg(currentData, { width: 760, height: 300 });
     }
 
-    // Render comparison table
+    // Render comparison table with sorting
     if (tableBody) {
-      const monthsList = currentData.monthlyData || [];
+      let monthsList = [...(currentData.monthlyData || [])];
+
+      if (currentSortCol) {
+        monthsList.sort((a, b) => {
+          let valA = a[currentSortCol];
+          let valB = b[currentSortCol];
+          if (currentSortCol === 'collectionGrowthPct') {
+            valA = a.mom?.collectionGrowthPct ?? 0;
+            valB = b.mom?.collectionGrowthPct ?? 0;
+          }
+          if (typeof valA === 'string') {
+            return currentSortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+          }
+          return currentSortAsc ? (Number(valA || 0) - Number(valB || 0)) : (Number(valB || 0) - Number(valA || 0));
+        });
+      }
+
+      if (emptyState) emptyState.hidden = monthsList.length > 0;
+
+      // Update sort indicators on headers
+      sortHeaders.forEach(th => {
+        const col = th.getAttribute('data-sort-mom');
+        const indicator = th.querySelector('.sort-indicator');
+        if (indicator) {
+          if (col === currentSortCol) {
+            indicator.textContent = currentSortAsc ? '▲' : '▼';
+            th.setAttribute('aria-sort', currentSortAsc ? 'ascending' : 'descending');
+          } else {
+            indicator.textContent = '⇅';
+            th.setAttribute('aria-sort', 'none');
+          }
+        }
+      });
+
       tableBody.innerHTML = monthsList.map(m => {
         const isCurrent = m.month === currentData.activeMonth;
         const subDeltaColor = (m.mom?.subscriberDelta || 0) >= 0 ? '#10b981' : '#ef4444';
@@ -849,7 +887,32 @@ export function setupMomGrowthModal(state = {}, {
     modal.addEventListener('click', e => {
       if (e.target === modal) close();
     });
+    modal.addEventListener('cancel', () => {
+      close();
+    });
   }
+
+  // Table header sort
+  sortHeaders.forEach(th => {
+    const handleSort = () => {
+      const col = th.getAttribute('data-sort-mom');
+      if (currentSortCol === col) {
+        currentSortAsc = !currentSortAsc;
+      } else {
+        currentSortCol = col;
+        currentSortAsc = false;
+      }
+      renderContent();
+    };
+
+    th.addEventListener('click', handleSort);
+    th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleSort();
+      }
+    });
+  });
 
   if (monthSelect) {
     monthSelect.addEventListener('change', () => {

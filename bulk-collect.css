@@ -175,3 +175,16 @@
 .cs-apply { min-height: 52px; font-size: 1rem; font-weight: 800; border-radius: 12px; }
 .cs-apply:disabled { opacity: .5; cursor: not-allowed; }
 [data-theme="dark"] .cs-row { background: var(--surface, #14241f); border-color: var(--line, #253d35); }
+
+/* #289 Add Customer: Package / Monthly fee / Connection date (customer-plan.js) */
+.cp-plan-group { display: grid; gap: 6px; margin: 6px 0 4px; padding: 12px; border: 1px solid var(--line, #dce6e1); border-radius: 12px; background: var(--surface-soft, #f6f9f7); min-width: 0; }
+.cp-plan-heading { margin: 0 0 2px; font: 800 0.95rem Manrope, system-ui, sans-serif; color: var(--ink, #172e29); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.cp-plan-group select, .cp-plan-group input { width: 100%; min-width: 0; min-height: 48px; font-size: 16px; box-sizing: border-box; }
+.cp-plan-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.cp-plan-cell { display: grid; gap: 4px; min-width: 0; align-content: end; }
+.cp-plan-hint { margin: 2px 0 0; font-size: 0.78rem; color: var(--muted, #586e65); }
+.cp-plan-hint[data-state="billed"] { color: var(--green-dark, #094338); font-weight: 700; }
+.cp-profile-picker select { width: 100%; min-height: 44px; }
+@media (max-width: 360px) { .cp-plan-row { grid-template-columns: minmax(0, 1fr); } }
+[data-theme="dark"] .cp-plan-group { background: var(--surface, #14241f); border-color: var(--line, #253d35); }
+[data-theme="dark"] .cp-plan-hint[data-state="billed"] { color: #a7e6cc; }

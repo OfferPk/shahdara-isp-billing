@@ -529,41 +529,55 @@ export function setupMobileAttenuatorModal(options = {}) {
   const onToast = options.onToast || (() => {});
   const clipboard = options.clipboard;
 
-  const modal = document.getElementById('mobileAttenuatorModal');
-  const closeBtn = document.getElementById('mobileAttenuatorCloseBtn');
+  const doc = options.document || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return null;
+
+  const modal = doc.getElementById('mobileAttenuatorModal');
+  const closeBtn = doc.getElementById('mobileAttenuatorCloseBtn');
 
   // Trigger buttons across mobile surfaces
-  const drawerBtn = document.getElementById('navAttenuatorBtn');
-  const speedDialBtn = document.querySelector('[data-open-attenuator]');
-  const actionSheetBtn = document.querySelector('[data-action-attenuator]');
+  const triggers = [];
+  const drawerBtn = doc.getElementById('navAttenuatorBtn');
+  if (drawerBtn) triggers.push(drawerBtn);
+
+  if (typeof doc.querySelectorAll === 'function') {
+    doc.querySelectorAll('[data-open-attenuator], [data-action-attenuator], [data-sheet-action="attenuator"], [data-speed-action="attenuator"], [data-mobile-more="attenuator"], #navAttenuatorBtn, #speedDialAttenuatorBtn, #actionSheetAttenuatorBtn, #mobileMoreAttenuatorBtn').forEach(btn => {
+      if (btn && !triggers.includes(btn)) triggers.push(btn);
+    });
+  } else if (typeof doc.querySelector === 'function') {
+    const speedDialBtn = doc.querySelector('[data-open-attenuator]');
+    const actionSheetBtn = doc.querySelector('[data-action-attenuator]');
+    if (speedDialBtn && !triggers.includes(speedDialBtn)) triggers.push(speedDialBtn);
+    if (actionSheetBtn && !triggers.includes(actionSheetBtn)) triggers.push(actionSheetBtn);
+  }
 
   // Inputs
-  const presetSelect = document.getElementById('attenuatorPresetSelect');
-  const onuClassSelect = document.getElementById('attenuatorOnuClassSelect');
-  const inputPowerField = document.getElementById('attenuatorInputPower');
-  const padSelect = document.getElementById('attenuatorPadSelect');
-  const voaGroup = document.getElementById('attenuatorVoaGroup');
-  const voaSlider = document.getElementById('attenuatorVoaSlider');
-  const voaVal = document.getElementById('attenuatorVoaVal');
+  const presetSelect = doc.getElementById('attenuatorPresetSelect');
+  const onuClassSelect = doc.getElementById('attenuatorOnuClassSelect');
+  const inputPowerField = doc.getElementById('attenuatorInputPower');
+  const padSelect = doc.getElementById('attenuatorPadSelect');
+  const voaGroup = doc.getElementById('attenuatorVoaGroup');
+  const voaSlider = doc.getElementById('attenuatorVoaSlider');
+  const voaVal = doc.getElementById('attenuatorVoaVal');
 
   // KPI elements
-  const kpiRx = document.getElementById('attenuatorKpiRx');
-  const kpiOverloadMargin = document.getElementById('attenuatorKpiOverloadMargin');
-  const kpiSensitivityMargin = document.getElementById('attenuatorKpiSensitivityMargin');
-  const kpiRecommended = document.getElementById('attenuatorKpiRecommended');
-  const kpiStatus = document.getElementById('attenuatorKpiStatus');
+  const kpiRx = doc.getElementById('attenuatorKpiRx');
+  const kpiOverloadMargin = doc.getElementById('attenuatorKpiOverloadMargin');
+  const kpiSensitivityMargin = doc.getElementById('attenuatorKpiSensitivityMargin');
+  const kpiRecommended = doc.getElementById('attenuatorKpiRecommended');
+  const kpiStatus = doc.getElementById('attenuatorKpiStatus');
 
-  const svgWrap = document.getElementById('attenuatorSvgWrap');
-  const remediationText = document.getElementById('attenuatorRemediationText');
+  const svgWrap = doc.getElementById('attenuatorSvgWrap');
+  const remediationText = doc.getElementById('attenuatorRemediationText');
 
   // Form audit meta
-  const locationInput = document.getElementById('attenuatorLocationInput');
-  const techInput = document.getElementById('attenuatorTechInput');
-  const notesInput = document.getElementById('attenuatorNotesInput');
-  const saveBtn = document.getElementById('attenuatorSaveBtn');
-  const whatsappBtn = document.getElementById('attenuatorWhatsappBtn');
-  const clearHistoryBtn = document.getElementById('attenuatorClearHistoryBtn');
-  const historyList = document.getElementById('attenuatorHistoryList');
+  const locationInput = doc.getElementById('attenuatorLocationInput');
+  const techInput = doc.getElementById('attenuatorTechInput');
+  const notesInput = doc.getElementById('attenuatorNotesInput');
+  const saveBtn = doc.getElementById('attenuatorSaveBtn');
+  const whatsappBtn = doc.getElementById('attenuatorWhatsappBtn');
+  const clearHistoryBtn = doc.getElementById('attenuatorClearHistoryBtn');
+  const historyList = doc.getElementById('attenuatorHistoryList');
 
   function getCurrentCalc() {
     const inPwr = inputPowerField ? Number(inputPowerField.value) : -15.0;
@@ -736,8 +750,15 @@ export function setupMobileAttenuatorModal(options = {}) {
   function openModal() {
     renderView();
     if (modal) {
-      if (typeof modal.showModal === 'function') modal.showModal();
-      else modal.setAttribute('open', 'true');
+      if (typeof modal.showModal === 'function') {
+        try {
+          modal.showModal();
+        } catch (e) {
+          modal.setAttribute('open', '');
+        }
+      } else {
+        modal.setAttribute('open', '');
+      }
     }
   }
 
@@ -748,8 +769,13 @@ export function setupMobileAttenuatorModal(options = {}) {
     }
   }
 
-  [drawerBtn, speedDialBtn, actionSheetBtn].forEach(btn => {
-    if (btn) btn.onclick = openModal;
+  triggers.forEach(btn => {
+    if (btn) {
+      if (typeof btn.addEventListener === 'function') {
+        btn.addEventListener('click', openModal);
+      }
+      btn.onclick = openModal;
+    }
   });
 
   if (closeBtn) closeBtn.onclick = closeModal;

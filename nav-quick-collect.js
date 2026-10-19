@@ -15,8 +15,17 @@ import {
   derivedBillStatus,
   monthsForHistory,
   formatPKR,
-  PAYMENT_METHODS
+  PAYMENT_METHODS,
+  isDigitalPaymentMethod,
+  isCashPaymentMethod,
+  findDuplicatePaymentReference
 } from './core.js';
+import {
+  getDigitalPaymentsSettings,
+  hasConfiguredDigitalPayments,
+  formatDigitalPaymentReceiptNote,
+  formatDigitalPaymentWhatsAppText
+} from './digital-payments-settings.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import {
   isReceiptShared,
@@ -282,7 +291,12 @@ export function executeQuickCollection(state, {
   amount,
   date,
   method,
-  paidBy
+  paidBy,
+  transactionId,
+  referenceOverrideReason,
+  screenshot,
+  strictDigitalReference,
+  enforceDigitalReference
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -305,6 +319,14 @@ export function executeQuickCollection(state, {
     throw new Error(`Choose a valid payment method from: ${PAYMENT_METHODS.join(', ')}`);
   }
 
+  const isDigital = isDigitalPaymentMethod(pMethod);
+  const cleanTxnId = String(transactionId ?? '').trim().slice(0, 64);
+  const cleanReason = String(referenceOverrideReason ?? '').trim().slice(0, 100);
+
+  if ((strictDigitalReference || enforceDigitalReference) && isDigital && !cleanTxnId && !cleanReason) {
+    throw new Error('Transaction ID / last 6 digits is required for digital payments (or provide an override reason).');
+  }
+
   // Save last used method preference to device storage
   try {
     localStorage.setItem(QUICK_COLLECT_STORAGE_KEY, pMethod);
@@ -317,7 +339,10 @@ export function executeQuickCollection(state, {
     date: pDate,
     amount: numAmount,
     method: pMethod,
-    paidBy: paidBy ? String(paidBy).trim() : undefined
+    paidBy: paidBy ? String(paidBy).trim() : undefined,
+    transactionId: cleanTxnId || undefined,
+    referenceOverrideReason: cleanReason || undefined,
+    screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined
   }, referenceDate);
 
   // Compute updated balance & allocations
@@ -355,6 +380,10 @@ export function executeQuickCollection(state, {
     amount: numAmount,
     method: pMethod,
     paidBy: paidBy ? String(paidBy).trim() : '',
+    transactionId: cleanTxnId,
+    referenceOverrideReason: cleanReason,
+    screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : '',
+    isDigital,
     newBalanceDue,
     newTotalDues,
     isSettled: newTotalDues <= 0,
@@ -398,6 +427,8 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
     ``,
     `💵 *Amount Received:* PKR ${amountStr}`,
     `💳 *Payment Method:* ${receipt.method}`,
+    receipt.transactionId ? `🔢 *Transaction ID / Ref:* ${receipt.transactionId}` : null,
+    receipt.referenceOverrideReason ? `📝 *Ref Note:* ${receipt.referenceOverrideReason}` : null,
     receipt.paidBy ? `✍️ *Paid By:* ${receipt.paidBy}` : null,
     ``,
     `⚖️ *Remaining Balance:* PKR ${balanceStr}`,
@@ -405,6 +436,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
     ``,
     `Shukriya! Thank you for your prompt payment.`,
     `Shahdara NOC & Field Billing Operations`,
+    formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings()) ? `ℹ️ ${formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings())}` : null,
     `━━━━━━━━━━━━━━━━━━━━━━━━`
   ];
 
@@ -504,7 +536,15 @@ export async function generateReceiptImageBlob(receipt) {
   ctx.fillStyle = '#64748b';
   ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
   ctx.fillText(receipt.newTotalDues <= 0 ? '✓ Bill settled in full (مکمل ادا شدہ)' : '⏳ Partial payment recorded (جزوی ادائیگی)', 30, 420);
-  if (receipt.paidBy) {
+  if (receipt.transactionId) {
+    ctx.fillStyle = '#475569';
+    ctx.font = '13px monospace';
+    ctx.fillText(`Txn ID: ${receipt.transactionId}`, 30, 442);
+    if (receipt.paidBy) {
+      ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
+      ctx.fillText(`Paid by: ${receipt.paidBy}`, 320, 442);
+    }
+  } else if (receipt.paidBy) {
     ctx.fillText(`Paid by: ${receipt.paidBy}`, 30, 442);
   }
 
@@ -697,6 +737,21 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
             PKR ${Number(receipt.newTotalDues).toLocaleString('en-PK')}
           </strong>
         </div>
+        ${receipt.transactionId ? `
+        <div class="qc-receipt-item full-width" data-qc-receipt-txnid>
+          <span class="qc-meta-label">Transaction ID / Ref</span>
+          <strong class="qc-meta-val"><code class="qc-txnid-code">${escapeHtml(receipt.transactionId)}</code></strong>
+        </div>` : ''}
+        ${receipt.referenceOverrideReason ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Ref Note / Override</span>
+          <strong class="qc-meta-val">${escapeHtml(receipt.referenceOverrideReason)}</strong>
+        </div>` : ''}
+        ${receipt.screenshot ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Attached Screenshot</span>
+          <img src="${escapeHtml(receipt.screenshot)}" alt="Payment proof" style="max-height:80px; border-radius:6px; margin-top:4px; display:block;">
+        </div>` : ''}
         ${receipt.paidBy ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Paid By / Note</span>
@@ -763,6 +818,19 @@ export function setupQuickCollectModal({
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
+  // Digital Payment Elements
+  const digitalFieldsContainer = document.getElementById('quickCollectDigitalFields');
+  const transactionIdInput = document.getElementById('quickCollectTransactionIdInput');
+  const overrideDetails = document.getElementById('quickCollectOverrideDetails');
+  const overrideReasonInput = document.getElementById('quickCollectOverrideReasonInput');
+  const screenshotInput = document.getElementById('quickCollectScreenshotInput');
+  const screenshotPreviewWrap = document.getElementById('quickCollectScreenshotPreviewWrap');
+  const screenshotPreview = document.getElementById('quickCollectScreenshotPreview');
+  const removeScreenshotBtn = document.getElementById('quickCollectRemoveScreenshotBtn');
+  const ownerPaymentInfo = document.getElementById('quickCollectOwnerPaymentInfo');
+
+  let currentScreenshotDataUrl = '';
+
   // Success Elements
   const receiptCardContainer = document.getElementById('quickCollectReceiptCard');
   const whatsAppBtn = document.getElementById('quickCollectWhatsAppBtn');
@@ -780,6 +848,62 @@ export function setupQuickCollectModal({
   let activeUndoContext = null;
   let undoTimeoutId = null;
 
+  function updateDigitalVisibility(methodVal) {
+    const isDig = isDigitalPaymentMethod(methodVal);
+    if (digitalFieldsContainer) {
+      digitalFieldsContainer.hidden = !isDig;
+    }
+    if (isDig && ownerPaymentInfo) {
+      const settings = getDigitalPaymentsSettings();
+      if (hasConfiguredDigitalPayments(settings)) {
+        ownerPaymentInfo.hidden = false;
+        ownerPaymentInfo.innerHTML = `
+          <div class="qc-owner-info-box">
+            <span class="qc-owner-info-title">💡 Customer direct pay / اکاؤنٹ تفصیلات:</span>
+            <div class="qc-owner-details-grid">
+              ${settings.ownerAccountTitle ? `<div><small>Title:</small> <strong>${escapeHtml(settings.ownerAccountTitle)}</strong></div>` : ''}
+              ${settings.ownerRaastId ? `<div><small>⚡ Raast:</small> <strong class="qc-copyable-code">${escapeHtml(settings.ownerRaastId)}</strong></div>` : ''}
+              ${settings.ownerTillId ? `<div><small>📱 Till ID:</small> <strong class="qc-copyable-code">${escapeHtml(settings.ownerTillId)}</strong></div>` : ''}
+              ${(settings.ownerBankName && settings.ownerAccountNumber) ? `<div><small>🏦 ${escapeHtml(settings.ownerBankName)}:</small> <strong>${escapeHtml(settings.ownerAccountNumber)}</strong></div>` : ''}
+            </div>
+            ${settings.ownerQrDataUrl ? `<div class="qc-owner-qr-thumb-wrap"><img src="${settings.ownerQrDataUrl}" alt="Owner Payment QR" class="qc-owner-qr-thumb"></div>` : ''}
+          </div>
+        `;
+      } else {
+        ownerPaymentInfo.hidden = true;
+        ownerPaymentInfo.innerHTML = '';
+      }
+    } else if (ownerPaymentInfo) {
+      ownerPaymentInfo.hidden = true;
+      ownerPaymentInfo.innerHTML = '';
+    }
+  }
+
+  // Handle screenshot upload & preview
+  screenshotInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      if (typeof onToast === 'function') onToast('Screenshot image must be under 1 MB.');
+      screenshotInput.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      currentScreenshotDataUrl = ev.target?.result || '';
+      if (screenshotPreview) screenshotPreview.src = currentScreenshotDataUrl;
+      if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = false;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  removeScreenshotBtn?.addEventListener('click', () => {
+    currentScreenshotDataUrl = '';
+    if (screenshotInput) screenshotInput.value = '';
+    if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
+    if (screenshotPreview) screenshotPreview.src = '';
+  });
+
   function syncMethodChips(val) {
     quickMethodChips.forEach(chip => {
       const isMatch = chip.getAttribute('data-method') === val;
@@ -795,11 +919,13 @@ export function setupQuickCollectModal({
         methodSelect.value = chosenMethod;
       }
       syncMethodChips(chosenMethod);
+      updateDigitalVisibility(chosenMethod);
     });
   });
 
   methodSelect?.addEventListener('change', () => {
     syncMethodChips(methodSelect.value);
+    updateDigitalVisibility(methodSelect.value);
   });
 
   // Populate payment methods select once
@@ -895,6 +1021,16 @@ export function setupQuickCollectModal({
           `<option value="${m}" ${m === activeDefaults.targetMonth ? 'selected' : ''}>${m}</option>`
         ).join('');
       }
+
+      // Reset digital fields
+      if (transactionIdInput) transactionIdInput.value = '';
+      if (overrideReasonInput) overrideReasonInput.value = '';
+      if (overrideDetails) overrideDetails.open = false;
+      currentScreenshotDataUrl = '';
+      if (screenshotInput) screenshotInput.value = '';
+      if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
+      if (screenshotPreview) screenshotPreview.src = '';
+      updateDigitalVisibility(activeDefaults.defaultMethod || 'Cash');
 
       showStep('form');
       setTimeout(() => {
@@ -1085,13 +1221,45 @@ export function setupQuickCollectModal({
       const monthVal = monthSelect?.value || activeDefaults.targetMonth;
       const paidByVal = paidByInput?.value || '';
 
+      const isDig = isDigitalPaymentMethod(methodVal);
+      const txnIdVal = (transactionIdInput?.value || '').trim();
+      const overrideReasonVal = (overrideReasonInput?.value || '').trim();
+
+      if (isDig) {
+        if (!txnIdVal && !overrideReasonVal) {
+          if (typeof onToast === 'function') {
+            onToast('Please enter a Transaction ID or an override reason for digital payments.');
+          }
+          transactionIdInput?.focus();
+          return;
+        }
+        if (txnIdVal) {
+          const dup = findDuplicatePaymentReference(state, txnIdVal);
+          if (dup) {
+            const confirmed = window.confirm(
+              `⚠️ Duplicate Transaction ID detected!\n\n` +
+              `Transaction ID "${txnIdVal}" was already recorded on ${dup.date} ` +
+              `for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (PKR ${dup.amount.toLocaleString()}).\n\n` +
+              `Do you want to proceed anyway with this duplicate reference?`
+            );
+            if (!confirmed) {
+              transactionIdInput?.focus();
+              return;
+            }
+          }
+        }
+      }
+
       const { nextState, receipt } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
         amount: amountVal,
         date: dateVal,
         method: methodVal,
-        paidBy: paidByVal
+        paidBy: paidByVal,
+        transactionId: txnIdVal,
+        referenceOverrideReason: overrideReasonVal,
+        screenshot: currentScreenshotDataUrl
       });
 
       activeReceipt = receipt;

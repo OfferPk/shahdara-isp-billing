@@ -6221,6 +6221,8 @@
       <div class="more-menu-section-label" data-i18n="more_menu_group_customers">👥 Customers &amp; Data</div>
       <button type="button" data-mobile-more="customers">Customer Profiles</button>
       <button type="button" data-mobile-more="recovery">Dues Recovery</button>
+      <button type="button" data-mobile-more="reminders-queue" id="mobileMoreRemindersQueueBtn">📅 Reminders Today Queue</button>
+      <button type="button" data-mobile-more="wada-list" id="mobileMoreWadaListBtn">🤝 Wada Follow-up List</button>
       <button type="button" data-mobile-more="alerts">Smart Alerts</button>
       <button type="button" data-mobile-more="assistant">Owner Assistant</button>
       <button type="button" data-mobile-more="inventory">Inventory</button>
@@ -6231,6 +6233,7 @@
       <!-- Group 4: ⚙️ Settings & Tools -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
       <button type="button" data-mobile-more="digital-settings" id="mobileMoreDigitalSettingsBtn">💳 Digital Payments &amp; QR Settings</button>
+      <button type="button" data-mobile-more="reminder-stages" id="mobileMoreReminderStagesBtn">⚙️ Reminder Stages Rules</button>
       <button type="button" data-mobile-more="shortcuts" id="mobileMoreShortcutsBtn">⌨️ Keyboard Shortcuts</button>
       <button type="button" data-mobile-more="pwa-status" id="mobileMorePwaStatusBtn">📲 PWA &amp; App Shortcuts</button>
       <button type="button" data-mobile-more="install-pwa" id="mobileMoreInstallPwaBtn" hidden>⬇️ Install App</button>
@@ -6392,6 +6395,7 @@
                 <button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button>
                 <button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button>
                 <button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button>
+                <button id="openCustomerPromiseBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Record or View Customer Wada / Promise-to-Pay">🤝 Wada</button>
                 <button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 Bill Invoice</button>
                 <button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 Ledger Audit</button>
                 <button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 Adjustment</button>
@@ -7391,6 +7395,17 @@
         </div>
         <button id="closeReminderModalBtn" class="close-button" type="button" aria-label="Close reminder modal">×</button>
       </div>
+      <div id="reminderQueueBar" class="reminder-queue-bar" hidden>
+        <div class="reminder-queue-info">
+          <span id="reminderQueueBadge" class="reminder-queue-badge">Queue: 1 of 5</span>
+          <span id="reminderQueueStagePill" class="reminder-stage-pill">Overdue +3 Days</span>
+        </div>
+        <div class="reminder-queue-nav" role="group" aria-label="Reminder queue controls">
+          <button id="reminderQueuePrevBtn" class="secondary-button queue-nav-btn" type="button" aria-label="Previous customer in queue">◀ Prev</button>
+          <button id="reminderQueueSkipBtn" class="secondary-button queue-nav-btn" type="button" aria-label="Skip current customer">Skip</button>
+          <button id="reminderQueueNextBtn" class="primary-button queue-nav-btn" type="button" aria-label="Next customer in queue">Next ▶</button>
+        </div>
+      </div>
       <div class="reminder-modal-body">
         <div id="reminderCustomerSummary" class="reminder-customer-summary" role="region" aria-label="Customer summary"></div>
         <div class="reminder-template-selector">
@@ -7422,6 +7437,33 @@
           <button id="printReminderSlipBtn" class="secondary-button" type="button">
             <span>🖨️ Print Reminder Slip</span>
           </button>
+          <button id="reminderRecordPromiseToggleBtn" class="secondary-button" type="button">
+            <span>🤝 Wada / Promise</span>
+          </button>
+        </div>
+        <fieldset id="reminderInlinePromiseFieldset" class="reminder-promise-fieldset" hidden>
+          <legend>🤝 Record Promise-to-Pay (Wada)</legend>
+          <div class="promise-form-grid">
+            <label for="reminderPromiseDateInput">Promised Date:
+              <input id="reminderPromiseDateInput" type="date">
+            </label>
+            <label for="reminderPromiseAmountInput">Promised Amount (PKR):
+              <input id="reminderPromiseAmountInput" type="number" min="0" step="50" placeholder="e.g. 1500">
+            </label>
+            <label for="reminderPromiseNoteInput" class="promise-note-label">Commitment Note:
+              <input id="reminderPromiseNoteInput" type="text" placeholder="e.g. Will pay cash on Friday">
+            </label>
+          </div>
+          <div class="promise-form-actions">
+            <button id="saveReminderPromiseBtn" class="primary-button" type="button">✓ Save Promise</button>
+            <button id="cancelReminderPromiseBtn" class="secondary-button" type="button">Cancel</button>
+          </div>
+        </fieldset>
+        <div id="reminderHistoryContainer" class="reminder-history-container">
+          <h4 class="reminder-history-title">Recent Reminders Dispatched</h4>
+          <div id="reminderCustomerHistoryList" class="reminder-history-list" aria-live="polite">
+            <p class="reminder-empty-note">No recent reminders recorded for this customer.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -20212,6 +20254,88 @@
           <button id="cancelDigitalPaymentsSettingsBtn" type="button" class="secondary-button">Cancel</button>
         </div>
       </form>
+    </div>
+  </dialog>
+
+  <dialog id="wadaFollowupModal" class="modal-dialog wada-modal" aria-labelledby="wadaModalTitle">
+    <div class="modal-content" style="max-width: 680px; width: 100%;">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">COLLECTION PROMISES</p>
+          <h2 id="wadaModalTitle" class="modal-title">🤝 Wada / Promise-to-Pay Follow-up List</h2>
+        </div>
+        <button id="closeWadaModalBtn" class="close-btn" type="button" aria-label="Close wada modal">✕</button>
+      </div>
+      <div class="modal-body wada-modal-body">
+        <div class="wada-summary-bar">
+          <div class="wada-summary-kpi">
+            <span class="wada-kpi-label">Due Today</span>
+            <strong id="wadaTodayCountBadge" class="wada-kpi-val">0</strong>
+          </div>
+          <div class="wada-summary-kpi">
+            <span class="wada-kpi-label">⚠️ Broken (Late)</span>
+            <strong id="wadaBrokenCountBadge" class="wada-kpi-val wada-broken-val">0</strong>
+          </div>
+          <div class="wada-summary-kpi">
+            <span class="wada-kpi-label">Upcoming</span>
+            <strong id="wadaUpcomingCountBadge" class="wada-kpi-val">0</strong>
+          </div>
+          <div class="wada-summary-kpi">
+            <span class="wada-kpi-label">Total Promised</span>
+            <strong id="wadaTotalPromisedAmount" class="wada-kpi-val">PKR 0</strong>
+          </div>
+        </div>
+        <div class="wada-filter-tabs" role="tablist" aria-label="Promise follow-up filters">
+          <button id="wadaTabToday" class="wada-tab-btn is-active" type="button" role="tab" aria-selected="true">Due Today</button>
+          <button id="wadaTabBroken" class="wada-tab-btn" type="button" role="tab" aria-selected="false">⚠️ Broken (Late)</button>
+          <button id="wadaTabUpcoming" class="wada-tab-btn" type="button" role="tab" aria-selected="false">Upcoming</button>
+          <button id="wadaTabFulfilled" class="wada-tab-btn" type="button" role="tab" aria-selected="false">✓ Fulfilled</button>
+          <button id="wadaTabAll" class="wada-tab-btn" type="button" role="tab" aria-selected="false">All</button>
+        </div>
+        <div id="wadaListContainer" class="wada-list-container" role="region" aria-label="Promises list" tabindex="0">
+        </div>
+        <div class="modal-actions" style="margin-top: 16px; display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+          <button id="openRemindersFromWadaBtn" class="primary-button" type="button">📅 Open Reminders Today Queue</button>
+          <button id="closeWadaModalFooterBtn" class="secondary-button" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="reminderStagesModal" class="modal-dialog reminder-stages-modal" aria-labelledby="reminderStagesTitle">
+    <div class="modal-content" style="max-width: 680px; width: 100%;">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">SETTINGS &amp; AUTOMATION RULES</p>
+          <h2 id="reminderStagesTitle" class="modal-title">⚙️ Reminder Stages Configuration</h2>
+        </div>
+        <button id="closeReminderStagesModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </div>
+      <div class="modal-body reminder-stages-body">
+        <p class="reminder-stages-intro" style="font-size: 0.9rem; color: var(--text-muted, #64748b); margin-bottom: 12px;">
+          Configure automated WhatsApp bill reminders schedule relative to customer due dates (5th of month or custom date). Reminders are queued for manual 1-tap dispatch without spamming.
+        </p>
+        <div id="reminderStagesTableContainer" class="reminder-stages-table-wrap">
+          <table class="reminder-stages-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+            <thead>
+              <tr style="border-bottom: 2px solid var(--border-color, #cbd5e1); text-align: left;">
+                <th style="padding: 8px 4px;">Active</th>
+                <th style="padding: 8px;">Stage Name</th>
+                <th style="padding: 8px;">Offset (Days)</th>
+                <th style="padding: 8px;">Template</th>
+                <th style="padding: 8px;">Timing</th>
+              </tr>
+            </thead>
+            <tbody id="reminderStagesTableBody">
+            </tbody>
+          </table>
+        </div>
+        <div class="modal-actions" style="margin-top: 16px; display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+          <button id="resetReminderStagesBtn" class="secondary-button" type="button">🔄 Reset to Defaults</button>
+          <button id="saveReminderStagesBtn" class="primary-button" type="button">💾 Save Stage Rules</button>
+          <button id="cancelReminderStagesBtn" class="secondary-button" type="button">Cancel</button>
+        </div>
+      </div>
     </div>
   </dialog>
 

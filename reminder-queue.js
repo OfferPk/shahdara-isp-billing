@@ -1,0 +1,878 @@
+/**
+ * reminder-queue.js - WhatsApp Reminder Queue & Promise-to-Pay (Wada) Follow-up Suite
+ *
+ * Implements GitHub Issue #222 (P1 grok-review):
+ * 1. Configurable reminder stages (default: 2 days before due date, on due date, +3, +7, +15 days).
+ * 2. "Reminders Today" queue:
+ *    - Automatically identifies customers with outstanding dues matching reminder stage rules for today in PKT.
+ *    - Sequential queue traversal: Next, Previous, Skip navigation with queue progress badge (e.g. "Customer 2 of 10").
+ *    - 1-tap WhatsApp dispatch with bilingual prefilled message (Urdu & English) and normalized 923xx mobile links.
+ *    - Automatic dispatch auditing: records "reminded on <date>, stage N" into persistent history.
+ *    - Safe offline-first architecture: no automated messaging without explicit operator tap.
+ * 3. Promise-to-Pay ("Wada") Follow-up List:
+ *    - Tracks customer payment commitments (date, amount, note, status).
+ *    - Categorizes promises for today, broken/overdue wada follow-ups, upcoming, and fulfilled.
+ *    - Automatic fulfillment sync when payments are recorded.
+ *    - 1-tap WhatsApp follow-up reminder and 1-tap Quick Collect handoff.
+ * 4. Customer profile integration:
+ *    - History of sent reminders and active/past promises visible directly on subscriber card.
+ * 5. Full JSON backup & restore compatibility with registered storage keys.
+ */
+
+import {
+  calculatePaymentAllocations,
+  formatPKR,
+  derivedBillStatus
+} from './core.js';
+import {
+  formatWhatsAppUrl,
+  normalizePakistaniWhatsAppPhone,
+  buildPaymentReminderMessage,
+  escapeHtml
+} from './form-validation.js';
+
+export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
+export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
+export const REMINDER_HISTORY_STORAGE_KEY = 'shahdara_reminder_history_v1';
+export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
+
+export const DEFAULT_REMINDER_STAGES = Object.freeze([
+  {
+    id: 'pre_due',
+    label: 'Before Due Date',
+    offsetDays: -2,
+    template: 'due',
+    enabled: true,
+    description: '2 days before due date (e.g. 3rd of month)'
+  },
+  {
+    id: 'on_due',
+    label: 'On Due Date',
+    offsetDays: 0,
+    template: 'due',
+    enabled: true,
+    description: 'On due date (e.g. 5th of month)'
+  },
+  {
+    id: 'overdue_3',
+    label: 'Overdue +3 Days',
+    offsetDays: 3,
+    template: 'overdue',
+    enabled: true,
+    description: '3 days after due date (e.g. 8th of month)'
+  },
+  {
+    id: 'overdue_7',
+    label: 'Overdue +7 Days',
+    offsetDays: 7,
+    template: 'overdue',
+    enabled: true,
+    description: '7 days after due date (e.g. 12th of month)'
+  },
+  {
+    id: 'overdue_15',
+    label: 'Overdue +15 Days (Disconnection Warning)',
+    offsetDays: 15,
+    template: 'disconnection',
+    enabled: true,
+    description: '15 days after due date (e.g. 20th of month)'
+  }
+]);
+
+/**
+ * Returns today's date formatted as YYYY-MM-DD in Pakistan Standard Time (Asia/Karachi).
+ * @param {Date|string|number} [date]
+ * @returns {string} YYYY-MM-DD
+ */
+export function getTodayDateString(date = new Date()) {
+  try {
+    const d = date instanceof Date ? date : new Date(date);
+    if (isNaN(d.getTime())) throw new Error('Invalid date');
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: PAKISTAN_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = Object.fromEntries(
+      formatter.formatToParts(d).filter(p => p.type !== 'literal').map(p => [p.type, p.value])
+    );
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  } catch {
+    const d = date instanceof Date && !isNaN(date.getTime()) ? date : new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+}
+
+/**
+ * Parses YYYY-MM-DD into numeric year, month, day components.
+ * @param {string} dateStr
+ * @returns {{ year: number, month: number, day: number }|null}
+ */
+export function parseDateParts(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
+  if (!match) return null;
+  const year = parseInt(match[1], 10);
+  const month = parseInt(match[2], 10);
+  const day = parseInt(match[3], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return { year, month, day };
+}
+
+/**
+ * Calculates calendar day difference (dateStrA - dateStrB).
+ * Positive if dateStrA is later than dateStrB; negative if earlier.
+ * Safe across month and year boundaries.
+ *
+ * @param {string} dateStrA
+ * @param {string} dateStrB
+ * @returns {number}
+ */
+export function calendarDaysDifference(dateStrA, dateStrB) {
+  const pA = parseDateParts(dateStrA);
+  const pB = parseDateParts(dateStrB);
+  if (!pA || !pB) return 0;
+  const utcA = Date.UTC(pA.year, pA.month - 1, pA.day);
+  const utcB = Date.UTC(pB.year, pB.month - 1, pB.day);
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  return Math.round((utcA - utcB) / MS_PER_DAY);
+}
+
+/**
+ * Formats a date string (YYYY-MM-DD) into readable human-friendly text.
+ * @param {string} dateStr
+ * @returns {string}
+ */
+export function formatDisplayDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const monthName = monthNames[monthIdx] || parts[1];
+  return `${parseInt(parts[2], 10)} ${monthName} ${parts[0]}`;
+}
+
+/**
+ * Retrieves configured reminder stages from storage or returns defaults.
+ * @param {Storage|object} [storage]
+ * @returns {Array<Object>}
+ */
+export function getReminderStagesSettings(storage = null) {
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.getItem !== 'function') {
+    return DEFAULT_REMINDER_STAGES.map(s => ({ ...s }));
+  }
+  try {
+    const raw = targetStorage.getItem(REMINDER_STAGES_SETTINGS_KEY);
+    if (!raw) return DEFAULT_REMINDER_STAGES.map(s => ({ ...s }));
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_REMINDER_STAGES.map(s => ({ ...s }));
+    }
+    return parsed;
+  } catch {
+    return DEFAULT_REMINDER_STAGES.map(s => ({ ...s }));
+  }
+}
+
+/**
+ * Saves reminder stages configuration to storage.
+ * @param {Array<Object>} stages
+ * @param {Storage|object} [storage]
+ * @returns {Array<Object>}
+ */
+export function saveReminderStagesSettings(stages, storage = null) {
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!Array.isArray(stages) || stages.length === 0) {
+    return DEFAULT_REMINDER_STAGES.map(s => ({ ...s }));
+  }
+  const clean = stages.map(s => ({
+    id: String(s.id || 'stage_' + Math.random().toString(36).slice(2, 6)),
+    label: String(s.label || 'Reminder Stage').trim(),
+    offsetDays: Number.isFinite(Number(s.offsetDays)) ? Number(s.offsetDays) : 0,
+    template: String(s.template || 'due'),
+    enabled: s.enabled !== false,
+    description: String(s.description || '')
+  }));
+  if (targetStorage && typeof targetStorage.setItem === 'function') {
+    try {
+      targetStorage.setItem(REMINDER_STAGES_SETTINGS_KEY, JSON.stringify(clean));
+    } catch {}
+  }
+  return clean;
+}
+
+/**
+ * Resets reminder stages configuration to defaults.
+ * @param {Storage|object} [storage]
+ * @returns {Array<Object>}
+ */
+export function resetReminderStagesSettings(storage = null) {
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (targetStorage && typeof targetStorage.removeItem === 'function') {
+    try {
+      targetStorage.removeItem(REMINDER_STAGES_SETTINGS_KEY);
+    } catch {}
+  }
+  return DEFAULT_REMINDER_STAGES.map(s => ({ ...s }));
+}
+
+/**
+ * Determines customer due day (default 5th, or customDueDate clamped 1..28).
+ * @param {Object} customer
+ * @returns {number}
+ */
+export function calculateCustomerDueDay(customer) {
+  if (!customer) return 5;
+  const raw = customer.customDueDate ?? customer.dueDay;
+  if (raw !== null && raw !== undefined && raw !== '') {
+    const num = parseInt(raw, 10);
+    if (!isNaN(num) && num >= 1 && num <= 28) {
+      return num;
+    }
+  }
+  return 5;
+}
+
+/**
+ * Calculates the exact target due date (YYYY-MM-DD) for a customer in a specified month.
+ * @param {Object} customer
+ * @param {string} [monthStr] - YYYY-MM
+ * @returns {{ dueDateString: string, dueDay: number, month: string }}
+ */
+export function calculateCustomerDueDate(customer, monthStr) {
+  const targetMonth = (typeof monthStr === 'string' && /^\d{4}-\d{2}$/.test(monthStr))
+    ? monthStr
+    : getTodayDateString().slice(0, 7);
+
+  const dueDay = calculateCustomerDueDay(customer);
+  const dueDayPadded = String(dueDay).padStart(2, '0');
+  const dueDateString = `${targetMonth}-${dueDayPadded}`;
+
+  return {
+    dueDateString,
+    dueDay,
+    month: targetMonth
+  };
+}
+
+/**
+ * Evaluates whether a customer with dues matches an active reminder stage for a reference date.
+ *
+ * @param {Object} customer
+ * @param {number} balance
+ * @param {string} [todayStr] - Reference date in YYYY-MM-DD (PKT)
+ * @param {Array<Object>} [stages] - Configured reminder stages
+ * @returns {{ matched: boolean, stage: Object|null, dueDateString: string, daysRelative: number, template: string }|null}
+ */
+export function getMatchingReminderStage(customer, balance, todayStr = getTodayDateString(), stages = null) {
+  if (!customer || balance <= 0) return null;
+
+  const activeStages = Array.isArray(stages)
+    ? stages.filter(s => s.enabled !== false)
+    : getReminderStagesSettings().filter(s => s.enabled !== false);
+
+  if (activeStages.length === 0) return null;
+
+  const currentMonth = todayStr.slice(0, 7);
+  const dueInfo = calculateCustomerDueDate(customer, currentMonth);
+  const daysRelative = calendarDaysDifference(todayStr, dueInfo.dueDateString);
+
+  // Exact matching against configured offsetDays
+  const exactStage = activeStages.find(s => Number(s.offsetDays) === daysRelative);
+  if (exactStage) {
+    return {
+      matched: true,
+      stage: exactStage,
+      dueDateString: dueInfo.dueDateString,
+      daysRelative,
+      template: exactStage.template || 'due'
+    };
+  }
+
+  // Also check previous month boundary if today is early in month (e.g. 1st-4th)
+  // to catch late overdue reminders spanning previous cycle
+  if (daysRelative < 0) {
+    const parts = parseDateParts(todayStr);
+    if (parts) {
+      let prevYear = parts.year;
+      let prevMonthNum = parts.month - 1;
+      if (prevMonthNum === 0) {
+        prevMonthNum = 12;
+        prevYear -= 1;
+      }
+      const prevMonthStr = `${prevYear}-${String(prevMonthNum).padStart(2, '0')}`;
+      const prevDueInfo = calculateCustomerDueDate(customer, prevMonthStr);
+      const prevDaysRelative = calendarDaysDifference(todayStr, prevDueInfo.dueDateString);
+      const prevMatch = activeStages.find(s => Number(s.offsetDays) === prevDaysRelative);
+      if (prevMatch && prevDaysRelative > 0) {
+        return {
+          matched: true,
+          stage: prevMatch,
+          dueDateString: prevDueInfo.dueDateString,
+          daysRelative: prevDaysRelative,
+          template: prevMatch.template || 'overdue'
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Retrieves the full reminder dispatch audit history from storage.
+ * @param {Storage|object} [storage]
+ * @returns {Array<Object>}
+ */
+export function getReminderHistory(storage = null) {
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.getItem !== 'function') return [];
+  try {
+    const raw = targetStorage.getItem(REMINDER_HISTORY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Checks if a customer has already been reminded on dateStr for the given stageId.
+ *
+ * @param {string} customerId
+ * @param {string} stageId
+ * @param {string} dateStr
+ * @param {Storage|object} [storage]
+ * @returns {boolean}
+ */
+export function isCustomerRemindedToday(customerId, stageId, dateStr = getTodayDateString(), storage = null) {
+  if (!customerId) return false;
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const history = getReminderHistory(targetStorage);
+  return history.some(r =>
+    String(r.customerId) === String(customerId) &&
+    r.date === dateStr &&
+    (!stageId || r.stageId === stageId)
+  );
+}
+
+/**
+ * Records an immutable reminder dispatch event into storage.
+ *
+ * @param {Object} params
+ * @param {Object} params.customer
+ * @param {Object} [params.stage]
+ * @param {string} [params.templateType]
+ * @param {string} [params.method='whatsapp'] - 'whatsapp' | 'copied' | 'printed'
+ * @param {number} [params.dueAmount=0]
+ * @param {string} [params.month]
+ * @param {string} [params.dateStr]
+ * @param {string} [params.customNote]
+ * @param {Storage|object} [storage]
+ * @returns {Object} Created audit record
+ */
+export function recordReminderDispatched({
+  customer,
+  stage = null,
+  templateType = 'due',
+  method = 'whatsapp',
+  dueAmount = 0,
+  month = '',
+  dateStr = '',
+  customNote = ''
+} = {}, storage = null) {
+  if (!customer || !customer.id) {
+    throw new Error('Customer required for recording reminder dispatch');
+  }
+
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const today = dateStr || getTodayDateString();
+  const nowIso = new Date().toISOString();
+  const stageId = stage?.id || (templateType === 'disconnection' ? 'overdue_15' : templateType === 'overdue' ? 'overdue_3' : 'on_due');
+  const stageLabel = stage?.label || (templateType === 'disconnection' ? 'Disconnection Notice' : templateType === 'overdue' ? 'Overdue Notice' : 'Due Reminder');
+
+  const record = {
+    id: `rem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    customerId: String(customer.id),
+    customerNumber: customer.customerNumber != null ? Number(customer.customerNumber) : null,
+    customerName: String(customer.name || 'Subscriber').trim(),
+    phone: String(customer.phone || '').trim(),
+    area: String(customer.area || customer.mohalla || '').trim(),
+    date: today,
+    month: month || today.slice(0, 7),
+    stageId,
+    stageLabel,
+    templateType: templateType || stage?.template || 'due',
+    method: String(method || 'whatsapp'),
+    dueAmount: Math.max(0, Number(dueAmount || 0)),
+    customNote: String(customNote || '').trim(),
+    dispatchedAt: nowIso
+  };
+
+  const history = getReminderHistory(targetStorage);
+  history.unshift(record);
+
+  if (targetStorage && typeof targetStorage.setItem === 'function') {
+    try {
+      targetStorage.setItem(REMINDER_HISTORY_STORAGE_KEY, JSON.stringify(history.slice(0, 1000)));
+    } catch {}
+  }
+
+  // Also maintain customer.reminders array if mutable customer object provided
+  if (customer && typeof customer === 'object') {
+    if (!Array.isArray(customer.reminders)) {
+      customer.reminders = [];
+    }
+    customer.reminders.unshift({
+      date: today,
+      stageId,
+      stageLabel,
+      method,
+      amount: record.dueAmount,
+      timestamp: nowIso
+    });
+  }
+
+  return record;
+}
+
+/**
+ * Returns reminder dispatch history for a specific customer.
+ * @param {string} customerId
+ * @param {Storage|object} [storage]
+ * @returns {Array<Object>}
+ */
+export function getCustomerReminderHistory(customerId, storage = null) {
+  if (!customerId) return [];
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const history = getReminderHistory(targetStorage);
+  return history
+    .filter(r => String(r.customerId) === String(customerId))
+    .sort((a, b) => String(b.dispatchedAt || b.date).localeCompare(String(a.dispatchedAt || a.date)));
+}
+
+/**
+ * Calculates current outstanding balance in PKR for a customer from state.
+ * @param {Object} customer
+ * @param {Object} state
+ * @param {string} monthStr
+ * @returns {number}
+ */
+export function getCustomerOutstandingDues(customer, state, monthStr) {
+  if (!customer) return 0;
+  try {
+    const allocations = calculatePaymentAllocations(state);
+    const summary = allocations?.forMonth?.(customer.id, monthStr);
+    if (summary && summary.balanceDueCents !== null && summary.balanceDueCents !== undefined) {
+      return Math.max(0, summary.balanceDueCents / 100);
+    }
+  } catch {}
+
+  // Fallback to active bills inspection
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  let totalDue = 0;
+  for (const b of bills) {
+    const due = Number(b.dueAmount || 0);
+    const paid = (b.payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    if (due > paid) totalDue += (due - paid);
+  }
+  return totalDue;
+}
+
+/**
+ * Generates the "Reminders Today" queue for operators.
+ * Evaluates active customers against configured reminder stages for reference date.
+ *
+ * @param {Object} state - The ISP billing application state.
+ * @param {Object} [options={}]
+ * @param {string} [options.todayString] - YYYY-MM-DD
+ * @param {Storage|object} [options.storage]
+ * @param {Array<Object>} [options.stages]
+ * @returns {{ date: string, queue: Array<Object>, totalCount: number, pendingCount: number, completedCount: number, totalDuesPkr: number }}
+ */
+export function getRemindersTodayQueue(state, options = {}) {
+  const storage = options.storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const todayStr = options.todayString || getTodayDateString();
+  const stages = options.stages || getReminderStagesSettings(storage);
+  const monthStr = todayStr.slice(0, 7);
+
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const queue = [];
+  let totalDuesPkr = 0;
+  let completedCount = 0;
+
+  for (const c of customers) {
+    if (c.archived) continue;
+
+    const balance = getCustomerOutstandingDues(c, state, monthStr);
+    if (balance <= 0) continue;
+
+    const match = getMatchingReminderStage(c, balance, todayStr, stages);
+    if (!match || !match.matched) continue;
+
+    const alreadyReminded = isCustomerRemindedToday(c.id, match.stage.id, todayStr, storage);
+    if (alreadyReminded) {
+      completedCount++;
+    }
+
+    const dueDay = calculateCustomerDueDay(c);
+    const dueDateLabel = `${dueDay}th of this month (${formatDisplayDate(match.dueDateString)})`;
+
+    const reminderMessage = buildPaymentReminderMessage({
+      customer: c,
+      templateType: match.template,
+      billingData: {
+        month: monthStr,
+        billAmount: balance,
+        balance,
+        dueDate: dueDateLabel
+      }
+    });
+
+    const wa = formatWhatsAppUrl(c.phone || '', reminderMessage);
+
+    totalDuesPkr += balance;
+
+    queue.push({
+      customer: c,
+      customerId: c.id,
+      customerNumber: c.customerNumber != null ? Number(c.customerNumber) : null,
+      customerName: c.name || 'Subscriber',
+      phone: c.phone || '',
+      normalizedPhone: wa.formattedPhone || c.phone || '',
+      validPhone: wa.validPhone,
+      area: c.area || c.mohalla || '',
+      balance,
+      dueDateString: match.dueDateString,
+      dueDay,
+      stage: match.stage,
+      stageId: match.stage.id,
+      stageLabel: match.stage.label,
+      daysRelative: match.daysRelative,
+      templateType: match.template,
+      alreadyReminded,
+      messageText: reminderMessage,
+      whatsappUrl: wa.url
+    });
+  }
+
+  // Sort queue: unreminded first, then highest balance first
+  queue.sort((a, b) => {
+    if (a.alreadyReminded !== b.alreadyReminded) {
+      return a.alreadyReminded ? 1 : -1;
+    }
+    return b.balance - a.balance;
+  });
+
+  const pendingCount = queue.length - completedCount;
+
+  return {
+    date: todayStr,
+    queue,
+    totalCount: queue.length,
+    pendingCount,
+    completedCount,
+    totalDuesPkr
+  };
+}
+
+// ============================================================================
+// PROMISE-TO-PAY ("WADA") SUITE
+// ============================================================================
+
+/**
+ * Retrieves all collection promises from storage.
+ * @param {Storage|object} [storage]
+ * @returns {Array<Object>}
+ */
+export function getCollectionPromises(storage = null) {
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.getItem !== 'function') return [];
+  try {
+    const raw = targetStorage.getItem(COLLECTION_PROMISES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.sort((a, b) => String(a.promisedDate || '').localeCompare(String(b.promisedDate || '')));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves or updates a collection promise in storage.
+ *
+ * @param {Object} promiseData
+ * @param {Storage|object} [storage]
+ * @returns {Object|null}
+ */
+export function recordCustomerPromise(promiseData, storage = null) {
+  if (!promiseData || !promiseData.customerId || !promiseData.promisedDate) {
+    return null;
+  }
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.setItem !== 'function') return null;
+
+  try {
+    const promises = getCollectionPromises(targetStorage);
+    const id = promiseData.id || `prom-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const nowIso = new Date().toISOString();
+
+    const record = {
+      id,
+      customerId: String(promiseData.customerId),
+      customerNumber: promiseData.customerNumber != null ? Number(promiseData.customerNumber) : null,
+      customerName: String(promiseData.customerName || promiseData.name || 'Customer').trim(),
+      phone: String(promiseData.phone || '').trim(),
+      area: String(promiseData.area || promiseData.mohalla || '').trim(),
+      promisedDate: String(promiseData.promisedDate),
+      promisedAmount: Math.max(0, Number(promiseData.promisedAmount || promiseData.amount || 0)),
+      note: String(promiseData.note || 'Promise-to-pay commitment').trim(),
+      status: promiseData.status || 'pending', // 'pending' | 'fulfilled' | 'cancelled'
+      createdAt: promiseData.createdAt || nowIso,
+      updatedAt: nowIso,
+      fulfilledAt: promiseData.fulfilledAt || null,
+      fulfilledPaymentId: promiseData.fulfilledPaymentId || null
+    };
+
+    const existingIndex = promises.findIndex(p => p.id === id);
+    if (existingIndex >= 0) {
+      promises[existingIndex] = record;
+    } else {
+      promises.push(record);
+    }
+
+    targetStorage.setItem(COLLECTION_PROMISES_STORAGE_KEY, JSON.stringify(promises));
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Marks a collection promise as fulfilled.
+ *
+ * @param {string} promiseId
+ * @param {string} [paymentId]
+ * @param {Storage|object} [storage]
+ * @returns {Object|null}
+ */
+export function markPromiseFulfilled(promiseId, paymentId = null, storage = null) {
+  if (!promiseId) return null;
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.getItem !== 'function') return null;
+  try {
+    const promises = getCollectionPromises(targetStorage);
+    const target = promises.find(p => p.id === promiseId);
+    if (!target) return null;
+
+    target.status = 'fulfilled';
+    target.fulfilledAt = new Date().toISOString();
+    target.updatedAt = target.fulfilledAt;
+    target.fulfilledPaymentId = paymentId || null;
+
+    targetStorage.setItem(COLLECTION_PROMISES_STORAGE_KEY, JSON.stringify(promises));
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cancels or dismisses a collection promise.
+ *
+ * @param {string} promiseId
+ * @param {string} [reason]
+ * @param {Storage|object} [storage]
+ * @returns {Object|null}
+ */
+export function cancelPromise(promiseId, reason = '', storage = null) {
+  if (!promiseId) return null;
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.getItem !== 'function') return null;
+  try {
+    const promises = getCollectionPromises(targetStorage);
+    const target = promises.find(p => p.id === promiseId);
+    if (!target) return null;
+
+    target.status = 'cancelled';
+    target.cancelledReason = String(reason || '');
+    target.updatedAt = new Date().toISOString();
+
+    targetStorage.setItem(COLLECTION_PROMISES_STORAGE_KEY, JSON.stringify(promises));
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reschedules a collection promise to a new date.
+ *
+ * @param {string} promiseId
+ * @param {string} newDateStr
+ * @param {Storage|object} [storage]
+ * @returns {Object|null}
+ */
+export function reschedulePromise(promiseId, newDateStr, storage = null) {
+  if (!promiseId || !newDateStr) return null;
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!targetStorage || typeof targetStorage.getItem !== 'function') return null;
+  try {
+    const promises = getCollectionPromises(targetStorage);
+    const target = promises.find(p => p.id === promiseId);
+    if (!target) return null;
+
+    target.previousPromisedDate = target.promisedDate;
+    target.promisedDate = newDateStr;
+    target.status = 'pending';
+    target.updatedAt = new Date().toISOString();
+
+    targetStorage.setItem(COLLECTION_PROMISES_STORAGE_KEY, JSON.stringify(promises));
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Generates an executive Promise-to-Pay (Wada) follow-up list categorized for reference date.
+ * Automatically synchronizes with state payments to detect fulfilled commitments.
+ *
+ * @param {Object} state - The ISP billing application state.
+ * @param {Object} [options={}]
+ * @param {string} [options.todayString]
+ * @param {Storage|object} [options.storage]
+ * @returns {Object} Categorized promises
+ */
+export function getPromiseToPayFollowupList(state, options = {}) {
+  const storage = options.storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const todayStr = options.todayString || getTodayDateString();
+  const rawPromises = getCollectionPromises(storage);
+
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const customerMap = new Map(customers.map(c => [c.id, c]));
+
+  const todayList = [];
+  const brokenList = [];
+  const upcomingList = [];
+  const fulfilledList = [];
+  const cancelledList = [];
+
+  for (const p of rawPromises) {
+    const cust = customerMap.get(p.customerId);
+    const currentBalance = cust ? getCustomerOutstandingDues(cust, state, todayStr.slice(0, 7)) : 0;
+
+    // Check if customer paid in full -> auto-fulfill
+    let isFulfilled = p.status === 'fulfilled';
+    if (!isFulfilled && p.status === 'pending' && cust && currentBalance === 0) {
+      isFulfilled = true;
+      markPromiseFulfilled(p.id, null, storage);
+      p.status = 'fulfilled';
+    }
+
+    const diffDays = calendarDaysDifference(todayStr, p.promisedDate);
+    const isToday = p.promisedDate === todayStr;
+    const isBroken = p.status === 'pending' && diffDays > 0; // promised date was before today and not fulfilled
+    const isUpcoming = p.status === 'pending' && diffDays < 0;
+
+    const item = {
+      ...p,
+      customerName: cust?.name || p.customerName || 'Subscriber',
+      customerNumber: cust?.customerNumber ?? p.customerNumber,
+      phone: cust?.phone || p.phone || '',
+      area: cust?.area || cust?.mohalla || p.area || '',
+      currentBalance,
+      diffDays,
+      isToday,
+      isBroken,
+      isUpcoming,
+      isFulfilled,
+      formattedPromisedDate: formatDisplayDate(p.promisedDate),
+      relativeText: isToday
+        ? 'Due Today'
+        : isBroken
+          ? `${diffDays} ${diffDays === 1 ? 'day' : 'days'} overdue (Broken Wada)`
+          : `Due in ${Math.abs(diffDays)} ${Math.abs(diffDays) === 1 ? 'day' : 'days'}`
+    };
+
+    if (p.status === 'cancelled') {
+      cancelledList.push(item);
+    } else if (isFulfilled) {
+      fulfilledList.push(item);
+    } else if (isToday) {
+      todayList.push(item);
+    } else if (isBroken) {
+      brokenList.push(item);
+    } else if (isUpcoming) {
+      upcomingList.push(item);
+    }
+  }
+
+  // Sort lists
+  todayList.sort((a, b) => b.promisedAmount - a.promisedAmount);
+  brokenList.sort((a, b) => b.diffDays - a.diffDays);
+  upcomingList.sort((a, b) => a.promisedDate.localeCompare(b.promisedDate));
+  fulfilledList.sort((a, b) => String(b.fulfilledAt || '').localeCompare(String(a.fulfilledAt || '')));
+
+  const totalPromisedAmount = [...todayList, ...brokenList, ...upcomingList]
+    .reduce((sum, p) => sum + (p.promisedAmount || 0), 0);
+
+  return {
+    today: todayList,
+    broken: brokenList,
+    upcoming: upcomingList,
+    fulfilled: fulfilledList,
+    cancelled: cancelledList,
+    all: rawPromises,
+    summary: {
+      todayCount: todayList.length,
+      brokenCount: brokenList.length,
+      upcomingCount: upcomingList.length,
+      fulfilledCount: fulfilledList.length,
+      totalPendingCount: todayList.length + brokenList.length + upcomingList.length,
+      totalPromisedAmount
+    }
+  };
+}
+
+/**
+ * Builds a polite, professional bilingual WhatsApp follow-up message for a promise-to-pay.
+ *
+ * @param {Object} promise
+ * @param {Object} [customer]
+ * @returns {string}
+ */
+export function formatPromiseFollowupWhatsApp(promise, customer = null) {
+  const name = customer?.name || promise?.customerName || 'Valued Subscriber';
+  const custNum = customer?.customerNumber ?? promise?.customerNumber ? `#${customer?.customerNumber ?? promise?.customerNumber}` : 'Account';
+  const area = customer?.area || customer?.mohalla || promise?.area || 'Shahdara';
+  const amount = Number(promise?.promisedAmount || 0).toLocaleString();
+  const dateStr = formatDisplayDate(promise?.promisedDate);
+  const isBroken = promise?.isBroken || (promise?.promisedDate && calendarDaysDifference(getTodayDateString(), promise.promisedDate) > 0);
+
+  if (isBroken) {
+    return (
+      `*Shahdara ISP - Wada / Promise-to-Pay Reminder*\n\n` +
+      `Assalam-o-Alaikum ${name},\n` +
+      `Your scheduled bill payment commitment of *PKR ${amount}* for ${custNum} (${area}) was due on *${dateStr}*.\n\n` +
+      `Aap ke waday ke mutabiq payment abhi tak received nahi hui. Baraye meharbani aaj hi cash collector ko payment ada karein ya online transfer (JazzCash / EasyPaisa / Raast) karein taa-ke connection uninterrupted chal sake.\n\n` +
+      `Shukriya,\nShahdara ISP Support`
+    );
+  }
+
+  return (
+    `*Shahdara ISP - Scheduled Payment Commitment*\n\n` +
+    `Assalam-o-Alaikum ${name},\n` +
+    `Friendly reminder for account ${custNum} (${area}): payment of *PKR ${amount}* is scheduled for today (*${dateStr}*).\n\n` +
+    `Aap ke waday ke mutabiq baraye meharbani payment cash collector ko dastyab rakhein ya online transfer karein.\n\n` +
+    `Shukriya,\nShahdara ISP Support`
+  );
+}

@@ -1,0 +1,97 @@
+/* Bulk Add Customers (customer-import.js). Mobile-first; matches bulk-collect.css. */
+.ci-open-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--green, #0e5b4d); border-radius: 10px; background: var(--surface, #fff);
+  color: var(--green, #0e5b4d); font: 700 13px 'DM Sans', system-ui, sans-serif; cursor: pointer; white-space: nowrap;
+}
+.ci-open-btn:hover { background: var(--mint, #e6f3ee); }
+.ci-open-btn:focus-visible, .ci-remove:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.ci-form-link { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: var(--mint, #e6f3ee); font-size: 0.82rem; color: var(--ink, #172e29); }
+.ci-form-link .text-button { min-height: 36px; font-weight: 700; }
+
+#customerImportModal.customer-import-modal { width: min(820px, calc(100vw - 16px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; }
+#customerImportModal .ci-card { display: flex; flex-direction: column; gap: 12px; padding: 16px; min-width: 0; }
+#customerImportModal .modal-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+#customerImportModal h2 { margin: 2px 0 0; font: 700 1.25rem Manrope, system-ui, sans-serif; }
+.ci-step { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.ci-step[hidden] { display: none; }
+.ci-note { margin: 0; font-size: 0.82rem; color: var(--muted, #586e65); }
+.ci-note code { font-size: 0.8rem; padding: 1px 5px; border-radius: 5px; background: var(--surface-soft, #f1f5f3); color: var(--ink, #172e29); }
+.ci-text {
+  width: 100%; min-height: 170px; padding: 10px 12px; box-sizing: border-box; resize: vertical;
+  font: 500 15px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink, #172e29);
+  border: 1px solid var(--line, #cbd5e1); border-radius: 12px; background: var(--surface, #fff);
+}
+.ci-text:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 30%, transparent); border-color: var(--green, #0e5b4d); }
+.ci-input-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ci-file-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 48px; padding: 0 14px; cursor: pointer; }
+.ci-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ci-file:focus-visible + .ci-sample-btn, .ci-file-btn:focus-within { outline: 3px solid #2563eb; }
+.ci-sample-btn { min-height: 44px; }
+.ci-primary { min-height: 52px; font-size: 1rem; font-weight: 800; border-radius: 12px; }
+.ci-primary:disabled { opacity: .5; cursor: not-allowed; }
+.ci-status { margin: 0; padding: 8px 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); }
+.ci-status[data-kind="error"] { background: #fff1f0; color: #b42318; }
+
+.ci-preview-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ci-counts { margin: 0; font-size: 0.9rem; color: var(--ink, #172e29); }
+.ci-attn { color: var(--amber, #9a5e06); font-weight: 700; }
+.ci-preview-head .text-button { min-height: 44px; }
+.ci-rows { list-style: none; margin: 0; padding: 2px; display: grid; gap: 8px; max-height: min(52vh, 520px); overflow-y: auto; overflow-x: hidden; }
+.ci-row { display: grid; gap: 6px; padding: 10px; min-width: 0; border: 1px solid var(--line, #dce6e1); border-left-width: 4px; border-radius: 12px; background: var(--surface, #fff); color: var(--ink, #172e29); }
+.ci-row.is-ok { border-left-color: #16a34a; }
+.ci-row.is-warn { border-left-color: #d97706; }
+.ci-row.is-error { border-left-color: #dc2626; }
+.ci-row:not(.is-included) { background: var(--surface-soft, #f6f9f7); }
+.ci-row:not(.is-included) .ci-fields { opacity: .78; }
+.ci-row-top { display: flex; align-items: center; gap: 8px; }
+.ci-include { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; flex: 1 1 auto; cursor: pointer; }
+.ci-include input { width: 22px; height: 22px; accent-color: var(--green, #0e5b4d); }
+.ci-line { font-size: 0.75rem; font-weight: 700; color: var(--muted, #586e65); }
+.ci-chip { padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; white-space: nowrap; }
+.ci-chip-ok { background: #e3f4ea; color: #145b37; }
+.ci-chip-warn { background: #fff3d6; color: #8a4b00; }
+.ci-chip-error { background: #fdecea; color: #a8190e; }
+.ci-remove { min-width: 44px; min-height: 44px; border: 1px solid #f3c4c0; border-radius: 10px; background: #fff5f4; color: #b42318; font-weight: 800; cursor: pointer; }
+.ci-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.4fr); gap: 6px; }
+.ci-f { display: grid; gap: 2px; min-width: 0; font-size: 0.68rem; font-weight: 700; color: var(--muted, #586e65); }
+.ci-f input { width: 100%; min-width: 0; min-height: 44px; padding: 0 8px; box-sizing: border-box; font-size: 16px; color: var(--ink, #172e29); border: 1px solid var(--line, #cbd5e1); border-radius: 9px; background: var(--surface, #fff); }
+.ci-f input:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 30%, transparent); border-color: var(--green, #0e5b4d); }
+.ci-detail { margin: 0; font-size: 0.75rem; color: var(--muted, #586e65); }
+.ci-row.is-warn .ci-detail { color: #8a4b00; }
+.ci-row.is-error .ci-detail { color: #a8190e; font-weight: 700; }
+.ci-empty { padding: 14px; text-align: center; color: var(--muted, #586e65); }
+.ci-footer { position: sticky; bottom: 0; display: grid; gap: 6px; padding-top: 8px; background: var(--surface, #fff); border-top: 1px solid var(--line, #dce6e1); box-shadow: 0 24px 0 0 var(--surface, #fff); /* covers the dialog padding below the sticky footer */ }
+.ci-footer-note { margin: 0; font-size: 0.8rem; color: var(--muted, #586e65); }
+
+.ci-done { align-items: center; text-align: center; }
+.ci-done-icon { font-size: 2.2rem; }
+.ci-done-title { margin: 0; font: 800 1.3rem Manrope, system-ui, sans-serif; color: var(--ink, #172e29); }
+.ci-done-detail { margin: 0; color: var(--muted, #586e65); font-size: 0.9rem; }
+.ci-done-list { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 4px; text-align: left; }
+.ci-done-list li { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 8px 10px; border-radius: 10px; background: var(--surface-soft, #f6f9f7); font-size: 0.85rem; }
+.ci-done-list li span { color: var(--muted, #586e65); }
+.ci-done-actions { display: grid; gap: 8px; width: 100%; max-width: 360px; }
+.ci-done-actions button { min-height: 48px; width: 100%; font-weight: 700; }
+
+/* <=640px: the shared dialog rules (#215) pad the dialog and zero the card's inline padding. */
+@media (max-width: 640px) {
+  #customerImportModal .ci-card { padding-top: 4px; padding-bottom: 0; }
+  .ci-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ci-f-name, .ci-f-pkg { grid-column: 1 / -1; }
+  .ci-rows { max-height: none; overflow: visible; }
+  .ci-footer { padding-bottom: 4px; }
+}
+
+[data-theme="dark"] .ci-open-btn { background: transparent; color: #a7e6cc; border-color: #2f6b58; }
+[data-theme="dark"] .ci-row, [data-theme="dark"] .ci-text, [data-theme="dark"] .ci-f input { background: var(--surface, #14241f); border-color: var(--line, #253d35); color: var(--ink, #e8f3ee); }
+[data-theme="dark"] .ci-row:not(.is-included), [data-theme="dark"] .ci-done-list li { background: #10201b; }
+[data-theme="dark"] .ci-chip-ok { background: #14382a; color: #8fe0b6; }
+[data-theme="dark"] .ci-chip-warn { background: #3a2c10; color: #f6cf7a; }
+[data-theme="dark"] .ci-chip-error { background: #4a1712; color: #ffb4a8; }
+[data-theme="dark"] .ci-row.is-warn .ci-detail { color: #f6cf7a; }
+[data-theme="dark"] .ci-row.is-error .ci-detail { color: #ffb4a8; }
+[data-theme="dark"] .ci-remove { background: #3a1513; border-color: #6b2622; color: #ffb4ab; }
+[data-theme="dark"] .ci-footer { background: var(--surface, #14241f); box-shadow: 0 24px 0 0 var(--surface, #14241f); }
+[data-theme="dark"] .ci-status, [data-theme="dark"] .ci-form-link { background: #16362d; color: #a7e6cc; }
+[data-theme="dark"] .ci-status[data-kind="error"] { background: #3a1513; color: #ffb4ab; }

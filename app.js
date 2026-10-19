@@ -2257,7 +2257,9 @@ function saveNewCustomer(allowDuplicateName = false) {
     phone:$('#newCustomerPhone').value.trim(),
     address:$('#newCustomerAddress').value,
     mohalla:$('#newCustomerMohalla').value,
-    zone:$('#newCustomerZone').value
+    zone:$('#newCustomerZone').value,
+    // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
+    serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set'
   };
   const nameValidation = validateCustomerName(details.name);
   if (!nameValidation.valid) {

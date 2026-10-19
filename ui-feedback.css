@@ -203,3 +203,20 @@ body.sr-screen-mode #addCustomerButton { display: none !important; }
 [data-theme="dark"] .profile-danger-title { color: #ffb4a8 !important; }
 [data-theme="dark"] .profile-danger-help { color: #e4c5c0 !important; }
 [data-theme="dark"] .cust-density-toggle { background: #1d352e !important; color: #e8f3ee !important; border-color: #2d4a40 !important; }
+
+/* ---------- #293 follow-up ---------- */
+/* The Customers screen has its own "+ Add Customer" button, so the floating + speed dial is hidden there. */
+body[data-screen="customers"] #mobileSpeedDial, body[data-screen="customers"] #speedDialBackdrop { display: none !important; }
+/* The current bill now sits right under the name (above the fold); keep a little space before the actions. */
+.customer-profile-card > .profile-bill-first { margin: 12px 0 14px; }
+/* Add Customer: the submit bar stays visible at the bottom of the dialog on every screen size. */
+#addCustomerDialog { overflow-y: auto; }
+#addCustomerDialog .add-customer-actions {
+  position: sticky; bottom: 0; z-index: 2;
+  margin: 12px -4px 0; padding: 10px 4px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, rgba(255,255,255,.85), #fff 30%);
+  border-top: 1px solid #e1ebe6;
+}
+#addCustomerDialog .add-customer-actions > button:not([hidden]) { min-height: 48px !important; }
+[data-theme="dark"] #addCustomerDialog .add-customer-actions { background: linear-gradient(to bottom, rgba(24,45,39,.85), #182d27 30%); border-top-color: #2d4a40; }
+#newCustomerServiceStatus { min-height: 44px; }

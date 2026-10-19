@@ -100,8 +100,6 @@ body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inv
 body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > .table-scroll { order: 2; }
 body.sr-screen-mode[data-screen="inventory"] #inventoryView .table-card:has(#inventoryItemForm) > *:not(.table-heading):not(.table-filter-toolbar):not(.table-scroll),
 body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expenseForm) > *:not(.table-heading):not(.table-filter-toolbar):not(.table-scroll) { order: 3; margin-top: 16px; }
-
-
 @media (max-width: 620px) {
   .sr-screen-header {
     grid-template-columns: auto minmax(0, 1fr);
@@ -287,5 +285,374 @@ body.sr-screen-mode[data-screen="backup"] #backupControls {
 body.sr-screen-mode[data-screen="easypaisa"] #customersView,
 body.sr-screen-mode[data-screen="easypaisa"] .customer-pane {
   display: none !important;
+}
+
+/* #278: Customer list belongs strictly on #/customers, never duplicated on Home */
+body[data-screen="home"] #customersView,
+body:not(.sr-screen-mode) #customersView {
+  display: none !important;
+}
+
+/* #278: Owner Command Center is on dedicated #/assistant screen */
+body[data-screen="home"] #ownerCommandCenter,
+body:not(.sr-screen-mode) #ownerCommandCenter {
+  display: none !important;
+}
+
+/* #278: Collapsible accordions on Home for operations tools, analytics charts, and provider costs */
+.home-collapsible-section {
+  margin: 14px 0;
+  border: 1px solid var(--line, #dfe8e3);
+  border-radius: 14px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 2px 8px rgba(22, 52, 43, 0.04);
+  overflow: hidden;
+}
+.home-collapsible-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  min-height: 48px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink, #16342b);
+  cursor: pointer;
+  user-select: none;
+  background: rgba(14, 91, 77, 0.04);
+  list-style: none;
+}
+.home-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+.home-collapsible-summary:hover {
+  background: rgba(14, 91, 77, 0.08);
+}
+.home-collapsible-summary .collapsible-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(14, 91, 77, 0.12);
+  color: var(--green, #0e5b4d);
+  margin-left: auto;
+  margin-right: 8px;
+}
+.home-collapsible-summary .summary-arrow {
+  transition: transform 0.2s ease;
+  font-size: 14px;
+}
+.home-collapsible-section[open] .home-collapsible-summary .summary-arrow {
+  transform: rotate(180deg);
+}
+.home-collapsible-section > .dashboard-secondary-region,
+.home-collapsible-section > .dashboard-charts-region,
+.home-collapsible-section > .provider-cost-breakdown {
+  padding: 12px 14px;
+}
+[data-theme="dark"] .home-collapsible-section {
+  border-color: #253d35;
+  background: #14241f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+[data-theme="dark"] .home-collapsible-summary {
+  color: #e4efe9;
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-theme="dark"] .home-collapsible-summary .collapsible-badge {
+  background: rgba(63, 191, 159, 0.2);
+  color: #3fbf9f;
+}
+
+/* #231 & #278: Home Aaj ka hisaab card & Top 5 overdue accounts */
+.home-today-section {
+  margin: 16px 0;
+}
+.home-today-card {
+  padding: 16px;
+  border: 1px solid var(--line, #dfe8e3);
+  border-radius: 16px;
+  background: var(--surface, #ffffff);
+  box-shadow: 0 4px 16px rgba(22, 52, 43, 0.06);
+}
+.home-today-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line, #dfe8e3);
+}
+.home-today-title-wrap {
+  flex: 1 1 200px;
+}
+.home-today-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: #e6f7f2;
+  color: #0e5b4d;
+  margin-bottom: 4px;
+}
+.home-today-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #16342b);
+}
+.home-today-subtitle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #5d7269;
+}
+.home-today-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 12px;
+  background: #25D366;
+  color: #ffffff;
+  font: 700 13px 'DM Sans', system-ui, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 3px 10px rgba(37, 211, 102, 0.3);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.home-today-wa-btn:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+.home-today-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.home-today-metric-cell {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8faf9;
+  border: 1px solid rgba(223, 232, 227, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+.today-cell-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5d7269;
+  margin-bottom: 4px;
+}
+.today-cell-val {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ink, #16342b);
+  letter-spacing: -0.3px;
+  margin-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.today-cell-sub {
+  font-size: 11px;
+  color: #6c8077;
+}
+.home-today-overdue-wrap {
+  border-top: 1px dashed var(--line, #dfe8e3);
+  padding-top: 12px;
+}
+.home-today-overdue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.overdue-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #16342b);
+}
+.overdue-view-all-link {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green, #0e5b4d);
+  text-decoration: none;
+}
+.overdue-view-all-link:hover {
+  text-decoration: underline;
+}
+.home-top-overdue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.home-overdue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fbfcfb;
+  border: 1px solid #edf2ef;
+}
+.overdue-item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.overdue-item-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #eef3f0;
+  color: #3b5047;
+}
+.overdue-item-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.overdue-item-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink, #16342b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.overdue-item-sub {
+  font-size: 11px;
+  color: #6c8077;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.overdue-item-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.overdue-item-amount {
+  font-size: 13px;
+  font-weight: 800;
+  color: #c62828;
+  font-variant-numeric: tabular-nums;
+}
+.overdue-item-actions {
+  display: flex;
+  gap: 6px;
+}
+.overdue-wa-link,
+.overdue-collect-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  min-height: 32px;
+}
+.overdue-wa-link {
+  background: #eafaf1;
+  color: #1b7a35;
+  border: 1px solid #bce9cc;
+}
+.overdue-wa-link:hover {
+  background: #d4f5e0;
+}
+.overdue-collect-link {
+  background: #eef3f0;
+  color: var(--ink, #16342b);
+  border: 1px solid #d4ded8;
+}
+.overdue-collect-link:hover {
+  background: #e0e9e4;
+}
+.overdue-empty-item {
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: #2e7d32;
+  background: #f0fdf4;
+  border-radius: 10px;
+}
+
+[data-theme="dark"] .home-today-card {
+  border-color: #253d35;
+  background: #14241f;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+[data-theme="dark"] .home-today-header,
+[data-theme="dark"] .home-today-overdue-wrap {
+  border-color: #253d35;
+}
+[data-theme="dark"] .home-today-badge {
+  background: rgba(63, 191, 159, 0.2);
+  color: #3fbf9f;
+}
+[data-theme="dark"] .home-today-title {
+  color: #eef6f2;
+}
+[data-theme="dark"] .home-today-subtitle {
+  color: #9fb5ac;
+}
+[data-theme="dark"] .home-today-metric-cell {
+  background: #101c18;
+  border-color: #1e332c;
+}
+[data-theme="dark"] .today-cell-label {
+  color: #9fb5ac;
+}
+[data-theme="dark"] .today-cell-val {
+  color: #eef6f2;
+}
+[data-theme="dark"] .today-cell-sub {
+  color: #7b948a;
+}
+[data-theme="dark"] .overdue-header-title {
+  color: #eef6f2;
+}
+[data-theme="dark"] .home-overdue-item {
+  background: #101c18;
+  border-color: #1e332c;
+}
+[data-theme="dark"] .overdue-item-badge {
+  background: #1a2d26;
+  color: #b7ccc3;
+}
+[data-theme="dark"] .overdue-item-name {
+  color: #eef6f2;
+}
+[data-theme="dark"] .overdue-item-sub {
+  color: #7b948a;
+}
+[data-theme="dark"] .overdue-item-amount {
+  color: #ff8a80;
+}
+[data-theme="dark"] .overdue-wa-link {
+  background: rgba(37, 211, 102, 0.15);
+  color: #5cd08a;
+  border-color: rgba(37, 211, 102, 0.3);
+}
+[data-theme="dark"] .overdue-collect-link {
+  background: #1a2d26;
+  color: #e4efe9;
+  border-color: #2c463d;
+}
+[data-theme="dark"] .overdue-empty-item {
+  background: rgba(46, 125, 50, 0.2);
+  color: #81c784;
 }
 

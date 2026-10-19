@@ -21,6 +21,7 @@ export function getDefaultDigitalPaymentsSettings() {
     ownerRaastId: '',
     ownerTillId: '',
     ownerAccountTitle: 'Shahdara Fiber Net',
+    ownerPhone: '',
     ownerBankName: '',
     ownerAccountNumber: '',
     ownerQrDataUrl: '',
@@ -45,6 +46,7 @@ export function getDigitalPaymentsSettings(storage = (typeof localStorage !== 'u
       ownerRaastId: String(parsed.ownerRaastId ?? '').trim().slice(0, 40),
       ownerTillId: String(parsed.ownerTillId ?? '').trim().slice(0, 30),
       ownerAccountTitle: String(parsed.ownerAccountTitle ?? defaults.ownerAccountTitle).trim().slice(0, 100),
+      ownerPhone: String(parsed.ownerPhone ?? '').trim().slice(0, 20),
       ownerBankName: String(parsed.ownerBankName ?? '').trim().slice(0, 80),
       ownerAccountNumber: String(parsed.ownerAccountNumber ?? '').trim().slice(0, 50),
       ownerQrDataUrl: typeof parsed.ownerQrDataUrl === 'string' && parsed.ownerQrDataUrl.startsWith('data:image/') ? parsed.ownerQrDataUrl : '',
@@ -67,6 +69,7 @@ export function saveDigitalPaymentsSettings(input = {}, storage = (typeof localS
     ownerRaastId: String(input.ownerRaastId ?? '').trim().slice(0, 40),
     ownerTillId: String(input.ownerTillId ?? '').trim().slice(0, 30),
     ownerAccountTitle: String(input.ownerAccountTitle ?? defaults.ownerAccountTitle).trim().slice(0, 100),
+    ownerPhone: String(input.ownerPhone ?? '').trim().slice(0, 20),
     ownerBankName: String(input.ownerBankName ?? '').trim().slice(0, 80),
     ownerAccountNumber: String(input.ownerAccountNumber ?? '').trim().slice(0, 50),
     ownerQrDataUrl: (typeof input.ownerQrDataUrl === 'string' && input.ownerQrDataUrl.startsWith('data:image/'))
@@ -148,6 +151,7 @@ export function initDigitalPaymentsSettingsModal(options = {}) {
   const raastInput = document.getElementById('settingOwnerRaastId');
   const tillInput = document.getElementById('settingOwnerTillId');
   const titleInput = document.getElementById('settingOwnerAccountTitle');
+  const ownerPhoneInput = document.getElementById('settingOwnerPhone');
   const bankInput = document.getElementById('settingOwnerBankName');
   const acctInput = document.getElementById('settingOwnerAccountNumber');
   const qrFileInput = document.getElementById('settingOwnerQrFile');
@@ -165,6 +169,13 @@ export function initDigitalPaymentsSettingsModal(options = {}) {
     if (raastInput) raastInput.value = settings.ownerRaastId || '';
     if (tillInput) tillInput.value = settings.ownerTillId || '';
     if (titleInput) titleInput.value = settings.ownerAccountTitle || 'Shahdara Fiber Net';
+    if (ownerPhoneInput) {
+      let savedPhone = settings.ownerPhone || '';
+      if (!savedPhone) {
+        try { savedPhone = localStorage.getItem('shahdara_owner_whatsapp_phone') || ''; } catch {}
+      }
+      ownerPhoneInput.value = savedPhone;
+    }
     if (bankInput) bankInput.value = settings.ownerBankName || '';
     if (acctInput) acctInput.value = settings.ownerAccountNumber || '';
     if (instructionsInput) instructionsInput.value = settings.instructions || '';
@@ -239,15 +250,21 @@ export function initDigitalPaymentsSettingsModal(options = {}) {
   // Form submit
   form?.addEventListener('submit', (e) => {
     e.preventDefault();
+    const phoneVal = ownerPhoneInput?.value || '';
     const updated = saveDigitalPaymentsSettings({
       ownerRaastId: raastInput?.value || '',
       ownerTillId: tillInput?.value || '',
       ownerAccountTitle: titleInput?.value || '',
+      ownerPhone: phoneVal,
       ownerBankName: bankInput?.value || '',
       ownerAccountNumber: acctInput?.value || '',
       ownerQrDataUrl: currentQrDataUrl,
       instructions: instructionsInput?.value || ''
     });
+
+    if (phoneVal) {
+      try { localStorage.setItem('shahdara_owner_whatsapp_phone', phoneVal); } catch {}
+    }
 
     closeModal();
     if (typeof options.onSave === 'function') {

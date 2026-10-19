@@ -8,6 +8,7 @@ import {
   calculateMethodCollectionTotals, findDuplicatePaymentReference
 } from './core.js?v=1.10.0';
 import { initDigitalPaymentsSettingsModal } from './digital-payments-settings.js?v=1.10.0';
+import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -591,6 +592,12 @@ function renderDashboard() {
   setupDailyClosingCard(state, referenceDate, {
     getState: () => state,
     onToast: toast
+  });
+  setupHomeTodaySection({
+    getState: () => state,
+    getRefDate: () => referenceDate,
+    doc: document,
+    win: window
   });
   setupAreaDrilldownModal(state, referenceDate, {
     onFilterRoster: (areaName) => {

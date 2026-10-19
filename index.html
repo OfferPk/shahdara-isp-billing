@@ -289,6 +289,57 @@
           </span>
         </button>
       </div>
+      <!-- Home Today Summary Card (Issue #231 & #278) -->
+      <section class="home-today-section" id="homeTodaySection" aria-labelledby="homeTodayHeading">
+        <div class="home-today-card" id="homeTodaySummaryCard">
+          <div class="home-today-header">
+            <div class="home-today-title-wrap">
+              <span class="home-today-badge">📅 Aaj · Today</span>
+              <h3 id="homeTodayHeading" class="home-today-title">Today's Summary · آج کا خلاصہ</h3>
+              <p class="home-today-subtitle" id="homeTodayDateText">Live closing register &amp; collection status</p>
+            </div>
+            <button id="sendDailySummaryWhatsAppBtn" class="home-today-wa-btn" type="button" aria-label="Send summary to my WhatsApp">
+              <span class="wa-btn-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+              </span>
+              <span class="wa-btn-text">Send to my WhatsApp</span>
+            </button>
+          </div>
+          <!-- Metrics 4-grid -->
+          <div class="home-today-metrics-grid">
+            <div class="home-today-metric-cell">
+              <span class="today-cell-label">Collected Today (آج کی وصولی)</span>
+              <strong id="homeTodayCollected" class="today-cell-val">PKR 0</strong>
+              <span id="homeTodayCashVsDigital" class="today-cell-sub">Cash: PKR 0 · Digital: PKR 0</span>
+            </div>
+            <div class="home-today-metric-cell">
+              <span class="today-cell-label">Month Target (ماہانہ وصولی)</span>
+              <strong id="homeTodayTargetPct" class="today-cell-val">0%</strong>
+              <span id="homeTodayCollectedVsBilled" class="today-cell-sub">PKR 0 / PKR 0 billed</span>
+            </div>
+            <div class="home-today-metric-cell">
+              <span class="today-cell-label">Total Dues (کل واجبات)</span>
+              <strong id="homeTodayTotalDues" class="today-cell-val">PKR 0</strong>
+              <span id="homeTodayDuesCount" class="today-cell-sub">0 accounts with dues</span>
+            </div>
+            <div class="home-today-metric-cell">
+              <span class="today-cell-label">New Customers (نئے صارفین)</span>
+              <strong id="homeTodayNewCustomers" class="today-cell-val">0</strong>
+              <span class="today-cell-sub">Connected this month</span>
+            </div>
+          </div>
+          <!-- Top 5 Defaulters / Overdue Accounts -->
+          <div class="home-today-overdue-wrap" id="homeTodayOverdueWrap">
+            <div class="home-today-overdue-header">
+              <span class="overdue-header-title">Top 5 Overdue Accounts · بڑے بقایاجات</span>
+              <a href="#/recovery" class="overdue-view-all-link">View all dues →</a>
+            </div>
+            <ul id="homeTopOverdueList" class="home-top-overdue-list" aria-label="Top 5 overdue customer accounts">
+              <!-- Populated dynamically via JS -->
+            </ul>
+          </div>
+        </div>
+      </section>
       <div class="dashboard-secondary-region" id="dashboardSecondaryRegion">
         <div class="dashboard-secondary-header">
           <span class="dashboard-secondary-title">Operations &amp; Intelligence Tools</span>
@@ -431,6 +482,12 @@
         </button>
       </div>
     </div>
+      <details id="homeSummaryCardsCollapsible" class="home-collapsible-section">
+        <summary class="home-collapsible-summary">
+          <span>📈 Secondary Business Metrics &amp; Ledger Cards</span>
+          <span class="collapsible-badge">19 Cards</span>
+          <span class="summary-arrow" aria-hidden="true">▾</span>
+        </summary>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-data-safety" id="dashboardDataSafetyCard">
           <div class="data-safety-card-header">
@@ -482,6 +539,13 @@
         <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost"><p class="summary-label">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
+      </details>
+      <details id="homeChartsCollapsible" class="home-collapsible-section dashboard-charts-collapsible">
+        <summary class="home-collapsible-summary">
+          <span>📊 Performance &amp; Collection Analytics</span>
+          <span class="collapsible-badge">Charts</span>
+          <span class="summary-arrow" aria-hidden="true">▾</span>
+        </summary>
       <section class="dashboard-charts-region" aria-labelledby="dashboardChartsHeading">
         <div class="dashboard-charts-header">
           <p class="eyebrow">VISUAL LEDGER INSIGHTS</p>
@@ -1211,7 +1275,14 @@
 
 
       </section>
+      </details>
+      <details id="homeProviderCostDetails" class="home-collapsible-section">
+        <summary class="home-collapsible-summary">
+          <span>💼 Monthly Provider Cost Breakdown</span>
+          <span class="summary-arrow" aria-hidden="true">▾</span>
+        </summary>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
+      </details>
       <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading">Owner Command Center</h3><p>Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟"><button id="ownerVoiceButton" class="secondary-button" type="button">Voice · on-device only</button><button class="primary-button" type="submit">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
 
@@ -20264,6 +20335,11 @@
             <span class="field-help">Shown on payment receipts and customer WhatsApp drafts</span>
           </div>
 
+          <div class="form-group">
+            <label for="settingOwnerPhone" class="field-label">📱 Owner WhatsApp Number</label>
+            <input id="settingOwnerPhone" type="tel" maxlength="20" placeholder="e.g. 03001234567" class="full">
+            <span class="field-help" style="margin-bottom:12px; display:block;">For direct daily summary dispatch to your own WhatsApp</span>
+          </div>
           <div class="form-group">
             <label for="settingOwnerRaastId" class="field-label">⚡ Raast ID (Mobile # or IBAN)</label>
             <input id="settingOwnerRaastId" type="text" maxlength="40" placeholder="e.g. 03001234567 or PK36..." class="full">

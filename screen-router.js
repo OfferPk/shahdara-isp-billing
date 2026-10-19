@@ -257,7 +257,11 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       return;
     }
     const isHome = screen === HOME;
-    if (!isHome) ensureViewVisible(screen);
+    if (!isHome) {
+      ensureViewVisible(screen);
+    } else {
+      doc.getElementById('customersView')?.setAttribute('hidden', '');
+    }
     current = screen;
     body.dataset.screen = screen;
     // #287: Bills / Monthly Report / Dues Recovery / Smart Alerts share one view
@@ -309,8 +313,6 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       openFieldToolsModal();
       return;
     }
-    // Home keeps today's layout: dashboard followed by the customer list.
-    if (intent.screen === HOME) ensureViewVisible('customers');
     const url = routeHash(intent.screen);
     const changedByApp = win.location.hash !== hashBefore;
     if (win.location.hash !== url) {

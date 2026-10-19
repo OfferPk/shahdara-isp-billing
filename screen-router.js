@@ -200,11 +200,31 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   }
 
   doc.getElementById('fieldToolsModal')?.addEventListener('close', () => {
+    const modal = doc.getElementById('fieldToolsModal');
+    if (modal?._skipHistoryBack) {
+      modal._skipHistoryBack = false;
+      if (win.location.hash.includes('field-tools') || win.location.hash.includes('tools')) {
+        const fallbackScreen = (history.state && history.state.screen && history.state.screen !== 'field-tools')
+          ? history.state.screen
+          : HOME;
+        nativeReplace({ ...(history.state || {}), screen: fallbackScreen }, '', routeHash(fallbackScreen));
+        updateNavActive(fallbackScreen);
+      }
+      return;
+    }
     if (win.location.hash.includes('field-tools') || win.location.hash.includes('tools')) {
       if (history.length > 1) history.back();
       else nativeReplace({ ...(history.state || {}), screen: HOME }, '', routeHash(HOME));
     }
   });
+
+  function updateNavActive(activeScreen) {
+    const targets = doc.querySelectorAll('[data-nav-target]');
+    targets.forEach(btn => {
+      const target = btn.getAttribute('data-nav-target');
+      btn.setAttribute('aria-current', target === activeScreen ? 'page' : 'false');
+    });
+  }
 
   function ensureViewVisible(screen) {
     if (screen === 'backup') {
@@ -228,6 +248,7 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   function apply(screen, { anchor = null, scroll = true } = {}) {
     if (screen === 'field-tools') {
       openFieldToolsModal();
+      updateNavActive('field-tools');
       return;
     }
     const isHome = screen === HOME;
@@ -236,6 +257,7 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     body.dataset.screen = screen;
     body.classList.toggle('sr-screen-mode', !isHome);
     header.hidden = isHome;
+    updateNavActive(screen);
     if (screen === 'backup') {
       doc.getElementById('backupControls')?.removeAttribute('hidden');
     }

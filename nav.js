@@ -2410,8 +2410,11 @@ export function setupMobileSpeedDial({
     }
   }
 
-  function closeFieldTools() {
+  function closeFieldTools({ skipHistoryBack = false } = {}) {
     if (fieldToolsModal) {
+      if (skipHistoryBack) {
+        fieldToolsModal._skipHistoryBack = true;
+      }
       triggerHaptic('light');
       if (typeof fieldToolsModal.close === 'function') {
         fieldToolsModal.close();
@@ -2439,7 +2442,7 @@ export function setupMobileSpeedDial({
       } else {
         const btn = e.target.closest('button');
         if (btn && btn !== closeFieldToolsBtn) {
-          setTimeout(() => closeFieldTools(), 80);
+          closeFieldTools({ skipHistoryBack: true });
         }
       }
     });

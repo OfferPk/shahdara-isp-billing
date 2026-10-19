@@ -3975,7 +3975,7 @@ function renderInventory() {
   const movDate=$('#movementDate');
   if(movDate&&!movDate.value) movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);
   itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
-  $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement||!window.confirm(`Delete the ${movement.type} movement of ${movement.quantity} ${movement.unit} dated ${movement.date}? This may change all current inventory balances.`))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.');}catch(error){toast(error.message);}}));
+  $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',async()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement)return;if(!await appConfirm({tone:'danger',title:'Delete this stock movement?',subject:`${movement.type} · ${movement.quantity} ${movement.unit} · ${movement.date}`,message:'This may change all current inventory balances.',confirmLabel:'Delete movement'}))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.',{type:'success',title:'Deleted'});}catch(error){toast(error.message,{type:'error'});}}));
   updateNavigationBadges(state);
 }
 let expenseSortKey = 'date';
@@ -4001,8 +4001,8 @@ function renderExpenses() {
   $('#saadAttendanceEmpty').hidden=payroll.attendanceDays.length>0;
   $('#umairWorkdaysList').innerHTML=payroll.umairWorkdays.map(date=>`<li><time datetime="${date}">${date}</time><button type="button" class="delete-incident" data-remove-workday="${date}">Remove</button></li>`).join('');
   $('#umairWorkdaysEmpty').hidden=payroll.umairWorkdays.length>0;
-  $('#saadAttendanceList').querySelectorAll('[data-remove-attendance]').forEach(button=>button.addEventListener('click',()=>{const date=button.dataset.removeAttendance;if(!window.confirm(`Remove Saad's manually logged attendance day dated ${date}?`))return;try{state=removeSaadAttendanceDay(state,date);save();toast('Attendance date removed from this device.');}catch(error){toast(error.message);}}));
-  $('#umairWorkdaysList').querySelectorAll('[data-remove-workday]').forEach(button=>button.addEventListener('click',()=>{const date=button.dataset.removeWorkday;if(!window.confirm(`Remove Umair's manually logged workday dated ${date}?`))return;try{state=removeUmairWorkday(state,date);save();toast('Workday removed from this device.');}catch(error){toast(error.message);}}));
+  $('#saadAttendanceList').querySelectorAll('[data-remove-attendance]').forEach(button=>button.addEventListener('click',async()=>{const date=button.dataset.removeAttendance;if(!await appConfirm({tone:'danger',title:'Remove this attendance day?',subject:`Saad · ${date}`,message:"Removes Saad's manually logged attendance day from this device.",confirmLabel:'Remove day'}))return;try{state=removeSaadAttendanceDay(state,date);save();toast('Attendance date removed from this device.');}catch(error){toast(error.message);}}));
+  $('#umairWorkdaysList').querySelectorAll('[data-remove-workday]').forEach(button=>button.addEventListener('click',async()=>{const date=button.dataset.removeWorkday;if(!await appConfirm({tone:'danger',title:'Remove this workday?',subject:`Umair · ${date}`,message:"Removes Umair's manually logged workday (PKR 1,000) from this device.",confirmLabel:'Remove workday'}))return;try{state=removeUmairWorkday(state,date);save();toast('Workday removed from this device.');}catch(error){toast(error.message);}}));
   const allRows=[...(state.expenses??[])];
   $('#expenseEntryCount').textContent=allRows.length?String(allRows.length):'No entries';
   $('#expenseEntryHelp').textContent=allRows.length?'Actual dated expenses recorded on this device.':'No expense entries recorded; not an assertion that spending was zero.';
@@ -4087,11 +4087,11 @@ function renderExpenses() {
     const notice=$('#expensePayrollPrefillNotice');if(notice)notice.hidden=true;
     $('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});
   }));
-  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{
+  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',async()=>{
     const row=allRows.find(item=>item.id===button.dataset.deleteExpense);
     if(!row)return;
     const areaNote=row.area?` [${row.area}]`:'';
-    if(!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category}${areaNote} expense dated ${row.date}?`))return;
+    if(!await appConfirm({tone:'danger',title:'Delete this expense?',subject:`${formatAmount(row.amount)} · ${row.category}${areaNote} · ${row.date}`,message:'It will be removed from this device\'s expense ledger, totals and exports.',confirmLabel:'Delete expense'}))return;
     try{
       state=deleteExpense(state,row.id);
       save();
@@ -4158,7 +4158,7 @@ function resetExpenseForm() {
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
-$('#expenseForm').addEventListener('submit',event=>{
+$('#expenseForm').addEventListener('submit',async event=>{
   event.preventDefault();
   const data=new FormData(event.currentTarget);
   const rawFields={
@@ -4179,7 +4179,7 @@ $('#expenseForm').addEventListener('submit',event=>{
   const fields=val.cleanFields;
   try{
     const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;
-    if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;
+    if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();
     expenseDraftController?.clear();

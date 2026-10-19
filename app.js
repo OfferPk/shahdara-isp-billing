@@ -103,6 +103,26 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
+import {
+  getTodayDateString,
+  getReminderStagesSettings,
+  saveReminderStagesSettings,
+  resetReminderStagesSettings,
+  getMatchingReminderStage,
+  getRemindersTodayQueue,
+  recordReminderDispatched,
+  getCustomerReminderHistory,
+  getCustomerOutstandingDues,
+  getPromiseToPayFollowupList,
+  formatPromiseFollowupWhatsApp,
+  recordCustomerPromise,
+  markPromiseFulfilled,
+  cancelPromise,
+  reschedulePromise,
+  getCollectionPromises,
+  formatDisplayDate
+} from './reminder-queue.js?v=1.10.0';
+
 
 
 
@@ -3423,7 +3443,9 @@ document.addEventListener('keydown', event => {
       $('#paymentReminderModal'),
       $('#batchReceiptModal'),
       $('#customerLedgerAuditModal'),
-      $('#customerBillInvoiceModal')
+      $('#customerBillInvoiceModal'),
+      $('#wadaFollowupModal'),
+      $('#reminderStagesModal')
     ];
     for (const m of activeModals) {
       if (m && (m.open || m.hasAttribute('open'))) {
@@ -4861,7 +4883,7 @@ if (shareStatementWhatsAppBtn) {
   });
 }
 
-// Payment Reminder Modal & WhatsApp Dispatcher (Agent 3)
+// Payment Reminder Modal & WhatsApp Dispatcher (Issue #222)
 const reminderModal = $('#paymentReminderModal');
 const openReminderBtn = $('#openReminderModalBtn');
 const closeReminderBtn = $('#closeReminderModalBtn');
@@ -4874,7 +4896,82 @@ const sendWhatsAppReminderBtn = $('#sendWhatsAppReminderBtn');
 const copyReminderTextBtn = $('#copyReminderTextBtn');
 const printReminderSlipBtn = $('#printReminderSlipBtn');
 
+// Reminder Queue Controls
+const reminderQueueBar = $('#reminderQueueBar');
+const reminderQueueBadge = $('#reminderQueueBadge');
+const reminderQueueStagePill = $('#reminderQueueStagePill');
+const reminderQueuePrevBtn = $('#reminderQueuePrevBtn');
+const reminderQueueNextBtn = $('#reminderQueueNextBtn');
+const reminderQueueSkipBtn = $('#reminderQueueSkipBtn');
+
+// Inline Promise-to-Pay Fieldset in Reminder Modal
+const reminderRecordPromiseToggleBtn = $('#reminderRecordPromiseToggleBtn');
+const reminderInlinePromiseFieldset = $('#reminderInlinePromiseFieldset');
+const reminderPromiseDateInput = $('#reminderPromiseDateInput');
+const reminderPromiseAmountInput = $('#reminderPromiseAmountInput');
+const reminderPromiseNoteInput = $('#reminderPromiseNoteInput');
+const saveReminderPromiseBtn = $('#saveReminderPromiseBtn');
+const cancelReminderPromiseBtn = $('#cancelReminderPromiseBtn');
+
+// Reminder History
+const reminderCustomerHistoryList = $('#reminderCustomerHistoryList');
+
+// Wada / Promise-to-Pay Modal Elements
+const wadaModal = $('#wadaFollowupModal');
+const closeWadaModalBtn = $('#closeWadaModalBtn');
+const closeWadaModalFooterBtn = $('#closeWadaModalFooterBtn');
+const openCustomerPromiseBtn = $('#openCustomerPromiseBtn');
+const openRemindersFromWadaBtn = $('#openRemindersFromWadaBtn');
+const wadaTodayCountBadge = $('#wadaTodayCountBadge');
+const wadaBrokenCountBadge = $('#wadaBrokenCountBadge');
+const wadaUpcomingCountBadge = $('#wadaUpcomingCountBadge');
+const wadaTotalPromisedAmount = $('#wadaTotalPromisedAmount');
+const wadaListContainer = $('#wadaListContainer');
+const wadaTabs = [
+  { id: 'wadaTabToday', key: 'today' },
+  { id: 'wadaTabBroken', key: 'broken' },
+  { id: 'wadaTabUpcoming', key: 'upcoming' },
+  { id: 'wadaTabFulfilled', key: 'fulfilled' },
+  { id: 'wadaTabAll', key: 'all' }
+];
+
+// Reminder Stages Modal Elements
+const reminderStagesModal = $('#reminderStagesModal');
+const closeReminderStagesModalBtn = $('#closeReminderStagesModalBtn');
+const cancelReminderStagesBtn = $('#cancelReminderStagesBtn');
+const resetReminderStagesBtn = $('#resetReminderStagesBtn');
+const saveReminderStagesBtn = $('#saveReminderStagesBtn');
+const reminderStagesTableBody = $('#reminderStagesTableBody');
+
+// Queue traversal & modal state
 let currentReminderCustomer = null;
+let currentReminderQueue = null;
+let currentReminderIndex = 0;
+let currentWadaActiveTab = 'today';
+
+function renderReminderCustomerHistory(customerId) {
+  if (!reminderCustomerHistoryList) return;
+  if (!customerId) {
+    reminderCustomerHistoryList.innerHTML = '<p class="reminder-empty-note">No recent reminders recorded for this customer.</p>';
+    return;
+  }
+  const history = getCustomerReminderHistory(customerId);
+  if (!history || history.length === 0) {
+    reminderCustomerHistoryList.innerHTML = '<p class="reminder-empty-note">No recent reminders recorded for this customer.</p>';
+    return;
+  }
+  const itemsHtml = history.slice(0, 4).map(h => {
+    const methodIcon = h.method === 'whatsapp' ? '💬 WhatsApp' : h.method === 'copied' ? '📋 Copied' : '🖨️ Slip';
+    const amountStr = h.dueAmount ? `PKR ${Number(h.dueAmount).toLocaleString()}` : '';
+    return `
+      <div class="reminder-history-item">
+        <span><strong>${escapeHtml(h.stageLabel || h.templateType || 'Reminder')}</strong> (${formatDisplayDate(h.date)})</span>
+        <span>${methodIcon} ${amountStr ? `· <em>${amountStr}</em>` : ''}</span>
+      </div>
+    `;
+  }).join('');
+  reminderCustomerHistoryList.innerHTML = itemsHtml;
+}
 
 function renderReminderContent() {
   if (!currentReminderCustomer) return;
@@ -4885,6 +4982,25 @@ function renderReminderContent() {
   const balance = summary.balanceDueCents !== null ? (summary.balanceDueCents / 100) : 0;
   const billAmount = summary.amount !== null && summary.amount !== undefined ? Number(summary.amount) : 0;
   const dueDate = c.customDueDate ? `${c.customDueDate}th of month` : '5th of month';
+
+  // Queue traversal status
+  if (currentReminderQueue && currentReminderQueue.length > 0) {
+    if (reminderQueueBar) reminderQueueBar.hidden = false;
+    if (reminderQueueBadge) {
+      reminderQueueBadge.textContent = `Queue: ${currentReminderIndex + 1} of ${currentReminderQueue.length}`;
+    }
+    const currentQueueItem = currentReminderQueue[currentReminderIndex];
+    if (reminderQueueStagePill) {
+      reminderQueueStagePill.textContent = currentQueueItem?.stageLabel || 'Due Reminder';
+    }
+    if (reminderQueuePrevBtn) reminderQueuePrevBtn.disabled = currentReminderIndex <= 0;
+    if (reminderQueueNextBtn) reminderQueueNextBtn.disabled = currentReminderIndex >= currentReminderQueue.length - 1;
+    if (currentQueueItem?.templateType && reminderTemplateSelect) {
+      reminderTemplateSelect.value = currentQueueItem.templateType;
+    }
+  } else {
+    if (reminderQueueBar) reminderQueueBar.hidden = true;
+  }
 
   const billingData = {
     month,
@@ -4931,6 +5047,24 @@ function renderReminderContent() {
       reminderPhoneNotice.style.color = '#f59e0b';
     }
   }
+
+  renderReminderCustomerHistory(c.id);
+
+  // Hide inline promise form and reset values for this customer
+  if (reminderInlinePromiseFieldset) {
+    reminderInlinePromiseFieldset.hidden = true;
+  }
+  if (reminderPromiseAmountInput) {
+    reminderPromiseAmountInput.value = Math.max(0, Math.round(balance));
+  }
+  if (reminderPromiseDateInput) {
+    const nextDate = new Date();
+    nextDate.setDate(nextDate.getDate() + 3);
+    reminderPromiseDateInput.value = nextDate.toISOString().slice(0, 10);
+  }
+  if (reminderPromiseNoteInput) {
+    reminderPromiseNoteInput.value = '';
+  }
 }
 
 function updateReminderCharCount() {
@@ -4939,10 +5073,24 @@ function updateReminderCharCount() {
   reminderCharCount.textContent = `${len} characters`;
 }
 
-export function openPaymentReminderModal(cust) {
+export function openPaymentReminderModal(cust, options = {}) {
   if (!cust) return;
   currentReminderCustomer = cust;
-  if (reminderTemplateSelect) reminderTemplateSelect.value = 'due';
+
+  if (options.queue && Array.isArray(options.queue)) {
+    currentReminderQueue = options.queue;
+    currentReminderIndex = Number.isInteger(options.index) ? options.index : 0;
+  } else {
+    currentReminderQueue = null;
+    currentReminderIndex = 0;
+  }
+
+  if (options.template && reminderTemplateSelect) {
+    reminderTemplateSelect.value = options.template;
+  } else if (!currentReminderQueue && reminderTemplateSelect) {
+    reminderTemplateSelect.value = 'due';
+  }
+
   renderReminderContent();
   if (reminderModal?.showModal) reminderModal.showModal();
   else reminderModal?.setAttribute('open', '');
@@ -4984,6 +5132,90 @@ if (reminderMessageText) {
   reminderMessageText.addEventListener('input', updateReminderCharCount);
 }
 
+// Queue Traversal Buttons
+if (reminderQueueNextBtn) {
+  reminderQueueNextBtn.addEventListener('click', () => {
+    if (!currentReminderQueue || currentReminderIndex >= currentReminderQueue.length - 1) return;
+    currentReminderIndex++;
+    const nextItem = currentReminderQueue[currentReminderIndex];
+    if (nextItem?.customer) {
+      openPaymentReminderModal(nextItem.customer, { queue: currentReminderQueue, index: currentReminderIndex });
+    }
+  });
+}
+
+if (reminderQueuePrevBtn) {
+  reminderQueuePrevBtn.addEventListener('click', () => {
+    if (!currentReminderQueue || currentReminderIndex <= 0) return;
+    currentReminderIndex--;
+    const prevItem = currentReminderQueue[currentReminderIndex];
+    if (prevItem?.customer) {
+      openPaymentReminderModal(prevItem.customer, { queue: currentReminderQueue, index: currentReminderIndex });
+    }
+  });
+}
+
+if (reminderQueueSkipBtn) {
+  reminderQueueSkipBtn.addEventListener('click', () => {
+    if (!currentReminderQueue) return;
+    if (currentReminderIndex < currentReminderQueue.length - 1) {
+      currentReminderIndex++;
+      const nextItem = currentReminderQueue[currentReminderIndex];
+      if (nextItem?.customer) {
+        openPaymentReminderModal(nextItem.customer, { queue: currentReminderQueue, index: currentReminderIndex });
+      }
+    } else {
+      toast('End of reminder queue reached.');
+      if (reminderModal.close) reminderModal.close();
+      else reminderModal.removeAttribute('open');
+    }
+  });
+}
+
+// Inline Promise-to-Pay Toggle & Save
+if (reminderRecordPromiseToggleBtn && reminderInlinePromiseFieldset) {
+  reminderRecordPromiseToggleBtn.addEventListener('click', () => {
+    reminderInlinePromiseFieldset.hidden = !reminderInlinePromiseFieldset.hidden;
+    if (!reminderInlinePromiseFieldset.hidden && reminderPromiseDateInput) {
+      reminderPromiseDateInput.focus();
+    }
+  });
+}
+
+if (cancelReminderPromiseBtn && reminderInlinePromiseFieldset) {
+  cancelReminderPromiseBtn.addEventListener('click', () => {
+    reminderInlinePromiseFieldset.hidden = true;
+  });
+}
+
+if (saveReminderPromiseBtn) {
+  saveReminderPromiseBtn.addEventListener('click', () => {
+    if (!currentReminderCustomer) return;
+    const promisedDate = reminderPromiseDateInput?.value;
+    if (!promisedDate) {
+      toast('Please choose a promised commitment date.');
+      reminderPromiseDateInput?.focus();
+      return;
+    }
+    const promisedAmount = Number(reminderPromiseAmountInput?.value || 0);
+    const note = reminderPromiseNoteInput?.value || '';
+
+    recordCustomerPromise({
+      customerId: currentReminderCustomer.id,
+      customerNumber: currentReminderCustomer.customerNumber,
+      customerName: currentReminderCustomer.name,
+      phone: currentReminderCustomer.phone,
+      area: currentReminderCustomer.area,
+      promisedDate,
+      promisedAmount,
+      note
+    });
+
+    toast(`Promise-to-Pay recorded for ${formatDisplayDate(promisedDate)} (PKR ${promisedAmount.toLocaleString()})`);
+    if (reminderInlinePromiseFieldset) reminderInlinePromiseFieldset.hidden = true;
+  });
+}
+
 if (sendWhatsAppReminderBtn) {
   sendWhatsAppReminderBtn.addEventListener('click', () => {
     if (!currentReminderCustomer) return;
@@ -4994,6 +5226,19 @@ if (sendWhatsAppReminderBtn) {
       toast('Invalid or missing Pakistani phone number. Please update customer phone first.');
       return;
     }
+
+    const currentMonth = monthsForHistory(new Date())[0];
+    const balance = getCustomerOutstandingDues(currentReminderCustomer, state, currentMonth);
+
+    recordReminderDispatched({
+      customer: currentReminderCustomer,
+      templateType: reminderTemplateSelect?.value || 'due',
+      method: 'whatsapp',
+      dueAmount: balance,
+      month: currentMonth
+    });
+
+    renderReminderCustomerHistory(currentReminderCustomer.id);
     window.open(wa.url, '_blank', 'noopener,noreferrer');
     toast(`Opening WhatsApp for ${wa.formattedPhone}...`);
   });
@@ -5006,6 +5251,18 @@ if (copyReminderTextBtn) {
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
+      }
+      if (currentReminderCustomer) {
+        const currentMonth = monthsForHistory(new Date())[0];
+        const balance = getCustomerOutstandingDues(currentReminderCustomer, state, currentMonth);
+        recordReminderDispatched({
+          customer: currentReminderCustomer,
+          templateType: reminderTemplateSelect?.value || 'due',
+          method: 'copied',
+          dueAmount: balance,
+          month: currentMonth
+        });
+        renderReminderCustomerHistory(currentReminderCustomer.id);
       }
       toast('Reminder message copied to clipboard.');
     } catch {
@@ -5024,6 +5281,15 @@ if (printReminderSlipBtn) {
     const balance = summary.balanceDueCents !== null ? (summary.balanceDueCents / 100) : 0;
     const billAmount = summary.amount !== null && summary.amount !== undefined ? Number(summary.amount) : 0;
     const dueDate = c.customDueDate ? `${c.customDueDate}th of month` : '5th of month';
+
+    recordReminderDispatched({
+      customer: c,
+      templateType: reminderTemplateSelect?.value || 'due',
+      method: 'printed',
+      dueAmount: balance,
+      month
+    });
+    renderReminderCustomerHistory(c.id);
 
     const slipHtml = generatePaymentReminderSlipHtml({
       customer: c,
@@ -5055,6 +5321,290 @@ if (printReminderSlipBtn) {
     }
   });
 }
+
+// ==========================================================================
+// WADA / PROMISE-TO-PAY FOLLOW-UP MODAL (Issue #222)
+// ==========================================================================
+
+export function renderWadaList() {
+  if (!wadaModal || !wadaListContainer) return;
+  const followup = getPromiseToPayFollowupList(state);
+
+  // Update summary KPIs
+  if (wadaTodayCountBadge) wadaTodayCountBadge.textContent = String(followup.summary.todayCount);
+  if (wadaBrokenCountBadge) wadaBrokenCountBadge.textContent = String(followup.summary.brokenCount);
+  if (wadaUpcomingCountBadge) wadaUpcomingCountBadge.textContent = String(followup.summary.upcomingCount);
+  if (wadaTotalPromisedAmount) wadaTotalPromisedAmount.textContent = `PKR ${followup.summary.totalPromisedAmount.toLocaleString()}`;
+
+  // Update tab highlights
+  wadaTabs.forEach(t => {
+    const btn = $(`#${t.id}`);
+    if (btn) {
+      const isActive = t.key === currentWadaActiveTab;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    }
+  });
+
+  const list = followup[currentWadaActiveTab] || [];
+  if (list.length === 0) {
+    wadaListContainer.innerHTML = `
+      <div style="padding: 24px; text-align: center; color: var(--muted, #64748b);">
+        <p style="margin: 0; font-size: 13.5px; font-weight: 600;">No payment promises found in this category.</p>
+        <p style="margin: 4px 0 0; font-size: 12px;">Use the '🤝 Wada / Promise' button in Customer Profile or Payment Reminders to record payment commitments.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const itemsHtml = list.map(p => {
+    const isBroken = p.isBroken;
+    const isToday = p.isToday;
+    const isFulfilled = p.status === 'fulfilled';
+    const badgeClass = isFulfilled ? 'wada-badge-fulfilled' : isBroken ? 'wada-badge-broken' : isToday ? 'wada-badge-today' : 'wada-badge-upcoming';
+    const badgeLabel = isFulfilled ? '✓ Fulfilled' : isBroken ? `⚠️ Broken (${p.diffDays}d late)` : isToday ? '📅 Due Today' : `Upcoming (${formatDisplayDate(p.promisedDate)})`;
+    const custNum = p.customerNumber != null ? `#${p.customerNumber}` : '';
+
+    return `
+      <div class="wada-card ${isBroken ? 'is-broken' : ''} ${isToday ? 'is-today' : ''} ${isFulfilled ? 'is-fulfilled' : ''}" data-promise-id="${escapeHtml(p.id)}">
+        <div class="wada-card-header">
+          <div>
+            <div class="wada-cust-name">${escapeHtml(p.customerName)} ${custNum ? `<span style="font-weight: 500; font-size: 12px; color: var(--muted, #71817c);">${custNum}</span>` : ''}</div>
+            <div class="wada-cust-sub">${escapeHtml(p.area || 'Shahdara')} · ${escapeHtml(p.phone || 'No phone')}</div>
+          </div>
+          <span class="wada-badge ${badgeClass}">${badgeLabel}</span>
+        </div>
+        <div class="wada-card-body">
+          <div>
+            <span class="wada-amount-pill">Promised: PKR ${Number(p.promisedAmount || 0).toLocaleString()}</span>
+            ${p.currentBalance > 0 ? `<span style="margin-left: 8px; font-size: 11px; color: var(--muted, #71817c);">(Outstanding Dues: PKR ${p.currentBalance.toLocaleString()})</span>` : ''}
+          </div>
+          ${p.note ? `<div class="wada-card-note">“${escapeHtml(p.note)}”</div>` : ''}
+        </div>
+        <div class="wada-actions">
+          ${!isFulfilled && p.phone ? `
+            <button class="primary-button whatsapp-button wada-btn" type="button" data-action="whatsapp" data-promise-id="${escapeHtml(p.id)}">💬 WhatsApp Follow-up</button>
+          ` : ''}
+          ${!isFulfilled ? `
+            <button class="secondary-button wada-btn" type="button" data-action="collect" data-customer-id="${escapeHtml(p.customerId)}">💵 Quick Collect</button>
+            <button class="secondary-button wada-btn" type="button" data-action="reschedule" data-promise-id="${escapeHtml(p.id)}">🔄 Reschedule</button>
+            <button class="secondary-button wada-btn" type="button" data-action="fulfill" data-promise-id="${escapeHtml(p.id)}">✓ Fulfill</button>
+            <button class="secondary-button wada-btn text-button danger" type="button" data-action="cancel" data-promise-id="${escapeHtml(p.id)}">✕ Cancel</button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  wadaListContainer.innerHTML = itemsHtml;
+}
+
+export function openWadaFollowupModal(options = {}) {
+  if (options.tab && ['today', 'broken', 'upcoming', 'fulfilled', 'all'].includes(options.tab)) {
+    currentWadaActiveTab = options.tab;
+  }
+  renderWadaList();
+  if (wadaModal?.showModal) wadaModal.showModal();
+  else wadaModal?.setAttribute('open', '');
+}
+
+export function closeWadaFollowupModal() {
+  if (wadaModal?.close) wadaModal.close();
+  else wadaModal?.removeAttribute('open');
+}
+
+// Wada Tab Clicks
+wadaTabs.forEach(t => {
+  const btn = $(`#${t.id}`);
+  if (btn) {
+    btn.addEventListener('click', () => {
+      currentWadaActiveTab = t.key;
+      renderWadaList();
+    });
+  }
+});
+
+if (closeWadaModalBtn) closeWadaModalBtn.addEventListener('click', closeWadaFollowupModal);
+if (closeWadaModalFooterBtn) closeWadaModalFooterBtn.addEventListener('click', closeWadaFollowupModal);
+
+if (wadaModal) {
+  wadaModal.addEventListener('click', (e) => {
+    if (e.target === wadaModal) closeWadaFollowupModal();
+  });
+}
+
+// Wada List Action Delegates
+if (wadaListContainer) {
+  wadaListContainer.addEventListener('click', (e) => {
+    const target = e.target.closest('button[data-action]');
+    if (!target) return;
+    const action = target.getAttribute('data-action');
+    const promiseId = target.getAttribute('data-promise-id');
+    const customerId = target.getAttribute('data-customer-id');
+
+    const promises = getCollectionPromises();
+    const p = promises.find(item => item.id === promiseId);
+
+    if (action === 'whatsapp' && p) {
+      const msg = formatPromiseFollowupWhatsApp(p);
+      const wa = formatWhatsAppUrl(p.phone || '', msg);
+      if (!wa.validPhone) {
+        toast('Customer phone number is invalid or missing.');
+        return;
+      }
+      window.open(wa.url, '_blank', 'noopener,noreferrer');
+      toast(`Opening WhatsApp follow-up for ${wa.formattedPhone}...`);
+    } else if (action === 'collect') {
+      closeWadaFollowupModal();
+      if (window.quickCollectModalController?.selectAndOpen) {
+        window.quickCollectModalController.selectAndOpen(customerId);
+      } else if (window.quickCollectModalController?.open) {
+        window.quickCollectModalController.open(customerId);
+      }
+    } else if (action === 'fulfill' && promiseId) {
+      markPromiseFulfilled(promiseId);
+      toast('Promise-to-pay marked as fulfilled.');
+      renderWadaList();
+    } else if (action === 'reschedule' && promiseId) {
+      const nextDate = prompt('Enter new commitment date (YYYY-MM-DD):', getTodayDateString());
+      if (nextDate && /^\d{4}-\d{2}-\d{2}$/.test(nextDate.trim())) {
+        reschedulePromise(promiseId, nextDate.trim());
+        toast(`Wada commitment rescheduled to ${formatDisplayDate(nextDate.trim())}.`);
+        renderWadaList();
+      }
+    } else if (action === 'cancel' && promiseId) {
+      cancelPromise(promiseId, 'Cancelled by operator');
+      toast('Wada commitment cancelled.');
+      renderWadaList();
+    }
+  });
+}
+
+// Open Reminders Queue from Wada Modal
+if (openRemindersFromWadaBtn) {
+  openRemindersFromWadaBtn.addEventListener('click', () => {
+    closeWadaFollowupModal();
+    const queueData = getRemindersTodayQueue(state);
+    if (!queueData.queue || queueData.queue.length === 0) {
+      toast('No customers match reminder stages for today.');
+      return;
+    }
+    openPaymentReminderModal(queueData.queue[0].customer, {
+      queue: queueData.queue,
+      index: 0
+    });
+  });
+}
+
+// Customer Profile Wada Button
+if (openCustomerPromiseBtn) {
+  openCustomerPromiseBtn.addEventListener('click', () => {
+    if (!selectedCustomerId) {
+      toast('Please select a customer first.');
+      return;
+    }
+    const cust = state.customers.find(c => c.id === selectedCustomerId);
+    if (!cust) return;
+    openPaymentReminderModal(cust);
+    if (reminderInlinePromiseFieldset) {
+      reminderInlinePromiseFieldset.hidden = false;
+      reminderPromiseDateInput?.focus();
+    }
+  });
+}
+
+// ==========================================================================
+// REMINDER STAGES CONFIGURATION MODAL (Issue #222)
+// ==========================================================================
+
+export function renderReminderStagesTable() {
+  if (!reminderStagesTableBody) return;
+  const stages = getReminderStagesSettings();
+
+  const rowsHtml = stages.map(s => {
+    return `
+      <tr data-stage-id="${escapeHtml(s.id)}" style="border-bottom: 1px solid var(--line, #e2ece7);">
+        <td style="padding: 8px 4px; text-align: center;">
+          <input type="checkbox" class="stage-enabled-input" ${s.enabled !== false ? 'checked' : ''} aria-label="Enable stage ${escapeHtml(s.label)}">
+        </td>
+        <td style="padding: 8px;">
+          <input type="text" class="stage-label-input" value="${escapeHtml(s.label)}" style="width: 100%; min-width: 130px;">
+        </td>
+        <td style="padding: 8px;">
+          <input type="number" class="stage-offset-input" value="${Number(s.offsetDays)}" style="width: 70px;">
+        </td>
+        <td style="padding: 8px;">
+          <select class="stage-template-input">
+            <option value="due" ${s.template === 'due' ? 'selected' : ''}>📅 Due</option>
+            <option value="overdue" ${s.template === 'overdue' ? 'selected' : ''}>⏳ Overdue</option>
+            <option value="disconnection" ${s.template === 'disconnection' ? 'selected' : ''}>⚠️ Disconnection</option>
+          </select>
+        </td>
+        <td style="padding: 8px; font-size: 11.5px; color: var(--muted, #64748b);">
+          ${escapeHtml(s.description || '')}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  reminderStagesTableBody.innerHTML = rowsHtml;
+}
+
+export function openReminderStagesModal() {
+  renderReminderStagesTable();
+  if (reminderStagesModal?.showModal) reminderStagesModal.showModal();
+  else reminderStagesModal?.setAttribute('open', '');
+}
+
+export function closeReminderStagesModal() {
+  if (reminderStagesModal?.close) reminderStagesModal.close();
+  else reminderStagesModal?.removeAttribute('open');
+}
+
+if (closeReminderStagesModalBtn) closeReminderStagesModalBtn.addEventListener('click', closeReminderStagesModal);
+if (cancelReminderStagesBtn) cancelReminderStagesBtn.addEventListener('click', closeReminderStagesModal);
+
+if (reminderStagesModal) {
+  reminderStagesModal.addEventListener('click', (e) => {
+    if (e.target === reminderStagesModal) closeReminderStagesModal();
+  });
+}
+
+if (resetReminderStagesBtn) {
+  resetReminderStagesBtn.addEventListener('click', () => {
+    resetReminderStagesSettings();
+    renderReminderStagesTable();
+    toast('Reminder stages reset to system defaults.');
+  });
+}
+
+if (saveReminderStagesBtn && reminderStagesTableBody) {
+  saveReminderStagesBtn.addEventListener('click', () => {
+    const rows = reminderStagesTableBody.querySelectorAll('tr[data-stage-id]');
+    const newStages = [];
+    rows.forEach(tr => {
+      const id = tr.getAttribute('data-stage-id');
+      const enabled = tr.querySelector('.stage-enabled-input')?.checked ?? true;
+      const label = tr.querySelector('.stage-label-input')?.value?.trim() || 'Reminder Stage';
+      const offsetDays = parseInt(tr.querySelector('.stage-offset-input')?.value || '0', 10);
+      const template = tr.querySelector('.stage-template-input')?.value || 'due';
+      newStages.push({
+        id,
+        enabled,
+        label,
+        offsetDays: isNaN(offsetDays) ? 0 : offsetDays,
+        template,
+        description: `${offsetDays >= 0 ? '+' + offsetDays : offsetDays} days from due date`
+      });
+    });
+
+    saveReminderStagesSettings(newStages);
+    toast('Reminder stages saved successfully.');
+    closeReminderStagesModal();
+  });
+}
+
+
 
 // ==========================================================================
 // CUSTOMER MONTHLY BILL INVOICE MODAL & ACTIONS
@@ -6439,6 +6989,47 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  // Reminders Queue Today Button from Mobile More Menu
+  const mobileMoreRemindersQueueBtn = $('#mobileMoreRemindersQueueBtn');
+  if (mobileMoreRemindersQueueBtn && !mobileMoreRemindersQueueBtn.dataset.wired) {
+    mobileMoreRemindersQueueBtn.dataset.wired = 'true';
+    mobileMoreRemindersQueueBtn.addEventListener('click', () => {
+      const moreMenu = $('#mobileMoreMenu');
+      if (moreMenu) moreMenu.hidden = true;
+      const res = getRemindersTodayQueue(state);
+      if (!res.queue || res.queue.length === 0) {
+        toast('No customers match reminder stages for today.');
+        return;
+      }
+      openPaymentReminderModal(res.queue[0].customer, {
+        queue: res.queue,
+        index: 0
+      });
+    });
+  }
+
+  // Wada / Promise-to-Pay Follow-up List Button from Mobile More Menu
+  const mobileMoreWadaListBtn = $('#mobileMoreWadaListBtn');
+  if (mobileMoreWadaListBtn && !mobileMoreWadaListBtn.dataset.wired) {
+    mobileMoreWadaListBtn.dataset.wired = 'true';
+    mobileMoreWadaListBtn.addEventListener('click', () => {
+      const moreMenu = $('#mobileMoreMenu');
+      if (moreMenu) moreMenu.hidden = true;
+      openWadaFollowupModal();
+    });
+  }
+
+  // Reminder Stages Configuration Button from Mobile More Menu
+  const mobileMoreReminderStagesBtn = $('#mobileMoreReminderStagesBtn');
+  if (mobileMoreReminderStagesBtn && !mobileMoreReminderStagesBtn.dataset.wired) {
+    mobileMoreReminderStagesBtn.dataset.wired = 'true';
+    mobileMoreReminderStagesBtn.addEventListener('click', () => {
+      const moreMenu = $('#mobileMoreMenu');
+      if (moreMenu) moreMenu.hidden = true;
+      openReminderStagesModal();
+    });
+  }
+
   if (typeof window !== 'undefined') {
     window.billingCorrectnessModalController = billingCorrectnessModalController;
     window.dataIntegrityModalController = dataIntegrityModalController;
@@ -6451,6 +7042,9 @@ if (typeof document !== 'undefined') {
     window.momGrowthModalController = momGrowthModalController;
     window.dailyClosingModalController = dailyClosingModalController;
     window.lateFeeModalController = lateFeeModalController;
+    window.openWadaFollowupModal = openWadaFollowupModal;
+    window.openReminderStagesModal = openReminderStagesModal;
+    window.openPaymentReminderModal = openPaymentReminderModal;
   }
   void refreshStorageSafetyInfo();
 }

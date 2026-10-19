@@ -1957,7 +1957,7 @@ export function downloadHtmlFile(filename, htmlContent, doc = (typeof document !
   }
 }
 
-function escapeHtml(str) {
+export function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
     '&': '&amp;',
     '<': '&lt;',

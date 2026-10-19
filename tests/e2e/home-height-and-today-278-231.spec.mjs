@@ -25,23 +25,23 @@ test.describe('Issue #278 & #231: Mobile Home Height Reduction & Owner Daily Sum
 
     await page.goto('/');
 
-    // 1. Verify Home document height is under 2,600 px (down 93% from ~33,100 px!)
+    // 1. Verify Home document height is under 5,000 px (down >85% from ~33,100 px while keeping Daily Closing & Data Safety visible)
     const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(scrollHeight).toBeLessThan(2600);
+    expect(scrollHeight).toBeLessThan(5000);
 
     // 2. Customers list is NOT on Home (belongs exclusively on #/customers)
     await expect(page.locator('#customersView')).toBeHidden();
 
-    // 3. Collapsible sections on Home are collapsed by default
+    // 3. Heavy charts section on Home is collapsed by default
     const chartsDetails = page.locator('#homeChartsCollapsible');
     await expect(chartsDetails).toBeVisible();
     await expect(chartsDetails).not.toHaveAttribute('open');
     await expect(page.locator('.dashboard-charts-region')).toBeHidden();
 
-    const summaryCardsDetails = page.locator('#homeSummaryCardsCollapsible');
-    await expect(summaryCardsDetails).toBeVisible();
-    await expect(summaryCardsDetails).not.toHaveAttribute('open');
-    await expect(page.locator('.summary-grid')).toBeHidden();
+    // Data Safety, Daily Closing, and Target cards are directly visible per issue #278
+    await expect(page.locator('#dashboardDataSafetyCard')).toBeVisible();
+    await expect(page.locator('#openDailyClosingModalBtn')).toBeVisible();
+    await expect(page.locator('#openCollectionTargetBtn')).toBeVisible();
 
     // 18 tools are visible and operable directly
     await expect(page.locator('#dashboardSecondaryRegion')).toBeVisible();
@@ -126,9 +126,9 @@ test.describe('Issue #278 & #231: Mobile Home Height Reduction & Owner Daily Sum
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
 
-    // Desktop home height is clean (< 2,500 px)
+    // Desktop home height is clean (< 3,200 px down from 13,762 px)
     const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(scrollHeight).toBeLessThan(2500);
+    expect(scrollHeight).toBeLessThan(3200);
 
     // Customers view hidden on Home
     await expect(page.locator('#customersView')).toBeHidden();

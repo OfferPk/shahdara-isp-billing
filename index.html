@@ -482,12 +482,6 @@
         </button>
       </div>
     </div>
-      <details id="homeSummaryCardsCollapsible" class="home-collapsible-section">
-        <summary class="home-collapsible-summary">
-          <span>📈 Secondary Business Metrics &amp; Ledger Cards</span>
-          <span class="collapsible-badge">19 Cards</span>
-          <span class="summary-arrow" aria-hidden="true">▾</span>
-        </summary>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
         <article class="summary-card summary-data-safety" id="dashboardDataSafetyCard">
           <div class="data-safety-card-header">
@@ -539,7 +533,18 @@
         <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost"><p class="summary-label">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
-      </details>
+      <div class="dashboard-target-section" id="dashboardTargetSection" style="margin: 14px 0;">
+        <article class="dashboard-chart-card chart-card-target">
+          <div class="chart-card-header chart-card-header-flex">
+            <div>
+              <h4 class="chart-title">Monthly Collection vs Target</h4>
+              <p class="chart-subtitle">Target achievement, daily run-rate, and month-end projection</p>
+            </div>
+            <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Set / Manage Target</button>
+          </div>
+          <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge"></div>
+        </article>
+      </div>
       <details id="homeChartsCollapsible" class="home-collapsible-section dashboard-charts-collapsible">
         <summary class="home-collapsible-summary">
           <span>📊 Performance &amp; Collection Analytics</span>
@@ -553,16 +558,6 @@
           <p class="dashboard-charts-sub">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
         </div>
         <div class="dashboard-charts-grid">
-          <article class="dashboard-chart-card chart-card-target">
-            <div class="chart-card-header chart-card-header-flex">
-              <div>
-                <h4 class="chart-title">Monthly Collection vs Target</h4>
-                <p class="chart-subtitle">Target achievement, daily run-rate, and month-end projection</p>
-              </div>
-              <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Set / Manage Target</button>
-            </div>
-            <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge"></div>
-          </article>
           <article class="dashboard-chart-card chart-card-trend">
             <div class="chart-card-header chart-card-header-flex">
               <div>

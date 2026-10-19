@@ -90,6 +90,8 @@ test.describe('Payment Receipt Print Layouts Verification', () => {
     const txView = page.locator('#transactionsView');
     await expect(txView).toBeVisible();
 
+    // #298: rows are compact; tap the row to show its print actions.
+    await page.locator('#transactionsList .tx-row').first().click();
     // Verify print buttons exist on transaction card
     const printA4Btn = page.locator('.transaction-actions [data-print-receipt]').first();
     const print80Btn = page.locator('.transaction-actions [data-print-thermal-receipt]').first();

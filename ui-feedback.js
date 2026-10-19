@@ -101,9 +101,42 @@ export function createToastSystem(doc = document, win = window) {
     const inDialog = host !== doc.body;
     stack.classList.toggle('tsx-in-dialog', inDialog);
     if (inDialog) stack.querySelectorAll('.tsx-old').forEach(el => el.remove());
+    if (!inDialog) stack.style.removeProperty('top');
     if (canPopover) {
       try { if (stack.matches(':popover-open')) stack.hidePopover(); stack.showPopover(); } catch { /* not connected yet */ }
     }
+    if (inDialog) avoidDialogControls(host);
+  }
+
+  // #296: inside a dialog, slide the toast to the free band where it covers the fewest controls. Main
+  // actions (Confirm / Save / Undo / submit / close ×) weigh most, so they are never covered when any
+  // other place is free; ties go to the top of the screen.
+  function avoidDialogControls(host) {
+    const toastEl = stack.querySelector('.tsx:not([hidden])');
+    if (!toastEl) return;
+    const vh = win.innerHeight || doc.documentElement.clientHeight;
+    const sr = stack.getBoundingClientRect();
+    const h = Math.max(48, sr.height);
+    const margin = 8;
+    const controls = [...host.querySelectorAll('button, a[href], input, select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !stack.contains(el) && el.getClientRects().length)
+      .map(el => {
+        const r = el.getBoundingClientRect();
+        const main = el.matches('.primary-button, [type="submit"], .close-button, [data-close-dialog], [id$="ConfirmBtn"], [id$="UndoBtn"], [id$="CloseBtn"], [id$="DoneCloseBtn"], .danger-button');
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, w: main ? 50 : 1 };
+      })
+      .filter(r => r.bottom > 0 && r.top < vh && r.right > sr.left && r.left < sr.right);
+    let best = null;
+    for (let y = margin; y + h <= vh - margin; y += 8) {
+      let cost = 0;
+      for (const c of controls) {
+        const ov = Math.min(y + h, c.bottom) - Math.max(y, c.top);
+        if (ov > 0) cost += ov * c.w;
+      }
+      if (!best || cost < best.cost - 0.5) best = { y, cost };
+      if (cost === 0) break;
+    }
+    if (best) stack.style.top = `${Math.round(best.y)}px`;
   }
   doc.addEventListener('close', e => {
     if (e.target?.tagName === 'DIALOG' && e.target.contains(stack)) win.setTimeout(() => { if (!stack.querySelector('.tsx:not([hidden])')) { doc.body.appendChild(stack); if (canPopover) { try { stack.hidePopover(); } catch {} } } else place(); }, 0);
@@ -243,6 +276,7 @@ export function createToastSystem(doc = document, win = window) {
     fill(main, rec, { type, title: opts.title, message: text, actions, duration });
     main.hidden = false;
     place();
+    win.requestAnimationFrame?.(() => { if (stack.classList.contains('tsx-in-dialog')) avoidDialogControls(stack.parentElement); });
     // Restart the progress animation.
     const bar = main.querySelector('.tsx-progress');
     if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; bar.style.animationDuration = `${duration}ms`; }

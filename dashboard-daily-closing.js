@@ -66,7 +66,8 @@ export function isPhysicalCashMethod(method) {
   if (
     m.includes('jazzcash') ||
     m.includes('easypaisa') ||
-    m.includes('bank transfer') ||
+    m.includes('bank') ||
+    m.includes('raast') ||
     m.includes('online') ||
     m.includes('portal')
   ) {

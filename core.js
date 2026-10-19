@@ -4,7 +4,17 @@ import { createBillPackageSnapshot, validateBillPackageSnapshot } from './packag
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
-export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','Bank Transfer','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
+export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
+
+export function isDigitalPaymentMethod(method) {
+  if (!method) return false;
+  const m = String(method).trim().toLowerCase();
+  return m.includes('jazzcash') || m.includes('easypaisa') || m.includes('bank') || m.includes('raast') || m.includes('online');
+}
+
+export function isCashPaymentMethod(method) {
+  return !isDigitalPaymentMethod(method);
+}
 export const MONTH_LIMIT = 24;
 export const STORAGE_KEY = 'shahdara-isp-billing-v1';
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -472,12 +482,23 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
 
-function validatePayment({ date, amount, method, paidBy, discount, discountReason }, referenceDate = new Date()) {
+export function validatePayment(fields, referenceDate = new Date(), options = {}) {
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
   const cents = checkPaymentAmount(amount);
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
+
+  const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
+  const overrideReason = String(referenceOverrideReason ?? '').trim().slice(0, 100);
+
+  if (options.strictDigitalReference || options.enforceDigitalReference) {
+    if (isDigitalPaymentMethod(method) && !ref && !overrideReason) {
+      throw new Error('Transaction ID / last 6 digits is required for digital payments (or provide an override reason).');
+    }
+  }
+
   const payer = String(paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (payer.length > 100) throw new Error('Paid by must be 100 characters or fewer.');
   let validDiscount = 0;
@@ -494,14 +515,91 @@ function validatePayment({ date, amount, method, paidBy, discount, discountReaso
     method,
     ...(payer ? { paidBy:payer } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
-    ...(cleanReason ? { discountReason: cleanReason } : {})
+    ...(cleanReason ? { discountReason: cleanReason } : {}),
+    ...(ref ? { transactionId: ref, reference: ref } : {}),
+    ...(overrideReason ? { referenceOverrideReason: overrideReason } : {}),
+    ...(screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/') ? { screenshot: screenshot.slice(0, 350000) } : {})
   };
 }
 
-export function addPayment(state, customerId, month, fields, referenceDate = new Date()) {
+export function findDuplicatePaymentReference(state, transactionId, excludePaymentId = null) {
+  if (!state || !Array.isArray(state.customers)) return null;
+  const cleanRef = String(transactionId ?? '').trim().toLowerCase();
+  if (!cleanRef) return null;
+
+  for (const customer of state.customers) {
+    for (const bill of (customer.bills ?? [])) {
+      for (const payment of (bill.payments ?? [])) {
+        if (excludePaymentId && payment.id === excludePaymentId) continue;
+        const pRef = String(payment.transactionId ?? payment.reference ?? '').trim().toLowerCase();
+        if (pRef && pRef === cleanRef) {
+          return {
+            customerNumber: customer.customerNumber,
+            customerName: customer.name,
+            customerId: customer.id,
+            billMonth: bill.month,
+            paymentDate: payment.date,
+            amount: payment.amount,
+            method: payment.method,
+            transactionId: payment.transactionId || payment.reference,
+            paymentId: payment.id
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+export function calculateMethodCollectionTotals(state, month = null) {
+  if (!state || !Array.isArray(state.customers)) return { total: 0, cashTotal: 0, digitalTotal: 0, byMethod: {} };
+  let total = 0;
+  let cashTotal = 0;
+  let digitalTotal = 0;
+  const byMethod = {};
+
+  for (const customer of state.customers) {
+    for (const bill of (customer.bills ?? [])) {
+      if (month && bill.month !== month) continue;
+      for (const payment of (bill.payments ?? [])) {
+        if (month && typeof payment.date === 'string' && payment.date.slice(0, 7) !== month) continue;
+        const amt = Number(payment.amount) || 0;
+        const method = String(payment.method || 'Cash').trim();
+        total += amt;
+        if (isDigitalPaymentMethod(method)) {
+          digitalTotal += amt;
+        } else {
+          cashTotal += amt;
+        }
+        if (!byMethod[method]) {
+          byMethod[method] = { amount: 0, count: 0, isDigital: isDigitalPaymentMethod(method) };
+        }
+        byMethod[method].amount += amt;
+        byMethod[method].count += 1;
+      }
+    }
+  }
+
+  return {
+    total,
+    cashTotal,
+    digitalTotal,
+    Cash: byMethod['Cash']?.amount ?? 0,
+    JazzCash: byMethod['JazzCash']?.amount ?? 0,
+    Easypaisa: byMethod['Easypaisa']?.amount ?? 0,
+    Raast: byMethod['Raast']?.amount ?? 0,
+    Bank: (byMethod['Bank']?.amount ?? 0) + (byMethod['Bank Transfer']?.amount ?? 0),
+    other: Object.entries(byMethod)
+      .filter(([m]) => !['Cash', 'JazzCash', 'Easypaisa', 'Raast', 'Bank', 'Bank Transfer'].includes(m))
+      .reduce((s, [, v]) => s + v.amount, 0),
+    byMethod
+  };
+}
+
+export function addPayment(state, customerId, month, fields, referenceDate = new Date(), options = {}) {
   checkMonth(month, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
-  const payment = { id: makeId(), ...validatePayment(fields, referenceDate) };
+  const payment = { id: makeId(), ...validatePayment(fields, referenceDate, options) };
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');

@@ -27,7 +27,8 @@ export const STORAGE_KEYS_CATALOG = Object.freeze([
   { key: 'shahdara_billing_correctness_audits_v1', label: 'Billing Correctness Audit Log', critical: false, category: 'audit' },
   { key: 'shahdara_data_integrity_audits_v1', label: 'Data Integrity Audit & Repair Log', critical: false, category: 'audit' },
   { key: 'shahdara_theme', label: 'User Theme Preference (Light/Dark)', critical: false, category: 'ui' },
-  { key: 'shahdara_language', label: 'User Language Preference (English/Urdu)', critical: false, category: 'ui' }
+  { key: 'shahdara_language', label: 'User Language Preference (English/Urdu)', critical: false, category: 'ui' },
+  { key: 'shahdara_digital_payments_settings_v1', label: 'Owner Digital Payment QR & Till Settings', critical: false, category: 'billing' }
 ]);
 
 /**

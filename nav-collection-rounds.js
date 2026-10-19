@@ -14,7 +14,19 @@
 
 export const FIELD_ROUTE_PROGRESS_KEY = 'shahdara_field_route_progress';
 export const FIELD_ROUTE_NOTES_KEY = 'shahdara_field_route_notes';
+export const FIELD_ROUTE_OUTCOMES_KEY = 'shahdara_field_route_outcomes';
+export const FIELD_ROUTE_ORDER_KEY = 'shahdara_field_route_order';
+export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
+
+export const FIELD_ROUTE_OUTCOMES = Object.freeze({
+  PENDING: 'pending',
+  PAID: 'paid',
+  PARTIAL: 'partial',
+  PROMISED: 'promised',
+  NOT_HOME: 'not_home',
+  REFUSED: 'refused'
+});
 
 /**
  * Returns today's date formatted as YYYY-MM-DD in Pakistan Standard Time (Asia/Karachi).
@@ -196,6 +208,217 @@ export function saveFieldRouteNote(customerId, note, storage, dateStr) {
 }
 
 /**
+ * Retrieves recorded field route visit outcomes for the specified date.
+ * @param {Storage|object} [storage]
+ * @param {string} [dateStr]
+ * @returns {Record<string, { outcome: string, promiseDate?: string|null, promiseAmount?: number|null, note?: string, timestamp?: string }>}
+ */
+export function getFieldRouteOutcomes(storage, dateStr) {
+  const targetDate = dateStr || getTodayDateString();
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.getItem !== 'function') {
+    return {};
+  }
+  try {
+    const raw = store.getItem(FIELD_ROUTE_OUTCOMES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.date === targetDate && typeof parsed.outcomes === 'object' && parsed.outcomes !== null) {
+      return parsed.outcomes;
+    }
+    if (parsed && typeof parsed === 'object' && parsed[targetDate] && typeof parsed[targetDate] === 'object') {
+      return parsed[targetDate];
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Saves a structured visit outcome (paid, partial, promised, not_home, refused) for a customer stop.
+ * Automatically synchronizes with stop collection status and collection promises.
+ *
+ * @param {string} customerId
+ * @param {string|object} outcomeData - 'paid'|'partial'|'promised'|'not_home'|'refused' or object
+ * @param {Storage|object} [storage]
+ * @param {string} [dateStr]
+ * @param {object} [options]
+ * @returns {object} Updated customer outcome record
+ */
+export function saveFieldRouteOutcome(customerId, outcomeData, storage, dateStr, options = {}) {
+  const targetDate = dateStr || getTodayDateString();
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const currentOutcomes = getFieldRouteOutcomes(store, targetDate);
+
+  let rawOutcome = typeof outcomeData === 'string' ? outcomeData : (outcomeData?.outcome || 'pending');
+  rawOutcome = String(rawOutcome).trim().toLowerCase();
+
+  const validOutcomes = ['pending', 'paid', 'partial', 'promised', 'not_home', 'refused'];
+  const outcome = validOutcomes.includes(rawOutcome) ? rawOutcome : 'pending';
+
+  const noteVal = typeof outcomeData === 'object'
+    ? String(outcomeData?.note || outcomeData?.visitNote || '').trim()
+    : '';
+
+  const nowIso = new Date().toISOString();
+  const record = {
+    outcome,
+    promiseDate: typeof outcomeData === 'object' && outcomeData?.promiseDate ? String(outcomeData.promiseDate) : null,
+    promiseAmount: typeof outcomeData === 'object' && outcomeData?.promiseAmount ? Math.max(0, Number(outcomeData.promiseAmount)) : null,
+    note: noteVal,
+    visitNote: noteVal,
+    amount: typeof outcomeData === 'object' && outcomeData?.amount ? Number(outcomeData.amount) : null,
+    timestamp: nowIso
+  };
+
+  if (outcome === 'pending') {
+    delete currentOutcomes[customerId];
+  } else {
+    currentOutcomes[customerId] = record;
+  }
+
+  const payload = {
+    date: targetDate,
+    outcomes: currentOutcomes
+  };
+
+  if (store && typeof store.setItem === 'function') {
+    try {
+      store.setItem(FIELD_ROUTE_OUTCOMES_KEY, JSON.stringify(payload));
+    } catch {}
+  }
+
+  // Synchronize with markRouteStopCollected
+  if (outcome === 'paid' || outcome === 'partial') {
+    markRouteStopCollected(customerId, true, store, targetDate);
+  } else {
+    markRouteStopCollected(customerId, false, store, targetDate);
+  }
+
+  // If promised, also synchronize with collection promises storage
+  if (outcome === 'promised' && record.promiseDate && store && typeof store.getItem === 'function') {
+    try {
+      const rawPromises = store.getItem(COLLECTION_PROMISES_STORAGE_KEY);
+      const promisesList = rawPromises ? JSON.parse(rawPromises) : [];
+      const custObj = options.customer || {};
+      const promiseId = `prom-${customerId}-${targetDate}`;
+
+      const promiseEntry = {
+        id: promiseId,
+        customerId: String(customerId),
+        customerNumber: custObj.customerNumber != null ? Number(custObj.customerNumber) : null,
+        customerName: String(custObj.name || options.name || 'Subscriber').trim(),
+        phone: String(custObj.phone || options.phone || '').trim(),
+        area: String(custObj.area || custObj.sector || options.area || '').trim(),
+        promisedDate: record.promiseDate,
+        promisedAmount: record.promiseAmount || Math.max(0, Number(custObj.totalDue || 0)),
+        note: record.note || 'Promise recorded on route visit',
+        status: 'pending',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        fulfilledAt: null,
+        fulfilledPaymentId: null
+      };
+
+      const existingIdx = Array.isArray(promisesList)
+        ? promisesList.findIndex(p => p.id === promiseId || (p.customerId === customerId && p.status === 'pending'))
+        : -1;
+      if (existingIdx >= 0) {
+        promisesList[existingIdx] = { ...promisesList[existingIdx], ...promiseEntry };
+      } else if (Array.isArray(promisesList)) {
+        promisesList.push(promiseEntry);
+      }
+      store.setItem(COLLECTION_PROMISES_STORAGE_KEY, JSON.stringify(promisesList));
+    } catch {}
+  }
+
+  return currentOutcomes[customerId] || { outcome: 'pending' };
+}
+
+/**
+ * Retrieves the custom ordered stop customer IDs for a sector.
+ * @param {string} [sector='All']
+ * @param {Storage|object} [storage]
+ * @returns {Array<string>}
+ */
+export function getFieldRouteCustomOrder(sector = 'All', storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.getItem !== 'function') return [];
+  try {
+    const raw = store.getItem(FIELD_ROUTE_ORDER_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      const key = sector || 'All';
+      return Array.isArray(parsed[key]) ? parsed[key] : [];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves the custom ordered stop customer IDs for a sector.
+ * @param {string} [sector='All']
+ * @param {Array<string>} orderedIds
+ * @param {Storage|object} [storage]
+ * @returns {Array<string>}
+ */
+export function saveFieldRouteCustomOrder(sector = 'All', orderedIds = [], storage) {
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store || typeof store.setItem !== 'function') return orderedIds;
+  try {
+    let currentMap = {};
+    const raw = store.getItem(FIELD_ROUTE_ORDER_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') currentMap = parsed;
+    }
+    currentMap[sector || 'All'] = Array.isArray(orderedIds) ? orderedIds : [];
+    store.setItem(FIELD_ROUTE_ORDER_KEY, JSON.stringify(currentMap));
+    return currentMap[sector || 'All'];
+  } catch {
+    return orderedIds;
+  }
+}
+
+/**
+ * Moves a customer stop up or down in the route order for a sector.
+ * @param {string} customerId
+ * @param {'up'|'down'} direction
+ * @param {string} [sector='All']
+ * @param {Array<string>} [fallbackOrder=[]]
+ * @param {Storage|object} [storage]
+ * @returns {Array<string>}
+ */
+export function moveRouteStop(customerId, direction, sector = 'All', fallbackOrder = [], storage) {
+  const currentOrder = getFieldRouteCustomOrder(sector, storage);
+  let orderList = currentOrder.length > 0 ? [...currentOrder] : [...fallbackOrder];
+
+  if (!orderList.includes(customerId)) {
+    orderList.push(customerId);
+  }
+
+  const idx = orderList.indexOf(customerId);
+  if (idx < 0) return orderList;
+
+  if (direction === 'up' && idx > 0) {
+    const temp = orderList[idx - 1];
+    orderList[idx - 1] = orderList[idx];
+    orderList[idx] = temp;
+  } else if (direction === 'down' && idx < orderList.length - 1) {
+    const temp = orderList[idx + 1];
+    orderList[idx + 1] = orderList[idx];
+    orderList[idx] = temp;
+  }
+
+  saveFieldRouteCustomOrder(sector, orderList, storage);
+  return orderList;
+}
+
+/**
  * Calculates field collection routes, prioritizing accounts with outstanding dues,
  * grouping by area/mohalla, and evaluating real-time progress.
  *
@@ -225,6 +448,12 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
   const progress = getFieldRouteProgress(storage, dateStr);
   const collectedSet = new Set(progress.collectedIds || []);
   const notesMap = getFieldRouteNotes(storage, dateStr);
+  const outcomesMap = getFieldRouteOutcomes(storage, dateStr);
+  const customOrder = getFieldRouteCustomOrder(selectedSector, storage);
+  const customOrderMap = new Map();
+  if (Array.isArray(customOrder)) {
+    customOrder.forEach((id, idx) => customOrderMap.set(id, idx));
+  }
 
   const allSectors = new Set();
   const allAreas = new Set();
@@ -250,6 +479,9 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
           }
         }
       }
+    } else if (c.balance != null || c.totalDue != null) {
+      totalDue = Math.max(0, Number(c.balance || c.totalDue || 0));
+      if (totalDue > 0) overdueBillsCount = 1;
     }
 
     const areaName = (c.area || 'Unassigned').trim();
@@ -264,6 +496,13 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     }
 
     const isCollected = collectedSet.has(c.id);
+    const outcomeData = outcomesMap[c.id];
+    const outcome = outcomeData?.outcome || (isCollected ? 'paid' : 'pending');
+    const promiseDate = outcomeData?.promiseDate || null;
+    const promiseAmount = outcomeData?.promiseAmount != null ? outcomeData.promiseAmount : null;
+    const visitNote = outcomeData?.note || notesMap[c.id] || '';
+    const visitTimestamp = outcomeData?.timestamp || null;
+
     const isOffline = c.status === 'offline';
     const isSuspended = c.status === 'suspended';
 
@@ -330,7 +569,12 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
       unpaidMonthsCount,
       earliestUnpaidMonth,
       isCollected,
-      fieldNote: notesMap[c.id] || '',
+      outcome,
+      promiseDate,
+      promiseAmount,
+      visitNote,
+      visitTimestamp,
+      fieldNote: visitNote || notesMap[c.id] || '',
       urgencyScore
     });
   }
@@ -345,10 +589,25 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     if (selectedMohalla && stop.mohalla !== selectedMohalla) {
       return false;
     }
-    if (filterTab === 'pending' && stop.isCollected) {
+    if (filterTab === 'pending' && (stop.isCollected || stop.outcome === 'paid' || stop.outcome === 'partial')) {
       return false;
     }
-    if (filterTab === 'collected' && !stop.isCollected) {
+    if (filterTab === 'collected' && !stop.isCollected && stop.outcome !== 'paid' && stop.outcome !== 'partial') {
+      return false;
+    }
+    if (filterTab === 'paid' && stop.outcome !== 'paid') {
+      return false;
+    }
+    if (filterTab === 'partial' && stop.outcome !== 'partial') {
+      return false;
+    }
+    if (filterTab === 'promised' && stop.outcome !== 'promised') {
+      return false;
+    }
+    if (filterTab === 'not_home' && stop.outcome !== 'not_home') {
+      return false;
+    }
+    if (filterTab === 'refused' && stop.outcome !== 'refused') {
       return false;
     }
     if (filterQuery) {
@@ -368,6 +627,12 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
   });
 
   filteredStops.sort((a, b) => {
+    if (sortBy === 'manual' || (sortBy === 'custom' && customOrderMap.size > 0)) {
+      const idxA = customOrderMap.has(a.id) ? customOrderMap.get(a.id) : 999999;
+      const idxB = customOrderMap.has(b.id) ? customOrderMap.get(b.id) : 999999;
+      if (idxA !== idxB) return idxA - idxB;
+      return b.urgencyScore - a.urgencyScore;
+    }
     if (sortBy === 'priority') {
       if (a.isCollected !== b.isCollected) {
         return a.isCollected ? 1 : -1;
@@ -396,9 +661,11 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     return 0;
   });
 
-  filteredStops = filteredStops.map((stop, index) => ({
+  filteredStops = filteredStops.map((stop, index, arr) => ({
     ...stop,
-    stopNumber: index + 1
+    stopNumber: index + 1,
+    canMoveUp: index > 0,
+    canMoveDown: index < arr.length - 1
   }));
 
   const totalStops = filteredStops.length;
@@ -408,7 +675,7 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
 
   for (const s of filteredStops) {
     totalDue += s.totalDue;
-    if (s.isCollected) {
+    if (s.isCollected || s.outcome === 'paid' || s.outcome === 'partial') {
       collectedStops++;
       collectedAmount += s.totalDue;
     }
@@ -423,6 +690,30 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     : collectedStops > 0
     ? 'IN_PROGRESS'
     : 'NOT_STARTED';
+
+  // Calculate outcome breakdowns across sector stops
+  const outcomesCount = {
+    all: 0,
+    pending: 0,
+    paid: 0,
+    partial: 0,
+    promised: 0,
+    not_home: 0,
+    refused: 0
+  };
+
+  for (const s of candidateStops) {
+    if (selectedSector !== 'All' && s.sector !== selectedSector && s.area !== selectedSector) {
+      continue;
+    }
+    outcomesCount.all++;
+    if (s.outcome === 'paid') outcomesCount.paid++;
+    else if (s.outcome === 'partial') outcomesCount.partial++;
+    else if (s.outcome === 'promised') outcomesCount.promised++;
+    else if (s.outcome === 'not_home') outcomesCount.not_home++;
+    else if (s.outcome === 'refused') outcomesCount.refused++;
+    else outcomesCount.pending++;
+  }
 
   // Area & Sector breakdowns for filtering & analytics
   const sectorMap = new Map();
@@ -464,6 +755,8 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     sortBy,
     filterQuery,
     filterTab,
+    outcomesCount,
+
     totalStops,
     totalDue,
     collectedStops,
@@ -510,9 +803,20 @@ export function generateFieldRouteManifestText(routeData, options = {}) {
     lines.push(`No pending collection stops for this route.`);
   } else {
     routeData.stops.forEach((stop) => {
-      const statusIcon = stop.isCollected ? '✅ [COLLECTED]' : stop.isOffline ? '🔴 [OFFLINE]' : '⚪ [PENDING]';
+      let statusIcon = '⚪ [PENDING]';
+      if (stop.outcome === 'paid') statusIcon = '✅ [PAID]';
+      else if (stop.outcome === 'partial') statusIcon = '½ [PARTIAL]';
+      else if (stop.outcome === 'promised') statusIcon = `🤝 [PROMISED${stop.promiseDate ? ` ${stop.promiseDate}` : ''}]`;
+      else if (stop.outcome === 'not_home') statusIcon = '🚪 [NOT HOME]';
+      else if (stop.outcome === 'refused') statusIcon = '✕ [REFUSED]';
+      else if (stop.isCollected) statusIcon = '✅ [COLLECTED]';
+      else if (stop.isOffline) statusIcon = '🔴 [OFFLINE]';
+
       lines.push(`${stop.stopNumber}. ${statusIcon} ${stop.name} (@${stop.username})`);
       lines.push(`   💰 Due: Rs. ${Number(stop.totalDue || 0).toLocaleString()} | 📞 ${stop.phone || 'No phone'}`);
+      if (stop.visitNote) {
+        lines.push(`   📝 Visit Note: ${stop.visitNote}`);
+      }
       lines.push(`   🏠 ${stop.address} [${stop.sector}]`);
     });
   }
@@ -716,7 +1020,8 @@ export function setupFieldRouteSheet({
         if (emptyState) emptyState.hidden = true;
         routeData.stops.forEach(stop => {
           const card = createSafeElement('div');
-          card.className = `route-card${stop.isCollected ? ' is-collected' : ''}`;
+          const isStopCollected = stop.isCollected || stop.outcome === 'paid' || stop.outcome === 'partial';
+          card.className = `route-card${isStopCollected ? ' is-collected' : ''}`;
           card.setAttribute('data-customer-id', stop.id);
 
           const statusBadge = stop.isOffline
@@ -725,9 +1030,34 @@ export function setupFieldRouteSheet({
             ? '<span class="role-badge role-danger">Suspended</span>'
             : '<span class="role-badge role-primary">Active</span>';
 
+          const outcome = stop.outcome || (isStopCollected ? 'paid' : 'pending');
+          const outcomeBadge = outcome === 'paid'
+            ? '<span class="role-badge role-primary" style="background: #047857; color: white;">✓ Paid</span>'
+            : outcome === 'partial'
+            ? '<span class="role-badge" style="background: #0284c7; color: white;">½ Partial</span>'
+            : outcome === 'promised'
+            ? '<span class="role-badge" style="background: #b45309; color: white;">🤝 Promised</span>'
+            : outcome === 'not_home'
+            ? '<span class="role-badge" style="background: #64748b; color: white;">🚪 Not Home</span>'
+            : outcome === 'refused'
+            ? '<span class="role-badge" style="background: #dc2626; color: white;">✕ Refused</span>'
+            : '';
+
           const whatsappAction = stop.whatsappReminderUrl || stop.whatsappUrl
             ? `<a href="${escapeHtml(stop.whatsappReminderUrl || stop.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="action-btn-sm" aria-label="WhatsApp reminder for ${escapeHtml(stop.name)}">💬 WhatsApp</a>`
             : `<button type="button" class="action-btn-sm" data-copy-reminder="${escapeHtml(stop.id)}" aria-label="Copy reminder text for ${escapeHtml(stop.name)}">📋 Reminder</button>`;
+
+          const promiseDetails = (outcome === 'promised' && stop.promiseDate)
+            ? `<div class="route-stop-promise-info" style="margin-top: 4px; font-size: 11px; color: #b45309; font-weight: 600;">
+                 📅 Promised Date: ${escapeHtml(stop.promiseDate)}${stop.promiseAmount ? ` · Rs. ${Number(stop.promiseAmount).toLocaleString()}` : ''}
+               </div>`
+            : '';
+
+          const visitNoteInfo = (stop.visitNote)
+            ? `<div class="route-stop-note-info" style="margin-top: 2px; font-size: 11px; color: #475569; font-style: italic;">
+                 📝 Note: ${escapeHtml(stop.visitNote)}
+               </div>`
+            : '';
 
           card.innerHTML = `
             <div class="route-card-left">
@@ -736,12 +1066,14 @@ export function setupFieldRouteSheet({
                 <span class="route-card-name">${escapeHtml(stop.name)}</span>
                 <span class="route-card-username">@${escapeHtml(stop.username)}</span>
                 ${statusBadge}
-                ${stop.isCollected ? '<span class="role-badge role-primary" style="background: #047857; color: white;">✓ Collected</span>' : ''}
+                ${outcomeBadge}
               </div>
               <div class="route-card-meta">
                 <span class="route-card-addr">📍 ${escapeHtml(stop.address)} [${escapeHtml(stop.sector)}]</span>
                 <span class="route-card-due">💰 Due: <strong>Rs. ${Number(stop.totalDue).toLocaleString()}</strong></span>
               </div>
+              ${promiseDetails}
+              ${visitNoteInfo}
               <div class="route-card-contact-row">
                 ${stop.phoneUrl ? `<a href="${stop.phoneUrl}" class="action-btn-sm" aria-label="Call ${escapeHtml(stop.name)}">📞 Call</a>` : ''}
                 ${whatsappAction}
@@ -749,14 +1081,27 @@ export function setupFieldRouteSheet({
               </div>
             </div>
             <div class="route-card-right">
-              <label class="route-stop-toggle-label">
-                <input type="checkbox" class="route-stop-checkbox" data-stop-toggle="${escapeHtml(stop.id)}" ${stop.isCollected ? 'checked' : ''}>
-                <span>Collected</span>
-              </label>
-              <button type="button" class="action-btn-sm primary-sm" data-stop-collect="${escapeHtml(stop.id)}">Receive Cash</button>
-              <button type="button" class="action-btn-sm" data-stop-quick-profile="${escapeHtml(stop.id)}">ℹ️ Profile</button>
+              <div class="route-outcome-actions" style="display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 6px;">
+                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'paid' ? 'is-active' : ''}" data-set-outcome="paid" data-customer-id="${escapeHtml(stop.id)}" title="Customer Paid in Full">Paid</button>
+                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'partial' ? 'is-active' : ''}" data-set-outcome="partial" data-customer-id="${escapeHtml(stop.id)}" title="Partial Payment">Partial</button>
+                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'promised' ? 'is-active' : ''}" data-set-outcome="promised" data-customer-id="${escapeHtml(stop.id)}" title="Customer Promised (Wada)">Promised</button>
+                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'not_home' ? 'is-active' : ''}" data-set-outcome="not_home" data-customer-id="${escapeHtml(stop.id)}" title="Customer Not at Home">Not Home</button>
+                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'refused' ? 'is-active' : ''}" data-set-outcome="refused" data-customer-id="${escapeHtml(stop.id)}" title="Customer Refused / Dispute">Refused</button>
+              </div>
+              <div class="route-action-buttons-row" style="display: flex; gap: 4px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
+                <button type="button" class="action-btn-xs route-reorder-btn" data-move-stop="up" data-customer-id="${escapeHtml(stop.id)}" ${!stop.canMoveUp ? 'disabled' : ''} title="Move Stop Up">▲</button>
+                <button type="button" class="action-btn-xs route-reorder-btn" data-move-stop="down" data-customer-id="${escapeHtml(stop.id)}" ${!stop.canMoveDown ? 'disabled' : ''} title="Move Stop Down">▼</button>
+                <label class="route-stop-toggle-label" style="display: inline-flex; align-items: center; gap: 3px; font-size: 11px;">
+                  <input type="checkbox" class="route-stop-checkbox" data-stop-toggle="${escapeHtml(stop.id)}" ${isStopCollected ? 'checked' : ''}>
+                  <span>Done</span>
+                </label>
+                <button type="button" class="action-btn-sm primary-sm" data-stop-collect="${escapeHtml(stop.id)}">Receive Cash</button>
+                <button type="button" class="action-btn-sm" data-stop-quick-profile="${escapeHtml(stop.id)}">ℹ️ Profile</button>
+                <button type="button" class="action-btn-sm" data-stop-note-btn="${escapeHtml(stop.id)}">📝 Note</button>
+              </div>
             </div>
           `;
+
 
           stopsList.appendChild(card);
         });
@@ -860,6 +1205,121 @@ export function setupFieldRouteSheet({
           }
         }
         return;
+      }
+
+      // 6. Set visit outcome (Paid, Partial, Promised, Not Home, Refused)
+      const outcomeBtn = e.target.closest('[data-set-outcome]');
+      if (outcomeBtn) {
+        const outcome = outcomeBtn.getAttribute('data-set-outcome');
+        const custId = outcomeBtn.getAttribute('data-customer-id');
+        const stop = lastRouteData?.stops?.find(s => s.id === custId);
+        if (outcome === 'promised') {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const defDate = getTodayDateString(tomorrow);
+          const promiseDateInput = (typeof window !== 'undefined' && typeof window.prompt === 'function')
+            ? window.prompt(`Enter promise date (YYYY-MM-DD) for ${stop?.name || 'Customer'}:`, defDate)
+            : defDate;
+          if (promiseDateInput && promiseDateInput.trim()) {
+            const noteInput = (typeof window !== 'undefined' && typeof window.prompt === 'function')
+              ? (window.prompt('Promise note / remarks (optional):', 'Will pay on visit') || '')
+              : '';
+            saveFieldRouteOutcome(custId, {
+              outcome: 'promised',
+              promiseDate: promiseDateInput.trim(),
+              promiseAmount: stop?.totalDue,
+              note: noteInput
+            }, storage, undefined, { customer: stop });
+            if (typeof onToast === 'function') onToast(`Recorded promise for ${stop?.name || 'Customer'}`);
+          }
+        } else {
+          saveFieldRouteOutcome(custId, outcome, storage, undefined, { customer: stop });
+          if (typeof onToast === 'function') {
+            const labels = {
+              paid: 'Stop marked as Paid (Full)',
+              partial: 'Stop marked as Partial Payment',
+              not_home: 'Stop marked as Not at Home',
+              refused: 'Stop marked as Refused / Disputed'
+            };
+            onToast(labels[outcome] || `Outcome updated to ${outcome}`);
+          }
+        }
+        triggerHaptic('light');
+        updateUi();
+        return;
+      }
+
+      // 7. Reorder stop (Up / Down)
+      const moveBtn = e.target.closest('[data-move-stop]');
+      if (moveBtn) {
+        const dir = moveBtn.getAttribute('data-move-stop');
+        const custId = moveBtn.getAttribute('data-customer-id');
+        const sec = sectorFilter ? sectorFilter.value : 'All';
+        const fallbackIds = (lastRouteData?.stops || []).map(s => s.id);
+        moveRouteStop(custId, dir, sec, fallbackIds, storage);
+        if (sortFilter) sortFilter.value = 'manual';
+        triggerHaptic('selection');
+        updateUi();
+        return;
+      }
+
+      // 8. Add / Edit Stop Note
+      const noteBtn = e.target.closest('[data-stop-note-btn]');
+      if (noteBtn) {
+        const custId = noteBtn.getAttribute('data-stop-note-btn');
+        const stop = lastRouteData?.stops?.find(s => s.id === custId);
+        const existingNote = stop?.visitNote || stop?.fieldNote || '';
+        const newNote = (typeof window !== 'undefined' && typeof window.prompt === 'function')
+          ? window.prompt(`Field note for ${stop?.name || 'Customer'}:`, existingNote)
+          : null;
+        if (newNote !== null) {
+          saveFieldRouteNote(custId, newNote, storage);
+          if (stop?.outcome && stop.outcome !== 'pending') {
+            saveFieldRouteOutcome(custId, { ...stop, outcome: stop.outcome, note: newNote }, storage, undefined, { customer: stop });
+          }
+          triggerHaptic('light');
+          updateUi();
+          if (typeof onToast === 'function') onToast(`Note saved for ${stop?.name || 'Customer'}`);
+        }
+        return;
+      }
+    });
+  }
+
+  // Filter tabs click wiring
+  const routeTabs = modal && typeof modal.querySelectorAll === 'function'
+    ? modal.querySelectorAll('[data-route-tab]')
+    : [];
+  routeTabs.forEach(tabBtn => {
+    if (!tabBtn.dataset?.wiredRouteTab) {
+      tabBtn.dataset.wiredRouteTab = 'true';
+      tabBtn.addEventListener('click', () => {
+        const tab = tabBtn.getAttribute('data-route-tab') || 'all';
+        currentFilterTab = tab;
+        routeTabs.forEach(t => {
+          const isSelected = t === tabBtn;
+          t.classList.toggle('is-active', isSelected);
+          t.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+        });
+        triggerHaptic('selection');
+        updateUi();
+      });
+    }
+  });
+
+  // Open Daily Closing Cash Handover from Field Route Sheet
+  const handoverFromRouteBtn = document.getElementById('openHandoverFromRouteBtn');
+  if (handoverFromRouteBtn && !handoverFromRouteBtn.dataset?.wiredRoute) {
+    handoverFromRouteBtn.dataset.wiredRoute = 'true';
+    handoverFromRouteBtn.addEventListener('click', () => {
+      close();
+      const dcModal = document.getElementById('dailyClosingModal');
+      if (dcModal && typeof dcModal.showModal === 'function') {
+        dcModal.showModal();
+        const sec = document.getElementById('dailyClosingHandoverSection');
+        if (sec && typeof sec.scrollIntoView === 'function') {
+          setTimeout(() => sec.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
       }
     });
   }

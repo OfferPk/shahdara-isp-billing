@@ -4115,17 +4115,26 @@ export function setupFieldDiagnosticsModal(options = {}) {
 export {
   FIELD_ROUTE_PROGRESS_KEY,
   FIELD_ROUTE_NOTES_KEY,
+  FIELD_ROUTE_OUTCOMES_KEY,
+  FIELD_ROUTE_ORDER_KEY,
+  FIELD_ROUTE_OUTCOMES,
   getTodayDateString,
   getFieldRouteProgress,
   markRouteStopCollected,
   clearFieldRouteProgress,
   getFieldRouteNotes,
   saveFieldRouteNote,
+  getFieldRouteOutcomes,
+  saveFieldRouteOutcome,
+  getFieldRouteCustomOrder,
+  saveFieldRouteCustomOrder,
+  moveRouteStop,
   calculateFieldCollectionRoutes,
   generateFieldRouteManifestText,
   generateFieldRouteSlipHtml,
   setupFieldRouteSheet
 } from './nav-collection-rounds.js';
+
 
 
 /* ==========================================================================

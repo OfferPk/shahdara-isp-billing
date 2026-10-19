@@ -7808,6 +7808,7 @@
           <select id="routeSortFilter" class="route-select">
             <option value="priority" selected>Smart Priority (Urgent &amp; High Balance)</option>
             <option value="due-high">Highest Balance First</option>
+            <option value="manual">Custom Route Order (Saved)</option>
             <option value="area">Area / Sector Cluster</option>
             <option value="offline-first">Offline / Disconnected First</option>
             <option value="name">Customer Name (A-Z)</option>
@@ -7824,6 +7825,9 @@
         <button type="button" class="route-filter-tab is-active" data-route-tab="all" role="tab" aria-selected="true">All Stops</button>
         <button type="button" class="route-filter-tab" data-route-tab="pending" role="tab" aria-selected="false">⏳ Pending</button>
         <button type="button" class="route-filter-tab" data-route-tab="collected" role="tab" aria-selected="false">✅ Collected</button>
+        <button type="button" class="route-filter-tab" data-route-tab="promised" role="tab" aria-selected="false">🤝 Promised</button>
+        <button type="button" class="route-filter-tab" data-route-tab="not_home" role="tab" aria-selected="false">🚪 Not Home</button>
+        <button type="button" class="route-filter-tab" data-route-tab="refused" role="tab" aria-selected="false">✕ Refused</button>
       </div>
 
       <!-- Route Stops List -->
@@ -7840,6 +7844,7 @@
       <!-- Action Footer -->
       <div class="modal-form-actions route-modal-actions">
         <button id="resetRouteProgressBtn" class="secondary-button" type="button" title="Reset collected status for today">↺ Reset Today's Route</button>
+        <button id="openHandoverFromRouteBtn" class="secondary-button" type="button" title="Open end-of-day cash handover reconciliation">🤝 Cash Handover</button>
         <button id="printRouteSlipBtn" class="secondary-button" type="button">🖨️ Print Route Slip</button>
         <button id="copyRouteManifestBtn" class="secondary-button" type="button">📋 Copy Manifest</button>
         <button id="shareRouteWhatsappBtn" class="primary-button" type="button">💬 WhatsApp Dispatch</button>
@@ -19939,8 +19944,67 @@
           </div>
         </div>
 
+        <!-- End-of-Day Collector Cash Handover & Variance Audit Section -->
+        <div id="dailyClosingHandoverSection" class="daily-closing-handover-wrap" style="border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 12px; background: var(--bg-surface, #f8fafc); margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px;">
+            <div>
+              <h3 style="font-size: 13px; font-weight: 700; margin: 0; color: #0e5b4d;">🤝 End-of-Day Cash Handover &amp; Variance Audit</h3>
+              <span class="urdu-subtitle" style="font-size: 11px; color: #64748b;">کلیکشن ہینڈ اوور، متوقع بنام وصول شدہ کیش اور فرق کی جانچ پڑتال</span>
+            </div>
+            <div id="handoverVarianceBadge" class="badge" style="font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; background: #dcfce7; color: #166534;">
+              PKR 0 (Exact Match / متوازن)
+            </div>
+          </div>
+
+          <div id="handoverStatusBanner" hidden style="background: #f1f5f9; border-left: 4px solid #0e5b4d; padding: 8px 12px; border-radius: 4px; margin-bottom: 10px; font-size: 12px;"></div>
+
+          <div class="handover-form-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 10px;">
+            <div class="form-group" style="margin: 0;">
+              <label for="handoverCollectorSelect" style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Collector / Point:</label>
+              <select id="handoverCollectorSelect" class="form-select" style="width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 4px;">
+                <option value="All Physical Cash / General Till">All Physical Cash / General Till</option>
+              </select>
+            </div>
+
+            <div class="form-group" style="margin: 0;">
+              <span style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Expected Cash (Ledger):</span>
+              <div id="handoverExpectedCashDisplay" style="padding: 6px 8px; font-size: 13px; font-weight: 700; color: #0e5b4d; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; min-height: 30px; display: flex; align-items: center;">PKR 0</div>
+            </div>
+
+            <div class="form-group" style="margin: 0;">
+              <label for="handoverCountedCashInput" style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Counted Cash Turned In (PKR):</label>
+              <input type="number" id="handoverCountedCashInput" class="form-input" min="0" step="any" placeholder="Enter physical cash counted" style="width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 4px; font-weight: 700;">
+            </div>
+
+            <div class="form-group" style="margin: 0;">
+              <label for="handoverToInput" style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Handed Over To (Supervisor):</label>
+              <input type="text" id="handoverToInput" class="form-input" value="Owner" placeholder="e.g. Owner / Bilal" style="width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 4px;">
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label for="handoverNotesInput" style="font-size: 11px; font-weight: 600; display: block; margin-bottom: 4px;">Handover Notes &amp; Variance Reason (if any):</label>
+            <input type="text" id="handoverNotesInput" class="form-input" placeholder="e.g. Rs. 500 advance given for petrol, all 14 stops completed" style="width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 4px;">
+          </div>
+
+          <div id="handoverCorrectionWrap" hidden style="background: #fffbeb; border: 1px solid #fde68a; padding: 8px 12px; border-radius: 6px; margin-bottom: 10px;">
+            <label for="handoverCorrectionReasonInput" style="font-size: 11px; font-weight: 700; color: #92400e; display: block; margin-bottom: 4px;">⚠️ Correction Reason (Required to modify signed-off handover):</label>
+            <input type="text" id="handoverCorrectionReasonInput" class="form-input" placeholder="Reason for adjusting previously signed off cash count..." style="width: 100%; padding: 6px 8px; font-size: 12px; border: 1px solid #f59e0b; border-radius: 4px;">
+          </div>
+
+          <div style="display: flex; gap: 8px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button id="copyHandoverSlipBtn" class="secondary-button" type="button" style="padding: 4px 8px; font-size: 11px;">📋 Copy Handover Slip</button>
+              <button id="shareHandoverWhatsAppBtn" class="secondary-button" type="button" style="padding: 4px 8px; font-size: 11px;">📱 WhatsApp Handover</button>
+              <button id="printHandoverSlipBtn" class="secondary-button" type="button" style="padding: 4px 8px; font-size: 11px;">🖨️ Print Receipt</button>
+            </div>
+            <button id="recordHandoverBtn" class="primary-button" type="button" style="padding: 6px 14px; font-size: 12px; font-weight: 700;">Sign Off &amp; Record Handover</button>
+          </div>
+        </div>
+
         <!-- Customer Receipts Ledger -->
-        <div class="daily-closing-receipts-wrap" style="border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 10px; background: var(--bg-surface, #f8fafc);">
+        <div class="daily-closing-receipts-wrap"
+ style="border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 10px; background: var(--bg-surface, #f8fafc);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
             <h3 style="font-size: 13px; font-weight: 700; margin: 0; color: #0e5b4d;">🧾 Customer Receipts Recorded Today</h3>
             <span id="dailyClosingReceiptsCount" class="badge" style="font-size: 11px; padding: 3px 8px; background: #e2e8f0; color: #334155; font-weight: 600; border-radius: 4px;">0 Receipts</span>

@@ -19,6 +19,9 @@ import {
   formatPKR
 } from './core.js';
 
+export const DAILY_CASH_HANDOVERS_KEY = 'shahdara_daily_cash_handovers_v1';
+
+
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -210,6 +213,66 @@ export function calculateDailyClosingSummary(state = {}, referenceDate = new Dat
               amount: amt,
               method,
               paidBy: p.paidBy || '',
+              date: p.date,
+              isCash,
+              shopName,
+              collectorName
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Fallback to state.billing if state.customers has no receipts for today
+  if (receipts.length === 0 && Array.isArray(state?.billing) && state.billing.length > 0) {
+    for (const b of state.billing) {
+      const bPayments = Array.isArray(b.payments) ? b.payments : (b.amount && b.date === todayStr ? [b] : []);
+      for (const p of bPayments) {
+        if (p.date === todayStr) {
+          const amt = Number(p.amount) || 0;
+          if (amt > 0) {
+            const amtCents = Math.round(amt * 100);
+            todayCollectedCents += amtCents;
+            todayCount++;
+
+            const method = (p.method || p.paymentMethod || b.paymentMethod || 'Cash').trim();
+            methodMap.set(method, (methodMap.get(method) || 0) + amt);
+            methodCountMap.set(method, (methodCountMap.get(method) || 0) + 1);
+
+            const isCash = isPhysicalCashMethod(method);
+            if (isCash) {
+              cashCollectedCents += amtCents;
+            } else {
+              digitalCollectedCents += amtCents;
+            }
+
+            const paidBy = p.paidBy || p.collector || p.collectorName || b.collectorName || '';
+            const shopName = resolveShopLocation(method, paidBy);
+            const prevShop = shopMap.get(shopName) || { amount: 0, count: 0, isCash };
+            shopMap.set(shopName, {
+              amount: prevShop.amount + amt,
+              count: prevShop.count + 1,
+              isCash
+            });
+
+            const collectorName = resolveCollectorName(method, paidBy);
+            const prevCollector = collectorMap.get(collectorName) || { amount: 0, count: 0 };
+            collectorMap.set(collectorName, {
+              amount: prevCollector.amount + amt,
+              count: prevCollector.count + 1
+            });
+
+            receipts.push({
+              id: p.id || b.id,
+              customerId: b.customerId || p.customerId || '',
+              customerNumber: b.customerNumber || p.customerNumber || '',
+              customerName: b.customerName || p.customerName || 'Subscriber',
+              mohalla: b.mohalla || 'Shahdara',
+              billMonth: b.month || currentMonth,
+              amount: amt,
+              method,
+              paidBy,
               date: p.date,
               isCash,
               shopName,
@@ -1066,6 +1129,307 @@ export function sortDailyClosingReceipts(receipts = [], col = 'customerNumber', 
 }
 
 /**
+ * Retrieves recorded cash handover records from storage.
+ * @param {Storage|object} [storage]
+ * @param {string} [dateStr] Optional date filter (YYYY-MM-DD)
+ * @returns {Array<object>}
+ */
+export function getDailyCashHandovers(storage = (typeof localStorage !== 'undefined' ? localStorage : null), dateStr = null) {
+  if (!storage || typeof storage.getItem !== 'function') return [];
+  try {
+    const raw = storage.getItem(DAILY_CASH_HANDOVERS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    if (dateStr) {
+      return list.filter(item => item && item.date === dateStr);
+    }
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Calculates expected physical cash collected for a date and collector from state receipts.
+ * Reuses existing Daily Closing receipts / Cash Register data without creating duplicate ledgers.
+ *
+ * @param {object} state
+ * @param {string} [dateStr]
+ * @param {string} [collectorName='all']
+ * @returns {{ date: string, collectorName: string, expectedCash: number, receiptCount: number, receipts: Array<object>, availableCollectors: Array<string> }}
+ */
+export function calculateCollectorCashExpected(state = {}, dateStr, collectorName = 'all') {
+  const targetDate = dateStr || formatDateYmd(new Date());
+  const summary = calculateDailyClosingSummary(state, new Date(), { selectedDate: targetDate });
+
+  // Get physical cash receipts
+  const cashReceipts = (summary.receipts || []).filter(r => r.isCash);
+
+  // Collect available unique collector options
+  const collectorSet = new Set();
+  collectorSet.add('All Physical Cash / General Till');
+  (summary.collectors || []).forEach(c => {
+    if (c.name) collectorSet.add(c.name);
+  });
+  (summary.shops || []).forEach(s => {
+    if (s.isCash && s.name) collectorSet.add(s.name);
+  });
+
+  const isAll = !collectorName || collectorName === 'all' || collectorName === 'All Physical Cash / General Till';
+
+  const matchingReceipts = cashReceipts.filter(r => {
+    if (isAll) return true;
+    return r.collectorName === collectorName || r.shopName === collectorName || r.paidBy === collectorName;
+  });
+
+  let totalCents = 0;
+  matchingReceipts.forEach(r => {
+    totalCents += Math.round(Number(r.amount || 0) * 100);
+  });
+
+  return {
+    date: targetDate,
+    collectorName: isAll ? 'All Physical Cash / General Till' : collectorName,
+    expectedCash: Math.round(totalCents / 100),
+    receiptCount: matchingReceipts.length,
+    receipts: matchingReceipts,
+    availableCollectors: Array.from(collectorSet)
+  };
+}
+
+/**
+ * Records an end-of-day cash handover sign-off.
+ * Cannot be silently edited! Editing an already saved handover creates an audited correction entry.
+ *
+ * @param {object} params
+ * @param {string} params.date - YYYY-MM-DD
+ * @param {string} params.collectorName - Collector/Handler/Shop name
+ * @param {number} params.expectedCash - Calculated expected cash
+ * @param {number} params.countedCash - Counted physical cash turned in
+ * @param {string} [params.handedOverTo='Owner'] - Receiver (Owner/Manager)
+ * @param {string} [params.notes=''] - Notes / remarks
+ * @param {string} [params.supervisorSignature=''] - Signature / Initials
+ * @param {string} [params.correctionReason=''] - Required if updating an existing record!
+ * @param {boolean} [params.isCorrection=false] - Explicit flag for corrections
+ * @param {Storage|object} [storage]
+ * @returns {{ success: boolean, record?: object, error?: string, isCorrection?: boolean, requiresCorrectionReason?: boolean, existingRecord?: object }}
+ */
+export function recordCashHandover(params = {}, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!params.date) {
+    return { success: false, error: 'Handover date is required.' };
+  }
+  const collector = (params.collectorName || 'All Physical Cash / General Till').trim();
+  const counted = Math.max(0, Math.round(Number(params.countedCash || 0) * 100) / 100);
+  const expected = Math.max(0, Math.round(Number(params.expectedCash || 0) * 100) / 100);
+  const variance = Math.round((counted - expected) * 100) / 100;
+
+  let status = 'balanced';
+  if (variance < 0) status = 'shortage';
+  else if (variance > 0) status = 'surplus';
+
+  const store = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  const allHandovers = getDailyCashHandovers(store);
+
+  // Look for existing handover for this date and collector
+  const existingIdx = allHandovers.findIndex(h => h.date === params.date && h.collectorName === collector);
+  const nowIso = new Date().toISOString();
+
+  if (existingIdx >= 0) {
+    const existing = allHandovers[existingIdx];
+    // Check if this is an attempted silent edit
+    if (!params.correctionReason) {
+      return {
+        success: false,
+        error: `Correction reason is mandatory. Handover for ${collector} on ${params.date} was already signed off. Direct edits are forbidden; please provide a correction reason to record an audit log.`,
+        existingRecord: existing,
+        requiresCorrectionReason: true
+      };
+    }
+
+    // Record audited correction
+    const correctionEntry = {
+      id: `corr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      timestamp: nowIso,
+      previousCounted: existing.countedCash,
+      previousCountedCash: existing.countedCash,
+      previousExpectedCash: existing.expectedCash,
+      previousVariance: existing.variance,
+      previousStatus: existing.status,
+      newCounted: counted,
+      newCountedCash: counted,
+      newExpectedCash: expected,
+      newVariance: variance,
+      newStatus: status,
+      reason: String(params.correctionReason || 'Correction recorded').trim(),
+      editedBy: String(params.handedOverTo || 'Owner').trim()
+    };
+
+    const updated = {
+      ...existing,
+      countedCash: counted,
+      expectedCash: expected,
+      variance,
+      status,
+      handedOverTo: String(params.handedOverTo || existing.handedOverTo || 'Owner').trim(),
+      notes: String(params.notes || existing.notes || '').trim(),
+      lastModifiedAt: nowIso,
+      corrections: [...(existing.corrections || []), correctionEntry]
+    };
+
+    allHandovers[existingIdx] = updated;
+    if (store && typeof store.setItem === 'function') {
+      try {
+        store.setItem(DAILY_CASH_HANDOVERS_KEY, JSON.stringify(allHandovers));
+      } catch {}
+    }
+    return { success: true, record: updated, handover: updated, isCorrection: true };
+  }
+
+  // Create new handover record
+  const newRecord = {
+    id: `handover-${params.date}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    date: params.date,
+    collectorName: collector,
+    expectedCash: expected,
+    countedCash: counted,
+    variance,
+    status,
+    handedOverTo: String(params.handedOverTo || 'Owner').trim(),
+    notes: String(params.notes || '').trim(),
+    supervisorSignature: String(params.supervisorSignature || '').trim(),
+    handedOverAt: nowIso,
+    corrections: []
+  };
+
+  allHandovers.push(newRecord);
+  if (store && typeof store.setItem === 'function') {
+    try {
+      store.setItem(DAILY_CASH_HANDOVERS_KEY, JSON.stringify(allHandovers));
+    } catch {}
+  }
+
+  return { success: true, record: newRecord, handover: newRecord, isCorrection: false };
+}
+
+/**
+ * Generates formatted text slip for clipboard copy of a cash handover record.
+ * @param {object} handover
+ * @returns {string} Plain text slip
+ */
+export function generateHandoverSlipText(handover) {
+  if (!handover) return 'No handover record provided.';
+  const lines = [
+    `🤝 SHAHDARA ISP — CASH HANDOVER AUDIT`,
+    `Date: ${handover.date} PKT`,
+    `Collector / Handler: ${handover.collectorName}`,
+    `Handed Over To: ${handover.handedOverTo || 'Owner'}`,
+    `Timestamp: ${handover.handedOverAt || new Date().toISOString()}`,
+    `-----------------------------------------`,
+    `• Expected Cash: PKR ${Number(handover.expectedCash || 0).toLocaleString()}`,
+    `• Physical Counted: PKR ${Number(handover.countedCash || 0).toLocaleString()}`,
+    `• Variance:      ${handover.variance >= 0 ? '+' : ''}PKR ${Number(handover.variance || 0).toLocaleString()} [${(handover.status || 'balanced').toUpperCase()}]`,
+    handover.notes ? `• Notes: ${handover.notes}` : null
+  ].filter(Boolean);
+
+  if (Array.isArray(handover.corrections) && handover.corrections.length > 0) {
+    lines.push(``, `[ AUDITED CORRECTION HISTORY ]`);
+    handover.corrections.forEach((c, idx) => {
+      lines.push(`${idx + 1}. At ${c.timestamp}: was PKR ${Number(c.previousCountedCash).toLocaleString()} (var: ${c.previousVariance}), corrected to PKR ${Number(c.newCountedCash).toLocaleString()} (var: ${c.newVariance})`);
+      lines.push(`   Reason: ${c.reason} · By: ${c.editedBy || 'Owner'}`);
+    });
+  }
+
+  lines.push(`-----------------------------------------`, `Tamper-Resistant Local Register · Shahdara ISP`);
+  return lines.join('\n');
+}
+
+/**
+ * Generates an executive bilingual Urdu & English WhatsApp message for cash handover.
+ * @param {object} handover
+ * @returns {string} WhatsApp text
+ */
+export function generateHandoverWhatsAppText(handover) {
+  if (!handover) return '';
+  const varianceUrdu = handover.variance === 0
+    ? 'برابر / متوازن (Balanced)'
+    : handover.variance < 0
+    ? `کمی / شارٹیج (-PKR ${Math.abs(handover.variance).toLocaleString()})`
+    : `اضافی / سرپلس (+PKR ${handover.variance.toLocaleString()})`;
+
+  const lines = [
+    `*🤝 شاہدرہ آئی ایس پی — یومیہ کیش ہینڈ اوور و تصدیق*`,
+    `*SHAHDARA ISP — CASH HANDOVER AUDIT*`,
+    `📅 تاریخ / Date: *${handover.date} PKT*`,
+    `👤 وصول کنندہ / Collector: *${handover.collectorName}*`,
+    `🏢 وصول شدہ برائے / Handed Over To: *${handover.handedOverTo || 'Owner'}*`,
+    `━━━━━━━━━━━━━━━━━━━━━━`,
+    `• متوقع نقد کیش / Expected: *PKR ${Number(handover.expectedCash || 0).toLocaleString()}*`,
+    `• گن کر وصول کیش / Counted: *PKR ${Number(handover.countedCash || 0).toLocaleString()}*`,
+    `• فرق و پڑتال / Variance: *${varianceUrdu}*`,
+    handover.notes ? `• تفصیلات / Notes: ${handover.notes}` : null,
+    `⏰ وقت تصدیق / Time: ${handover.handedOverAt || ''}`
+  ].filter(Boolean);
+
+  if (Array.isArray(handover.corrections) && handover.corrections.length > 0) {
+    lines.push(``, `*📝 آڈٹ لاگ برائے درستگی / Correction Audit:*`);
+    handover.corrections.forEach((c, idx) => {
+      lines.push(`${idx + 1}. ${c.timestamp}: Counted PKR ${c.newCountedCash} (وجہ: ${c.reason})`);
+    });
+  }
+
+  lines.push(`━━━━━━━━━━━━━━━━━━━━━━`, `_محفوظ آف لائن تصدیق · شاہدرہ نیٹ ورک_`);
+  return lines.join('\n');
+}
+
+/**
+ * Generates printable HTML for cash handover audit slip.
+ * @param {object} handover
+ * @param {object} [options]
+ * @returns {string} HTML string
+ */
+export function generateHandoverPrintHtml(handover, { title = 'Cash Handover Audit' } = {}) {
+  if (!handover) return '<p>No handover record provided.</p>';
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(title)} - ${escapeHtml(handover.date)}</title>
+  <style>
+    @page { size: 80mm auto; margin: 4mm; }
+    body { font-family: monospace, sans-serif; font-size: 11px; color: #000; padding: 4px; margin: 0 auto; max-width: 320px; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .bold { font-weight: bold; }
+    .divider { border-top: 1px dashed #000; margin: 6px 0; }
+    .row { display: flex; justify-content: space-between; margin: 3px 0; }
+  </style>
+</head>
+<body>
+  <div class="text-center bold" style="font-size: 14px;">SHAHDARA ISP NETWORK</div>
+  <div class="text-center bold" style="font-size: 12px;">DAILY CASH HANDOVER SLIP</div>
+  <div class="text-center" style="font-size: 9px; color: #475569;">(80mm thermal / A4 Register Statement)</div>
+  <div class="divider"></div>
+  <div class="row"><span>Date:</span><span class="bold">${escapeHtml(handover.date)}</span></div>
+  <div class="row"><span>Collector:</span><span class="bold">${escapeHtml(handover.collectorName)}</span></div>
+  <div class="row"><span>Received By:</span><span>${escapeHtml(handover.handedOverTo || 'Owner')}</span></div>
+  <div class="row"><span>Timestamp:</span><span>${escapeHtml(handover.handedOverAt ? handover.handedOverAt.slice(0, 19).replace('T', ' ') : '')}</span></div>
+  <div class="divider"></div>
+  <div class="row"><span>Expected Cash:</span><span class="bold">PKR ${Number(handover.expectedCash || 0).toLocaleString()}</span></div>
+  <div class="row"><span>Counted Cash:</span><span class="bold">PKR ${Number(handover.countedCash || 0).toLocaleString()}</span></div>
+  <div class="row" style="font-size: 12px;"><span>Variance:</span><span class="bold">${handover.variance >= 0 ? '+' : ''}PKR ${Number(handover.variance || 0).toLocaleString()} (${escapeHtml(handover.status || 'balanced')})</span></div>
+  ${handover.notes ? `<div class="divider"></div><div><strong>Notes:</strong> ${escapeHtml(handover.notes)}</div>` : ''}
+  <div class="divider"></div>
+  <div style="margin-top: 24px; display: flex; justify-content: space-between; font-size: 10px;">
+    <div>Collector Signature: ____________</div>
+    <div>Receiver Signature: ____________</div>
+  </div>
+  <div class="text-center" style="font-size: 9px; margin-top: 15px; color: #555;">Audited Local Closing · Non-Repudiable Entry</div>
+</body>
+</html>`;
+}
+
+/**
  * Controller for the detailed interactive Daily Cash Closing Modal dialog.
  *
  * @param {Function} getState - State accessor
@@ -1121,6 +1485,21 @@ export function setupDailyClosingModal(getState, {
   const printPosBtn = document.getElementById('dcPrintPosBtn');
   const exportCsvBtn = document.getElementById('dcExportCsvBtn');
 
+  // Cash Handover & Variance Elements
+  const handoverCollectorSelect = document.getElementById('handoverCollectorSelect');
+  const handoverExpectedDisplay = document.getElementById('handoverExpectedCashDisplay');
+  const handoverCountedInput = document.getElementById('handoverCountedCashInput');
+  const handoverVarianceBadge = document.getElementById('handoverVarianceBadge');
+  const handoverToInput = document.getElementById('handoverToInput');
+  const handoverNotesInput = document.getElementById('handoverNotesInput');
+  const handoverStatusBanner = document.getElementById('handoverStatusBanner');
+  const handoverCorrectionWrap = document.getElementById('handoverCorrectionWrap');
+  const handoverCorrectionReasonInput = document.getElementById('handoverCorrectionReasonInput');
+  const recordHandoverBtn = document.getElementById('recordHandoverBtn');
+  const copyHandoverSlipBtn = document.getElementById('copyHandoverSlipBtn');
+  const shareHandoverWhatsAppBtn = document.getElementById('shareHandoverWhatsAppBtn');
+  const printHandoverSlipBtn = document.getElementById('printHandoverSlipBtn');
+
   // Close triggers
   const closeBtn = document.getElementById('closeDailyClosingModalBtn');
   const closeSecondaryBtn = document.getElementById('closeDailyClosingSecondaryBtn');
@@ -1128,6 +1507,7 @@ export function setupDailyClosingModal(getState, {
   const quickActionBtn = document.getElementById('quickActionDailyClosing');
 
   let activeDateStr = (dateInput && dateInput.value) ? dateInput.value : formatDateYmd(referenceDate);
+
 
   function render() {
     const state = typeof getState === 'function' ? getState() : {};
@@ -1263,7 +1643,99 @@ export function setupDailyClosingModal(getState, {
         receiptsTableBody.innerHTML = '';
       }
     }
+
+    // Render Cash Handover & Reconciliation Section
+    const selectedCollector = handoverCollectorSelect ? (handoverCollectorSelect.value || 'All Physical Cash / General Till') : 'All Physical Cash / General Till';
+    const cashExpectedData = calculateCollectorCashExpected(state, activeDateStr, selectedCollector);
+
+    if (handoverCollectorSelect) {
+      const prevVal = handoverCollectorSelect.value;
+      const opts = cashExpectedData.availableCollectors || ['All Physical Cash / General Till'];
+      const currentOpts = Array.from(handoverCollectorSelect.options || []).map(o => o.value);
+      if (opts.join('|') !== currentOpts.join('|')) {
+        handoverCollectorSelect.innerHTML = '';
+        opts.forEach(cName => {
+          const opt = document.createElement('option');
+          opt.value = cName;
+          opt.textContent = cName;
+          if (cName === prevVal) opt.selected = true;
+          handoverCollectorSelect.appendChild(opt);
+        });
+      }
+    }
+
+    if (handoverExpectedDisplay) {
+      handoverExpectedDisplay.textContent = formatPKR(cashExpectedData.expectedCash);
+    }
+
+    const currentCollector = handoverCollectorSelect ? (handoverCollectorSelect.value || selectedCollector) : selectedCollector;
+    const existingHandovers = getDailyCashHandovers(undefined, activeDateStr);
+    const existingHandover = existingHandovers.find(h => h.collectorName === currentCollector);
+
+    if (existingHandover) {
+      if (handoverCountedInput && document.activeElement !== handoverCountedInput) {
+        handoverCountedInput.value = existingHandover.countedCash;
+      }
+      if (handoverToInput && document.activeElement !== handoverToInput) {
+        handoverToInput.value = existingHandover.handedOverTo || 'Owner';
+      }
+      if (handoverNotesInput && document.activeElement !== handoverNotesInput) {
+        handoverNotesInput.value = existingHandover.notes || '';
+      }
+
+      if (handoverStatusBanner) {
+        handoverStatusBanner.hidden = false;
+        const corrCount = Array.isArray(existingHandover.corrections) ? existingHandover.corrections.length : 0;
+        handoverStatusBanner.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <span>🔒 <strong>Signed Off:</strong> ${escapeHtml(existingHandover.handedOverAt ? existingHandover.handedOverAt.slice(0, 16).replace('T', ' ') : '')} to <strong>${escapeHtml(existingHandover.handedOverTo || 'Owner')}</strong></span>
+            <span class="badge" style="background: ${existingHandover.status === 'balanced' ? '#dcfce7' : existingHandover.status === 'surplus' ? '#e0f2fe' : '#fee2e2'}; color: ${existingHandover.status === 'balanced' ? '#166534' : existingHandover.status === 'surplus' ? '#0369a1' : '#991b1b'}; font-weight: 700; padding: 2px 6px; border-radius: 4px;">
+              Variance: ${existingHandover.variance >= 0 ? '+' : ''}${escapeHtml(formatPKR(existingHandover.variance))} (${escapeHtml(existingHandover.status)})
+            </span>
+          </div>
+          ${corrCount > 0 ? `<div style="font-size: 10px; color: #475569; margin-top: 4px;">📝 ${corrCount} Audited Correction(s) logged on this handover.</div>` : ''}
+        `;
+      }
+
+      if (handoverCorrectionWrap) {
+        handoverCorrectionWrap.hidden = false;
+      }
+      if (recordHandoverBtn) {
+        recordHandoverBtn.textContent = 'Record Handover Correction (Audited)';
+      }
+    } else {
+      if (handoverStatusBanner) {
+        handoverStatusBanner.hidden = true;
+      }
+      if (handoverCorrectionWrap) {
+        handoverCorrectionWrap.hidden = true;
+      }
+      if (recordHandoverBtn) {
+        recordHandoverBtn.textContent = 'Sign Off & Record Handover';
+      }
+    }
+
+    const countedVal = Number(handoverCountedInput?.value || 0);
+    const expVal = Number(cashExpectedData.expectedCash || 0);
+    const liveVariance = Math.round((countedVal - expVal) * 100) / 100;
+
+    if (handoverVarianceBadge) {
+      if (liveVariance === 0) {
+        handoverVarianceBadge.textContent = 'PKR 0 (Exact Match / متوازن)';
+        handoverVarianceBadge.style.background = '#dcfce7';
+        handoverVarianceBadge.style.color = '#166534';
+      } else if (liveVariance < 0) {
+        handoverVarianceBadge.textContent = `-PKR ${Math.abs(liveVariance).toLocaleString()} (Shortage / کیش کم ہے)`;
+        handoverVarianceBadge.style.background = '#fee2e2';
+        handoverVarianceBadge.style.color = '#991b1b';
+      } else {
+        handoverVarianceBadge.textContent = `+PKR ${liveVariance.toLocaleString()} (Surplus / کیش زیادہ ہے)`;
+        handoverVarianceBadge.style.background = '#e0f2fe';
+        handoverVarianceBadge.style.color = '#0369a1';
+      }
+    }
   }
+
 
   function open() {
     activeDateStr = formatDateYmd(new Date());
@@ -1455,7 +1927,139 @@ export function setupDailyClosingModal(getState, {
     });
   }
 
+  // Handover Controls Event Wiring
+  if (handoverCollectorSelect) {
+    handoverCollectorSelect.addEventListener('change', () => {
+      render();
+    });
+  }
+
+  if (handoverCountedInput) {
+    handoverCountedInput.addEventListener('input', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const currentCollector = handoverCollectorSelect ? (handoverCollectorSelect.value || 'All Physical Cash / General Till') : 'All Physical Cash / General Till';
+      const cashExpectedData = calculateCollectorCashExpected(state, activeDateStr, currentCollector);
+      const countedVal = Number(handoverCountedInput.value || 0);
+      const expVal = Number(cashExpectedData.expectedCash || 0);
+      const liveVariance = Math.round((countedVal - expVal) * 100) / 100;
+
+      if (handoverVarianceBadge) {
+        if (liveVariance === 0) {
+          handoverVarianceBadge.textContent = 'PKR 0 (Exact Match / متوازن)';
+          handoverVarianceBadge.style.background = '#dcfce7';
+          handoverVarianceBadge.style.color = '#166534';
+        } else if (liveVariance < 0) {
+          handoverVarianceBadge.textContent = `-PKR ${Math.abs(liveVariance).toLocaleString()} (Shortage / کیش کم ہے)`;
+          handoverVarianceBadge.style.background = '#fee2e2';
+          handoverVarianceBadge.style.color = '#991b1b';
+        } else {
+          handoverVarianceBadge.textContent = `+PKR ${liveVariance.toLocaleString()} (Surplus / کیش زیادہ ہے)`;
+          handoverVarianceBadge.style.background = '#e0f2fe';
+          handoverVarianceBadge.style.color = '#0369a1';
+        }
+      }
+    });
+  }
+
+  if (recordHandoverBtn) {
+    recordHandoverBtn.addEventListener('click', () => {
+      const state = typeof getState === 'function' ? getState() : {};
+      const currentCollector = handoverCollectorSelect ? (handoverCollectorSelect.value || 'All Physical Cash / General Till') : 'All Physical Cash / General Till';
+      const cashExpectedData = calculateCollectorCashExpected(state, activeDateStr, currentCollector);
+      const countedVal = Number(handoverCountedInput?.value || 0);
+      const existing = getDailyCashHandovers(undefined, activeDateStr).find(h => h.collectorName === currentCollector);
+      const isCorrection = !!existing;
+      const correctionReason = handoverCorrectionReasonInput ? handoverCorrectionReasonInput.value.trim() : '';
+
+      if (isCorrection && !correctionReason) {
+        if (onToast) onToast('Please enter a correction reason before updating signed-off handover.');
+        if (handoverCorrectionReasonInput) handoverCorrectionReasonInput.focus();
+        return;
+      }
+
+      const res = recordCashHandover({
+        date: activeDateStr,
+        collectorName: currentCollector,
+        expectedCash: cashExpectedData.expectedCash,
+        countedCash: countedVal,
+        handedOverTo: handoverToInput ? handoverToInput.value.trim() : 'Owner',
+        notes: handoverNotesInput ? handoverNotesInput.value.trim() : '',
+        correctionReason,
+        isCorrection
+      });
+
+      if (!res.success) {
+        if (onToast) onToast(res.error || 'Failed to record handover.');
+      } else {
+        if (handoverCorrectionReasonInput) handoverCorrectionReasonInput.value = '';
+        if (onToast) onToast(res.isCorrection ? 'Handover correction recorded and audited.' : 'Handover signed off successfully!');
+        render();
+      }
+    });
+  }
+
+  if (copyHandoverSlipBtn) {
+    copyHandoverSlipBtn.addEventListener('click', async () => {
+      const currentCollector = handoverCollectorSelect ? handoverCollectorSelect.value : 'All Physical Cash / General Till';
+      const handovers = getDailyCashHandovers(undefined, activeDateStr);
+      const h = handovers.find(item => item.collectorName === currentCollector) || handovers[0];
+      if (!h) {
+        if (onToast) onToast('No saved handover record to copy.');
+        return;
+      }
+      const text = generateHandoverSlipText(h);
+      try {
+        if (navigator?.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          if (onToast) onToast('Cash handover slip copied to clipboard!');
+        } else if (onToast) {
+          onToast('Clipboard unavailable.');
+        }
+      } catch {
+        if (onToast) onToast('Copy failed.');
+      }
+    });
+  }
+
+  if (shareHandoverWhatsAppBtn) {
+    shareHandoverWhatsAppBtn.addEventListener('click', () => {
+      const currentCollector = handoverCollectorSelect ? handoverCollectorSelect.value : 'All Physical Cash / General Till';
+      const handovers = getDailyCashHandovers(undefined, activeDateStr);
+      const h = handovers.find(item => item.collectorName === currentCollector) || handovers[0];
+      if (!h) {
+        if (onToast) onToast('No saved handover record to share.');
+        return;
+      }
+      const msg = generateHandoverWhatsAppText(h);
+      const encoded = encodeURIComponent(msg);
+      window.open(`https://wa.me/?text=${encoded}`, '_blank');
+      if (onToast) onToast('Opened WhatsApp cash handover briefing draft.');
+    });
+  }
+
+  if (printHandoverSlipBtn) {
+    printHandoverSlipBtn.addEventListener('click', () => {
+      const currentCollector = handoverCollectorSelect ? handoverCollectorSelect.value : 'All Physical Cash / General Till';
+      const handovers = getDailyCashHandovers(undefined, activeDateStr);
+      const h = handovers.find(item => item.collectorName === currentCollector) || handovers[0];
+      if (!h) {
+        if (onToast) onToast('No saved handover record to print.');
+        return;
+      }
+      const html = generateHandoverPrintHtml(h);
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.open();
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        win.print();
+      }
+    });
+  }
+
   return {
+
     open,
     close,
     render

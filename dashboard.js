@@ -525,8 +525,16 @@ export {
   setupDailyClosingCard,
   setupDailyClosingModal,
   filterDailyClosingReceipts,
-  sortDailyClosingReceipts
+  sortDailyClosingReceipts,
+  DAILY_CASH_HANDOVERS_KEY,
+  getDailyCashHandovers,
+  calculateCollectorCashExpected,
+  recordCashHandover,
+  generateHandoverSlipText,
+  generateHandoverWhatsAppText,
+  generateHandoverPrintHtml
 } from './dashboard-daily-closing.js';
+
 
 
 /**

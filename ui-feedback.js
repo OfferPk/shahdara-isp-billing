@@ -276,6 +276,7 @@ export function createConfirmDialog(doc = document, win = window) {
       </div>
       <p id="appConfirmSubject" class="app-confirm-subject" hidden></p>
       <p id="appConfirmMessage" class="app-confirm-message"></p>
+      <label id="appConfirmInputWrap" class="app-confirm-input" hidden><span id="appConfirmInputLabel"></span><input id="appConfirmInput" type="text" autocomplete="off"></label>
       <div class="app-confirm-actions">
         <button id="appConfirmCancelBtn" class="secondary-button app-confirm-btn" type="button">Cancel</button>
         <button id="appConfirmAltBtn" class="secondary-button app-confirm-btn" type="button" hidden></button>
@@ -314,6 +315,14 @@ export function createConfirmDialog(doc = document, win = window) {
     ok.classList.toggle('danger-button', tone === 'danger');
     ok.classList.toggle('warning-button', tone === 'warning');
     $('appConfirmCancelBtn').textContent = opts.cancelLabel || 'Cancel';
+    // Optional one-line text field (e.g. "Reason (optional)"); read it from #appConfirmInput after 'confirm'.
+    const inputWrap = $('appConfirmInputWrap');
+    const input = $('appConfirmInput');
+    inputWrap.hidden = !opts.input;
+    input.value = '';
+    $('appConfirmInputLabel').textContent = opts.input?.label || '';
+    input.placeholder = opts.input?.placeholder || '';
+    if (opts.input?.maxLength) input.maxLength = opts.input.maxLength; else input.removeAttribute('maxlength');
     const alt = $('appConfirmAltBtn');
     alt.hidden = !opts.altLabel;
     alt.textContent = opts.altLabel || '';

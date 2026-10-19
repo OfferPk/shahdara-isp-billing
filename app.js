@@ -17,6 +17,7 @@ import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
+import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import {
@@ -936,10 +937,11 @@ function paymentAllocationMarkup(allocation) {
   if (allocation.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatAmount(allocation.unappliedCreditCents / 100)}`);
   return `<span class="payment-allocation">${lines.map(escapeHtml).join('<br>')}</span>`;
 }
-function receiptWhatsAppActionMarkup(customer, receipt) {
+function receiptWhatsAppActionMarkup(customer, receipt, { askLabel = null } = {}) {
   const action = resolveReceiptWhatsAppAction(customer, receipt);
   if (action.type === 'phone-required') {
-    const label = action.hasSavedPhone ? 'Update WhatsApp number' : 'Add WhatsApp number';
+    // #298: in the payments list the button says "WhatsApp receipt" and asks for the number only when tapped.
+    const label = askLabel || (action.hasSavedPhone ? 'Update WhatsApp number' : 'Add WhatsApp number');
     return `<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
   }
   if (action.type !== 'draft') return '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
@@ -1142,15 +1144,33 @@ function renderTransactions() {
     if (nextBtn) nextBtn.disabled = paged.page >= paged.totalPages;
   }
 
+  // #298: compact rows grouped by day; tap a row to see its details and actions.
+  const dateSorted = transactionSortBy === 'date-desc' || transactionSortBy === 'date-asc';
+  const dayGroups = dateSorted ? groupByDay(transactions) : null;
+  const todayKey = pktDateKey();
+  let lastDay = null;
   transactionList.innerHTML = paged.items.map(transaction => {
     const customer = state.customers.find(item => item.id === transaction.customerId);
     const statusText = reportStatusLabel(transaction.status);
-    const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[transaction.customerServiceStatus] ?? 'Not set';
+    const serviceStatus = transaction.customerServiceStatus;
+    const serviceLabel = ({ active:'Active', offline:'Offline' })[serviceStatus] ?? null;
     const savedBill = customer?.bills?.find(bill => bill.month === transaction.month);
     const savedPayment = savedBill?.payments?.find(payment => payment.id === transaction.paymentId);
     const receiptData = customer && savedBill && savedPayment ? buildPaymentReceipt(customer, savedBill, savedPayment) : null;
     const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
-    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
+    const pid = escapeHtml(transaction.paymentId);
+    const detailsId = `txd-${String(transaction.paymentId).replace(/[^A-Za-z0-9_-]/g, '')}`;
+    let header = '';
+    if (dayGroups && transaction.date !== lastDay) {
+      lastDay = transaction.date;
+      header = `<li class="tx-day-header" role="presentation"><span class="tx-day-text">${escapeHtml(dayHeaderText(transaction.date, dayGroups.get(transaction.date) || [], todayKey))}</span></li>`;
+    }
+    const context = [
+      billMonthDiffers(transaction) ? `Bill month: ${escapeHtml(monthName(transaction.month))}` : '',
+      `Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span>`,
+      serviceLabel ? `Manual service: ${serviceLabel}` : ''
+    ].filter(Boolean).join(' · ');
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span></span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong><span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button></div></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
@@ -1928,14 +1948,39 @@ async function requestDeletePayment(customerId, month, paymentId) {
   const customer = state.customers.find(item => item.id === customerId);
   const payment = customer?.bills.find(bill => bill.month === month)?.payments.find(item => item.id === paymentId);
   if (!customer || !payment) return;
-  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports.', confirmLabel:'Delete payment' });
+  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports. You can undo for 10 seconds.', confirmLabel:'Delete payment', input:{ label:'Reason (optional, kept in the deletion log)', placeholder:'e.g. entered twice', maxLength:200 } });
   if (!confirmed) return;
+  const reason = (document.getElementById('appConfirmInput')?.value || '').trim();
   try {
+    // #298: keep what is needed to put the payment back exactly where it was.
+    const bill = customer.bills.find(item => item.month === month);
+    const index = bill.payments.findIndex(item => item.id === paymentId);
+    const removed = JSON.parse(JSON.stringify(payment));
     state = deletePayment(state, customerId, month, paymentId);
     save();
+    recordPaymentDeletion({ paymentId, customerId, customerNumber:customer.customerNumber, customerName:customer.name, month, date:payment.date, amount:payment.amount, method:payment.method, reason });
     if (selectedCustomerId === customerId) renderDetail();
-    toast('Payment deleted from this device.');
-  } catch (error) { toast(error.message); }
+    renderTransactions();
+    toast(`${formatAmount(payment.amount)} from #${customer.customerNumber} ${customer.name} was removed from this device.`, { type:'success', title:'Payment deleted', duration:10000, actionLabel:'Undo', onAction:() => undoDeletePayment(customerId, month, removed, index) });
+  } catch (error) { toast(error.message, { type:'error' }); }
+}
+function undoDeletePayment(customerId, month, removed, index) {
+  const customer = state.customers.find(item => item.id === customerId);
+  const bill = customer?.bills.find(item => item.month === month);
+  if (!customer || !bill) { toast('This payment can no longer be restored: its customer or bill was removed.', { type:'error' }); return; }
+  if (bill.payments.some(item => item.id === removed.id)) return;
+  state = { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => {
+    if (b.month !== month) return b;
+    const payments = [...b.payments];
+    payments.splice(Math.min(Math.max(index, 0), payments.length), 0, removed);
+    return { ...b, payments };
+  }) }) };
+  save();
+  markPaymentDeletionUndone(removed.id);
+  if (selectedCustomerId === customerId) renderDetail();
+  renderTransactions();
+  renderMonthlyReport?.();
+  toast(`${formatAmount(removed.amount)} payment restored for #${customer.customerNumber} ${customer.name}.`, { type:'success', title:'Delete undone' });
 }
 function showIncidentEditor(incident = null) {
   const form = $('#incidentForm');
@@ -2040,6 +2085,7 @@ $('#transactionDateFilter').addEventListener('input', () => { transactionCurrent
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionSortSelect')?.addEventListener('change', event => { transactionSortBy = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+setupPaymentsList(); // #298 tap-to-expand payment rows
 $('#txPrevPage').addEventListener('click', () => { if (transactionCurrentPage > 1) { transactionCurrentPage--; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
 $('#txNextPage').addEventListener('click', () => { transactionCurrentPage++; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); });
 $('#txPageSize').addEventListener('change', event => { transactionPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); transactionCurrentPage = 1; renderTransactions(); });

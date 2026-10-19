@@ -1,6 +1,6 @@
 # Feature & Interactive Control Status (Automated Button Audit)
 
-*Last updated: 2026-10-18T23:08:27.031Z via tests/e2e/button-audit.spec.mjs (#216)*
+*Last updated: 2026-10-19T05:25:29.877Z via tests/e2e/button-audit.spec.mjs (#216)*
 
 **Summary:** 61 / 61 controls verified working (0 no-effect buttons, 0 broken).
 
@@ -27,46 +27,46 @@
 | 19 | `#/expenses` | Export Expenses CSV | `#exportExpensesCsvBtn` | Downloads expenses CSV file | **Working** |
 | 20 | `#/expenses` | Clear Expense Filters | `#clearExpenseFilters` | Resets expense filters to default | **Working** |
 | 21 | `#/inventory` | Export Inventory CSV | `#exportInventoryCsvBtn` | Downloads equipment inventory CSV file | **Working** |
-| 22 | `/#/home` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 23 | `/#/home` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 24 | `/#/home` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 25 | `/#/home` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 26 | `/#/home` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
-| 27 | `/#/home` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
-| 28 | `/#/home` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
-| 29 | `/#/home` | clearGlobalSearch | `#clearGlobalSearch` | Opened dialog | **Working** |
-| 30 | `/#/customers` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 31 | `/#/customers` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 32 | `/#/customers` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 33 | `/#/customers` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 34 | `/#/customers` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
-| 35 | `/#/customers` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
-| 36 | `/#/customers` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
-| 37 | `/#/customers` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
-| 38 | `/#/transactions` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 39 | `/#/transactions` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 40 | `/#/transactions` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 41 | `/#/transactions` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 42 | `/#/transactions` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
-| 43 | `/#/transactions` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
-| 44 | `/#/transactions` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
-| 45 | `/#/transactions` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
-| 46 | `/#/reports` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 47 | `/#/reports` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 48 | `/#/reports` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 49 | `/#/reports` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 50 | `/#/reports` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
-| 51 | `/#/reports` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
-| 52 | `/#/reports` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
-| 53 | `/#/reports` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
-| 54 | `/#/expenses` | navDrawerToggle | `#navDrawerToggle` | Opened dialog | **Working** |
-| 55 | `/#/expenses` | mobileCustomerSearchTrigger | `#mobileCustomerSearchTrigger` | Opened dialog | **Working** |
-| 56 | `/#/expenses` | topbarPendingActionsBtn | `#topbarPendingActionsBtn` | Opened dialog | **Working** |
-| 57 | `/#/expenses` | languageToggleBtn | `#languageToggleBtn` | Opened dialog | **Working** |
-| 58 | `/#/expenses` | themeToggle | `#themeToggle` | Opened dialog | **Working** |
-| 59 | `/#/expenses` | dataSafetyShareBackupBtn | `#dataSafetyShareBackupBtn` | Opened dialog | **Working** |
-| 60 | `/#/expenses` | dataSafetyProtectStorageBtn | `#dataSafetyProtectStorageBtn` | Opened dialog | **Working** |
-| 61 | `/#/expenses` | srPrimaryAction | `#srPrimaryAction` | Opened dialog | **Working** |
+| 22 | `/#/home` | sidebarRailToggle | `#sidebarRailToggle` | Opened dialog | **Working** |
+| 23 | `/#/home` | data-nav-target="home"] | `[data-nav-target="home"]` | Opened dialog | **Working** |
+| 24 | `/#/home` | data-nav-target="customers"] | `[data-nav-target="customers"]` | Opened dialog | **Working** |
+| 25 | `/#/home` | data-nav-target="transactions"] | `[data-nav-target="transactions"]` | Opened dialog | **Working** |
+| 26 | `/#/home` | data-nav-target="bills"] | `[data-nav-target="bills"]` | Opened dialog | **Working** |
+| 27 | `/#/home` | data-nav-target="reports"] | `[data-nav-target="reports"]` | Opened dialog | **Working** |
+| 28 | `/#/home` | navPendingActionsBtn | `#navPendingActionsBtn` | Opened dialog | **Working** |
+| 29 | `/#/home` | data-nav-target="analytics"] | `[data-nav-target="analytics"]` | Opened dialog | **Working** |
+| 30 | `/#/customers` | sidebarRailToggle | `#sidebarRailToggle` | Opened dialog | **Working** |
+| 31 | `/#/customers` | data-nav-target="home"] | `[data-nav-target="home"]` | Opened dialog | **Working** |
+| 32 | `/#/customers` | data-nav-target="customers"] | `[data-nav-target="customers"]` | Opened dialog | **Working** |
+| 33 | `/#/customers` | data-nav-target="transactions"] | `[data-nav-target="transactions"]` | Opened dialog | **Working** |
+| 34 | `/#/customers` | data-nav-target="bills"] | `[data-nav-target="bills"]` | Opened dialog | **Working** |
+| 35 | `/#/customers` | data-nav-target="reports"] | `[data-nav-target="reports"]` | Opened dialog | **Working** |
+| 36 | `/#/customers` | navPendingActionsBtn | `#navPendingActionsBtn` | Opened dialog | **Working** |
+| 37 | `/#/customers` | data-nav-target="analytics"] | `[data-nav-target="analytics"]` | Opened dialog | **Working** |
+| 38 | `/#/transactions` | sidebarRailToggle | `#sidebarRailToggle` | Opened dialog | **Working** |
+| 39 | `/#/transactions` | data-nav-target="home"] | `[data-nav-target="home"]` | Opened dialog | **Working** |
+| 40 | `/#/transactions` | data-nav-target="customers"] | `[data-nav-target="customers"]` | Opened dialog | **Working** |
+| 41 | `/#/transactions` | data-nav-target="transactions"] | `[data-nav-target="transactions"]` | Opened dialog | **Working** |
+| 42 | `/#/transactions` | data-nav-target="bills"] | `[data-nav-target="bills"]` | Opened dialog | **Working** |
+| 43 | `/#/transactions` | data-nav-target="reports"] | `[data-nav-target="reports"]` | Opened dialog | **Working** |
+| 44 | `/#/transactions` | navPendingActionsBtn | `#navPendingActionsBtn` | Opened dialog | **Working** |
+| 45 | `/#/transactions` | data-nav-target="analytics"] | `[data-nav-target="analytics"]` | Opened dialog | **Working** |
+| 46 | `/#/reports` | sidebarRailToggle | `#sidebarRailToggle` | Opened dialog | **Working** |
+| 47 | `/#/reports` | data-nav-target="home"] | `[data-nav-target="home"]` | Opened dialog | **Working** |
+| 48 | `/#/reports` | data-nav-target="customers"] | `[data-nav-target="customers"]` | Opened dialog | **Working** |
+| 49 | `/#/reports` | data-nav-target="transactions"] | `[data-nav-target="transactions"]` | Opened dialog | **Working** |
+| 50 | `/#/reports` | data-nav-target="bills"] | `[data-nav-target="bills"]` | Opened dialog | **Working** |
+| 51 | `/#/reports` | data-nav-target="reports"] | `[data-nav-target="reports"]` | Opened dialog | **Working** |
+| 52 | `/#/reports` | navPendingActionsBtn | `#navPendingActionsBtn` | Opened dialog | **Working** |
+| 53 | `/#/reports` | data-nav-target="analytics"] | `[data-nav-target="analytics"]` | Opened dialog | **Working** |
+| 54 | `/#/expenses` | sidebarRailToggle | `#sidebarRailToggle` | Opened dialog | **Working** |
+| 55 | `/#/expenses` | data-nav-target="home"] | `[data-nav-target="home"]` | Opened dialog | **Working** |
+| 56 | `/#/expenses` | data-nav-target="customers"] | `[data-nav-target="customers"]` | Opened dialog | **Working** |
+| 57 | `/#/expenses` | data-nav-target="transactions"] | `[data-nav-target="transactions"]` | Opened dialog | **Working** |
+| 58 | `/#/expenses` | data-nav-target="bills"] | `[data-nav-target="bills"]` | Opened dialog | **Working** |
+| 59 | `/#/expenses` | data-nav-target="reports"] | `[data-nav-target="reports"]` | Opened dialog | **Working** |
+| 60 | `/#/expenses` | navPendingActionsBtn | `#navPendingActionsBtn` | Opened dialog | **Working** |
+| 61 | `/#/expenses` | data-nav-target="analytics"] | `[data-nav-target="analytics"]` | Opened dialog | **Working** |
 
 ### Notes
 - **`#ownerVoiceButton`**: Voice recognition is safely stubbed in headless Chromium environments.

@@ -805,6 +805,9 @@ export function initUniversalDialogController({
                 (this.parentElement && typeof this.parentElement.closest === 'function' && this.parentElement.closest('dialog') === d)
               );
               if (!isNested) {
+                if (d.id === 'fieldToolsModal') {
+                  d._skipHistoryBack = true;
+                }
                 try {
                   if (typeof d.close === 'function') d.close();
                   else if (typeof origClose === 'function') origClose.call(d);

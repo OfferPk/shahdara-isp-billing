@@ -166,6 +166,9 @@ test.describe('Issue #279 & #281: Quick Collect polish & Duplicate Warning', () 
     // Click Confirm again and then Proceed Anyway
     await page.locator('#quickCollectConfirmBtn').click();
     await expect(dupCard).toBeVisible();
+    // "Save anyway" needs a reason (#279).
+    await expect(page.locator('#quickCollectDuplicateProceedBtn')).toBeDisabled();
+    await page.locator('#quickCollectDuplicateReasonInput').fill('Combined receipt');
     await page.locator('#quickCollectDuplicateProceedBtn').click();
 
     // Should proceed and record payment

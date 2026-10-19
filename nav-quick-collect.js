@@ -1134,7 +1134,16 @@ export function setupQuickCollectModal({
 
   
   // Wire duplicate warning card buttons (#279)
+  // "Save anyway" needs a reason (#279); it is stored as the payment's reference override reason.
+  function syncDupProceed() {
+    if (!dupProceedBtn) return;
+    const ok = Boolean((dupReasonInput?.value || '').trim()) || !dupReasonInput;
+    dupProceedBtn.disabled = !ok;
+    dupProceedBtn.title = ok ? '' : 'Write why this reference is used again';
+  }
+  dupReasonInput?.addEventListener('input', syncDupProceed);
   dupProceedBtn?.addEventListener('click', () => {
+    if (dupProceedBtn.disabled) { dupReasonInput?.focus(); return; }
     duplicateBypassedForTxn = transactionIdInput ? transactionIdInput.value.trim() : '';
     if (dupWarningCard) dupWarningCard.hidden = true;
     if (paymentForm) {
@@ -1281,8 +1290,27 @@ export function setupQuickCollectModal({
 
       if (isDig) {
         if (!txnIdVal && !overrideReasonVal) {
+          const txnMsg = 'Please enter a Transaction ID or an override reason for digital payments.';
+          // #292: show it next to the field too (a toast alone was hidden behind the sheet).
+          if (transactionIdInput) {
+            let err = document.getElementById('quickCollectTxnError');
+            if (!err) {
+              err = document.createElement('p');
+              err.id = 'quickCollectTxnError';
+              err.className = 'qc-field-error';
+              err.setAttribute('role', 'alert');
+              transactionIdInput.insertAdjacentElement('afterend', err);
+              const clear = () => { err.hidden = true; transactionIdInput.removeAttribute('aria-invalid'); };
+              transactionIdInput.addEventListener('input', clear);
+              overrideReasonInput?.addEventListener('input', clear);
+            }
+            err.textContent = txnMsg;
+            err.hidden = false;
+            transactionIdInput.setAttribute('aria-invalid', 'true');
+            transactionIdInput.setAttribute('aria-describedby', 'quickCollectTxnError');
+          }
           if (typeof onToast === 'function') {
-            onToast('Please enter a Transaction ID or an override reason for digital payments.');
+            onToast(txnMsg);
           }
           transactionIdInput?.focus();
           return;
@@ -1297,22 +1325,23 @@ export function setupQuickCollectModal({
               if (dupMsg) {
                 dupMsg.textContent = `Transaction ID "${txnIdVal}" was already recorded on ${dupDate} for ${dup.customerName || 'customer'} (#${dup.customerNumber || '?'}) in month ${dupMonth} (PKR ${dupAmt}).`;
               }
+              if (dupReasonInput) dupReasonInput.value = '';
+              syncDupProceed();
               dupWarningCard.hidden = false;
               dupWarningCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-              dupProceedBtn?.focus();
+              (dupCancelBtn || dupProceedBtn)?.focus(); // Cancel is the safe default (#279)
+              return; // in-app card only: no browser confirm() (#279)
             }
-
-            const confirmed = typeof window.confirm === 'function' ? window.confirm(
-              `⚠️ Duplicate Transaction ID detected!\n\n` +
-              `Transaction ID "${txnIdVal}" was already recorded on ${dupDate} ` +
-              `for ${dup.customerName} (#${dup.customerNumber}) in month ${dupMonth} (PKR ${dupAmt}).\n\n` +
-              `Do you want to proceed anyway with this duplicate reference?`
-            ) : true;
-
-            if (!confirmed) {
-              transactionIdInput?.focus();
-              return;
-            }
+            // No card in the page (older markup): fall back to the shared in-app confirm.
+            const ask = typeof window.appConfirm === 'function'
+              ? window.appConfirm({ tone: 'warning', title: 'Duplicate Transaction ID', subject: `Transaction ID "${txnIdVal}"`, message: `Already recorded on ${dupDate} for ${dup.customerName} (#${dup.customerNumber}) in month ${dupMonth} (PKR ${dupAmt}). Save anyway?`, confirmLabel: 'Save anyway' })
+              : Promise.resolve(false);
+            ask.then(ok => {
+              if (!ok) { transactionIdInput?.focus(); return; }
+              duplicateBypassedForTxn = txnIdVal;
+              if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
+            });
+            return;
             if (dupWarningCard) {
               dupWarningCard.hidden = true;
             }
@@ -1328,7 +1357,7 @@ export function setupQuickCollectModal({
         method: methodVal,
         paidBy: paidByVal,
         transactionId: txnIdVal,
-        referenceOverrideReason: overrideReasonVal,
+        referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,
         screenshot: currentScreenshotDataUrl
       });
 

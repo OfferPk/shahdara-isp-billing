@@ -107,20 +107,22 @@ test.describe('Digital Payments (Issue #224): JazzCash / Easypaisa / Raast / Ban
     await page.locator('.quick-method-chip[data-method="JazzCash"]').click();
     await page.locator('#quickCollectTransactionIdInput').fill('DUP-REF-112233');
 
-    // 5. Verify window.confirm is triggered with duplicate warning
-    let dialogTriggered = false;
-    let dialogMessage = '';
-    page.once('dialog', async dialog => {
-      dialogTriggered = true;
-      dialogMessage = dialog.message();
-      await dialog.accept();
-    });
+    // 5. The duplicate warning is the in-app card, never a browser confirm() (#279)
+    let nativeDialog = false;
+    page.on('dialog', async dialog => { nativeDialog = true; await dialog.dismiss(); });
 
     await page.locator('#quickCollectConfirmBtn').click();
 
-    expect(dialogTriggered).toBe(true);
-    expect(dialogMessage).toContain('Duplicate Transaction ID detected');
-    expect(dialogMessage).toContain('DUP-REF-112233');
+    const dupCard = page.locator('#quickCollectDuplicateWarning');
+    await expect(dupCard).toBeVisible();
+    await expect(dupCard).toContainText('Duplicate Transaction ID');
+    await expect(page.locator('#quickCollectDuplicateMsg')).toContainText('DUP-REF-112233');
+    await expect(page.locator('#quickCollectDuplicateMsg')).not.toContainText('undefined');
+    await expect(page.locator('#quickCollectDuplicateCancelBtn')).toBeFocused();
+    await expect(page.locator('#quickCollectStepSuccess')).toBeHidden();
+    await page.locator('#quickCollectDuplicateReasonInput').fill('Combined receipt for two months');
+    await page.locator('#quickCollectDuplicateProceedBtn').click();
+    expect(nativeDialog).toBe(false);
 
     // Success screen after accepting warning
     await expect(page.locator('#quickCollectStepSuccess')).toBeVisible();

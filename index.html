@@ -16,6 +16,8 @@
   <link rel="stylesheet" href="./screen-router.css?v=1.10.0">
   <link rel="stylesheet" href="./bulk-collect.css?v=1.10.0">
   <link rel="stylesheet" href="./customer-import.css?v=1.10.0">
+  <link rel="stylesheet" href="./ui-feedback.css?v=1.10.0">
+  <link rel="stylesheet" href="./dark-contrast.css?v=1.10.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -6394,6 +6396,7 @@
               </div>
               <div class="profile-action-group" role="group" aria-label="Customer quick actions">
                 <button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button>
+                <button id="backdatedPaymentButton" class="text-button backdated-payment-link" type="button">Advanced: back-dated entry in ledger</button>
                 <button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 Statement</button>
                 <button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 Reminder</button>
                 <button id="openCustomerPromiseBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Record or View Customer Wada / Promise-to-Pay">🤝 Wada</button>
@@ -6404,9 +6407,8 @@
                 <button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ Dispute</button>
                 <button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 KYC Audit</button>
                 <button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 Equipment Return</button>
-                <button id="archiveCustomerButton" class="secondary-button" type="button">Archive</button>
-                <button id="unarchiveCustomerButton" class="secondary-button" type="button" hidden>Unarchive</button>
-                <button id="deleteCustomerButton" class="text-button danger" type="button">Permanently delete</button>
+                <button id="archiveCustomerButton" class="secondary-button profile-action-btn" type="button"><span aria-hidden="true">🗄</span> Archive</button>
+                <button id="unarchiveCustomerButton" class="secondary-button profile-action-btn" type="button" hidden><span aria-hidden="true">↺</span> Unarchive</button>
                 <details class="customer-technical-tools" id="customerTechnicalToolsDetails">
                   <summary class="customer-technical-summary">🔧 Technical QA &amp; Field Certificates (24 tools)</summary>
                   <div class="customer-technical-grid">
@@ -6442,7 +6444,12 @@
                   </div>
                 </details>
               </div>
-              <section id="customerCurrentBillSummary" class="customer-current-bill-summary" aria-label="Current billing summary"></section>
+              <div id="customerCurrentBillSummary" class="customer-current-bill-summary" role="region" aria-label="Current billing summary"></div>
+              <div class="profile-danger-zone" role="group" aria-labelledby="profileDangerZoneTitle">
+                <p id="profileDangerZoneTitle" class="profile-danger-title">Danger zone</p>
+                <p class="profile-danger-help">Removes this customer and all bills and receipts from this device. Archive keeps the history.</p>
+                <button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span aria-hidden="true">🗑</span> Delete customer</button>
+              </div>
             </section>
             <nav class="profile-tabs" role="tablist" aria-label="Customer profile sections">
               <button id="profileTabBilling" class="profile-tab-button" type="button" role="tab" aria-controls="profilePanelBilling" aria-selected="true" tabindex="0">Billing &amp; Ledger</button>
@@ -18729,11 +18736,11 @@
             <div class="qc-duplicate-title">⚠️ Duplicate Transaction ID Detected</div>
             <p id="quickCollectDuplicateMsg" class="qc-duplicate-msg"></p>
             <div class="qc-field-group" style="margin-bottom:8px;">
-              <label for="quickCollectDuplicateReasonInput" class="qc-label" style="font-size:12px;">Override Reason (Optional / اختیاری وجہ)</label>
+              <label for="quickCollectDuplicateReasonInput" class="qc-label" style="font-size:12px;">Reason for using this ID again (required / وجہ لازمی)</label>
               <input id="quickCollectDuplicateReasonInput" type="text" class="qc-input" placeholder="e.g. Combined receipt / مشترکہ رسید">
             </div>
             <div class="qc-duplicate-actions">
-              <button id="quickCollectDuplicateProceedBtn" type="button" class="primary-button" style="background:#e53e3e;font-size:12px;padding:6px 12px;">Proceed Anyway</button>
+              <button id="quickCollectDuplicateProceedBtn" type="button" class="primary-button" style="background:#e53e3e;font-size:12px;padding:6px 12px;">Save anyway</button>
               <button id="quickCollectDuplicateCancelBtn" type="button" class="secondary-button" style="font-size:12px;padding:6px 12px;">Cancel &amp; Edit ID</button>
             </div>
           </div>
@@ -20363,6 +20370,7 @@
   <script type="module" src="./bulk-collect.js?v=1.10.0"></script>
   <script type="module" src="./customer-plan.js?v=1.10.0"></script>
   <script type="module" src="./customer-import.js?v=1.10.0"></script>
+  <script type="module" src="./ui-feedback.js?v=1.10.0"></script>
   <script type="module" src="./collect-setup.js?v=1.10.0"></script>
 </body>
 </html>

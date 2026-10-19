@@ -1,0 +1,188 @@
+/* ui-feedback.js: stacked typed toasts, in-app confirm dialog, customer action buttons, payment form polish. */
+
+/* ---------- Toast stack (extends #toast from #220) ---------- */
+.tsx-stack, .tsx-stack[popover] {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: visible;
+  height: auto;
+  color: inherit;
+  left: 50%;
+  bottom: calc(var(--bottom-nav-height, 64px) + 12px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 1090;
+  width: min(520px, calc(100vw - 24px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+@media (min-width: 900px) { .tsx-stack, .tsx-stack[popover] { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); } }
+.tsx-stack > .tsx, .tsx-stack > #toast {
+  position: relative !important;
+  left: auto !important; bottom: auto !important; transform: none !important;
+  min-width: 0 !important; max-width: none !important; width: 100%;
+  display: grid !important;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px 14px 12px !important;
+  background: #14211e !important;
+  color: #fff;
+  border: 1px solid #2c4a40 !important;
+  border-left: 4px solid var(--tsx-accent, #88c5a3) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .28) !important;
+  overflow: hidden;
+  pointer-events: auto;
+  cursor: default;
+  animation: tsx-in .18s ease-out;
+  font-size: 14px;
+}
+.tsx-stack > [hidden], .tsx-stack > #toast[hidden] { display: none !important; }
+.tsx-stack > .tsx-old { opacity: .92; transform: scale(.98) !important; }
+.tsx[data-type="success"] { --tsx-accent: #3fbf86; }
+.tsx[data-type="error"] { --tsx-accent: #ff6b5e; }
+.tsx[data-type="warning"] { --tsx-accent: #f2b23a; }
+.tsx[data-type="info"] { --tsx-accent: #5aa9f0; }
+.tsx-icon {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--tsx-accent, #88c5a3); color: #08140f;
+  font: 800 16px/1 system-ui, sans-serif;
+}
+.tsx-body { display: grid; gap: 2px; min-width: 0; }
+.tsx-title { font: 700 14px/1.3 Manrope, system-ui, sans-serif; color: #fff; }
+.tsx-message { color: #d6e6df; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.tsx-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+button.toast-action-btn:not([hidden]) {
+  min-height: 44px; min-width: 64px; padding: 0 14px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.35);
+  background: #0e5b4d; color: #fff; font-weight: 700; font-size: 13px; cursor: pointer;
+}
+.tsx .toast-action-btn.tsx-action-secondary { background: transparent; }
+.tsx .toast-action-btn:focus-visible, .tsx-close:focus-visible { outline: 3px solid #9be3c4; outline-offset: 2px; }
+.tsx-close {
+  width: 44px; height: 44px; border: 0; border-radius: 10px;
+  background: transparent; color: #b9cdc5; font-size: 22px; line-height: 1; cursor: pointer;
+}
+.tsx-close:hover { background: rgba(255,255,255,.08); color: #fff; }
+.tsx-progress {
+  position: absolute; left: 0; bottom: 0; height: 3px; width: 100%;
+  background: var(--tsx-accent, #88c5a3); transform-origin: left center;
+  animation-name: tsx-progress; animation-timing-function: linear; animation-fill-mode: forwards;
+}
+.tsx.is-paused .tsx-progress { animation-play-state: paused; }
+@keyframes tsx-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes tsx-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 420px) {
+  .tsx-stack > .tsx, .tsx-stack > #toast { grid-template-columns: 32px minmax(0, 1fr) auto; }
+  .tsx-actions { grid-column: 2 / -1; grid-row: 2; justify-content: flex-start; }
+  .tsx-close { grid-column: 3; grid-row: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .tsx, .tsx-progress { animation: none !important; } }
+[data-theme="dark"] .tsx-stack > .tsx, [data-theme="dark"] .tsx-stack > #toast { background: #20352e !important; border-color: #3b5d51 !important; }
+
+/* ---------- In-app confirm dialog ---------- */
+.app-confirm { width: min(420px, calc(100% - 28px)); padding: 20px !important; }
+.app-confirm-head { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 10px; }
+.app-confirm-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; background: #e6f3ee; }
+.app-confirm[data-tone="danger"] .app-confirm-icon { background: #fde8e6; }
+.app-confirm[data-tone="warning"] .app-confirm-icon { background: #fff3d6; }
+.app-confirm-title { margin: 0; font: 800 18px/1.25 Manrope, system-ui, sans-serif; color: var(--ink, #182e2a); }
+.app-confirm-subject { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: #f3f7f5; font-weight: 800; color: var(--ink, #182e2a); overflow-wrap: anywhere; }
+.app-confirm-message { margin: 0; color: #4a5f57; line-height: 1.5; font-size: 14px; }
+.app-confirm-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+button.app-confirm-btn:not([hidden]) { min-height: 48px !important; padding: 0 18px !important; font-size: 14px !important; border-radius: 12px !important; }
+.app-confirm .danger-button { background: #b3261e !important; border-color: #b3261e !important; color: #fff !important; }
+.app-confirm .warning-button { background: #8a5a00 !important; border-color: #8a5a00 !important; color: #fff !important; }
+@media (max-width: 480px) {
+  .app-confirm-actions { flex-direction: column-reverse; }
+  .app-confirm-actions .app-confirm-btn { width: 100%; }
+}
+[data-theme="dark"] .app-confirm-title, [data-theme="dark"] .app-confirm-subject { color: #e8f3ee; }
+[data-theme="dark"] .app-confirm-subject { background: #1d352e; }
+[data-theme="dark"] .app-confirm-message { color: #b7cbc2; }
+[data-theme="dark"] .app-confirm-icon { background: #1d352e; }
+[data-theme="dark"] .app-confirm .danger-button { background: #e0574b !important; border-color: #e0574b !important; color: #1b0503 !important; }
+[data-theme="dark"] .app-confirm .warning-button { background: #f2b23a !important; border-color: #f2b23a !important; color: #241500 !important; }
+
+/* ---------- Customer profile actions: Edit / Archive / Delete / Save ---------- */
+#editProfileButton.profile-edit-button:not([hidden]) { min-height: 48px !important; min-width: 48px; padding: 0 16px !important; font-size: 14px !important; border-radius: 12px !important; display: inline-flex; align-items: center; gap: 6px; }
+.profile-edit-button::before { content: '✎'; font-size: 16px; }
+button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 0 10px !important; white-space: nowrap; border-radius: 12px !important; font-size: 14px !important; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.profile-delete-btn { border: 1px solid #e3b4ae !important; background: #fff6f5 !important; color: #b3261e !important; text-decoration: none !important; }
+.profile-delete-btn:hover { background: #fde8e6 !important; }
+#saveMohallaButton:not([hidden]), #cancelProfileEditButton:not([hidden]) { min-height: 48px !important; padding: 0 18px !important; border-radius: 12px !important; font-size: 14px !important; }
+#saveMohallaButton { background: var(--green, #0e5b4d); border-color: var(--green, #0e5b4d); color: #fff; display: inline-flex; align-items: center; gap: 6px; }
+#saveMohallaButton::before { content: '✓'; font-weight: 800; }
+#saveMohallaButton:disabled { background: #dfe8e4; border-color: #dfe8e4; color: #61766d; cursor: not-allowed; }
+#saveMohallaButton.is-saving::before { content: ''; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: pf-spin .7s linear infinite; }
+@keyframes pf-spin { to { transform: rotate(360deg); } }
+.profile-save-hint { font-size: 12px; color: #61766d; }
+.profile-save-hint[data-state="dirty"] { color: #8a5a00; font-weight: 700; }
+[data-theme="dark"] .profile-delete-btn { background: #3a1513 !important; border-color: #6b2a24 !important; color: #ffb4a8 !important; }
+[data-theme="dark"] #saveMohallaButton:not(:disabled) { background: #3fbf9f; border-color: #3fbf9f; color: #04231a; }
+[data-theme="dark"] #saveMohallaButton:disabled { background: #1d352e; border-color: #2d4a40; color: #8fa79d; }
+[data-theme="dark"] .profile-save-hint { color: #a3b9af; }
+[data-theme="dark"] .profile-save-hint[data-state="dirty"] { color: #f6cf7a; }
+
+/* ---------- Payment form ---------- */
+.payment-form .form-grid { gap: 10px 10px; }
+.payment-form .form-grid .field-label { margin: 6px 0 -2px; font-size: 12px; }
+.payment-form input, .payment-form select { min-height: 48px; font-size: 15px !important; }
+.payment-form button.primary-button[type="submit"]:not([hidden]) { min-height: 48px; font-size: 14px; border-radius: 12px; margin-top: 6px; }
+.payment-form .primary-button[aria-busy="true"] { opacity: .7; cursor: progress; }
+.payment-form [aria-invalid="true"] { border-color: #b3261e !important; outline: 2px solid #f3c2bd; }
+.pf-error { grid-column: 1 / -1; margin: -4px 0 2px; color: #b3261e; font-size: 12.5px; font-weight: 700; }
+.pf-error::before { content: '⚠ '; }
+[data-theme="dark"] .pf-error { color: #ffb4a8; }
+[data-theme="dark"] .payment-form [aria-invalid="true"] { border-color: #ff8a7d !important; outline-color: #6b2a24; }
+
+/* Quick Collect inline Transaction ID error (#292) */
+.qc-field-error { margin: 6px 0 0; color: #b3261e; font-size: 13px; font-weight: 700; }
+.qc-field-error::before { content: '⚠ '; }
+.qc-field-error[hidden] { display: none; }
+#quickCollectTransactionIdInput[aria-invalid="true"] { border-color: #b3261e !important; }
+[data-theme="dark"] .qc-field-error { color: #ffb4a8; }
+
+/* ---------- Customer section (#293) ---------- */
+/* One "+ Add Customer" in the screen header; the pane's duplicate "+" is only hidden (srPrimaryAction still clicks it). */
+body.sr-screen-mode #addCustomerButton { display: none !important; }
+.cust-add-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.cust-add-actions > button:not([hidden]) { min-height: 44px !important; padding: 0 10px !important; border-radius: 10px !important; font-size: 13px !important; white-space: nowrap; }
+.cust-list-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cust-list-toolbar .sr-filter-jump { margin: 0; }
+.cust-density-toggle:not([hidden]) { min-height: 44px !important; padding: 0 12px; border-radius: 10px; border: 1px solid #cfe0d8; background: #fff; color: #174f40; font-weight: 700; font-size: 13px; cursor: pointer; }
+.pane-heading .pane-heading-actions:empty { display: none; }
+
+/* Compact list: one row per customer (~64-72 px). Details stay in the profile and behind "Show details". */
+.cust-compact .customer-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: 12px; box-shadow: none; }
+.cust-compact .customer-item:hover { transform: none; }
+.cust-compact .customer-select.customer-profile-card-open { padding: 8px 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
+.cust-compact .customer-card-heading { gap: 10px; }
+.cust-compact .customer-card-heading .avatar { width: 34px; height: 34px; border-radius: 10px; }
+.cust-compact .customer-card-heading .customer-copy { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 0; }
+.cust-compact .customer-card-heading .customer-number-line { order: 2; font-size: 11px; }
+.cust-compact .customer-card-heading .customer-name { order: 1; font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.cust-compact .customer-card-package { margin: 0 0 0 44px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cust-compact :is(.customer-card-stats, .customer-health-badge, .customer-card-open-hint, .customer-health-reasons, .service-choice-group) { display: none !important; }
+.cust-compact .customer-card-controls { padding: 0 10px 0 0; border: 0; margin: 0; background: transparent; display: flex; }
+.cust-compact .customer-billing-badge[data-short] { font-size: 0 !important; white-space: nowrap; }
+.cust-compact .customer-billing-badge[data-short]::after { content: attr(data-short); font-size: 12px; }
+.customer-manual-state.is-unset { display: none; }
+
+/* Profile: Delete in its own danger zone, away from Archive. */
+.profile-danger-zone { margin-top: 18px; padding: 14px; border: 1px dashed #e3b4ae; border-radius: 14px; background: #fffafa; display: grid; gap: 6px; }
+.profile-danger-title { margin: 0; font: 800 12px/1.2 Manrope, system-ui, sans-serif; letter-spacing: .6px; text-transform: uppercase; color: #b3261e; }
+.profile-danger-help { margin: 0; font-size: 13px; color: #6b4a46; }
+.profile-danger-zone .profile-delete-btn { justify-self: start; }
+.backdated-payment-link { justify-self: start; font-size: 13px !important; color: #0e5b4d; text-decoration: underline; }
+[data-theme="dark"] .profile-danger-zone { background: #241614 !important; border-color: #6b2a24 !important; }
+[data-theme="dark"] .profile-danger-title { color: #ffb4a8 !important; }
+[data-theme="dark"] .profile-danger-help { color: #e4c5c0 !important; }
+[data-theme="dark"] .cust-density-toggle { background: #1d352e !important; color: #e8f3ee !important; border-color: #2d4a40 !important; }

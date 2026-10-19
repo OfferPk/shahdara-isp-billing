@@ -11628,4 +11628,383 @@ dialog::backdrop {
   background: #147562;
 }
 
+/* ==========================================================================
+   WHATSAPP REMINDER QUEUE & PROMISE-TO-PAY (WADA) SUITE (#222)
+   ========================================================================== */
+.reminder-queue-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--mint, #f4faf7);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.reminder-queue-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.reminder-queue-badge {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+.reminder-stage-pill {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.reminder-queue-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.queue-nav-btn {
+  padding: 4px 10px !important;
+  font-size: 12px !important;
+  min-height: 30px !important;
+  border-radius: 6px !important;
+}
+
+/* Inline Promise-to-Pay Fieldset in Reminder Modal */
+.reminder-promise-fieldset {
+  margin-top: 10px;
+  border: 1px dashed var(--primary, #0e5b4d);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--surface-2, #fbfdfc);
+}
+.reminder-promise-fieldset legend {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary, #0e5b4d);
+  padding: 0 6px;
+}
+.promise-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+@media (max-width: 480px) {
+  .promise-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.promise-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink, #182e2a);
+}
+.promise-form-grid input {
+  padding: 6px 10px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 6px;
+  font-size: 12.5px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+}
+.promise-note-label {
+  grid-column: 1 / -1;
+}
+.promise-form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.promise-form-actions button {
+  padding: 5px 12px;
+  font-size: 12px;
+  min-height: 32px;
+}
+
+/* Reminder Dispatched History inside modal */
+.reminder-history-container {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line, #e2ece7);
+}
+.reminder-history-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink, #182e2a);
+  margin: 0 0 6px 0;
+}
+.reminder-history-list {
+  max-height: 110px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.reminder-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--mint, #f4faf7);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 6px;
+  font-size: 11.5px;
+}
+.reminder-empty-note {
+  font-size: 11.5px;
+  color: var(--muted, #71817c);
+  margin: 0;
+  font-style: italic;
+}
+
+/* Wada / Promise-to-Pay Dialog */
+.wada-modal .modal-content {
+  border-radius: 16px;
+  overflow: hidden;
+}
+.wada-summary-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.wada-summary-kpi {
+  background: var(--mint, #f4faf7);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: center;
+}
+.wada-kpi-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted, #71817c);
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.wada-kpi-val {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #182e2a);
+  margin-top: 2px;
+}
+.wada-broken-val {
+  color: #dc2626 !important;
+}
+.wada-filter-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 10px;
+}
+.wada-tab-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+.wada-tab-btn:hover {
+  background: var(--mint, #f4faf7);
+}
+.wada-tab-btn.is-active {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+  border-color: var(--primary, #0e5b4d);
+}
+.wada-list-container {
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px;
+}
+.wada-card {
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--surface, #ffffff);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color 0.15s ease;
+}
+.wada-card.is-broken {
+  border-color: #fca5a5;
+  background: #fff5f5;
+}
+.wada-card.is-today {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.wada-card.is-fulfilled {
+  opacity: 0.75;
+  background: #f8fafc;
+}
+.wada-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.wada-cust-name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink, #182e2a);
+}
+.wada-cust-sub {
+  font-size: 11px;
+  color: var(--muted, #71817c);
+}
+.wada-badge {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.wada-badge-today {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.wada-badge-broken {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+.wada-badge-upcoming {
+  background: #e0f2fe;
+  color: #075985;
+  border: 1px solid #bae6fd;
+}
+.wada-badge-fulfilled {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.wada-card-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+}
+.wada-amount-pill {
+  font-weight: 700;
+  color: #b45309;
+}
+.wada-card-note {
+  font-size: 11.5px;
+  color: var(--muted, #71817c);
+  font-style: italic;
+}
+.wada-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.wada-btn {
+  padding: 4px 8px !important;
+  font-size: 11.5px !important;
+  min-height: 28px !important;
+  border-radius: 6px !important;
+}
+
+/* Reminder Stages Configuration Table */
+.reminder-stages-table-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 8px;
+}
+.reminder-stages-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.reminder-stages-table th,
+.reminder-stages-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #e2ece7);
+}
+.reminder-stages-table input[type="text"],
+.reminder-stages-table input[type="number"],
+.reminder-stages-table select {
+  padding: 4px 6px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+}
+
+/* Dark mode adjustments for reminders and wada */
+[data-theme="dark"] .reminder-queue-bar {
+  background: #182e27;
+  border-color: #253d35;
+}
+[data-theme="dark"] .reminder-promise-fieldset {
+  background: #14231f;
+  border-color: #3b82f6;
+}
+[data-theme="dark"] .reminder-history-item {
+  background: #182e27;
+  border-color: #253d35;
+}
+[data-theme="dark"] .wada-summary-kpi {
+  background: #182e27;
+  border-color: #253d35;
+}
+[data-theme="dark"] .wada-kpi-val {
+  color: #e6edea;
+}
+[data-theme="dark"] .wada-tab-btn {
+  background: #14231f;
+  border-color: #253d35;
+  color: #e6edea;
+}
+[data-theme="dark"] .wada-tab-btn.is-active {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+}
+[data-theme="dark"] .wada-card {
+  background: #14231f;
+  border-color: #253d35;
+}
+[data-theme="dark"] .wada-card.is-broken {
+  background: #2b1414;
+  border-color: #7f1d1d;
+}
+[data-theme="dark"] .wada-card.is-today {
+  background: #2e2410;
+  border-color: #78350f;
+}
+[data-theme="dark"] .wada-cust-name {
+  color: #e6edea;
+}
+
+
 

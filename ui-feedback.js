@@ -62,6 +62,7 @@ function normalizeActions(opts) {
 }
 
 export function createToastSystem(doc = document, win = window) {
+  const live = new Set(); // toasts with actions that are still showing, with the dialog they were shown in (origin)
   let stack = doc.getElementById('toastStack');
   if (!stack) {
     stack = doc.createElement('div');
@@ -97,6 +98,9 @@ export function createToastSystem(doc = document, win = window) {
   // buttons — Confirm, Undo, Save — in the bottom action bar), and only the newest toast is shown.
   function place() {
     const host = topModal() || doc.body;
+    // #303: a toast with an action (Undo, Add phone ...) belongs to the screen or dialog it was shown in. It is never
+    // carried into a different dialog, where its Undo would act on something other than what the user is deciding.
+    if (host !== doc.body) for (const rec of [...live]) if (rec.origin !== host) dismiss(rec);
     if (stack.parentElement !== host) host.appendChild(stack);
     const inDialog = host !== doc.body;
     stack.classList.toggle('tsx-in-dialog', inDialog);
@@ -139,6 +143,9 @@ export function createToastSystem(doc = document, win = window) {
     if (best) stack.style.top = `${Math.round(best.y)}px`;
   }
   doc.addEventListener('close', e => {
+    // #303: when the sheet that showed an action toast closes, that toast (e.g. Quick Collect "Payment recorded · Undo")
+    // goes too, so it cannot follow the user to other screens. The sheet's own success screen keeps its Undo button.
+    if (e.target?.tagName === 'DIALOG') for (const rec of [...live]) if (rec.origin === e.target) dismiss(rec);
     if (e.target?.tagName === 'DIALOG' && e.target.contains(stack)) win.setTimeout(() => { if (!stack.querySelector('.tsx:not([hidden])')) { doc.body.appendChild(stack); if (canPopover) { try { stack.hidePopover(); } catch {} } } else place(); }, 0);
   }, true);
   // A toast that is already showing when a dialog opens moves above that dialog's backdrop.
@@ -174,6 +181,7 @@ export function createToastSystem(doc = document, win = window) {
   function dismiss(rec) {
     if (!rec || rec.dismissed) return;
     rec.dismissed = true;
+    live.delete(rec);
     stopTimer(rec);
     if (rec.el === main) { main.hidden = true; main.replaceChildren(); if (current === rec) current = null; }
     else rec.el.remove();
@@ -257,7 +265,8 @@ export function createToastSystem(doc = document, win = window) {
       old.setAttribute('aria-live', 'off');
       const prev = current;
       pause(prev);
-      const rec = { el: old, remaining: prev.remaining, dismissed: false };
+      const rec = { el: old, remaining: prev.remaining, dismissed: false, origin: prev.origin };
+      if (live.delete(prev)) live.add(rec); // the copy keeps the old toast's Undo; main is reused below
       // Re-wire buttons on the copy (cloneNode drops listeners).
       const oldActions = prev.actions || [];
       old.querySelectorAll('.toast-action-btn').forEach((b, i) => b.addEventListener('click', e => { e.stopPropagation(); dismiss(rec); try { oldActions[i]?.onAction(); } catch (err) { console.error(err); } }));
@@ -271,7 +280,8 @@ export function createToastSystem(doc = document, win = window) {
       for (let i = 0; i < olds.length - (MAX_STACK - 1); i++) olds[i].remove();
     }
     stopTimer(current);
-    const rec = { el: main, dismissed: false, actions };
+    const rec = { el: main, dismissed: false, actions, origin: actions.length ? (topModal() || doc.body) : undefined };
+    if (actions.length) live.add(rec);
     current = rec;
     fill(main, rec, { type, title: opts.title, message: text, actions, duration });
     main.hidden = false;

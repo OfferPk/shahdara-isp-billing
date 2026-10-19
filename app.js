@@ -2069,7 +2069,20 @@ function openPaymentEntry(month = selectedBillingMonth) {
   amountInput.scrollIntoView({ behavior:'smooth', block:'center' });
   amountInput.focus({ preventScroll:true });
 }
-$('#quickAddPaymentButton').addEventListener('click', () => { switchView('customers'); openPaymentEntry(); });
+// #300: every "+ Add Payment" (Home, Transactions, Bills, Monthly Report, menus) opens Quick Collect, even after a
+// profile was opened. The old per-month ledger form is only for the profile's "back-dated entry" link.
+function openAddPayment(customerId = null) {
+  const qc = window.quickCollectModalController;
+  if (typeof qc?.open === 'function') {
+    const customer = customerId ? state.customers.find(c => c.id === customerId) : null;
+    if (customer && !customer.archived) qc.open(customer.id); else qc.open();
+    return;
+  }
+  switchView('customers');
+  if (customerId) selectCustomer(customerId);
+  openPaymentEntry();
+}
+$('#quickAddPaymentButton').addEventListener('click', () => openAddPayment());
 // #294: the profile's main payment button opens the same Quick Collect sheet (today's date, Cash, amount chips,
 // receipt/WhatsApp/Undo) already on this customer. The ledger month form stays for back-dated entries.
 $('#currentBillPaymentShortcut').addEventListener('click', () => {
@@ -2690,11 +2703,8 @@ setupKeyboardShortcuts({
 mobileActionSheetController = setupMobileActionSheet({
   onAction: (action, context) => {
     if (action === 'customer-payment') {
-      if (context && context.customerId) {
-        selectCustomer(context.customerId);
-      }
-      const btn = $('#quickAddPaymentButton') || $('#quickActionReceivePayment');
-      if (btn) btn.click();
+      if (context && context.customerId) selectCustomer(context.customerId);
+      openAddPayment(context?.customerId || null); // #300
     } else if (action === 'customer-whatsapp') {
       if (context && context.customerId) {
         selectCustomer(context.customerId);
@@ -6215,6 +6225,10 @@ if (typeof document !== 'undefined') {
     }
   });
 
+  // #301: form-validation.js (agent3 lane) calls a bare triggerHaptic() in the Dispute dialog without importing it,
+  // which threw a ReferenceError before showModal(). Expose app.js's imported helper as a global so the bare
+  // reference resolves; the proper import is tracked for the agent3 lane.
+  if (typeof globalThis.triggerHaptic !== 'function') globalThis.triggerHaptic = triggerHaptic;
   const openDisputeBtn = $('#openDisputeClaimBtn');
   if (openDisputeBtn) {
     openDisputeBtn.addEventListener('click', () => {
@@ -6224,7 +6238,8 @@ if (typeof document !== 'undefined') {
       }
       const cust = state.customers.find(c => c.id === selectedCustomerId);
       if (!cust) return;
-      customerDisputeModalController?.open(cust);
+      try { customerDisputeModalController?.open(cust); }
+      catch (error) { console.warn('Dispute dialog failed to open', error); toast('The Dispute form could not open. Please reload and try again.', { type: 'error' }); }
     });
   }
 

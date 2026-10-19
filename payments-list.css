@@ -114,5 +114,17 @@
   #transactionSummaryBar .tx-summary-label { font-size: 0; }
   #transactionSummaryBar .tx-summary-item:first-child .tx-summary-label::before { content: 'Total'; font-size: 12px; margin-right: 4px; }
   #transactionSummaryBar .tx-summary-item:nth-child(2) .tx-summary-label::before { content: 'Avg'; font-size: 12px; margin-right: 4px; }
-  #transactionSummaryBar { flex-wrap: nowrap; gap: 10px; white-space: nowrap; }
+  /* #303: the two totals wrap onto a second line instead of running past the card (360-390 px). */
+  #transactionSummaryBar { flex-wrap: wrap; column-gap: 10px; row-gap: 2px; white-space: normal; min-width: 0; overflow: hidden; }
+  #transactionSummaryBar .tx-summary-item { white-space: nowrap; min-width: 0; }
 }
+
+/* #303: dark theme, expanded payment details: readable muted text (>= 4.5:1) and dark surfaces for the allocation
+   strip and the WhatsApp receipt button (they were light-theme leftovers inside the dark card). */
+[data-theme="dark"] .tx-details .transaction-meta,
+[data-theme="dark"] .tx-details .transaction-context,
+[data-theme="dark"] .tx-details .receipt-network-note,
+[data-theme="dark"] .tx-details .whatsapp-receipt-unavailable { color: #b7cbc2; }
+[data-theme="dark"] .tx-details .payment-allocation { background: #20403a; color: #d6efe4; border-color: #2d4a40; }
+[data-theme="dark"] .tx-details :is(.receipt-phone-help, .receipt-whatsapp-action) { background: #1f3a33; color: #d6efe4; border-color: #3b5d51; }
+[data-theme="dark"] .tx-details :is(.receipt-phone-help, .receipt-whatsapp-action):hover { background: #27483f; border-color: #5d8a78; }

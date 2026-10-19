@@ -77,11 +77,16 @@ test.describe('Screen router (#212)', () => {
     await inFirstScreen(page, page.locator('#customerListSearch'));
     await inFirstScreen(page, page.locator('#customerList > li').first());
     // The list must not be squeezed by the filter panel (desktop sticky pane): the first card is really visible.
-    const visible = await page.locator('#customerList > li').first().evaluate(li => {
+    // #293 made rows compact (~72px), so check that the first card is fully visible and that
+    // the list itself still shows more than 150px of rows (at least two compact cards).
+    const fit = await page.locator('#customerList > li').first().evaluate(li => {
       const r = li.getBoundingClientRect(); const l = li.parentElement.getBoundingClientRect();
-      return Math.min(r.bottom, l.bottom, window.innerHeight) - Math.max(r.top, l.top, 0);
+      const top = Math.max(l.top, 0), bottom = Math.min(l.bottom, window.innerHeight);
+      return { card: Math.min(r.bottom, bottom) - Math.max(r.top, top), height: r.height, list: bottom - top };
     });
-    expect(visible).toBeGreaterThan(150);
+    expect(fit.card).toBeGreaterThanOrEqual(fit.height - 1);
+    expect(fit.height).toBeGreaterThan(40);
+    expect(fit.list).toBeGreaterThan(150);
     await page.locator('#srPrimaryAction').click();
     await expect(page.locator('#addCustomerDialog')).toBeVisible();
     // Filters stay reachable: the "Filters & sort" button jumps to the panel below the list.

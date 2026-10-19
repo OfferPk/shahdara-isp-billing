@@ -856,7 +856,9 @@ export function formatPromiseFollowupWhatsApp(promise, customer = null) {
   const area = customer?.area || customer?.mohalla || promise?.area || 'Shahdara';
   const amount = Number(promise?.promisedAmount || 0).toLocaleString();
   const dateStr = formatDisplayDate(promise?.promisedDate);
-  const isBroken = promise?.isBroken || (promise?.promisedDate && calendarDaysDifference(getTodayDateString(), promise.promisedDate) > 0);
+  const isBroken = (typeof promise?.isBroken === 'boolean')
+    ? promise.isBroken
+    : (promise?.promisedDate && calendarDaysDifference(getTodayDateString(), promise.promisedDate) > 0);
 
   if (isBroken) {
     return (

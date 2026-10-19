@@ -1369,6 +1369,18 @@ function renderDetail() {
   renderIncidents(customer);
   renderHistory(customer);
 }
+function editCustomerProfile(id, { focus } = {}) {
+  if (!state.customers.some(customer => customer.id === id)) return;
+  selectCustomer(id);
+  activateProfileTab('info');
+  const editBtn = $('#editProfileButton');
+  if (editBtn && !editBtn.hidden) editBtn.click();
+  if (focus === 'phone') {
+    const phone = $('#phoneInput');
+    phone?.focus();
+    phone?.scrollIntoView({ block: 'center' });
+  }
+}
 function selectCustomer(id, { pushHistory = true } = {}) {
   if (!state.customers.some(customer => customer.id === id)) return;
   switchView('customers', { pushHistory: false });
@@ -1989,7 +2001,7 @@ function openPaymentEntry(month = selectedBillingMonth) {
   card.open = true;
   const form = card.querySelector('form[data-kind="payment"]');
   const amountInput = form?.querySelector('input[name="amount"]');
-  if (!form || !amountInput) { toast('This archived customer has no payment form for that month.'); return; }
+  if (!form || !amountInput) { toast('This archived customer has no payment form for that month.', { type: 'info' }); return; }
   const bill = customer.bills.find(item => item.month === month);
   const allocation = calculatePaymentAllocations(state).forMonth(customer.id, month);
   const hint = form.querySelector('.payment-guidance');
@@ -2796,7 +2808,7 @@ const queueModalController = setupOfflineQueueModal({
       }
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Offline Resilience & Sync Banner
@@ -2814,7 +2826,7 @@ setupOfflineSyncBanner({
       }
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Start Offline Payment Receipt & Transaction Auto-Retry Engine with Exponential Backoff
@@ -2823,7 +2835,7 @@ startOfflineQueueAutoRetryEngine({
   onQueueUpdated: () => {
     queueModalController?.render();
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Field Technician Customer Enrollment Swipe Wizard
@@ -2858,12 +2870,12 @@ customerEnrollmentWizard = setupCustomerEnrollmentWizard({
       toast(err?.message || 'Failed to complete field enrollment');
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Connectivity Diagnostics Suite
 let fieldDiagnosticsModalController = setupFieldDiagnosticsModal({
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Technician Field Collection Route Sheet & Mobile Dispatcher
@@ -2891,7 +2903,7 @@ export let fieldRouteSheetController = setupFieldRouteSheet({
       selectCustomer(customerId);
     }
   },
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   storage: typeof localStorage !== 'undefined' ? localStorage : null
 });
 
@@ -2902,7 +2914,7 @@ let fieldWorkOrderSheetController = setupFieldWorkOrderSheet({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Offline Sync Conflict Resolver & Reconciler
@@ -2913,7 +2925,7 @@ let syncConflictModalController = setupSyncConflictModal({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Field Diagnostic Optical Signal Loss Map & Heatmap
@@ -2924,14 +2936,14 @@ let opticalSignalMapModalController = setupOpticalSignalMapModal({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Technician Vehicle Inventory Transfer Modal
 let vehicleTransferModalController = setupVehicleTransferModal({
   getState: () => state,
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Aerial Fiber Pole Catenary Sag & Weather Hazard Field Inspection Modal
@@ -2946,7 +2958,7 @@ let aerialAlertsModalController = setupAerialAlertsModal({
       areaFilter.dispatchEvent(new Event('change'));
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Event OTDR Trace Inspector Modal
@@ -2962,19 +2974,19 @@ let mobileOtdrTraceModalController = setupMobileOtdrTraceModal({
       areaFilter.dispatchEvent(new Event('change'));
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician GPS Breadcrumbs & Geofence Suite
 let mobileGpsBreadcrumbsModalController = setupMobileGpsBreadcrumbsModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Power Meter (OPM) Testing Suite
 let mobileOpmTestingModalController = setupMobileOpmTestingModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -2988,7 +3000,7 @@ let mobileOpmTestingModalController = setupMobileOpmTestingModal({
 // Setup Field Technician Visual Fault Locator (VFL) Laser & Fiber Core Tracer
 let mobileVflModalController = setupMobileVflModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -3002,7 +3014,7 @@ let mobileVflModalController = setupMobileVflModal({
 // Setup Field Technician Optical Fiber Fusion Splice Joint Audit Sheet
 let mobileFusionSpliceModalController = setupMobileFusionSpliceModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -3016,7 +3028,7 @@ let mobileFusionSpliceModalController = setupMobileFusionSpliceModal({
 // Setup Field Technician In-Home Wi-Fi Coverage & Channel Assistant
 let mobileWifiSurveyModalController = setupMobileWifiSurveyModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -3030,163 +3042,163 @@ let mobileWifiSurveyModalController = setupMobileWifiSurveyModal({
 // Setup Field Technician Optical Link Budget & Splitter Attenuation Assistant
 let mobileOpticalBudgetModalController = setupMobileOpticalBudgetModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Fiber Access Terminal (FAT / FDT) Port Allocation Matrix
 let mobileFdtAllocationModalController = setupMobileFdtAllocationModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician GPON ONU / ONT Optical BOSA Diagnostics Monitor
 let mobileOntDiagnosticsModalController = setupMobileOntDiagnosticsModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Fiber Inspection Probe & Connector End-Face Scope
 let mobileFiberProbeModalController = setupMobileFiberProbeModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Fiber Splitter Tree & Cascaded PON Topology Analyzer
 let mobileSplitterTreeModalController = setupMobileSplitterTreeModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Fiber Patch Cord & Drop Cable Macro-Bend Curvature Assistant
 let mobileMacroBendModalController = setupMobileMacroBendModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Power Attenuation, VOA Tuning & Receiver Overload Protection Assistant
 let mobileAttenuatorModalController = setupMobileAttenuatorModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Return Loss (ORL) & Back-Reflection Assistant
 let mobileOrlModalController = setupMobileOrlModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Fiber Cleaver Blade Wear & Angle Analyzer
 let mobileCleaverModalController = setupMobileCleaverModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Tier-1 Optical Loss Test Set (OLTS) Certification Assistant (Lazy loaded for low-end phone performance)
 let mobileOltsModalController = createLazyModalController(() => setupMobileOltsModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Live Fiber Traffic Identifier & Tone Detector Assistant
 let mobileFiberIdentifierModalController = createLazyModalController(() => setupMobileFiberIdentifierModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field MPO/MTP Multi-Fiber Push-On Ribbon Trunk Polarity & Pinning Assistant
 let mobileMpoModalController = createLazyModalController(() => setupMobileMpoModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Mechanical Fast Connector Assistant
 let mobileFastConnectorModalController = createLazyModalController(() => setupMobileFastConnectorModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field OTDR Launch Cable & Pulse Suppression Assistant
 let mobileOtdrLaunchModalController = createLazyModalController(() => setupMobileOtdrLaunchModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Bare Fiber Adapter (BFA) & Temporary Splice Assistant
 let mobileBareFiberAdapterModalController = createLazyModalController(() => setupMobileBareFiberAdapterModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Stabilized Light Source (SLS) & Modulated Tone Generator Assistant
 let mobileSlsToneModalController = createLazyModalController(() => setupMobileSlsToneModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Talk Set (FOTS) & Laser Voice Communicator Assistant
 let mobileFiberTalksetModalController = createLazyModalController(() => setupMobileFiberTalksetModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field CWDM / DWDM Optical Channel Grid & Spectrum Allocation Assistant
 let mobileWdmSpectrumModalController = createLazyModalController(() => setupMobileWdmSpectrumModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Drop Cable Mid-Span Buffer Tube Slitter Assistant
 let mobileMidspanAccessModalController = createLazyModalController(() => setupMobileMidspanAccessModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Continuous Power Logging & Fiber Flapping Detector Assistant
 let mobilePowerLoggerModalController = createLazyModalController(() => setupMobilePowerLoggerModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Drop Cable Tensile Pull & Clamping Retention Assistant
 let mobileDropRetentionModalController = createLazyModalController(() => setupMobileDropRetentionModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Reference Test Cords (TRC) & Zero-Loss Baseline Referencing Assistant
 let mobileRefJumpersModalController = createLazyModalController(() => setupMobileRefJumpersModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Mass Fusion Ribbon Fiber De-Ribbonizer & Single-Core Breakout Assistant
 let mobileRibbonSeparatorModalController = createLazyModalController(() => setupMobileRibbonSeparatorModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Mechanical Splice & Index Matching Gel Restoration Assistant
 let mobileMechanicalSpliceModalController = createLazyModalController(() => setupMobileMechanicalSpliceModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Fiber Microscope VIP Surface Analysis Assistant
 let mobileFiberMicroscopeModalController = createLazyModalController(() => setupMobileFiberMicroscopeModal({
   doc: document,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Connector Cleaning & Sanitation Assistant
 let mobileConnectorCleaningModalController = createLazyModalController(() => setupMobileConnectorCleaningModal({
   doc: document,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field OTDR Dead Zone & Pulse Width Calibration Assistant
 let mobileOtdrDeadzoneModalController = createLazyModalController(() => setupMobileOtdrDeadzoneModal({
   doc: document,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Buffer Tube Mid-Span Stripper & Shaving Gauge Assistant
@@ -3206,11 +3218,13 @@ window.quickCollectModalController = setupQuickCollectModal({
       fieldRouteSheetController.recalculate();
     }
   },
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onSelectCustomer: (customerId) => {
     selectedCustomerId = customerId;
     renderDetail();
-  }
+  },
+  // #297 "Add phone": open this customer's profile in edit mode with the phone field focused.
+  onEditCustomer: (customerId, { focus } = {}) => editCustomerProfile(customerId, { focus })
 });
 // Setup Mobile Customer Quick Profile Sheet & WhatsApp Delivery (agent2 - shahdara-mobile-nav)
 window.mobileQuickProfileController = setupMobileQuickProfileModal({
@@ -3224,7 +3238,7 @@ window.mobileQuickProfileController = setupMobileQuickProfileModal({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 // Setup Fast Customer Search Sheet & Recent Accounts (agent2 - shahdara-mobile-nav)
 window.fastCustomerSearchController = setupFastCustomerSearchModal({
@@ -3238,12 +3252,12 @@ window.fastCustomerSearchController = setupFastCustomerSearchModal({
       window.quickCollectModalController.open(customerId);
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Bilingual English / Urdu (اردو) Interface & RTL Layout (agent2 - shahdara-mobile-nav)
 window.languageController = setupLanguageToggle({
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Pending Actions Center & Collection Promises Suite (agent2 - shahdara-mobile-nav)
@@ -3293,13 +3307,13 @@ window.digitalPaymentsSettingsController = initDigitalPaymentsSettingsModal({
 window.pwaInstallController = setupPwaInstallPrompt({
   doc: document,
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup PWA Status & Offline Health Modal (agent2 - shahdara-mobile-nav)
 window.pwaStatusController = setupPwaStatusModal({
   doc: document,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onTriggerInstall: () => window.pwaInstallController?.triggerInstall(),
   onQuickCollect: () => window.quickCollectModalController?.open(),
   onAddCustomer: () => {
@@ -4917,7 +4931,7 @@ if (shareStatementWhatsAppBtn) {
           document.execCommand('copy');
           ta.remove();
         }
-        toast('Customer phone missing. Statement summary copied to clipboard.');
+        toast('No phone number saved for this customer. The statement summary was copied to the clipboard instead.', { type: 'warning', title: 'No phone number' });
       } catch {
         toast('Unable to copy statement to clipboard.');
       }
@@ -5964,7 +5978,7 @@ if (typeof document !== 'undefined') {
   dailyRegisterController = setupDailyRegisterModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const dailyCashRegisterModal = $('#dailyCashRegisterModal');
@@ -6022,14 +6036,14 @@ if (typeof document !== 'undefined') {
       selectCustomer(customerId);
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   topDefaultersModalController = setupTopDefaultersModal(() => state, {
     onFilterCustomer: (customerId) => {
       selectCustomer(customerId);
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
     onFilterCustomerArea: (areaName) => {
@@ -6040,7 +6054,7 @@ if (typeof document !== 'undefined') {
       }
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   packageRevenueModalController = setupPackageRevenueModal(() => state, {
     onFilterPackageCustomers: (pkgLabel) => {
@@ -6051,21 +6065,21 @@ if (typeof document !== 'undefined') {
       }
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   pnlModalController = setupPnlModal(() => state, {
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   momGrowthModalController = setupMomGrowthModal(() => state, {
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   dailyClosingModalController = setupDailyClosingModal(() => state, {
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   lateFeeModalController = setupLateFeeModal({
     getState: () => state,
@@ -6088,13 +6102,13 @@ if (typeof document !== 'undefined') {
       renderDashboard();
     },
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onVoucherIssued: () => {
       if (selectedCustomerId) {
         renderCustomerDetail();
@@ -6119,7 +6133,7 @@ if (typeof document !== 'undefined') {
   customerServiceContractModalController = setupServiceContractModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onContractCreated: () => {
       if (selectedCustomerId) {
         renderCustomerDetail();
@@ -6144,7 +6158,7 @@ if (typeof document !== 'undefined') {
   customerDisputeModalController = setupDisputeClaimModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onApplyLedgerCredit: (claim) => {
       if (selectedCustomerId) {
         renderCustomerDetail();
@@ -6169,7 +6183,7 @@ if (typeof document !== 'undefined') {
   customerKycComplianceModalController = setupKycComplianceModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onNavigateCustomer: (cid) => {
       switchView('customers');
       selectCustomer(cid);
@@ -6186,7 +6200,7 @@ if (typeof document !== 'undefined') {
   customerEquipmentRetrievalModalController = setupEquipmentRetrievalModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onNavigateCustomer: (cid) => {
       switchView('customers');
       selectCustomer(cid);
@@ -6210,7 +6224,7 @@ if (typeof document !== 'undefined') {
   customerSpliceInspectionModalController = setupSpliceInspectionModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openSpliceInspectionBtn = $('#openSpliceInspectionBtn');
@@ -6223,7 +6237,7 @@ if (typeof document !== 'undefined') {
   customerPlanMigrationModalController = setupPlanMigrationModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onMigrationSaved: (record) => {
       if (selectedCustomerId && state?.customers) {
         const cust = state.customers.find(c => c.id === selectedCustomerId);
@@ -6277,7 +6291,7 @@ if (typeof document !== 'undefined') {
   customerOpticalAcceptanceModalController = setupOpticalAcceptanceModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openOpticalAcceptanceBtn = $('#openOpticalAcceptanceBtn');
@@ -6291,7 +6305,7 @@ if (typeof document !== 'undefined') {
   customerDropSafetyModalController = setupDropSafetyInspectionModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openDropInspectionBtn = $('#openDropInspectionBtn');
@@ -6305,7 +6319,7 @@ if (typeof document !== 'undefined') {
   customerEthernetCertModalController = setupEthernetCertModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openEthernetCertBtn = $('#openEthernetCertBtn');
@@ -6319,7 +6333,7 @@ if (typeof document !== 'undefined') {
   customerOrlCertModalController = setupOrlCertModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openOrlCertBtn = $('#openOrlCertBtn');
@@ -6332,7 +6346,7 @@ if (typeof document !== 'undefined') {
 
   customerDdmiCertModalController = setupDdmiCertModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openDdmiCertBtn = $('#openDdmiCertBtn');
@@ -6352,7 +6366,7 @@ if (typeof document !== 'undefined') {
 
   customerDispersionModalController = setupDispersionCertModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openDispersionCertBtn = $('#openDispersionCertBtn');
@@ -6371,7 +6385,7 @@ if (typeof document !== 'undefined') {
 
   customerBendLossModalController = setupBendLossCertModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
   });
 
@@ -6392,7 +6406,7 @@ if (typeof document !== 'undefined') {
 
   customerBidirectionalOtdrModalController = setupBidirectionalOtdrModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
   });
 
@@ -6412,7 +6426,7 @@ if (typeof document !== 'undefined') {
 
   customerOtdrDeadzoneModalController = setupOtdrDeadzoneModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openOtdrDeadzoneBtn = $('#openOtdrDeadzoneBtn');
@@ -6433,7 +6447,7 @@ if (typeof document !== 'undefined') {
 
   customerSplitterQaModalController = setupSplitterQaModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openSplitterQaBtn = $('#openSplitterQaBtn');
@@ -6453,7 +6467,7 @@ if (typeof document !== 'undefined') {
 
   customerFerruleGeometryModalController = setupFerruleGeometryModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openFerruleGeometryBtn = $('#openFerruleGeometryBtn');
@@ -6473,7 +6487,7 @@ if (typeof document !== 'undefined') {
 
   customerFusionArcQaModalController = setupFusionArcQaModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openFusionArcQaBtn = $('#openFusionArcQaBtn');
@@ -6497,7 +6511,7 @@ if (typeof document !== 'undefined') {
 
   customerStripForceQaModalController = setupStripForceQaModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openStripForceQaBtn = $('#openStripForceQaBtn');
@@ -6526,7 +6540,7 @@ if (typeof document !== 'undefined') {
       dialogElement: spliceModal,
       triggerButton: openSpliceMfdOffsetBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6549,7 +6563,7 @@ if (typeof document !== 'undefined') {
       dialogElement: sleeveModal,
       triggerButton: openSpliceSleeveCureBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6572,7 +6586,7 @@ if (typeof document !== 'undefined') {
       dialogElement: cleaveModal,
       triggerButton: openFiberCleaveQualityBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6595,7 +6609,7 @@ if (typeof document !== 'undefined') {
       dialogElement: ghostModal,
       triggerButton: openOtdrGhostArtifactBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6618,7 +6632,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: ribbonModal,
       triggerButton: openRibbonSpliceQaBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6644,7 +6658,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: fastModal,
       triggerButton: openFastConnectorQaBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6672,7 +6686,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: adssModal,
       triggerButton: openAdssSagTensionBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6700,7 +6714,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: armoredModal,
       triggerButton: openArmoredCableCrushBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6728,7 +6742,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: jettingModal,
       triggerButton: openCableJettingBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6754,7 +6768,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: tubeSlittingModal,
       triggerButton: openTubeSlittingAccessBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6782,7 +6796,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: conduitPullingModal,
       triggerButton: openConduitPullingBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6810,7 +6824,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: spectralAttenuationModal,
       triggerButton: openSpectralAttenuationBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6838,7 +6852,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: foscSealModal,
       triggerButton: openFoscSealBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6866,7 +6880,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: thermalCyclingModal,
       triggerButton: openThermalCyclingBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6892,7 +6906,7 @@ if (typeof document !== 'undefined') {
     billingCorrectnessModalController = setupBillingCorrectnessModal({
       getState: () => state,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6908,7 +6922,7 @@ if (typeof document !== 'undefined') {
         renderDashboard();
       },
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6924,7 +6938,7 @@ if (typeof document !== 'undefined') {
         selectCustomer(customerId);
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6935,7 +6949,7 @@ if (typeof document !== 'undefined') {
         selectCustomer(customerId);
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6950,7 +6964,7 @@ if (typeof document !== 'undefined') {
         }
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6965,28 +6979,28 @@ if (typeof document !== 'undefined') {
         }
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
   const pnlModal = $('#pnlModal');
   if (pnlModal && !pnlModalController) {
     pnlModalController = setupPnlModal(() => state, {
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
   const momGrowthModal = $('#momGrowthModal');
   if (momGrowthModal && !momGrowthModalController) {
     momGrowthModalController = setupMomGrowthModal(() => state, {
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
   const dailyClosingModal = $('#dailyClosingModal');
   if (dailyClosingModal && !dailyClosingModalController) {
     dailyClosingModalController = setupDailyClosingModal(() => state, {
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 

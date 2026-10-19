@@ -138,7 +138,7 @@ export function setupCustomerPlan({ win = window, doc = document, getController 
         }
         doc.dispatchEvent(new win.CustomEvent('customer-plan:applied', { detail: { customerId: added.id, due } }));
       } catch (err) {
-        if (typeof win.toast === 'function') win.toast(`Customer saved, but the package/fee was not applied: ${err.message}`);
+        if (typeof win.toast === 'function') win.toast(`Customer saved, but the package/fee was not applied: ${err.message}`, { type: 'error', title: 'Package not applied' });
       }
     }, 0);
     return null;

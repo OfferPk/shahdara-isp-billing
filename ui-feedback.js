@@ -23,11 +23,18 @@ export const TOAST_TYPES = {
 };
 const MAX_STACK = 3;
 
+// #297: callers should pass { type } — this guess is only the fallback. Negative wording is checked
+// before any "saved / copied / done" word, so "No phone number saved" never becomes a green success.
 export function inferToastType(message = '') {
   const m = String(message);
-  if (/\b(could not|couldn't|cannot|can't|failed|failure|error|invalid|not allowed|blocked|no longer available|is required|must be|must have|please enter|please choose|please pick)\b/i.test(m)) return 'error';
-  if (/(⚠|\bwarning\b|\bduplicate\b|\bcheck\b.*\bfirst\b|\bnot saved\b)/i.test(m)) return 'warning';
-  if (/(✓|✅|\b(saved|recorded|added|created|deleted|removed|exported|imported|copied|undone|archived|unarchived|restored|applied|waived|updated|ready|sent|done|downloaded|verified|collected)\b)/i.test(m)) return 'success';
+  if (/^\s*(❌|✗|✖)/u.test(m)) return 'error';
+  if (/\b(could not|couldn't|cannot|can't|unable to|failed|failure|error|invalid|not allowed|blocked|denied|no longer available|not applied|not found|is required|are required|must be|must have|please enter|please choose|please pick|enter a valid|exceeds?|errors)\b/i.test(m)) return 'error';
+  if (/^\s*(⚠|ℹ)/u.test(m)) return /^\s*ℹ/u.test(m) ? 'info' : 'warning';
+  if (/^\W*no\b[^.!]*\b(to (export|copy|print|share|apply|resolve|show|undo)|found|match(es)?|yet)\b/i.test(m)) return 'info';
+  if (/^\W*(no|nothing)\b/i.test(m)) return 'warning';
+  if (/(⚠|\bwarnings?\b|\bduplicate\b|\bnot (available|accessible)\b|\bfirst[.!]?\s*$|\bcheck\b.*\bfirst\b|\bnot saved\b|\bmissing\b|\bunavailable\b|\bnot supported\b|\bwithout\b|\bmay not\b|,\s*but\b|\bbut (the|it|not)\b|\b(please )?(select|choose|save|issue|submit|pick|add)\b[^.!]*\bfirst\b|^\s*please (select|save)\b|^\s*select (a|an)\b)/i.test(m)) return 'warning';
+  if (/^\s*(offline mode|working offline)\b/i.test(m)) return 'info';
+  if (/(✓|✅|\b(saved|recorded|added|created|deleted|removed|exported|imported|copied|undone|archived|unarchived|restored|applied|waived|updated|ready|sent|done|downloaded|verified|collected|successfully|issued|completed?|fulfilled|resolved|synced|cleared|loaded|transferred|logged|generated|protected|enrolled|prefilled|marked)\b)/i.test(m)) return 'success';
   return 'info';
 }
 
@@ -36,6 +43,11 @@ export function inferTitle(type, message = '') {
   const m = String(message);
   for (const [re, title] of [[/\bundone\b/i, 'Undone'], [/\bdeleted\b|\bremoved\b/i, 'Deleted'], [/\barchived\b/i, 'Archived'], [/\brecorded\b|\breceived\b/i, 'Recorded'], [/\badded\b|\bcreated\b/i, 'Added'], [/\bexported\b|\bdownloaded\b/i, 'Exported'], [/\bcopied\b/i, 'Copied'], [/\bsaved\b|\bupdated\b|\bapplied\b/i, 'Saved']]) if (re.test(m)) return title;
   return null;
+}
+
+/** #297: the toast shows its own icon + title, so drop a leading ✓ / ✅ / ⚠️ / ❌ from the text. */
+export function stripLeadingIcon(message = '') {
+  return String(message).replace(/^\s*(?:✓|✔️?|✅|☑️?|⚠️?|❌|✗|✖️?|ℹ️?|❗|‼️?)\uFE0F?\s*/u, '');
 }
 
 export function defaultDuration(type, hasAction) {
@@ -81,9 +93,14 @@ export function createToastSystem(doc = document, win = window) {
     const confirmDlg = open.find(d => d.id === 'appConfirmDialog');
     return confirmDlg || open[open.length - 1];
   };
+  // #296: inside an open dialog the toast goes to the top of the screen (dialogs keep their main
+  // buttons — Confirm, Undo, Save — in the bottom action bar), and only the newest toast is shown.
   function place() {
     const host = topModal() || doc.body;
     if (stack.parentElement !== host) host.appendChild(stack);
+    const inDialog = host !== doc.body;
+    stack.classList.toggle('tsx-in-dialog', inDialog);
+    if (inDialog) stack.querySelectorAll('.tsx-old').forEach(el => el.remove());
     if (canPopover) {
       try { if (stack.matches(':popover-open')) stack.hidePopover(); stack.showPopover(); } catch { /* not connected yet */ }
     }
@@ -91,6 +108,13 @@ export function createToastSystem(doc = document, win = window) {
   doc.addEventListener('close', e => {
     if (e.target?.tagName === 'DIALOG' && e.target.contains(stack)) win.setTimeout(() => { if (!stack.querySelector('.tsx:not([hidden])')) { doc.body.appendChild(stack); if (canPopover) { try { stack.hidePopover(); } catch {} } } else place(); }, 0);
   }, true);
+  // A toast that is already showing when a dialog opens moves above that dialog's backdrop.
+  if (typeof win.MutationObserver === 'function') {
+    new win.MutationObserver(records => {
+      if (!records.some(r => r.target?.tagName === 'DIALOG' && r.target.hasAttribute('open'))) return;
+      if (stack.querySelector('.tsx:not([hidden])')) win.setTimeout(place, 0);
+    }).observe(doc.body, { subtree: true, attributes: true, attributeFilter: ['open'] });
+  }
   place();
   let current = null; // { timer, remaining, startedAt, el }
 
@@ -174,23 +198,26 @@ export function createToastSystem(doc = document, win = window) {
     bar.style.animationDuration = `${duration}ms`;
     el.appendChild(bar);
     el.onclick = () => dismiss(rec); // #220 behaviour: tap the toast to hide it
-    el.onmouseenter = () => pause(rec);
-    el.onmouseleave = () => resume(rec);
+    // #296: pause on a real pointer movement over the toast (not when it appears under a still cursor).
+    el.onmouseenter = null;
+    el.onpointermove = () => pause(rec);
+    el.onpointerleave = () => resume(rec);
     el.onfocusin = () => pause(rec);
     el.onfocusout = e => { if (!el.contains(e.relatedTarget)) resume(rec); };
   }
 
   function show(message, opts = {}) {
     if (message && typeof message === 'object' && !Array.isArray(message)) { opts = message; message = opts.message; }
-    const text = String(message ?? '');
-    const type = TOAST_TYPES[opts.type] ? opts.type : inferToastType(text);
+    const raw = String(message ?? '');
+    const type = TOAST_TYPES[opts.type] ? opts.type : inferToastType(raw);
+    const text = stripLeadingIcon(raw);
     const actions = normalizeActions(opts);
     // app.js passes 2800 ms by default (#220); give actions / errors enough time to be read.
     const asked = Number(opts.duration);
     const duration = Math.max(Number.isFinite(asked) && asked > 0 ? asked : 0, defaultDuration(type, actions.length > 0));
 
     // Move the toast that is showing now up into the stack, keeping its own countdown.
-    if (current && !current.dismissed && !main.hidden) {
+    if (current && !current.dismissed && !main.hidden && !stack.classList.contains('tsx-in-dialog') && !topModal()) {
       const old = main.cloneNode(true);
       old.removeAttribute('id');
       old.classList.add('tsx-old');
@@ -203,8 +230,8 @@ export function createToastSystem(doc = document, win = window) {
       old.querySelectorAll('.toast-action-btn').forEach((b, i) => b.addEventListener('click', e => { e.stopPropagation(); dismiss(rec); try { oldActions[i]?.onAction(); } catch (err) { console.error(err); } }));
       old.querySelector('.tsx-close')?.addEventListener('click', e => { e.stopPropagation(); dismiss(rec); });
       old.onclick = () => dismiss(rec);
-      old.onmouseenter = () => pause(rec);
-      old.onmouseleave = () => resume(rec);
+      old.onpointermove = () => pause(rec);
+      old.onpointerleave = () => resume(rec);
       stack.insertBefore(old, main);
       startTimer(rec, Math.min(rec.remaining, 5000));
       const olds = stack.querySelectorAll('.tsx-old');

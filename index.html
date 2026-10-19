@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="./customer-import.css?v=1.10.0">
   <link rel="stylesheet" href="./ui-feedback.css?v=1.10.0">
   <link rel="stylesheet" href="./dark-contrast.css?v=1.10.0">
+  <link rel="stylesheet" href="./payments-list.css?v=1.10.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>
@@ -6394,6 +6395,7 @@
                 <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><h2 id="detailName"></h2></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
+              <div id="customerCurrentBillSummary" class="customer-current-bill-summary profile-bill-first" role="region" aria-label="Current billing summary"></div>
               <div class="profile-action-group" role="group" aria-label="Customer quick actions">
                 <button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button">Record payment / Mark paid</button>
                 <button id="backdatedPaymentButton" class="text-button backdated-payment-link" type="button">Advanced: back-dated entry in ledger</button>
@@ -6444,7 +6446,6 @@
                   </div>
                 </details>
               </div>
-              <div id="customerCurrentBillSummary" class="customer-current-bill-summary" role="region" aria-label="Current billing summary"></div>
               <div class="profile-danger-zone" role="group" aria-labelledby="profileDangerZoneTitle">
                 <p id="profileDangerZoneTitle" class="profile-danger-title">Danger zone</p>
                 <p class="profile-danger-help">Removes this customer and all bills and receipts from this device. Archive keeps the history.</p>
@@ -6846,8 +6847,10 @@
         <input id="newCustomerMohalla" name="mohalla" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
         <label class="field-label" for="newCustomerZone">Zone <span class="optional-label">Optional</span></label>
         <input id="newCustomerZone" name="zone" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
+        <label class="field-label" for="newCustomerServiceStatus">Service status <span class="optional-label">Manual · change it any time in the profile</span></label>
+        <select id="newCustomerServiceStatus" name="serviceStatus"><option value="active" selected>Active · connected</option><option value="offline">Offline</option><option value="not-set">Not set</option></select>
         <div id="addCustomerError" class="form-error" role="alert" hidden></div>
-        <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button" type="submit">Check and add customer</button></div>
+        <div class="modal-actions add-customer-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button" type="submit">Check and add customer</button></div>
       </fieldset>
       <section id="duplicateCustomerReview" class="duplicate-customer-review" role="alert" aria-labelledby="duplicateCustomerHeading" hidden>
         <div><p class="eyebrow">CHECK EXISTING RECORDS</p><h3 id="duplicateCustomerHeading">Possible matching customer</h3></div>

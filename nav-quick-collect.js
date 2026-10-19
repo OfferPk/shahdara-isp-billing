@@ -776,7 +776,8 @@ export function setupQuickCollectModal({
   getState,
   onSaveState,
   onToast,
-  onSelectCustomer
+  onSelectCustomer,
+  onEditCustomer
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -1258,11 +1259,11 @@ export function setupQuickCollectModal({
       renderList();
       showStep('pick');
       if (typeof onToast === 'function') {
-        onToast(`✓ Payment of PKR ${amount.toLocaleString()} for ${customerName} undone. Ledger restored.`);
+        onToast(`Payment of PKR ${amount.toLocaleString()} for ${customerName} undone. Ledger restored.`, { type: 'success', title: 'Undone' });
       }
     } catch (err) {
       if (typeof onToast === 'function') {
-        onToast(`Could not undo payment: ${err.message}`);
+        onToast(`Could not undo payment: ${err.message}`, { type: 'error' });
       }
     }
   }
@@ -1309,8 +1310,10 @@ export function setupQuickCollectModal({
             transactionIdInput.setAttribute('aria-invalid', 'true');
             transactionIdInput.setAttribute('aria-describedby', 'quickCollectTxnError');
           }
-          if (typeof onToast === 'function') {
-            onToast(txnMsg);
+          // #296: the message is already shown inline under the field (role="alert"), so no toast
+          // on top of the sheet; only fall back to a toast when the field is missing.
+          if (!transactionIdInput && typeof onToast === 'function') {
+            onToast(txnMsg, { type: 'error' });
           }
           transactionIdInput?.focus();
           return;
@@ -1389,6 +1392,8 @@ export function setupQuickCollectModal({
 
       if (typeof onToast === 'function') {
         onToast(`Payment of PKR ${amountVal.toLocaleString()} recorded.`, {
+          type: 'success',
+          title: 'Payment recorded',
           actionLabel: 'Undo',
           onAction: () => {
             executeUndo();
@@ -1414,10 +1419,26 @@ export function setupQuickCollectModal({
 
     } catch (err) {
       if (typeof onToast === 'function') {
-        onToast(err.message);
+        onToast(err.message, { type: 'error' });
       }
     }
   });
+
+  // #297: a missing phone is a warning, with a shortcut to add the number to the customer's profile.
+  function warnNoPhone(message) {
+    if (typeof onToast !== 'function') return;
+    const customerId = activeReceipt?.customerId;
+    const opts = { type: 'warning', title: 'No phone number' };
+    if (customerId && typeof onEditCustomer === 'function') {
+      opts.actionLabel = 'Add phone';
+      opts.onAction = () => {
+        closeModal();
+        // Let the dialog's own history entry go back first, then open the profile editor.
+        setTimeout(() => onEditCustomer(customerId, { focus: 'phone' }), 350);
+      };
+    }
+    onToast(message, opts);
+  }
 
   // WhatsApp receipt dispatch
   whatsAppBtn?.addEventListener('click', async () => {
@@ -1432,7 +1453,7 @@ export function setupQuickCollectModal({
         amount: activeReceipt.amount
       });
       if (typeof onToast === 'function') {
-        onToast('WhatsApp receipt draft opened.');
+        onToast('WhatsApp receipt draft opened.', { type: 'info' });
       }
     } else {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -1444,16 +1465,12 @@ export function setupQuickCollectModal({
             customerId: activeReceipt.customerId,
             amount: activeReceipt.amount
           });
-          if (typeof onToast === 'function') {
-            onToast('No phone saved. Receipt copied to clipboard!');
-          }
+          warnNoPhone('No phone saved for this customer. The receipt text was copied to the clipboard instead.');
         } catch {
-          if (typeof onToast === 'function') {
-            onToast('No phone number saved for customer.');
-          }
+          warnNoPhone('No phone number saved for this customer.');
         }
-      } else if (typeof onToast === 'function') {
-        onToast('No phone number saved for customer.');
+      } else {
+        warnNoPhone('No phone number saved for this customer.');
       }
     }
 
@@ -1468,7 +1485,7 @@ export function setupQuickCollectModal({
     try {
       const blob = await generateReceiptImageBlob(activeReceipt);
       if (!blob) {
-        if (typeof onToast === 'function') onToast('Receipt image creation is not supported in this environment.');
+        if (typeof onToast === 'function') onToast('Receipt image creation is not supported in this environment.', { type: 'warning' });
         return;
       }
       const filename = `receipt-${activeReceipt.receiptNumber || 'slip'}.png`;
@@ -1516,7 +1533,7 @@ export function setupQuickCollectModal({
         onToast('Receipt image ready (downloaded / shared).');
       }
     } catch (err) {
-      if (typeof onToast === 'function') onToast(`Share failed: ${err.message}`);
+      if (typeof onToast === 'function') onToast(`Share failed: ${err.message}`, { type: 'error' });
     }
   });
 

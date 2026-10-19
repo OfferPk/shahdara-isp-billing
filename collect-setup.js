@@ -82,6 +82,7 @@ export function setupCollectSetup({ win = window, doc = document, getController 
       <div id="collectSetupList" class="cs-list" role="group" aria-label="Customers without a package or fee"></div>
       <p id="collectSetupStatus" class="bc-status" role="status" aria-live="polite" hidden></p>
       <button id="collectSetupApplyBtn" class="primary-button cs-apply" type="button" disabled>Apply: Set package &amp; generate bills</button>
+      <button id="collectSetupDoneBtn" class="primary-button cs-apply" type="button" style="background:#059669;margin-top:8px;" hidden>✓ Done · View Pending Customers</button>
     </section>
   </dialog>`;
   doc.body.appendChild(wrap.firstElementChild);
@@ -93,6 +94,7 @@ export function setupCollectSetup({ win = window, doc = document, getController 
   const search = $('collectSetupSearch');
   const selectAll = $('collectSetupSelectAll');
   const applyBtn = $('collectSetupApplyBtn');
+  const doneBtn = $('collectSetupDoneBtn');
   const status = $('collectSetupStatus');
   let checked = new Set();
 
@@ -135,18 +137,29 @@ export function setupCollectSetup({ win = window, doc = document, getController 
       render();
       const msg = `✓ Package set for ${updated} customer${updated === 1 ? '' : 's'} · ${generated} bill${generated === 1 ? '' : 's'} generated. They now show in Quick Collect.`;
       say(msg, 'success');
+      applyBtn.hidden = true;
+      if (doneBtn) {
+        doneBtn.textContent = `✓ Done · View Pending (${generated})`;
+        doneBtn.hidden = false;
+      }
       win.bulkCollect?.refresh?.();
       controller?.refresh?.();
       if (typeof win.toast === 'function') win.toast(msg);
+      setTimeout(() => {
+        try { if (modal.open) modal.close(); } catch { modal.removeAttribute('open'); }
+      }, 2500);
     } catch (err) {
       say(err.message, 'error');
     }
   });
+  doneBtn?.addEventListener('click', () => modal.close());
   $('closeCollectSetupBtn').addEventListener('click', () => modal.close());
   modal.addEventListener('close', () => { getController()?.refresh?.(); win.bulkCollect?.refresh?.(); });
 
   function open() {
     checked = new Set();
+    applyBtn.hidden = false;
+    if (doneBtn) doneBtn.hidden = true;
     search.value = '';
     say('');
     render();

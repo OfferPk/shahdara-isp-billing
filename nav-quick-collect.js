@@ -829,6 +829,14 @@ export function setupQuickCollectModal({
   const removeScreenshotBtn = document.getElementById('quickCollectRemoveScreenshotBtn');
   const ownerPaymentInfo = document.getElementById('quickCollectOwnerPaymentInfo');
 
+  // Duplicate Warning In-App Card (#279)
+  const dupWarningCard = document.getElementById('quickCollectDuplicateWarning');
+  const dupMsg = document.getElementById('quickCollectDuplicateMsg');
+  const dupReasonInput = document.getElementById('quickCollectDuplicateReasonInput');
+  const dupProceedBtn = document.getElementById('quickCollectDuplicateProceedBtn');
+  const dupCancelBtn = document.getElementById('quickCollectDuplicateCancelBtn');
+  let duplicateBypassedForTxn = null;
+
   let currentScreenshotDataUrl = '';
 
   // Success Elements
@@ -1032,6 +1040,25 @@ export function setupQuickCollectModal({
       if (screenshotPreview) screenshotPreview.src = '';
       updateDigitalVisibility(activeDefaults.defaultMethod || 'Cash');
 
+      // Update quick amount chips dynamic amounts (#281)
+      if (quickAmountChips && activeDefaults) {
+        const baseBal = activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues;
+        const curBal = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
+          ? activeDefaults.currentMonthBalance
+          : activeDefaults.suggestedAmount;
+        const halfBal = Math.round(baseBal / 2);
+        quickAmountChips.forEach(chip => {
+          const type = chip.getAttribute('data-quick-amount');
+          if (type === 'full') {
+            chip.textContent = `Full (Rs ${baseBal > 0 ? baseBal.toLocaleString('en-PK') : '0'})`;
+          } else if (type === 'current') {
+            chip.textContent = `Monthly (Rs ${curBal > 0 ? curBal.toLocaleString('en-PK') : (baseBal > 0 ? baseBal.toLocaleString('en-PK') : '0')})`;
+          } else if (type === 'half') {
+            chip.textContent = `50% (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`;
+          }
+        });
+      }
+
       showStep('form');
       setTimeout(() => {
         amountInput?.focus();
@@ -1095,6 +1122,8 @@ export function setupQuickCollectModal({
     activeCustomerId = null;
     activeDefaults = null;
     activeReceipt = null;
+    duplicateBypassedForTxn = null;
+    if (dupWarningCard) dupWarningCard.hidden = true;
     if (undoTimeoutId) {
       clearTimeout(undoTimeoutId);
       undoTimeoutId = null;
@@ -1102,6 +1131,31 @@ export function setupQuickCollectModal({
     activeUndoContext = null;
     if (undoBtn) undoBtn.hidden = true;
   }
+
+  
+  // Wire duplicate warning card buttons (#279)
+  dupProceedBtn?.addEventListener('click', () => {
+    duplicateBypassedForTxn = transactionIdInput ? transactionIdInput.value.trim() : '';
+    if (dupWarningCard) dupWarningCard.hidden = true;
+    if (paymentForm) {
+      if (typeof paymentForm.requestSubmit === 'function') {
+        paymentForm.requestSubmit();
+      } else {
+        paymentForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }
+  });
+
+  dupCancelBtn?.addEventListener('click', () => {
+    duplicateBypassedForTxn = null;
+    if (dupWarningCard) dupWarningCard.hidden = true;
+    transactionIdInput?.focus();
+  });
+
+  transactionIdInput?.addEventListener('input', () => {
+    duplicateBypassedForTxn = null;
+    if (dupWarningCard) dupWarningCard.hidden = true;
+  });
 
   // Wire search input
   searchInput?.addEventListener('input', () => {
@@ -1235,16 +1289,32 @@ export function setupQuickCollectModal({
         }
         if (txnIdVal) {
           const dup = findDuplicatePaymentReference(state, txnIdVal);
-          if (dup) {
-            const confirmed = window.confirm(
+          if (dup && duplicateBypassedForTxn !== txnIdVal) {
+            const dupDate = dup.date || dup.paymentDate || 'recently';
+            const dupMonth = dup.month || dup.billMonth || 'unknown';
+            const dupAmt = Number(dup.amount || 0).toLocaleString('en-PK');
+            if (dupWarningCard) {
+              if (dupMsg) {
+                dupMsg.textContent = `Transaction ID "${txnIdVal}" was already recorded on ${dupDate} for ${dup.customerName || 'customer'} (#${dup.customerNumber || '?'}) in month ${dupMonth} (PKR ${dupAmt}).`;
+              }
+              dupWarningCard.hidden = false;
+              dupWarningCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+              dupProceedBtn?.focus();
+            }
+
+            const confirmed = typeof window.confirm === 'function' ? window.confirm(
               `⚠️ Duplicate Transaction ID detected!\n\n` +
-              `Transaction ID "${txnIdVal}" was already recorded on ${dup.date} ` +
-              `for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (PKR ${dup.amount.toLocaleString()}).\n\n` +
+              `Transaction ID "${txnIdVal}" was already recorded on ${dupDate} ` +
+              `for ${dup.customerName} (#${dup.customerNumber}) in month ${dupMonth} (PKR ${dupAmt}).\n\n` +
               `Do you want to proceed anyway with this duplicate reference?`
-            );
+            ) : true;
+
             if (!confirmed) {
               transactionIdInput?.focus();
               return;
+            }
+            if (dupWarningCard) {
+              dupWarningCard.hidden = true;
             }
           }
         }

@@ -249,15 +249,16 @@ body.drawer-open {
 
 /* Drawer Footer */
 .nav-drawer-footer {
-  padding: 14px 18px;
+  padding: 12px 14px;
   border-top: 1px solid var(--line, #e2ece7);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   background: #fafcfb;
   font-size: 11px;
   color: var(--muted, #71817c);
+  box-sizing: border-box;
 }
 
 .nav-drawer-status {
@@ -414,8 +415,28 @@ body.drawer-open {
   gap: 2px;
 }
 
+.nav-drawer-sublist .nav-drawer-item button {
+  padding: 8px 10px;
+  min-height: 36px;
+  font-size: 12px;
+}
+
+.nav-drawer-sublist .nav-drawer-item button span:not(.nav-drawer-icon) {
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+}
+
 /* Desktop persistent sidebar (#212) */
 @media (min-width: 1024px) {
+  .nav-drawer .drawer-language-toggle-btn,
+  .nav-drawer .drawer-theme-toggle {
+    display: none !important;
+  }
+
   .nav-drawer {
     display: flex !important;
     position: fixed;
@@ -627,6 +648,9 @@ body.drawer-open {
 
 /* Nav Drawer Footer Status & Tools */
 .nav-drawer-status-pill {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -664,7 +688,10 @@ body.drawer-open {
 .nav-drawer-footer-tools {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
 }
 
 .nav-drawer-shortcuts-btn {
@@ -6688,6 +6715,38 @@ body {
 
   .nav-drawer.is-open {
     display: flex !important;
+    z-index: 1200 !important;
+  }
+
+  .nav-drawer-backdrop.is-open {
+    z-index: 1190 !important;
+  }
+
+  .sidebar-rail-toggle {
+    display: none !important;
+  }
+
+  .nav-drawer-header {
+    padding: 12px 14px;
+    gap: 8px;
+    box-sizing: border-box;
+  }
+
+  .nav-drawer-header-actions {
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .nav-drawer-close {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    flex-shrink: 0;
+  }
+
+  .nav-drawer-footer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
 
@@ -7675,3 +7734,96 @@ body {
   background: #34d399;
 }
 
+
+/* Mobile More Menu Clean Quick Actions Row (#280) */
+#mobileMoreMenu #mobileActionSheetToggle {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  width: 100% !important;
+  padding: 12px 14px !important;
+  min-height: 44px !important;
+  font: 600 13px/1.3 'DM Sans', system-ui, sans-serif !important;
+  color: var(--ink, #182e2a) !important;
+  background: transparent !important;
+  border: 1px solid var(--line, #e2ece7) !important;
+  border-radius: 10px !important;
+  text-align: left !important;
+}
+
+[data-theme="dark"] #mobileMoreMenu #mobileActionSheetToggle {
+  color: #e4efe9 !important;
+  border-color: #243a31 !important;
+}
+
+/* Quick Collect Form Polish & Sticky Footer (#281, #279) */
+.qc-form-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface, #ffffff);
+  padding: 10px 0;
+  border-top: 1px solid var(--line, #e2ece7);
+  z-index: 10;
+}
+
+[data-theme="dark"] .qc-form-actions {
+  background: #15241f;
+  border-color: #243a31;
+}
+
+.qc-more-options {
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  padding: 8px 10px;
+  background: var(--surface-2, #f8faf9);
+}
+
+[data-theme="dark"] .qc-more-options {
+  background: #14221d;
+  border-color: #243a31;
+}
+
+.qc-more-options-summary {
+  font: 600 12px 'DM Sans', sans-serif;
+  color: var(--muted, #71817c);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.qc-duplicate-card {
+  margin: 12px 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  color: #9b2c2c;
+}
+
+[data-theme="dark"] .qc-duplicate-card {
+  background: #2d1515;
+  border-color: #5c2020;
+  color: #feb2b2;
+}
+
+.qc-duplicate-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.qc-duplicate-msg {
+  font-size: 13px;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+.qc-duplicate-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}

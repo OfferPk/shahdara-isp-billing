@@ -17,6 +17,7 @@ import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
+import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import {
@@ -936,10 +937,11 @@ function paymentAllocationMarkup(allocation) {
   if (allocation.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatAmount(allocation.unappliedCreditCents / 100)}`);
   return `<span class="payment-allocation">${lines.map(escapeHtml).join('<br>')}</span>`;
 }
-function receiptWhatsAppActionMarkup(customer, receipt) {
+function receiptWhatsAppActionMarkup(customer, receipt, { askLabel = null } = {}) {
   const action = resolveReceiptWhatsAppAction(customer, receipt);
   if (action.type === 'phone-required') {
-    const label = action.hasSavedPhone ? 'Update WhatsApp number' : 'Add WhatsApp number';
+    // #298: in the payments list the button says "WhatsApp receipt" and asks for the number only when tapped.
+    const label = askLabel || (action.hasSavedPhone ? 'Update WhatsApp number' : 'Add WhatsApp number');
     return `<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
   }
   if (action.type !== 'draft') return '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
@@ -1142,15 +1144,33 @@ function renderTransactions() {
     if (nextBtn) nextBtn.disabled = paged.page >= paged.totalPages;
   }
 
+  // #298: compact rows grouped by day; tap a row to see its details and actions.
+  const dateSorted = transactionSortBy === 'date-desc' || transactionSortBy === 'date-asc';
+  const dayGroups = dateSorted ? groupByDay(transactions) : null;
+  const todayKey = pktDateKey();
+  let lastDay = null;
   transactionList.innerHTML = paged.items.map(transaction => {
     const customer = state.customers.find(item => item.id === transaction.customerId);
     const statusText = reportStatusLabel(transaction.status);
-    const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[transaction.customerServiceStatus] ?? 'Not set';
+    const serviceStatus = transaction.customerServiceStatus;
+    const serviceLabel = ({ active:'Active', offline:'Offline' })[serviceStatus] ?? null;
     const savedBill = customer?.bills?.find(bill => bill.month === transaction.month);
     const savedPayment = savedBill?.payments?.find(payment => payment.id === transaction.paymentId);
     const receiptData = customer && savedBill && savedPayment ? buildPaymentReceipt(customer, savedBill, savedPayment) : null;
     const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
-    return `<li class="transaction-card" data-payment-row="${escapeHtml(transaction.paymentId)}"><div class="transaction-data"><div class="transaction-title"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong></div><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">Selected bill month: ${escapeHtml(monthName(transaction.month))} · Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span> · Manual service: ${serviceLabel}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${escapeHtml(transaction.paymentId)}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Edit</button><button class="delete-payment" type="button" data-transaction-delete="${escapeHtml(transaction.paymentId)}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Delete</button></div></li>`;
+    const pid = escapeHtml(transaction.paymentId);
+    const detailsId = `txd-${String(transaction.paymentId).replace(/[^A-Za-z0-9_-]/g, '')}`;
+    let header = '';
+    if (dayGroups && transaction.date !== lastDay) {
+      lastDay = transaction.date;
+      header = `<li class="tx-day-header" role="presentation"><span class="tx-day-text">${escapeHtml(dayHeaderText(transaction.date, dayGroups.get(transaction.date) || [], todayKey))}</span></li>`;
+    }
+    const context = [
+      billMonthDiffers(transaction) ? `Bill month: ${escapeHtml(monthName(transaction.month))}` : '',
+      `Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span>`,
+      serviceLabel ? `Manual service: ${serviceLabel}` : ''
+    ].filter(Boolean).join(' · ');
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span></span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong><span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button></div></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
@@ -1368,6 +1388,18 @@ function renderDetail() {
   renderProfileProrataPreview();
   renderIncidents(customer);
   renderHistory(customer);
+}
+function editCustomerProfile(id, { focus } = {}) {
+  if (!state.customers.some(customer => customer.id === id)) return;
+  selectCustomer(id);
+  activateProfileTab('info');
+  const editBtn = $('#editProfileButton');
+  if (editBtn && !editBtn.hidden) editBtn.click();
+  if (focus === 'phone') {
+    const phone = $('#phoneInput');
+    phone?.focus();
+    phone?.scrollIntoView({ block: 'center' });
+  }
 }
 function selectCustomer(id, { pushHistory = true } = {}) {
   if (!state.customers.some(customer => customer.id === id)) return;
@@ -1916,14 +1948,39 @@ async function requestDeletePayment(customerId, month, paymentId) {
   const customer = state.customers.find(item => item.id === customerId);
   const payment = customer?.bills.find(bill => bill.month === month)?.payments.find(item => item.id === paymentId);
   if (!customer || !payment) return;
-  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports.', confirmLabel:'Delete payment' });
+  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports. You can undo for 10 seconds.', confirmLabel:'Delete payment', input:{ label:'Reason (optional, kept in the deletion log)', placeholder:'e.g. entered twice', maxLength:200 } });
   if (!confirmed) return;
+  const reason = (document.getElementById('appConfirmInput')?.value || '').trim();
   try {
+    // #298: keep what is needed to put the payment back exactly where it was.
+    const bill = customer.bills.find(item => item.month === month);
+    const index = bill.payments.findIndex(item => item.id === paymentId);
+    const removed = JSON.parse(JSON.stringify(payment));
     state = deletePayment(state, customerId, month, paymentId);
     save();
+    recordPaymentDeletion({ paymentId, customerId, customerNumber:customer.customerNumber, customerName:customer.name, month, date:payment.date, amount:payment.amount, method:payment.method, reason });
     if (selectedCustomerId === customerId) renderDetail();
-    toast('Payment deleted from this device.');
-  } catch (error) { toast(error.message); }
+    renderTransactions();
+    toast(`${formatAmount(payment.amount)} from #${customer.customerNumber} ${customer.name} was removed from this device.`, { type:'success', title:'Payment deleted', duration:10000, actionLabel:'Undo', onAction:() => undoDeletePayment(customerId, month, removed, index) });
+  } catch (error) { toast(error.message, { type:'error' }); }
+}
+function undoDeletePayment(customerId, month, removed, index) {
+  const customer = state.customers.find(item => item.id === customerId);
+  const bill = customer?.bills.find(item => item.month === month);
+  if (!customer || !bill) { toast('This payment can no longer be restored: its customer or bill was removed.', { type:'error' }); return; }
+  if (bill.payments.some(item => item.id === removed.id)) return;
+  state = { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => {
+    if (b.month !== month) return b;
+    const payments = [...b.payments];
+    payments.splice(Math.min(Math.max(index, 0), payments.length), 0, removed);
+    return { ...b, payments };
+  }) }) };
+  save();
+  markPaymentDeletionUndone(removed.id);
+  if (selectedCustomerId === customerId) renderDetail();
+  renderTransactions();
+  renderMonthlyReport?.();
+  toast(`${formatAmount(removed.amount)} payment restored for #${customer.customerNumber} ${customer.name}.`, { type:'success', title:'Delete undone' });
 }
 function showIncidentEditor(incident = null) {
   const form = $('#incidentForm');
@@ -1989,7 +2046,7 @@ function openPaymentEntry(month = selectedBillingMonth) {
   card.open = true;
   const form = card.querySelector('form[data-kind="payment"]');
   const amountInput = form?.querySelector('input[name="amount"]');
-  if (!form || !amountInput) { toast('This archived customer has no payment form for that month.'); return; }
+  if (!form || !amountInput) { toast('This archived customer has no payment form for that month.', { type: 'info' }); return; }
   const bill = customer.bills.find(item => item.month === month);
   const allocation = calculatePaymentAllocations(state).forMonth(customer.id, month);
   const hint = form.querySelector('.payment-guidance');
@@ -2028,6 +2085,7 @@ $('#transactionDateFilter').addEventListener('input', () => { transactionCurrent
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionSortSelect')?.addEventListener('change', event => { transactionSortBy = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+setupPaymentsList(); // #298 tap-to-expand payment rows
 $('#txPrevPage').addEventListener('click', () => { if (transactionCurrentPage > 1) { transactionCurrentPage--; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
 $('#txNextPage').addEventListener('click', () => { transactionCurrentPage++; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); });
 $('#txPageSize').addEventListener('change', event => { transactionPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); transactionCurrentPage = 1; renderTransactions(); });
@@ -2199,7 +2257,9 @@ function saveNewCustomer(allowDuplicateName = false) {
     phone:$('#newCustomerPhone').value.trim(),
     address:$('#newCustomerAddress').value,
     mohalla:$('#newCustomerMohalla').value,
-    zone:$('#newCustomerZone').value
+    zone:$('#newCustomerZone').value,
+    // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
+    serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set'
   };
   const nameValidation = validateCustomerName(details.name);
   if (!nameValidation.valid) {
@@ -2796,7 +2856,7 @@ const queueModalController = setupOfflineQueueModal({
       }
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Offline Resilience & Sync Banner
@@ -2814,7 +2874,7 @@ setupOfflineSyncBanner({
       }
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Start Offline Payment Receipt & Transaction Auto-Retry Engine with Exponential Backoff
@@ -2823,7 +2883,7 @@ startOfflineQueueAutoRetryEngine({
   onQueueUpdated: () => {
     queueModalController?.render();
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Field Technician Customer Enrollment Swipe Wizard
@@ -2858,12 +2918,12 @@ customerEnrollmentWizard = setupCustomerEnrollmentWizard({
       toast(err?.message || 'Failed to complete field enrollment');
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Connectivity Diagnostics Suite
 let fieldDiagnosticsModalController = setupFieldDiagnosticsModal({
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Technician Field Collection Route Sheet & Mobile Dispatcher
@@ -2891,7 +2951,7 @@ export let fieldRouteSheetController = setupFieldRouteSheet({
       selectCustomer(customerId);
     }
   },
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   storage: typeof localStorage !== 'undefined' ? localStorage : null
 });
 
@@ -2902,7 +2962,7 @@ let fieldWorkOrderSheetController = setupFieldWorkOrderSheet({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Offline Sync Conflict Resolver & Reconciler
@@ -2913,7 +2973,7 @@ let syncConflictModalController = setupSyncConflictModal({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Field Diagnostic Optical Signal Loss Map & Heatmap
@@ -2924,14 +2984,14 @@ let opticalSignalMapModalController = setupOpticalSignalMapModal({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Mobile Technician Vehicle Inventory Transfer Modal
 let vehicleTransferModalController = setupVehicleTransferModal({
   getState: () => state,
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Aerial Fiber Pole Catenary Sag & Weather Hazard Field Inspection Modal
@@ -2946,7 +3006,7 @@ let aerialAlertsModalController = setupAerialAlertsModal({
       areaFilter.dispatchEvent(new Event('change'));
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Event OTDR Trace Inspector Modal
@@ -2962,19 +3022,19 @@ let mobileOtdrTraceModalController = setupMobileOtdrTraceModal({
       areaFilter.dispatchEvent(new Event('change'));
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician GPS Breadcrumbs & Geofence Suite
 let mobileGpsBreadcrumbsModalController = setupMobileGpsBreadcrumbsModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Power Meter (OPM) Testing Suite
 let mobileOpmTestingModalController = setupMobileOpmTestingModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -2988,7 +3048,7 @@ let mobileOpmTestingModalController = setupMobileOpmTestingModal({
 // Setup Field Technician Visual Fault Locator (VFL) Laser & Fiber Core Tracer
 let mobileVflModalController = setupMobileVflModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -3002,7 +3062,7 @@ let mobileVflModalController = setupMobileVflModal({
 // Setup Field Technician Optical Fiber Fusion Splice Joint Audit Sheet
 let mobileFusionSpliceModalController = setupMobileFusionSpliceModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -3016,7 +3076,7 @@ let mobileFusionSpliceModalController = setupMobileFusionSpliceModal({
 // Setup Field Technician In-Home Wi-Fi Coverage & Channel Assistant
 let mobileWifiSurveyModalController = setupMobileWifiSurveyModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onFilterArea: (area) => {
     switchView('customers');
     const areaFilter = $('#customerAreaFilter');
@@ -3030,163 +3090,163 @@ let mobileWifiSurveyModalController = setupMobileWifiSurveyModal({
 // Setup Field Technician Optical Link Budget & Splitter Attenuation Assistant
 let mobileOpticalBudgetModalController = setupMobileOpticalBudgetModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Fiber Access Terminal (FAT / FDT) Port Allocation Matrix
 let mobileFdtAllocationModalController = setupMobileFdtAllocationModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician GPON ONU / ONT Optical BOSA Diagnostics Monitor
 let mobileOntDiagnosticsModalController = setupMobileOntDiagnosticsModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Fiber Inspection Probe & Connector End-Face Scope
 let mobileFiberProbeModalController = setupMobileFiberProbeModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Fiber Splitter Tree & Cascaded PON Topology Analyzer
 let mobileSplitterTreeModalController = setupMobileSplitterTreeModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Fiber Patch Cord & Drop Cable Macro-Bend Curvature Assistant
 let mobileMacroBendModalController = setupMobileMacroBendModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Power Attenuation, VOA Tuning & Receiver Overload Protection Assistant
 let mobileAttenuatorModalController = setupMobileAttenuatorModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Return Loss (ORL) & Back-Reflection Assistant
 let mobileOrlModalController = setupMobileOrlModal({
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Optical Fiber Cleaver Blade Wear & Angle Analyzer
 let mobileCleaverModalController = setupMobileCleaverModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Field Technician Tier-1 Optical Loss Test Set (OLTS) Certification Assistant (Lazy loaded for low-end phone performance)
 let mobileOltsModalController = createLazyModalController(() => setupMobileOltsModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Live Fiber Traffic Identifier & Tone Detector Assistant
 let mobileFiberIdentifierModalController = createLazyModalController(() => setupMobileFiberIdentifierModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field MPO/MTP Multi-Fiber Push-On Ribbon Trunk Polarity & Pinning Assistant
 let mobileMpoModalController = createLazyModalController(() => setupMobileMpoModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Mechanical Fast Connector Assistant
 let mobileFastConnectorModalController = createLazyModalController(() => setupMobileFastConnectorModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field OTDR Launch Cable & Pulse Suppression Assistant
 let mobileOtdrLaunchModalController = createLazyModalController(() => setupMobileOtdrLaunchModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Bare Fiber Adapter (BFA) & Temporary Splice Assistant
 let mobileBareFiberAdapterModalController = createLazyModalController(() => setupMobileBareFiberAdapterModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Stabilized Light Source (SLS) & Modulated Tone Generator Assistant
 let mobileSlsToneModalController = createLazyModalController(() => setupMobileSlsToneModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Talk Set (FOTS) & Laser Voice Communicator Assistant
 let mobileFiberTalksetModalController = createLazyModalController(() => setupMobileFiberTalksetModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field CWDM / DWDM Optical Channel Grid & Spectrum Allocation Assistant
 let mobileWdmSpectrumModalController = createLazyModalController(() => setupMobileWdmSpectrumModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Drop Cable Mid-Span Buffer Tube Slitter Assistant
 let mobileMidspanAccessModalController = createLazyModalController(() => setupMobileMidspanAccessModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Continuous Power Logging & Fiber Flapping Detector Assistant
 let mobilePowerLoggerModalController = createLazyModalController(() => setupMobilePowerLoggerModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Drop Cable Tensile Pull & Clamping Retention Assistant
 let mobileDropRetentionModalController = createLazyModalController(() => setupMobileDropRetentionModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Reference Test Cords (TRC) & Zero-Loss Baseline Referencing Assistant
 let mobileRefJumpersModalController = createLazyModalController(() => setupMobileRefJumpersModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Mass Fusion Ribbon Fiber De-Ribbonizer & Single-Core Breakout Assistant
 let mobileRibbonSeparatorModalController = createLazyModalController(() => setupMobileRibbonSeparatorModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Mechanical Splice & Index Matching Gel Restoration Assistant
 let mobileMechanicalSpliceModalController = createLazyModalController(() => setupMobileMechanicalSpliceModal(state, {
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Fiber Microscope VIP Surface Analysis Assistant
 let mobileFiberMicroscopeModalController = createLazyModalController(() => setupMobileFiberMicroscopeModal({
   doc: document,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Connector Cleaning & Sanitation Assistant
 let mobileConnectorCleaningModalController = createLazyModalController(() => setupMobileConnectorCleaningModal({
   doc: document,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field OTDR Dead Zone & Pulse Width Calibration Assistant
 let mobileOtdrDeadzoneModalController = createLazyModalController(() => setupMobileOtdrDeadzoneModal({
   doc: document,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 }));
 
 // Setup Field Optical Fiber Buffer Tube Mid-Span Stripper & Shaving Gauge Assistant
@@ -3206,11 +3266,13 @@ window.quickCollectModalController = setupQuickCollectModal({
       fieldRouteSheetController.recalculate();
     }
   },
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onSelectCustomer: (customerId) => {
     selectedCustomerId = customerId;
     renderDetail();
-  }
+  },
+  // #297 "Add phone": open this customer's profile in edit mode with the phone field focused.
+  onEditCustomer: (customerId, { focus } = {}) => editCustomerProfile(customerId, { focus })
 });
 // Setup Mobile Customer Quick Profile Sheet & WhatsApp Delivery (agent2 - shahdara-mobile-nav)
 window.mobileQuickProfileController = setupMobileQuickProfileModal({
@@ -3224,7 +3286,7 @@ window.mobileQuickProfileController = setupMobileQuickProfileModal({
     switchView('customers');
     selectCustomer(customerId);
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 // Setup Fast Customer Search Sheet & Recent Accounts (agent2 - shahdara-mobile-nav)
 window.fastCustomerSearchController = setupFastCustomerSearchModal({
@@ -3238,12 +3300,12 @@ window.fastCustomerSearchController = setupFastCustomerSearchModal({
       window.quickCollectModalController.open(customerId);
     }
   },
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Bilingual English / Urdu (اردو) Interface & RTL Layout (agent2 - shahdara-mobile-nav)
 window.languageController = setupLanguageToggle({
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup Pending Actions Center & Collection Promises Suite (agent2 - shahdara-mobile-nav)
@@ -3293,13 +3355,13 @@ window.digitalPaymentsSettingsController = initDigitalPaymentsSettingsModal({
 window.pwaInstallController = setupPwaInstallPrompt({
   doc: document,
   storage: typeof localStorage !== 'undefined' ? localStorage : null,
-  onToast: (msg) => toast(msg)
+  onToast: (msg, opts) => toast(msg, opts)
 });
 
 // Setup PWA Status & Offline Health Modal (agent2 - shahdara-mobile-nav)
 window.pwaStatusController = setupPwaStatusModal({
   doc: document,
-  onToast: (msg) => toast(msg),
+  onToast: (msg, opts) => toast(msg, opts),
   onTriggerInstall: () => window.pwaInstallController?.triggerInstall(),
   onQuickCollect: () => window.quickCollectModalController?.open(),
   onAddCustomer: () => {
@@ -3913,7 +3975,7 @@ function renderInventory() {
   const movDate=$('#movementDate');
   if(movDate&&!movDate.value) movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);
   itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
-  $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement||!window.confirm(`Delete the ${movement.type} movement of ${movement.quantity} ${movement.unit} dated ${movement.date}? This may change all current inventory balances.`))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.');}catch(error){toast(error.message);}}));
+  $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',async()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement)return;if(!await appConfirm({tone:'danger',title:'Delete this stock movement?',subject:`${movement.type} · ${movement.quantity} ${movement.unit} · ${movement.date}`,message:'This may change all current inventory balances.',confirmLabel:'Delete movement'}))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.',{type:'success',title:'Deleted'});}catch(error){toast(error.message,{type:'error'});}}));
   updateNavigationBadges(state);
 }
 let expenseSortKey = 'date';
@@ -3939,8 +4001,8 @@ function renderExpenses() {
   $('#saadAttendanceEmpty').hidden=payroll.attendanceDays.length>0;
   $('#umairWorkdaysList').innerHTML=payroll.umairWorkdays.map(date=>`<li><time datetime="${date}">${date}</time><button type="button" class="delete-incident" data-remove-workday="${date}">Remove</button></li>`).join('');
   $('#umairWorkdaysEmpty').hidden=payroll.umairWorkdays.length>0;
-  $('#saadAttendanceList').querySelectorAll('[data-remove-attendance]').forEach(button=>button.addEventListener('click',()=>{const date=button.dataset.removeAttendance;if(!window.confirm(`Remove Saad's manually logged attendance day dated ${date}?`))return;try{state=removeSaadAttendanceDay(state,date);save();toast('Attendance date removed from this device.');}catch(error){toast(error.message);}}));
-  $('#umairWorkdaysList').querySelectorAll('[data-remove-workday]').forEach(button=>button.addEventListener('click',()=>{const date=button.dataset.removeWorkday;if(!window.confirm(`Remove Umair's manually logged workday dated ${date}?`))return;try{state=removeUmairWorkday(state,date);save();toast('Workday removed from this device.');}catch(error){toast(error.message);}}));
+  $('#saadAttendanceList').querySelectorAll('[data-remove-attendance]').forEach(button=>button.addEventListener('click',async()=>{const date=button.dataset.removeAttendance;if(!await appConfirm({tone:'danger',title:'Remove this attendance day?',subject:`Saad · ${date}`,message:"Removes Saad's manually logged attendance day from this device.",confirmLabel:'Remove day'}))return;try{state=removeSaadAttendanceDay(state,date);save();toast('Attendance date removed from this device.');}catch(error){toast(error.message);}}));
+  $('#umairWorkdaysList').querySelectorAll('[data-remove-workday]').forEach(button=>button.addEventListener('click',async()=>{const date=button.dataset.removeWorkday;if(!await appConfirm({tone:'danger',title:'Remove this workday?',subject:`Umair · ${date}`,message:"Removes Umair's manually logged workday (PKR 1,000) from this device.",confirmLabel:'Remove workday'}))return;try{state=removeUmairWorkday(state,date);save();toast('Workday removed from this device.');}catch(error){toast(error.message);}}));
   const allRows=[...(state.expenses??[])];
   $('#expenseEntryCount').textContent=allRows.length?String(allRows.length):'No entries';
   $('#expenseEntryHelp').textContent=allRows.length?'Actual dated expenses recorded on this device.':'No expense entries recorded; not an assertion that spending was zero.';
@@ -4025,11 +4087,11 @@ function renderExpenses() {
     const notice=$('#expensePayrollPrefillNotice');if(notice)notice.hidden=true;
     $('#expenseForm').scrollIntoView({behavior:'smooth',block:'center'});
   }));
-  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',()=>{
+  $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',async()=>{
     const row=allRows.find(item=>item.id===button.dataset.deleteExpense);
     if(!row)return;
     const areaNote=row.area?` [${row.area}]`:'';
-    if(!window.confirm(`Delete the ${formatAmount(row.amount)} ${row.category}${areaNote} expense dated ${row.date}?`))return;
+    if(!await appConfirm({tone:'danger',title:'Delete this expense?',subject:`${formatAmount(row.amount)} · ${row.category}${areaNote} · ${row.date}`,message:'It will be removed from this device\'s expense ledger, totals and exports.',confirmLabel:'Delete expense'}))return;
     try{
       state=deleteExpense(state,row.id);
       save();
@@ -4096,7 +4158,7 @@ function resetExpenseForm() {
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
-$('#expenseForm').addEventListener('submit',event=>{
+$('#expenseForm').addEventListener('submit',async event=>{
   event.preventDefault();
   const data=new FormData(event.currentTarget);
   const rawFields={
@@ -4117,7 +4179,7 @@ $('#expenseForm').addEventListener('submit',event=>{
   const fields=val.cleanFields;
   try{
     const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;
-    if(previous&&!window.confirm(`Correct the saved expense from ${formatAmount(previous.amount)} ${previous.category} on ${previous.date} to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}?`))return;
+    if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();
     expenseDraftController?.clear();
@@ -4917,7 +4979,7 @@ if (shareStatementWhatsAppBtn) {
           document.execCommand('copy');
           ta.remove();
         }
-        toast('Customer phone missing. Statement summary copied to clipboard.');
+        toast('No phone number saved for this customer. The statement summary was copied to the clipboard instead.', { type: 'warning', title: 'No phone number' });
       } catch {
         toast('Unable to copy statement to clipboard.');
       }
@@ -5964,7 +6026,7 @@ if (typeof document !== 'undefined') {
   dailyRegisterController = setupDailyRegisterModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const dailyCashRegisterModal = $('#dailyCashRegisterModal');
@@ -6022,14 +6084,14 @@ if (typeof document !== 'undefined') {
       selectCustomer(customerId);
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   topDefaultersModalController = setupTopDefaultersModal(() => state, {
     onFilterCustomer: (customerId) => {
       selectCustomer(customerId);
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
     onFilterCustomerArea: (areaName) => {
@@ -6040,7 +6102,7 @@ if (typeof document !== 'undefined') {
       }
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   packageRevenueModalController = setupPackageRevenueModal(() => state, {
     onFilterPackageCustomers: (pkgLabel) => {
@@ -6051,21 +6113,21 @@ if (typeof document !== 'undefined') {
       }
       switchView('customers');
     },
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   pnlModalController = setupPnlModal(() => state, {
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   momGrowthModalController = setupMomGrowthModal(() => state, {
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   dailyClosingModalController = setupDailyClosingModal(() => state, {
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
   lateFeeModalController = setupLateFeeModal({
     getState: () => state,
@@ -6088,13 +6150,13 @@ if (typeof document !== 'undefined') {
       renderDashboard();
     },
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   customerAdjustmentModalController = setupAdjustmentVoucherModal({
     modalId: 'customerAdjustmentModal',
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onVoucherIssued: () => {
       if (selectedCustomerId) {
         renderCustomerDetail();
@@ -6119,7 +6181,7 @@ if (typeof document !== 'undefined') {
   customerServiceContractModalController = setupServiceContractModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onContractCreated: () => {
       if (selectedCustomerId) {
         renderCustomerDetail();
@@ -6144,7 +6206,7 @@ if (typeof document !== 'undefined') {
   customerDisputeModalController = setupDisputeClaimModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onApplyLedgerCredit: (claim) => {
       if (selectedCustomerId) {
         renderCustomerDetail();
@@ -6169,7 +6231,7 @@ if (typeof document !== 'undefined') {
   customerKycComplianceModalController = setupKycComplianceModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onNavigateCustomer: (cid) => {
       switchView('customers');
       selectCustomer(cid);
@@ -6186,7 +6248,7 @@ if (typeof document !== 'undefined') {
   customerEquipmentRetrievalModalController = setupEquipmentRetrievalModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onNavigateCustomer: (cid) => {
       switchView('customers');
       selectCustomer(cid);
@@ -6210,7 +6272,7 @@ if (typeof document !== 'undefined') {
   customerSpliceInspectionModalController = setupSpliceInspectionModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openSpliceInspectionBtn = $('#openSpliceInspectionBtn');
@@ -6223,7 +6285,7 @@ if (typeof document !== 'undefined') {
   customerPlanMigrationModalController = setupPlanMigrationModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     onMigrationSaved: (record) => {
       if (selectedCustomerId && state?.customers) {
         const cust = state.customers.find(c => c.id === selectedCustomerId);
@@ -6277,7 +6339,7 @@ if (typeof document !== 'undefined') {
   customerOpticalAcceptanceModalController = setupOpticalAcceptanceModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openOpticalAcceptanceBtn = $('#openOpticalAcceptanceBtn');
@@ -6291,7 +6353,7 @@ if (typeof document !== 'undefined') {
   customerDropSafetyModalController = setupDropSafetyInspectionModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openDropInspectionBtn = $('#openDropInspectionBtn');
@@ -6305,7 +6367,7 @@ if (typeof document !== 'undefined') {
   customerEthernetCertModalController = setupEthernetCertModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openEthernetCertBtn = $('#openEthernetCertBtn');
@@ -6319,7 +6381,7 @@ if (typeof document !== 'undefined') {
   customerOrlCertModalController = setupOrlCertModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openOrlCertBtn = $('#openOrlCertBtn');
@@ -6332,7 +6394,7 @@ if (typeof document !== 'undefined') {
 
   customerDdmiCertModalController = setupDdmiCertModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openDdmiCertBtn = $('#openDdmiCertBtn');
@@ -6352,7 +6414,7 @@ if (typeof document !== 'undefined') {
 
   customerDispersionModalController = setupDispersionCertModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openDispersionCertBtn = $('#openDispersionCertBtn');
@@ -6371,7 +6433,7 @@ if (typeof document !== 'undefined') {
 
   customerBendLossModalController = setupBendLossCertModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
   });
 
@@ -6392,7 +6454,7 @@ if (typeof document !== 'undefined') {
 
   customerBidirectionalOtdrModalController = setupBidirectionalOtdrModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg),
+    onToast: (msg, opts) => toast(msg, opts),
     getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
   });
 
@@ -6412,7 +6474,7 @@ if (typeof document !== 'undefined') {
 
   customerOtdrDeadzoneModalController = setupOtdrDeadzoneModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openOtdrDeadzoneBtn = $('#openOtdrDeadzoneBtn');
@@ -6433,7 +6495,7 @@ if (typeof document !== 'undefined') {
 
   customerSplitterQaModalController = setupSplitterQaModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openSplitterQaBtn = $('#openSplitterQaBtn');
@@ -6453,7 +6515,7 @@ if (typeof document !== 'undefined') {
 
   customerFerruleGeometryModalController = setupFerruleGeometryModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openFerruleGeometryBtn = $('#openFerruleGeometryBtn');
@@ -6473,7 +6535,7 @@ if (typeof document !== 'undefined') {
 
   customerFusionArcQaModalController = setupFusionArcQaModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openFusionArcQaBtn = $('#openFusionArcQaBtn');
@@ -6497,7 +6559,7 @@ if (typeof document !== 'undefined') {
 
   customerStripForceQaModalController = setupStripForceQaModal({
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg) => toast(msg)
+    onToast: (msg, opts) => toast(msg, opts)
   });
 
   const openStripForceQaBtn = $('#openStripForceQaBtn');
@@ -6526,7 +6588,7 @@ if (typeof document !== 'undefined') {
       dialogElement: spliceModal,
       triggerButton: openSpliceMfdOffsetBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6549,7 +6611,7 @@ if (typeof document !== 'undefined') {
       dialogElement: sleeveModal,
       triggerButton: openSpliceSleeveCureBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6572,7 +6634,7 @@ if (typeof document !== 'undefined') {
       dialogElement: cleaveModal,
       triggerButton: openFiberCleaveQualityBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6595,7 +6657,7 @@ if (typeof document !== 'undefined') {
       dialogElement: ghostModal,
       triggerButton: openOtdrGhostArtifactBtn,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6618,7 +6680,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: ribbonModal,
       triggerButton: openRibbonSpliceQaBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6644,7 +6706,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: fastModal,
       triggerButton: openFastConnectorQaBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6672,7 +6734,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: adssModal,
       triggerButton: openAdssSagTensionBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6700,7 +6762,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: armoredModal,
       triggerButton: openArmoredCableCrushBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6728,7 +6790,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: jettingModal,
       triggerButton: openCableJettingBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6754,7 +6816,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: tubeSlittingModal,
       triggerButton: openTubeSlittingAccessBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6782,7 +6844,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: conduitPullingModal,
       triggerButton: openConduitPullingBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6810,7 +6872,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: spectralAttenuationModal,
       triggerButton: openSpectralAttenuationBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6838,7 +6900,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: foscSealModal,
       triggerButton: openFoscSealBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6866,7 +6928,7 @@ if (typeof document !== 'undefined') {
       state,
       dialogElement: thermalCyclingModal,
       triggerButton: openThermalCyclingBtn,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6892,7 +6954,7 @@ if (typeof document !== 'undefined') {
     billingCorrectnessModalController = setupBillingCorrectnessModal({
       getState: () => state,
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6908,7 +6970,7 @@ if (typeof document !== 'undefined') {
         renderDashboard();
       },
       storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6924,7 +6986,7 @@ if (typeof document !== 'undefined') {
         selectCustomer(customerId);
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6935,7 +6997,7 @@ if (typeof document !== 'undefined') {
         selectCustomer(customerId);
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6950,7 +7012,7 @@ if (typeof document !== 'undefined') {
         }
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
@@ -6965,28 +7027,28 @@ if (typeof document !== 'undefined') {
         }
         switchView('customers');
       },
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
   const pnlModal = $('#pnlModal');
   if (pnlModal && !pnlModalController) {
     pnlModalController = setupPnlModal(() => state, {
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
   const momGrowthModal = $('#momGrowthModal');
   if (momGrowthModal && !momGrowthModalController) {
     momGrowthModalController = setupMomGrowthModal(() => state, {
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 
   const dailyClosingModal = $('#dailyClosingModal');
   if (dailyClosingModal && !dailyClosingModalController) {
     dailyClosingModalController = setupDailyClosingModal(() => state, {
-      onToast: (msg) => toast(msg)
+      onToast: (msg, opts) => toast(msg, opts)
     });
   }
 

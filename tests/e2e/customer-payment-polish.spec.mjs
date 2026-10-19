@@ -194,9 +194,11 @@ test.describe('Customer & payment polish', () => {
     await page.locator('#quickCollectConfirmBtn').click();
     await expect(page.locator('#quickCollectTxnError')).toHaveText(/Transaction ID or an override reason/);
     await expect(page.locator('#quickCollectTxnError')).toHaveAttribute('role', 'alert');
+    // #296: the inline error replaces the toast for this case; check the toast layer with another message.
+    await page.evaluate(() => window.toast('Receipt image creation is not supported in this environment.', { type: 'warning' }));
     const toast = page.locator('#toast');
     await expect(toast).toBeVisible();
-    await expect(toast).toContainText('Transaction ID');
+    await expect(toast).toContainText('not supported');
     // The toast is the top element at its own centre (not hidden behind the sheet), and its × works.
     const onTop = await toast.evaluate(t => { const r = t.getBoundingClientRect(); return t.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); });
     expect(onTop).toBe(true);

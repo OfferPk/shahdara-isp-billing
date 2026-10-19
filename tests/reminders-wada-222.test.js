@@ -361,7 +361,7 @@ test('Issue #222: formatPromiseFollowupWhatsApp generates bilingual messages for
     customerNumber: 42,
     area: 'Millat Town',
     promisedAmount: 1800,
-    promisedDate: '2026-10-19',
+    promisedDate: getTodayDateString(),
     isBroken: false
   });
   assert.ok(todayMsg.includes('Shahdara ISP - Scheduled Payment Commitment'));

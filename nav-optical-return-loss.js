@@ -526,40 +526,54 @@ export function setupMobileOrlModal(options = {}) {
   const onToast = options.onToast || (() => {});
   const clipboard = options.clipboard;
 
-  const modal = document.getElementById('mobileOrlModal');
-  const closeBtn = document.getElementById('mobileOrlCloseBtn');
+  const doc = options.document || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return null;
+
+  const modal = doc.getElementById('mobileOrlModal');
+  const closeBtn = doc.getElementById('mobileOrlCloseBtn');
 
   // Trigger buttons across mobile surfaces
-  const drawerBtn = document.getElementById('navOrlBtn');
-  const speedDialBtn = document.querySelector('[data-open-orl]');
-  const actionSheetBtn = document.querySelector('[data-action-orl]');
+  const triggers = [];
+  const drawerBtn = doc.getElementById('navOrlBtn');
+  if (drawerBtn) triggers.push(drawerBtn);
+
+  if (typeof doc.querySelectorAll === 'function') {
+    doc.querySelectorAll('[data-open-orl], [data-action-orl], [data-sheet-action="orl"], [data-speed-action="orl"], [data-mobile-more="orl"], #navOrlBtn, #speedDialOrlBtn, #actionSheetOrlBtn, #mobileMoreOrlBtn').forEach(btn => {
+      if (btn && !triggers.includes(btn)) triggers.push(btn);
+    });
+  } else if (typeof doc.querySelector === 'function') {
+    const speedDialBtn = doc.querySelector('[data-open-orl]');
+    const actionSheetBtn = doc.querySelector('[data-action-orl]');
+    if (speedDialBtn && !triggers.includes(speedDialBtn)) triggers.push(speedDialBtn);
+    if (actionSheetBtn && !triggers.includes(actionSheetBtn)) triggers.push(actionSheetBtn);
+  }
 
   // Inputs
-  const presetSelect = document.getElementById('orlPresetSelect');
-  const standardSelect = document.getElementById('orlStandardSelect');
-  const lengthSlider = document.getElementById('orlLengthSlider');
-  const lengthVal = document.getElementById('orlLengthVal');
-  const conn1Select = document.getElementById('orlConn1Select');
-  const conn2Select = document.getElementById('orlConn2Select');
-  const conn3Select = document.getElementById('orlConn3Select');
+  const presetSelect = doc.getElementById('orlPresetSelect');
+  const standardSelect = doc.getElementById('orlStandardSelect');
+  const lengthSlider = doc.getElementById('orlLengthSlider');
+  const lengthVal = doc.getElementById('orlLengthVal');
+  const conn1Select = doc.getElementById('orlConn1Select');
+  const conn2Select = doc.getElementById('orlConn2Select');
+  const conn3Select = doc.getElementById('orlConn3Select');
 
   // KPI elements
-  const kpiOrl = document.getElementById('orlKpiTotal');
-  const kpiMargin = document.getElementById('orlKpiMargin');
-  const kpiWorst = document.getElementById('orlKpiWorst');
-  const kpiStatus = document.getElementById('orlKpiStatus');
+  const kpiOrl = doc.getElementById('orlKpiTotal');
+  const kpiMargin = doc.getElementById('orlKpiMargin');
+  const kpiWorst = doc.getElementById('orlKpiWorst');
+  const kpiStatus = doc.getElementById('orlKpiStatus');
 
-  const svgWrap = document.getElementById('orlSvgWrap');
-  const remediationText = document.getElementById('orlRemediationText');
+  const svgWrap = doc.getElementById('orlSvgWrap');
+  const remediationText = doc.getElementById('orlRemediationText');
 
   // Metadata & Action Buttons
-  const locationInput = document.getElementById('orlLocationInput');
-  const techInput = document.getElementById('orlTechInput');
-  const notesInput = document.getElementById('orlNotesInput');
-  const saveBtn = document.getElementById('orlSaveBtn');
-  const whatsappBtn = document.getElementById('orlWhatsappBtn');
-  const clearHistoryBtn = document.getElementById('orlClearHistoryBtn');
-  const historyList = document.getElementById('orlHistoryList');
+  const locationInput = doc.getElementById('orlLocationInput');
+  const techInput = doc.getElementById('orlTechInput');
+  const notesInput = doc.getElementById('orlNotesInput');
+  const saveBtn = doc.getElementById('orlSaveBtn');
+  const whatsappBtn = doc.getElementById('orlWhatsappBtn');
+  const clearHistoryBtn = doc.getElementById('orlClearHistoryBtn');
+  const historyList = doc.getElementById('orlHistoryList');
 
   function getCurrentCalc() {
     const stdId = standardSelect ? standardSelect.value : 'GPON_ITU_G984';
@@ -735,8 +749,15 @@ export function setupMobileOrlModal(options = {}) {
   function openModal() {
     renderView();
     if (modal) {
-      if (typeof modal.showModal === 'function') modal.showModal();
-      else modal.setAttribute('open', 'true');
+      if (typeof modal.showModal === 'function') {
+        try {
+          modal.showModal();
+        } catch (e) {
+          modal.setAttribute('open', '');
+        }
+      } else {
+        modal.setAttribute('open', '');
+      }
     }
   }
 
@@ -748,9 +769,14 @@ export function setupMobileOrlModal(options = {}) {
   }
 
   if (closeBtn) closeBtn.onclick = closeModal;
-  if (drawerBtn) drawerBtn.onclick = openModal;
-  if (speedDialBtn) speedDialBtn.onclick = openModal;
-  if (actionSheetBtn) actionSheetBtn.onclick = openModal;
+  triggers.forEach(btn => {
+    if (btn) {
+      if (typeof btn.addEventListener === 'function') {
+        btn.addEventListener('click', openModal);
+      }
+      btn.onclick = openModal;
+    }
+  });
 
   // Backdrop click closes dialog
   if (modal) {

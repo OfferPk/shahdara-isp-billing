@@ -8887,6 +8887,69 @@ test('setupMobileOrlModal binds modal controls, updates calculations in real tim
   }
 });
 
+test('Issue #283: setupMobileAttenuatorModal and setupMobileOrlModal wire all matches across querySelectorAll', async () => {
+  const { setupMobileAttenuatorModal, setupMobileOrlModal } = await import('../nav.js');
+
+  let attOpened = false;
+  let orlOpened = false;
+
+  const mockAttModal = {
+    showModal: () => { attOpened = true; },
+    close: () => {},
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  };
+  const mockOrlModal = {
+    showModal: () => { orlOpened = true; },
+    close: () => {},
+    setAttribute: () => {},
+    removeAttribute: () => {}
+  };
+
+  const attTrigger1 = { onclick: null };
+  const attTrigger2 = { onclick: null };
+  const attTrigger3 = { onclick: null };
+
+  const orlTrigger1 = { onclick: null };
+  const orlTrigger2 = { onclick: null };
+  const orlTrigger3 = { onclick: null };
+
+  const origDoc = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => {
+      if (id === 'mobileAttenuatorModal') return mockAttModal;
+      if (id === 'mobileOrlModal') return mockOrlModal;
+      return null;
+    },
+    querySelectorAll: (sel) => {
+      if (sel.includes('attenuator')) return [attTrigger1, attTrigger2, attTrigger3];
+      if (sel.includes('orl')) return [orlTrigger1, orlTrigger2, orlTrigger3];
+      return [];
+    },
+    addEventListener: () => {}
+  };
+
+  try {
+    setupMobileAttenuatorModal();
+    assert.strictEqual(typeof attTrigger1.onclick, 'function');
+    assert.strictEqual(typeof attTrigger2.onclick, 'function');
+    assert.strictEqual(typeof attTrigger3.onclick, 'function');
+
+    attTrigger2.onclick();
+    assert.strictEqual(attOpened, true);
+
+    setupMobileOrlModal();
+    assert.strictEqual(typeof orlTrigger1.onclick, 'function');
+    assert.strictEqual(typeof orlTrigger2.onclick, 'function');
+    assert.strictEqual(typeof orlTrigger3.onclick, 'function');
+
+    orlTrigger2.onclick();
+    assert.strictEqual(orlOpened, true);
+  } finally {
+    globalThis.document = origDoc;
+  }
+});
+
 test('CLEAVER_MODELS, CLEAVE_DEFECT_TYPES and CLEAVE_ANGLE_SPEC define standard cleaver parameters', async () => {
   const { CLEAVER_MODELS, CLEAVE_DEFECT_TYPES, CLEAVE_ANGLE_SPEC } = await import('../nav.js');
 

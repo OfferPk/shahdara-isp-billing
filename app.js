@@ -324,7 +324,10 @@ function activateProfileTab(name, focus = false) {
 }
 mountCustomerProfileContent();
 
-function toast(message, { actionLabel = null, onAction = null, duration = 2800 } = {}) {
+function toast(message, options = {}) {
+  // ui-feedback.js: typed, stacked toasts with icon/title/progress (falls back to the #220 toast below).
+  if (typeof window.__toastImpl === 'function') return window.__toastImpl(message, options || {});
+  const { actionLabel = null, onAction = null, duration = 2800 } = options || {};
   const element = $('#toast');
   if (!element) return;
   element.replaceChildren();
@@ -352,6 +355,14 @@ function toast(message, { actionLabel = null, onAction = null, duration = 2800 }
   toastTimer = setTimeout(() => { element.hidden = true; }, duration);
 }
 window.toast = toast;
+// In-app confirm (ui-feedback.js) instead of the browser's confirm(); resolves 'confirm' | 'alt' | false.
+function appConfirm(options) {
+  if (typeof window.appConfirm === 'function') return window.appConfirm(options);
+  return Promise.resolve(window.confirm([options.title, options.subject, options.message].filter(Boolean).join('\n\n')) ? 'confirm' : false);
+}
+function duplicateTxnConfirm(txnId, dup) {
+  return appConfirm({ tone:'warning', title:'Duplicate Transaction ID', subject:`Transaction ID "${txnId}"`, message:`Already recorded on ${dup.date} for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (PKR ${Number(dup.amount || 0).toLocaleString()}). Save this payment with the same reference anyway?`, confirmLabel:'Save anyway', cancelLabel:'Cancel' });
+}
 function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
 function save() {
@@ -1042,7 +1053,7 @@ function renderHistory(customer) {
     const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
     const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid">${packageSelector}<label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="discount-${month}">Discount / Concession (PKR) <span class="optional-label">Optional · waives balance</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0 (No discount)"><label class="field-label full" for="discount-reason-${month}">Discount reason <span class="optional-label">Optional</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="e.g. Loyalty concession, Outage credit"><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<label class="field-label full" for="txnid-${month}">Transaction ID / Ref (for digital payments) <span class="optional-label">Optional</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="e.g. 1234567890 (Raast / JazzCash / Easypaisa)"><button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? '<p class="notice">Archived customers do not receive new monthly bills or payments. Unarchive this customer to resume billing.</p>' : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? 'Update bill details' : 'Record confirmed bill details'}</h4><div class="form-grid">${packageSelector}<label class="field-label full" for="due-${month}">Bill amount (PKR) <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}><label class="field-label full" for="due-date-${month}">Optional due date (Pakistan local date)</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"><p class="field-help full">No due-date rule or late fees are applied automatically.</p><button class="primary-button" type="submit">${bill ? 'Save bill details' : 'Record this month'}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>Record an actual payment</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">Enter the actual collected amount, payment date and method. Nothing is saved until you submit this form.</p><div class="form-grid"><label class="field-label full" for="amount-${month}">Amount received (PKR)</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Enter actual amount" required><label class="field-label full" for="method-${month}">Payment method</label><select id="method-${month}" class="full" name="method" required><option value="">Choose a method</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select>${paidByFieldMarkup(`paid-by-${month}`)}<label class="field-label full" for="date-${month}">Payment date (Pakistan local date)</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required><label class="field-label full" for="txnid-${month}">Transaction ID / Ref (for digital payments) <span class="optional-label">Optional</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="e.g. 1234567890 (Raast / JazzCash / Easypaisa)"><label class="field-label full" for="discount-${month}">Discount / Concession (PKR) <span class="optional-label">Optional · waives balance</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0 (No discount)"><label class="field-label full" for="discount-reason-${month}">Discount reason <span class="optional-label">Optional</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="e.g. Loyalty concession, Outage credit"><button class="primary-button" type="submit">Record actual payment</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}" ${isOpen ? 'open' : ''}><summary><span class="month-label">${escapeHtml(monthName(month))}</span><span class="history-count">${bill ? `${bill.payments?.length ?? 0} payment${bill.payments?.length === 1 ? '' : 's'}` : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="Payments for ${escapeHtml(monthName(month))}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
@@ -1072,10 +1083,10 @@ function renderHistory(customer) {
       save(); renderDetail(); toast(`Late fee of PKR ${num} applied to bill ${month}.`);
     } catch (err) { toast(err.message); }
   }));
-  historyContainer.querySelectorAll('[data-waive-late-fee]').forEach(button => button.addEventListener('click', () => {
+  historyContainer.querySelectorAll('[data-waive-late-fee]').forEach(button => button.addEventListener('click', async () => {
     const custId = button.dataset.customerId;
     const month = button.dataset.month;
-    if (!window.confirm(`Waive / remove the late fee on bill ${month}?`)) return;
+    if (!(await appConfirm({ tone:'warning', title:'Waive late fee?', message:`Remove the late fee on bill ${month}? The bill goes back to its normal amount.`, confirmLabel:'Waive late fee' }))) return;
     try {
       state = waiveLateFeeFromBill(state, custId, month, { reason: 'Waived by owner' });
       save(); renderDetail(); toast(`Late fee waived on bill ${month}.`);
@@ -1831,23 +1842,22 @@ function onBillSubmit(event) {
   }
   catch (error) { toast(error.message); }
 }
-function onPaymentSubmit(event) {
+async function onPaymentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
+  const customerId = selectedCustomerId;
+  const submitBtn = form.querySelector('button[type="submit"]');
   try {
     const txnId = (data.get('transactionId') || '').trim();
     if (txnId) {
       const dup = findDuplicatePaymentReference(state, txnId);
       if (dup) {
-        const confirmed = window.confirm(
-          `⚠️ Duplicate Transaction ID detected!\n\n` +
-          `Transaction ID "${txnId}" was already recorded on ${dup.date} for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (PKR ${dup.amount.toLocaleString()}).\n\n` +
-          `Do you want to proceed anyway with this duplicate reference?`
-        );
-        if (!confirmed) return;
+        if (!(await duplicateTxnConfirm(txnId, dup))) { form.querySelector('[name="transactionId"]')?.focus(); return; }
       }
     }
-    state = addPayment(state, selectedCustomerId, form.dataset.month, {
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
+    const beforeIds = new Set((state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === form.dataset.month)?.payments || []).map(p => p.id));
+    state = addPayment(state, customerId, form.dataset.month, {
       date: data.get('date'),
       amount: data.get('amount'),
       method: data.get('method'),
@@ -1858,9 +1868,16 @@ function onPaymentSubmit(event) {
     });
     save();
     renderDetail();
-    toast('Payment recorded on this device.');
+    const paidCustomer = state.customers.find(c => c.id === customerId);
+    const added = paidCustomer?.bills.find(b => b.month === form.dataset.month)?.payments.find(p => !beforeIds.has(p.id));
+    const actions = added ? [
+      { label:'Undo', onAction: () => { try { state = deletePayment(state, customerId, form.dataset.month, added.id); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Payment undone. Ledger restored.', { type:'info', title:'Undone' }); } catch (err) { toast(err.message); } } },
+      { label:'Receipt', onAction: () => printPaymentReceipt(customerId, form.dataset.month, added.id) }
+    ] : [];
+    toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(form.dataset.month)}. Payment recorded on this device.` : 'Payment recorded on this device.', { type:'success', title:'Payment recorded', actions });
   }
-  catch (error) { toast(error.message); }
+  catch (error) { toast(error.message, { type:'error', title:'Payment not saved' }); }
+  finally { if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }
 }
 function correctionForm(payment, customerId, month, origin) {
   const options = PAYMENT_METHODS.map(method => `<option value="${method}" ${method === payment.method ? 'selected' : ''}>${method}</option>`).join('');
@@ -1878,7 +1895,7 @@ function beginCorrection(customerId, month, paymentId, origin) {
   form.addEventListener('submit', onCorrectionSubmit);
   form.querySelector('[data-cancel-correction]').addEventListener('click', () => origin === 'history' ? renderDetail() : renderTransactions());
 }
-function onCorrectionSubmit(event) {
+async function onCorrectionSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
   try {
@@ -1886,12 +1903,7 @@ function onCorrectionSubmit(event) {
     if (txnId) {
       const dup = findDuplicatePaymentReference(state, txnId, form.dataset.paymentId);
       if (dup) {
-        const confirmed = window.confirm(
-          `⚠️ Duplicate Transaction ID detected!\n\n` +
-          `Transaction ID "${txnId}" was already recorded on ${dup.date} for ${dup.customerName} (#${dup.customerNumber}) in month ${dup.month} (PKR ${dup.amount.toLocaleString()}).\n\n` +
-          `Do you want to proceed anyway with this duplicate reference?`
-        );
-        if (!confirmed) return;
+        if (!(await duplicateTxnConfirm(txnId, dup))) return;
       }
     }
     state = correctPayment(state, form.dataset.customerId, form.dataset.month, form.dataset.paymentId, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy'), discount:data.get('discount') || 0, discountReason:data.get('discountReason') || '', transactionId: txnId || undefined });
@@ -1900,11 +1912,11 @@ function onCorrectionSubmit(event) {
     toast('Payment correction saved on this device.');
   } catch (error) { toast(error.message); }
 }
-function requestDeletePayment(customerId, month, paymentId) {
+async function requestDeletePayment(customerId, month, paymentId) {
   const customer = state.customers.find(item => item.id === customerId);
   const payment = customer?.bills.find(bill => bill.month === month)?.payments.find(item => item.id === paymentId);
   if (!customer || !payment) return;
-  const confirmed = window.confirm(`Delete the ${formatAmount(payment.amount)} payment dated ${payment.date} for customer #${customer.customerNumber} ${customer.name}? It will be removed from this device's history, totals and exports.`);
+  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports.', confirmLabel:'Delete payment' });
   if (!confirmed) return;
   try {
     state = deletePayment(state, customerId, month, paymentId);
@@ -1946,11 +1958,11 @@ function onIncidentSubmit(event) {
     const errorBox = $('#incidentFormError'); errorBox.textContent = error.message; errorBox.hidden = false;
   }
 }
-function requestDeleteIncident(customerId, incidentId) {
+async function requestDeleteIncident(customerId, incidentId) {
   const customer = state.customers.find(item => item.id === customerId);
   const incident = customer?.incidents.find(item => item.id === incidentId);
   if (!customer || !incident) return;
-  if (!window.confirm(`Delete this ${incident.restoredAt ? 'resolved' : 'open'} complaint/outage for customer #${customer.customerNumber} ${customer.name}? It and its correction history will be removed from this device, its 30-day count, and customer export.`)) return;
+  if (!(await appConfirm({ tone:'danger', title:`Delete this ${incident.restoredAt ? 'resolved' : 'open'} complaint?`, subject:`#${customer.customerNumber} ${customer.name}`, message:'It and its correction history will be removed from this device, its 30-day count, and customer export.', confirmLabel:'Delete complaint' }))) return;
   try { state = deleteIncident(state, customerId, incidentId); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Incident deleted from this device.'); }
   catch (error) { toast(error.message); }
 }
@@ -1984,7 +1996,7 @@ function openPaymentEntry(month = selectedBillingMonth) {
   amountInput.value = '';
   if (bill?.dueAmount !== null && bill?.dueAmount !== undefined && allocation?.balanceDueCents > 0) {
     const suggested = (allocation.balanceDueCents / 100).toFixed(2);
-    amountInput.value = suggested;
+    amountInput.value = String(Number(suggested)); // 1000, not 1000.00 (#294)
     hint.textContent = `Suggested remaining balance: ${formatAmount(Number(suggested))}. Confirm the actual amount collected, enter the real payment date and method, then submit. Nothing is saved by opening this form.`;
   } else if (bill && derivedBillStatus(customer, bill, calculatePaymentAllocations(state)) === 'paid') {
     hint.textContent = 'This bill is already settled. No amount is due; enter an amount only if an actual additional prepayment is being collected. Nothing is saved until you submit.';
@@ -1993,11 +2005,23 @@ function openPaymentEntry(month = selectedBillingMonth) {
   } else {
     hint.textContent = 'No remaining bill balance is shown. Enter an amount only if it is an actual collected payment, plus its real date and method.';
   }
+  const dateInput = form.querySelector('input[name="date"]');
+  if (dateInput && !dateInput.value) dateInput.value = localDate();
+  const methodSelect = form.querySelector('select[name="method"]');
+  if (methodSelect && !methodSelect.value && [...methodSelect.options].some(o => o.value === 'Cash')) methodSelect.value = 'Cash';
   amountInput.scrollIntoView({ behavior:'smooth', block:'center' });
   amountInput.focus({ preventScroll:true });
 }
 $('#quickAddPaymentButton').addEventListener('click', () => { switchView('customers'); openPaymentEntry(); });
-$('#currentBillPaymentShortcut').addEventListener('click', () => openPaymentEntry());
+// #294: the profile's main payment button opens the same Quick Collect sheet (today's date, Cash, amount chips,
+// receipt/WhatsApp/Undo) already on this customer. The ledger month form stays for back-dated entries.
+$('#currentBillPaymentShortcut').addEventListener('click', () => {
+  const customer = selectedCustomer();
+  const qc = window.quickCollectModalController;
+  if (customer && !customer.archived && typeof qc?.open === 'function') { qc.open(customer.id); return; }
+  openPaymentEntry();
+});
+$('#backdatedPaymentButton')?.addEventListener('click', () => openPaymentEntry());
 $('#showTransactionsButton').addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
 $('#showReportsButton').addEventListener('click', () => { switchView('reports'); renderMonthlyReport(); });
 $('#transactionDateFilter').addEventListener('input', () => { transactionCurrentPage = 1; renderTransactions(); });
@@ -2261,7 +2285,7 @@ document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEve
 $('#addCustomerDialog')?.addEventListener('click', (e) => {
   if (e.target === $('#addCustomerDialog')) $('#addCustomerDialog').close();
 });
-$('#saveMohallaButton').addEventListener('click', () => {
+$('#saveMohallaButton').addEventListener('click', async () => {
   if (!selectedCustomer()) return;
   const current = selectedCustomer();
   const phoneVal = $('#phoneInput').value.trim();
@@ -2297,7 +2321,7 @@ $('#saveMohallaButton').addEventListener('click', () => {
     if (exactDuplicates.length > 0) {
       const dup = exactDuplicates[0];
       const reasonLabel = dup.reasons.find(r => (r.field === 'cnic' || r.field === 'phone') && r.type === 'exact')?.label || 'matches another customer';
-      const confirmed = window.confirm(`Warning: This ${reasonLabel} matches existing Customer #${dup.customer.customerNumber} (${dup.customer.name}). Save anyway?`);
+      const confirmed = await appConfirm({ tone:'warning', title:'Possible duplicate customer', subject:`#${dup.customer.customerNumber} ${dup.customer.name}`, message:`This ${reasonLabel} matches that existing customer. Save anyway?`, confirmLabel:'Save anyway' });
       if (!confirmed) return;
     }
   }
@@ -2427,17 +2451,35 @@ function restoreCustomer(customerId) {
     toast('Customer unarchived. Billing resumes from the current or next eligible month; archived months are not backfilled.');
   } catch (error) { toast(error.message); }
 }
-$('#archiveCustomerButton').addEventListener('click', () => {
-  const customer = selectedCustomer();
-  if (!customer || !window.confirm(`Archive customer #${customer.customerNumber} ${customer.name}? Existing bills, receipts, complaints, customer number and unused credit stay on this device; no new monthly bills will be generated while archived.`)) return;
-  try { state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail(); toast('Customer archived. Existing history remains available.'); }
+function archiveSelectedCustomer(customer) {
+  try { state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail(); toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) }); }
   catch (error) { toast(error.message); }
+}
+$('#archiveCustomerButton').addEventListener('click', async () => {
+  const customer = selectedCustomer();
+  if (!customer || !(await appConfirm({ tone:'warning', icon:'🗄', title:'Archive this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'Existing bills, receipts, complaints, customer number and unused credit stay on this device; no new monthly bills will be generated while archived.', confirmLabel:'Archive' }))) return;
+  archiveSelectedCustomer(customer);
 });
 $('#unarchiveCustomerButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) restoreCustomer(customer.id); });
-$('#deleteCustomerButton').addEventListener('click', () => {
+$('#deleteCustomerButton').addEventListener('click', async () => {
   const customer = selectedCustomer();
-  if (!customer || !window.confirm(`Permanently delete customer #${customer.customerNumber} ${customer.name}, all bills, receipts, unused prepaid credit, contact/package data and complaint history from this device? The customer number will not be reused. This cannot be undone unless a JSON backup contains the profile. Consider Archive instead.`)) return;
-  state = deleteCustomer(state, selectedCustomerId); selectedCustomerId = null; appShell.classList.remove('show-detail'); save(); renderDetail(); toast('Customer deleted from this device.');
+  if (!customer) return;
+  const choice = await appConfirm({ tone:'danger', title:'Delete this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'All bills, receipts, unused prepaid credit, contact/package data and complaint history are removed from this device. You can undo for a few seconds; after that only a JSON backup can bring it back. Archive keeps the history instead.', confirmLabel:'Delete customer', altLabel: customer.archived ? '' : 'Archive instead' });
+  if (choice === 'alt') { archiveSelectedCustomer(customer); return; }
+  if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
+  // Soft delete for the undo window: keep the exact record and its position so Undo restores it as it was.
+  const index = state.customers.findIndex(item => item.id === customer.id);
+  const removed = state.customers[index];
+  state = deleteCustomer(state, customer.id); selectedCustomerId = null; appShell.classList.remove('show-detail'); save(); renderDetail();
+  toast('Customer deleted from this device.', { type:'success', title:`#${customer.customerNumber} ${customer.name} deleted`, duration:10000, actionLabel:'Undo', onAction: () => {
+    if (state.customers.some(item => item.id === removed.id)) return;
+    const customers = [...state.customers];
+    customers.splice(Math.min(index, customers.length), 0, removed);
+    state = { ...state, customers };
+    save();
+    selectCustomer(removed.id);
+    toast(`#${removed.customerNumber} ${removed.name} restored with all bills and payments.`, { type:'success', title:'Delete undone' });
+  } });
 });
 $('#addIncidentButton').addEventListener('click', () => showIncidentEditor());
 $('#incidentForm').addEventListener('submit', onIncidentSubmit);

@@ -1,0 +1,117 @@
+/* Dark-mode contrast (#288). Loaded last so it can correct light-theme colours that leak into dark mode.
+   Targets: text >= 4.5:1 (>= 3:1 for large headings) on the dark surfaces, and no white cards in dark. */
+[data-theme="dark"] {
+  --dk-bg: #14241f;
+  --dk-surface: #182d27;
+  --dk-surface-2: #1d352e;
+  --dk-line: #2d4a40;
+  --dk-ink: #e8f3ee;
+  --dk-muted: #b7cbc2;
+  --dk-subtle: #a3b9af;
+  --dk-accent: #86dcbb;
+}
+
+/* 1. Headings and the customer's name (#288: #detailName was 1.34:1). */
+[data-theme="dark"] :is(h1, h2, h3, h4, h5, h6):not(:is(button, .primary-button, [class*="chip"], [class*="badge"], [class*="pill"]) *),
+[data-theme="dark"] #detailName,
+[data-theme="dark"] .current-bill-heading h3,
+[data-theme="dark"] .customer-name,
+[data-theme="dark"] .month-label,
+[data-theme="dark"] .payment-amount,
+[data-theme="dark"] .profile-summary-stat strong,
+[data-theme="dark"] .current-bill-stat strong,
+[data-theme="dark"] .customer-card-stat strong,
+[data-theme="dark"] .report-cell-value,
+[data-theme="dark"] .business-health-score-value,
+[data-theme="dark"] .closing-metrics strong {
+  color: var(--dk-ink) !important;
+}
+
+/* 2. Labels, hints and secondary text (were ~2.2-2.9:1). */
+[data-theme="dark"] :is(label, legend, dt, th, small, .eyebrow, .field-label, .field-help, .optional-label, .summary-label, .summary-period,
+  .summary-explainer, .summary-unassigned-note, .notice, .empty-state, .empty-month, .history-count, .payment-meta, .global-search-label,
+  .customer-list-search-label, .customer-filter-label, .customer-number-line, .customer-card-package, .customer-card-open-hint,
+  .report-cell-label, .report-not-set-note, .provider-cost-explainer, .phase3-note, .transactions-subtitle, .smart-alert-footnote,
+  .business-health-availability, .backup-local-note, .local-only-badge, .welcome-count, .location-summary-type, .legend-cash, .legend-billed,
+  .customer-card-stat, .customer-card-stat span, .profile-summary-stat small, .current-bill-stat small, .backup-summary dt,
+  .backup-manager-heading span, .app-footer, .app-footer span, .business-health-disclaimer, .profile-view-profit, .ci-hint, .cp-hint):not(:is(button, .primary-button, [class*="chip"], [class*="badge"]) *) {
+  color: var(--dk-muted) !important;
+}
+[data-theme="dark"] .closing-metrics span,
+[data-theme="dark"] .customer-health-summary summary,
+[data-theme="dark"] .business-health-formula,
+[data-theme="dark"] summary:not(.help-icon) { color: var(--dk-muted) !important; }
+[data-theme="dark"] .text-button:not(.danger),
+[data-theme="dark"] .footer-export,
+[data-theme="dark"] #exportAllButton,
+[data-theme="dark"] .closing-metrics strong + small,
+[data-theme="dark"] #welcomeCount { color: var(--dk-accent) !important; }
+[data-theme="dark"] .danger, [data-theme="dark"] .text-button.danger { color: #ff9d92 !important; }
+
+/* 3. Cards and chips that stayed white in dark mode. */
+[data-theme="dark"] :is(.profile-summary-stat, .current-bill-stat, .customer-card-stat, .customer-health-summary, .smart-alert-insufficient,
+  .smart-alert-rule-details, .backup-controls-panel, .backup-manager, .backup-summary, .profile-tabs, .summary-explainer,
+  .summary-unassigned-note, .payment-guidance, .business-health-disclaimer, .business-health-formula, .welcome-count, .customer-item,
+  .closing-metrics > div, .drawer-technical-tools, .area-row-unassigned, .area-row-unassigned td, .area-row-unassigned th,
+  #areaIntelligenceTable th, #areaIntelligenceTable td, .payment-row, .month-card, .customer-meta, .payment-form.editing) {
+  background: var(--dk-surface) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] :is(.local-only-badge, .count-badge, .archive-state-badge, .profile-service-status, .customer-health-badge,
+  .customer-manual-state, .business-health-status, .avatar, .month-status, .report-status, .customer-billing-badge) {
+  background: var(--dk-surface-2) !important;
+  color: var(--dk-muted) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] :is(.month-status, .report-status, .customer-billing-badge).status-received { color: #8fe0b6 !important; background: #14382a !important; }
+[data-theme="dark"] :is(.month-status, .report-status, .customer-billing-badge).status-pending { color: #f6cf7a !important; background: #3a2c10 !important; }
+[data-theme="dark"] .profile-service-status-online { color: #8fe0b6 !important; }
+[data-theme="dark"] .profile-service-status-offline { color: #ffb4a8 !important; }
+[data-theme="dark"] .help-icon { background: var(--dk-surface-2) !important; color: var(--dk-accent) !important; border-color: var(--dk-line) !important; }
+
+/* Secondary / toggle buttons that kept white backgrounds. */
+[data-theme="dark"] :is(.secondary-button, .pagination-btn, .backup-controls-toggle, .command-palette-trigger, .language-toggle-btn,
+  .network-status-pill, .view-nav-button, .customer-filter-button, .chart-range-btn, .heatmap-filter-btn, .ci-open-btn, .wizard-trigger-btn,
+  .quick-action-tile, .home-primary-btn, .service-choice-not-set):not(.is-active):not(.is-selected):not([aria-pressed="true"]):not([aria-current="page"]) {
+  background: var(--dk-surface-2) !important;
+  color: var(--dk-ink) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .text-button.danger { background: transparent !important; }
+
+/* 4. White text on the bright green buttons was 2.5:1; dark text reads at 8:1 (same pattern as .quick-method-chip.is-active). */
+[data-theme="dark"] :is(.primary-button, #srPrimaryAction, .skip-link) { color: #04231a !important; }
+/* WhatsApp green with white text was 1.98:1 -> WhatsApp's dark teal. */
+[data-theme="dark"] :is(.whatsapp-button, .wa-button, [class*="whatsapp"][class*="btn"], [class*="remind"][class*="btn"], #remindPendingBtn, .remind-pending-btn) {
+  background: #075e54 !important;
+  color: #fff !important;
+  border-color: #0b7a6c !important;
+}
+
+/* 5. Remaining muted text found by the dark audit (customer list/profile, reports, transactions, analytics). */
+[data-theme="dark"] :is(#detailCustomerNumber, .customer-number-line, .customer-card-package, .customer-card-open-hint, .profile-tab,
+  [role="tab"][aria-selected="false"], .pane-footer, #customerListSearchHelp, #transactionFilterHelp, #transactionsCount, #transactionsEmpty,
+  #monthlyReportCount, #incomeLegend, #expenseLegend, #performanceExplanation, #providerCostBreakdownEmpty, #dashboardExcludedAmounts,
+  #dashboardClosingStatusBadge, .online-snapshot-values span, .online-snapshot-values strong, .comparison-bar-row span, .comparison-bar-pair strong,
+  .business-health-factor p, .business-health-heading p, .business-health-score span, .current-bill-stat span, .location-summary-value,
+  .area-row-unassigned td, .dashboard-method, .dashboard-units, .customer-profit-line, .profile-help, .profile-profit) {
+  color: var(--dk-muted) !important;
+}
+[data-theme="dark"] .customer-card-open-hint { color: var(--dk-accent) !important; }
+[data-theme="dark"] :is(#exportAllButton, .app-footer, .backup-summary, .backup-summary > div) { background: transparent !important; }
+[data-theme="dark"] .app-footer { background: var(--dk-bg) !important; }
+[data-theme="dark"] :is(#addCustomerButton, .icon-button) { color: #04231a !important; }
+[data-theme="dark"] #customerViewCardsBtn { background: #0369a1 !important; color: #fff !important; }
+[data-theme="dark"] :is(.profile-summary-stat span, .receipt-month-heading strong, .receipt-month-heading span) { color: var(--dk-muted) !important; }
+[data-theme="dark"] .receipt-month-heading strong { color: var(--dk-ink) !important; }
+[data-theme="dark"] :is(.backup-manager-heading strong, #backupLastSize, #backupLastSuccess, #backupStatus, #backupStoragePersistence, #backupStorageQuota) { color: var(--dk-ink) !important; }
+[data-theme="dark"] :is(.phase3-metric span, .global-search-help, .smart-alert-insufficient li, .customer-card-stats span, .customer-card-stats small,
+  .chart-card figcaption p, .chart-card p) { color: var(--dk-muted) !important; }
+[data-theme="dark"] .view-nav-button:is(.is-active, [aria-current="page"], [aria-pressed="true"]) { color: #04231a !important; }
+/* Field-engineering chart SVGs kept a white background with light dark-theme text (1.14:1). */
+[data-theme="dark"] svg[class*="svg"] { background: var(--dk-surface) !important; }
+/* Profile header: back link, avatar initial and inactive tabs. */
+[data-theme="dark"] .profile-tabs button:not([aria-selected="true"]),
+[data-theme="dark"] #backButton, [data-theme="dark"] #backButton * { color: var(--dk-accent) !important; }
+[data-theme="dark"] .profile-tabs button:not([aria-selected="true"]) { color: var(--dk-muted) !important; background: transparent !important; }
+[data-theme="dark"] #profileAvatar { background: var(--dk-surface-2) !important; color: var(--dk-accent) !important; }

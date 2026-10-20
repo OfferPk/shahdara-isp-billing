@@ -32,7 +32,8 @@ export const SCREENS = {
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
   analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages' },
   inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', focus: '#inventoryItemForm' } },
-  expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } }
+  expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
+  easypaisa: { view: 'easypaisaView', title: 'Payments Inbox', subtitle: 'Easypaisa transaction emails & statements', action: { label: 'Sync Sheet', click: '#easypaisaSyncBtn' } }
 };
 
 export const HOME = 'home';
@@ -234,6 +235,10 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     if (screen === 'assistant') {
       return;
     }
+    if (screen === 'easypaisa') {
+      doc.getElementById('easypaisaView')?.removeAttribute('hidden');
+      return;
+    }
     const spec = SCREENS[screen];
     if (!spec) return;
     const section = doc.getElementById(spec.view);
@@ -268,6 +273,11 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     updateNavActive(screen);
     if (screen === 'backup') {
       doc.getElementById('backupControls')?.removeAttribute('hidden');
+    }
+    if (screen === 'easypaisa') {
+      doc.getElementById('easypaisaView')?.removeAttribute('hidden');
+    } else {
+      doc.getElementById('easypaisaView')?.setAttribute('hidden', '');
     }
     if (!isHome) {
       const spec = SCREENS[screen];

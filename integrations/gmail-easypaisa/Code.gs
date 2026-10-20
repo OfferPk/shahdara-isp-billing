@@ -146,6 +146,7 @@ function processEasypaisaEmails() {
 
   for (const thread of threads) {
     const messages = thread.getMessages();
+    let threadHasPendingStatement = false;
     for (const msg of messages) {
       const body = msg.getPlainBody() || '';
       const subject = msg.getSubject() || '';
@@ -156,6 +157,20 @@ function processEasypaisaEmails() {
         subject: subject,
         dateFallback: msgDate
       });
+
+      // Check if message has PDF statement attachment
+      const attachments = (typeof msg.getAttachments === 'function') ? msg.getAttachments() : [];
+      const hasPdf = attachments.some(a => {
+        const ct = (a && typeof a.getContentType === 'function') ? a.getContentType() : '';
+        const name = (a && typeof a.getName === 'function') ? a.getName().toLowerCase() : '';
+        return ct.includes('pdf') || name.endsWith('.pdf');
+      });
+
+      if (hasPdf && parsed.status !== 'Parsed') {
+        Logger.log('Message has PDF statement attachment (' + subject + '); leaving for statement import without marking crm-processed.');
+        threadHasPendingStatement = true;
+        continue;
+      }
 
       if (parsed.status === 'Parsed' && parsed.txnId) {
         if (existingTxnIds.has(parsed.txnId)) {
@@ -178,8 +193,10 @@ function processEasypaisaEmails() {
       }
     }
 
-    // Mark entire thread as processed so it won't be searched next time
-    thread.addLabel(label);
+    // Mark thread as processed only if no statement attachments are pending processing
+    if (!threadHasPendingStatement) {
+      thread.addLabel(label);
+    }
   }
 
   // Batch append new rows to sheet for performance
@@ -296,7 +313,7 @@ function parseDateTime(rawDateStr) {
   if (!rawDateStr || typeof rawDateStr !== 'string') {
     return { date: '', time: '', datetimeIso: '' };
   }
-  const clean = rawDateStr.trim();
+  const clean = rawDateStr.trim().replace(/\bat\b/gi, ' ').replace(/\s+/g, ' ');
 
   // Pattern 1: 13-Oct-2026 or 13-October-2026 or 13 Oct 2026 [14:20:38]
   const patternWordMonth = /^(\d{1,2})[-/ ]([A-Za-z]{3,9})[-/ ](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
@@ -391,6 +408,10 @@ function parseEasypaisaEmailText(rawText, options) {
         const colonIdx = line.indexOf(':');
         key = line.slice(0, colonIdx).trim();
         val = line.slice(colonIdx + 1).trim();
+      } else if (/\s{2,}/.test(line)) {
+        const parts = line.split(/\s{2,}/);
+        key = parts[0].trim();
+        val = parts.slice(1).join(' ').trim();
       } else if (i + 1 < lines.length) {
         const testKey = line.toLowerCase().replace(/[^a-z0-9]/g, '');
         const recognized = [
@@ -472,7 +493,7 @@ function parseEasypaisaEmailText(rawText, options) {
     const senderName = matchSms[2].trim();
     const senderNumber = normalizePhone(matchSms[3]);
 
-    const dtMatch = clean.match(/on\s+(\d{1,2}[-/ ][A-Za-z0-9]{3,9}[-/ ]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)/i);
+    const dtMatch = clean.match(/on\s+(\d{1,2}[-/ ][A-Za-z0-9]{3,9}[-/ ]\d{4}(?:\s+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?)?)/i);
     const rawDt = dtMatch ? dtMatch[1].trim() : '';
     const parsedDt = parseDateTime(rawDt);
 

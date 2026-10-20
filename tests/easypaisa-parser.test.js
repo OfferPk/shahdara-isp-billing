@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {
   parseEasypaisaEmail,
   parseEasypaisaEmails,
+  parseEasypaisaCsv,
+  parseCsvLine,
   normalizeEasypaisaPhone,
   parseEasypaisaAmount,
   parsePakistanDateTime,
@@ -185,3 +187,61 @@ test('table-driven templates: exposes extensible TEMPLATES array', () => {
   assert.ok(TEMPLATES.length >= 3);
   assert.ok(TEMPLATES.every(t => typeof t.name === 'string' && typeof t.matches === 'function' && typeof t.extract === 'function'));
 });
+
+test('issue #305 (Grok review): parses template using multiple spaces between label and value', () => {
+  const multiSpaceEmail = `Transaction Successful
+Hi AQIB EJAZ,
+Money Transfer of Rs. 4000.0 on 18-Oct-2026 to Easypaisa was successful
+Transaction Type    Money Transfer to Easypaisa
+Transaction ID      57255283750
+Date & Time         18-Oct-2026 11:30:00
+Sender Name         AQIB EJAZ
+Sender Number       03055669955
+Receiver Name       MUHAMMAD ALI
+Receiver Number     03009988776
+Transfer amount     Rs. 4000.0
+Fee                 Rs. 0.00
+Total               Rs. 4000.0`;
+
+  const result = parseEasypaisaEmail(multiSpaceEmail, { ownerNumber: '03055669955' });
+  assert.equal(result.status, 'Parsed');
+  assert.equal(result.txnId, '57255283750');
+  assert.equal(result.amount, 4000);
+  assert.equal(result.direction, 'Sent');
+});
+
+test('issue #305 (Grok review): preserves time in SMS notification with "at HH:MM"', () => {
+  const smsWithAt = 'You have received Rs. 1500.00 from ASAD ULLAH (03012345678) in your Easypaisa Account. Trx ID: 57255283751 on 19-Oct-2026 at 18:05';
+  const result = parseEasypaisaEmail(smsWithAt, { ownerNumber: '03055669955' });
+  assert.equal(result.status, 'Parsed');
+  assert.equal(result.txnId, '57255283751');
+  assert.equal(result.amount, 1500);
+  assert.equal(result.date, '2026-10-19');
+  assert.equal(result.datetimeIso, '2026-10-19T18:05:00+05:00');
+  assert.equal(result.direction, 'Received');
+});
+
+test('issue #305: parseCsvLine parses RFC-4180 quotes and commas', () => {
+  const row = parseCsvLine('57255283608,"13-Oct-2026 14:20:38","Money Transfer, Easypaisa","AQIB EJAZ","03055669955",5000');
+  assert.equal(row.length, 6);
+  assert.equal(row[0], '57255283608');
+  assert.equal(row[2], 'Money Transfer, Easypaisa');
+  assert.equal(row[5], '5000');
+});
+
+test('issue #305: parseEasypaisaCsv parses tabular Google Sheet CSV output', () => {
+  const csvData = `Transaction ID,Date & Time (PKT),Type,Sender Name,Sender Number,Receiver Name,Receiver Number,Amount (PKR),Fee (PKR),Total (PKR),Direction,Status
+57255283608,13-Oct-2026 14:20:38,Money Transfer,AQIB EJAZ,03055669955,NASIR MAHMOOD,03335001667,5000,0,5000,Sent,Parsed
+57255283610,13-Oct-2026 15:45:12,Money Transfer,HAMZA RIAZ,03123456789,AQIB EJAZ,03055669955,3500,0,3500,Received,Parsed`;
+
+  const parsed = parseEasypaisaCsv(csvData, { ownerNumber: '03055669955' });
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].txnId, '57255283608');
+  assert.equal(parsed[0].direction, 'Sent');
+  assert.equal(parsed[0].amount, 5000);
+  assert.equal(parsed[1].txnId, '57255283610');
+  assert.equal(parsed[1].direction, 'Received');
+  assert.equal(parsed[1].amount, 3500);
+  assert.equal(parsed[1].senderNumber, '03123456789');
+});
+

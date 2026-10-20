@@ -513,6 +513,7 @@ export function applyLanguageDirection(lang, rootElement = (typeof document !== 
   const isUrdu = lang === 'ur';
   rootElement.setAttribute('lang', isUrdu ? 'ur' : 'en');
   rootElement.setAttribute('dir', isUrdu ? 'rtl' : 'ltr');
+  if (isUrdu) ensureUrduFont();
 
   if (isUrdu) {
     rootElement.classList.add('lang-ur');
@@ -540,6 +541,372 @@ export function applyLanguageDirection(lang, rootElement = (typeof document !== 
  * @param {'en'|'ur'} [lang]
  * @param {HTMLElement|Document} [container=document]
  */
+/* ==========================================================================
+   Issue #228: visible-text Urdu coverage, bidi safety and the Urdu font.
+   The t() dictionary above only covers elements that were wired with
+   data-i18n or a dedicated selector. The app also renders hundreds of
+   buttons/headings from templates in app.js and the dashboard/nav modules;
+   the map + patterns below translate those visible strings in place (and
+   restore the English originals, kept in data-i18n-original, when the user
+   switches back). A MutationObserver in setupLanguageToggle re-applies the
+   pass to nodes rendered after the toggle.
+   ========================================================================== */
+
+export const URDU_SCRIPT_PATTERN = /[\u0600-\u06FF]/;
+
+export function isEnglishOnlyVisibleText(text) {
+  const value = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return /[A-Za-z]{2,}/.test(value) && !URDU_SCRIPT_PATTERN.test(value);
+}
+
+// Texts that may stay Latin in Urdu mode: the language toggle names the
+// language it switches TO, and the brand name is a proper noun.
+export function isAllowlistedVisibleText(text) {
+  const value = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return /^(?:🌐\s*)?(?:English|اردو)$/.test(value) || /^Shahdara(?: ISP)?$/.test(value);
+}
+
+export const VISIBLE_TEXT_UR = {
+  '+ Add payment': '+ ادائیگی شامل کریں',
+  '+ Add Payment': '+ ادائیگی شامل کریں',
+  '+ Add Customer': '+ گاہک شامل کریں',
+  'Aaj ka hisaab': 'آج کا حساب',
+  'All': 'تمام',
+  'Active': 'فعال',
+  'Bulk add': 'یکمشت شامل کریں',
+  'Package not set': 'پیکیج منتخب نہیں',
+  'All (incl. Not set)': 'تمام (بشمول منتخب نہیں)',
+  'Area Collections': 'علاقے کی وصولیاں',
+  'Area Intelligence': 'علاقہ جائزہ',
+  'Ask': 'پوچھیں',
+  'Avg LTV': 'اوسط LTV',
+  'Back': 'واپس',
+  'Backup Ledger': 'بیک اپ لیجر',
+  'Base': 'بنیادی',
+  'Bear': 'مندی',
+  'Billed': 'بل شدہ',
+  'Billing Audit': 'بلنگ آڈٹ',
+  'Billing dashboard': 'بلنگ ڈیش بورڈ',
+  'Bull': 'تیزی',
+  'Cash Register': 'کیش رجسٹر',
+  'Channel ROI': 'چینل ROI',
+  'Clear': 'صاف کریں',
+  'Cohort Drilldown': 'گروہ تفصیل',
+  'Collections': 'وصولیاں',
+  'Current Month Bill Settlement': 'رواں مہینے کے بل کی تصفیہ',
+  'Customer add': 'گاہک شامل کریں',
+  'Data Integrity': 'ڈیٹا درستگی',
+  'Download all payment details (.txt)': 'تمام ادائیگیوں کی تفصیل ڈاؤن لوڈ کریں (.txt)',
+  'Dues Aging (0–90+d)': 'واجبات کی عمر (0–90+ دن)',
+  'Dues list': 'واجبات کی فہرست',
+  'Executive Briefing': 'ایگزیکٹو بریفنگ',
+  'Field Enrollment': 'فیلڈ اندراج',
+  'Geographic Collection Heatmap': 'جغرافیائی وصولی نقشہ',
+  'Good': 'اچھا',
+  'Home': 'ہوم',
+  '← Home': 'ہوم →',
+  'Incident Matrix': 'واقعات میٹرکس',
+  'Lagging': 'پیچھے',
+  'Late Fee & Discounts': 'تاخیر فیس اور رعایت',
+  'MoM Growth': 'ماہانہ ترقی',
+  'Moderate': 'درمیانہ',
+  'Month': 'مہینہ',
+  'Monthly Collection vs Target': 'ماہانہ وصولی بمقابلہ ہدف',
+  'Monthly Report': 'ماہانہ رپورٹ',
+  'Next →': 'اگلا ←',
+  '← Previous': 'پچھلا →',
+  'Not set': 'منتخب نہیں',
+  'Offline': 'آف لائن',
+  'Optical Port Matrix': 'آپٹیکل پورٹ میٹرکس',
+  'Optimal': 'بہترین',
+  'Outstanding Dues by Area': 'علاقے کے حساب سے واجبات',
+  'Overdue': 'زائد المیعاد',
+  'Owner Command Center': 'مالک کمانڈ سینٹر',
+  'P&L Statement': 'نفع و نقصان بیان',
+  'Package Revenue': 'پیکیج آمدنی',
+  'Paid': 'ادا شدہ',
+  'Partial': 'جزوی',
+  'Payment lo': 'ادائیگی لیں',
+  'Pending': 'زیر التوا',
+  'Performance & Collection Analytics': 'کارکردگی و وصولی تجزیہ',
+  'Record Expense': 'خرچ درج کریں',
+  'Recovery Pipeline': 'وصولی کا سلسلہ',
+  'Revenue & Collections Trend': 'آمدنی و وصولی کا رجحان',
+  'Route Density Matrix': 'روٹ کثافت میٹرکس',
+  'Scenario Modeler': 'منظرنامہ ماڈل',
+  'Set / Manage Target': 'ہدف مقرر / منظم کریں',
+  'Shaping Forecast': 'شیپنگ پیشگوئی',
+  'Show backup and restore controls': 'بیک اپ اور بحالی کنٹرول دکھائیں',
+  'Simulate Margins': 'مارجن جانچیں',
+  'Top Defaulters': 'بڑے نادہندگان',
+  'Total Revenue': 'کل آمدنی',
+  'Upstream Routes': 'اپ اسٹریم روٹس',
+  'View All': 'تمام دیکھیں',
+  'View At-Risk': 'خطرے والے دیکھیں',
+  'Voice · on-device only': 'آواز · صرف اسی ڈیوائس پر',
+  'Watch': 'توجہ دیں',
+  '📊 Cash Closing Suite': '📊 کیش کلوزنگ سوٹ',
+  '📋 Daily Slip': '📋 روزانہ پرچی',
+  '📋 Table': '📋 جدول',
+  '📖 Daily Register': '📖 روزانہ رجسٹر',
+  '📥 Export CSV': '📥 CSV برآمد کریں',
+  '📱 Wizard': '📱 وزرڈ',
+  '📲 Share Backup': '📲 بیک اپ شیئر کریں',
+  '🗂️ Cards': '🗂️ کارڈز',
+  '🛡️ Protect Storage': '🛡️ اسٹوریج محفوظ کریں',
+  '⇪ Bulk add': '⇪ یکمشت شامل کریں',
+  '☰ Show details': '☰ تفصیل دکھائیں',
+  'Add Customer': 'گاہک شامل کریں',
+  'Add Payment': 'ادائیگی شامل کریں',
+  'Add payment': 'ادائیگی شامل کریں',
+  'Export CSV': 'CSV برآمد کریں',
+  'Print Slips': 'پرچیاں چھاپیں',
+  'Remind Pending': 'زیر التوا کو یاد دہانی',
+  '💬 Remind Pending': '💬 زیر التوا کو یاد دہانی',
+  'Explain this change': 'یہ تبدیلی سمجھائیں',
+  'Open ledger': 'لیجر کھولیں',
+  'Filters & sort': 'منتخب و ترتیب',
+  '⚙ Filters & sort ↓': '⚙ منتخب و ترتیب ↓',
+  'Bulk Collect Cash': 'یکمشت نقد وصولی',
+  'many payments in one batch': 'کئی ادائیگیاں ایک بیچ میں',
+  '💵 Bulk Collect Cash many payments in one batch': '💵 یکمشت نقد وصولی — کئی ادائیگیاں ایک بیچ میں',
+  'High Dues ≥ 2k': 'زیادہ واجبات ≥ 2k',
+  'Set packages & monthly fee': 'پیکیج اور ماہانہ فیس مقرر کریں',
+  "Generate this month's bills": 'اس مہینے کے بل بنائیں',
+  'Sab customers dikhayein · Show all': 'تمام گاہک دکھائیں',
+  '📋 Switch to Full Ledger & Transactions Table': '📋 مکمل لیجر و لین دین جدول پر جائیں',
+  'Send to my WhatsApp': 'میرے WhatsApp پر بھیجیں'
+};
+
+export const VISIBLE_TEXT_PATTERNS_UR = [
+  [/^(.+?) Diagnostics$/, m => `${m[1]} تشخیص`],
+  [/^(.+?) Fleet Audit$/, m => `${m[1]} فلیٹ آڈٹ`],
+  [/^Active (\d+)$/, m => `فعال ${m[1]}`],
+  [/^Offline (\d+)$/, m => `آف لائن ${m[1]}`],
+  [/^Not set (\d+)$/, m => `منتخب نہیں ${m[1]}`],
+  [/^Archived customers (\d+)$/, m => `محفوظ گاہک ${m[1]}`],
+  [/^Customers (\d+)$/, m => `گاہک ${m[1]}`],
+  [/^(.*) Package not set$/, m => `${m[1]} پیکیج منتخب نہیں`],
+  [/^Show all (\d+) rankings$/, m => `تمام ${m[1]} درجے دکھائیں`],
+  // "Pending (0)", "All (74)": translate the label, keep the count.
+  [/^(.+?) \((\d+)\)$/, m => {
+    const base = Object.prototype.hasOwnProperty.call(VISIBLE_TEXT_UR, m[1]) ? VISIBLE_TEXT_UR[m[1]] : null;
+    return base ? `${base} (${m[2]})` : null;
+  }]
+];
+
+export const PLACEHOLDER_TEXT_UR = {
+  'Search this list': 'اس فہرست میں تلاش کریں',
+  'Name, ID, status, amount or method': 'نام، شناخت، حیثیت، رقم یا طریقہ',
+  'Name, phone, customer # or ID': 'نام، فون، گاہک نمبر یا شناخت',
+  'Search registry...': 'رجسٹری تلاش کریں...',
+  'Technician Name': 'ٹیکنیشن کا نام',
+  'Tech Name': 'ٹیکنیشن کا نام',
+  'Notes...': 'نوٹس...',
+  'Location': 'مقام',
+  'Search area, mohalla, or zone...': 'علاقہ، محلہ یا زون تلاش کریں...',
+  'Search item name or notes...': 'شے کا نام یا نوٹس تلاش کریں...',
+  'Search notes…': 'نوٹس تلاش کریں…',
+  'Search Txn ID, customer, phone, or amount...': 'ٹرانزیکشن شناخت، گاہک، فون یا رقم تلاش کریں...',
+  'Type a command or search customers...': 'کمانڈ لکھیں یا گاہک تلاش کریں...',
+  'Paste standard Easypaisa notification email or SMS text here...': 'ایزی پیسہ اطلاع کی ای میل یا SMS یہاں چسپاں کریں...',
+  'Filter technician / area...': 'ٹیکنیشن / علاقہ منتخب کریں...',
+  'Filter by ID, location, tech...': 'شناخت، مقام، ٹیکنیشن سے منتخب کریں...',
+  "Search customer in this month's report by name, # or area...": 'اس مہینے کی رپورٹ میں نام، نمبر یا علاقے سے گاہک تلاش کریں...'
+};
+
+export function translateVisibleText(text) {
+  const value = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (Object.prototype.hasOwnProperty.call(VISIBLE_TEXT_UR, value)) return VISIBLE_TEXT_UR[value];
+  for (const [pattern, render] of VISIBLE_TEXT_PATTERNS_UR) {
+    const match = value.match(pattern);
+    if (match) {
+      const rendered = render(match);
+      if (rendered) return rendered;
+    }
+  }
+  return null;
+}
+
+// Wrap phone numbers, PKR amounts and digit runs in <bdi> so they keep their
+// order inside RTL Urdu text (the punctuation/number jumping of #228).
+const BIDI_TOKEN_PATTERN = /(\+92\d{10}|03\d{2}[- ]?\d{7}|PKR\s*[\d,]+|Rs\.?\s*[\d,]+|\d[\d,]*)/g;
+export function setBidiSafeText(el, text) {
+  try {
+    const doc = el.ownerDocument || (typeof document !== 'undefined' ? document : null);
+    if (!doc || typeof doc.createElement !== 'function' || typeof doc.createTextNode !== 'function') {
+      el.textContent = text;
+      return;
+    }
+    el.textContent = '';
+    for (const part of String(text).split(BIDI_TOKEN_PATTERN)) {
+      if (!part) continue;
+      if (new RegExp(`^(?:${BIDI_TOKEN_PATTERN.source})$`).test(part)) {
+        const bdi = doc.createElement('bdi');
+        bdi.textContent = part;
+        el.appendChild(bdi);
+      } else {
+        el.appendChild(doc.createTextNode(part));
+      }
+    }
+  } catch {
+    try { el.textContent = text; } catch { /* mock element */ }
+  }
+}
+
+const LANGUAGE_TOGGLE_IDS = new Set(['languageToggleBtn', 'drawerLanguageToggleBtn', 'mobileMoreLanguageToggleBtn']);
+function isLanguageToggle(el) {
+  try {
+    return LANGUAGE_TOGGLE_IDS.has(el.id) || Boolean(el.closest?.('.language-toggle-btn, [data-action="toggle-language"]'));
+  } catch { return false; }
+}
+
+function leafElements(el) {
+  const leaves = [];
+  try {
+    if (!el.children || el.children.length === 0) return [el];
+    el.querySelectorAll('*').forEach(node => {
+      if (!node.children || node.children.length === 0) leaves.push(node);
+    });
+  } catch { /* mock element */ }
+  return leaves;
+}
+
+function translateLeaf(leaf, lang) {
+  try {
+    if (!leaf || !leaf.dataset) return 0;
+    if (lang === 'en') {
+      if (leaf.dataset.i18nOriginal !== undefined) {
+        leaf.textContent = leaf.dataset.i18nOriginal;
+        delete leaf.dataset.i18nOriginal;
+        return 1;
+      }
+      return 0;
+    }
+    const original = String(leaf.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (!original || isAllowlistedVisibleText(original)) return 0;
+    if (!isEnglishOnlyVisibleText(original)) return 0; // already Urdu (ours or the app's)
+    // The app may have rewritten this node with a NEW English label since we
+    // last translated it (e.g. #srPrimaryAction changes per screen): the
+    // stored original is stale then, so fall through and translate the new
+    // label, overwriting the stored original below.
+    const translated = translateVisibleText(original);
+    if (!translated || translated === original) {
+      if (leaf.dataset.i18nOriginal !== undefined && leaf.dataset.i18nOriginal !== original) delete leaf.dataset.i18nOriginal;
+      return 0;
+    }
+    leaf.dataset.i18nOriginal = original;
+    setBidiSafeText(leaf, translated);
+    return 1;
+  } catch { return 0; }
+}
+
+// Buttons that mix an icon element with a bare text node (e.g. "⇪ Bulk add")
+// have no leaf element for the text; translate that text node in place.
+// Counter chips ("Pending (<span>0</span>)") are handled by translating the
+// label prefix of the first text node and leaving the count span untouched.
+function translateDirectText(el, lang) {
+  try {
+    if (!el || !el.dataset || !el.childNodes) return 0;
+    const textNodes = [...el.childNodes].filter(n => n.nodeType === 3 && String(n.nodeValue ?? '').trim());
+    if (lang === 'en') {
+      if (el.dataset.i18nOriginalNodes !== undefined) {
+        const originals = JSON.parse(el.dataset.i18nOriginalNodes);
+        textNodes.forEach((node, i) => { if (originals[i] !== undefined) node.nodeValue = originals[i]; });
+        delete el.dataset.i18nOriginalNodes;
+        delete el.dataset.i18nOriginalDirect;
+        return 1;
+      }
+      return 0;
+    }
+    if (el.dataset.i18nOriginalNodes !== undefined) {
+      // If the app rewrote this element with a new English label, the stored
+      // nodes are stale: clear them and translate the new label instead.
+      const current = String(el.textContent ?? '').replace(/\s+/g, ' ').trim();
+      if (!isEnglishOnlyVisibleText(current)) return 0;
+      delete el.dataset.i18nOriginalNodes;
+      delete el.dataset.i18nOriginalDirect;
+    }
+    if (!textNodes.length) return 0;
+    const store = () => {
+      el.dataset.i18nOriginalNodes = JSON.stringify(textNodes.map(n => n.nodeValue));
+    };
+    if (textNodes.length === 1) {
+      const original = textNodes[0].nodeValue.replace(/\s+/g, ' ').trim();
+      if (!original || !isEnglishOnlyVisibleText(original) || isAllowlistedVisibleText(original)) return 0;
+      const translated = translateVisibleText(original);
+      if (!translated || translated === original) return 0;
+      store();
+      el.dataset.i18nOriginalDirect = original;
+      textNodes[0].nodeValue = textNodes[0].nodeValue.replace(original, translated);
+      return 1;
+    }
+    // Multiple text nodes: translate the label prefix of the first one
+    // ("Pending (" -> "زیر التوا (", "All (" -> "تمام (").
+    const first = textNodes[0];
+    const core = first.nodeValue.trim().replace(/\(\s*$/, '').trim();
+    if (!core || !isEnglishOnlyVisibleText(core) || isAllowlistedVisibleText(core)) return 0;
+    const translated = translateVisibleText(core);
+    if (!translated || translated === core) return 0;
+    store();
+    first.nodeValue = first.nodeValue.replace(core, translated);
+    return 1;
+  } catch { return 0; }
+}
+
+// Translate (or, for 'en', restore) every visible button / summary / heading
+// whose text is in the visible-text dictionary. Returns the number changed.
+export function translateVisibleElements(lang, container = (typeof document !== 'undefined' ? document : null)) {
+  if (!container || typeof container.querySelectorAll !== 'function') return 0;
+  let changed = 0;
+  try {
+    container.querySelectorAll('button, summary, h1, h2, h3, h4').forEach(el => {
+      if (isLanguageToggle(el)) return;
+      for (const leaf of leafElements(el)) changed += translateLeaf(leaf, lang);
+      changed += translateDirectText(el, lang);
+      if (lang === 'en') changed += translateLeaf(el, lang);
+    });
+  } catch { /* partial mock containers in unit tests */ }
+  try {
+    container.querySelectorAll('[placeholder]').forEach(el => {
+      if (!el.dataset) return;
+      if (lang === 'ur') {
+        const ph = el.getAttribute('placeholder');
+        const ur = ph && PLACEHOLDER_TEXT_UR[ph];
+        if (ur) {
+          if (el.dataset.i18nOriginalPlaceholder === undefined) el.dataset.i18nOriginalPlaceholder = ph;
+          el.setAttribute('placeholder', ur);
+        }
+      } else if (el.dataset.i18nOriginalPlaceholder !== undefined) {
+        el.setAttribute('placeholder', el.dataset.i18nOriginalPlaceholder);
+        delete el.dataset.i18nOriginalPlaceholder;
+      }
+    });
+    if (lang === 'ur') {
+      // Mixed-direction values (names, phones, amounts) read best LTR-isolated.
+      container.querySelectorAll('input, textarea, select').forEach(el => {
+        if (!el.getAttribute('dir')) el.setAttribute('dir', 'auto');
+      });
+    }
+  } catch { /* partial mock containers in unit tests */ }
+  return changed;
+}
+
+// Self-hosted Noto Nastaliq Urdu (urdu-font.css, subset) is loaded only when
+// Urdu mode is active, so English first load pays nothing for it (#228).
+export function ensureUrduFont(doc = (typeof document !== 'undefined' ? document : null)) {
+  try {
+    if (!doc || !doc.head || typeof doc.createElement !== 'function') return false;
+    if (doc.getElementById && doc.getElementById('urduFontLink')) return true;
+    const link = doc.createElement('link');
+    link.id = 'urduFontLink';
+    link.rel = 'stylesheet';
+    link.href = './urdu-font.css';
+    doc.head.appendChild(link);
+    return true;
+  } catch { return false; }
+}
+
 export function updateDocumentTranslations(lang = null, container = (typeof document !== 'undefined' ? document : null)) {
   if (!container || typeof container.querySelectorAll !== 'function') return;
 
@@ -700,6 +1067,10 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
     btn.setAttribute('title', t('lang_switch_title', activeLang));
     btn.setAttribute('aria-label', t('lang_aria_label', activeLang));
   });
+
+  // 13. Issue #228: translate every remaining visible button/heading from
+  // the visible-text dictionary (and restore English originals on switch back).
+  try { translateVisibleElements(activeLang, container); } catch { /* mock containers */ }
 }
 
 /**
@@ -843,6 +1214,21 @@ export function setupLanguageToggle({
   const initialLang = getAppLanguage(storage);
   applyLanguageDirection(initialLang, document.documentElement);
   updateDocumentTranslations(initialLang, document);
+
+  // 1b. Issue #228: content rendered after the toggle (customer lists,
+  // dashboard cards, dialogs) arrives in English from the templates; while
+  // Urdu is active, translate new nodes as they appear.
+  if (typeof MutationObserver !== 'undefined' && document.body) {
+    let pending = null;
+    const observer = new MutationObserver(() => {
+      if (getAppLanguage(storage) !== 'ur' || pending) return;
+      pending = setTimeout(() => {
+        pending = null;
+        try { translateVisibleElements('ur', document); } catch { /* ignore */ }
+      }, 60);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
 
   function handleToggleClick() {
     const newLang = toggleAppLanguage(storage, document.documentElement);

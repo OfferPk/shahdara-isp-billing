@@ -25,7 +25,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(ROOT, 'dist');
 
 // Entry points plus files that must always ship (kept from the original list).
-export const ENTRY_FILES = ['index.html','styles.css','dashboard.css','nav.css','payments-inbox.css','app.js','home-today.js','dashboard.js','dashboard-charts.js','dashboard-collection-target.js','dashboard-dues-aging.js','nav.js','nav-collection-rounds.js','nav-quick-collect.js','nav-customer-search.js','nav-quick-profile.js','nav-pending-actions.js','reminder-queue.js','digital-payments-settings.js','payments-inbox.js','easypaisa-parser.js','form-validation.js','profile-labels.js','profile-ui.js','receipt.js','package-catalog.js','core.js','phase3.js','owner-insights.js','owner-ui.js','backup-store.js','duplicate-detection.js','qa-backup-csv-import.js','sw.js','manifest.webmanifest','icon.svg'];
+export const ENTRY_FILES = ['index.html','styles.css','dashboard.css','nav.css','payments-inbox.css','urdu-font.css','app.js','home-today.js','dashboard.js','dashboard-charts.js','dashboard-collection-target.js','dashboard-dues-aging.js','nav.js','nav-collection-rounds.js','nav-quick-collect.js','nav-customer-search.js','nav-quick-profile.js','nav-pending-actions.js','reminder-queue.js','digital-payments-settings.js','payments-inbox.js','easypaisa-parser.js','form-validation.js','profile-labels.js','profile-ui.js','receipt.js','package-catalog.js','core.js','phase3.js','owner-insights.js','owner-ui.js','backup-store.js','duplicate-detection.js','qa-backup-csv-import.js','sw.js','manifest.webmanifest','icon.svg'];
 
 // Performance budget for issue #219: the first load of Home must need no more
 // than this many requests (HTML + one CSS bundle + JS entries/shared chunks +
@@ -233,10 +233,13 @@ export async function build({ root = ROOT, dist = DIST, quiet = false } = {}) {
   const cssResult = await esbuild.transform(cssSource, { loader: 'css', minify: true });
   await writeFile(path.join(dist, CSS_BUNDLE), cssResult.code);
 
-  // 3) Copy the remaining non-JS/CSS runtime assets (manifest, icon, ...).
+  // 3) Copy the remaining runtime assets (manifest, icon, ...). Stylesheets
+  //    named by index.html are in the bundle; standalone stylesheets loaded
+  //    on demand (urdu-font.css, #228) are copied as their own files.
   for (const file of files) {
     const ext = path.extname(file).toLowerCase();
-    if (ext === '.js' || ext === '.mjs' || ext === '.css' || file === 'index.html' || file === 'sw.js') continue;
+    if (ext === '.js' || ext === '.mjs' || file === 'index.html' || file === 'sw.js') continue;
+    if (ext === '.css' && cssFiles.includes(file)) continue;
     await mkdir(path.dirname(path.join(dist, file)), { recursive: true });
     await cp(path.join(root, file), path.join(dist, file));
   }

@@ -6321,7 +6321,16 @@ export {
   formatBilingualCurrency,
   formatBilingualStatus,
   renderLanguageToggleBtnHtml,
-  setupLanguageToggle
+  setupLanguageToggle,
+  VISIBLE_TEXT_UR,
+  VISIBLE_TEXT_PATTERNS_UR,
+  PLACEHOLDER_TEXT_UR,
+  isEnglishOnlyVisibleText,
+  isAllowlistedVisibleText,
+  translateVisibleText,
+  translateVisibleElements,
+  setBidiSafeText,
+  ensureUrduFont
 } from './nav-language.js';
 
 export {

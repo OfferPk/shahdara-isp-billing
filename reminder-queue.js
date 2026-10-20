@@ -262,42 +262,162 @@ export function calculateCustomerDueDate(customer, monthStr) {
 }
 
 /**
+ * Checks whether a customer has received a reminder for a specific stage in a billing month.
+ *
+ * @param {string|Object} customerOrId
+ * @param {string} stageId
+ * @param {string} targetMonth - YYYY-MM
+ * @param {Storage|object} [storage]
+ * @param {Array<Object>} [historyList]
+ * @param {string} [todayStr]
+ * @returns {{ sent: boolean, record: Object|null, sentToday: boolean, sentPriorDate: boolean }}
+ */
+export function getCustomerStageDispatchStatus(customerOrId, stageId, targetMonth, storage = null, historyList = null, todayStr = getTodayDateString()) {
+  if (!customerOrId || !stageId) {
+    return { sent: false, record: null, sentToday: false, sentPriorDate: false };
+  }
+  const custId = typeof customerOrId === 'object' ? String(customerOrId.id || '') : String(customerOrId);
+  const targetStorage = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  const history = Array.isArray(historyList) ? historyList : getReminderHistory(targetStorage);
+
+  // Check storage history
+  const matchInHistory = history.find(r =>
+    String(r.customerId) === custId &&
+    r.stageId === stageId &&
+    (r.month === targetMonth || (r.date && r.date.slice(0, 7) === targetMonth))
+  );
+
+  if (matchInHistory) {
+    const sentToday = matchInHistory.date === todayStr;
+    const sentPriorDate = !sentToday && matchInHistory.date < todayStr;
+    return { sent: true, record: matchInHistory, sentToday, sentPriorDate };
+  }
+
+  // Also check customer.reminders if customer object passed
+  if (typeof customerOrId === 'object' && Array.isArray(customerOrId.reminders)) {
+    const matchInCust = customerOrId.reminders.find(r =>
+      r.stageId === stageId &&
+      (r.month === targetMonth || (r.date && r.date.slice(0, 7) === targetMonth))
+    );
+    if (matchInCust) {
+      const sentToday = matchInCust.date === todayStr;
+      const sentPriorDate = !sentToday && matchInCust.date < todayStr;
+      return { sent: true, record: matchInCust, sentToday, sentPriorDate };
+    }
+  }
+
+  return { sent: false, record: null, sentToday: false, sentPriorDate: false };
+}
+
+/**
+ * Checks if a customer has any unpaid bills from months prior to currentMonth.
+ *
+ * @param {Object} customer
+ * @param {string} currentMonth - YYYY-MM
+ * @returns {boolean}
+ */
+export function hasUnpaidDuesFromPreviousMonths(customer, currentMonth) {
+  if (!customer) return false;
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  if (bills.length === 0) return false;
+  return bills.some(b => {
+    if (!b || !b.month || b.month >= currentMonth) return false;
+    const due = Number(b.dueAmount || 0);
+    const paid = (b.payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    return due > paid;
+  });
+}
+
+/**
  * Evaluates whether a customer with dues matches an active reminder stage for a reference date.
+ * Implements catch-up stages (Issue #284): if a stage passed and was not sent yet, matches the
+ * latest passed stage with a clear label (e.g. "Stage +7 (2 days late)").
  *
  * @param {Object} customer
  * @param {number} balance
  * @param {string} [todayStr] - Reference date in YYYY-MM-DD (PKT)
  * @param {Array<Object>} [stages] - Configured reminder stages
- * @returns {{ matched: boolean, stage: Object|null, dueDateString: string, daysRelative: number, template: string }|null}
+ * @param {Object} [options={}] - Optional overrides ({ storage, history, requireExact })
+ * @returns {{ matched: boolean, stage: Object|null, dueDateString: string, daysRelative: number, daysLate: number, isCatchUp: boolean, alreadyReminded: boolean, template: string }|null}
  */
-export function getMatchingReminderStage(customer, balance, todayStr = getTodayDateString(), stages = null) {
+export function getMatchingReminderStage(customer, balance, todayStr = getTodayDateString(), stages = null, options = {}) {
   if (!customer || balance <= 0) return null;
 
+  const storage = options.storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
   const activeStages = Array.isArray(stages)
     ? stages.filter(s => s.enabled !== false)
-    : getReminderStagesSettings().filter(s => s.enabled !== false);
+    : getReminderStagesSettings(storage).filter(s => s.enabled !== false);
 
   if (activeStages.length === 0) return null;
+
+  const history = options.history || (storage ? getReminderHistory(storage) : null);
+  const requireExact = options.requireExact === true;
 
   const currentMonth = todayStr.slice(0, 7);
   const dueInfo = calculateCustomerDueDate(customer, currentMonth);
   const daysRelative = calendarDaysDifference(todayStr, dueInfo.dueDateString);
 
-  // Exact matching against configured offsetDays
-  const exactStage = activeStages.find(s => Number(s.offsetDays) === daysRelative);
-  if (exactStage) {
-    return {
-      matched: true,
-      stage: exactStage,
-      dueDateString: dueInfo.dueDateString,
-      daysRelative,
-      template: exactStage.template || 'due'
-    };
+  // If requireExact is true, preserve exact matching
+  if (requireExact) {
+    const exactStage = activeStages.find(s => Number(s.offsetDays) === daysRelative);
+    if (exactStage) {
+      return {
+        matched: true,
+        stage: exactStage,
+        dueDateString: dueInfo.dueDateString,
+        daysRelative,
+        daysLate: 0,
+        isCatchUp: false,
+        alreadyReminded: false,
+        template: exactStage.template || 'due'
+      };
+    }
+    return null;
   }
 
-  // Also check previous month boundary if today is early in month (e.g. 1st-4th)
-  // to catch late overdue reminders spanning previous cycle
-  if (daysRelative < 0) {
+  // Active stages sorted ascending by offsetDays (e.g. -2, 0, 3, 7, 15)
+  const sortedStages = [...activeStages].sort((a, b) => Number(a.offsetDays) - Number(b.offsetDays));
+
+  // Current month: stages that have passed as of today (offsetDays <= daysRelative)
+  const passedStages = sortedStages.filter(s => Number(s.offsetDays) <= daysRelative);
+
+  if (passedStages.length > 0) {
+    // Check candidate stages in descending order (latest passed stage first)
+    passedStages.sort((a, b) => Number(b.offsetDays) - Number(a.offsetDays));
+    for (const stage of passedStages) {
+      const status = getCustomerStageDispatchStatus(customer, stage.id, dueInfo.month, storage, history, todayStr);
+      if (status.sentPriorDate) {
+        // The latest due stage was already dispatched on a prior date in this cycle.
+        // It does not need to be sent again, and earlier passed stages are superseded.
+        break;
+      }
+
+      const daysLate = Math.max(0, daysRelative - Number(stage.offsetDays));
+      const isCatchUp = daysLate > 0;
+      const stageLabel = isCatchUp
+        ? `${stage.label} (${daysLate} ${daysLate === 1 ? 'day' : 'days'} late)`
+        : stage.label;
+
+      return {
+        matched: true,
+        stage: {
+          ...stage,
+          label: stageLabel,
+          originalLabel: stage.label
+        },
+        dueDateString: dueInfo.dueDateString,
+        daysRelative,
+        daysLate,
+        isCatchUp,
+        alreadyReminded: status.sentToday,
+        template: stage.template || (daysRelative > 0 ? 'overdue' : 'due')
+      };
+    }
+  }
+
+  // Previous month boundary catch-up if today is early in month (daysRelative < 0)
+  // ONLY if customer has unpaid balance spanning the previous month
+  if (daysRelative < 0 && hasUnpaidDuesFromPreviousMonths(customer, currentMonth)) {
     const parts = parseDateParts(todayStr);
     if (parts) {
       let prevYear = parts.year;
@@ -309,21 +429,46 @@ export function getMatchingReminderStage(customer, balance, todayStr = getTodayD
       const prevMonthStr = `${prevYear}-${String(prevMonthNum).padStart(2, '0')}`;
       const prevDueInfo = calculateCustomerDueDate(customer, prevMonthStr);
       const prevDaysRelative = calendarDaysDifference(todayStr, prevDueInfo.dueDateString);
-      const prevMatch = activeStages.find(s => Number(s.offsetDays) === prevDaysRelative);
-      if (prevMatch && prevDaysRelative > 0) {
-        return {
-          matched: true,
-          stage: prevMatch,
-          dueDateString: prevDueInfo.dueDateString,
-          daysRelative: prevDaysRelative,
-          template: prevMatch.template || 'overdue'
-        };
+
+      if (prevDaysRelative > 0) {
+        const prevPassedStages = sortedStages
+          .filter(s => Number(s.offsetDays) <= prevDaysRelative)
+          .sort((a, b) => Number(b.offsetDays) - Number(a.offsetDays));
+
+        for (const stage of prevPassedStages) {
+          const status = getCustomerStageDispatchStatus(customer, stage.id, prevDueInfo.month, storage, history, todayStr);
+          if (status.sentPriorDate) {
+            break;
+          }
+
+          const daysLate = Math.max(0, prevDaysRelative - Number(stage.offsetDays));
+          const isCatchUp = daysLate > 0;
+          const stageLabel = isCatchUp
+            ? `${stage.label} (${daysLate} ${daysLate === 1 ? 'day' : 'days'} late)`
+            : stage.label;
+
+          return {
+            matched: true,
+            stage: {
+              ...stage,
+              label: stageLabel,
+              originalLabel: stage.label
+            },
+            dueDateString: prevDueInfo.dueDateString,
+            daysRelative: prevDaysRelative,
+            daysLate,
+            isCatchUp,
+            alreadyReminded: status.sentToday,
+            template: stage.template || 'overdue'
+          };
+        }
       }
     }
   }
 
   return null;
 }
+
 
 /**
  * Retrieves the full reminder dispatch audit history from storage.
@@ -508,16 +653,21 @@ export function getRemindersTodayQueue(state, options = {}) {
   let totalDuesPkr = 0;
   let completedCount = 0;
 
+  const history = options.history || (storage ? getReminderHistory(storage) : null);
+  let overdueCustomersCount = 0;
+
   for (const c of customers) {
     if (c.archived) continue;
 
     const balance = getCustomerOutstandingDues(c, state, monthStr);
     if (balance <= 0) continue;
 
-    const match = getMatchingReminderStage(c, balance, todayStr, stages);
+    overdueCustomersCount++;
+
+    const match = getMatchingReminderStage(c, balance, todayStr, stages, { storage, history });
     if (!match || !match.matched) continue;
 
-    const alreadyReminded = isCustomerRemindedToday(c.id, match.stage.id, todayStr, storage);
+    const alreadyReminded = Boolean(match.alreadyReminded) || isCustomerRemindedToday(c.id, match.stage.id, todayStr, storage);
     if (alreadyReminded) {
       completedCount++;
     }
@@ -556,6 +706,8 @@ export function getRemindersTodayQueue(state, options = {}) {
       stageId: match.stage.id,
       stageLabel: match.stage.label,
       daysRelative: match.daysRelative,
+      daysLate: match.daysLate || 0,
+      isCatchUp: Boolean(match.isCatchUp),
       templateType: match.template,
       alreadyReminded,
       messageText: reminderMessage,
@@ -579,9 +731,39 @@ export function getRemindersTodayQueue(state, options = {}) {
     totalCount: queue.length,
     pendingCount,
     completedCount,
-    totalDuesPkr
+    totalDuesPkr,
+    overdueCustomersCount
   };
 }
+
+/**
+ * Updates the navigation badge for the Reminders Today Queue on More menu.
+ *
+ * @param {Object} state - Application state
+ * @param {Object} [options={}]
+ * @returns {number} Pending reminders count
+ */
+export function updateRemindersQueueNavBadge(state, options = {}) {
+  if (typeof document === 'undefined') return 0;
+  const badge = document.querySelector('#mobileMoreRemindersQueueBadge');
+  if (!badge) return 0;
+  try {
+    const queueData = getRemindersTodayQueue(state, options);
+    const count = queueData?.pendingCount || 0;
+    if (count > 0) {
+      badge.textContent = String(count);
+      badge.hidden = false;
+      badge.setAttribute('aria-label', `${count} reminders pending`);
+    } else {
+      badge.hidden = true;
+    }
+    return count;
+  } catch {
+    badge.hidden = true;
+    return 0;
+  }
+}
+
 
 // ============================================================================
 // PROMISE-TO-PAY ("WADA") SUITE

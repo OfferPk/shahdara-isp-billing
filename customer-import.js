@@ -1,77 +1,22 @@
-/**
- * Bulk Add Customers (UI). Opens from "⇪ Bulk add" next to + Add Customer, from a link inside the
- * Add Customer dialog, or the #/customers/import route (deep link / reload / Back).
- *
- * 1. Paste a list, or upload .txt / .csv / .pdf (PDF text is read on this device with pdf.js,
- *    loaded only when a PDF is chosen; offline it explains how to paste instead).
- * 2. Preview: every row is editable (name, package, fee, phone, area) with a status — OK /
- *    Missing fee / Duplicate (existing customer, same name + phone) / Duplicate in file / Fix.
- *    Only ticked rows are added; OK rows are ticked by default. Rows can be removed.
- * 3. "Add N customers" saves through core addCustomer + customer-plan.js billing, so each one
- *    gets this month's bill and is pending in Quick / Bulk Collect. A summary shows added /
- *    skipped with Undo for the whole batch (customers with no payments yet are removed).
- * Pure logic: customer-import-core.js.
- */
-import { BILL_PACKAGES } from './package-catalog.js';
-import { getPakistanLocalDate } from './nav-quick-collect.js';
-import {
-  parseCustomerList, computeStatuses, summarizeRows, importCustomers, undoImport, updateRowPackage, ROW_STATUS
-} from './customer-import-core.js';
-
-export const IMPORT_HASH = `#/customers/import`; // backticks: build.mjs scans for import + quote
-export const PDFJS_VERSION = '4.10.38';
-const PDFJS_BASE = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build`;
-const SAMPLE = 'ALI, 15MBPS, 3000RS\nSAIM, 5MBPS, 1500\nTOUSEEF 5MBPS, 1000';
-
-const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const pkr = n => `PKR ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
-
-/** Extract text from a PDF with pdf.js (lazy, from the CDN). Throws a friendly error offline. */
-export async function readPdfText(file, { importer = url => import(/* @vite-ignore */ url) } = {}) {
-  let pdfjs;
-  try {
-    pdfjs = await importer(`${PDFJS_BASE}/pdf.min.mjs`);
-    pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE}/pdf.worker.min.mjs`;
-  } catch {
-    throw new Error('Could not load the PDF reader — it needs internet the first time. Open the PDF, copy the customer list and paste it in the box instead (or save it as .csv / .txt).');
-  }
-  const data = new Uint8Array(await file.arrayBuffer());
-  const doc = await pdfjs.getDocument({ data }).promise;
-  const lines = [];
-  for (let n = 1; n <= doc.numPages; n++) {
-    const content = await (await doc.getPage(n)).getTextContent();
-    // Group text items into lines by their y position (PDF tables come out item by item).
-    const rows = new Map();
-    for (const item of content.items) {
-      if (!item.str?.trim()) continue;
-      const y = Math.round(item.transform[5]);
-      const key = [...rows.keys()].find(k => Math.abs(k - y) <= 2) ?? y;
-      if (!rows.has(key)) rows.set(key, []);
-      rows.get(key).push({ x: item.transform[4], s: item.str });
-    }
-    [...rows.entries()].sort((a, b) => b[0] - a[0])
-      .forEach(([, items]) => lines.push(items.sort((a, b) => a.x - b.x).map(i => i.s.trim()).join(', ')));
-  }
-  return lines.join('\n');
-}
-
-export function setupCustomerImport({ win = window, doc = document, getController = () => win.quickCollectModalController } = {}) {
-  if (doc.getElementById('customerImportModal')) return win.customerImport;
-  const wrap = doc.createElement('div');
-  wrap.innerHTML = `
+import{b as z}from"./chunk-UVQWRWN2.js";import{D as T,E as K,Q as H}from"./chunk-NWJZHAZJ.js";import{B as j,o as w,q as M}from"./chunk-ERGNZBXW.js";var de=/(?:\+?92[\s-]?|0092[\s-]?|0)?3\d{2}[\s-]?\d{7}(?!\d)/,W=/(\d+(?:\.\d+)?)\s*(?:mbps|mb\/s|mbs|mb|mbit)(?![a-z])/i,Q=/(\d+(?:\.\d+)?)\s*(gb|tb)(?![a-z])/i,R=/\bunlimited\b/i,ue=[/(?:\brs\.?|\bpkr|₨)\s*:?\s*(\d[\d,]*(?:\.\d+)?)/i,/(\d[\d,]*(?:\.\d+)?)\s*(?:\/-|rs\b\.?|rs(?=[^a-z]|$)|pkr\b|rupees?\b)/i],pe=/(?<![\w.])(\d{1,3}(?:,\d{3})+|\d{2,7})(?:\.\d+)?(?![\w])/g,me={name:/^(customer\s*)?(name|naam|customer)$/,package:/^(package|pkg|speed|plan|internet|connection|mbps)$/,fee:/^(monthly\s*)?(fee|amount|price|rs|pkr|bill|rate|charges?|monthly)(\s*\(?(rs|pkr)\)?)?$/,phone:/^(phone|mobile|cell|contact|number|whatsapp|phone\s*(no|number)|mobile\s*(no|number))$/,area:/^(area|mohalla|address|location|zone|block|street)$/},G=t=>String(t??"").normalize("NFKC").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu," ").trim();function I(t){let a=String(t??"").replace(/\D/g,"");return a?a.startsWith("0092")?`0${a.slice(4)}`:a.startsWith("92")&&a.length===12?`0${a.slice(2)}`:a.length===10&&a.startsWith("3")?`0${a}`:a:""}var A=t=>{let a=Number(String(t??"").replace(/,/g,""));return Number.isFinite(a)&&a>0?a:null},C=t=>String(t??"").replace(/^[\s,;:|\-–—.]+|[\s,;:|\-–—]+$/g,"").replace(/\s+/g," ").trim();function V(t,a){let i=[],d="",e=!1;for(let s=0;s<t.length;s++){let r=t[s];e?r==='"'&&t[s+1]==='"'?(d+='"',s++):r==='"'?e=!1:d+=r:r==='"'&&!d.trim()?e=!0:r===a?(i.push(d.trim()),d=""):d+=r}return i.push(d.trim()),i}function fe({speed:t=null,dataGb:a=null,unlimited:i=!1,fee:d=null,raw:e=""}={}){let s=e?M(e):null;if(s)return{packageId:s.id,packageLabel:s.label,fee:d??s.price,feeFromPackage:d==null};if(t==null)return{packageId:null,packageLabel:C(e),fee:d,feeFromPackage:!1};let r=w.filter(c=>c.speedMbps===t);a!=null?r=r.filter(c=>c.dataLimit===`${a} GB`):i&&(r=r.filter(c=>!c.dataLimit));let l=(d!=null?r.find(c=>c.price===d):null)||(r.length===1?r[0]:null);return l?{packageId:l.id,packageLabel:l.label,fee:d??l.price,feeFromPackage:d==null}:{packageId:null,packageLabel:`${t} Mbps${a!=null?` / ${a}GB`:i?" Unlimited":""}`,fee:d,feeFromPackage:!1}}function q(t){let a=` ${t} `,i=o=>{let c=a.match(o);return c&&(a=a.replace(c[0]," , ")),c},d=i(de),e=i(W),s=i(Q),r=R.test(a);r&&(a=a.replace(R," , "));let p=null;for(let o of ue){let c=i(o);if(c){p=A(c[1]);break}}if(p==null){let c=[...a.matchAll(pe)].filter(h=>A(h[1])>=100).at(-1);c&&(p=A(c[1]),a=a.slice(0,c.index)+" , "+a.slice(c.index+c[0].length))}a=a.replace(/\b(rs\.?|pkr|rupees?)\b/gi," ");let l=a.split(/[,\t;|]+/).map(C).filter(Boolean);return{name:l[0]??"",area:l.slice(1).join(", "),phone:d?I(d[0]):"",speed:e?Number(e[1]):null,dataGb:s?Number(s[1])*(s[2].toLowerCase()==="tb"?1e3:1):null,unlimited:r,fee:p}}function be(t){let a=t[0]??"",i=a.includes("	")?"	":a.includes(",")?",":a.includes(";")?";":null;if(!i)return null;let d=V(a,i).map(s=>s.toLowerCase().replace(/[^a-z0-9() ]+/g," ").replace(/\s+/g," ").trim());if(d.some(s=>/\d{3,}/.test(s)))return null;let e={};return d.forEach((s,r)=>{for(let[p,l]of Object.entries(me))if(e[p]===void 0&&l.test(s)){e[p]=r;break}}),Object.keys(e).length>=2&&e.name!==void 0?{delim:i,map:e}:null}function O(t){let a=String(t??"").replace(/\r\n?/g,`
+`).split(`
+`).map(s=>s.replace(/\u00a0/g," ")).filter(s=>s.trim()),i=be(a),d=i?a.slice(1):a,e=[];return d.forEach((s,r)=>{let p=r+1+(i?1:0),l;if(i){let c=V(s,i.delim),h=L=>i.map[L]!==void 0?c[i.map[L]]??"":"",k=h("package"),v=k.match(W)||k.match(/^\s*(\d+(?:\.\d+)?)\s*$/),S=k.match(Q),x=h("fee"),B=x?q(x).fee??A(x.replace(/[^\d.,]/g,"")):null;if(l={name:C(h("name")),area:C(h("area")),phone:I(h("phone"))||"",speed:v?Number(v[1]):null,dataGb:S?Number(S[1]):null,unlimited:R.test(k),fee:B,rawPackage:k},!l.name&&!l.fee&&!k)return}else l=q(s);let o=fe({speed:l.speed,dataGb:l.dataGb,unlimited:l.unlimited,fee:l.fee,raw:l.rawPackage??""});e.push({key:`r${p}`,line:p,raw:s.trim(),name:l.name,phone:l.phone,area:l.area,packageId:o.packageId,packageLabel:o.packageLabel,fee:o.fee,feeFromPackage:o.feeFromPackage,include:null})}),{rows:e,header:!!i}}function J(t,a){let i=M(a);return{...t,packageLabel:C(a),packageId:i?i.id:null,fee:t.fee??(i?i.price:null)}}var Y={ok:{label:"OK",tone:"ok"},"missing-fee":{label:"Missing fee",tone:"warn"},duplicate:{label:"Duplicate",tone:"warn"},"dup-file":{label:"Duplicate in file",tone:"warn"},error:{label:"Fix",tone:"error"}};function X(t,a=[]){let i=a.filter(e=>!e.archived).map(e=>({c:e,n:G(e.name),p:I(e.phone)})),d=[];return t.map(e=>{let s=G(e.name),r=I(e.phone),p=K(e.name??""),l="ok",o="";if(!p.valid)l="error",o=p.message;else if(e.phone&&!T(e.phone).valid&&!T(e.phone).tip)l="error",o="Phone number looks wrong.";else{let h=i.find(v=>v.n===s&&(!r||!v.p||v.p===r)),k=d.find(v=>v.n===s&&(!r||!v.p||v.p===r));h?(l="duplicate",o=`Matches #${h.c.customerNumber} ${h.c.name}${h.p?` \xB7 ${h.p}`:""}`):k?(l="dup-file",o=`Same as line ${k.line}`):Number(e.fee)>0||(l="missing-fee",o="No monthly fee \u2014 add one, or tick to add without a bill.")}l!=="error"&&d.push({n:s,p:r,line:e.line});let c=l==="error"?!1:e.include??l==="ok";return{...e,status:l,detail:o,included:c}})}function Z(t){let a=t.filter(i=>i.included).length;return{total:t.length,ready:a,skipped:t.length-a,attention:t.filter(i=>i.status!=="ok").length}}function ee(t,a,{referenceDate:i=new Date,connectionDate:d=null}={}){let e=t,s=[],r=0;for(let p of a){if(!p.included)continue;e=j(e,p.name,i,{phone:p.phone||"",mohalla:p.area||"",allowDuplicateName:!0});let l=e.customers.at(-1).id;s.push(l);let o=Number(p.fee);if(o>0){let c={packageLabel:p.packageLabel||"",fee:o,connectionDate:d},h=z(e,l,c,i);e=h.nextState,h.billed&&(r+=1)}}return{nextState:e,addedIds:s,added:s.length,skipped:a.length-s.length,billed:r}}function te(t,a){let i=new Set(a),d=o=>(o.bills??[]).some(c=>(c.payments??[]).length),e=t.customers.filter(o=>i.has(o.id)&&!d(o)),s=t.customers.filter(o=>i.has(o.id)&&d(o)),r=new Set(e.map(o=>o.id)),p=t.customers.filter(o=>!r.has(o.id)),l=t.nextCustomerNumber;if(e.length){let o=Math.min(...e.map(c=>c.customerNumber));p.some(c=>c.customerNumber>=o)||(l=o)}return{nextState:{...t,customers:p,nextCustomerNumber:l},removed:e.length,kept:s.length}}var $="#/customers/import",he="4.10.38",ne=`https://cdn.jsdelivr.net/npm/pdfjs-dist@${he}/build`,ae=`ALI, 15MBPS, 3000RS
+SAIM, 5MBPS, 1500
+TOUSEEF 5MBPS, 1000`,y=t=>String(t??"").replace(/[&<>"']/g,a=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[a]),oe=t=>`PKR ${Number(t||0).toLocaleString("en-PK",{maximumFractionDigits:2})}`;async function ge(t,{importer:a=i=>import(i)}={}){let i;try{i=await a(`${ne}/pdf.min.mjs`),i.GlobalWorkerOptions.workerSrc=`${ne}/pdf.worker.min.mjs`}catch{throw new Error("Could not load the PDF reader \u2014 it needs internet the first time. Open the PDF, copy the customer list and paste it in the box instead (or save it as .csv / .txt).")}let d=new Uint8Array(await t.arrayBuffer()),e=await i.getDocument({data:d}).promise,s=[];for(let r=1;r<=e.numPages;r++){let p=await(await e.getPage(r)).getTextContent(),l=new Map;for(let o of p.items){if(!o.str?.trim())continue;let c=Math.round(o.transform[5]),h=[...l.keys()].find(k=>Math.abs(k-c)<=2)??c;l.has(h)||l.set(h,[]),l.get(h).push({x:o.transform[4],s:o.str})}[...l.entries()].sort((o,c)=>c[0]-o[0]).forEach(([,o])=>s.push(o.sort((c,h)=>c.x-h.x).map(c=>c.s.trim()).join(", ")))}return s.join(`
+`)}function ke({win:t=window,doc:a=document,getController:i=()=>t.quickCollectModalController}={}){if(a.getElementById("customerImportModal"))return t.customerImport;let d=a.createElement("div");d.innerHTML=`
   <dialog id="customerImportModal" class="modal customer-import-modal" aria-labelledby="customerImportTitle">
     <section class="ci-card">
       <div class="modal-heading">
-        <div><p class="eyebrow">CUSTOMERS · BULK ADD</p><h2 id="customerImportTitle">Bulk add customers</h2></div>
-        <button id="closeCustomerImportBtn" class="close-button" type="button" aria-label="Close bulk add">×</button>
+        <div><p class="eyebrow">CUSTOMERS \xB7 BULK ADD</p><h2 id="customerImportTitle">Bulk add customers</h2></div>
+        <button id="closeCustomerImportBtn" class="close-button" type="button" aria-label="Close bulk add">\xD7</button>
       </div>
 
       <div id="ciStepInput" class="ci-step">
-        <p class="ci-note">Paste one customer per line — name, speed and monthly fee; phone and area are optional. Example: <code>ALI, 15MBPS, 3000RS</code></p>
+        <p class="ci-note">Paste one customer per line \u2014 name, speed and monthly fee; phone and area are optional. Example: <code>ALI, 15MBPS, 3000RS</code></p>
         <label class="field-label" for="ciText">Customer list</label>
-        <textarea id="ciText" class="ci-text" rows="8" spellcheck="false" placeholder="${esc(SAMPLE)}"></textarea>
+        <textarea id="ciText" class="ci-text" rows="8" spellcheck="false" placeholder="${y(ae)}"></textarea>
         <div class="ci-input-actions">
-          <label class="secondary-button ci-file-btn" for="ciFile"><span aria-hidden="true">📄</span> Upload .txt / .csv / .pdf</label>
+          <label class="secondary-button ci-file-btn" for="ciFile"><span aria-hidden="true">\u{1F4C4}</span> Upload .txt / .csv / .pdf</label>
           <input id="ciFile" class="ci-file" type="file" accept=".txt,.csv,.tsv,.pdf,text/plain,text/csv,application/pdf">
           <button id="ciSampleBtn" class="text-button ci-sample-btn" type="button">Use example</button>
         </div>
@@ -82,10 +27,10 @@ export function setupCustomerImport({ win = window, doc = document, getControlle
       <div id="ciStepPreview" class="ci-step" hidden>
         <div class="ci-preview-head">
           <p id="ciCounts" class="ci-counts" aria-live="polite"></p>
-          <button id="ciBackBtn" class="text-button" type="button">← Edit list</button>
+          <button id="ciBackBtn" class="text-button" type="button">\u2190 Edit list</button>
         </div>
-        <p class="ci-note">Check each row. Ticked rows are added; untick to skip. Duplicates and rows without a fee are unticked — fix them or tick to add anyway.</p>
-        <datalist id="ciPackageOptions">${BILL_PACKAGES.map(p => `<option value="${esc(p.label)}"></option>`).join('')}</datalist>
+        <p class="ci-note">Check each row. Ticked rows are added; untick to skip. Duplicates and rows without a fee are unticked \u2014 fix them or tick to add anyway.</p>
+        <datalist id="ciPackageOptions">${w.map(n=>`<option value="${y(n.label)}"></option>`).join("")}</datalist>
         <ol id="ciRows" class="ci-rows" aria-label="Customers to add"></ol>
         <div class="ci-footer">
           <p id="ciFooterNote" class="ci-footer-note"></p>
@@ -94,255 +39,30 @@ export function setupCustomerImport({ win = window, doc = document, getControlle
       </div>
 
       <div id="ciStepDone" class="ci-step ci-done" hidden>
-        <div class="ci-done-icon" aria-hidden="true">✅</div>
+        <div class="ci-done-icon" aria-hidden="true">\u2705</div>
         <h3 id="ciDoneTitle" class="ci-done-title"></h3>
         <p id="ciDoneDetail" class="ci-done-detail"></p>
         <ul id="ciDoneList" class="ci-done-list"></ul>
         <p id="ciDoneStatus" class="ci-status" role="status" aria-live="polite" hidden></p>
         <div class="ci-done-actions">
           <button id="ciOpenCollectBtn" class="primary-button" type="button">Open Quick Collect</button>
-          <button id="ciUndoBtn" class="secondary-button ci-undo-btn" type="button">↶ Undo this import</button>
+          <button id="ciUndoBtn" class="secondary-button ci-undo-btn" type="button">\u21B6 Undo this import</button>
           <button id="ciDoneBtn" class="secondary-button" type="button">Done</button>
         </div>
       </div>
     </section>
-  </dialog>`;
-  doc.body.appendChild(wrap.firstElementChild);
-
-  const $ = id => doc.getElementById(id);
-  const modal = $('customerImportModal');
-  const steps = { input: $('ciStepInput'), preview: $('ciStepPreview'), done: $('ciStepDone') };
-  const textArea = $('ciText');
-  const rowsEl = $('ciRows');
-  let rows = [];
-  let lastImport = null; // { addedIds, added, skipped }
-  let routeMode = null;
-
-  const state = () => getController()?.getState?.();
-  const show = name => { for (const [k, el] of Object.entries(steps)) el.hidden = k !== name; };
-  const say = (el, msg, kind = 'info') => { el.textContent = msg || ''; el.dataset.kind = kind; el.hidden = !msg; };
-  const refreshApp = () => {
-    // The app re-renders its customer list, transactions and report on this input event.
-    const search = $('globalCustomerSearch');
-    if (search) search.dispatchEvent(new win.Event('input', { bubbles: true }));
-  };
-
-  function statusRows() { return computeStatuses(rows, state()?.customers ?? []); }
-
-  function renderRows() {
-    const list = statusRows();
-    const sum = summarizeRows(list);
-    $('ciCounts').innerHTML = `<strong>${sum.total}</strong> row${sum.total === 1 ? '' : 's'} · <strong>${sum.ready}</strong> to add${sum.attention ? ` · <span class="ci-attn">${sum.attention} need a look</span>` : ''}`;
-    rowsEl.innerHTML = list.map(r => {
-      const st = ROW_STATUS[r.status];
-      return `<li class="ci-row is-${st.tone}${r.included ? ' is-included' : ''}" data-ci-row="${esc(r.key)}">
+  </dialog>`,a.body.appendChild(d.firstElementChild);let e=n=>a.getElementById(n),s=e("customerImportModal"),r={input:e("ciStepInput"),preview:e("ciStepPreview"),done:e("ciStepDone")},p=e("ciText"),l=e("ciRows"),o=[],c=null,h=null,k=()=>i()?.getState?.(),v=n=>{for(let[u,f]of Object.entries(r))f.hidden=u!==n},S=(n,u,f="info")=>{n.textContent=u||"",n.dataset.kind=f,n.hidden=!u},x=()=>{let n=e("globalCustomerSearch");n&&n.dispatchEvent(new t.Event("input",{bubbles:!0}))};function B(){return X(o,k()?.customers??[])}function L(){let n=B(),u=Z(n);e("ciCounts").innerHTML=`<strong>${u.total}</strong> row${u.total===1?"":"s"} \xB7 <strong>${u.ready}</strong> to add${u.attention?` \xB7 <span class="ci-attn">${u.attention} need a look</span>`:""}`,l.innerHTML=n.map(m=>{let g=Y[m.status];return`<li class="ci-row is-${g.tone}${m.included?" is-included":""}" data-ci-row="${y(m.key)}">
         <div class="ci-row-top">
-          <label class="ci-include"><input type="checkbox" data-ci-include ${r.included ? 'checked' : ''} ${r.status === 'error' ? 'disabled' : ''} aria-label="Add ${esc(r.name || `line ${r.line}`)}"><span class="ci-line">Line ${r.line}</span></label>
-          <span class="ci-chip ci-chip-${st.tone}" data-ci-status="${esc(r.status)}">${esc(st.label)}</span>
-          <button type="button" class="ci-remove" data-ci-remove aria-label="Remove line ${r.line}">✕</button>
+          <label class="ci-include"><input type="checkbox" data-ci-include ${m.included?"checked":""} ${m.status==="error"?"disabled":""} aria-label="Add ${y(m.name||`line ${m.line}`)}"><span class="ci-line">Line ${m.line}</span></label>
+          <span class="ci-chip ci-chip-${g.tone}" data-ci-status="${y(m.status)}">${y(g.label)}</span>
+          <button type="button" class="ci-remove" data-ci-remove aria-label="Remove line ${m.line}">\u2715</button>
         </div>
         <div class="ci-fields">
-          <label class="ci-f ci-f-name"><span>Name</span><input data-ci-field="name" value="${esc(r.name)}" maxlength="100" autocomplete="off"></label>
-          <label class="ci-f ci-f-pkg"><span>Package</span><input data-ci-field="packageLabel" value="${esc(r.packageLabel)}" list="ciPackageOptions" maxlength="80" autocomplete="off" placeholder="e.g. 5 Mbps"></label>
-          <label class="ci-f ci-f-fee"><span>Fee (PKR)</span><input data-ci-field="fee" value="${r.fee ?? ''}" type="number" min="1" step="1" inputmode="numeric" placeholder="Fee"></label>
-          <label class="ci-f ci-f-phone"><span>Phone</span><input data-ci-field="phone" value="${esc(r.phone)}" type="tel" maxlength="40" autocomplete="off" placeholder="Optional"></label>
-          <label class="ci-f ci-f-area"><span>Area</span><input data-ci-field="area" value="${esc(r.area)}" maxlength="100" autocomplete="off" placeholder="Optional"></label>
+          <label class="ci-f ci-f-name"><span>Name</span><input data-ci-field="name" value="${y(m.name)}" maxlength="100" autocomplete="off"></label>
+          <label class="ci-f ci-f-pkg"><span>Package</span><input data-ci-field="packageLabel" value="${y(m.packageLabel)}" list="ciPackageOptions" maxlength="80" autocomplete="off" placeholder="e.g. 5 Mbps"></label>
+          <label class="ci-f ci-f-fee"><span>Fee (PKR)</span><input data-ci-field="fee" value="${m.fee??""}" type="number" min="1" step="1" inputmode="numeric" placeholder="Fee"></label>
+          <label class="ci-f ci-f-phone"><span>Phone</span><input data-ci-field="phone" value="${y(m.phone)}" type="tel" maxlength="40" autocomplete="off" placeholder="Optional"></label>
+          <label class="ci-f ci-f-area"><span>Area</span><input data-ci-field="area" value="${y(m.area)}" maxlength="100" autocomplete="off" placeholder="Optional"></label>
         </div>
-        ${r.detail ? `<p class="ci-detail">${esc(r.detail)}</p>` : ''}
-      </li>`;
-    }).join('') || '<li class="ci-empty">No rows left. Go back and paste a list.</li>';
-    $('ciAddBtn').textContent = sum.ready ? `Add ${sum.ready} customer${sum.ready === 1 ? '' : 's'}` : 'Add customers';
-    $('ciAddBtn').disabled = !sum.ready;
-    const billedNow = list.filter(r => r.included && Number(r.fee) > 0);
-    const total = billedNow.reduce((t, r) => t + Number(r.fee), 0);
-    $('ciFooterNote').textContent = sum.ready
-      ? `${billedNow.length} get this month's bill (${pkr(total)}) and show as pending in Quick Collect.${sum.skipped ? ` ${sum.skipped} skipped.` : ''}`
-      : 'Tick at least one row to add.';
-  }
-
-  // Edits re-check statuses on change (not every keystroke, so focus is kept while typing).
-  rowsEl.addEventListener('change', e => {
-    const li = e.target.closest('[data-ci-row]');
-    if (!li) return;
-    const i = rows.findIndex(r => r.key === li.dataset.ciRow);
-    if (i < 0) return;
-    if (e.target.matches('[data-ci-include]')) rows[i] = { ...rows[i], include: e.target.checked };
-    const field = e.target.dataset.ciField;
-    if (field === 'packageLabel') rows[i] = updateRowPackage(rows[i], e.target.value);
-    else if (field === 'fee') rows[i] = { ...rows[i], fee: e.target.value === '' ? null : Number(e.target.value) };
-    else if (field) rows[i] = { ...rows[i], [field]: e.target.value.trim() };
-    if (field) rows[i] = { ...rows[i], include: null }; // re-evaluate the default after a fix
-    const focusKey = li.dataset.ciRow;
-    const focusField = field;
-    renderRows();
-    if (focusField) rowsEl.querySelector(`[data-ci-row="${focusKey}"] [data-ci-field="${focusField}"]`)?.focus({ preventScroll: true });
-  });
-  rowsEl.addEventListener('click', e => {
-    const btn = e.target.closest('[data-ci-remove]');
-    if (!btn) return;
-    const key = btn.closest('[data-ci-row]').dataset.ciRow;
-    rows = rows.filter(r => r.key !== key);
-    renderRows();
-  });
-
-  function preview() {
-    const { rows: parsed } = parseCustomerList(textArea.value);
-    if (!parsed.length) { say($('ciInputStatus'), 'Paste at least one line, e.g. "ALI, 15MBPS, 3000RS".', 'error'); textArea.focus(); return; }
-    rows = parsed;
-    say($('ciInputStatus'), '');
-    show('preview');
-    renderRows();
-    rowsEl.querySelector('input')?.focus({ preventScroll: true });
-  }
-
-  async function readFile(file) {
-    if (!file) return;
-    const status = $('ciInputStatus');
-    const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
-    try {
-      say(status, isPdf ? `Reading ${file.name}… (loading the PDF reader)` : `Reading ${file.name}…`);
-      const text = isPdf ? await readPdfText(file) : await file.text();
-      textArea.value = text.trim();
-      const n = parseCustomerList(textArea.value).rows.length;
-      say(status, `✓ ${file.name}: ${n} customer line${n === 1 ? '' : 's'} found. Check the text, then tap Preview.`, n ? 'success' : 'error');
-      if (n) preview();
-    } catch (err) {
-      say(status, err.message, 'error');
-    } finally {
-      $('ciFile').value = '';
-    }
-  }
-
-  function addAll() {
-    const ctl = getController();
-    const st = state();
-    if (!ctl || !st) return;
-    const list = statusRows();
-    try {
-      const res = importCustomers(st, list, { connectionDate: getPakistanLocalDate() });
-      ctl.commitState(res.nextState);
-      refreshApp();
-      lastImport = res;
-      $('ciDoneTitle').textContent = `Added ${res.added} customer${res.added === 1 ? '' : 's'}`;
-      $('ciDoneDetail').textContent = `${res.billed} got this month's bill and are pending in Quick Collect / Bulk Collect.${res.skipped ? ` Skipped ${res.skipped}.` : ''}`;
-      const added = res.nextState.customers.filter(c => res.addedIds.includes(c.id));
-      $('ciDoneList').innerHTML = added.slice(0, 8).map(c => `<li><strong>#${c.customerNumber} ${esc(c.name)}</strong> <span>${esc(c.packageSpeed || 'No package')} · ${c.monthlySellingAmount ? esc(pkr(c.monthlySellingAmount)) : 'no fee'}</span></li>`).join('')
-        + (added.length > 8 ? `<li class="ci-more">+ ${added.length - 8} more</li>` : '');
-      say($('ciDoneStatus'), '');
-      $('ciUndoBtn').disabled = !res.added;
-      show('done');
-      $('ciOpenCollectBtn').focus({ preventScroll: true });
-    } catch (err) {
-      say($('ciInputStatus'), err.message, 'error');
-      $('ciFooterNote').textContent = `Nothing was saved: ${err.message}`;
-    }
-  }
-
-  function undo() {
-    const ctl = getController();
-    const st = state();
-    if (!lastImport || !ctl || !st) return;
-    const res = undoImport(st, lastImport.addedIds);
-    ctl.commitState(res.nextState);
-    refreshApp();
-    lastImport = null;
-    $('ciUndoBtn').disabled = true;
-    say($('ciDoneStatus'), `↶ Undone: removed ${res.removed} customer${res.removed === 1 ? '' : 's'}${res.kept ? ` (${res.kept} kept because a payment was already recorded)` : ''}.`, 'info');
-    $('ciDoneTitle').textContent = 'Import undone';
-  }
-
-  function reset() {
-    rows = [];
-    lastImport = null;
-    textArea.value = '';
-    say($('ciInputStatus'), '');
-    show('input');
-  }
-
-  // History: nav-accessibility's dialog controller already pushes one entry when a dialog is
-  // opened by a tap (so phone Back closes it). We relabel that entry as #/customers/import
-  // instead of pushing a second one; otherwise Back/close would need two steps.
-  function open() {
-    if (!modal.open) reset();
-    try { if (!modal.open) modal.showModal(); } catch { modal.setAttribute('open', ''); }
-    if (win.location.hash !== IMPORT_HASH) {
-      const st = win.history.state;
-      if (st && st.modalDialogId === modal.id) { routeMode = 'controller'; win.history.replaceState(st, '', IMPORT_HASH); }
-      else { routeMode = 'self'; win.history.pushState({ ...(st || {}), customerImport: true }, '', IMPORT_HASH); }
-    } else if (!routeMode) routeMode = 'deeplink';
-    win.setTimeout(() => textArea.focus({ preventScroll: true }), 50);
-  }
-  function close() { if (modal.open) modal.close(); else modal.removeAttribute('open'); }
-
-  modal.addEventListener('close', () => {
-    const mode = routeMode;
-    routeMode = null;
-    if (win.location.hash !== IMPORT_HASH) return; // closed by Back: history already moved
-    if (mode === 'self') win.history.back();
-    else if (mode === 'controller') {
-      // The controller steps back itself (deferred) when this is still its entry.
-      win.setTimeout(() => { if (win.location.hash === IMPORT_HASH && !modal.open) win.history.replaceState(win.history.state, '', '#/customers'); }, 120);
-    } else win.history.replaceState(win.history.state, '', '#/customers');
-  });
-  const onRoute = () => {
-    if (win.location.hash === IMPORT_HASH) { if (!modal.open) open(); }
-    else if (modal.open) { routeMode = null; close(); }
-  };
-  win.addEventListener('hashchange', onRoute);
-  win.addEventListener('popstate', onRoute);
-
-  $('closeCustomerImportBtn').addEventListener('click', close);
-  $('ciDoneBtn').addEventListener('click', close);
-  $('ciPreviewBtn').addEventListener('click', preview);
-  $('ciBackBtn').addEventListener('click', () => show('input'));
-  $('ciSampleBtn').addEventListener('click', () => { textArea.value = SAMPLE; textArea.focus(); });
-  $('ciFile').addEventListener('change', e => readFile(e.target.files?.[0]));
-  $('ciAddBtn').addEventListener('click', addAll);
-  $('ciUndoBtn').addEventListener('click', undo);
-  $('ciOpenCollectBtn').addEventListener('click', () => {
-    close();
-    win.setTimeout(() => getController()?.open?.(), 250); // after the close's history.back() lands
-  });
-  textArea.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); preview(); } });
-
-  // Entry points: next to "+ Add Customer", and inside the Add Customer dialog.
-  const addBtn = $('addCustomerButton');
-  if (addBtn && !$('bulkAddCustomersBtn')) {
-    const b = doc.createElement('button');
-    b.id = 'bulkAddCustomersBtn';
-    b.type = 'button';
-    b.className = 'ci-open-btn';
-    b.title = 'Add many customers from a list, CSV or PDF';
-    b.innerHTML = '<span aria-hidden="true">⇪</span> Bulk add';
-    b.addEventListener('click', open);
-    addBtn.insertAdjacentElement('afterend', b);
-  }
-  const addFields = $('newCustomerFields');
-  if (addFields && !$('openBulkAddFromForm')) {
-    const p = doc.createElement('p');
-    p.className = 'ci-form-link';
-    p.innerHTML = 'Adding many? <button id="openBulkAddFromForm" class="text-button" type="button">Bulk add from a list / CSV / PDF</button>';
-    addFields.insertBefore(p, addFields.firstElementChild);
-    p.querySelector('button').addEventListener('click', () => {
-      const dlg = $('addCustomerDialog');
-      if (!dlg?.open) { open(); return; }
-      // The Add Customer dialog steps history back when it closes; open only after that
-      // popstate has landed, or it would pop our #/customers/import entry straight away.
-      let done = false;
-      const go = () => { if (done) return; done = true; win.removeEventListener('popstate', onPop); win.setTimeout(open, 0); };
-      const onPop = () => go();
-      win.addEventListener('popstate', onPop);
-      dlg.close();
-      win.setTimeout(go, 400);
-    });
-  }
-
-  const api = { open, close, isOpen: () => modal.open, get rows() { return rows; } };
-  win.customerImport = api;
-  if (win.location.hash === IMPORT_HASH) win.setTimeout(onRoute, 0);
-  return api;
-}
-
-if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
-  setupCustomerImport();
-}
+        ${m.detail?`<p class="ci-detail">${y(m.detail)}</p>`:""}
+      </li>`}).join("")||'<li class="ci-empty">No rows left. Go back and paste a list.</li>',e("ciAddBtn").textContent=u.ready?`Add ${u.ready} customer${u.ready===1?"":"s"}`:"Add customers",e("ciAddBtn").disabled=!u.ready;let f=n.filter(m=>m.included&&Number(m.fee)>0),b=f.reduce((m,g)=>m+Number(g.fee),0);e("ciFooterNote").textContent=u.ready?`${f.length} get this month's bill (${oe(b)}) and show as pending in Quick Collect.${u.skipped?` ${u.skipped} skipped.`:""}`:"Tick at least one row to add."}l.addEventListener("change",n=>{let u=n.target.closest("[data-ci-row]");if(!u)return;let f=o.findIndex(re=>re.key===u.dataset.ciRow);if(f<0)return;n.target.matches("[data-ci-include]")&&(o[f]={...o[f],include:n.target.checked});let b=n.target.dataset.ciField;b==="packageLabel"?o[f]=J(o[f],n.target.value):b==="fee"?o[f]={...o[f],fee:n.target.value===""?null:Number(n.target.value)}:b&&(o[f]={...o[f],[b]:n.target.value.trim()}),b&&(o[f]={...o[f],include:null});let m=u.dataset.ciRow,g=b;L(),g&&l.querySelector(`[data-ci-row="${m}"] [data-ci-field="${g}"]`)?.focus({preventScroll:!0})}),l.addEventListener("click",n=>{let u=n.target.closest("[data-ci-remove]");if(!u)return;let f=u.closest("[data-ci-row]").dataset.ciRow;o=o.filter(b=>b.key!==f),L()});function D(){let{rows:n}=O(p.value);if(!n.length){S(e("ciInputStatus"),'Paste at least one line, e.g. "ALI, 15MBPS, 3000RS".',"error"),p.focus();return}o=n,S(e("ciInputStatus"),""),v("preview"),L(),l.querySelector("input")?.focus({preventScroll:!0})}async function se(n){if(!n)return;let u=e("ciInputStatus"),f=/\.pdf$/i.test(n.name)||n.type==="application/pdf";try{S(u,f?`Reading ${n.name}\u2026 (loading the PDF reader)`:`Reading ${n.name}\u2026`);let b=f?await ge(n):await n.text();p.value=b.trim();let m=O(p.value).rows.length;S(u,`\u2713 ${n.name}: ${m} customer line${m===1?"":"s"} found. Check the text, then tap Preview.`,m?"success":"error"),m&&D()}catch(b){S(u,b.message,"error")}finally{e("ciFile").value=""}}function ie(){let n=i(),u=k();if(!n||!u)return;let f=B();try{let b=ee(u,f,{connectionDate:H()});n.commitState(b.nextState),x(),c=b,e("ciDoneTitle").textContent=`Added ${b.added} customer${b.added===1?"":"s"}`,e("ciDoneDetail").textContent=`${b.billed} got this month's bill and are pending in Quick Collect / Bulk Collect.${b.skipped?` Skipped ${b.skipped}.`:""}`;let m=b.nextState.customers.filter(g=>b.addedIds.includes(g.id));e("ciDoneList").innerHTML=m.slice(0,8).map(g=>`<li><strong>#${g.customerNumber} ${y(g.name)}</strong> <span>${y(g.packageSpeed||"No package")} \xB7 ${g.monthlySellingAmount?y(oe(g.monthlySellingAmount)):"no fee"}</span></li>`).join("")+(m.length>8?`<li class="ci-more">+ ${m.length-8} more</li>`:""),S(e("ciDoneStatus"),""),e("ciUndoBtn").disabled=!b.added,v("done"),e("ciOpenCollectBtn").focus({preventScroll:!0})}catch(b){S(e("ciInputStatus"),b.message,"error"),e("ciFooterNote").textContent=`Nothing was saved: ${b.message}`}}function le(){let n=i(),u=k();if(!c||!n||!u)return;let f=te(u,c.addedIds);n.commitState(f.nextState),x(),c=null,e("ciUndoBtn").disabled=!0,S(e("ciDoneStatus"),`\u21B6 Undone: removed ${f.removed} customer${f.removed===1?"":"s"}${f.kept?` (${f.kept} kept because a payment was already recorded)`:""}.`,"info"),e("ciDoneTitle").textContent="Import undone"}function ce(){o=[],c=null,p.value="",S(e("ciInputStatus"),""),v("input")}function E(){s.open||ce();try{s.open||s.showModal()}catch{s.setAttribute("open","")}if(t.location.hash!==$){let n=t.history.state;n&&n.modalDialogId===s.id?(h="controller",t.history.replaceState(n,"",$)):(h="self",t.history.pushState({...n||{},customerImport:!0},"",$))}else h||(h="deeplink");t.setTimeout(()=>p.focus({preventScroll:!0}),50)}function P(){s.open?s.close():s.removeAttribute("open")}s.addEventListener("close",()=>{let n=h;h=null,t.location.hash===$&&(n==="self"?t.history.back():n==="controller"?t.setTimeout(()=>{t.location.hash===$&&!s.open&&t.history.replaceState(t.history.state,"","#/customers")},120):t.history.replaceState(t.history.state,"","#/customers"))});let N=()=>{t.location.hash===$?s.open||E():s.open&&(h=null,P())};t.addEventListener("hashchange",N),t.addEventListener("popstate",N),e("closeCustomerImportBtn").addEventListener("click",P),e("ciDoneBtn").addEventListener("click",P),e("ciPreviewBtn").addEventListener("click",D),e("ciBackBtn").addEventListener("click",()=>v("input")),e("ciSampleBtn").addEventListener("click",()=>{p.value=ae,p.focus()}),e("ciFile").addEventListener("change",n=>se(n.target.files?.[0])),e("ciAddBtn").addEventListener("click",ie),e("ciUndoBtn").addEventListener("click",le),e("ciOpenCollectBtn").addEventListener("click",()=>{P(),t.setTimeout(()=>i()?.open?.(),250)}),p.addEventListener("keydown",n=>{n.key==="Enter"&&(n.ctrlKey||n.metaKey)&&(n.preventDefault(),D())});let U=e("addCustomerButton");if(U&&!e("bulkAddCustomersBtn")){let n=a.createElement("button");n.id="bulkAddCustomersBtn",n.type="button",n.className="ci-open-btn",n.title="Add many customers from a list, CSV or PDF",n.innerHTML='<span aria-hidden="true">\u21EA</span> Bulk add',n.addEventListener("click",E),U.insertAdjacentElement("afterend",n)}let F=e("newCustomerFields");if(F&&!e("openBulkAddFromForm")){let n=a.createElement("p");n.className="ci-form-link",n.innerHTML='Adding many? <button id="openBulkAddFromForm" class="text-button" type="button">Bulk add from a list / CSV / PDF</button>',F.insertBefore(n,F.firstElementChild),n.querySelector("button").addEventListener("click",()=>{let u=e("addCustomerDialog");if(!u?.open){E();return}let f=!1,b=()=>{f||(f=!0,t.removeEventListener("popstate",m),t.setTimeout(E,0))},m=()=>b();t.addEventListener("popstate",m),u.close(),t.setTimeout(b,400)})}let _={open:E,close:P,isOpen:()=>s.open,get rows(){return o}};return t.customerImport=_,t.location.hash===$&&t.setTimeout(N,0),_}typeof window<"u"&&typeof document<"u"&&document.body&&ke();export{$ as IMPORT_HASH,he as PDFJS_VERSION,ge as readPdfText,ke as setupCustomerImport};

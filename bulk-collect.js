@@ -1,248 +1,12 @@
-/**
- * Bulk Collect Cash (Quick Collect batch mode).
- *
- * A collector coming back from a round enters many cash payments in one go:
- * batch date (today by default), a fast entry row (customer, amount, method, collected-by /
- * location note), a picker over customers with a pending balance (search by name, mobile or
- * area; multi-select), a running total, a review list with remove + undo, and one Save that
- * records every payment through the existing Quick Collect payment path
- * (executeQuickCollection → core addPayment), then saves once via the app's onSaveState.
- *
- * Duplicates (same customer twice in the batch, or a payment already recorded for that
- * customer on the batch date) are blocked with an "Already added" popup unless confirmed.
- *
- * Isolated module: builds its own dialogs, opens from the Quick Collect picker, the
- * #/bulk-collect hash, and never replaces existing handlers.
- */
-import { PAYMENT_METHODS } from './core.js';
-import {
-  getPendingCollectionCustomers,
-  getCustomerPaymentDefaults,
-  executeQuickCollection,
-  getPakistanLocalDate,
-  countCustomersWithoutFee,
-  renderQuickCollectNeedsSetupHtml
-} from './nav-quick-collect.js';
-
-export const BULK_COLLECT_HASH = '#/bulk-collect';
-/** #/bulk-collect, plus the #collect/bulk and #/collect/bulk aliases (#263). */
-export const isBulkCollectHash = (hash = '') => {
-  const raw = String(hash).trim().toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
-  return raw === 'bulk-collect' || raw === 'collect/bulk';
-};
-export const BULK_ALL_COLLECTED_TEXT = 'Sab ka bill wusool ho gaya';
-
-const cents = value => Math.round(Number(value) * 100);
-let entrySeq = 0;
-const nextEntryId = () => `bulk-${Date.now().toString(36)}-${(entrySeq++).toString(36)}`;
-
-/** A new, empty batch for `date` (YYYY-MM-DD, defaults to today in Pakistan time). */
-export function createBatch(date = getPakistanLocalDate()) {
-  return { date, entries: [], history: [] };
-}
-
-/**
- * Is `customerId` already in this batch, or does it already have a payment on `date`?
- * @returns {null | { kind: 'batch', entry } | { kind: 'recorded', payment, month }}
- */
-export function findDuplicate(batch, state, customerId, date = batch?.date) {
-  const entry = batch?.entries?.find(e => e.customerId === customerId);
-  if (entry) return { kind: 'batch', entry };
-  const customer = state?.customers?.find(c => c.id === customerId);
-  for (const bill of customer?.bills ?? []) {
-    const payment = (bill.payments ?? []).find(p => p.date === date);
-    if (payment) return { kind: 'recorded', payment, month: bill.month };
-  }
-  return null;
-}
-
-/**
- * Add an entry. Returns { batch, added, duplicate }. A duplicate is NOT added unless
- * `allowDuplicate` is true (the user confirmed the "Already added" popup).
- */
-export function addEntry(batch, state, fields, { allowDuplicate = false } = {}) {
-  if (!fields.customerId) throw new Error('Choose a customer first.');
-  // Duplicate check first, so the "Already added" popup shows even before an amount is typed.
-  const duplicate = findDuplicate(batch, state, fields.customerId, batch.date);
-  if (duplicate && !allowDuplicate) return { batch, added: null, duplicate };
-  const amount = Number(fields.amount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter an amount greater than zero.');
-  const method = fields.method || 'Cash';
-  if (!PAYMENT_METHODS.includes(method)) throw new Error(`Choose a valid payment method from: ${PAYMENT_METHODS.join(', ')}`);
-  const entry = {
-    id: nextEntryId(),
-    customerId: fields.customerId,
-    customerNumber: fields.customerNumber ?? null,
-    name: fields.name || '',
-    phone: fields.phone || '',
-    area: fields.area || '',
-    month: fields.month || null,
-    amount: cents(amount) / 100,
-    method,
-    note: String(fields.note ?? '').trim(),
-    confirmedDuplicate: Boolean(duplicate)
-  };
-  return {
-    batch: { ...batch, entries: [...batch.entries, entry], history: [...batch.history, { type: 'add', entryId: entry.id }] },
-    added: entry,
-    duplicate
-  };
-}
-
-/** Remove one entry (undoable). */
-export function removeEntry(batch, entryId) {
-  const index = batch.entries.findIndex(e => e.id === entryId);
-  if (index < 0) return batch;
-  const entry = batch.entries[index];
-  return {
-    ...batch,
-    entries: batch.entries.filter(e => e.id !== entryId),
-    history: [...batch.history, { type: 'remove', entry, index }]
-  };
-}
-
-/** Undo the last add or remove. */
-export function undoLast(batch) {
-  const last = batch.history[batch.history.length - 1];
-  if (!last) return batch;
-  const history = batch.history.slice(0, -1);
-  if (last.type === 'add') return { ...batch, history, entries: batch.entries.filter(e => e.id !== last.entryId) };
-  const entries = [...batch.entries];
-  entries.splice(Math.min(last.index, entries.length), 0, last.entry);
-  return { ...batch, history, entries };
-}
-
-export const canUndo = batch => batch.history.length > 0;
-
-/** Running totals: { count, total, byMethod: { [method]: amount } } (exact to the paisa). */
-export function batchTotals(batch) {
-  let totalCents = 0;
-  const byMethodCents = {};
-  for (const e of batch.entries) {
-    const c = cents(e.amount);
-    totalCents += c;
-    byMethodCents[e.method] = (byMethodCents[e.method] || 0) + c;
-  }
-  return {
-    count: batch.entries.length,
-    total: totalCents / 100,
-    byMethod: Object.fromEntries(Object.entries(byMethodCents).map(([m, c]) => [m, c / 100]))
-  };
-}
-
-/**
- * Picker rows: customers with a pending balance (fully paid excluded, partial stays with the
- * remaining amount), minus customers already in the batch. When a search is typed, matching
- * customers already in the batch are listed too, flagged `inBatch`, so tapping them shows
- * the "Already added" popup instead of silently missing.
- */
-export function pendingForBatch(state, batch, query = '') {
-  const inBatch = new Set(batch.entries.map(e => e.customerId));
-  const pending = getPendingCollectionCustomers(state, query, 'all-dues');
-  const rows = pending.filter(c => !inBatch.has(c.id)).map(c => ({ ...c, inBatch: false }));
-  if (String(query).trim()) {
-    const added = getPendingCollectionCustomers(state, query, 'all').filter(c => inBatch.has(c.id));
-    return [...added.map(c => ({ ...c, inBatch: true })), ...rows];
-  }
-  return rows;
-}
-
-/** Nobody has a pending balance (and nothing is being searched): show the empty state. */
-export function isAllCollected(state) {
-  return getPendingCollectionCustomers(state, '', 'all-dues').length === 0;
-}
-
-/** Default entry fields for a customer: the pending amount still unbatched, target month, method. */
-export function entryDefaults(state, batch, customerId) {
-  const d = getCustomerPaymentDefaults(state, customerId);
-  const batched = batch.entries.filter(e => e.customerId === customerId).reduce((s, e) => s + cents(e.amount), 0);
-  const pendingCents = Math.max(0, cents(d.totalDues) - batched);
-  return {
-    customerId,
-    customerNumber: d.customerNumber,
-    name: d.name,
-    phone: d.phone,
-    area: d.area,
-    month: d.targetMonth,
-    amount: pendingCents / 100,
-    totalDues: d.totalDues
-  };
-}
-
-/**
- * Record every entry with the existing Quick Collect payment logic. All-or-nothing: if any
- * entry fails, nothing is returned for saving and the error names the customer.
- * @returns {{ nextState, receipts }}
- */
-export function commitBatch(state, batch, execute = executeQuickCollection) {
-  if (!batch.entries.length) throw new Error('Add at least one payment to the batch.');
-  let next = state;
-  const receipts = [];
-  for (const e of batch.entries) {
-    try {
-      const { nextState, receipt } = execute(next, {
-        customerId: e.customerId,
-        month: e.month || undefined,
-        amount: e.amount,
-        date: batch.date,
-        method: e.method,
-        paidBy: e.note
-      });
-      next = nextState;
-      receipts.push(receipt);
-    } catch (err) {
-      throw new Error(`${e.name || e.customerId}: ${err.message} — nothing was saved.`);
-    }
-  }
-  return { nextState: next, receipts };
-}
-
-/**
- * Bulk picker rows (v2). Search ALWAYS covers every active customer (name, mobile, area,
- * mohalla, address, customer #; partial, case-insensitive), so a customer is found even when
- * no package/fee or bill exists yet. Pending customers sort first with their due; others are
- * marked 'no-bill' ("No bill set") or 'paid' and can still get a manually entered amount.
- * Empty search: the pending list, or every customer when nobody is pending (never empty).
- * Customers already in the batch are hidden, except while searching, where they are flagged
- * `inBatch` so adding them again shows the "Already added" popup.
- *
- * @returns {{ rows: Array<Object>, mode: 'pending'|'all'|'search', total: number }}
- */
-export function searchCustomersForBatch(state, batch, query = '', { limit = 60 } = {}) {
-  const q = String(query ?? '').trim();
-  const inBatch = new Set((batch?.entries ?? []).map(e => e.customerId));
-  const all = getPendingCollectionCustomers(state, q, 'all');
-  const status = c => (c.totalDues > 0 ? 'due' : c.billsCount === 0 ? 'no-bill' : 'paid');
-  let rows = all.map(c => ({ ...c, status: status(c), inBatch: inBatch.has(c.id) }));
-  let mode = 'search';
-  if (!q) {
-    rows = rows.filter(r => !r.inBatch);
-    const pending = rows.filter(r => r.status === 'due');
-    mode = pending.length ? 'pending' : 'all';
-    if (pending.length) rows = pending;
-  }
-  // Pending first (largest due first, as Quick Collect), then everyone else by customer #.
-  const rank = r => (r.inBatch ? 3 : r.status === 'due' ? 0 : 1);
-  rows.sort((a, b) => rank(a) - rank(b) || (b.totalDues - a.totalDues) || (a.customerNumber - b.customerNumber));
-  return { rows: rows.slice(0, limit), mode, total: rows.length };
-}
-
-/* ------------------------------------------------------------------ UI ------------------ */
-
-const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-const pkr = n => `PKR ${Number(n || 0).toLocaleString('en-PK', { maximumFractionDigits: 2 })}`;
-
-function buildDialogs(doc) {
-  const wrap = doc.createElement('div');
-  wrap.innerHTML = `
+import{Q as T,R as E,S as W,T as X,V as U,W as Z}from"./chunk-NWJZHAZJ.js";import{u as M}from"./chunk-ERGNZBXW.js";var j="#/bulk-collect",B=(e="")=>{let l=String(e).trim().toLowerCase().replace(/^#\/?/,"").replace(/\/$/,"");return l==="bulk-collect"||l==="collect/bulk"},tt="Sab ka bill wusool ho gaya",N=e=>Math.round(Number(e)*100),it=0,rt=()=>`bulk-${Date.now().toString(36)}-${(it++).toString(36)}`;function _(e=T()){return{date:e,entries:[],history:[]}}function dt(e,l,o,s=e?.date){let a=e?.entries?.find(i=>i.customerId===o);if(a)return{kind:"batch",entry:a};let c=l?.customers?.find(i=>i.id===o);for(let i of c?.bills??[]){let b=(i.payments??[]).find(k=>k.date===s);if(b)return{kind:"recorded",payment:b,month:i.month}}return null}function et(e,l,o,{allowDuplicate:s=!1}={}){if(!o.customerId)throw new Error("Choose a customer first.");let a=dt(e,l,o.customerId,e.date);if(a&&!s)return{batch:e,added:null,duplicate:a};let c=Number(o.amount);if(!Number.isFinite(c)||c<=0)throw new Error("Enter an amount greater than zero.");let i=o.method||"Cash";if(!M.includes(i))throw new Error(`Choose a valid payment method from: ${M.join(", ")}`);let b={id:rt(),customerId:o.customerId,customerNumber:o.customerNumber??null,name:o.name||"",phone:o.phone||"",area:o.area||"",month:o.month||null,amount:N(c)/100,method:i,note:String(o.note??"").trim(),confirmedDuplicate:!!a};return{batch:{...e,entries:[...e.entries,b],history:[...e.history,{type:"add",entryId:b.id}]},added:b,duplicate:a}}function ut(e,l){let o=e.entries.findIndex(a=>a.id===l);if(o<0)return e;let s=e.entries[o];return{...e,entries:e.entries.filter(a=>a.id!==l),history:[...e.history,{type:"remove",entry:s,index:o}]}}function pt(e){let l=e.history[e.history.length-1];if(!l)return e;let o=e.history.slice(0,-1);if(l.type==="add")return{...e,history:o,entries:e.entries.filter(a=>a.id!==l.entryId)};let s=[...e.entries];return s.splice(Math.min(l.index,s.length),0,l.entry),{...e,history:o,entries:s}}var bt=e=>e.history.length>0;function K(e){let l=0,o={};for(let s of e.entries){let a=N(s.amount);l+=a,o[s.method]=(o[s.method]||0)+a}return{count:e.entries.length,total:l/100,byMethod:Object.fromEntries(Object.entries(o).map(([s,a])=>[s,a/100]))}}function Ct(e,l,o=""){let s=new Set(l.entries.map(i=>i.customerId)),c=E(e,o,"all-dues").filter(i=>!s.has(i.id)).map(i=>({...i,inBatch:!1}));return String(o).trim()?[...E(e,o,"all").filter(b=>s.has(b.id)).map(b=>({...b,inBatch:!0})),...c]:c}function $t(e){return E(e,"","all-dues").length===0}function nt(e,l,o){let s=W(e,o),a=l.entries.filter(i=>i.customerId===o).reduce((i,b)=>i+N(b.amount),0),c=Math.max(0,N(s.totalDues)-a);return{customerId:o,customerNumber:s.customerNumber,name:s.name,phone:s.phone,area:s.area,month:s.targetMonth,amount:c/100,totalDues:s.totalDues}}function mt(e,l,o=X){if(!l.entries.length)throw new Error("Add at least one payment to the batch.");let s=e,a=[];for(let c of l.entries)try{let{nextState:i,receipt:b}=o(s,{customerId:c.customerId,month:c.month||void 0,amount:c.amount,date:l.date,method:c.method,paidBy:c.note});s=i,a.push(b)}catch(i){throw new Error(`${c.name||c.customerId}: ${i.message} \u2014 nothing was saved.`)}return{nextState:s,receipts:a}}function ht(e,l,o="",{limit:s=60}={}){let a=String(o??"").trim(),c=new Set((l?.entries??[]).map(d=>d.customerId)),i=E(e,a,"all"),b=d=>d.totalDues>0?"due":d.billsCount===0?"no-bill":"paid",k=i.map(d=>({...d,status:b(d),inBatch:c.has(d.id)})),S="search";if(!a){k=k.filter(v=>!v.inBatch);let d=k.filter(v=>v.status==="due");S=d.length?"pending":"all",d.length&&(k=d)}let y=d=>d.inBatch?3:d.status==="due"?0:1;return k.sort((d,v)=>y(d)-y(v)||v.totalDues-d.totalDues||d.customerNumber-v.customerNumber),{rows:k.slice(0,s),mode:S,total:k.length}}var r=e=>String(e??"").replace(/[&<>"']/g,l=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[l]),C=e=>`PKR ${Number(e||0).toLocaleString("en-PK",{maximumFractionDigits:2})}`;function ft(e){let l=e.createElement("div");for(l.innerHTML=`
   <dialog id="bulkCollectModal" class="modal bulk-collect-modal" aria-labelledby="bulkCollectTitle">
     <section class="bulk-collect-card">
       <div class="modal-heading">
         <div>
-          <p class="eyebrow">FIELD RECOVERY · BATCH</p>
+          <p class="eyebrow">FIELD RECOVERY \xB7 BATCH</p>
           <h2 id="bulkCollectTitle">Bulk Collect Cash</h2>
         </div>
-        <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">×</button>
+        <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">\xD7</button>
       </div>
 
       <div class="bc-settings" role="group" aria-label="Batch settings (apply to every payment)">
@@ -253,18 +17,18 @@ function buildDialogs(doc) {
           <select id="bulkCollectMethod"></select>
         </label>
         <label class="bc-field bc-note"><span>Collected by / location <span class="bc-optional">(optional)</span></span>
-          <input id="bulkCollectNote" type="text" maxlength="120" placeholder="e.g. Saad · Jia Musa round">
+          <input id="bulkCollectNote" type="text" maxlength="120" placeholder="e.g. Saad \xB7 Jia Musa round">
         </label>
       </div>
 
       <div class="bc-search">
         <label class="bc-search-label" for="bulkCollectSearch">Find customer</label>
         <div class="bc-search-box">
-          <span class="bc-search-icon" aria-hidden="true">🔍</span>
+          <span class="bc-search-icon" aria-hidden="true">\u{1F50D}</span>
           <input id="bulkCollectSearch" type="search" class="bc-search-input" enterkeyhint="next" autocomplete="off" spellcheck="false"
                  placeholder="Name, mobile, area or #" aria-describedby="bulkCollectHint" aria-controls="bulkCollectPickList">
         </div>
-        <p id="bulkCollectHint" class="bc-hint">Type to search all customers · Enter jumps to the amount · Enter again adds.</p>
+        <p id="bulkCollectHint" class="bc-hint">Type to search all customers \xB7 Enter jumps to the amount \xB7 Enter again adds.</p>
       </div>
 
       <div id="bulkCollectPickList" class="bc-pick-list" role="list" aria-label="Customers" aria-live="polite"></div>
@@ -272,7 +36,7 @@ function buildDialogs(doc) {
       <div class="bc-review">
         <div class="bc-review-head">
           <h3>In this batch <span id="bulkCollectCount" class="bc-count">0 customers</span></h3>
-          <button id="bulkCollectUndoBtn" class="secondary-button" type="button" disabled>↶ Undo</button>
+          <button id="bulkCollectUndoBtn" class="secondary-button" type="button" disabled>\u21B6 Undo</button>
         </div>
         <ol id="bulkCollectReviewList" class="bc-review-list" aria-label="Payments in this batch"></ol>
       </div>
@@ -288,322 +52,39 @@ function buildDialogs(doc) {
   <dialog id="bulkDuplicateDialog" class="modal bulk-duplicate-modal" aria-labelledby="bulkDuplicateTitle" aria-describedby="bulkDuplicateBody">
     <section class="bulk-duplicate-card">
       <div class="modal-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <h2 id="bulkDuplicateTitle" style="margin:0;">⚠ Already added</h2>
-        <button id="closeBulkDuplicateModalBtn" class="close-button" type="button" aria-label="Close duplicate alert">×</button>
+        <h2 id="bulkDuplicateTitle" style="margin:0;">\u26A0 Already added</h2>
+        <button id="closeBulkDuplicateModalBtn" class="close-button" type="button" aria-label="Close duplicate alert">\xD7</button>
       </div>
       <div id="bulkDuplicateBody" class="bc-dup-body"></div>
       <div class="bc-dup-actions">
-        <button id="bulkDuplicateCancelBtn" class="secondary-button" type="button">Cancel · Skip</button>
+        <button id="bulkDuplicateCancelBtn" class="secondary-button" type="button">Cancel \xB7 Skip</button>
         <button id="bulkDuplicateConfirmBtn" class="danger-button bc-dup-confirm" type="button">Add again anyway</button>
       </div>
     </section>
-  </dialog>`;
-  while (wrap.firstElementChild) doc.body.appendChild(wrap.firstElementChild);
-}
-
-const STATUS_BADGE = {
-  due: c => `<span class="bc-badge bc-badge-due">Due ${esc(pkr(c.totalDues))}</span>`,
-  'no-bill': () => '<span class="bc-badge bc-badge-nobill">No bill set</span>',
-  paid: () => '<span class="bc-badge bc-badge-paid">Paid</span>'
-};
-
-export function setupBulkCollect({ win = window, doc = document, getController = () => win.quickCollectModalController, toast } = {}) {
-  if (doc.getElementById('bulkCollectModal')) return win.bulkCollect;
-  buildDialogs(doc);
-  const $ = id => doc.getElementById(id);
-  const modal = $('bulkCollectModal');
-  const dupDialog = $('bulkDuplicateDialog');
-  const dateInput = $('bulkCollectDate');
-  const methodSelect = $('bulkCollectMethod');
-  const noteInput = $('bulkCollectNote');
-  const searchInput = $('bulkCollectSearch');
-  const pickList = $('bulkCollectPickList');
-  const reviewList = $('bulkCollectReviewList');
-  const undoBtn = $('bulkCollectUndoBtn');
-  const saveBtn = $('bulkCollectSaveBtn');
-  const statusEl = $('bulkCollectStatus');
-
-  methodSelect.innerHTML = PAYMENT_METHODS.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('');
-  methodSelect.value = 'Cash';
-
-  let batch = createBatch();
-  let hashOnOpen = null;
-  let resolveDup = null;
-  const typed = new Map(); // customerId -> amount typed in its row (kept across re-renders)
-
-  // The page toast sits under the top-layer dialog, so messages are shown inside the dialog.
-  const say = (msg, kind = 'info') => {
-    statusEl.textContent = msg;
-    statusEl.dataset.kind = kind;
-    statusEl.hidden = !msg;
-    if (typeof toast === 'function' && msg) toast(msg);
-  };
-  const state = () => getController()?.getState?.();
-
-  function allModeCaption(st, total) {
-    if (getPendingCollectionCustomers(st, '', 'all-dues').length) return `All pending customers are in the batch — showing everyone else (${total}).`;
-    if (countCustomersWithoutFee(st) > 0) return `No pending dues — showing all customers (${total}). Enter the amount received.`;
-    return `${esc(BULK_ALL_COLLECTED_TEXT)} — showing all customers (${total}). Enter the amount received.`;
-  }
-
-  function renderPicker() {
-    const st = state();
-    if (!st) { pickList.innerHTML = ''; return; }
-    const query = searchInput.value;
-    const { rows, mode, total } = searchCustomersForBatch(st, batch, query);
-    if (!rows.length) {
-      const noFee = countCustomersWithoutFee(st);
-      pickList.innerHTML = String(query).trim()
-        ? `<div class="qc-empty-state" role="status"><span class="qc-empty-icon" aria-hidden="true">🔍</span><h4>No customer matches “${esc(query.trim())}”</h4><p>Search by name, mobile number, area or customer #.</p></div>`
-        : batch.entries.length
-          ? `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>Sab customers batch mein add ho gaye</h4><p>Review the batch below and tap Save.</p></div>`
-          : noFee ? renderQuickCollectNeedsSetupHtml(noFee, { showAll: false })
-            : `<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">✅</span><h4>${esc(BULK_ALL_COLLECTED_TEXT)}</h4></div>`;
-      return;
-    }
-    const head = mode === 'pending'
-      ? `<p class="bc-list-caption">Pending customers (${total}) · search to find anyone else</p>`
-      : mode === 'all'
-        ? `<p class="bc-list-caption">${allModeCaption(st, total)}</p>`
-        : `<p class="bc-list-caption">${total} match${total === 1 ? '' : 'es'}${total > rows.length ? ` · showing ${rows.length}, keep typing` : ''}</p>`;
-    pickList.innerHTML = head + rows.map(c => {
-      const d = entryDefaults(st, batch, c.id);
-      const value = typed.has(c.id) ? typed.get(c.id) : (d.amount > 0 ? String(d.amount) : '');
-      return `<div class="bc-row${c.inBatch ? ' is-in-batch' : ''}" role="listitem" data-bulk-row="${esc(c.id)}">
+  </dialog>`;l.firstElementChild;)e.body.appendChild(l.firstElementChild)}var yt={due:e=>`<span class="bc-badge bc-badge-due">Due ${r(C(e.totalDues))}</span>`,"no-bill":()=>'<span class="bc-badge bc-badge-nobill">No bill set</span>',paid:()=>'<span class="bc-badge bc-badge-paid">Paid</span>'};function kt({win:e=window,doc:l=document,getController:o=()=>e.quickCollectModalController,toast:s}={}){if(l.getElementById("bulkCollectModal"))return e.bulkCollect;ft(l);let a=t=>l.getElementById(t),c=a("bulkCollectModal"),i=a("bulkDuplicateDialog"),b=a("bulkCollectDate"),k=a("bulkCollectMethod"),S=a("bulkCollectNote"),y=a("bulkCollectSearch"),d=a("bulkCollectPickList"),v=a("bulkCollectReviewList"),Q=a("bulkCollectUndoBtn"),I=a("bulkCollectSaveBtn"),q=a("bulkCollectStatus");k.innerHTML=M.map(t=>`<option value="${r(t)}">${r(t)}</option>`).join(""),k.value="Cash";let u=_(),D=null,P=null,w=new Map,g=(t,n="info")=>{q.textContent=t,q.dataset.kind=n,q.hidden=!t,typeof s=="function"&&t&&s(t)},H=()=>o()?.getState?.();function at(t,n){return E(t,"","all-dues").length?`All pending customers are in the batch \u2014 showing everyone else (${n}).`:U(t)>0?`No pending dues \u2014 showing all customers (${n}). Enter the amount received.`:`${r(tt)} \u2014 showing all customers (${n}). Enter the amount received.`}function Y(){let t=H();if(!t){d.innerHTML="";return}let n=y.value,{rows:p,mode:f,total:h}=ht(t,u,n);if(!p.length){let m=U(t);d.innerHTML=String(n).trim()?`<div class="qc-empty-state" role="status"><span class="qc-empty-icon" aria-hidden="true">\u{1F50D}</span><h4>No customer matches \u201C${r(n.trim())}\u201D</h4><p>Search by name, mobile number, area or customer #.</p></div>`:u.entries.length?'<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">\u2705</span><h4>Sab customers batch mein add ho gaye</h4><p>Review the batch below and tap Save.</p></div>':m?Z(m,{showAll:!1}):`<div class="qc-empty-state qc-all-collected" role="status"><span class="qc-empty-icon" aria-hidden="true">\u2705</span><h4>${r(tt)}</h4></div>`;return}let F=f==="pending"?`<p class="bc-list-caption">Pending customers (${h}) \xB7 search to find anyone else</p>`:f==="all"?`<p class="bc-list-caption">${at(t,h)}</p>`:`<p class="bc-list-caption">${h} match${h===1?"":"es"}${h>p.length?` \xB7 showing ${p.length}, keep typing`:""}</p>`;d.innerHTML=F+p.map(m=>{let V=nt(t,u,m.id),ct=w.has(m.id)?w.get(m.id):V.amount>0?String(V.amount):"";return`<div class="bc-row${m.inBatch?" is-in-batch":""}" role="listitem" data-bulk-row="${r(m.id)}">
         <div class="bc-row-info">
-          <span class="bc-row-name"><span class="bc-row-num">#${esc(c.customerNumber)}</span> ${esc(c.name)}</span>
-          <span class="bc-row-meta">${esc(c.area)}${c.phone ? ' · ' + esc(c.phone) : ''}</span>
-          <span class="bc-row-badges">${STATUS_BADGE[c.status](c)}${c.inBatch ? '<span class="bc-badge bc-badge-added">In batch ✓</span>' : ''}</span>
+          <span class="bc-row-name"><span class="bc-row-num">#${r(m.customerNumber)}</span> ${r(m.name)}</span>
+          <span class="bc-row-meta">${r(m.area)}${m.phone?" \xB7 "+r(m.phone):""}</span>
+          <span class="bc-row-badges">${yt[m.status](m)}${m.inBatch?'<span class="bc-badge bc-badge-added">In batch \u2713</span>':""}</span>
         </div>
         <div class="bc-row-entry">
           <input class="bc-amount" type="number" inputmode="decimal" min="0" step="0.01" enterkeyhint="done"
-                 value="${esc(value)}" placeholder="${c.status === 'due' ? '0' : 'Enter amount'}"
-                 data-bulk-amount="${esc(c.id)}" aria-label="Amount for ${esc(c.name)} (PKR)">
-          <button type="button" class="primary-button bc-row-add" data-bulk-add="${esc(c.id)}" aria-label="Add ${esc(c.name)} to batch">Add</button>
+                 value="${r(ct)}" placeholder="${m.status==="due"?"0":"Enter amount"}"
+                 data-bulk-amount="${r(m.id)}" aria-label="Amount for ${r(m.name)} (PKR)">
+          <button type="button" class="primary-button bc-row-add" data-bulk-add="${r(m.id)}" aria-label="Add ${r(m.name)} to batch">Add</button>
         </div>
-      </div>`;
-    }).join('');
-  }
-
-  function renderReview() {
-    const t = batchTotals(batch);
-    $('bulkCollectTotal').textContent = pkr(t.total);
-    $('bulkCollectCount').textContent = `${t.count} customer${t.count === 1 ? '' : 's'}`;
-    reviewList.innerHTML = batch.entries.length ? batch.entries.slice().reverse().map(e => `
-      <li class="bc-review-item" data-entry-id="${esc(e.id)}">
-        <div class="bc-review-main"><strong class="bc-review-name">${esc(e.name)}</strong>
-          <span class="bc-review-meta">#${esc(e.customerNumber)} · ${esc(e.method)}${e.note ? ' · ' + esc(e.note) : ''}${e.confirmedDuplicate ? ' · <b class="bc-dup-flag">duplicate confirmed</b>' : ''}</span></div>
-        <strong class="bc-review-amt">${esc(pkr(e.amount))}</strong>
-        <button type="button" class="bc-remove-btn" data-bulk-remove="${esc(e.id)}" aria-label="Remove ${esc(e.name)} from batch">Remove</button>
-      </li>`).join('') : '<li class="bc-review-empty">Nothing added yet — find a customer above and tap Add.</li>';
-    undoBtn.disabled = !canUndo(batch);
-    saveBtn.disabled = t.count === 0;
-    saveBtn.textContent = t.count ? `Save ${t.count} payment${t.count === 1 ? '' : 's'} · ${pkr(t.total)}` : 'Save payments';
-  }
-
-  const renderAll = () => { renderPicker(); renderReview(); };
-
-  function showDuplicate(fields, duplicate) {
-    const amount = duplicate.kind === 'batch' ? duplicate.entry.amount : duplicate.payment.amount;
-    const where = duplicate.kind === 'batch'
-      ? `is already in this batch for <b>${esc(batch.date)}</b>.`
-      : `already has a payment recorded on <b>${esc(batch.date)}</b> (${esc(duplicate.payment.method || 'Cash')}, bill ${esc(duplicate.month)}).`;
-    $('bulkDuplicateBody').innerHTML = `
-      <p>This customer ${where}</p>
+      </div>`}).join("")}function ot(){let t=K(u);a("bulkCollectTotal").textContent=C(t.total),a("bulkCollectCount").textContent=`${t.count} customer${t.count===1?"":"s"}`,v.innerHTML=u.entries.length?u.entries.slice().reverse().map(n=>`
+      <li class="bc-review-item" data-entry-id="${r(n.id)}">
+        <div class="bc-review-main"><strong class="bc-review-name">${r(n.name)}</strong>
+          <span class="bc-review-meta">#${r(n.customerNumber)} \xB7 ${r(n.method)}${n.note?" \xB7 "+r(n.note):""}${n.confirmedDuplicate?' \xB7 <b class="bc-dup-flag">duplicate confirmed</b>':""}</span></div>
+        <strong class="bc-review-amt">${r(C(n.amount))}</strong>
+        <button type="button" class="bc-remove-btn" data-bulk-remove="${r(n.id)}" aria-label="Remove ${r(n.name)} from batch">Remove</button>
+      </li>`).join(""):'<li class="bc-review-empty">Nothing added yet \u2014 find a customer above and tap Add.</li>',Q.disabled=!bt(u),I.disabled=t.count===0,I.textContent=t.count?`Save ${t.count} payment${t.count===1?"":"s"} \xB7 ${C(t.total)}`:"Save payments"}let $=()=>{Y(),ot()};function lt(t,n){let p=n.kind==="batch"?n.entry.amount:n.payment.amount,f=n.kind==="batch"?`is already in this batch for <b>${r(u.date)}</b>.`:`already has a payment recorded on <b>${r(u.date)}</b> (${r(n.payment.method||"Cash")}, bill ${r(n.month)}).`;return a("bulkDuplicateBody").innerHTML=`
+      <p>This customer ${f}</p>
       <dl class="bc-dup-grid">
-        <dt>Name</dt><dd id="bulkDuplicateName">${esc(fields.name)}</dd>
-        <dt>Mobile</dt><dd id="bulkDuplicateMobile">${esc(fields.phone || 'Not saved')}</dd>
-        <dt>Area</dt><dd id="bulkDuplicateArea">${esc(fields.area || 'Unassigned')}</dd>
-        <dt>Amount</dt><dd id="bulkDuplicateAmount">${esc(pkr(amount))}</dd>
+        <dt>Name</dt><dd id="bulkDuplicateName">${r(t.name)}</dd>
+        <dt>Mobile</dt><dd id="bulkDuplicateMobile">${r(t.phone||"Not saved")}</dd>
+        <dt>Area</dt><dd id="bulkDuplicateArea">${r(t.area||"Unassigned")}</dd>
+        <dt>Amount</dt><dd id="bulkDuplicateAmount">${r(C(p))}</dd>
       </dl>
-      <p class="bc-dup-warn">Adding again records a second payment. Only confirm if this really is a separate payment.</p>`;
-    return new Promise(resolve => {
-      resolveDup = resolve;
-      try { dupDialog.showModal(); } catch { dupDialog.setAttribute('open', ''); }
-      $('bulkDuplicateCancelBtn').focus();
-    });
-  }
-  const closeDup = result => {
-    if (dupDialog.open) dupDialog.close(); else dupDialog.removeAttribute('open');
-    const r = resolveDup; resolveDup = null; r?.(result);
-  };
-  $('closeBulkDuplicateModalBtn')?.addEventListener('click', () => closeDup(false));
-  $('bulkDuplicateCancelBtn').addEventListener('click', () => closeDup(false));
-  $('bulkDuplicateConfirmBtn').addEventListener('click', () => closeDup(true));
-  dupDialog.addEventListener('cancel', e => { e.preventDefault(); closeDup(false); });
-
-  const amountBox = id => pickList.querySelector(`[data-bulk-amount="${CSS.escape(id)}"]`);
-
-  function nextCustomer() {
-    searchInput.value = '';
-    renderAll();
-    searchInput.focus({ preventScroll: true });
-  }
-
-  async function addCustomer(id) {
-    const st = state();
-    if (!st) return;
-    const box = amountBox(id);
-    const fields = { ...entryDefaults(st, batch, id), amount: Number(box?.value), method: methodSelect.value || 'Cash', note: noteInput.value };
-    let res;
-    try {
-      res = addEntry(batch, st, fields);
-      if (!res.added && res.duplicate) {
-        if (!(await showDuplicate(fields, res.duplicate))) { say('Skipped — already added.'); box?.focus(); return; }
-        res = addEntry(batch, st, fields, { allowDuplicate: true });
-      }
-    } catch (err) {
-      say(err.message, 'error');
-      box?.focus();
-      box?.select?.();
-      return;
-    }
-    batch = res.batch;
-    typed.delete(id);
-    say(`✓ ${res.added.name} · ${pkr(res.added.amount)} added · batch ${pkr(batchTotals(batch).total)}`, 'success');
-    nextCustomer();
-  }
-
-  // Search: live as you type; Enter jumps to the first result's amount; Esc clears.
-  searchInput.addEventListener('input', renderPicker);
-  searchInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const first = pickList.querySelector('[data-bulk-amount]');
-      if (first) { first.focus(); first.select?.(); }
-    } else if (e.key === 'Escape' && searchInput.value) {
-      e.preventDefault();
-      e.stopPropagation();
-      nextCustomer();
-    } else if (e.key === 'ArrowDown') {
-      const first = pickList.querySelector('[data-bulk-amount]');
-      if (first) { e.preventDefault(); first.focus(); first.select?.(); }
-    }
-  });
-  pickList.addEventListener('input', e => {
-    const box = e.target.closest('[data-bulk-amount]');
-    if (box) typed.set(box.getAttribute('data-bulk-amount'), box.value);
-  });
-  pickList.addEventListener('keydown', e => {
-    const box = e.target.closest('[data-bulk-amount]');
-    if (!box) return;
-    if (e.key === 'Enter') { e.preventDefault(); addCustomer(box.getAttribute('data-bulk-amount')); }
-    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-      const boxes = [...pickList.querySelectorAll('[data-bulk-amount]')];
-      const i = boxes.indexOf(box) + (e.key === 'ArrowDown' ? 1 : -1);
-      e.preventDefault();
-      if (i < 0) searchInput.focus(); else if (boxes[i]) { boxes[i].focus(); boxes[i].select?.(); }
-    } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); nextCustomer(); }
-  });
-  pickList.addEventListener('click', e => {
-    const add = e.target.closest('[data-bulk-add]');
-    if (add) { addCustomer(add.getAttribute('data-bulk-add')); return; }
-    const row = e.target.closest('[data-bulk-row]');
-    if (row && !e.target.closest('input')) { const box = row.querySelector('[data-bulk-amount]'); box?.focus(); box?.select?.(); }
-  });
-  reviewList.addEventListener('click', e => {
-    const btn = e.target.closest('[data-bulk-remove]');
-    if (!btn) return;
-    batch = removeEntry(batch, btn.getAttribute('data-bulk-remove'));
-    renderAll();
-    say('Removed from batch — Undo to bring it back.');
-  });
-  undoBtn.addEventListener('click', () => { batch = undoLast(batch); renderAll(); });
-  dateInput.addEventListener('change', () => {
-    batch = { ...batch, date: dateInput.value || getPakistanLocalDate() };
-    renderAll();
-  });
-
-  saveBtn.addEventListener('click', () => {
-    const controller = getController();
-    const st = state();
-    if (!controller?.commitState || !st) { say('Payments are not ready yet — reload the app.', 'error'); return; }
-    try {
-      const totals = batchTotals(batch);
-      const { nextState, receipts } = commitBatch(st, batch);
-      controller.commitState(nextState);
-      batch = createBatch(batch.date);
-      typed.clear();
-      searchInput.value = '';
-      renderAll();
-      say(`✓ ${receipts.length} payment${receipts.length === 1 ? '' : 's'} saved · ${pkr(totals.total)}`, 'success');
-    } catch (err) {
-      say(err.message, 'error');
-    }
-  });
-
-  function open() {
-    const today = getPakistanLocalDate();
-    if (!batch.entries.length) batch = createBatch(today);
-    dateInput.max = today;
-    dateInput.value = batch.date;
-    say('');
-    const qc = getController();
-    if (qc?.isOpen?.()) qc.close();
-    searchInput.value = '';
-    renderAll();
-    if (!isBulkCollectHash(win.location.hash)) {
-      // One history entry per sheet: Back closes Bulk and returns to where it was opened
-      // (usually Quick Collect at #/collect, which re-opens) — the batch is kept in memory.
-      hashOnOpen = win.location.hash || '#/home';
-      win.history.pushState({ bulkCollect: true, bulkFrom: hashOnOpen }, '', BULK_COLLECT_HASH);
-    } else {
-      if (win.location.hash !== BULK_COLLECT_HASH) win.history.replaceState({ ...(win.history.state || {}), bulkCollect: true }, '', BULK_COLLECT_HASH);
-      if (hashOnOpen === null) hashOnOpen = '#/home';
-    }
-    try { if (!modal.open) modal.showModal(); } catch { modal.setAttribute('open', ''); }
-    win.setTimeout(() => searchInput.focus({ preventScroll: true }), 50);
-  }
-
-  function close() {
-    if (modal.open) modal.close(); else modal.removeAttribute('open');
-  }
-  // Esc inside the search/amount boxes clears the search; it only closes the dialog when the search is empty.
-  modal.addEventListener('cancel', e => {
-    if (searchInput.value) { e.preventDefault(); nextCustomer(); }
-  });
-  modal.addEventListener('close', () => {
-    // Closed with × / Esc while still on its own route: step back (Back already moved off it).
-    if (isBulkCollectHash(win.location.hash)) {
-      const from = win.history.state?.bulkCollect ? win.history.state.bulkFrom : null;
-      if (from) {
-        // × / Esc closes Bulk and the Quick Collect sheet under it (phone Back steps one sheet at a time).
-        if (/^#\/?(collect|quick-collect)\/?$/i.test(from)) win.screenRouter?.collect?.skipNextOpen?.();
-        win.history.back();
-      }
-      else win.history.replaceState({ ...(win.history.state || {}), bulkCollect: false }, '', '#/home');
-    }
-    hashOnOpen = null;
-    getController()?.refresh?.();
-  });
-  $('closeBulkCollectBtn').addEventListener('click', close);
-
-  // Entry point inside Quick Collect's picker step.
-  const pick = doc.getElementById('quickCollectStepPick');
-  if (pick && !doc.getElementById('openBulkCollectBtn')) {
-    const btn = doc.createElement('button');
-    btn.type = 'button';
-    btn.id = 'openBulkCollectBtn';
-    btn.className = 'bc-open-btn';
-    btn.innerHTML = '<span aria-hidden="true">💵</span> Bulk Collect Cash <small>many payments in one batch</small>';
-    btn.addEventListener('click', open);
-    pick.insertBefore(btn, pick.firstElementChild);
-  }
-
-  const onHash = () => { if (isBulkCollectHash(win.location.hash) && !modal.open) open(); };
-  win.addEventListener('hashchange', onHash);
-  win.addEventListener('popstate', () => {
-    if (isBulkCollectHash(win.location.hash)) { if (!modal.open) open(); }
-    else if (modal.open) { hashOnOpen = null; close(); }
-  });
-
-  const api = { open, close, isOpen: () => modal.open, refresh: () => { if (modal.open) renderAll(); }, get batch() { return batch; } };
-  win.bulkCollect = api;
-  // Deep link: #/bulk-collect (wait for the app to finish its own startup).
-  if (isBulkCollectHash(win.location.hash)) win.setTimeout(onHash, 0);
-  return api;
-}
-
-if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
-  setupBulkCollect();
-}
+      <p class="bc-dup-warn">Adding again records a second payment. Only confirm if this really is a separate payment.</p>`,new Promise(h=>{P=h;try{i.showModal()}catch{i.setAttribute("open","")}a("bulkDuplicateCancelBtn").focus()})}let x=t=>{i.open?i.close():i.removeAttribute("open");let n=P;P=null,n?.(t)};a("closeBulkDuplicateModalBtn")?.addEventListener("click",()=>x(!1)),a("bulkDuplicateCancelBtn").addEventListener("click",()=>x(!1)),a("bulkDuplicateConfirmBtn").addEventListener("click",()=>x(!0)),i.addEventListener("cancel",t=>{t.preventDefault(),x(!1)});let st=t=>d.querySelector(`[data-bulk-amount="${CSS.escape(t)}"]`);function L(){y.value="",$(),y.focus({preventScroll:!0})}async function z(t){let n=H();if(!n)return;let p=st(t),f={...nt(n,u,t),amount:Number(p?.value),method:k.value||"Cash",note:S.value},h;try{if(h=et(u,n,f),!h.added&&h.duplicate){if(!await lt(f,h.duplicate)){g("Skipped \u2014 already added."),p?.focus();return}h=et(u,n,f,{allowDuplicate:!0})}}catch(F){g(F.message,"error"),p?.focus(),p?.select?.();return}u=h.batch,w.delete(t),g(`\u2713 ${h.added.name} \xB7 ${C(h.added.amount)} added \xB7 batch ${C(K(u).total)}`,"success"),L()}y.addEventListener("input",Y),y.addEventListener("keydown",t=>{if(t.key==="Enter"){t.preventDefault();let n=d.querySelector("[data-bulk-amount]");n&&(n.focus(),n.select?.())}else if(t.key==="Escape"&&y.value)t.preventDefault(),t.stopPropagation(),L();else if(t.key==="ArrowDown"){let n=d.querySelector("[data-bulk-amount]");n&&(t.preventDefault(),n.focus(),n.select?.())}}),d.addEventListener("input",t=>{let n=t.target.closest("[data-bulk-amount]");n&&w.set(n.getAttribute("data-bulk-amount"),n.value)}),d.addEventListener("keydown",t=>{let n=t.target.closest("[data-bulk-amount]");if(n)if(t.key==="Enter")t.preventDefault(),z(n.getAttribute("data-bulk-amount"));else if(t.key==="ArrowDown"||t.key==="ArrowUp"){let p=[...d.querySelectorAll("[data-bulk-amount]")],f=p.indexOf(n)+(t.key==="ArrowDown"?1:-1);t.preventDefault(),f<0?y.focus():p[f]&&(p[f].focus(),p[f].select?.())}else t.key==="Escape"&&(t.preventDefault(),t.stopPropagation(),L())}),d.addEventListener("click",t=>{let n=t.target.closest("[data-bulk-add]");if(n){z(n.getAttribute("data-bulk-add"));return}let p=t.target.closest("[data-bulk-row]");if(p&&!t.target.closest("input")){let f=p.querySelector("[data-bulk-amount]");f?.focus(),f?.select?.()}}),v.addEventListener("click",t=>{let n=t.target.closest("[data-bulk-remove]");n&&(u=ut(u,n.getAttribute("data-bulk-remove")),$(),g("Removed from batch \u2014 Undo to bring it back."))}),Q.addEventListener("click",()=>{u=pt(u),$()}),b.addEventListener("change",()=>{u={...u,date:b.value||T()},$()}),I.addEventListener("click",()=>{let t=o(),n=H();if(!t?.commitState||!n){g("Payments are not ready yet \u2014 reload the app.","error");return}try{let p=K(u),{nextState:f,receipts:h}=mt(n,u);t.commitState(f),u=_(u.date),w.clear(),y.value="",$(),g(`\u2713 ${h.length} payment${h.length===1?"":"s"} saved \xB7 ${C(p.total)}`,"success")}catch(p){g(p.message,"error")}});function A(){let t=T();u.entries.length||(u=_(t)),b.max=t,b.value=u.date,g("");let n=o();n?.isOpen?.()&&n.close(),y.value="",$(),B(e.location.hash)?(e.location.hash!==j&&e.history.replaceState({...e.history.state||{},bulkCollect:!0},"",j),D===null&&(D="#/home")):(D=e.location.hash||"#/home",e.history.pushState({bulkCollect:!0,bulkFrom:D},"",j));try{c.open||c.showModal()}catch{c.setAttribute("open","")}e.setTimeout(()=>y.focus({preventScroll:!0}),50)}function O(){c.open?c.close():c.removeAttribute("open")}c.addEventListener("cancel",t=>{y.value&&(t.preventDefault(),L())}),c.addEventListener("close",()=>{if(B(e.location.hash)){let t=e.history.state?.bulkCollect?e.history.state.bulkFrom:null;t?(/^#\/?(collect|quick-collect)\/?$/i.test(t)&&e.screenRouter?.collect?.skipNextOpen?.(),e.history.back()):e.history.replaceState({...e.history.state||{},bulkCollect:!1},"","#/home")}D=null,o()?.refresh?.()}),a("closeBulkCollectBtn").addEventListener("click",O);let R=l.getElementById("quickCollectStepPick");if(R&&!l.getElementById("openBulkCollectBtn")){let t=l.createElement("button");t.type="button",t.id="openBulkCollectBtn",t.className="bc-open-btn",t.innerHTML='<span aria-hidden="true">\u{1F4B5}</span> Bulk Collect Cash <small>many payments in one batch</small>',t.addEventListener("click",A),R.insertBefore(t,R.firstElementChild)}let G=()=>{B(e.location.hash)&&!c.open&&A()};e.addEventListener("hashchange",G),e.addEventListener("popstate",()=>{B(e.location.hash)?c.open||A():c.open&&(D=null,O())});let J={open:A,close:O,isOpen:()=>c.open,refresh:()=>{c.open&&$()},get batch(){return u}};return e.bulkCollect=J,B(e.location.hash)&&e.setTimeout(G,0),J}typeof window<"u"&&typeof document<"u"&&document.body&&kt();export{tt as BULK_ALL_COLLECTED_TEXT,j as BULK_COLLECT_HASH,et as addEntry,K as batchTotals,bt as canUndo,mt as commitBatch,_ as createBatch,nt as entryDefaults,dt as findDuplicate,$t as isAllCollected,B as isBulkCollectHash,Ct as pendingForBatch,ut as removeEntry,ht as searchCustomersForBatch,kt as setupBulkCollect,pt as undoLast};

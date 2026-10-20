@@ -283,3 +283,9 @@ body.sr-screen-mode[data-screen="backup"] #backupControls {
   margin-top: 0 !important;
 }
 
+/* Easypaisa Payments Inbox screen: hide customersView */
+body.sr-screen-mode[data-screen="easypaisa"] #customersView,
+body.sr-screen-mode[data-screen="easypaisa"] .customer-pane {
+  display: none !important;
+}
+

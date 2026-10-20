@@ -183,7 +183,11 @@ export function createToastSystem(doc = document, win = window) {
     rec.dismissed = true;
     live.delete(rec);
     stopTimer(rec);
-    if (rec.el === main) { main.hidden = true; main.replaceChildren(); if (current === rec) current = null; }
+    if (rec.el === main) {
+      if (current === rec) { main.hidden = true; main.replaceChildren(); current = null; }
+      else if (!current || current.dismissed) { main.hidden = true; main.replaceChildren(); }
+      // else: a newer toast owns #toast now — leave it on screen untouched.
+    }
     else rec.el.remove();
   }
 
@@ -267,6 +271,7 @@ export function createToastSystem(doc = document, win = window) {
       pause(prev);
       const rec = { el: old, remaining: prev.remaining, dismissed: false, origin: prev.origin };
       if (live.delete(prev)) live.add(rec); // the copy keeps the old toast's Undo; main is reused below
+      prev.dismissed = true; // the previous record's identity lives on in the stacked copy (rec)
       // Re-wire buttons on the copy (cloneNode drops listeners).
       const oldActions = prev.actions || [];
       old.querySelectorAll('.toast-action-btn').forEach((b, i) => b.addEventListener('click', e => { e.stopPropagation(); dismiss(rec); try { oldActions[i]?.onAction(); } catch (err) { console.error(err); } }));
@@ -278,6 +283,14 @@ export function createToastSystem(doc = document, win = window) {
       startTimer(rec, Math.min(rec.remaining, 5000));
       const olds = stack.querySelectorAll('.tsx-old');
       for (let i = 0; i < olds.length - (MAX_STACK - 1); i++) olds[i].remove();
+    }
+    if (current && !current.dismissed && current.el === main) {
+      // The previous toast was not stacked as a copy above (e.g. it was shown
+      // inside a dialog): it is being replaced on #toast itself, so retire its
+      // record. Leaving it in `live` would let a later dismiss() of that stale
+      // record blank the new toast and kill its Undo action.
+      live.delete(current);
+      current.dismissed = true;
     }
     stopTimer(current);
     const rec = { el: main, dismissed: false, actions, origin: actions.length ? (topModal() || doc.body) : undefined };

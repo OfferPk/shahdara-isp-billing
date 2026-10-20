@@ -4,7 +4,9 @@ import { test, expect } from '@playwright/test';
 // banner used to render above every screen, directly under the header, so it was the
 // first thing in the user's face on every app open. It now lives as the last section
 // of Home (end of #billingDashboard) — off the first screen, still expanded, with its
-// badges and Share Backup / Protect Storage actions intact. The storage-recovery
+// badges and Share Backup / Protect Storage actions intact. The duplicated
+// "Data Safety & Backup" summary card was later removed from the Home grid, so
+// this banner is now the only Data Safety place on Home. The storage-recovery
 // <p role="alert"> deliberately did NOT move: it stays at the top level so a genuine
 // storage failure is immediately visible on any screen.
 
@@ -33,11 +35,15 @@ test.describe('Storage banner placement — bottom of Home', () => {
     // Not in the first viewport (project viewports: 390x844 mobile, 1280x800 desktop).
     expect(bannerBox.y).toBeGreaterThanOrEqual(viewport.height);
 
-    // It sits after the dashboard content, not above it: below the summary
-    // Data Safety card that remains higher up in the dashboard.
-    const cardBox = await page.locator('#dashboardDataSafetyCard').boundingBox();
-    expect(cardBox).not.toBeNull();
-    expect(bannerBox.y).toBeGreaterThan(cardBox.y);
+    // The duplicated summary-grid Data Safety card was removed (owner decision):
+    // none of its ids exist, and the banner's actions are the only ones in the doc.
+    await expect(page.locator('#dashboardDataSafetyCard')).toHaveCount(0);
+    await expect(page.locator('#dashboardShareBackupBtn')).toHaveCount(0);
+    await expect(page.locator('#dashboardProtectStorageBtn')).toHaveCount(0);
+    await expect(page.locator('#dataSafetyShareBackupBtn')).toHaveCount(1);
+    await expect(page.locator('#dataSafetyProtectStorageBtn')).toHaveCount(1);
+    const bannerInDashboard = await page.evaluate(() => document.querySelector('#billingDashboard').contains(document.querySelector('#dataSafetyBanner')));
+    expect(bannerInDashboard).toBe(true);
 
     // The recovery alert is a sibling at the top level, not inside the moved banner,
     // and starts hidden (no storage failure in a fresh profile).

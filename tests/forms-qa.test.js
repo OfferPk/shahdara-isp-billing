@@ -429,6 +429,48 @@ test('formatCustomerStatement calculates chronological ledger and running balanc
   assert.equal(fullStatement.events[4].runningBalance, 2900);
 });
 
+test('formatCustomerStatement charges late fees and credits payment discounts like the allocation engine', () => {
+  const withFee = {
+    id: 'c-fee', customerNumber: 7, name: 'Late Fee',
+    bills: [{ id: 'b1', month: '2026-09', dueAmount: 1000, lateFee: 100, dueDate: '2026-09-05', payments: [] }]
+  };
+  let stmt = formatCustomerStatement(withFee, { range: 'all' });
+  assert.equal(stmt.totalBilled, 1100);
+  assert.equal(stmt.currentBalance, 1100);
+  assert.equal(stmt.events[0].charge, 1100);
+  assert.match(stmt.events[0].description, /Late Fee/);
+
+  const feePaid = {
+    id: 'c-fee2', customerNumber: 8, name: 'Fee Paid',
+    bills: [{ id: 'b1', month: '2026-09', dueAmount: 1000, lateFee: 100, dueDate: '2026-09-05', payments: [{ id: 'p1', date: '2026-09-10', amount: 1100, method: 'Cash' }] }]
+  };
+  stmt = formatCustomerStatement(feePaid, { range: 'all' });
+  assert.equal(stmt.currentBalance, 0); // not -100 phantom credit
+
+  const withDiscount = {
+    id: 'c-disc', customerNumber: 9, name: 'Discount',
+    bills: [{ id: 'b1', month: '2026-09', dueAmount: 1000, dueDate: '2026-09-05', payments: [{ id: 'p1', date: '2026-09-10', amount: 800, discount: 200, discountReason: 'Owner concession', method: 'Cash' }] }]
+  };
+  stmt = formatCustomerStatement(withDiscount, { range: 'all' });
+  assert.equal(stmt.totalPaid, 1000); // 800 cash + 200 discount credit
+  assert.equal(stmt.currentBalance, 0); // settled bill must not show as owed
+  const discountEvent = stmt.events.find(e => e.type === 'discount');
+  assert.ok(discountEvent);
+  assert.equal(discountEvent.credit, 200);
+  assert.match(discountEvent.description, /Owner concession/);
+
+  const overDiscount = {
+    id: 'c-over', customerNumber: 11, name: 'Over Discount',
+    bills: [{ id: 'b1', month: '2026-09', dueAmount: 1000, dueDate: '2026-09-05', payments: [
+      { id: 'p1', date: '2026-09-10', amount: 1000, method: 'Cash' },
+      { id: 'p2', date: '2026-09-11', amount: 0, discount: 200, method: 'Cash' }
+    ] }]
+  };
+  stmt = formatCustomerStatement(overDiscount, { range: 'all' });
+  assert.equal(stmt.currentBalance, 0); // discount past a settled bill adds no phantom credit
+  assert.equal(stmt.events.filter(e => e.type === 'discount').length, 0);
+});
+
 test('formatCustomerStatement handles range filtering and calculates correct opening balance', () => {
   const customer = {
     id: 'c10',

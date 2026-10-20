@@ -6226,7 +6226,7 @@
       <div class="more-menu-section-label" data-i18n="more_menu_group_customers">👥 Customers &amp; Data</div>
       <button type="button" data-mobile-more="customers">Customer Profiles</button>
       <button type="button" data-mobile-more="recovery">Dues Recovery</button>
-      <button type="button" data-mobile-more="reminders-queue" id="mobileMoreRemindersQueueBtn">📅 Reminders Today Queue</button>
+      <button type="button" data-mobile-more="reminders-queue" id="mobileMoreRemindersQueueBtn">📅 Reminders Today Queue <span id="mobileMoreRemindersQueueBadge" class="reminder-nav-badge" hidden>0</span></button>
       <button type="button" data-mobile-more="wada-list" id="mobileMoreWadaListBtn">🤝 Wada Follow-up List</button>
       <button type="button" data-mobile-more="alerts">Smart Alerts</button>
       <button type="button" data-mobile-more="assistant">Owner Assistant</button>
@@ -7416,6 +7416,19 @@
           <button id="reminderQueuePrevBtn" class="secondary-button queue-nav-btn" type="button" aria-label="Previous customer in queue">◀ Prev</button>
           <button id="reminderQueueSkipBtn" class="secondary-button queue-nav-btn" type="button" aria-label="Skip current customer">Skip</button>
           <button id="reminderQueueNextBtn" class="primary-button queue-nav-btn" type="button" aria-label="Next customer in queue">Next ▶</button>
+        </div>
+      </div>
+      <div id="reminderQueueEmptyState" class="reminder-queue-empty-state" hidden>
+        <div class="reminder-empty-icon" aria-hidden="true">✅</div>
+        <h3 class="reminder-empty-title">All reminders sent today ✓</h3>
+        <p id="reminderQueueEmptyDesc" class="reminder-empty-desc">All eligible customer reminder stages for today are up-to-date.</p>
+        <div class="reminder-empty-stat-card">
+          <span class="reminder-stat-label">Customers with Overdue Balance</span>
+          <strong id="reminderQueueOverdueCountBadge" class="reminder-stat-value">0 accounts with balance</strong>
+        </div>
+        <div class="reminder-empty-actions">
+          <button id="reminderEmptyOpenDuesRecoveryBtn" class="primary-button" type="button">📊 Go to Dues Recovery</button>
+          <button id="reminderEmptyCloseBtn" class="secondary-button" type="button">Close</button>
         </div>
       </div>
       <div class="reminder-modal-body">

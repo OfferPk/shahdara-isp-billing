@@ -1941,6 +1941,16 @@ kbd {
   pointer-events: none;
 }
 
+/* Issue #285: Hide floating speed dial when More menu, drawer, action sheet, or modal dialog is open */
+body.drawer-open #mobileSpeedDial,
+body:has(#mobileMoreMenu:not([hidden])) #mobileSpeedDial,
+#mobileMoreMenu:not([hidden]) ~ #mobileSpeedDial,
+body:has(.mobile-action-sheet.is-open) #mobileSpeedDial,
+body:has(dialog[open]) #mobileSpeedDial,
+#mobileSpeedDial.is-suppressed {
+  display: none !important;
+}
+
 .speed-dial-trigger {
   width: 50px;
   height: 50px;

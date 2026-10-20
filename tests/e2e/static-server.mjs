@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, '../..');
 const distDir = path.resolve(__dirname, '../../dist');
 const ROOT_DIR = (process.env.SERVE_ROOT !== 'true' && fs.existsSync(path.join(distDir, 'index.html')))
   ? distDir
-  : path.resolve(__dirname, '../..');
+  : REPO_ROOT;
 const PORT = Number(process.env.PORT) || 4173;
 
 const MIME_TYPES = {
@@ -35,7 +36,7 @@ const server = http.createServer((req, res) => {
     }
 
     const safePath = path.normalize(pathname).replace(/^(\.\.[/\\])+/, '');
-    const filePath = path.join(ROOT_DIR, safePath);
+    let filePath = path.join(ROOT_DIR, safePath);
 
     if (!filePath.startsWith(ROOT_DIR)) {
       res.statusCode = 403;
@@ -44,9 +45,14 @@ const server = http.createServer((req, res) => {
     }
 
     if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-      res.statusCode = 404;
-      res.end('Not Found');
-      return;
+      const fallbackPath = path.join(REPO_ROOT, safePath);
+      if (fallbackPath.startsWith(REPO_ROOT) && fs.existsSync(fallbackPath) && !fs.statSync(fallbackPath).isDirectory()) {
+        filePath = fallbackPath;
+      } else {
+        res.statusCode = 404;
+        res.end('Not Found');
+        return;
+      }
     }
 
     const ext = path.extname(filePath).toLowerCase();

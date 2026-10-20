@@ -54,6 +54,20 @@
           "type": "image/svg+xml"
         }
       ]
+    },
+    {
+      "name": "Payments Inbox",
+      "short_name": "Inbox",
+      "description": "Easypaisa transaction emails & customer matching",
+      "url": "./#/easypaisa",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
     }
   ]
 }
+

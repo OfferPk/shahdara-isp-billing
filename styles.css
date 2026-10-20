@@ -11203,8 +11203,6 @@ dialog::backdrop {
     overflow-y: auto !important;
     overflow-x: hidden !important;
     border-radius: 18px !important;
-    background: var(--modal-surface, #ffffff) !important;
-    color: var(--ink);
   }
 
   /* Universal containment for all child sections inside any dialog */
@@ -11250,20 +11248,16 @@ dialog::backdrop {
     align-items: flex-start !important;
     justify-content: space-between !important;
     gap: 8px !important;
-    width: calc(100% + 28px) !important;
-    max-width: calc(100% + 28px) !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
     position: sticky !important;
     top: -16px !important;
     z-index: 10 !important;
     background: var(--modal-surface, #ffffff) !important;
-    margin-left: -14px !important;
-    margin-right: -14px !important;
-    margin-top: -16px !important;
-    padding: 16px 14px 10px 14px !important;
+    padding-top: 4px !important;
+    padding-bottom: 8px !important;
     margin-bottom: 12px !important;
-    border-top-left-radius: 18px !important;
-    border-top-right-radius: 18px !important;
     box-shadow: 0 1px 0 var(--line, #dce6e1) !important;
   }
 
@@ -11332,17 +11326,13 @@ dialog::backdrop {
     display: flex !important;
     flex-wrap: wrap !important;
     gap: 8px !important;
-    width: calc(100% + 28px) !important;
-    max-width: calc(100% + 28px) !important;
+    width: 100% !important;
+    max-width: 100% !important;
     box-sizing: border-box !important;
-    margin-left: -14px !important;
-    margin-right: -14px !important;
-    margin-bottom: -16px !important;
     margin-top: 14px !important;
-    padding: 10px 14px 16px 14px !important;
+    padding-top: 8px !important;
+    padding-bottom: 4px !important;
     box-shadow: 0 -1px 0 var(--line, #dce6e1) !important;
-    border-bottom-left-radius: 18px !important;
-    border-bottom-right-radius: 18px !important;
   }
 
   /* Quick Collect responsive list & chips */

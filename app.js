@@ -931,9 +931,10 @@ function statusPresentation(customer, bill, allocations = null) {
 }
 function paymentAllocationMarkup(allocation) {
   if (!allocation) return '';
-  if (allocation.billUnpriced) return '<span class="payment-allocation">Selected month has no saved bill amount; no excess credit was inferred.</span>';
   const sameMonthCents = allocation.allocations.filter(item => item.kind === 'same-month').reduce((sum,item) => sum + item.amountCents, 0);
-  const lines = [`Applied to selected month: ${formatAmount(sameMonthCents / 100)}`];
+  const lines = [allocation.billUnpriced
+    ? 'Selected month has no saved bill amount; this receipt is held as credit for later bills.'
+    : `Applied to selected month: ${formatAmount(sameMonthCents / 100)}`];
   for (const item of allocation.allocations.filter(item => item.kind === 'carry-forward')) lines.push(`Auto-credit to ${monthName(item.month)}: ${formatAmount(item.amountCents / 100)} (allocation, not a new receipt)`);
   if (allocation.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatAmount(allocation.unappliedCreditCents / 100)}`);
   return `<span class="payment-allocation">${lines.map(escapeHtml).join('<br>')}</span>`;

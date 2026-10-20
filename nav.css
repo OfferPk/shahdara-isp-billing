@@ -6712,6 +6712,55 @@ body:has(dialog[open]) #mobileSpeedDial,
   right: 16px;
 }
 
+/* Issue #228: logical properties so spacing/icons mirror with direction,
+   and bidi isolation so punctuation, phone numbers and amounts keep their
+   order inside Urdu (RTL) text. The Nastaliq @font-face itself lives in
+   urdu-font.css, which is only loaded in Urdu mode. */
+.lang-ur .nav-drawer-icon,
+[dir="rtl"] .nav-drawer-icon {
+  margin-inline-end: 10px;
+  margin-inline-start: 0;
+}
+.lang-ur .nav-drawer-badge,
+[dir="rtl"] .nav-drawer-badge {
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+}
+.lang-ur .bottom-nav-badge,
+[dir="rtl"] .bottom-nav-badge {
+  inset-inline-end: 6px;
+  inset-inline-start: auto;
+}
+.lang-ur .customer-card-open-hint,
+[dir="rtl"] .customer-card-open-hint {
+  margin-inline-start: auto;
+}
+.lang-ur .tx-chevron,
+[dir="rtl"] .tx-chevron {
+  margin-inline-start: 8px;
+  transform: scaleX(-1);
+}
+.lang-ur p,
+.lang-ur li,
+.lang-ur .help-text,
+.lang-ur .backup-local-note,
+[dir="rtl"] p,
+[dir="rtl"] li {
+  unicode-bidi: plaintext;
+}
+.lang-ur bdi,
+[dir="rtl"] bdi {
+  unicode-bidi: isolate;
+}
+.lang-ur input,
+.lang-ur textarea,
+.lang-ur select,
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: start;
+}
+
 /* RTL Layout safety: prevent offscreen drawers from causing scrollWidth overflow */
 html,
 body {

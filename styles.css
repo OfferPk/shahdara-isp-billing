@@ -12126,3 +12126,38 @@ dialog::backdrop {
 
 
 
+
+/* #287: Bills / Monthly Report / Dues Recovery / Smart Alerts are separate
+   screens over one shared view. The router sets data-report-screen on
+   #billingReportsView; only that screen's sections are shown. Nothing is
+   removed from the DOM, so every handler keeps working. */
+#billingReportsView[data-report-screen="alerts"] .report-pane > :not(#smartAlertsPanel),
+#billingReportsView[data-report-screen="recovery"] .report-pane > :not(#duesRecoveryPanel) {
+  display: none !important;
+}
+#billingReportsView[data-report-screen="bills"] .report-pane > section.owner-report-panel,
+#billingReportsView[data-report-screen="reports"] .report-pane > #smartAlertsPanel,
+#billingReportsView[data-report-screen="reports"] .report-pane > #duesRecoveryPanel {
+  display: none !important;
+}
+.bills-actions-bar {
+  display: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 12px;
+  background: var(--surface-soft, #f7faf8);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+#billingReportsView[data-report-screen="bills"] .bills-actions-bar {
+  display: flex;
+}
+.bills-actions-bar .chart-caption {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+}
+.ranking-show-all-btn {
+  margin-top: 10px;
+}

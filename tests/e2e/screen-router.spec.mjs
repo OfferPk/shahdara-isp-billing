@@ -7,7 +7,8 @@ const SCREENS = {
   reports: { view: '#billingReportsView', title: 'Monthly Report', action: '+ Add Payment' },
   analytics: { view: '#analyticsView', title: 'Area Analytics', action: null },
   inventory: { view: '#inventoryView', title: 'Inventory', action: '+ Add Item', list: '#inventoryStockFilter' },
-  expenses: { view: '#expensesView', title: 'Expenses', action: '+ Add Expense', list: '#expenseMonthFilter' }
+  expenses: { view: '#expensesView', title: 'Expenses', action: '+ Add Expense', list: '#expenseMonthFilter' },
+  recovery: { view: '#billingReportsView', title: 'Dues Recovery', action: 'Remind Pending' }
 };
 
 function trackErrors(page) {
@@ -138,14 +139,13 @@ test.describe('Screen router (#212)', () => {
   test('Home tiles still work and route tiles open their screen', async ({ page }) => {
     const errors = trackErrors(page);
     await page.goto('/');
-    await page.locator('#quickActionMonthlyReports').click();
-    await expectScreen(page, 'reports');
+    await page.locator('#homeActionDuesList').click();
+    await expectScreen(page, 'recovery');
     await page.locator('#srScreenHeader [data-sr-home]').click();
-    await page.locator('#quickActionBillingCorrectness').click();
-    await expect(page.locator('#billingCorrectnessModal')).toBeVisible();
-    await page.locator('#closeBillingCorrectnessModalBtn').click();
     await page.locator('#quickActionAddCustomer').click();
     await expect(page.locator('#addCustomerDialog')).toBeVisible();
+    await page.locator('#addCustomerDialog .close-button').click();
+    await expect(page.locator('#addCustomerDialog')).toBeHidden();
     expect(errors).toEqual([]);
   });
 });

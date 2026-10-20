@@ -15052,3 +15052,46 @@ test('Issue #285: nav.css suppresses speed dial when More menu or dialogs are op
   assert.ok(css.includes('#mobileSpeedDial.is-suppressed'));
 });
 
+test('Issue #312: Fast Customer Search keyboard navigation, enterkeyhint=go, and ArrowDown/Enter Quick Collect', async () => {
+  const html = read('index.html');
+  assert.ok(html.includes('id="fastCustomerSearchInput"'));
+  assert.ok(html.includes('enterkeyhint="go"'));
+  assert.ok(html.includes('aria-autocomplete="list"'));
+  assert.ok(html.includes('aria-controls="fastCustomerSearchResults"'));
+
+  const navCss = read('nav.css');
+  assert.ok(navCss.includes('.fcs-card.is-highlighted'));
+  assert.ok(navCss.includes('[data-theme="dark"] .fcs-card.is-highlighted'));
+
+  const nav = await import('../nav.js');
+  const sampleCustomers = [
+    {
+      id: 'cust-1',
+      customerNumber: 1,
+      name: 'Nazeer Ahmed',
+      phone: '03001234567',
+      area: 'Begum Kot',
+      totalDues: 1500,
+      billingStatus: 'pending'
+    },
+    {
+      id: 'cust-2',
+      customerNumber: 2,
+      name: 'Ali Raza',
+      phone: '03009876543',
+      area: 'Saeed Park',
+      totalDues: 0,
+      billingStatus: 'paid'
+    }
+  ];
+
+  const rendered = nav.renderFastCustomerSearchResultsHtml(sampleCustomers);
+  assert.ok(rendered.includes('id="fcs-card-cust-1"'));
+  assert.ok(rendered.includes('id="fcs-card-cust-2"'));
+  assert.ok(rendered.includes('role="option"'));
+  assert.ok(rendered.includes('aria-selected="false"'));
+  assert.ok(rendered.includes('data-index="0"'));
+  assert.ok(rendered.includes('data-index="1"'));
+});
+
+

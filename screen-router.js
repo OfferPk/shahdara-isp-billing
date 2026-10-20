@@ -255,6 +255,14 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     if (!isHome) ensureViewVisible(screen);
     current = screen;
     body.dataset.screen = screen;
+    // #287: Bills / Monthly Report / Dues Recovery / Smart Alerts share one view
+    // element, but each screen shows only its own sections (CSS keys off this
+    // attribute; nothing is removed from the DOM).
+    const reportsView = doc.getElementById('billingReportsView');
+    if (reportsView) {
+      if (screen === 'bills' || screen === 'reports' || screen === 'recovery' || screen === 'alerts') reportsView.dataset.reportScreen = screen;
+      else delete reportsView.dataset.reportScreen;
+    }
     body.classList.toggle('sr-screen-mode', !isHome);
     header.hidden = isHome;
     updateNavActive(screen);

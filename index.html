@@ -6587,6 +6587,12 @@
     <section id="billingReportsView" class="billing-reports-view" aria-labelledby="billingReportsHeading" hidden>
       <div class="report-pane">
         <div class="report-heading"><div><p class="eyebrow">LOCAL CUSTOMER REPORT</p><h2 id="billingReportsHeading">Monthly payment status</h2><p class="transactions-subtitle">Amounts and receipts are based on saved records only.</p></div><label class="report-month-label" for="reportMonth">Billing month<select id="reportMonth"></select></label></div>
+        <div id="billsActionsBar" class="bills-actions-bar" role="group" aria-label="Monthly bills actions">
+          <button id="generateBillsBtn" class="primary-button" type="button">Generate this month's bills</button>
+          <button id="billsInvoicesBtn" class="secondary-button" type="button">Print / WhatsApp invoices</button>
+          <button id="unbilledCustomersBtn" class="secondary-button" type="button">Unbilled customers (Not set)</button>
+          <p id="billsActionsNote" class="chart-caption" role="status" aria-live="polite"></p>
+        </div>
         <div class="report-filters" role="group" aria-label="Filter customers by payment status">
           <button class="report-filter-button" type="button" data-report-filter="all" aria-pressed="true">All (incl. Not set)</button>
           <button class="report-filter-button" type="button" data-report-filter="paid" aria-pressed="false">Paid</button>

@@ -109,6 +109,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     }
     const monthFilter=$('#rankingMonth')?.closest('label');if(monthFilter)monthFilter.hidden=type?.value==='lifetime-value';
   }
+  let rankingsShowAll=false;
   function renderRankings() {
     renderRankingOptions();
     const host=$('#customerRankingResults');if(!host)return;
@@ -116,11 +117,18 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const result=buildCustomerRankings(getState(),args,new Date());
     let basis=$('#customerRankingBasis');if(!basis){basis=document.createElement('p');basis.id='customerRankingBasis';basis.className='chart-caption';basis.setAttribute('role','status');basis.setAttribute('aria-live','polite');host.before(basis);}
     basis.textContent=args.type==='lifetime-value'?'Ranked highest to lowest by actual historical receipts saved on this device (duplicate receipt IDs count once). Future value is a separate 12-month estimate and does not affect the ranking.':'';
-    host.innerHTML=result.rows.length?result.rows.map((row,index)=>{
+    // #287: rankings used to render every customer (the tallest block on the
+    // reports page). Show the top 10 by default with a Show all toggle.
+    const visibleRows=rankingsShowAll?result.rows:result.rows.slice(0,10);
+    host.innerHTML=result.rows.length?visibleRows.map((row,index)=>{
       const estimate=args.type==='lifetime-value'?`<span class="owner-result-estimate">Estimated future value · next 12 months: ${row.estimatedFutureValue===null?'Insufficient history':escapeHtml(formatAmount(row.estimatedFutureValue))}. ${escapeHtml(row.estimatedFutureValueBasis)}</span>`:'';
       return `<article class="owner-result-card"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>#${row.customerNumber} ${escapeHtml(row.name)}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span>${estimate}</div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><button class="secondary-button" type="button" data-open-ranking-customer="${escapeHtml(row.customerId)}">Open ledger</button></article>`;
     }).join(''):`<p class="empty-state">No customers have enough saved data for this ranking and filter. ${result.excludedCount?`${result.excludedCount} profile(s) were excluded because the ranked value is unavailable.`:''}</p>`;
     host.querySelectorAll('[data-open-ranking-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openRankingCustomer)));
+    let toggle=$('#rankingShowAllBtn');
+    if(!toggle){toggle=document.createElement('button');toggle.id='rankingShowAllBtn';toggle.type='button';toggle.className='secondary-button ranking-show-all-btn';toggle.addEventListener('click',()=>{rankingsShowAll=!rankingsShowAll;renderRankings();});host.after(toggle);}
+    toggle.hidden=result.rows.length<=10;
+    toggle.textContent=rankingsShowAll?'Show top 10 only':`Show all ${result.rows.length} rankings`;
   }
   function followupFor(customerRow,template,allocations,referenceDate) {
     const customer=getState().customers.find(item=>item.id===customerRow.customerId);if(!customer)return null;
@@ -171,7 +179,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     try{const a=$('#compareMonthA').value,b=$('#compareMonthB').value,result=explainBusinessPerformance(getState(),$('#performanceMetric').value,a,b,new Date());const drivers=result.drivers.map(row=>`<li>${escapeHtml(row.name)}: ${row.change>0?'+':''}${escapeHtml(formatAmount(row.change))}${row.percentImpact===null?'':` · ${row.percentImpact>0?'+':''}${row.percentImpact}% of net change`}</li>`).join('');host.innerHTML=`<p>${escapeHtml(result.explanation)}</p><p class="chart-caption">${escapeHtml(result.basis??'Only available saved figures are compared; no outside causes are inferred.')}</p>${drivers?`<ul>${drivers}</ul>`:'<p>No measurable contributing rows are available for these months.</p>'}`;}catch(error){host.textContent=error.message;}
   });
   ['#compareMonthA','#compareMonthB'].forEach(selector=>$(selector)?.addEventListener('change',renderComparison));
-  ['#rankingType','#rankingMonth','#rankingArea','#rankingPackage','#rankingStatus'].forEach(selector=>$(selector)?.addEventListener('change',renderRankings));
+  ['#rankingType','#rankingMonth','#rankingArea','#rankingPackage','#rankingStatus'].forEach(selector=>$(selector)?.addEventListener('change',()=>{rankingsShowAll=false;renderRankings();}));
   $('#ownerVoiceButton')?.addEventListener('click',async()=>{
     const status=$('#ownerVoiceStatus'),Constructor=window.SpeechRecognition??window.webkitSpeechRecognition,language=$('#ownerVoiceLanguage').value;
     if(!Constructor||typeof Constructor.available!=='function'){status.textContent='Local speech recognition is not supported in this browser. Typed English, Roman Urdu and Urdu commands still work.';return;}

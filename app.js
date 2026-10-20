@@ -4799,6 +4799,24 @@ const closeBatchReceiptModal = () => {
   else batchReceiptModal?.removeAttribute('open');
 };
 
+// #287 Bills screen actions: the shared reports view shows this bar only on
+// the Monthly Bills screen (see data-report-screen CSS in styles.css).
+$('#generateBillsBtn')?.addEventListener('click', () => {
+  checkMonthlyBilling();
+  const month = monthsForHistory()[0];
+  const count = state.customers.filter(customer => !customer.archived && (customer.bills ?? []).some(bill => bill.month === month)).length;
+  const note = $('#billsActionsNote');
+  if (note) note.textContent = `Bills for ${monthName(month)} (${month}) are generated and up to date for ${count} customer(s). New bills use each customer's saved package price; nothing is guessed.`;
+  toast(`Bills for ${monthName(month)} are up to date (${count} customers).`);
+});
+$('#billsInvoicesBtn')?.addEventListener('click', () => { $('#batchReceiptPrintBtn')?.click(); });
+$('#unbilledCustomersBtn')?.addEventListener('click', () => {
+  selectedReportFilter = 'not-set';
+  reportCurrentPage = 1;
+  renderMonthlyReport();
+  $('#monthlyReportList')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+});
+
 $('#batchReceiptPrintBtn')?.addEventListener('click', () => {
   const monthSelect = $('#batchReceiptMonthSelect');
   if (monthSelect) {

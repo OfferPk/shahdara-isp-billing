@@ -1,11 +1,23 @@
 import { test, expect } from '@playwright/test';
 
+function getPktDateString() {
+  const d = new Date();
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'Asia/Karachi'
+  }).format(d).replace(/ /g, '-');
+}
+
+const pktToday = getPktDateString();
+
 const SAMPLE_RECEIVED_EMAIL = `Transaction Successful
 Hi AQIB EJAZ,
-Money Transfer of Rs. 3500.0 on 20-Oct-2026 from Easypaisa was successful
+Money Transfer of Rs. 3500.0 on ${pktToday} from Easypaisa was successful
 Transaction Type\tMoney Transfer to Easypaisa
 Transaction ID\t57255283999
-Date & Time\t20-Oct-2026 15:45:12
+Date & Time\t${pktToday} 15:45:12
 Sender Name\tHAMZA RIAZ
 Sender Number\t03123456789
 Receiver Name\tAQIB EJAZ
@@ -15,8 +27,8 @@ Fee\tRs. 0.00
 Total\tRs. 3500.0`;
 
 const SAMPLE_CSV_DATA = `Transaction ID,Date & Time (PKT),Type,Sender Name,Sender Number,Receiver Name,Receiver Number,Amount (PKR),Fee (PKR),Total (PKR),Direction,Status
-57255283888,20-Oct-2026 14:20:38,Money Transfer,AQIB EJAZ,03055669955,NASIR MAHMOOD,03335001667,5000,0,5000,Sent,Parsed
-57255283999,20-Oct-2026 15:45:12,Money Transfer,HAMZA RIAZ,03123456789,AQIB EJAZ,03055669955,3500,0,3500,Received,Parsed`;
+57255283888,${pktToday} 14:20:38,Money Transfer,AQIB EJAZ,03055669955,NASIR MAHMOOD,03335001667,5000,0,5000,Sent,Parsed
+57255283999,${pktToday} 15:45:12,Money Transfer,HAMZA RIAZ,03123456789,AQIB EJAZ,03055669955,3500,0,3500,Received,Parsed`;
 
 test.describe('Easypaisa Payments Inbox (#305)', () => {
   test('Mobile (390x844): screen opens, imports sample, matches customer, records payment, deduplicates', async ({ page }) => {

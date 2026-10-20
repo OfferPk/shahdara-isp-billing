@@ -355,3 +355,172 @@ export async function shareJsonBackupFile({
   return { success: true, method: 'download', filename: name, backupText };
 }
 
+export const ENCRYPTED_BACKUP_FORMAT = 'shahdara-isp-billing-encrypted-backup';
+export const ENCRYPTED_BACKUP_VERSION = 1;
+export const DEFAULT_PBKDF2_ITERATIONS = 100000;
+
+export function bytesToBase64(bytes) {
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(bytes).toString('base64');
+  }
+  let binary = '';
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+export function base64ToBytes(base64) {
+  if (typeof Buffer !== 'undefined') {
+    return new Uint8Array(Buffer.from(base64, 'base64'));
+  }
+  const binary = atob(base64);
+  const len = binary.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+export function isEncryptedBackupPayload(payload) {
+  if (!payload) return false;
+  let parsed = payload;
+  if (typeof payload === 'string') {
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      return false;
+    }
+  }
+  return Boolean(
+    parsed &&
+    typeof parsed === 'object' &&
+    parsed.format === ENCRYPTED_BACKUP_FORMAT &&
+    typeof parsed.ciphertext === 'string' &&
+    typeof parsed.salt === 'string' &&
+    typeof parsed.iv === 'string'
+  );
+}
+
+export async function encryptBackupJson(backupJsonText, passphrase, {
+  hint = '',
+  iterations = DEFAULT_PBKDF2_ITERATIONS,
+  cryptoObject = globalThis.crypto
+} = {}) {
+  if (typeof backupJsonText !== 'string' || !backupJsonText.trim()) {
+    throw new Error('Backup data is empty or invalid.');
+  }
+  if (!passphrase || typeof passphrase !== 'string' || passphrase.trim().length < 6) {
+    throw new Error('Passphrase must be at least 6 characters long.');
+  }
+  if (!cryptoObject?.subtle) {
+    throw new Error('WebCrypto encryption is not supported in this environment.');
+  }
+
+  const enc = new TextEncoder();
+  const salt = cryptoObject.getRandomValues(new Uint8Array(16));
+  const iv = cryptoObject.getRandomValues(new Uint8Array(12));
+
+  const keyMaterial = await cryptoObject.subtle.importKey(
+    'raw',
+    enc.encode(passphrase),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+
+  const key = await cryptoObject.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt']
+  );
+
+  const plaintextBytes = enc.encode(backupJsonText);
+  const ciphertextBuffer = await cryptoObject.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    plaintextBytes
+  );
+
+  const envelope = {
+    format: ENCRYPTED_BACKUP_FORMAT,
+    formatVersion: ENCRYPTED_BACKUP_VERSION,
+    cipher: 'AES-GCM',
+    kdf: 'PBKDF2-SHA256',
+    iterations,
+    salt: bytesToBase64(salt),
+    iv: bytesToBase64(iv),
+    ciphertext: bytesToBase64(new Uint8Array(ciphertextBuffer)),
+    hint: typeof hint === 'string' ? hint.trim().slice(0, 100) : '',
+    createdAt: new Date().toISOString()
+  };
+
+  return JSON.stringify(envelope, null, 2);
+}
+
+export async function decryptBackupJson(encryptedDataOrText, passphrase, {
+  cryptoObject = globalThis.crypto
+} = {}) {
+  let envelope = encryptedDataOrText;
+  if (typeof encryptedDataOrText === 'string') {
+    try {
+      envelope = JSON.parse(encryptedDataOrText);
+    } catch (err) {
+      throw new Error(`Invalid encrypted backup file: ${err.message}`);
+    }
+  }
+  if (!envelope || typeof envelope !== 'object' || envelope.format !== ENCRYPTED_BACKUP_FORMAT) {
+    throw new Error('The selected file is not an encrypted Shahdara ISP Billing backup.');
+  }
+  if (Number(envelope.formatVersion) > ENCRYPTED_BACKUP_VERSION) {
+    throw new Error(`Encrypted backup version (${envelope.formatVersion}) is newer than supported by this app. Please update the app.`);
+  }
+  if (!passphrase || typeof passphrase !== 'string') {
+    throw new Error('Passphrase is required to decrypt this backup.');
+  }
+  if (!cryptoObject?.subtle) {
+    throw new Error('WebCrypto decryption is not supported in this environment.');
+  }
+
+  const salt = base64ToBytes(envelope.salt);
+  const iv = base64ToBytes(envelope.iv);
+  const ciphertext = base64ToBytes(envelope.ciphertext);
+  const iterations = Number(envelope.iterations) || DEFAULT_PBKDF2_ITERATIONS;
+
+  const enc = new TextEncoder();
+  const keyMaterial = await cryptoObject.subtle.importKey(
+    'raw',
+    enc.encode(passphrase),
+    'PBKDF2',
+    false,
+    ['deriveKey']
+  );
+
+  const key = await cryptoObject.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['decrypt']
+  );
+
+  let decryptedBuffer;
+  try {
+    decryptedBuffer = await cryptoObject.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      key,
+      ciphertext
+    );
+  } catch {
+    throw new Error('Decryption failed: incorrect passphrase or corrupted backup file.');
+  }
+
+  const dec = new TextDecoder();
+  return dec.decode(decryptedBuffer);
+}
+
+

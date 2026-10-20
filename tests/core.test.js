@@ -967,6 +967,34 @@ test('a receipt on an unpriced bill with no later priced bill stays as pending c
   assert.equal(calculateDashboard(state, referenceDate).pendingCredit, 800);
 });
 
+test('a discount larger than the remaining payable amount is rejected on add and on correction', () => {
+  let state = createInitialState();
+  state = profile(state, 'seed-001', { monthlySellingAmount:'1000' }, referenceDate);
+  state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'1000', status:'pending' }, referenceDate);
+  // The reported bug: a Rs 5,000 discount on a Rs 1,000 bill was stored verbatim.
+  assert.throws(
+    () => addPayment(state, 'seed-001', currentMonth, payment({ amount:'100', discount:'5000' }), referenceDate),
+    /Discount cannot exceed remaining payable amount \(PKR 1,000\)/
+  );
+  // A discount that exactly settles the bill is allowed; the cash becomes credit.
+  state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'800', discount:'200' }), referenceDate);
+  assert.equal(calculatePaymentAllocations(state).forMonth('seed-001', currentMonth).balanceDueCents, 0);
+  // Nothing is owed any more, so any further discount is rejected.
+  assert.throws(
+    () => addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-20', amount:'10', discount:'1' }), referenceDate),
+    /Discount cannot exceed remaining payable amount \(PKR 0\)/
+  );
+  // Correction: the payment's own settlement is excluded before capping, so
+  // reshaping it (500 cash + 500 discount) works, but exceeding the bill fails.
+  const paymentId = state.customers[0].bills.find(bill => bill.month === currentMonth).payments[0].id;
+  state = correctPayment(state, 'seed-001', currentMonth, paymentId, payment({ amount:'500', discount:'500' }), referenceDate);
+  assert.equal(calculatePaymentAllocations(state).forMonth('seed-001', currentMonth).balanceDueCents, 0);
+  assert.throws(
+    () => correctPayment(state, 'seed-001', currentMonth, paymentId, payment({ amount:'100', discount:'1001' }), referenceDate),
+    /Discount cannot exceed remaining payable amount \(PKR 1,000\)/
+  );
+});
+
 test('editing or deleting a source receipt recomputes every later credit and outstanding month without changing other cash', () => {
   const october1 = new Date(2026, 9, 1, 9);
   let state = createInitialState();

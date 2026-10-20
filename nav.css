@@ -7837,3 +7837,23 @@ body {
   gap: 8px;
   margin-top: 10px;
 }
+
+/* Fast Customer Search keyboard navigation highlight (#312) */
+.fcs-card.is-highlighted {
+  border-color: var(--primary, #0d9488);
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.28), 0 2px 8px rgba(13, 148, 136, 0.12);
+  background: var(--surface-2, #f0fdfa);
+  outline: none;
+}
+
+[data-theme="dark"] .fcs-card.is-highlighted {
+  border-color: #2dd4bf;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.35), 0 2px 8px rgba(0, 0, 0, 0.3);
+  background: #132e27;
+}
+
+.fcs-card.is-highlighted .fcs-collect-btn {
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.4);
+  transform: scale(1.02);
+}
+

@@ -223,7 +223,7 @@ test.describe('Top-to-Bottom App Functional Inventory & Browser Verification', (
   });
 
   test('Section 4, 6 & 8 - Customer Master Table, Billing Details & Batch Slips', async ({ page, isMobile }) => {
-    await page.goto('/');
+    await page.goto('/#/customers');
 
     // 1. Verify Customers Master Roster
     const custView = page.locator('#customersView');

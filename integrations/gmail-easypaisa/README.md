@@ -9,7 +9,8 @@ Part of GitHub Issue #305 (OfferPk/shahdara-isp-billing).
 ## Architecture & Privacy Guarantee
 
 - **100% Private to Your Google Account**: The script runs exclusively inside your own personal Google Apps Script project. No credentials, tokens, or passwords are ever sent to any external server or saved in the billing app.
-- **Read-Only Gmail Access**: The script requests permission only to search for Easypaisa notifications and apply the `crm-processed` label so messages are never read twice.
+- **Gmail Authorization Scope**: The script uses Google's built-in `GmailApp` service to search for Easypaisa notifications and apply the `crm-processed` label. Google's standard authorization dialog will display that the script can access Gmail messages and labels; the script contains only read and label operations and never deletes or sends emails.
+- **Privacy Notice for Published CSV**: When publishing your sheet as a CSV (Step 5), the generated link is unlisted but public to anyone who possesses the exact link URL. Keep this URL confidential and enter it only into your local billing app settings.
 - **Zero Cost**: Built on standard Google Apps Script and Google Sheets (no paid third-party SMS or email parsing APIs).
 - **Offline-Friendly CRM Sync**: The CRM app reads the published CSV directly in your local browser sandbox to display totals, match customer payments, and record ledger entries.
 

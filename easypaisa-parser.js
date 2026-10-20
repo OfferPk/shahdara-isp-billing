@@ -74,7 +74,7 @@ export function parsePakistanDateTime(rawDateStr) {
   if (!rawDateStr || typeof rawDateStr !== 'string') {
     return { date: '', time: '', datetimeIso: '' };
   }
-  const clean = rawDateStr.trim();
+  const clean = rawDateStr.trim().replace(/\bat\b/gi, ' ').replace(/\s+/g, ' ');
 
   // Pattern 1: 13-Oct-2026 or 13-October-2026 or 13 Oct 2026 [14:20:38]
   const patternWordMonth = /^(\d{1,2})[-/ ]([A-Za-z]{3,9})[-/ ](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/;
@@ -147,7 +147,7 @@ function resolveDirection(senderNum, receiverNum, defaultDirection, ownerNumber)
 /**
  * Standard Key-Value Email Template.
  * Matches official Easypaisa transaction emails formatted as key-value pairs
- * separated by tabs (\t), colons (:), or newlines.
+ * separated by tabs (\t), colons (:), multiple spaces, or newlines.
  */
 const KeyValueTemplate = {
   name: 'easypaisa_key_value_email',
@@ -181,6 +181,10 @@ const KeyValueTemplate = {
         const colonIdx = line.indexOf(':');
         key = line.slice(0, colonIdx).trim();
         val = line.slice(colonIdx + 1).trim();
+      } else if (/\s{2,}/.test(line)) {
+        const parts = line.split(/\s{2,}/);
+        key = parts[0].trim();
+        val = parts.slice(1).join(' ').trim();
       } else if (i + 1 < lines.length) {
         // Check if current line is a known label without value on the same line
         const testKey = line.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -291,7 +295,7 @@ const SmsReceivedTemplate = {
     const senderName = match ? match[2].trim() : '';
     const senderNumber = match ? normalizeEasypaisaPhone(match[3]) : '';
 
-    const dtMatch = rawText.match(/on\s+(\d{1,2}[-/ ][A-Za-z0-9]{3,9}[-/ ]\d{4}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)/i);
+    const dtMatch = rawText.match(/on\s+(\d{1,2}[-/ ][A-Za-z0-9]{3,9}[-/ ]\d{4}(?:\s+(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?)?)/i);
     const rawDatetime = dtMatch ? dtMatch[1].trim() : '';
     const parsedDt = parsePakistanDateTime(rawDatetime);
 
@@ -482,11 +486,151 @@ export function parseEasypaisaEmails(input, options = {}) {
   return [];
 }
 
+/**
+ * Parses a single CSV line into an array of cell values according to RFC-4180 rules
+ * (supports double quotes, escaped quotes, and commas inside quotes).
+ *
+ * @param {string} line
+ * @returns {string[]}
+ */
+export function parseCsvLine(line) {
+  if (line === null || line === undefined) return [];
+  const str = String(line);
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '"') {
+      if (inQuotes && str[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(cur.trim());
+      cur = '';
+    } else {
+      cur += ch;
+    }
+  }
+  result.push(cur.trim());
+  return result;
+}
+
+/**
+ * Parses full CSV content (from Google Sheets publish, CSV export, or tabular text).
+ * Automatically detects column headers or falls back to column order.
+ *
+ * @param {string} csvText
+ * @param {Object} [options]
+ * @param {string} [options.ownerNumber]
+ * @returns {Object[]} Array of parsed transaction objects.
+ */
+export function parseEasypaisaCsv(csvText, options = {}) {
+  if (!csvText || typeof csvText !== 'string') return [];
+  const rawLines = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  const lines = rawLines.map(l => l.trim()).filter(Boolean);
+  if (!lines.length) return [];
+
+  // Determine headers
+  const firstRow = parseCsvLine(lines[0]);
+  const normHeaders = firstRow.map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
+
+  const findCol = (...candidates) => {
+    for (const cand of candidates) {
+      const idx = normHeaders.indexOf(cand);
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+
+  const txnCol = findCol('transactionid', 'txnid', 'trxid', 'transaction', 'ref', 'reference');
+  const dateCol = findCol('datetimepkt', 'datetime', 'dateandtime', 'date', 'time');
+  const typeCol = findCol('transactiontype', 'type');
+  const senderNameCol = findCol('sendername', 'sender');
+  const senderNumberCol = findCol('sendernumber', 'sendermobile', 'senderphone');
+  const receiverNameCol = findCol('receivername', 'receiver', 'recipientname');
+  const receiverNumberCol = findCol('receivernumber', 'receivermobile', 'receiverphone', 'recipientnumber');
+  const amountCol = findCol('amountpkr', 'amount', 'transferamount');
+  const feeCol = findCol('feepkr', 'fee');
+  const totalCol = findCol('totalpkr', 'total');
+  const directionCol = findCol('direction');
+  const statusCol = findCol('status');
+
+  const hasHeaders = txnCol !== -1 || dateCol !== -1 || amountCol !== -1;
+  const startIdx = hasHeaders ? 1 : 0;
+  const results = [];
+
+  for (let i = startIdx; i < lines.length; i++) {
+    const row = parseCsvLine(lines[i]);
+    if (!row.length || (row.length === 1 && !row[0])) continue;
+
+    // If single column containing full message text, run standard parser
+    if (row.length === 1 && row[0].length > 40) {
+      results.push(parseEasypaisaEmail(row[0], options));
+      continue;
+    }
+
+    const txnId = txnCol !== -1 && row[txnCol] ? row[txnCol] : (row[0] || `EP-CSV-${Date.now()}-${i}`);
+    const rawDate = dateCol !== -1 && row[dateCol] ? row[dateCol] : (row[1] || '');
+    const type = typeCol !== -1 && row[typeCol] ? row[typeCol] : (row[2] || 'Money Transfer to Easypaisa');
+    const senderName = senderNameCol !== -1 && row[senderNameCol] ? row[senderNameCol] : (row[3] || '');
+    const senderNumber = normalizeEasypaisaPhone(senderNumberCol !== -1 && row[senderNumberCol] ? row[senderNumberCol] : (row[4] || ''));
+    const receiverName = receiverNameCol !== -1 && row[receiverNameCol] ? row[receiverNameCol] : (row[5] || '');
+    const receiverNumber = normalizeEasypaisaPhone(receiverNumberCol !== -1 && row[receiverNumberCol] ? row[receiverNumberCol] : (row[6] || ''));
+    const rawAmount = amountCol !== -1 && row[amountCol] ? row[amountCol] : (row[7] || '');
+    const rawFee = feeCol !== -1 && row[feeCol] ? row[feeCol] : (row[8] || '0');
+    const rawTotal = totalCol !== -1 && row[totalCol] ? row[totalCol] : (row[9] || '');
+    const rawDirection = directionCol !== -1 && row[directionCol] ? row[directionCol] : (row[10] || '');
+    const rawStatus = statusCol !== -1 && row[statusCol] ? row[statusCol] : '';
+
+    const amount = parseEasypaisaAmount(rawAmount);
+    const fee = parseEasypaisaAmount(rawFee) ?? 0;
+    const total = parseEasypaisaAmount(rawTotal) ?? ((amount !== null ? amount : 0) + fee);
+    const parsedDt = parsePakistanDateTime(rawDate);
+
+    let direction = 'Unknown';
+    if (/^sent$/i.test(rawDirection)) direction = 'Sent';
+    else if (/^received$/i.test(rawDirection)) direction = 'Received';
+    else direction = resolveDirection(senderNumber, receiverNumber, 'Unknown', options.ownerNumber);
+
+    const isParsed = amount !== null && amount > 0 && Boolean(txnId) && !txnId.startsWith('REVIEW-');
+    const status = rawStatus || (isParsed ? 'Parsed' : 'Needs review');
+
+    results.push({
+      status,
+      parsed: status === 'Parsed',
+      template: 'easypaisa_csv_row',
+      type,
+      txnId,
+      datetime: rawDate,
+      datetimeIso: parsedDt.datetimeIso,
+      date: parsedDt.date,
+      senderName,
+      senderNumber,
+      receiverName,
+      receiverNumber,
+      amount,
+      fee,
+      total,
+      direction,
+      rawText: lines[i]
+    });
+  }
+
+  return results;
+}
+
 // Global browser window export when loaded as standard script tag
 if (typeof window !== 'undefined') {
   window.easypaisaParser = {
     parseEasypaisaEmail,
     parseEasypaisaEmails,
+    parseEasypaisaCsv,
+    parseCsvLine,
     normalizeEasypaisaPhone,
     parseEasypaisaAmount,
     parsePakistanDateTime,

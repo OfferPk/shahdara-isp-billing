@@ -147,10 +147,10 @@ test.describe('Mobile Header & Fixed Bottom Nav QA (#214, #211)', () => {
     await page.locator('#closeQuickCollectModalBtn').click();
     await expect(quickCollectModal).not.toBeVisible();
 
-    // Test clicking Home tab -> back to home/customers view
+    // Test clicking Home tab -> back to home dashboard view
     const homeBtn = page.locator('[data-mobile-nav="home"]');
     await homeBtn.click();
-    await expect(page.locator('#customersView')).toBeVisible();
+    await expect(page.locator('#billingDashboard')).toBeVisible();
 
     // Bottom nav still fixed after navigation
     box = await bottomNav.boundingBox();

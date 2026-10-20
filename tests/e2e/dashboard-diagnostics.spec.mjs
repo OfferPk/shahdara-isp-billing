@@ -16,6 +16,12 @@ test.describe('Dashboard Diagnostics Modals Suite (#237)', () => {
     await page.goto('/');
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#billingDashboard')).toBeVisible();
+    const chartsCollapsible = page.locator('#homeChartsCollapsible');
+    if (await chartsCollapsible.isVisible()) {
+      await page.evaluate(() => {
+        document.getElementById('homeChartsCollapsible')?.setAttribute('open', '');
+      });
+    }
   });
 
   for (const item of DIAGNOSTICS_BUTTONS) {

@@ -5,9 +5,9 @@ test.describe('Navigation, Views, and Modal Dialogs Verification', () => {
     test.skip(!isMobile, 'Bottom nav is mobile-only component');
     await page.goto('/');
 
-    // 1. Initial view: Customers / Home
+    // 1. Initial view: Home
     const customersView = page.locator('#customersView');
-    await expect(customersView).toBeVisible();
+    await expect(page.locator('#billingDashboard')).toBeVisible();
 
     // 2. Tap Collection tab -> #quickCollectModal opens
     const collectBtn = page.locator('[data-mobile-nav="collection"]');

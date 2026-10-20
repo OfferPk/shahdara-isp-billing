@@ -20,8 +20,22 @@ import {
   formatPKR,
   monthsForHistory,
   applyLateFeeToBill,
-  waiveLateFeeFromBill
+  waiveLateFeeFromBill,
+  PAKISTAN_TIME_ZONE
 } from './core.js';
+
+/**
+ * Calendar date (YYYY-MM-DD) of an instant in Pakistan time.
+ * Due dates in this app are Pakistan local dates, so "today" must be the
+ * Asia/Karachi date — the UTC date lags it by up to 5 hours every night.
+ * @param {Date} [date=new Date()]
+ * @returns {string}
+ */
+export function pakistanDateKey(date = new Date()) {
+  const ref = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: PAKISTAN_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(ref).filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 
 export const LATE_FEE_CONFIG_KEY = 'shahdara_late_fee_config_v1';
 
@@ -188,13 +202,17 @@ export function calculateNetBillSettlement({
  * @param {number} [options.graceDays=0]
  * @returns {{ isOverdue: boolean, dueDate: string, daysOverdue: number }}
  */
-export function isBillOverdue(bill, { referenceDate = new Date(), graceDays = 0 } = {}) {
+export function isBillOverdue(bill, options = {}) {
+  // Accept either an options object or a bare reference Date.
+  const { referenceDate = new Date(), graceDays = 0 } = options instanceof Date ? { referenceDate: options } : (options || {});
   if (!bill || !bill.dueDate) return { isOverdue: false, dueDate: '', daysOverdue: 0 };
   const dStr = String(bill.dueDate).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dStr)) return { isOverdue: false, dueDate: '', daysOverdue: 0 };
 
-  const ref = new Date(referenceDate);
-  const todayStr = ref.toISOString().slice(0, 10);
+  // Pakistan calendar date, not UTC: with toISOString() a bill due on the
+  // 5th only became "overdue" at 05:00 PKT on the 6th, and daysOverdue
+  // under-reported by one between midnight and 05:00 PKT every day.
+  const todayStr = pakistanDateKey(new Date(referenceDate));
 
   const due = new Date(`${dStr}T00:00:00.000Z`);
   const current = new Date(`${todayStr}T00:00:00.000Z`);
@@ -559,7 +577,7 @@ export function generateLateFeeDiscountsCsv(state, options = {}) {
 export function generateLateFeeAuditPrintHtml({ state, format = 'a4', config = null }) {
   const audit = findOverdueBillsWithLateFeeStatus(state, { config });
   const isThermal = format === 'thermal';
-  const now = new Date().toISOString().slice(0, 10);
+  const now = pakistanDateKey();
 
   if (isThermal) {
     const items = audit.rows.slice(0, 15).map(r => `

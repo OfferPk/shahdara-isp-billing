@@ -15,7 +15,7 @@ import {
   PAKISTAN_CNIC_PROVINCES, parsePakistaniCnicDetails, calculateKycComplianceAudit, filterKycComplianceRecords,
   generateKycNoticeWhatsAppText, generateKycComplianceCsv, generateKycCompliancePrintHtml, setupKycComplianceModal,
   LATE_FEE_CONFIG_KEY, DEFAULT_LATE_FEE_CONFIG, getLateFeeConfig, saveLateFeeConfig, validatePaymentDiscount,
-  calculateNetBillSettlement, isBillOverdue, evaluateBillLateFeeEligibility, findOverdueBillsWithLateFeeStatus,
+  calculateNetBillSettlement, isBillOverdue, pakistanDateKey, evaluateBillLateFeeEligibility, findOverdueBillsWithLateFeeStatus,
   applyLateFeeToEligibleBills, waiveLateFeeFromBills, formatLateFeeNoticeWhatsApp, formatReceiptWithDiscountAndFeeWhatsApp,
   generateLateFeeDiscountsCsv, generateLateFeeAuditPrintHtml, renderLateFeeDiscountsSvg, setupLateFeeModal
 } from '../form-validation.js';
@@ -15003,6 +15003,23 @@ test('isBillOverdue and evaluateBillLateFeeEligibility respect due date, grace p
   });
   assert.equal(evalGrace.eligible, false);
   assert.equal(evalGrace.isOverdue, false);
+});
+
+test('isBillOverdue uses the Pakistan calendar date, not UTC', () => {
+  const bill = { month: '2026-10', dueDate: '2026-10-05', dueAmount: 1500, payments: [] };
+  // 2026-10-05T19:30:00Z is 2026-10-06 00:30 in Pakistan: the due date has
+  // passed on the Pakistan calendar, so the bill is 1 day overdue. The old
+  // UTC comparison still reported "not overdue" until 05:00 PKT.
+  const afterMidnightPkt = new Date('2026-10-05T19:30:00Z');
+  assert.equal(isBillOverdue(bill, { referenceDate: afterMidnightPkt }).isOverdue, true);
+  assert.equal(isBillOverdue(bill, { referenceDate: afterMidnightPkt }).daysOverdue, 1);
+  // A bare Date as the second argument is honoured as the reference date too.
+  assert.equal(isBillOverdue(bill, afterMidnightPkt).isOverdue, true);
+  // 2026-10-05T10:00:00Z is 15:00 PKT on the due date itself: not overdue yet.
+  assert.equal(isBillOverdue(bill, { referenceDate: new Date('2026-10-05T10:00:00Z') }).isOverdue, false);
+  // Grace days still count Pakistan calendar days.
+  assert.equal(isBillOverdue(bill, { referenceDate: afterMidnightPkt, graceDays: 1 }).isOverdue, false);
+  assert.equal(pakistanDateKey(new Date('2026-01-01T02:00:00Z')), '2026-01-01');
 });
 
 test('applyLateFeeToBill and waiveLateFeeFromBill update bill and maintain immutable audit history', () => {

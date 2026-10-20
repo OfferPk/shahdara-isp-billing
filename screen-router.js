@@ -14,7 +14,8 @@
  * The module only observes clicks (capture phase) and history; it never replaces the
  * app's own navigation handlers in app.js / owner-ui.js / nav.js.
  *
- * Quick Collect is a route too (#263): #/collect (also #collect, #quick-collect). Opening the
+ * Quick Collect is a route too (#263): #/collect (also #collect, #quick-collect and the
+ * #quick-collect/<customerId> deep link, which preselects that customer). Opening the
  * sheet from anywhere pushes #/collect; phone/browser Back closes it and returns to the screen
  * underneath; a deep link or reload on #/collect opens it. Bulk Collect (#/bulk-collect,
  * bulk-collect.js) stacks on top: one Back closes Bulk and re-opens Quick Collect, while
@@ -67,10 +68,27 @@ export function parseRoute(hash = '') {
 export const routeHash = screen => `#/${screen}`;
 
 export const COLLECT_HASH = '#/collect';
-/** True for the Quick Collect route: #/collect, #collect, #collect/ and the PWA #quick-collect. */
+/**
+ * True for the Quick Collect route: #/collect, #collect, #collect/ and the PWA
+ * #quick-collect — including the #quick-collect/<customerId> deep link (Home's
+ * Top 5 Overdue "Collect" links). A deep link is an opener, never a screen to
+ * return to: opening replaces its history entry with #/collect (no
+ * collectFrom), so closing the sheet can never navigate back onto a hash that
+ * would reopen it.
+ */
 export function isCollectHash(hash = '') {
   const raw = String(hash).trim().toLowerCase().replace(/^#\/?/, '').replace(/\/$/, '');
-  return raw === 'collect' || raw === 'quick-collect';
+  return raw === 'collect' || raw === 'quick-collect' || raw.startsWith('quick-collect/');
+}
+
+/**
+ * Customer id carried by a #quick-collect/<customerId> deep link, or null for
+ * the plain Quick Collect route and every other hash.
+ */
+export function quickCollectCustomerIdFromHash(hash = '') {
+  const match = String(hash).trim().match(/^#\/?quick-collect\/([^\s/?#]+)/i);
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch { return match[1]; }
 }
 
 /**
@@ -397,14 +415,16 @@ export function setupCollectRoute({ doc, win, nativePush, nativeReplace }) {
     return nativePush({ ...(state || {}), collect: true, collectFrom: from || '#/home' }, '', COLLECT_HASH);
   }
 
-  function openSheet(tries = 0) {
+  function openSheet(tries = 0, customerId = undefined) {
     win.clearTimeout(openTimer);
     const m = modal();
     if (!isCollectHash(hash()) || m?.open) return;
     const ctl = controller();
-    if (ctl?.open) { ctl.open(); return; }
+    // A #quick-collect/<id> deep link preselects that customer (payment step).
+    const targetId = customerId ?? quickCollectCustomerIdFromHash(hash()) ?? undefined;
+    if (ctl?.open) { ctl.open(targetId); return; }
     // The controller is set up by app.js after start-up; a deep link can arrive first.
-    if (tries < 50) openTimer = win.setTimeout(() => openSheet(tries + 1), 100);
+    if (tries < 50) openTimer = win.setTimeout(() => openSheet(tries + 1, targetId), 100);
   }
 
   function onOpened() {
@@ -464,8 +484,11 @@ export function setupCollectRoute({ doc, win, nativePush, nativeReplace }) {
   win.addEventListener('popstate', sync);
   win.addEventListener('hashchange', sync);
   if (isCollectHash(hash())) {
+    // Capture a deep link's customer id before its history entry is normalised
+    // to #/collect (the id is not part of the canonical route).
+    const deepLinkCustomerId = quickCollectCustomerIdFromHash(hash()) ?? undefined;
     if (hash() !== COLLECT_HASH) nativeReplace({ ...(history.state || {}), collect: true }, '', COLLECT_HASH);
-    win.setTimeout(openSheet, 0);
+    win.setTimeout(() => openSheet(0, deepLinkCustomerId), 0);
   }
   return { push, open: () => { if (!isCollectHash(hash())) push(null); openSheet(); }, sync, skipNextOpen: () => { skipOpen = true; } };
 }

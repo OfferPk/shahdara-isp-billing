@@ -3597,7 +3597,7 @@ if (mobileMorePwaStatusBtn) {
 
 // Setup PWA Shortcuts URL handler (#quick-collect, #add-customer, #today-dues)
 setupPwaShortcuts({
-  onQuickCollect: () => window.quickCollectModalController?.open(),
+  onQuickCollect: (customerId) => window.quickCollectModalController?.open(customerId),
   onAddCustomer: () => {
     switchView('customers');
     const addBtn = $('#addCustomerButton') || $('#quickActionAddCustomer');

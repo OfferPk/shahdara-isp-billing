@@ -24,9 +24,10 @@ import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
 import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
   calculateBackupAge, checkStoragePersistence, requestStoragePersistence,
-  getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY
+  getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY,
+  encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload
 } from './backup-store.js?v=1.10.0';
-import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip } from './qa-backup-csv-import.js?v=1.10.0';
+import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.10.0';
@@ -1570,6 +1571,10 @@ async function checkAutomaticBackup() {
 }
 function renderBackupPreview(preview) {
   pendingBackupPreview = preview;
+  const encSection = $('#encryptedRestoreSection');
+  if (encSection) encSection.hidden = true;
+  const plainSection = $('#plainBackupRestoreSection');
+  if (plainSection) plainSection.hidden = false;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
   $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.`;
@@ -1697,14 +1702,93 @@ $('#backupControlsToggle').addEventListener('click', event => {
   button.setAttribute('aria-label', label);
   button.title = label;
 });
+let pendingEncryptedBackupText = null;
+
+function promptEncryptedRestore(text, inspection) {
+  pendingEncryptedBackupText = text;
+  pendingBackupPreview = null;
+  const dialog = $('#jsonBackupDialog');
+  $('#encryptedRestoreSection').hidden = false;
+  $('#plainBackupRestoreSection').hidden = true;
+  $('#applyJsonBackupButton').disabled = true;
+
+  const hintBlock = $('#encryptedRestoreHintBlock');
+  const hintText = $('#encryptedRestoreHintText');
+  if (inspection.hint) {
+    hintText.textContent = inspection.hint;
+    hintBlock.hidden = false;
+  } else {
+    hintBlock.hidden = true;
+    hintText.textContent = '';
+  }
+
+  const errEl = $('#encryptedRestoreError');
+  errEl.hidden = true;
+  errEl.textContent = '';
+
+  const input = $('#encryptedRestorePassphrase');
+  input.value = '';
+  dialog.showModal();
+  setTimeout(() => input.focus(), 50);
+}
+
+$('#unlockEncryptedRestoreBtn')?.addEventListener('click', async () => {
+  const input = $('#encryptedRestorePassphrase');
+  const pass = input.value;
+  const errEl = $('#encryptedRestoreError');
+  if (!pass) {
+    errEl.textContent = 'Please enter the backup passphrase.';
+    errEl.hidden = false;
+    input.focus();
+    return;
+  }
+  errEl.hidden = true;
+  try {
+    const decryptedText = await decryptBackupJson(pendingEncryptedBackupText, pass);
+    $('#encryptedRestoreSection').hidden = true;
+    $('#plainBackupRestoreSection').hidden = false;
+    renderBackupPreview(previewJsonBackupMerge(state, decryptedText));
+    toast('🔐 Backup decrypted successfully! Review the safe merge preview.');
+  } catch (err) {
+    errEl.textContent = err.message || 'Decryption failed: incorrect passphrase.';
+    errEl.hidden = false;
+    input.focus();
+    toast('Decryption failed: incorrect passphrase.');
+  }
+});
+
 $('#jsonBackupFileInput').addEventListener('change', async event => {
   const file = event.currentTarget.files?.[0];
   if (!file) return;
   if (file.size > 25 * 1024 * 1024) { toast('Backup must be smaller than 25 MB. No local data was changed.'); return; }
-  try { renderBackupPreview(previewJsonBackupMerge(state, await file.text())); }
+  try {
+    const text = await file.text();
+    const inspection = inspectBackupFileHeader(text);
+    if (!inspection.valid) {
+      toast(`${inspection.error} No local data was changed.`);
+      return;
+    }
+    if (inspection.encrypted) {
+      promptEncryptedRestore(text, inspection);
+      return;
+    }
+    renderBackupPreview(previewJsonBackupMerge(state, text));
+  }
   catch (error) { toast(`${error.message} No local data was changed.`); }
+  finally {
+    event.currentTarget.value = '';
+  }
 });
-function closeBackupDialog() { pendingBackupPreview = null; $('#jsonBackupDialog').close(); }
+
+function closeBackupDialog() {
+  pendingBackupPreview = null;
+  pendingEncryptedBackupText = null;
+  const encSection = $('#encryptedRestoreSection');
+  if (encSection) encSection.hidden = true;
+  const plainSection = $('#plainBackupRestoreSection');
+  if (plainSection) plainSection.hidden = false;
+  $('#jsonBackupDialog').close();
+}
 document.querySelectorAll('[data-close-backup-dialog]').forEach(button => button.addEventListener('click', closeBackupDialog));
 $('#cancelJsonBackupButton').addEventListener('click', closeBackupDialog);
 $('#jsonBackupDialog')?.addEventListener('click', (e) => {
@@ -1712,6 +1796,122 @@ $('#jsonBackupDialog')?.addEventListener('click', (e) => {
 });
 $('#jsonBackupDialog')?.addEventListener('cancel', () => {
   pendingBackupPreview = null;
+  pendingEncryptedBackupText = null;
+});
+
+// Encrypted Backup Export dialog wiring
+function openEncryptedBackupDialog() {
+  if (persistenceBlocked) {
+    toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.');
+    return;
+  }
+  const dialog = $('#encryptedBackupDialog');
+  $('#encryptedBackupPassphrase').value = '';
+  $('#encryptedBackupPassphraseConfirm').value = '';
+  $('#encryptedBackupHint').value = '';
+  const err = $('#encryptedBackupError');
+  err.hidden = true;
+  err.textContent = '';
+  dialog.showModal();
+  setTimeout(() => $('#encryptedBackupPassphrase').focus(), 50);
+}
+
+function closeEncryptedBackupDialog() {
+  $('#encryptedBackupDialog').close();
+}
+
+$('#openExportEncryptedBackupBtn')?.addEventListener('click', openEncryptedBackupDialog);
+document.querySelectorAll('[data-close-encrypted-backup-dialog]').forEach(btn => {
+  btn.addEventListener('click', closeEncryptedBackupDialog);
+});
+$('#encryptedBackupDialog')?.addEventListener('click', (e) => {
+  if (e.target === $('#encryptedBackupDialog')) closeEncryptedBackupDialog();
+});
+
+async function getValidatedEncryptedBackupPayload() {
+  const pass = $('#encryptedBackupPassphrase').value;
+  const confirm = $('#encryptedBackupPassphraseConfirm').value;
+  const hint = $('#encryptedBackupHint').value;
+  const err = $('#encryptedBackupError');
+  if (!pass || pass.length < 6) {
+    err.textContent = 'Passphrase must be at least 6 characters long.';
+    err.hidden = false;
+    $('#encryptedBackupPassphrase').focus();
+    toast('Passphrase must be at least 6 characters long.');
+    return null;
+  }
+  if (pass !== confirm) {
+    err.textContent = 'Passphrases do not match. Please re-enter.';
+    err.hidden = false;
+    $('#encryptedBackupPassphraseConfirm').focus();
+    toast('Passphrases do not match. Please re-enter.');
+    return null;
+  }
+  err.hidden = true;
+  const rawBackup = createJsonBackup(state, new Date());
+  const encrypted = await encryptBackupJson(rawBackup, pass, { hint });
+  return encrypted;
+}
+
+$('#downloadEncryptedBackupBtn')?.addEventListener('click', async () => {
+  try {
+    const encrypted = await getValidatedEncryptedBackupPayload();
+    if (!encrypted) return;
+    const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
+    const filename = `shahdara-isp-billing-encrypted-backup-${fileStamp}.json`;
+    downloadJson(filename, encrypted);
+    try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+    updateDataSafetyUi();
+    closeEncryptedBackupDialog();
+    toast('🔐 Encrypted backup downloaded! Store it safely and remember your passphrase.');
+  } catch (error) {
+    const err = $('#encryptedBackupError');
+    err.textContent = `Encryption failed: ${error.message}`;
+    err.hidden = false;
+  }
+});
+
+$('#shareEncryptedBackupBtn')?.addEventListener('click', async () => {
+  try {
+    const encrypted = await getValidatedEncryptedBackupPayload();
+    if (!encrypted) return;
+    const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
+    const filename = `shahdara-isp-billing-encrypted-backup-${fileStamp}.json`;
+    const result = await shareJsonBackupFile({ backupText: encrypted, filename });
+    if (result.method === 'share') {
+      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      updateDataSafetyUi();
+      closeEncryptedBackupDialog();
+      toast('🔐 Encrypted backup shared! Select Google Drive or WhatsApp to save.');
+    } else if (result.method === 'download') {
+      downloadJson(result.filename, result.backupText);
+      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      updateDataSafetyUi();
+      closeEncryptedBackupDialog();
+      toast('🔐 Web Share unavailable; encrypted backup downloaded instead.');
+    } else if (result.method === 'cancelled') {
+      toast('Share cancelled.');
+    }
+  } catch (error) {
+    const err = $('#encryptedBackupError');
+    err.textContent = `Share failed: ${error.message}`;
+    err.hidden = false;
+  }
+});
+
+$('#toggleExportPassphraseBtn')?.addEventListener('click', () => {
+  const input = $('#encryptedBackupPassphrase');
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  $('#encryptedBackupPassphraseConfirm').type = isPass ? 'text' : 'password';
+  $('#toggleExportPassphraseBtn').textContent = isPass ? '🙈' : '👁️';
+});
+
+$('#toggleRestorePassphraseBtn')?.addEventListener('click', () => {
+  const input = $('#encryptedRestorePassphrase');
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  $('#toggleRestorePassphraseBtn').textContent = isPass ? '🙈' : '👁️';
 });
 $('#applyJsonBackupButton').addEventListener('click', () => {
   if (!pendingBackupPreview?.canApply) return;

@@ -57,10 +57,32 @@ export function inspectBackupFileHeader(backupText) {
   if (!parsed || typeof parsed !== 'object') {
     return { valid: false, error: 'Backup content must be a JSON object.', version: null, format: null };
   }
+  if (parsed.format === 'shahdara-isp-billing-encrypted-backup') {
+    const version = Number(parsed.formatVersion);
+    if (version > 1) {
+      return {
+        valid: false,
+        error: `Encrypted backup format version ${version} is newer than supported by this app (version 1). Please update the app first.`,
+        version,
+        format: parsed.format
+      };
+    }
+    return {
+      valid: true,
+      encrypted: true,
+      error: null,
+      version: version || 1,
+      format: parsed.format,
+      hint: parsed.hint || null,
+      cipher: parsed.cipher || 'AES-GCM',
+      createdAt: parsed.createdAt || null,
+      customerCount: null
+    };
+  }
   if (parsed.format !== 'shahdara-isp-billing-backup') {
     return {
       valid: false,
-      error: `Unrecognized backup format "${parsed.format || 'unknown'}". Expected "shahdara-isp-billing-backup".`,
+      error: `Unrecognized backup format "${parsed.format || 'unknown'}". Expected "shahdara-isp-billing-backup" or "shahdara-isp-billing-encrypted-backup".`,
       version: parsed.formatVersion ?? null,
       format: parsed.format ?? null
     };

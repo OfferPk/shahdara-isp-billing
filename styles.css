@@ -9977,6 +9977,86 @@ html, body {
   color: #fde047;
 }
 
+.encrypted-restore-box {
+  background: rgba(14, 91, 77, 0.05);
+  border: 1px solid rgba(14, 91, 77, 0.2);
+  border-radius: 8px;
+  padding: 14px;
+  margin: 10px 0 16px;
+}
+.encrypted-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary, #0E5B4D);
+  background: rgba(14, 91, 77, 0.12);
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-bottom: 8px;
+}
+.encrypted-restore-desc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text, #14211E);
+  margin: 0 0 8px;
+}
+.encrypted-hint-block {
+  font-size: 12px;
+  color: #854d0e;
+  background: #fef9c3;
+  padding: 6px 10px;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+.threat-model-notice {
+  background: rgba(14, 91, 77, 0.08);
+  border-left: 3px solid var(--primary, #0E5B4D);
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text, #14211E);
+}
+.passphrase-input-wrap {
+  position: relative;
+  display: flex;
+}
+.toggle-password-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .encrypted-restore-box {
+  background: rgba(63, 191, 159, 0.08);
+  border-color: rgba(63, 191, 159, 0.25);
+}
+[data-theme="dark"] .encrypted-badge-pill {
+  color: #3FBF9F;
+  background: rgba(63, 191, 159, 0.18);
+}
+[data-theme="dark"] .encrypted-restore-desc {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .encrypted-hint-block {
+  color: #fef08a;
+  background: #713f12;
+}
+[data-theme="dark"] .threat-model-notice {
+  background: rgba(63, 191, 159, 0.1);
+  border-left-color: #3FBF9F;
+  color: #e2e8f0;
+}
+
 @media (max-width: 620px) {
   .backup-actions #verifyStorageIntegrityBtn,
   .backup-controls-panel .backup-actions #verifyStorageIntegrityBtn {

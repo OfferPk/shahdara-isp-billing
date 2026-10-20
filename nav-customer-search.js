@@ -227,7 +227,7 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
     `;
   }
 
-  return customers.map(c => {
+  return customers.map((c, index) => {
     const hasDues = c.totalDues > 0;
     const statusClass = (c.billingStatus || '').toLowerCase();
     const statusLabel =
@@ -236,7 +236,7 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
       c.billingStatus === 'pending' ? 'PENDING' : 'NOT SET';
 
     return `
-      <article class="fcs-card" data-customer-id="${escapeHtml(c.id)}">
+      <article class="fcs-card" id="fcs-card-${escapeHtml(c.id)}" data-customer-id="${escapeHtml(c.id)}" data-index="${index}" role="option" aria-selected="false">
         <div class="fcs-card-main">
           <div class="fcs-avatar">#${escapeHtml(String(c.customerNumber))}</div>
           <div class="fcs-info">
@@ -322,6 +322,57 @@ export function setupFastCustomerSearchModal({
   const sectionTitle = document.getElementById('fastCustomerSearchSectionTitle');
 
   let activeStatusFilter = 'all';
+  let highlightedIndex = -1;
+
+  function updateHighlight(newIndex, scroll = true) {
+    if (!resultsContainer) return;
+    const cards = Array.from(resultsContainer.querySelectorAll('.fcs-card'));
+    cards.forEach((card, idx) => {
+      if (idx === newIndex) {
+        card.classList.add('is-highlighted');
+        card.setAttribute('aria-selected', 'true');
+        card.setAttribute('tabindex', '0');
+        searchInput?.setAttribute('aria-activedescendant', card.id || `fcs-card-${idx}`);
+        if (scroll) {
+          card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      } else {
+        card.classList.remove('is-highlighted');
+        card.setAttribute('aria-selected', 'false');
+        card.removeAttribute('tabindex');
+      }
+    });
+
+    if (newIndex >= 0 && newIndex < cards.length) {
+      highlightedIndex = newIndex;
+    } else {
+      highlightedIndex = -1;
+      searchInput?.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  function triggerCardAction(card, action = 'collect') {
+    if (!card) return;
+    const customerId = card.getAttribute('data-customer-id');
+    const state = getState();
+    const customer = state?.customers?.find(c => c.id === customerId);
+
+    if (customer) {
+      recordRecentCustomer(customer);
+    }
+
+    closeModal();
+
+    if (action === 'profile') {
+      if (typeof onSelectCustomer === 'function') {
+        onSelectCustomer(customerId);
+      }
+    } else {
+      if (typeof onOpenQuickCollect === 'function') {
+        onOpenQuickCollect(customerId);
+      }
+    }
+  }
 
   function render() {
     const state = getState();
@@ -356,12 +407,22 @@ export function setupFastCustomerSearchModal({
 
       resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(results, { isRecent: false });
     }
+
+    // Keyboard navigation update (#312):
+    // When there is exactly 1 result, auto-highlight it so Enter activates it immediately
+    const cards = Array.from(resultsContainer.querySelectorAll('.fcs-card'));
+    if (cards.length === 1) {
+      updateHighlight(0, false);
+    } else {
+      updateHighlight(-1, false);
+    }
   }
 
   let releaseFocusTrap = null;
 
   function openModal() {
     activeStatusFilter = 'all';
+    highlightedIndex = -1;
     statusChips.forEach(chip => {
       chip.classList.toggle('is-active', chip.getAttribute('data-status') === 'all');
     });
@@ -436,42 +497,126 @@ export function setupFastCustomerSearchModal({
     if (typeof onToast === 'function') onToast('Recent search history cleared.');
   });
 
+  // Wire keyboard navigation for search input (#312)
+  searchInput?.addEventListener('keydown', (e) => {
+    const cards = Array.from(resultsContainer?.querySelectorAll('.fcs-card') || []);
+    if (e.key === 'ArrowDown') {
+      if (cards.length > 0) {
+        e.preventDefault();
+        let nextIndex = highlightedIndex + 1;
+        if (nextIndex >= cards.length) nextIndex = 0;
+        updateHighlight(nextIndex, true);
+      }
+    } else if (e.key === 'ArrowUp') {
+      if (cards.length > 0) {
+        e.preventDefault();
+        let prevIndex = highlightedIndex - 1;
+        if (prevIndex < 0) prevIndex = cards.length - 1;
+        updateHighlight(prevIndex, true);
+      }
+    } else if (e.key === 'Enter') {
+      if (cards.length === 0) return;
+      e.preventDefault();
+      let targetCard = null;
+      if (highlightedIndex >= 0 && cards[highlightedIndex]) {
+        targetCard = cards[highlightedIndex];
+      } else if (cards.length === 1) {
+        targetCard = cards[0];
+      } else if (cards.length > 1) {
+        updateHighlight(0, true);
+        return;
+      }
+      if (targetCard) {
+        const action = e.shiftKey ? 'profile' : 'collect';
+        triggerCardAction(targetCard, action);
+      }
+    }
+  });
+
+  // Wire keyboard navigation for results list container (#312)
+  resultsContainer?.addEventListener('keydown', (e) => {
+    const cards = Array.from(resultsContainer.querySelectorAll('.fcs-card'));
+    if (e.key === 'ArrowDown') {
+      if (cards.length > 0) {
+        e.preventDefault();
+        let nextIndex = highlightedIndex + 1;
+        if (nextIndex >= cards.length) nextIndex = 0;
+        updateHighlight(nextIndex, true);
+      }
+    } else if (e.key === 'ArrowUp') {
+      if (cards.length > 0) {
+        e.preventDefault();
+        let prevIndex = highlightedIndex - 1;
+        if (prevIndex < 0) {
+          searchInput?.focus();
+          updateHighlight(-1, false);
+        } else {
+          updateHighlight(prevIndex, true);
+        }
+      }
+    } else if (e.key === 'Enter' && !e.target.closest('button')) {
+      if (cards.length === 0) return;
+      e.preventDefault();
+      let targetCard = null;
+      if (highlightedIndex >= 0 && cards[highlightedIndex]) {
+        targetCard = cards[highlightedIndex];
+      } else if (cards.length === 1) {
+        targetCard = cards[0];
+      }
+      if (targetCard) {
+        const action = e.shiftKey ? 'profile' : 'collect';
+        triggerCardAction(targetCard, action);
+      }
+    }
+  });
+
   // Wire card action clicks
   resultsContainer?.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-fcs-action]');
-    if (!btn) return;
-    const action = btn.getAttribute('data-fcs-action');
-    const customerId = btn.getAttribute('data-customer-id');
-    const state = getState();
-    const customer = state?.customers?.find(c => c.id === customerId);
+    if (btn) {
+      const action = btn.getAttribute('data-fcs-action');
+      const customerId = btn.getAttribute('data-customer-id');
+      const state = getState();
+      const customer = state?.customers?.find(c => c.id === customerId);
 
-    if (customer) {
-      recordRecentCustomer(customer);
+      if (customer) {
+        recordRecentCustomer(customer);
+      }
+
+      if (action === 'collect') {
+        closeModal();
+        if (typeof onOpenQuickCollect === 'function') {
+          onOpenQuickCollect(customerId);
+        }
+      } else if (action === 'profile') {
+        closeModal();
+        if (typeof onSelectCustomer === 'function') {
+          onSelectCustomer(customerId);
+        }
+      } else if (action === 'quick-profile') {
+        closeModal();
+        if (typeof window !== 'undefined' && window.mobileQuickProfileController?.open) {
+          window.mobileQuickProfileController.open(customerId);
+        }
+      } else if (action === 'whatsapp') {
+        const phone = btn.getAttribute('data-phone');
+        if (phone) {
+          const text = `Assalam-o-Alaikum ${customer?.name || 'Customer'},\nThis is Shahdara ISP Billing & Support.\nRegarding your internet subscription account #${customer?.customerNumber || ''}.`;
+          const wa = formatWhatsAppUrl(phone, text);
+          if (wa.url) {
+            window.open(wa.url, '_blank', 'noopener,noreferrer');
+          }
+        }
+      }
+      return;
     }
 
-    if (action === 'collect') {
-      closeModal();
-      if (typeof onOpenQuickCollect === 'function') {
-        onOpenQuickCollect(customerId);
-      }
-    } else if (action === 'profile') {
-      closeModal();
-      if (typeof onSelectCustomer === 'function') {
-        onSelectCustomer(customerId);
-      }
-    } else if (action === 'quick-profile') {
-      closeModal();
-      if (typeof window !== 'undefined' && window.mobileQuickProfileController?.open) {
-        window.mobileQuickProfileController.open(customerId);
-      }
-    } else if (action === 'whatsapp') {
-      const phone = btn.getAttribute('data-phone');
-      if (phone) {
-        const text = `Assalam-o-Alaikum ${customer?.name || 'Customer'},\nThis is Shahdara ISP Billing & Support.\nRegarding your internet subscription account #${customer?.customerNumber || ''}.`;
-        const wa = formatWhatsAppUrl(phone, text);
-        if (wa.url) {
-          window.open(wa.url, '_blank', 'noopener,noreferrer');
-        }
+    const card = e.target.closest('.fcs-card');
+    if (card) {
+      const cards = Array.from(resultsContainer.querySelectorAll('.fcs-card'));
+      const idx = cards.indexOf(card);
+      if (idx !== -1) {
+        updateHighlight(idx, false);
       }
     }
   });

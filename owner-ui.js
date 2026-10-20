@@ -235,6 +235,10 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     else if(action==='daily-closing'){const modal=$('#dailyClosingModal');if(modal?.showModal)modal.showModal();}
     else if(action==='field-tools'){const modal=$('#fieldToolsModal');if(modal?.showModal)modal.showModal();else try{window.location.hash='#/field-tools';}catch{}}
   }));
+  // #278: the Operations & Intelligence tiles live inside the More menu now; choosing one closes the menu, like any other menu entry.
+  document.querySelectorAll('#mobileMoreMenu .quick-action-tile').forEach(tile=>tile.addEventListener('click',()=>{
+    $('#mobileMoreMenu').hidden=true;$('#mobileMoreButton').setAttribute('aria-expanded','false');
+  }));
   document.addEventListener('click', (e) => {
     const menu = $('#mobileMoreMenu');
     const btn = $('#mobileMoreButton');

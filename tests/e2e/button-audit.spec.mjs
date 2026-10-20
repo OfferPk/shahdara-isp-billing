@@ -17,6 +17,24 @@ function trackErrors(page) {
   return errors;
 }
 
+// #278 follow-up: the Operations & Intelligence tiles moved from Home into the
+// More menu. On mobile, open a tile the way a user does (More menu ->
+// Operations & Intelligence Tools); on desktop the More menu is not rendered,
+// so dispatch the click directly — tile handlers are id-based and unchanged.
+async function clickOpsTile(page, selector) {
+  const tile = page.locator(selector);
+  if (await page.locator('#mobileMoreButton').isVisible()) {
+    await page.locator('#mobileMoreButton').click();
+    const details = page.locator('#moreMenuOpsToolsDetails');
+    if (!(await details.evaluate(d => d.open))) await details.locator('summary').click();
+    await tile.scrollIntoViewIfNeeded();
+    await expect(tile).toBeVisible();
+    await tile.click();
+  } else {
+    await tile.dispatchEvent('click');
+  }
+}
+
 // Ensure mock SpeechRecognition is active to prevent browser tab crash in headless Chromium
 async function setupMocks(page) {
   await page.addInitScript(() => {
@@ -102,10 +120,8 @@ test.describe('Button Audit Suite (#216): Every visible button must have a real 
     await page.keyboard.press('Escape');
     await expect(quickModal).toBeHidden();
 
-    // 2. Monthly Report tile
-    const repTile = page.locator('#quickActionMonthlyReports');
-    await expect(repTile).toBeVisible();
-    await repTile.click();
+    // 2. Monthly Report tile (now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionMonthlyReports');
     await expect(page).toHaveURL(/#\/reports$/);
     await expect(page.locator('#billingReportsView')).toBeVisible();
     auditResults.push({
@@ -120,10 +136,8 @@ test.describe('Button Audit Suite (#216): Every visible button must have a real 
     // 3. Return Home
     await page.goto('/#/home');
 
-    // 4. Record Expense tile
-    const expTile = page.locator('#quickActionRecordExpense');
-    await expect(expTile).toBeVisible();
-    await expTile.click();
+    // 4. Record Expense tile (now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionRecordExpense');
     await expect(page).toHaveURL(/#\/expenses$/);
     await expect(page.locator('#expensesView')).toBeVisible();
     auditResults.push({
@@ -155,10 +169,8 @@ test.describe('Button Audit Suite (#216): Every visible button must have a real 
     await page.keyboard.press('Escape');
     await expect(addCustDialog).toBeHidden();
 
-    // 7. Area Intelligence tile
-    const intelTile = page.locator('#quickActionAnalytics');
-    await expect(intelTile).toBeVisible();
-    await intelTile.click();
+    // 7. Area Intelligence tile (now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionAnalytics');
     await expect(page).toHaveURL(/#\/analytics$/);
     await expect(page.locator('#analyticsView')).toBeVisible();
     auditResults.push({
@@ -173,10 +185,8 @@ test.describe('Button Audit Suite (#216): Every visible button must have a real 
     // 8. Return Home
     await page.goto('/#/home');
 
-    // 9. Billing Audit tile
-    const auditTile = page.locator('#quickActionBillingCorrectness');
-    await expect(auditTile).toBeVisible();
-    await auditTile.click();
+    // 9. Billing Audit tile (now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionBillingCorrectness');
     const auditDialog = page.locator('#billingCorrectnessModal');
     await expect(auditDialog).toBeVisible();
     auditResults.push({

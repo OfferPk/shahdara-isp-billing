@@ -1399,6 +1399,14 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   .more-menu-field-details[open] .field-summary-arrow{transform:rotate(180deg)}
   .field-summary-arrow{transition:transform 0.2s ease}
   .more-menu-field-grid{display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto;padding:4px 0}
+  .more-menu-ops-details .dashboard-secondary-region{margin:0}
+  .more-menu-ops-details .dashboard-quick-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:6px 0 2px;max-height:240px;overflow-y:auto;padding:2px}
+  .mobile-more-menu .more-menu-ops-details .quick-action-tile{width:auto;min-height:54px;padding:8px;gap:6px;background:var(--surface,#fff);border:1px solid var(--line);border-radius:10px;box-shadow:none}
+  .mobile-more-menu .more-menu-ops-details .quick-action-tile:hover{transform:none}
+  .mobile-more-menu .more-menu-ops-details .quick-action-icon{width:26px;height:26px;border-radius:8px}
+  .mobile-more-menu .more-menu-ops-details .quick-action-icon svg{width:15px;height:15px}
+  .mobile-more-menu .more-menu-ops-details .quick-action-label{font-size:11px;line-height:1.25;overflow-wrap:anywhere}
+  .mobile-more-menu .more-menu-ops-details .quick-action-sub{font-size:9.5px;line-height:1.25;white-space:normal;overflow:visible;text-overflow:clip}
   .more-item-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0}
   main{padding-bottom:calc(74px + env(safe-area-inset-bottom))}
   .app-footer{padding-bottom:calc(88px + env(safe-area-inset-bottom))}

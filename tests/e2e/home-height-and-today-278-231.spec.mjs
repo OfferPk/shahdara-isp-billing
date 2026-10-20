@@ -43,9 +43,15 @@ test.describe('Issue #278 & #231: Mobile Home Height Reduction & Owner Daily Sum
     await expect(page.locator('#openDailyClosingModalBtn')).toBeVisible();
     await expect(page.locator('#openCollectionTargetBtn')).toBeVisible();
 
-    // 18 tools are visible and operable directly
+    // The Operations & Intelligence tools moved off Home into the More menu
+    // (#278 follow-up): not rendered on Home, but present and operable there.
+    await expect(page.locator('#dashboardSecondaryRegion')).toBeHidden();
+    await page.locator('#mobileMoreButton').click();
+    await page.locator('#moreMenuOpsToolsDetails summary').click();
     await expect(page.locator('#dashboardSecondaryRegion')).toBeVisible();
     await expect(page.locator('#quickActionRecordExpense')).toBeVisible();
+    await page.locator('#mobileMoreButton').click();
+    await expect(page.locator('#mobileMoreMenu')).toBeHidden();
 
     // 4. Expanding charts accordion reveals charts
     await page.locator('#homeChartsCollapsible summary').click();

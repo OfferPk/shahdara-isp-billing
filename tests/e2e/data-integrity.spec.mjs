@@ -1,12 +1,28 @@
 import { test, expect } from '@playwright/test';
 
+// #278 follow-up: the Data Integrity tile moved from Home into the More menu
+// (Operations & Intelligence Tools). On mobile, open it the way a user does;
+// on desktop the More menu is not rendered, so dispatch the click directly —
+// the tile's handlers are id-based and unchanged.
+async function clickOpsTile(page, selector) {
+  const tile = page.locator(selector);
+  if (await page.locator('#mobileMoreButton').isVisible()) {
+    await page.locator('#mobileMoreButton').click();
+    const details = page.locator('#moreMenuOpsToolsDetails');
+    if (!(await details.evaluate(d => d.open))) await details.locator('summary').click();
+    await tile.scrollIntoViewIfNeeded();
+    await expect(tile).toBeVisible();
+    await tile.click();
+  } else {
+    await tile.dispatchEvent('click');
+  }
+}
+
 test.describe('Database Data Integrity & Safe Repair Suite E2E Verification', () => {
   test('opens via quick action ribbon, runs scan, renders SVG gauge, and closes cleanly', async ({ page }) => {
     await page.goto('/');
 
-    const quickActionBtn = page.locator('#quickActionDataIntegrity');
-    await expect(quickActionBtn).toBeVisible();
-    await quickActionBtn.click();
+    await clickOpsTile(page, '#quickActionDataIntegrity');
 
     const modal = page.locator('#dataIntegrityModal');
     await expect(modal).toBeVisible();
@@ -83,8 +99,7 @@ test.describe('Database Data Integrity & Safe Repair Suite E2E Verification', ()
     // Reload to pick up dirty state
     await page.reload();
 
-    const quickActionBtn = page.locator('#quickActionDataIntegrity');
-    await quickActionBtn.click();
+    await clickOpsTile(page, '#quickActionDataIntegrity');
 
     const modal = page.locator('#dataIntegrityModal');
     await expect(modal).toBeVisible();
@@ -116,9 +131,7 @@ test.describe('Database Data Integrity & Safe Repair Suite E2E Verification', ()
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
 
-    const quickActionBtn = page.locator('#quickActionDataIntegrity');
-    await expect(quickActionBtn).toBeVisible();
-    await quickActionBtn.click();
+    await clickOpsTile(page, '#quickActionDataIntegrity');
 
     const modal = page.locator('#dataIntegrityModal');
     await expect(modal).toBeVisible();
@@ -150,8 +163,7 @@ test.describe('Database Data Integrity & Safe Repair Suite E2E Verification', ()
       localStorage.setItem('shahdara_theme', 'dark');
     });
 
-    const quickActionBtn = page.locator('#quickActionDataIntegrity');
-    await quickActionBtn.click();
+    await clickOpsTile(page, '#quickActionDataIntegrity');
 
     const modal = page.locator('#dataIntegrityModal');
     await expect(modal).toBeVisible();

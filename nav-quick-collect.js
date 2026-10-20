@@ -856,6 +856,12 @@ export function setupQuickCollectModal({
   let activeReceipt = null;
   let activeUndoContext = null;
   let undoTimeoutId = null;
+  let undoCountdownId = null;
+  let undoDeadline = 0;
+  // True once the current opening's close-cleanup has run. The dialog 'close'
+  // event and closeModal() can both fire for one close; cleanup must run
+  // exactly once per opening (openModal resets this to false).
+  let closeCleanupHandled = true;
 
   function updateDigitalVisibility(methodVal) {
     const isDig = isDigitalPaymentMethod(methodVal);
@@ -1074,6 +1080,7 @@ export function setupQuickCollectModal({
   let releaseFocusTrap = null;
 
   function openModal(defaultCustomerId = null) {
+    closeCleanupHandled = false;
     updateCounts();
     if (defaultCustomerId) {
       openCustomerCollectionForm(defaultCustomerId);
@@ -1104,6 +1111,61 @@ export function setupQuickCollectModal({
     });
   }
 
+  function stopUndoCountdown() {
+    if (undoCountdownId) {
+      clearInterval(undoCountdownId);
+      undoCountdownId = null;
+    }
+  }
+
+  // Live countdown on the in-dialog Undo button ("Undo Payment (9s)" ... 1s),
+  // so the 10-second window is visible instead of a static "(10s)" label.
+  function startUndoCountdown() {
+    stopUndoCountdown();
+    undoDeadline = Date.now() + 10000;
+    const render = () => {
+      if (!undoBtn || undoBtn.hidden) return;
+      const left = Math.max(0, Math.ceil((undoDeadline - Date.now()) / 1000));
+      undoBtn.textContent = `↩ Undo Payment (${left}s)`;
+    };
+    render();
+    undoCountdownId = setInterval(render, 250);
+  }
+
+  // Close-cleanup runs exactly once per opening, whichever way the dialog was
+  // closed: the × / Done buttons (closeModal below), Escape, a backdrop tap,
+  // the universal dialog controller, Bulk Collect taking over, or route sync.
+  // Previously only closeModal() cleaned up, so a close that bypassed it left
+  // the 10s undo timer armed, the undo context set and the success step
+  // mounted — stale timer/context state then leaked into the next opening.
+  function handleDialogClosed() {
+    if (closeCleanupHandled) return;
+    closeCleanupHandled = true;
+    const pendingUndo = activeUndoContext;
+    if (undoTimeoutId) {
+      clearTimeout(undoTimeoutId);
+      undoTimeoutId = null;
+    }
+    stopUndoCountdown();
+    activeUndoContext = null;
+    if (undoBtn) undoBtn.hidden = true;
+    showStep('pick');
+    activeCustomerId = null;
+    activeDefaults = null;
+    activeReceipt = null;
+    duplicateBypassedForTxn = null;
+    if (dupWarningCard) dupWarningCard.hidden = true;
+    // Closing during the undo window keeps the payment (it is NOT undone).
+    // Say so briefly, with no Undo of its own, so there is no doubt it saved.
+    if (pendingUndo && typeof onToast === 'function') {
+      onToast(`Payment of PKR ${pendingUndo.amount.toLocaleString()} for ${pendingUndo.customerName} saved.`, {
+        type: 'success',
+        title: 'Payment saved',
+        duration: 3000
+      });
+    }
+  }
+
   function closeModal() {
     if (releaseFocusTrap) {
       releaseFocusTrap();
@@ -1119,19 +1181,13 @@ export function setupQuickCollectModal({
     } else {
       modal.removeAttribute('open');
     }
-    showStep('pick');
-    activeCustomerId = null;
-    activeDefaults = null;
-    activeReceipt = null;
-    duplicateBypassedForTxn = null;
-    if (dupWarningCard) dupWarningCard.hidden = true;
-    if (undoTimeoutId) {
-      clearTimeout(undoTimeoutId);
-      undoTimeoutId = null;
-    }
-    activeUndoContext = null;
-    if (undoBtn) undoBtn.hidden = true;
+    // If the native 'close' event did not already run the cleanup (it can be
+    // queued after close() returns, and removing the attribute fires none),
+    // run it now; the guard inside makes the second call a no-op.
+    handleDialogClosed();
   }
+
+  modal.addEventListener('close', handleDialogClosed);
 
   
   // Wire duplicate warning card buttons (#279)
@@ -1248,6 +1304,7 @@ export function setupQuickCollectModal({
       clearTimeout(undoTimeoutId);
       undoTimeoutId = null;
     }
+    stopUndoCountdown();
     if (undoBtn) undoBtn.hidden = true;
     try {
       const state = getState();
@@ -1381,9 +1438,12 @@ export function setupQuickCollectModal({
 
       if (undoTimeoutId) clearTimeout(undoTimeoutId);
       undoTimeoutId = setTimeout(() => {
+        undoTimeoutId = null;
         activeUndoContext = null;
+        stopUndoCountdown();
         if (undoBtn) undoBtn.hidden = true;
       }, 10000);
+      startUndoCountdown();
 
       // Update parent application state
       if (typeof onSaveState === 'function') {
@@ -1548,6 +1608,7 @@ export function setupQuickCollectModal({
       clearTimeout(undoTimeoutId);
       undoTimeoutId = null;
     }
+    stopUndoCountdown();
     activeUndoContext = null;
     if (undoBtn) undoBtn.hidden = true;
     showStep('pick');

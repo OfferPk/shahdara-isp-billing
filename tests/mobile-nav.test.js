@@ -15010,3 +15010,45 @@ test('nav-accessibility.js - screen reader announcements, focus traps, payment f
   assert.ok(navCss.includes('min-height: 44px'));
 });
 
+test('Issue #285: getMobileNavTabForScreen maps all screens and hashes to correct bottom nav tab', async () => {
+  const { getMobileNavTabForScreen } = await import('../nav.js');
+
+  // Backup, Settings, Assistant, Field-tools, More screens map to 'more'
+  assert.equal(getMobileNavTabForScreen('backup'), 'more');
+  assert.equal(getMobileNavTabForScreen('settings'), 'more');
+  assert.equal(getMobileNavTabForScreen('assistant'), 'more');
+  assert.equal(getMobileNavTabForScreen('field-tools'), 'more');
+  assert.equal(getMobileNavTabForScreen('tools'), 'more');
+  assert.equal(getMobileNavTabForScreen('inventory'), 'more');
+  assert.equal(getMobileNavTabForScreen('expenses'), 'more');
+  assert.equal(getMobileNavTabForScreen('analytics'), 'more');
+
+  // Quick Collect and transactions map to 'collection'
+  assert.equal(getMobileNavTabForScreen('transactions'), 'collection');
+  assert.equal(getMobileNavTabForScreen('payments'), 'collection');
+  assert.equal(getMobileNavTabForScreen('collect'), 'collection');
+  assert.equal(getMobileNavTabForScreen('recovery'), 'collection');
+  assert.equal(getMobileNavTabForScreen(null, '#/collect'), 'collection');
+  assert.equal(getMobileNavTabForScreen(null, '#quick-collect'), 'collection');
+
+  // Customers and Reports
+  assert.equal(getMobileNavTabForScreen('customers'), 'customers');
+  assert.equal(getMobileNavTabForScreen('reports'), 'reports');
+  assert.equal(getMobileNavTabForScreen('bills'), 'reports');
+  assert.equal(getMobileNavTabForScreen('alerts'), 'reports');
+
+  // Home
+  assert.equal(getMobileNavTabForScreen('home'), 'home');
+  assert.equal(getMobileNavTabForScreen(''), 'home');
+  assert.equal(getMobileNavTabForScreen(null), 'home');
+});
+
+test('Issue #285: nav.css suppresses speed dial when More menu or dialogs are open', () => {
+  const css = read('nav.css');
+
+  assert.ok(css.includes('#mobileMoreMenu:not([hidden]) ~ #mobileSpeedDial'));
+  assert.ok(css.includes('body:has(#mobileMoreMenu:not([hidden])) #mobileSpeedDial'));
+  assert.ok(css.includes('body:has(dialog[open]) #mobileSpeedDial'));
+  assert.ok(css.includes('#mobileSpeedDial.is-suppressed'));
+});
+

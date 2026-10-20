@@ -4,7 +4,10 @@ test.describe('Data Safety, Backup Age Indicator & One-Tap Share E2E Verificatio
   test('data safety banner and dashboard KPI card display backup age and storage status', async ({ page, isMobile }) => {
     await page.goto('/');
 
-    // 1. Verify Top Data Safety Banner
+    // 1. Verify Data Safety Banner. Placement changed: the banner used to sit above
+    // every screen under the header; it now lives at the bottom of Home (see
+    // storage-banner-placement.spec.mjs). Visibility assertions below are
+    // position-independent — Playwright scrolls the banner into view for actions.
     const banner = page.locator('#dataSafetyBanner');
     await expect(banner).toBeVisible();
     await expect(banner).toContainText('Stored on this device only.');

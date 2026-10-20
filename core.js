@@ -598,6 +598,33 @@ export function calculateMethodCollectionTotals(state, month = null) {
   };
 }
 
+/**
+ * A discount waives part of a bill, so it can never exceed what is still
+ * owed on that bill — the rule qa-discounts-late-fee.js already states
+ * ("Discount cannot exceed remaining payable amount") but production never
+ * enforced: validatePayment has no bill context, so a Rs 5,000 discount
+ * could be stored against a Rs 1,000 bill, inflating concession reports
+ * while the allocation engine silently applied only part of it.
+ * The cap is the bill's allocation balance, which already accounts for
+ * earlier receipts, their discounts and credit carried in from prior
+ * months. For corrections, the payment being corrected is excluded first.
+ */
+function assertDiscountWithinRemainingPayable(state, customerId, month, discount, excludePaymentId = null) {
+  const discountCents = moneyCents(discount || 0);
+  if (discountCents <= 0) return;
+  let scopedState = state;
+  if (excludePaymentId) {
+    scopedState = { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: (b.payments ?? []).filter(p => p.id !== excludePaymentId) }) }) };
+  }
+  const summary = calculatePaymentAllocations(scopedState).forMonth(customerId, month);
+  if (!summary || summary.balanceDueCents === null || summary.balanceDueCents === undefined) {
+    throw new Error(`A discount needs a priced bill: set the bill amount for ${month} before recording a discount.`);
+  }
+  if (discountCents > summary.balanceDueCents) {
+    throw new Error(`Discount cannot exceed remaining payable amount (${formatPKR(moneyValue(summary.balanceDueCents))}).`);
+  }
+}
+
 export function addPayment(state, customerId, month, fields, referenceDate = new Date(), options = {}) {
   checkMonth(month, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
@@ -605,6 +632,7 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
+  assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount);
   const bill = existing ? { ...existing, payments: [...existing.payments, payment] } : { id: makeId(), month, dueAmount: null, status: 'pending', payments: [payment] };
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: existing ? c.bills.map(b => b.month === month ? bill : b) : [...c.bills, bill].sort((a,b) => b.month.localeCompare(a.month)) }) };
 }
@@ -620,6 +648,7 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason
   };
   const payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId);
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }
 

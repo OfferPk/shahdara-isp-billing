@@ -3036,6 +3036,72 @@ export function setupMobileBreadcrumbs({
 }
 
 /**
+ * Maps a screen name or URL hash to the matching mobile bottom navigation tab ID (Issue #285).
+ * Valid tabs in .mobile-bottom-nav: 'home', 'customers', 'collection', 'reports', 'more'.
+ */
+export function getMobileNavTabForScreen(screen, hash = '') {
+  const currentHash = (hash ?? (typeof window !== 'undefined' && window.location ? window.location.hash : '')).toLowerCase();
+  if (currentHash === '#/collect' || currentHash === '#collect' || currentHash === '#quick-collect' || currentHash === '#/bulk-collect') {
+    return 'collection';
+  }
+  const s = String(screen || '').toLowerCase();
+  if (s === 'customers') return 'customers';
+  if (s === 'transactions' || s === 'payments' || s === 'collect') return 'collection';
+  if (s === 'reports' || s === 'bills' || s === 'alerts') return 'reports';
+  if (s === 'recovery' || s === 'dues') return 'collection';
+  if (s === 'backup' || s === 'settings' || s === 'assistant' || s === 'inventory' || s === 'analytics' || s === 'expenses' || s === 'field-tools' || s === 'tools' || s === 'more') {
+    return 'more';
+  }
+  if (!s || s === 'home') return 'home';
+  return 'more';
+}
+
+/**
+ * Synchronizes aria-current state across mobile bottom navigation tabs (Issue #285).
+ * Also synchronizes #showCustomersButton on Home to prevent duplicate active state on Desktop (#285 / #278),
+ * and updates speed dial suppression state.
+ */
+export function syncMobileBottomNav(screen, hash) {
+  if (typeof document === 'undefined') return 'home';
+  const container = document.querySelector?.('.mobile-bottom-nav');
+  if (!container) return 'home';
+
+  const moreMenu = typeof document.getElementById === 'function' ? document.getElementById('mobileMoreMenu') : null;
+  const isMoreOpen = Boolean(moreMenu && !moreMenu.hidden);
+  const targetTab = isMoreOpen ? 'more' : getMobileNavTabForScreen(screen, hash);
+
+  const buttons = (typeof container.querySelectorAll === 'function')
+    ? container.querySelectorAll('[data-mobile-nav]')
+    : [];
+  buttons.forEach(btn => {
+    const act = btn.getAttribute?.('data-mobile-nav') === targetTab;
+    if (typeof btn.setAttribute === 'function') {
+      btn.setAttribute('aria-current', act ? 'page' : 'false');
+    }
+  });
+
+  // Keep Desktop Home view-nav buttons clean (#285 / #278)
+  const isHome = targetTab === 'home';
+  const showCustBtn = typeof document.getElementById === 'function' ? document.getElementById('showCustomersButton') : null;
+  if (showCustBtn && typeof showCustBtn.setAttribute === 'function') {
+    if (isHome && showCustBtn.getAttribute?.('aria-current') === 'page') {
+      showCustBtn.setAttribute('aria-current', 'false');
+    } else if (targetTab === 'customers' && showCustBtn.getAttribute?.('aria-current') !== 'page') {
+      showCustBtn.setAttribute('aria-current', 'page');
+    }
+  }
+
+  // Update speed dial suppression when More menu or dialogs are open
+  const speedDial = typeof document.getElementById === 'function' ? document.getElementById('mobileSpeedDial') : null;
+  if (speedDial && speedDial.classList && typeof speedDial.classList.toggle === 'function') {
+    const hasOpenDialog = Boolean(typeof document.querySelector === 'function' && document.querySelector('dialog[open], .mobile-action-sheet.is-open'));
+    speedDial.classList.toggle('is-suppressed', isMoreOpen || hasOpenDialog);
+  }
+
+  return targetTab;
+}
+
+/**
  * Tab Slider Highlight Indicator (agent2 - shahdara-mobile-nav)
  * Creates and dynamically positions a smooth sliding background highlight pill behind active tabs.
  */
@@ -3048,6 +3114,7 @@ export function setupTabSliderIndicator({
   if (typeof document === 'undefined') {
     return {
       updateSlider: () => {},
+      sync: () => {},
       destroy: () => {},
       getIndicator: () => null
     };
@@ -3060,17 +3127,22 @@ export function setupTabSliderIndicator({
   if (!container) {
     return {
       updateSlider: () => {},
+      sync: () => {},
       destroy: () => {},
       getIndicator: () => null
     };
   }
 
   let indicator = container.querySelector(`.${indicatorClass}`);
-  if (!indicator) {
+  if (!indicator && typeof document.createElement === 'function') {
     indicator = document.createElement('div');
     indicator.className = indicatorClass;
-    indicator.setAttribute('aria-hidden', 'true');
-    container.insertBefore(indicator, container.firstChild);
+    if (typeof indicator.setAttribute === 'function') {
+      indicator.setAttribute('aria-hidden', 'true');
+    }
+    if (typeof container.insertBefore === 'function') {
+      container.insertBefore(indicator, container.firstChild);
+    }
   }
 
   function getActiveTab(target) {
@@ -3089,7 +3161,7 @@ export function setupTabSliderIndicator({
   function updateSlider(target) {
     const tab = getActiveTab(target);
     if (!tab) {
-      if (indicator.style) {
+      if (indicator && indicator.style) {
         indicator.style.opacity = '0';
       }
       return;
@@ -3103,7 +3175,7 @@ export function setupTabSliderIndicator({
     const width = tRect.width;
     const height = tRect.height;
 
-    if (indicator.style) {
+    if (indicator && indicator.style) {
       indicator.style.opacity = '1';
       indicator.style.transform = `translate3d(${offsetLeft}px, ${offsetTop}px, 0)`;
       indicator.style.width = `${width}px`;
@@ -3116,6 +3188,13 @@ export function setupTabSliderIndicator({
       container.style.setProperty('--slider-w', `${width}px`);
       container.style.setProperty('--slider-h', `${height}px`);
     }
+  }
+
+  function sync(screen, hash) {
+    const currentScreen = screen !== undefined ? screen : (typeof document !== 'undefined' ? document.body?.dataset?.screen : '');
+    const currentHash = hash !== undefined ? hash : (typeof window !== 'undefined' && window.location ? window.location.hash : '');
+    const activeTab = syncMobileBottomNav(currentScreen, currentHash);
+    updateSlider(activeTab);
   }
 
   let resizeTimer = null;
@@ -3138,10 +3217,10 @@ export function setupTabSliderIndicator({
     if (!e || !e.target || typeof e.target.closest !== 'function') return;
     const btn = e.target.closest('button, [role="tab"]');
     if (btn && (!container.contains || container.contains(btn))) {
-      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-        window.requestAnimationFrame(() => updateSlider(btn));
+      if (typeof window !== 'undefined' && typeof window.setTimeout === 'function') {
+        window.setTimeout(() => sync(), 0);
       } else {
-        updateSlider(btn);
+        sync();
       }
     }
   }
@@ -3150,17 +3229,55 @@ export function setupTabSliderIndicator({
     container.addEventListener('click', handleContainerClick);
   }
 
-  updateSlider();
+  // Observers for screen router data-screen, more menu toggle, and modals
+  let bodyObserver = null;
+  if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.body) {
+    bodyObserver = new MutationObserver(mutations => {
+      for (const m of mutations) {
+        if (m.type === 'attributes' && (m.attributeName === 'data-screen' || m.attributeName === 'open')) {
+          sync();
+          break;
+        } else if (m.type === 'childList') {
+          sync();
+          break;
+        }
+      }
+    });
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-screen', 'open'], childList: true, subtree: true });
+  }
+
+  let moreMenuObserver = null;
+  const moreMenuEl = typeof document !== 'undefined' && typeof document.getElementById === 'function' ? document.getElementById('mobileMoreMenu') : null;
+  if (typeof MutationObserver !== 'undefined' && moreMenuEl) {
+    moreMenuObserver = new MutationObserver(() => {
+      sync();
+    });
+    moreMenuObserver.observe(moreMenuEl, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  const handleRoutingEvents = () => { sync(); };
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('hashchange', handleRoutingEvents, { passive: true });
+    window.addEventListener('popstate', handleRoutingEvents, { passive: true });
+  }
+
+  // Initial synchronization and slider positioning
+  sync();
 
   return {
     updateSlider,
+    sync,
     destroy: () => {
       if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
         window.removeEventListener('resize', handleResize);
+        window.removeEventListener('hashchange', handleRoutingEvents);
+        window.removeEventListener('popstate', handleRoutingEvents);
       }
       if (container && container.removeEventListener) {
         container.removeEventListener('click', handleContainerClick);
       }
+      if (bodyObserver) bodyObserver.disconnect();
+      if (moreMenuObserver) moreMenuObserver.disconnect();
       if (indicator && indicator.parentNode && typeof indicator.parentNode.removeChild === 'function') {
         indicator.parentNode.removeChild(indicator);
       }

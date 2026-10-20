@@ -787,7 +787,20 @@ export function calculatePaymentAllocations(state) {
       summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + moneyCents(payment.amount), 0);
       const amount = bill.dueAmount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
-        for (const payment of payments) byPaymentId.set(payment.id, { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:true });
+        // Unpriced bill: nothing can be applied to this month yet, so the whole
+        // receipt is unused credit. Hold it in pendingCredits exactly like a
+        // priced bill's overpayment — otherwise an advance collected before
+        // the bill was priced vanished from every later bill, the monthly
+        // report and the dashboard pending-credit total.
+        for (const payment of payments) {
+          const amountCents = moneyCents(payment.amount);
+          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:amountCents, unappliedCreditCents:0, billUnpriced:true };
+          byPaymentId.set(payment.id, paymentLedger);
+          if (amountCents > 0) {
+            summary.excessGeneratedCents += amountCents;
+            pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:amountCents });
+          }
+        }
         continue;
       }
 
@@ -1127,12 +1140,10 @@ function paymentLines(customer, bill, allocations) {
     const lines = [`Customer number: ${customer.customerNumber}`, `Customer: ${customer.name}`, `Service status (manual, not billing status): ${serviceLabel}`, `Billing status: ${billingLabel}`, `Selected bill month: ${bill.month}`, `Actual payment date: ${payment.date}`, `Amount: ${formatPKR(payment.amount)} (actual receipt, counted once)`, `Method: ${payment.method}`];
     const paidBy = String(payment.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
     if (paidBy) lines.push(`Paid by: ${paidBy}`);
-    if (allocation?.billUnpriced) lines.push('Allocation: selected bill has no saved amount; no excess credit was inferred.');
-    else {
-      lines.push(`Applied to selected bill: ${formatPKR(moneyValue(sameMonthCents))}`);
-      for (const item of carried) lines.push(`Auto-credit applied to ${item.month}: ${formatPKR(moneyValue(item.amountCents))} (allocation, not a new payment)`);
-      if (allocation?.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatPKR(moneyValue(allocation.unappliedCreditCents))}`);
-    }
+    if (allocation?.billUnpriced) lines.push('Allocation: selected bill has no saved amount; the full receipt is held as credit for later bills.');
+    else lines.push(`Applied to selected bill: ${formatPKR(moneyValue(sameMonthCents))}`);
+    for (const item of carried) lines.push(`Auto-credit applied to ${item.month}: ${formatPKR(moneyValue(item.amountCents))} (allocation, not a new payment)`);
+    if (allocation?.unappliedCreditCents) lines.push(`Credit waiting for a future generated bill: ${formatPKR(moneyValue(allocation.unappliedCreditCents))}`);
     return `${lines.join('\n')}\n`;
   });
 }

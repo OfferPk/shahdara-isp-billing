@@ -111,6 +111,7 @@ import {
   resetReminderStagesSettings,
   getMatchingReminderStage,
   getRemindersTodayQueue,
+  updateRemindersQueueNavBadge,
   recordReminderDispatched,
   getCustomerReminderHistory,
   getCustomerOutstandingDues,
@@ -5188,6 +5189,34 @@ function updateReminderCharCount() {
 }
 
 export function openPaymentReminderModal(cust, options = {}) {
+  const emptyState = $('#reminderQueueEmptyState');
+  const modalBody = document.querySelector('.reminder-modal-body');
+
+  if (options.isEmptyQueue || (!cust && options.isEmpty)) {
+    currentReminderCustomer = null;
+    currentReminderQueue = null;
+    currentReminderIndex = 0;
+
+    if (emptyState) emptyState.hidden = false;
+    if (reminderQueueBar) reminderQueueBar.hidden = true;
+    if (modalBody) modalBody.hidden = true;
+
+    const countBadge = $('#reminderQueueOverdueCountBadge');
+    if (countBadge) {
+      const overdueCount = Number.isInteger(options.overdueCount)
+        ? options.overdueCount
+        : (state?.customers || []).filter(c => !c.archived && getCustomerOutstandingDues(c, state, getTodayDateString().slice(0, 7)) > 0).length;
+      countBadge.textContent = `${overdueCount} accounts with balance`;
+    }
+
+    if (reminderModal?.showModal) reminderModal.showModal();
+    else reminderModal?.setAttribute('open', '');
+    return;
+  }
+
+  if (emptyState) emptyState.hidden = true;
+  if (modalBody) modalBody.hidden = false;
+
   if (!cust) return;
   currentReminderCustomer = cust;
 
@@ -5208,6 +5237,27 @@ export function openPaymentReminderModal(cust, options = {}) {
   renderReminderContent();
   if (reminderModal?.showModal) reminderModal.showModal();
   else reminderModal?.setAttribute('open', '');
+}
+
+const reminderEmptyCloseBtn = $('#reminderEmptyCloseBtn');
+if (reminderEmptyCloseBtn && !reminderEmptyCloseBtn.dataset.wired) {
+  reminderEmptyCloseBtn.dataset.wired = 'true';
+  reminderEmptyCloseBtn.addEventListener('click', () => {
+    if (reminderModal?.close) reminderModal.close();
+    else reminderModal?.removeAttribute('open');
+  });
+}
+
+const reminderEmptyOpenDuesRecoveryBtn = $('#reminderEmptyOpenDuesRecoveryBtn');
+if (reminderEmptyOpenDuesRecoveryBtn && !reminderEmptyOpenDuesRecoveryBtn.dataset.wired) {
+  reminderEmptyOpenDuesRecoveryBtn.dataset.wired = 'true';
+  reminderEmptyOpenDuesRecoveryBtn.addEventListener('click', () => {
+    if (reminderModal?.close) reminderModal.close();
+    else reminderModal?.removeAttribute('open');
+    if (typeof window !== 'undefined' && window.location) {
+      window.location.hash = '#/recovery';
+    }
+  });
 }
 
 if (openReminderBtn && reminderModal) {
@@ -5600,7 +5650,10 @@ if (openRemindersFromWadaBtn) {
     closeWadaFollowupModal();
     const queueData = getRemindersTodayQueue(state);
     if (!queueData.queue || queueData.queue.length === 0) {
-      toast('No customers match reminder stages for today.');
+      openPaymentReminderModal(null, {
+        isEmptyQueue: true,
+        overdueCount: queueData.overdueCustomersCount
+      });
       return;
     }
     openPaymentReminderModal(queueData.queue[0].customer, {
@@ -7117,7 +7170,10 @@ if (typeof document !== 'undefined') {
       if (moreMenu) moreMenu.hidden = true;
       const res = getRemindersTodayQueue(state);
       if (!res.queue || res.queue.length === 0) {
-        toast('No customers match reminder stages for today.');
+        openPaymentReminderModal(null, {
+          isEmptyQueue: true,
+          overdueCount: res.overdueCustomersCount
+        });
         return;
       }
       openPaymentReminderModal(res.queue[0].customer, {
@@ -7126,6 +7182,21 @@ if (typeof document !== 'undefined') {
       });
     });
   }
+
+  // Update Reminders Queue Nav Badge on More button
+  const mobileMoreButtonEl = $('#mobileMoreButton');
+  if (mobileMoreButtonEl && !mobileMoreButtonEl.dataset.remindersBadgeWired) {
+    mobileMoreButtonEl.dataset.remindersBadgeWired = 'true';
+    mobileMoreButtonEl.addEventListener('click', () => {
+      try {
+        updateRemindersQueueNavBadge(state);
+      } catch {}
+    });
+  }
+  try {
+    updateRemindersQueueNavBadge(state);
+  } catch {}
+
 
   // Wada / Promise-to-Pay Follow-up List Button from Mobile More Menu
   const mobileMoreWadaListBtn = $('#mobileMoreWadaListBtn');

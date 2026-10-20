@@ -13,6 +13,8 @@ import {
   calculateCustomerDueDay,
   calculateCustomerDueDate,
   getMatchingReminderStage,
+  getCustomerStageDispatchStatus,
+  updateRemindersQueueNavBadge,
   getReminderHistory,
   isCustomerRemindedToday,
   recordReminderDispatched,
@@ -149,8 +151,15 @@ test('Issue #222: Matching reminder stages detect pre-due (-2), on-due (0), and 
   assert.equal(matchOver15.stage.id, 'overdue_15');
   assert.equal(matchOver15.template, 'disconnection');
 
-  // Non-matching day (Oct 6th)
-  const matchNone = getMatchingReminderStage(customer, 1500, '2026-10-06');
+  // Catch-up matching on Oct 6th matches on_due (1 day late) when unsent
+  const matchCatchUp = getMatchingReminderStage(customer, 1500, '2026-10-06');
+  assert.ok(matchCatchUp && matchCatchUp.matched);
+  assert.equal(matchCatchUp.stage.id, 'on_due');
+  assert.equal(matchCatchUp.daysLate, 1);
+  assert.equal(matchCatchUp.stage.label, 'On Due Date (1 day late)');
+
+  // Exact matching flag returns null for non-exact day
+  const matchNone = getMatchingReminderStage(customer, 1500, '2026-10-06', null, { requireExact: true });
   assert.equal(matchNone, null);
 
   // Customer with zero balance -> no reminder
@@ -381,3 +390,126 @@ test('Issue #222: formatPromiseFollowupWhatsApp generates bilingual messages for
   assert.ok(brokenMsg.includes('Aap ke waday ke mutabiq'));
   assert.ok(brokenMsg.includes('PKR 1,800'));
 });
+
+test('Issue #284: Catch-up stages match latest passed stage not yet sent with accurate late days label', () => {
+  const storage = createMockStorage();
+  const customer = { id: 'c74', name: 'Zahid Hussain', customerNumber: 74, customDueDate: 5 };
+
+  // 1. Customer is 9 days overdue (Oct 14th) and +7 stage was not yet sent:
+  // Latest passed stage is overdue_7 (+7). Days late = 9 - 7 = 2.
+  const match9Days = getMatchingReminderStage(customer, 2500, '2026-10-14', null, { storage });
+  assert.ok(match9Days && match9Days.matched);
+  assert.equal(match9Days.stage.id, 'overdue_7');
+  assert.equal(match9Days.daysRelative, 9);
+  assert.equal(match9Days.daysLate, 2);
+  assert.equal(match9Days.isCatchUp, true);
+  assert.equal(match9Days.stage.label, 'Overdue +7 Days (2 days late)');
+  assert.equal(match9Days.template, 'overdue');
+
+  // 2. Customer is 16 days overdue (Oct 21st) and +15 stage was not yet sent:
+  // Latest passed stage is overdue_15 (+15). Days late = 16 - 15 = 1.
+  const match16Days = getMatchingReminderStage(customer, 2500, '2026-10-21', null, { storage });
+  assert.ok(match16Days && match16Days.matched);
+  assert.equal(match16Days.stage.id, 'overdue_15');
+  assert.equal(match16Days.daysRelative, 16);
+  assert.equal(match16Days.daysLate, 1);
+  assert.equal(match16Days.isCatchUp, true);
+  assert.equal(match16Days.stage.label, 'Overdue +15 Days (Disconnection Warning) (1 day late)');
+  assert.equal(match16Days.template, 'disconnection');
+
+  // 3. When overdue_7 was dispatched on Oct 12th (prior date), on Oct 14th customer does not repeat overdue_7:
+  recordReminderDispatched({
+    customer,
+    stage: { id: 'overdue_7', label: 'Overdue +7 Days' },
+    templateType: 'overdue',
+    month: '2026-10',
+    dateStr: '2026-10-12',
+    dueAmount: 2500
+  }, storage);
+
+  const matchAfterPriorSent = getMatchingReminderStage(customer, 2500, '2026-10-14', null, { storage });
+  assert.equal(matchAfterPriorSent, null, 'No reminder repeated if latest passed stage was dispatched on prior date');
+
+  // But once Oct 20th (+15 days) arrives, overdue_15 is unsent and matches:
+  const matchNextStage = getMatchingReminderStage(customer, 2500, '2026-10-20', null, { storage });
+  assert.ok(matchNextStage && matchNextStage.matched);
+  assert.equal(matchNextStage.stage.id, 'overdue_15');
+  assert.equal(matchNextStage.daysLate, 0);
+  assert.equal(matchNextStage.isCatchUp, false);
+});
+
+test('Issue #284: getRemindersTodayQueue returns all 74 overdue customers on catch-up and tracks overdue count', () => {
+  const storage = createMockStorage();
+
+  // Create state with 74 customers who have overdue bills due on the 5th
+  const customers = [];
+  for (let i = 1; i <= 74; i++) {
+    customers.push({
+      id: `cust_${i}`,
+      customerNumber: i,
+      name: `Customer ${i}`,
+      phone: `030012345${String(i).padStart(2, '0')}`,
+      area: i % 2 === 0 ? 'Baradari' : 'Vandala Road',
+      customDueDate: 5,
+      bills: [
+        {
+          month: '2026-10',
+          dueAmount: 1000,
+          payments: []
+        }
+      ]
+    });
+  }
+
+  const state = { customers };
+
+  // On Oct 14th (9 days overdue):
+  // Old code produced 0 of 74; new catch-up code produces 74 of 74 matching overdue_7 (2 days late)
+  const queueResult = getRemindersTodayQueue(state, {
+    todayString: '2026-10-14',
+    storage
+  });
+
+  assert.equal(queueResult.totalCount, 74, 'All 74 overdue customers queued');
+  assert.equal(queueResult.pendingCount, 74, 'All 74 pending');
+  assert.equal(queueResult.completedCount, 0);
+  assert.equal(queueResult.overdueCustomersCount, 74);
+  assert.equal(queueResult.queue[0].stageId, 'overdue_7');
+  assert.equal(queueResult.queue[0].stageLabel, 'Overdue +7 Days (2 days late)');
+  assert.equal(queueResult.queue[0].isCatchUp, true);
+  assert.equal(queueResult.queue[0].daysLate, 2);
+
+  // If one customer is reminded today:
+  recordReminderDispatched({
+    customer: customers[0],
+    stage: { id: 'overdue_7', label: 'Overdue +7 Days' },
+    templateType: 'overdue',
+    month: '2026-10',
+    dateStr: '2026-10-14',
+    dueAmount: 1000
+  }, storage);
+
+  const updatedQueue = getRemindersTodayQueue(state, {
+    todayString: '2026-10-14',
+    storage
+  });
+  assert.equal(updatedQueue.totalCount, 74);
+  assert.equal(updatedQueue.completedCount, 1);
+  assert.equal(updatedQueue.pendingCount, 73);
+
+  // When all customers have zero balance:
+  const zeroState = {
+    customers: customers.map(c => ({
+      ...c,
+      bills: [{ month: '2026-10', dueAmount: 1000, payments: [{ amount: 1000 }] }]
+    }))
+  };
+  const emptyQueue = getRemindersTodayQueue(zeroState, {
+    todayString: '2026-10-14',
+    storage
+  });
+  assert.equal(emptyQueue.totalCount, 0);
+  assert.equal(emptyQueue.pendingCount, 0);
+  assert.equal(emptyQueue.overdueCustomersCount, 0);
+});
+

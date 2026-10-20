@@ -347,8 +347,11 @@ test('dashboard never applies a profile selling amount retroactively and exclude
   state = profile(state, 'seed-001', { monthlySellingAmount:'150' });
   state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-08-20', amount:'20' }), referenceDate);
   const dashboard = calculateDashboard(state, referenceDate);
-  assert.equal(dashboard.currentMonthDue, 150);
-  assert.equal(dashboard.totalDue, 150);
+  // The August bill itself stays unpriced (count 1, never retroactively priced),
+  // but the actual Rs 20 receipt on it is held as credit against September's
+  // priced bill — collected cash is never ignored.
+  assert.equal(dashboard.currentMonthDue, 130);
+  assert.equal(dashboard.totalDue, 130);
   assert.equal(dashboard.totalCollection, 20);
   assert.equal(dashboard.unpricedBillCount, 1);
 });
@@ -919,6 +922,49 @@ test('unapplied excess persists on its original receipt until the next month bil
   assert.equal(dashboard.currentMonthDue, 50);
   assert.equal(dashboard.totalCollection, 150);
   assert.equal(listTransactions(state, {}, october1).length, 1);
+});
+
+test('a receipt on an unpriced bill is held as credit and applied to the next priced bill', () => {
+  let state = createInitialState();
+  const customerId = 'seed-001';
+  const unpriced = { id:'unpriced-bill', month:'2026-09', dueAmount:null, status:'pending', payments:[{ id:'advance-1', date:'2026-09-10', amount:2000, method:'Cash' }] };
+  const priced = { id:'priced-bill', month:'2026-10', dueAmount:1500, status:'pending', payments:[] };
+  state = { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, bills:[priced, unpriced] } : c) };
+  const allocations = calculatePaymentAllocations(state);
+  const september = allocations.forMonth(customerId, '2026-09');
+  const october = allocations.forMonth(customerId, '2026-10');
+  assert.equal(september.billAmountCents, null);
+  assert.equal(september.excessGeneratedCents, 200000);
+  assert.equal(september.creditForwardedCents, 150000);
+  assert.equal(september.pendingCreditCents, 50000);
+  assert.equal(october.creditAppliedCents, 150000);
+  assert.equal(october.balanceDueCents, 0);
+  assert.equal(october.creditSources[0].paymentId, 'advance-1');
+  assert.equal(october.creditSources[0].originMonth, '2026-09');
+  const ledger = allocations.byPaymentId.get('advance-1');
+  assert.equal(ledger.billUnpriced, true);
+  assert.equal(ledger.excessCents, 200000);
+  assert.equal(ledger.unappliedCreditCents, 50000);
+  assert.deepEqual(ledger.allocations, [{ month:'2026-10', amountCents:150000, kind:'carry-forward' }]);
+  const report = buildMonthlyReport(state, { month:'2026-10' }, new Date(2026, 9, 15, 12)).find(row => row.customerId === customerId);
+  assert.equal(report.creditApplied, 1500);
+  assert.equal(report.balanceDue, 0);
+  assert.match(exportAllPayments(state), /Auto-credit applied to 2026-10: PKR 1,500/);
+  assert.match(exportAllPayments(state), /Credit waiting for a future generated bill: PKR 500/);
+});
+
+test('a receipt on an unpriced bill with no later priced bill stays as pending credit in full', () => {
+  let state = createInitialState();
+  const customerId = 'seed-001';
+  const unpriced = { id:'unpriced-only', month:'2026-09', dueAmount:null, status:'pending', payments:[{ id:'advance-only', date:'2026-09-10', amount:800, method:'Cash' }] };
+  state = { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, bills:[unpriced] } : c) };
+  const allocations = calculatePaymentAllocations(state);
+  const september = allocations.forMonth(customerId, '2026-09');
+  assert.equal(september.excessGeneratedCents, 80000);
+  assert.equal(september.creditForwardedCents, 0);
+  assert.equal(september.pendingCreditCents, 80000);
+  assert.equal(allocations.byPaymentId.get('advance-only').unappliedCreditCents, 80000);
+  assert.equal(calculateDashboard(state, referenceDate).pendingCredit, 800);
 });
 
 test('editing or deleting a source receipt recomputes every later credit and outstanding month without changing other cash', () => {

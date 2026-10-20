@@ -92,10 +92,11 @@ export function isIosDevice() {
 /**
  * Parses action intent from URL hash or query parameters.
  * Supports #quick-collect, #add-customer, #today-dues, #collection-rounds, #pending-actions,
- * #fast-search, #pwa-status, as well as ?action=...
+ * Supports #quick-collect, #add-customer, #today-dues, #collection-rounds, #pending-actions,
+ * #fast-search, #pwa-status, #payments-inbox, #easypaisa, as well as ?action=...
  *
  * @param {string} [urlOrHash] - Full URL string, search string, or hash
- * @returns {'quick-collect'|'add-customer'|'today-dues'|'collection-rounds'|'pending-actions'|'fast-search'|'pwa-status'|null}
+ * @returns {'quick-collect'|'add-customer'|'today-dues'|'collection-rounds'|'pending-actions'|'fast-search'|'pwa-status'|'payments-inbox'|null}
  */
 export function parsePwaActionFromUrl(urlOrHash = '') {
   let target = String(urlOrHash || '');
@@ -107,16 +108,21 @@ export function parsePwaActionFromUrl(urlOrHash = '') {
   const queryMatch = target.match(/[?&]action=([a-zA-Z0-9_-]+)/);
   if (queryMatch) {
     const action = queryMatch[1].toLowerCase();
-    if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(action)) {
-      return action === 'dues' ? 'today-dues' : action;
+    if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status', 'payments-inbox', 'easypaisa'].includes(action)) {
+      if (action === 'dues') return 'today-dues';
+      if (action === 'easypaisa') return 'payments-inbox';
+      return action;
     }
   }
 
-  // 2. Check hash route: #quick-collect, etc.
-  const cleanHash = (target.match(/#([a-zA-Z0-9_-]+)/)?.[1] || '').toLowerCase();
-  if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(cleanHash)) {
-    return cleanHash === 'dues' ? 'today-dues' : cleanHash;
+  // 2. Check hash route: #quick-collect, #/easypaisa, etc.
+  const cleanHash = (target.match(/#\/?([a-zA-Z0-9_-]+)/)?.[1] || '').toLowerCase();
+  if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status', 'payments-inbox', 'easypaisa'].includes(cleanHash)) {
+    if (cleanHash === 'dues') return 'today-dues';
+    if (cleanHash === 'easypaisa') return 'payments-inbox';
+    return cleanHash;
   }
+
 
   return null;
 }
@@ -133,6 +139,7 @@ export function parsePwaActionFromUrl(urlOrHash = '') {
  * @param {Function} [context.onPendingActions]
  * @param {Function} [context.onFastSearch]
  * @param {Function} [context.onPwaStatus]
+ * @param {Function} [context.onPaymentsInbox]
  * @param {Function} [context.toast]
  * @returns {boolean} True if an action was recognized and executed
  */
@@ -191,6 +198,19 @@ export function executePwaAction(action, context = {}) {
     case 'pwa-status':
       if (typeof context.onPwaStatus === 'function') {
         context.onPwaStatus();
+        return true;
+      }
+      break;
+
+    case 'payments-inbox':
+    case 'easypaisa':
+      if (typeof context.onPaymentsInbox === 'function') {
+        context.onPaymentsInbox();
+        announceToScreenReader('Payments Inbox opened');
+        return true;
+      } else if (typeof window !== 'undefined') {
+        window.location.hash = '#/easypaisa';
+        announceToScreenReader('Payments Inbox opened');
         return true;
       }
       break;

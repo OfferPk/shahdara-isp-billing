@@ -15094,4 +15094,56 @@ test('Issue #312: Fast Customer Search keyboard navigation, enterkeyhint=go, and
   assert.ok(rendered.includes('data-index="1"'));
 });
 
+test('Payments Inbox & PWA Integration: More menu button, bottom nav sync, PWA actions, manifest shortcut and Fast Search set-fee button', async () => {
+  const indexHtml = read('index.html');
+  const manifestJson = JSON.parse(read('manifest.webmanifest'));
+  const navCss = read('nav.css');
+
+  // 1. More menu markup and CSS
+  assert.match(indexHtml, /id="mobileMoreEasypaisaBtn"/);
+  assert.match(indexHtml, /data-mobile-more="easypaisa"/);
+  assert.ok(navCss.includes('.mobile-more-menu button[data-mobile-more="easypaisa"]::before'));
+
+
+  // 2. manifest.webmanifest shortcut
+  const inboxShortcut = manifestJson.shortcuts?.find(s => s.url === './#/easypaisa' || s.name === 'Payments Inbox');
+  assert.ok(inboxShortcut, 'Payments Inbox shortcut must be present in manifest.webmanifest');
+  assert.equal(inboxShortcut.short_name, 'Inbox');
+
+  // 3. nav.js bottom nav tab mapping
+  const { getMobileNavTabForScreen } = await import('../nav.js');
+  assert.equal(getMobileNavTabForScreen('easypaisa'), 'more');
+  assert.equal(getMobileNavTabForScreen('payments-inbox'), 'more');
+
+  // 4. nav-pwa.js action parsing and execution
+  const { parsePwaActionFromUrl, executePwaAction } = await import('../nav-pwa.js');
+  assert.equal(parsePwaActionFromUrl('https://example.com/#/easypaisa'), 'payments-inbox');
+  assert.equal(parsePwaActionFromUrl('https://example.com/?action=easypaisa'), 'payments-inbox');
+  assert.equal(parsePwaActionFromUrl('https://example.com/?action=payments-inbox'), 'payments-inbox');
+
+  let inboxCalled = false;
+  const executed = executePwaAction('payments-inbox', {
+    onPaymentsInbox: () => { inboxCalled = true; }
+  });
+  assert.ok(executed);
+  assert.ok(inboxCalled);
+
+  // 5. Fast Customer Search set-fee button label for not-set customers
+  const { renderFastCustomerSearchResultsHtml } = await import('../nav-customer-search.js');
+  const notSetCustomer = [{
+    id: 'cust-not-set',
+    customerNumber: 99,
+    name: 'Unbilled Customer',
+    phone: '03001112233',
+    area: 'Jia Musa',
+    totalDues: 0,
+    billingStatus: ''
+  }];
+  const renderedNotSet = renderFastCustomerSearchResultsHtml(notSetCustomer);
+  assert.ok(renderedNotSet.includes('⚡ Collect / Set Fee'), 'Button must show Collect / Set Fee for customers with no bill set');
+  assert.ok(renderedNotSet.includes('title="Set monthly fee or collect from Unbilled Customer"'));
+});
+
+
+
 

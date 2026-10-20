@@ -220,7 +220,7 @@ const KeyValueTemplate = {
     const receiverNumber = normalizeEasypaisaPhone(kv['receivernumber'] || kv['recipientnumber'] || kv['receivermobile'] || kv['receiveraccount'] || '');
 
     const rawAmount = kv['transferamount'] || kv['amount'];
-    const amount = parseEasypaisaAmount(rawAmount);
+    let amount = parseEasypaisaAmount(rawAmount);
 
     const rawFee = kv['fee'] || kv['charges'] || kv['servicefee'];
     const fee = parseEasypaisaAmount(rawFee) ?? 0;

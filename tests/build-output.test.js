@@ -29,8 +29,8 @@ function localRefs(source, file) {
     refs.push(path.posix.normalize(path.posix.join(path.posix.dirname(file), clean)));
   };
   if (file.endsWith('.js') || file.endsWith('.mjs')) {
-    for (const m of source.matchAll(/(?:^|[;\s])(?:import|export)\b[^'"]*?from\s*['"]([^'"]+)['"]/gm)) add(m[1]);
-    for (const m of source.matchAll(/(?:^|[;\s])import\s*['"]([^'"]+)['"]/gm)) add(m[1]);
+    for (const m of source.matchAll(/(?:import|export)\b[^'"]*?\bfrom\s*['"]([^'"]+)['"]/g)) add(m[1]);
+    for (const m of source.matchAll(/(?:^|[;\s{])import\s*['"]([^'"]+)['"]/gm)) add(m[1]);
     for (const m of source.matchAll(/import\(\s*['"]([^'"]+)['"]\s*\)/g)) add(m[1]);
   } else if (file.endsWith('.html')) {
     for (const m of source.matchAll(/\s(?:src|href)="([^"]+)"/g)) add(m[1]);
@@ -41,12 +41,12 @@ function localRefs(source, file) {
   return refs;
 }
 
-test('production build publishes every module, stylesheet and asset the app references (#208)', async () => {
+test('production build publishes every module, stylesheet and asset the app references (#208, bundled #219)', async () => {
   const dist = await mkdtemp(path.join(os.tmpdir(), 'shahdara-dist-'));
   try {
     await build({ root: ROOT, dist, quiet: true });
     const files = new Set(await listFiles(dist));
-    for (const entry of ['index.html', 'app.js', 'sw.js', 'manifest.webmanifest', 'icon.svg', 'styles.css']) assert.ok(files.has(entry), `dist contains ${entry}`);
+    for (const entry of ['index.html', 'app.js', 'sw.js', 'manifest.webmanifest', 'icon.svg', 'app.bundle.css']) assert.ok(files.has(entry), `dist contains ${entry}`);
 
     const unresolved = [];
     let checked = 0;
@@ -58,15 +58,20 @@ test('production build publishes every module, stylesheet and asset the app refe
         if (!files.has(ref)) unresolved.push(`${file} -> ${ref}`);
       }
     }
-    assert.ok(checked > 100, `expected to check the full import graph, checked ${checked} references`);
+    assert.ok(checked >= 10, `expected to check the bundled reference graph, checked ${checked} references`);
     assert.deepEqual(unresolved, [], `every relative reference in dist resolves to a file in dist`);
 
-    // Every module app.js imports directly must ship (the exact failure mode of #208).
+    // #219: the 100+ source modules ship inside the bundles, not as separate
+    // files/requests. The bundle must actually contain the whole graph: it is
+    // megabytes, not a hand-picked subset, and source modules do not ship loose.
     const app = await readFile(path.join(ROOT, 'app.js'), 'utf8');
     const appImports = [...app.matchAll(/from\s*'\.\/([^'?]+)/g)].map(m => m[1]);
     assert.ok(appImports.length > 10, 'app.js imports its feature modules');
-    assert.ok([...files].filter(f => f.endsWith('.js')).length > 100, 'the whole transitive module graph (100+ modules) ships, not a hand-picked subset');
-    for (const mod of appImports) assert.ok(files.has(mod), `dist contains ${mod} imported by app.js`);
+    assert.ok(files.size <= 25, `dist ships a bundled file set (got ${files.size}), not 154 loose files`);
+    for (const mod of appImports) assert.ok(!files.has(mod) || mod === 'app.js', `${mod} is bundled, not shipped loose`);
+    let bundleBytes = 0;
+    for (const file of files) if (file.endsWith('.js')) bundleBytes += (await readFile(path.join(dist, file), 'utf8')).length;
+    assert.ok(bundleBytes > 2_000_000, `bundled JS carries the full module graph (${bundleBytes} bytes)`);
 
     // Tooling and test files never ship.
     for (const file of files) assert.doesNotMatch(file, /^(?:node_modules|tests|\.github|android|dist)\/|^(?:build\.mjs|playwright\.config\.mjs|package(?:-lock)?\.json)$/, `${file} is not a runtime file`);
@@ -99,7 +104,7 @@ test('built service worker precaches exactly the published files under a content
     const appFiles = JSON.parse(sw.match(/const APP_FILES = (\[[^\]]*\]);/)[1]);
     const expected = ['./', ...files.filter(f => f !== 'sw.js').map(f => `./${f}`)];
     assert.deepEqual([...appFiles].sort(), [...expected].sort(), 'precache list == files in dist (minus the worker itself)');
-    assert.ok(appFiles.length > 100);
+    assert.ok(appFiles.length >= 10 && appFiles.length <= 25, `precache is the bundled file set (${appFiles.length} files, #219)`);
     const again = await build({ root: ROOT, dist, quiet: true }) && await readFile(path.join(dist, 'sw.js'), 'utf8');
     assert.equal(again.match(/const CACHE_NAME = '([^']+)';/)[1], cacheName, 'same sources give the same cache name');
   } finally {

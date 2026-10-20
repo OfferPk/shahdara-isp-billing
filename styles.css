@@ -1287,6 +1287,8 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .owner-command-answer:empty{display:none}
 .owner-command-answer>p:first-child{font-weight:700;color:var(--green)}
 .owner-answer-list{padding-left:20px;display:grid;gap:6px}
+.owner-suggestion-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.owner-suggestion-chip{white-space:normal;text-align:left}
 .owner-report-panel{margin-top:19px}
 .owner-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:9px;margin:12px 0}
 .owner-filter-grid label,.performance-explain-form label,.recovery-customer-actions label{display:grid;gap:5px;color:#52685f;font-size:11px;font-weight:700;min-width:0}

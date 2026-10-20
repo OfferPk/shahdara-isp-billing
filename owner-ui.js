@@ -28,11 +28,28 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const summary=document.createElement('p');
     const rows=Array.isArray(answer.rows)?answer.rows:[];
     const monthLabel=answer.month?monthName(answer.month):'';
+    const periodLabel=answer.month?monthLabel:(answer.label?answer.label:(answer.from&&answer.to?`${answer.from} to ${answer.to}`:''));
     switch(answer.intent) {
       case 'monthly-collection': summary.textContent=`${monthLabel} Collection: ${rows.length||answer.receiptCount?formatAmount(answer.collection):'No recorded receipts'} · ${answer.receiptCount} receipt(s).`; break;
-      case 'daily-collection': summary.textContent=`Today’s collection (${answer.date}): ${answer.receiptCount?formatAmount(answer.collection):'No recorded receipts'}.`; break;
-      case 'daily-summary': summary.textContent=`Today (${answer.date}): collection ${answer.receiptCount?formatAmount(answer.collection):'no recorded receipts'}; expenses ${answer.expenseCount?formatAmount(answer.expenses):'no recorded entries'}; net cash ${formatAmount(answer.collection-answer.expenses)}.`; break;
-      case 'daily-expenses': summary.textContent=`Today’s recorded expenses: ${answer.expenseCount?formatAmount(answer.expenses):'No expense entries'} (${answer.date}).`; break;
+      case 'daily-collection': summary.textContent=`${answer.label??'Today'}’s collection (${answer.date}): ${answer.receiptCount?formatAmount(answer.collection):'No recorded receipts'}.`; break;
+      case 'daily-summary': summary.textContent=`${answer.label??'Today'} (${answer.date}): collection ${answer.receiptCount?formatAmount(answer.collection):'no recorded receipts'}; expenses ${answer.expenseCount?formatAmount(answer.expenses):'no recorded entries'}; net cash ${formatAmount(answer.collection-answer.expenses)}.`; break;
+      case 'daily-expenses': summary.textContent=`${answer.label??'Today'}’s recorded expenses: ${answer.expenseCount?formatAmount(answer.expenses):'No expense entries'} (${answer.date}).`; break;
+      case 'period-collection': summary.textContent=`${periodLabel} collection: ${answer.receiptCount?formatAmount(answer.collection):'No recorded receipts'} · ${answer.receiptCount} receipt(s).`; break;
+      case 'period-expenses': summary.textContent=`${periodLabel} recorded expenses: ${answer.expenseCount?formatAmount(answer.expenses):'No expense entries'}.`; break;
+      case 'period-summary': summary.textContent=`${periodLabel}: collection ${answer.receiptCount?formatAmount(answer.collection):'no recorded receipts'}; expenses ${answer.expenseCount?formatAmount(answer.expenses):'no recorded entries'}; net cash ${formatAmount(answer.net??answer.collection-answer.expenses)}.`; break;
+      case 'new-customers': summary.textContent=answer.count?`${answer.count} new customer(s) added · ${periodLabel}. Connection date is used when saved, otherwise the profile added-on date.`:`No new customers were added · ${periodLabel}.`; break;
+      case 'paid-list': summary.textContent=answer.count?`${answer.count} payment(s) received · ${periodLabel}; total ${formatAmount(answer.total)}.`:`No payments were recorded · ${periodLabel}.`; break;
+      case 'method-collection': summary.textContent=answer.focusMethod?`${answer.focusMethod}: ${formatAmount(answer.focusAmount)} of ${formatAmount(answer.total)} collected · ${periodLabel}.`:`Collection by payment method · ${periodLabel}; total ${formatAmount(answer.total)}.`; break;
+      case 'area-collection': summary.textContent=answer.areaFilter?`${answer.areaFilter} collection · ${periodLabel}: ${formatAmount(answer.total)}.`:`Collection by area · ${periodLabel}; total ${formatAmount(answer.total)}.`; break;
+      case 'month-comparison': { const focusRow=rows.find(row=>row.key===answer.focus); const focusLabel=focusRow?focusRow.label:'Collection'; summary.textContent=focusRow?`${focusLabel} · ${monthName(answer.monthA)} → ${monthName(answer.monthB)}: ${formatAmount(focusRow.from)} → ${formatAmount(focusRow.to)} (${focusRow.percentChange===null?'percentage unavailable':`${focusRow.percentChange>0?'+':''}${focusRow.percentChange}%`}) — ${answer.direction==='same'?'no change':answer.direction==='up'?'increased':'decreased'}.`:`No saved comparison is available for ${monthName(answer.monthA)} and ${monthName(answer.monthB)}.`; break; }
+      case 'expense-breakdown': summary.textContent=rows.length?`Recorded expenses by category · ${periodLabel}; total ${formatAmount(answer.total)}. Biggest: ${rows[0].category} · ${formatAmount(rows[0].amount)}.`:`No expense entries are recorded · ${periodLabel}.`; break;
+      case 'top-defaulters': summary.textContent=rows.length?`Highest saved outstanding balances (top ${answer.limit}); largest is ${rows[0].name} · ${formatAmount(rows[0].outstanding)}.`:`No saved outstanding balances are recorded.`; break;
+      case 'customer-candidates': summary.textContent=`More than one saved customer matches that name. Balance details for each · ${monthLabel}:`; break;
+      case 'customer-detail': summary.textContent=`${answer.name} — total saved outstanding ${formatAmount(answer.totalOutstanding)}; total paid so far ${formatAmount(answer.totalPaid)} across ${answer.totalPayments} receipt(s).`; break;
+      case 'package-customers': summary.textContent=answer.distribution?`${answer.count} customer(s) across ${rows.length} recorded package(s); total saved outstanding ${formatAmount(answer.duesTotal)}.`:`${answer.count} customer(s) on ${answer.package}; saved outstanding on this package ${formatAmount(answer.duesTotal)}.`; break;
+      case 'overdue-aging': summary.textContent=answer.minDays!==undefined&&answer.minDays!==null?`${rows.length} customer(s) have dues more than ${answer.minDays} days overdue.`:`Saved overdue dues grouped by age; total ${formatAmount(answer.total)}.`; break;
+      case 'counts-overview': summary.textContent=`Saved customers: ${answer.total} total · ${answer.active} active · ${answer.offline} offline · ${answer.notSet} status not set · ${answer.archived} archived. ${answer.withDues} customer(s) have dues (${formatAmount(answer.duesTotal)} outstanding); ${answer.billedThisMonth} customer(s) billed in ${monthLabel}.`; break;
+      case 'total-outstanding': summary.textContent=`Total saved outstanding: ${formatAmount(answer.total)} across ${answer.customers} customer(s).`; break;
       case 'monthly-expenses': summary.textContent=`${monthLabel} recorded expenses: ${answer.expenseCount?formatAmount(answer.expenses):'No expense entries'}.`; break;
       case 'monthly-profit': summary.textContent=`${monthLabel} cash profit: ${formatAmount(answer.profit)} · ${formatAmount(answer.collection)} actual receipts − ${formatAmount(answer.expenses)} recorded expenses.`; break;
       case 'customer-balance': summary.textContent=`Saved bill and balance details for ${rows.length} matching customer(s) · ${monthLabel}.`; break;
@@ -46,16 +63,44 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       const list=document.createElement('ul'); list.className='owner-answer-list';
       for(const row of rows.slice(0,30)) {
         const item=document.createElement('li');
-        if(answer.intent==='customer-balance') item.textContent=`${row.name} — ${row.package}; bill ${row.bill===null?'Not set':formatAmount(row.bill)}; paid ${formatAmount(row.paid)}; remaining ${formatAmount(row.remaining)}; total saved outstanding ${formatAmount(row.totalOutstanding)}; unapplied credit ${formatAmount(row.creditApplied)}.`;
+        if(answer.intent==='customer-balance'||answer.intent==='customer-candidates') item.textContent=`${row.name} — ${row.package}; bill ${row.bill===null?'Not set':formatAmount(row.bill)}; paid ${formatAmount(row.paid)}; remaining ${formatAmount(row.remaining)}; total saved outstanding ${formatAmount(row.totalOutstanding)}; unapplied credit ${formatAmount(row.creditApplied)}.`;
         else if(answer.intent==='pending-list') item.textContent=`${row.name} — ${row.package}; remaining ${formatAmount(row.remaining)}${row.dueDate?`; due ${row.dueDate}`:''}.`;
         else if(answer.intent==='area-pending') item.textContent=`${row.area} — ${row.customers} customer(s), ${formatAmount(row.outstanding)} outstanding.`;
+        else if(answer.intent==='new-customers') item.textContent=`${row.name} — ${row.package} · ${row.area} · added ${row.date}.`;
+        else if(answer.intent==='paid-list') item.textContent=`${row.name} — ${formatAmount(row.amount)} · ${row.method} · ${row.date}.`;
+        else if(answer.intent==='method-collection') item.textContent=`${row.method} — ${formatAmount(row.amount)} · ${row.count} receipt(s).`;
+        else if(answer.intent==='area-collection') item.textContent=`${row.area} — ${formatAmount(row.amount)} collected · ${row.customers} customer(s) · ${row.receipts} receipt(s).`;
+        else if(answer.intent==='month-comparison') item.textContent=`${row.label}: ${formatAmount(row.from)} → ${formatAmount(row.to)} (${row.percentChange===null?'percentage unavailable':`${row.percentChange>0?'+':''}${row.percentChange}%`}).`;
+        else if(answer.intent==='expense-breakdown') item.textContent=`${row.category} — ${formatAmount(row.amount)} · ${row.count} entr${row.count===1?'y':'ies'}.`;
+        else if(answer.intent==='top-defaulters'||answer.intent==='threshold-outstanding') item.textContent=`${row.name} — ${row.package}; outstanding ${formatAmount(row.outstanding)}${row.bills?` · ${row.bills} open bill(s)`:''}${row.oldestDueDate?` · oldest due ${row.oldestDueDate}`:''}.`;
+        else if(answer.intent==='package-customers') item.textContent=answer.distribution?`${row.package} — ${row.customers} customer(s) · ${formatAmount(row.duesTotal)} outstanding.`:`${row.name} — ${formatAmount(row.outstanding)} outstanding.`;
+        else if(answer.intent==='overdue-aging') item.textContent=answer.minDays!==undefined&&answer.minDays!==null?`${row.name} — ${row.package}; outstanding ${formatAmount(row.outstanding)} · ${row.overdueDays} day(s) overdue (oldest due ${row.oldestDueDate}).`:`${row.label} — ${formatAmount(row.amount)} · ${row.bills} bill(s) · ${row.customers} customer(s).`;
         else item.textContent=`${row.name} — ${row.package}; outstanding ${formatAmount(row.outstanding)}.`;
         list.append(item);
       }
       output.append(list);
       if(rows.length>30){const more=document.createElement('p');more.textContent=`Showing first 30 of ${rows.length} local matches.`;output.append(more);}
     }
+    if(answer.intent==='customer-detail'){
+      const facts=document.createElement('ul'); facts.className='owner-answer-list';
+      const fact=text=>{const item=document.createElement('li');item.textContent=text;facts.append(item);};
+      fact(`${answer.name} · ${answer.package} · ${answer.area}${answer.since?` · customer since ${answer.since}`:' · start date not recorded'}.`);
+      if(answer.currentBill) fact(`${monthName(answer.currentBill.month)} bill: ${formatAmount(answer.currentBill.dueAmount)} · balance due ${formatAmount(answer.currentBill.balanceDue)} · ${answer.currentBill.status}${answer.currentBill.dueDate?` · due ${answer.currentBill.dueDate}`:''}.`);
+      else fact(`No bill is recorded for ${monthLabel||'the current month'}.`);
+      fact(answer.lastPayment?`Last payment: ${formatAmount(answer.lastPayment.amount)} on ${answer.lastPayment.date} · ${answer.lastPayment.method}.`:'No payment has been recorded for this customer yet.');
+      fact(answer.healthScore===null||answer.healthScore===undefined?`Payment health: ${answer.healthCategory??'Insufficient history'}.`:`Payment health: ${answer.healthScore}/100 · ${answer.healthCategory}.`);
+      output.append(facts);
+    }
     if(answer.basis){const note=document.createElement('p');note.className='owner-command-note';note.textContent=answer.basis;output.append(note);}
+    if(Array.isArray(answer.suggestions)&&answer.suggestions.length){
+      const wrap=document.createElement('div'); wrap.className='owner-suggestion-chips';
+      for(const suggestion of answer.suggestions){
+        const chip=document.createElement('button'); chip.type='button'; chip.className='secondary-button owner-suggestion-chip'; chip.textContent=suggestion;
+        chip.addEventListener('click',()=>{const input=$('#ownerCommandInput'); if(input)input.value=suggestion; lastQuery=suggestion; renderCommand(suggestion);});
+        wrap.append(chip);
+      }
+      output.append(wrap);
+    }
   }
   function renderClosings() {
     const host=$('#savedMonthlyClosings'); if(!host)return;

@@ -163,56 +163,437 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
   return{type,month:selected,rows:rows.slice(0,100),excludedCount,area,packageName,status};
 }
 
-function selectedMonth(query,referenceDate) {
-  const current=monthFor(referenceDate),text=String(query??'').normalize('NFKC').toLocaleLowerCase('en');
-  if(/\b(last|previous|pichle|pichlay|guzishta)\s+(month|mahine|maheena)\b|پچھلے مہینے|گزشتہ ماہ/u.test(text))return shiftMonth(current,-1);
-  const english=['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const urdu=['جنوری','فروری','مارچ','اپریل','مئی','جون','جولائی','اگست','ستمبر','اکتوبر','نومبر','دسمبر'];
-  let index=english.findIndex(name=>text.includes(name));if(index<0)index=urdu.findIndex(name=>text.includes(name));
-  if(index>=0){const year=text.match(/\b(20\d{2})\b/)?.[1]??current.slice(0,4);return`${year}-${String(index+1).padStart(2,'0')}`;}
+// ============================================================================
+// Owner Assistant question understanding (LOCAL-ONLY, READ-ONLY).
+// A much stronger local parser over the saved ledger: trilingual keyword and
+// Roman-Urdu variant handling, day/week/range/month periods, amounts with
+// k/hazar/lakh units, fuzzy customer-name matching with ambiguity handling,
+// and a suggestion-based fallback instead of a dead-end help paragraph.
+// Every figure is computed from the real state through the same allocation
+// logic as the rest of the app; nothing is estimated or invented.
+// ============================================================================
+
+const MONTH_NAMES_EN = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+const MONTH_NAMES_UR = ['جنوری','فروری','مارچ','اپریل','مئی','جون','جولائی','اگست','ستمبر','اکتوبر','نومبر','دسمبر'];
+const ROMAN_MONTHS = [['jan','january'],['feb','february'],['mar','march'],['apr','april'],['may','may'],['jun','june'],['jul','july'],['aug','august'],['sep','september'],['sept','september'],['oct','october'],['nov','november'],['dec','december']];
+
+function normalizeQueryText(query) {
+  return String(query ?? '')
+    .normalize('NFKC')
+    .toLocaleLowerCase('en')
+    .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+    .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)));
+}
+const queryTokens = text => String(text ?? '').replace(/[؟?!.،,؛;:'"()«»\-–—/]/g, ' ').split(/\s+/).filter(Boolean);
+
+// Roman-Urdu spelling variants folded to one canonical token so intent cues
+// survive casual spelling ("ajj", "howy", "bakaya", "wasuli", ...).
+const TOKEN_FOLDS = new Map(Object.entries({
+  ajj:'aaj', aj:'aaj', aaj:'aaj',
+  kon:'kaun', kaun:'kaun', kisne:'kis', kis:'kis',
+  hovy:'hue', huay:'hue', huye:'hue', hue:'hue',
+  maheena:'mahina', maheene:'mahina', mahine:'mahina', mahina:'mahina', mahiny:'mahina',
+  bakaya:'baqaya', baqaya:'baqaya', baki:'baqi', baqi:'baqi',
+  wasuli:'wasool', vasool:'wasool', wasool:'wasool',
+  kharch:'kharcha', kharcha:'kharcha', kharche:'kharcha',
+  diya:'di', dia:'di', diye:'di', di:'di',
+  aaya:'aya', aya:'aya',
+  kitne:'kitna', kitni:'kitna', kitna:'kitna',
+  ziada:'zyada', zyada:'zyada',
+  pichlay:'pichhla', pichle:'pichhla', pichla:'pichhla', pichhle:'pichhla', pichhla:'pichhla',
+  batayen:'batao', bataen:'batao',
+  walay:'wale', waley:'wale', wale:'wale',
+  sub:'sab', sb:'sab',
+  naye:'naye', naya:'naya', nai:'nayi', nayi:'nayi',
+  lagay:'lage', lage:'lage'
+}));
+const foldToken = token => TOKEN_FOLDS.get(token) ?? token;
+const foldedTokenSet = text => new Set(queryTokens(text).map(foldToken));
+
+function selectedMonth(query, referenceDate) {
+  const current = monthFor(referenceDate), text = normalizeQueryText(query);
+  if (/\b(last|previous|pichle|pichlay|pichhle|pichhla|pichla|guzishta)\s+(month|mahina|mahine|maheena|maheene)\b|پچھلے مہینے|گزشتہ ماہ/u.test(text)) return shiftMonth(current, -1);
+  let index = MONTH_NAMES_EN.findIndex(name => text.includes(name));
+  if (index < 0) index = MONTH_NAMES_UR.findIndex(name => text.includes(name));
+  if (index < 0) { const roman = ROMAN_MONTHS.find(([short]) => new RegExp(`\\b${short}\\.?\\b`, 'u').test(text)); if (roman) index = MONTH_NAMES_EN.indexOf(roman[1]); }
+  if (index >= 0) { const year = text.match(/\b(20\d{2})\b/)?.[1] ?? current.slice(0, 4); return `${year}-${String(index + 1).padStart(2, '0')}`; }
   return current;
 }
-const contains=(text,regex,terms=[])=>regex.test(text)||terms.some(term=>text.includes(term));
-export function answerOwnerCommand(state,query,referenceDate=new Date()) {
-  const text=String(query??'').trim().normalize('NFKC').toLocaleLowerCase('en').replace(/[٠-٩]/g,digit=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-  const current=monthFor(referenceDate),today=dateFor(referenceDate),requestedMonth=selectedMonth(text,referenceDate),month=requestedMonth<=current?requestedMonth:current;
-  const isToday=contains(text,/\b(today|aaj|aj)\b/u,['آج','آج کی','آج کا']);
-  const collectionIntent=contains(text,/\b(collection|collected|received|paisa|wasool|wasooli)\b/u,['جمع','وصولی','پیسے آئے']);
-  const expenseIntent=contains(text,/\b(expense|expenses|kharcha|kharchay)\b/u,['اخراجات','خرچ']);
-  const pendingIntent=contains(text,/\b(pending|unpaid|not paid|did not pay|nahi di|nahin di|baqi|baki)\b/u,['بقایا','بقایاجات','نہیں دی','ادا نہیں']);
-  const customerBillIntent=/\b(?:bill\s+(?:check|status|details)|check\s+bill)\b/u.test(text);
-  const outstandingIntent=contains(text,/\b(outstanding|balance|remaining|due|baki|baqi)\b/u,['بقایا','بقیہ','balance'])||customerBillIntent;
-  const areaIntent=contains(text,/\b(area|mohalla|zone)\b/u,['علاقہ','محلہ']);
-  const profitIntent=contains(text,/\b(profit|munafa|net)\b/u,['منافع']);
-  const monthNamed=/\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/u.test(text)||['جنوری','فروری','مارچ','اپریل','مئی','جون','جولائی','اگست','ستمبر','اکتوبر','نومبر','دسمبر'].some(name=>text.includes(name));
-  const allocations=calculatePaymentAllocations(state);
-  const entries=state.customers.flatMap(customer=>(customer.bills??[]).map(bill=>({customer,bill,due:validPrice(bill.dueAmount)?cents(bill.dueAmount):null,balance:validPrice(bill.dueAmount)?Math.max(0,allocations.forMonth(customer.id,bill.month)?.balanceDueCents??cents(bill.dueAmount)):null})));
-  const paymentsFor=(day=null,monthFilter=null)=>state.customers.flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).filter(payment=>(!day||payment.date===day)&&(!monthFilter||payment.date.slice(0,7)===monthFilter)).map(payment=>({customer,bill,payment}))));
-  const periodPayments=paymentsFor(isToday?today:null,isToday?null:month),periodExpenses=(state.expenses??[]).filter(row=>isToday?row.date===today:row.date?.slice(0,7)===month);
-  const collectionCents=periodPayments.reduce((sum,row)=>sum+cents(row.payment.amount),0),expenseCents=periodExpenses.reduce((sum,row)=>sum+cents(row.amount),0);
-  const pending=entries.filter(row=>row.bill.month===month&&row.due!==null&&row.balance>0);
-  const allOutstanding=entries.filter(row=>row.due!==null&&row.balance>0);
-  const thresholdMatch=text.match(/(?:over|above|more than|greater than|exceed(?:ing)?|>|زیادہ|سے زیادہ)\s*(\d[\d,]*)/u)??text.match(/(\d[\d,]*)\s*(?:above|se zyada|سے زیادہ|outstanding|balance)/u);
-  const threshold=thresholdMatch?Number(thresholdMatch[1].replaceAll(',','')):null;
-  if(isToday&&collectionIntent&&expenseIntent)return{intent:'daily-summary',date:today,collection:amount(collectionCents),receiptCount:periodPayments.length,expenses:amount(expenseCents),expenseCount:periodExpenses.length};
-  if(isToday&&collectionIntent)return{intent:'daily-collection',date:today,collection:amount(collectionCents),receiptCount:periodPayments.length};
-  if(isToday&&expenseIntent)return{intent:'daily-expenses',date:today,expenses:amount(expenseCents),expenseCount:periodExpenses.length};
-  if(areaIntent&&pendingIntent){const groups=new Map();for(const row of pending){const label=row.customer.mohalla?.trim()||row.customer.zone?.trim()||'Area not recorded';const group=groups.get(label)??{area:label,cents:0,ids:new Set()};group.cents+=row.balance;group.ids.add(row.customer.id);groups.set(label,group);}const rows=[...groups.values()].map(row=>({area:row.area,outstanding:amount(row.cents),customers:row.ids.size})).sort((a,b)=>b.outstanding-a.outstanding);return{intent:'area-pending',month,rows};}
-  if(threshold!==null&&outstandingIntent){const groups=new Map();for(const row of allOutstanding){const item=groups.get(row.customer.id)??{customerId:row.customer.id,customerNumber:row.customer.customerNumber,name:row.customer.name,package:row.customer.packageSpeed||'Not recorded',cents:0};item.cents+=row.balance;groups.set(row.customer.id,item);}const rows=[...groups.values()].filter(row=>row.cents>threshold*100).map(row=>({...row,outstanding:amount(row.cents)})).sort((a,b)=>b.outstanding-a.outstanding);return{intent:'threshold-outstanding',threshold,rows,total:rows.length};}
-  if(outstandingIntent&&!pendingIntent&&!profitIntent){
-    const stop=new Set(['ka','ki','ke','kitna','kitni','kitne','balance','outstanding','remaining','due','bill','check','details','status','karo','hai','he','is','customer','customers','show','find','what','how','much','mujhe','please','batao','batayen','walay','wala','kis','kaun','aaj','month','mahine','mahina','اس','مہینے','کا','کی','کے','کتنا','کتنی','ہے','ہیں','مجھے']);
-    const candidate=text.replace(/[؟?!.،,؛:]/g,' ').split(/\s+/).filter(word=>word&&!stop.has(word)&&/[a-z]/i.test(word)).join(' ');
-    const matches=candidate?state.customers.filter(customer=>customer.name.toLocaleLowerCase('en').includes(candidate)||candidate.split(' ').some(word=>word.length>2&&customer.name.toLocaleLowerCase('en').includes(word))).map(customer=>{
-      const rows=entries.filter(row=>row.customer.id===customer.id&&row.due!==null),selected=rows.find(row=>row.bill.month===month),selectedBill=customer.bills.find(row=>row.month===month),actualPaid=(selectedBill?.payments??[]).reduce((sum,payment)=>sum+cents(payment.amount),0),credit=allocations.forMonth(customer.id,month)?.creditAppliedCents??0;
-      return{customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,package:customer.packageSpeed||'Not recorded',month,bill:selected?amount(selected.due):null,paid:amount(actualPaid),creditApplied:amount(credit),remaining:selected?amount(selected.balance):0,totalOutstanding:amount(rows.reduce((sum,row)=>sum+row.balance,0))};
-    }):[];
-    if(matches.length)return{intent:'customer-balance',month,rows:matches};
+function namedMonths(text, referenceDate) {
+  const current = monthFor(referenceDate), found = [];
+  const push = (index, year) => { if (index >= 0) found.push(`${year ?? current.slice(0, 4)}-${String(index + 1).padStart(2, '0')}`); };
+  for (const [i, name] of MONTH_NAMES_EN.entries()) if (new RegExp(`\\b${name}\\b`, 'u').test(text)) push(i, text.match(new RegExp(`${name}\\s+(20\\d{2})`, 'u'))?.[1]);
+  for (const [i, name] of MONTH_NAMES_UR.entries()) if (text.includes(name)) push(i, undefined);
+  if (!found.length) for (const [short, full] of ROMAN_MONTHS) if (new RegExp(`\\b${short}\\.?\\b`, 'u').test(text)) push(MONTH_NAMES_EN.indexOf(full), undefined);
+  return [...new Set(found)];
+}
+
+// Periods: a specific day, a rolling/explicit date range, or a month.
+// "kal" means yesterday unless the question is clearly future-marked: every
+// saved record is historical, so the past reading is the useful one.
+function parsePeriod(text, referenceDate) {
+  const today = dateFor(referenceDate), current = monthFor(referenceDate), tokens = foldedTokenSet(text);
+  const has = (...words) => words.some(word => tokens.has(word));
+  const futureMarked = /\b(aane wala|aane wale|agle|agla|next|upcoming)\b/u.test(text) || text.includes('آنے وال');
+  const dayPeriod = (date, label) => ({ kind:'day', date, from:date, to:date, label });
+  if (!futureMarked && (has('parso', 'parson') || text.includes('پرسوں') || /\bday before yesterday\b/u.test(text))) return dayPeriod(shiftDate(today, -2), 'Day before yesterday');
+  if (has('aaj', 'today') || text.includes('آج')) return dayPeriod(today, 'Today');
+  if (!futureMarked && (has('yesterday', 'kal') || text.includes('کل') || text.includes('گزشتہ روز'))) return dayPeriod(shiftDate(today, -1), 'Yesterday');
+  const lastDays = text.match(/(?:last|past|pichhla|pichhle|pichle|guzishta|گزشتہ|پچھلے)\s*(\d{1,3})\s*(?:days?|din|دن)/u) ?? text.match(/(\d{1,3})\s*(?:din|days?|دن)\s*(?:mein|me|ki|ka|bhar)/u);
+  if (lastDays) { const n = Math.max(1, Math.min(366, Number(lastDays[1]))); return { kind:'range', from:shiftDate(today, -(n - 1)), to:today, label:`Last ${n} days` }; }
+  if (has('hafta', 'hafte', 'week') || text.includes('ہفتہ')) {
+    if (has('pichhla', 'last', 'previous')) return { kind:'range', from:shiftDate(today, -6), to:today, label:'Last 7 days' };
+    const dow = new Date(`${today}T00:00:00Z`).getUTCDay(), sinceMonday = (dow + 6) % 7;
+    return { kind:'range', from:shiftDate(today, -sinceMonday), to:today, label:'This week' };
   }
-  if(pendingIntent){const rows=pending.map(row=>({customerId:row.customer.id,customerNumber:row.customer.customerNumber,name:row.customer.name,package:row.customer.packageSpeed||'Not recorded',bill:amount(row.due),paid:amount((row.bill.payments??[]).reduce((sum,payment)=>sum+cents(payment.amount),0)),remaining:amount(row.balance),dueDate:row.bill.dueDate??null}));return{intent:'pending-list',month,rows,pendingTotal:amount(rows.reduce((sum,row)=>sum+cents(row.remaining),0))};}
-  if(profitIntent){return{intent:'monthly-profit',month,collection:amount(collectionCents),expenses:amount(expenseCents),profit:amount(collectionCents-expenseCents),receiptCount:periodPayments.length,expenseCount:periodExpenses.length,basis:'Actual cash receipts minus recorded expenses; unpaid bills, inventory book value and estimated costs are excluded.'};}
-  if(expenseIntent)return{intent:isToday?'daily-expenses':'monthly-expenses',month,date:isToday?today:undefined,expenses:amount(expenseCents),expenseCount:periodExpenses.length};
-  if(collectionIntent||monthNamed)return{intent:isToday?'daily-collection':'monthly-collection',month,date:isToday?today:undefined,collection:amount(collectionCents),receiptCount:periodPayments.length};
-  return{intent:'help',message:'Try: “October collection”, “Ali ka balance”, “Aaj kis kis ne payment nahi di?”, “today collection and expense”, “اس مہینے profit کتنا ہے؟”, “area-wise pending”, or “customers above 5000 outstanding”. Only saved local records are queried.'};
+  const month = selectedMonth(text, referenceDate), clamped = month <= current ? month : current;
+  return { kind:'month', month:clamped, from:`${clamped}-01`, to:`${clamped}-31`, label:clamped };
+}
+
+// Amounts with units: "5000", "5,000", "5k", "5 hazar", "1 lakh", "۵ ہزار".
+function parseAmountToken(raw, unit) {
+  const value = Number.parseFloat(String(raw).replaceAll(',', ''));
+  if (!Number.isFinite(value)) return null;
+  const multiplier = !unit ? 1 : (unit === 'k' || unit === 'hazar' || unit === 'ہزار') ? 1000 : 100000;
+  return Math.round(value * multiplier);
+}
+function parseThreshold(text) {
+  const num = '(\\d[\\d,]*(?:\\.\\d+)?)\\s*(k|hazar|lakh|lac|ہزار|لاکھ)?';
+  const cue = '(?:above|over|more than|greater than|exceed(?:ing)?|se\\s*zyada|se\\s*ziada|zyada|زیادہ|سے\\s*زیادہ|>)';
+  const after = text.match(new RegExp(`${cue}\\s*(?:rs\\.?|pkr)?\\s*${num}`, 'u'));
+  if (after) return parseAmountToken(after[1], after[2]);
+  const before = text.match(new RegExp(`${num}\\s*(?:rs\\.?|pkr)?\\s*(?:${cue}|outstanding|balance|baqaya)`, 'u'));
+  return before ? parseAmountToken(before[1], before[2]) : null;
+}
+function parseTopN(text) {
+  const match = text.match(/\btop\s*(\d{1,2})\b/u) ?? text.match(/\b(\d{1,2})\s*(?:sab se|sab sy|سب سے)/u);
+  return match ? Math.max(1, Math.min(50, Number(match[1]))) : 5;
+}
+function parseDaysCount(text) {
+  const match = text.match(/(\d{1,4})\s*(?:din|days?|day|دن)/u);
+  return match ? Number(match[1]) : null;
+}
+
+const METHOD_ALIASES = [
+  { name:'Cash', test:/\b(cash|naqad|naqd|naghdi)\b|نقد/u },
+  { name:'Easypaisa', test:/easy\s?paisa|easypaisa|ایزی\s?پیسہ/u },
+  { name:'JazzCash', test:/jazz\s?cash|جاز\s?کیش/u },
+  { name:'Bank Transfer', test:/\bbank\b|بینک/u },
+  { name:'Raast', test:/\braast\b|راست/u }
+];
+const methodMatchesStored = (canonical, stored) => {
+  const value = String(stored ?? '').toLocaleLowerCase('en');
+  if (canonical === 'Cash') return !isDigitalMethodName(value);
+  return value.includes(canonical.toLocaleLowerCase('en').split(' ')[0]);
+};
+const isDigitalMethodName = value => /jazz|easy|bank|raast|online/.test(value);
+
+function editDistance(a, b) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) row[j] = Math.min(previous[j] + 1, row[j - 1] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    previous = row;
+  }
+  return previous[b.length];
+}
+
+const NAME_STOPWORDS = new Set(['ka','ki','ke','ko','ne','se','mein','me','par','hai','hain','he','tha','thi','the','who','whom','whose','has','have','had','not','no','this','that','these','those','did','does','do','done','was','were','been','being','am','is','are','will','would','can','could','should','get','gets','got','give','gives','tell','told','about','kitna','kitni','kitne','kya','kyun','kab','kahan','kaun','kon','kis','kisne','customer','customers','user','users','subscriber','subscribers','balance','outstanding','remaining','due','dues','baqaya','baqi','bill','check','details','detail','status','history','last','payment','payments','paid','pay','karo','batao','bataen','show','find','what','how','much','many','mujhe','please','wala','wale','wala','walay','aaj','kal','mahina','mahine','month','is','us','es','ye','yeh','wo','woh','total','new','naye','connection','connections','add','added','hue','package','speed','mbps','area','mohalla','collection','expense','kharcha','profit','cash','easypaisa','jazzcash','bank','raast','din','days','hafta','week','sab','zyada','kam','top','defaulter','defaulters','pending','unpaid','di','diya','diy','ada','jama','since','kabse','bhar','aur','or','and','kaunsi','konsi','konsa','liye','apna','apne','mera','mere','hamara','list','names','naam','bata','do','den','kr','kar','krdo','kardo','wali','bane','bana','bani','hua','hui','hoga','hogi','chahiye','chahye','wala']);
+
+// Fuzzy customer matching over the query's name-like tokens. Scores exact
+// phrase matches highest, then exact name tokens, small misspellings, and
+// prefixes. Close scores are reported as ambiguous instead of guessed.
+function matchCustomers(state, text) {
+  const tokens = queryTokens(text).filter(token => token.length > 1 && !NAME_STOPWORDS.has(token) && !/^\d+$/.test(token) && !/[^\x00-\x7F]/.test(token));
+  if (!tokens.length) return { status:'none', matches:[], nameLike:false, suggestions:[] };
+  const phrase = tokens.join(' ');
+  const scored = [];
+  for (const customer of state.customers ?? []) {
+    const nameNorm = normalizeQueryText(customer.name ?? '');
+    const nameTokens = queryTokens(nameNorm);
+    if (!nameTokens.length) continue;
+    let score = 0, hits = 0;
+    if (phrase.includes(nameTokens.join(' '))) score += 100;
+    for (const token of tokens) {
+      if (nameTokens.includes(token)) { score += 10; hits++; }
+      else if (token.length >= 4 && nameTokens.some(nameToken => Math.abs(nameToken.length - token.length) <= 1 && editDistance(nameToken, token) <= 1)) { score += 6; hits++; }
+      else if (token.length >= 4 && nameTokens.some(nameToken => nameToken.startsWith(token) || token.startsWith(nameToken))) { score += 4; hits++; }
+    }
+    if (score > 0) scored.push({ customer, score, pure:hits === tokens.length });
+  }
+  scored.sort((a, b) => b.score - a.score || String(a.customer.name).localeCompare(String(b.customer.name)));
+  if (!scored.length) {
+    const suggestions = [];
+    for (const customer of state.customers ?? []) {
+      const nameTokens = queryTokens(normalizeQueryText(customer.name ?? ''));
+      if (tokens.some(token => token.length >= 4 && nameTokens.some(nameToken => editDistance(nameToken, token) <= 2))) suggestions.push(customer.name);
+      if (suggestions.length >= 3) break;
+    }
+    return { status:'none', matches:[], nameLike:true, suggestions };
+  }
+  const top = scored[0];
+  const close = scored.filter(row => top.score - row.score <= 3);
+  if (close.length === 1) return { status:'one', matches:[top], nameLike:true, suggestions:[] };
+  return { status:'many', matches:close.slice(0, 5), nameLike:true, suggestions:[] };
+}
+
+const EXAMPLE_QUESTIONS = [
+  { question:'Ajj kon sy new customers add hovy?', keys:['new','customer','customers','add','aaj','connection','naye'] },
+  { question:'Aaj kis kis ne payment di?', keys:['payment','paid','aaj','kis','di','collection'] },
+  { question:'Aaj kis kis ne payment nahi di?', keys:['payment','nahi','pending','aaj','kis','baqaya'] },
+  { question:'Is maheene cash kitna aya aur Easypaisa kitna?', keys:['cash','easypaisa','collection','mahina','method','jazzcash'] },
+  { question:'Is maheene collection kitni hai?', keys:['collection','mahina','paisa','wasool'] },
+  { question:'Pichle maheene se collection zyada hai ya kam?', keys:['pichhla','collection','zyada','kam','compare','mahina'] },
+  { question:'Sab se zyada baqaya kis ka hai?', keys:['baqaya','sab','zyada','defaulter','outstanding'] },
+  { question:'Is maheene kharcha kis cheez par sab se zyada hua?', keys:['kharcha','expense','category','cheez'] },
+  { question:'Area-wise pending kitna hai?', keys:['area','pending','mohalla','baqaya'] },
+  { question:'Total kitne customer hain?', keys:['total','customer','customers','kitne','count'] },
+  { question:'10 Mbps walay kitne customer hain?', keys:['package','mbps','customer','speed'] },
+  { question:'Is maheene profit kitna hai?', keys:['profit','munafa','mahina'] },
+  { question:'Ali ne last payment kab di thi?', keys:['last','payment','kab','customer'] }
+];
+function buildSuggestions(state, text, nameSuggestions = []) {
+  const tokens = foldedTokenSet(text);
+  const scored = EXAMPLE_QUESTIONS.map(example => ({ question:example.question, score:example.keys.reduce((sum, key) => sum + (tokens.has(key) ? 1 : 0), 0) })).sort((a, b) => b.score - a.score);
+  const picked = scored.filter(row => row.score > 0).slice(0, 3).map(row => row.question);
+  for (const fallback of ['October collection', 'Ali ka balance', 'Aaj kis kis ne payment nahi di?']) if (picked.length < 3 && !picked.includes(fallback)) picked.push(fallback);
+  const nameQuestions = nameSuggestions.map(name => `${name} ka balance?`);
+  return [...new Set([...nameQuestions, ...picked])].slice(0, 4);
+}
+const contains = (text, regex, terms = []) => regex.test(text) || terms.some(term => text.includes(term));
+
+export function answerOwnerCommand(state, query, referenceDate = new Date()) {
+  const text = normalizeQueryText(query);
+  const current = monthFor(referenceDate), today = dateFor(referenceDate);
+  const period = parsePeriod(text, referenceDate);
+  const month = (() => { const requested = selectedMonth(text, referenceDate); return requested <= current ? requested : current; })();
+  const periodFields = period.kind === 'month' ? { month } : period.kind === 'day' ? { date:period.date, from:period.from, to:period.to, label:period.label } : { from:period.from, to:period.to, label:period.label };
+  const tokens = foldedTokenSet(text);
+  const has = (...words) => words.some(word => tokens.has(word));
+  const isToday = period.kind === 'day' && period.date === today;
+
+  const collectionIntent = contains(text, /\b(collection|collected|receive|received|revenue|income|paisa|paise|wasool|vasool|recovery)\b/u, ['جمع', 'وصولی', 'پیسے آئے', 'آمدنی']);
+  const expenseIntent = contains(text, /\b(expense|expenses|expenditure|costs?|kharcha|kharchay|kharch)\b/u, ['اخراجات', 'خرچ']);
+  const profitIntent = contains(text, /\b(profit|munafa|net|margin|bachat)\b/u, ['منافع', 'بچت']);
+  const paidWords = /\b(paid|pay|payment|payments|jama|adaygi|adaa)\b/u.test(text) || text.includes('ادائیگی') || text.includes('ادا');
+  const negatedPay = (/\bnahi(n)?\b/u.test(text) && /\b(di|diya|dia|ki|hua|hue)\b/u.test(text)) || (text.includes('نہیں') && paidWords) || /\b(not paid|did ?n[o']t pay|unpaid)\b/u.test(text);
+  const pendingIntent = negatedPay || contains(text, /\b(pending|baqaya|baqi|baki|bakaya|dues?|outstanding|receivables?)\b/u, ['بقایا', 'بقایاجات', 'بقیہ', 'واجب']);
+  const customerBillIntent = /\b(?:bill\s+(?:check|status|details)|check\s+bill)\b/u.test(text);
+  const outstandingIntent = pendingIntent || contains(text, /\b(balance|remaining)\b/u, ['بقیہ']) || customerBillIntent;
+  const whoIntent = has('kis', 'kaun', 'who', 'kisne') || text.includes('کس');
+  const paidIntent = !negatedPay && (paidWords || (whoIntent && /\bdi\b/u.test(text)));
+  const customerWord = contains(text, /\b(customers?|users?|subscribers?|connections?|gahak|clients?)\b/u, ['گاہک', 'کسٹمر']);
+  const newCustomerIntent = customerWord && (/\bnew\b/u.test(text) || has('naye', 'naya', 'nayi', 'add', 'added', 'lage', 'connect', 'connection', 'joined', 'hue') || text.includes('نئے') || text.includes('نیا'));
+  const areaIntent = contains(text, /\b(area|areas|mohalla|mohallas|zone|zones|ilaqa)\b/u, ['علاقہ', 'محلہ']);
+  const detailIntent = contains(text, /\b(last|kab|since|history|details?|statement|kabse)\b/u, ['آخری']) || has('kab') || (has('total') && /\b(diya|di|paid|chuka)\b/u.test(text));
+  const monthNamed = /\b(january|february|march|april|may|june|july|august|september|october|november|december)\b/u.test(text) || MONTH_NAMES_UR.some(name => text.includes(name));
+
+  const allocations = calculatePaymentAllocations(state);
+  const entries = state.customers.flatMap(customer => (customer.bills ?? []).map(bill => ({ customer, bill, due:validPrice(bill.dueAmount) ? cents(bill.dueAmount) : null, balance:validPrice(bill.dueAmount) ? Math.max(0, allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? cents(bill.dueAmount)) : null })));
+  const paymentsBetween = (from, to) => state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).filter(payment => typeof payment.date === 'string' && payment.date >= from && payment.date <= to).map(payment => ({ customer, bill, payment }))));
+  const expensesBetween = (from, to) => (state.expenses ?? []).filter(row => typeof row.date === 'string' && row.date >= from && row.date <= to);
+  const sumPayments = rows => rows.reduce((sum, row) => sum + cents(row.payment.amount), 0);
+  const sumExpenses = rows => rows.reduce((sum, row) => sum + cents(row.amount), 0);
+  const periodPayments = paymentsBetween(period.from, period.to), periodExpenses = expensesBetween(period.from, period.to);
+  const monthPayments = period.kind === 'month' ? periodPayments : paymentsBetween(`${month}-01`, `${month}-31`);
+  const monthExpenses = period.kind === 'month' ? periodExpenses : expensesBetween(`${month}-01`, `${month}-31`);
+  const collectionCents = sumPayments(periodPayments), expenseCents = sumExpenses(periodExpenses);
+  const monthCollectionCents = sumPayments(monthPayments), monthExpenseCents = sumExpenses(monthExpenses);
+  const pending = entries.filter(row => row.bill.month === month && row.due !== null && row.balance > 0);
+  const allOutstanding = entries.filter(row => row.due !== null && row.balance > 0);
+  const threshold = parseThreshold(text);
+  const outstandingByCustomer = () => {
+    const groups = new Map();
+    for (const row of allOutstanding) {
+      const item = groups.get(row.customer.id) ?? { customerId:row.customer.id, customerNumber:row.customer.customerNumber, name:row.customer.name, package:row.customer.packageSpeed || 'Not recorded', cents:0, bills:0, oldestDueDate:null };
+      item.cents += row.balance; item.bills++;
+      if (isCalendarDate(row.bill.dueDate) && (!item.oldestDueDate || row.bill.dueDate < item.oldestDueDate)) item.oldestDueDate = row.bill.dueDate;
+      groups.set(row.customer.id, item);
+    }
+    return [...groups.values()].map(item => ({ ...item, outstanding:amount(item.cents), overdueDays:item.oldestDueDate ? Math.max(0, daysBetween(today, item.oldestDueDate) ?? 0) : null })).sort((a, b) => b.outstanding - a.outstanding || a.name.localeCompare(b.name));
+  };
+  const balanceRow = customer => {
+    const rows = entries.filter(row => row.customer.id === customer.id && row.due !== null), selected = rows.find(row => row.bill.month === month), selectedBill = (customer.bills ?? []).find(row => row.month === month);
+    const actualPaid = (selectedBill?.payments ?? []).reduce((sum, payment) => sum + cents(payment.amount), 0), credit = allocations.forMonth(customer.id, month)?.creditAppliedCents ?? 0;
+    return { customerId:customer.id, customerNumber:customer.customerNumber, name:customer.name, package:customer.packageSpeed || 'Not recorded', month, bill:selected ? amount(selected.due) : null, paid:amount(actualPaid), creditApplied:amount(credit), remaining:selected ? amount(selected.balance) : 0, totalOutstanding:amount(rows.reduce((sum, row) => sum + row.balance, 0)) };
+  };
+
+  const matched = matchCustomers(state, text);
+  if (isToday && collectionIntent && expenseIntent) return { intent:'daily-summary', date:today, label:'Today', collection:amount(collectionCents), receiptCount:periodPayments.length, expenses:amount(expenseCents), expenseCount:periodExpenses.length };
+  if (period.kind === 'range' && collectionIntent && expenseIntent) return { intent:'period-summary', from:period.from, to:period.to, label:period.label, collection:amount(collectionCents), receiptCount:periodPayments.length, expenses:amount(expenseCents), expenseCount:periodExpenses.length, net:amount(collectionCents - expenseCents) };
+
+  if (newCustomerIntent) {
+    const rows = state.customers.filter(customer => !customer.archived)
+      .map(customer => { const date = isCalendarDate(customer.connectionDate) ? customer.connectionDate : (isCalendarDate(customer.addedOn) ? customer.addedOn : null); return date ? { customer, date } : null; })
+      .filter(row => row && row.date >= period.from && row.date <= period.to)
+      .sort((a, b) => b.date.localeCompare(a.date) || a.customer.name.localeCompare(b.customer.name))
+      .map(({ customer, date }) => ({ customerId:customer.id, customerNumber:customer.customerNumber, name:customer.name, package:customer.packageSpeed || 'Not recorded', area:customer.mohalla?.trim() || customer.zone?.trim() || 'Area not recorded', date }));
+    return { intent:'new-customers', ...periodFields, count:rows.length, rows };
+  }
+
+  const named = namedMonths(text, referenceDate);
+  const compareIntent = contains(text, /\b(vs\.?|versus|compare|compared|comparison|muqabla|difference)\b/u, ['بمقابلہ', 'موازنہ']) || (has('zyada', 'kam') && (has('pichhla') || named.length > 0)) || text.includes('زیادہ ہے یا کم') || (/\b(higher|lower|more|less)\b/u.test(text) && (/\b(last|previous)\b/u.test(text) || has('pichhla') || named.length > 0));
+  if (compareIntent && (collectionIntent || expenseIntent || profitIntent || named.length >= 2 || has('zyada', 'kam'))) {
+    let monthA, monthB;
+    if (named.length >= 2) [monthA, monthB] = [...named].sort();
+    else if (named.length === 1) { monthB = named[0] <= current ? named[0] : current; monthA = shiftMonth(monthB, -1); }
+    else { monthB = current; monthA = shiftMonth(current, -1); }
+    const focus = profitIntent ? 'cashProfit' : expenseIntent ? 'expenses' : 'collection';
+    let rows = null;
+    try {
+      const comparison = buildMonthToMonthComparison(state, monthA, monthB, referenceDate, allocations);
+      rows = [['collection', 'Collection'], ['expenses', 'Expenses'], ['cashProfit', 'Cash profit'], ['billedAmount', 'Billed amount']].map(([key, label]) => { const change = comparison.changes[key]; return { key, label, from:change.from, to:change.to, change:change.absoluteChange, percentChange:change.percentChange }; }).filter(row => row.from !== null && row.to !== null);
+    } catch { rows = null; }
+    if (!rows) {
+      const facts = m => { const c = sumPayments(paymentsBetween(`${m}-01`, `${m}-31`)), e = sumExpenses(expensesBetween(`${m}-01`, `${m}-31`)); return { collection:amount(c), expenses:amount(e), cashProfit:amount(c - e), billedAmount:amount(entries.filter(row => row.bill.month === m && row.due !== null).reduce((sum, row) => sum + row.due, 0)) }; };
+      const a = facts(monthA), b = facts(monthB);
+      rows = [['collection', 'Collection'], ['expenses', 'Expenses'], ['cashProfit', 'Cash profit'], ['billedAmount', 'Billed amount']].map(([key, label]) => ({ key, label, from:a[key], to:b[key], change:Number((b[key] - a[key]).toFixed(2)), percentChange:a[key] === 0 ? (b[key] === 0 ? 0 : null) : Number(((b[key] - a[key]) / Math.abs(a[key]) * 100).toFixed(1)) }));
+    }
+    const focusRow = rows.find(row => row.key === focus) ?? rows[0];
+    return { intent:'month-comparison', monthA, monthB, focus, rows, direction:focusRow.change > 0 ? 'up' : focusRow.change < 0 ? 'down' : 'same', focusChange:focusRow.change, focusPercentChange:focusRow.percentChange };
+  }
+
+  const methodHit = METHOD_ALIASES.find(alias => alias.test.test(text));
+  if (!profitIntent && methodHit && (collectionIntent || has('kitna', 'aya', 'collection'))) {
+    const groups = new Map();
+    for (const row of periodPayments) { const name = String(row.payment.method ?? '').trim() || 'Not recorded'; const group = groups.get(name) ?? { method:name, cents:0, count:0 }; group.cents += cents(row.payment.amount); group.count++; groups.set(name, group); }
+    if (![...groups.keys()].some(name => methodMatchesStored(methodHit.name, name))) groups.set(methodHit.name, { method:methodHit.name, cents:0, count:0 });
+    const rows = [...groups.values()].map(group => ({ method:group.method, amount:amount(group.cents), count:group.count })).sort((a, b) => b.amount - a.amount);
+    const focusAmount = rows.filter(row => methodMatchesStored(methodHit.name, row.method)).reduce((sum, row) => sum + cents(row.amount), 0);
+    return { intent:'method-collection', ...periodFields, rows, total:amount(collectionCents), receiptCount:periodPayments.length, focusMethod:methodHit.name, focusAmount:amount(focusAmount) };
+  }
+  if (!profitIntent && collectionIntent && !areaIntent && /\b(wise|split|breakdown|methods?|alag)\b/u.test(text)) {
+    const groups = new Map();
+    for (const row of periodPayments) { const name = String(row.payment.method ?? '').trim() || 'Not recorded'; const group = groups.get(name) ?? { method:name, cents:0, count:0 }; group.cents += cents(row.payment.amount); group.count++; groups.set(name, group); }
+    const rows = [...groups.values()].map(group => ({ method:group.method, amount:amount(group.cents), count:group.count })).sort((a, b) => b.amount - a.amount);
+    return { intent:'method-collection', ...periodFields, rows, total:amount(collectionCents), receiptCount:periodPayments.length, focusMethod:null, focusAmount:null };
+  }
+
+  if (paidIntent && whoIntent) {
+    const rows = periodPayments.filter(row => Number.isFinite(Number(row.payment.amount)) && Number(row.payment.amount) > 0)
+      .map(row => ({ customerId:row.customer.id, customerNumber:row.customer.customerNumber, name:row.customer.name, amount:amount(cents(row.payment.amount)), method:String(row.payment.method ?? '').trim() || 'Not recorded', date:row.payment.date }))
+      .sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount);
+    return { intent:'paid-list', ...periodFields, rows, total:amount(rows.reduce((sum, row) => sum + cents(row.amount), 0)), count:rows.length };
+  }
+
+  if (expenseIntent && (contains(text, /\b(breakdown|break-?down|category|categories|wise|top|highest|sab se|sab sy)\b/u, ['کس چیز', 'زمرہ']) || has('cheez'))) {
+    const groups = new Map();
+    for (const row of periodExpenses) { const name = String(row.category ?? '').trim() || 'Not recorded'; const group = groups.get(name) ?? { category:name, cents:0, count:0 }; group.cents += cents(row.amount); group.count++; groups.set(name, group); }
+    const rows = [...groups.values()].map(group => ({ category:group.category, amount:amount(group.cents), count:group.count })).sort((a, b) => b.amount - a.amount);
+    return { intent:'expense-breakdown', ...periodFields, rows, total:amount(expenseCents), expenseCount:periodExpenses.length };
+  }
+
+  const allAreas = [...new Set(state.customers.map(customer => customer.mohalla?.trim() || customer.zone?.trim()).filter(Boolean))];
+  const namedArea = allAreas.find(label => text.includes(normalizeQueryText(label))) ?? null;
+  if (areaIntent && collectionIntent && !pendingIntent) {
+    const groups = new Map();
+    for (const row of periodPayments) { const label = row.customer.mohalla?.trim() || row.customer.zone?.trim() || 'Area not recorded'; const group = groups.get(label) ?? { area:label, cents:0, ids:new Set(), count:0 }; group.cents += cents(row.payment.amount); group.ids.add(row.customer.id); group.count++; groups.set(label, group); }
+    let rows = [...groups.values()].map(group => ({ area:group.area, amount:amount(group.cents), customers:group.ids.size, receipts:group.count })).sort((a, b) => b.amount - a.amount);
+    if (namedArea) rows = rows.filter(row => row.area === namedArea);
+    return { intent:'area-collection', ...periodFields, rows, total:amount(rows.reduce((sum, row) => sum + cents(row.amount), 0)), areaFilter:namedArea };
+  }
+  if (areaIntent && pendingIntent) {
+    const groups = new Map();
+    for (const row of pending) { const label = row.customer.mohalla?.trim() || row.customer.zone?.trim() || 'Area not recorded'; const group = groups.get(label) ?? { area:label, cents:0, ids:new Set() }; group.cents += row.balance; group.ids.add(row.customer.id); groups.set(label, group); }
+    const rows = [...groups.values()].map(row => ({ area:row.area, outstanding:amount(row.cents), customers:row.ids.size })).sort((a, b) => b.outstanding - a.outstanding);
+    return { intent:'area-pending', month, rows };
+  }
+
+  const defaulterIntent = /\b(defaulter|defaulters)\b/u.test(text) || (outstandingIntent && ((has('sab') && has('zyada')) || /\b(highest|biggest|most|top)\b/u.test(text)));
+  if (defaulterIntent && threshold === null) {
+    const limit = parseTopN(text), rows = outstandingByCustomer().slice(0, limit);
+    return { intent:'top-defaulters', rows, total:rows.length, limit };
+  }
+  if (threshold !== null && outstandingIntent) {
+    const rows = outstandingByCustomer().filter(row => row.cents > threshold * 100);
+    return { intent:'threshold-outstanding', threshold, rows, total:rows.length };
+  }
+
+  const daysMentioned = parseDaysCount(text);
+  const overdueIntent = contains(text, /\b(overdue|aging|ageing|purana|purane|purani)\b/u, ['متاخر']) || (daysMentioned !== null && pendingIntent && has('purana', 'purane', 'older', 'zyada', 'din'));
+  if (overdueIntent) {
+    if (daysMentioned !== null && (has('purana', 'purane', 'older', 'zyada') || /\bolder\b/u.test(text))) {
+      const stricter = /\b(zyada|older|more|above|over)\b/u.test(text) || text.includes('زیادہ');
+      const rows = outstandingByCustomer().filter(row => row.overdueDays !== null && (stricter ? row.overdueDays > daysMentioned : row.overdueDays >= daysMentioned));
+      return { intent:'overdue-aging', minDays:daysMentioned, rows, total:rows.length };
+    }
+    const buckets = [['1–30 days', 1, 30], ['31–60 days', 31, 60], ['61–90 days', 61, 90], ['90+ days', 91, Infinity]].map(([label, lo, hi]) => ({ label, lo, hi, cents:0, bills:0, ids:new Set() }));
+    for (const row of allOutstanding) {
+      if (!isCalendarDate(row.bill.dueDate)) continue;
+      const age = daysBetween(today, row.bill.dueDate);
+      if (age === null || age < 1) continue;
+      const bucket = buckets.find(item => age >= item.lo && age <= item.hi);
+      if (bucket) { bucket.cents += row.balance; bucket.bills++; bucket.ids.add(row.customer.id); }
+    }
+    const rows = buckets.filter(bucket => bucket.cents > 0).map(bucket => ({ label:bucket.label, amount:amount(bucket.cents), bills:bucket.bills, customers:bucket.ids.size }));
+    return { intent:'overdue-aging', rows, total:amount(rows.reduce((sum, row) => sum + cents(row.amount), 0)) };
+  }
+
+  const packageSpeedMatch = text.match(/(\d+(?:\.\d+)?)\s*(?:mbps|mb\b|mega)/u);
+  const packageWord = contains(text, /\b(package|packages|speed|plan|plans)\b/u, ['پیکیج', 'پلان']);
+  if (packageSpeedMatch || (packageWord && (customerWord || has('kitna')))) {
+    const allPackages = [...new Set(state.customers.map(customer => (customer.packageSpeed ?? '').trim()).filter(Boolean))];
+    const duesOf = id => allOutstanding.filter(row => row.customer.id === id).reduce((sum, row) => sum + row.balance, 0);
+    let target = null, wanted = null;
+    if (packageSpeedMatch) { wanted = Number.parseFloat(packageSpeedMatch[1]); target = allPackages.find(name => Number.parseFloat(String(name).replace(',', '.')) === wanted) ?? `${packageSpeedMatch[1]} Mbps`; }
+    else target = allPackages.find(name => text.includes(normalizeQueryText(name))) ?? null;
+    if (target) {
+      const members = state.customers.filter(customer => !customer.archived && (customer.packageSpeed ?? '').trim() && (wanted !== null ? Number.parseFloat(String(customer.packageSpeed).replace(',', '.')) === wanted : (customer.packageSpeed ?? '').trim() === target));
+      const rows = members.map(customer => ({ customerId:customer.id, customerNumber:customer.customerNumber, name:customer.name, package:target, outstanding:amount(duesOf(customer.id)) })).sort((a, b) => b.outstanding - a.outstanding || a.name.localeCompare(b.name));
+      return { intent:'package-customers', package:target, count:rows.length, duesTotal:amount(rows.reduce((sum, row) => sum + cents(row.outstanding), 0)), rows };
+    }
+    const rows = allPackages.map(name => { const members = state.customers.filter(customer => !customer.archived && (customer.packageSpeed ?? '').trim() === name); return { package:name, customers:members.length, duesTotal:amount(members.reduce((sum, customer) => sum + duesOf(customer.id), 0)) }; }).sort((a, b) => b.customers - a.customers || a.package.localeCompare(b.package));
+    return { intent:'package-customers', package:null, distribution:true, count:rows.reduce((sum, row) => sum + row.customers, 0), duesTotal:amount(rows.reduce((sum, row) => sum + cents(row.duesTotal), 0)), rows };
+  }
+
+  if ((customerWord || /\bbills?\b/u.test(text)) && matched.status === 'none' && !negatedPay && !packageSpeedMatch && (has('total', 'kul', 'overall', 'count', 'kitna') || /\bhow many\b/u.test(text))) {
+    const live = state.customers.filter(customer => !customer.archived);
+    return { intent:'counts-overview', month, total:state.customers.length, active:live.filter(customer => customer.serviceStatus === 'active').length, offline:live.filter(customer => customer.serviceStatus === 'offline').length, notSet:live.filter(customer => (customer.serviceStatus ?? 'not-set') === 'not-set').length, archived:state.customers.length - live.length, withDues:new Set(allOutstanding.map(row => row.customer.id)).size, duesTotal:amount(allOutstanding.reduce((sum, row) => sum + row.balance, 0)), billedThisMonth:new Set(entries.filter(row => row.bill.month === month).map(row => row.customer.id)).size };
+  }
+
+  if (outstandingIntent && !whoIntent && matched.status === 'none' && !matched.nameLike) {
+    const rows = outstandingByCustomer();
+    return { intent:'total-outstanding', total:amount(allOutstanding.reduce((sum, row) => sum + row.balance, 0)), customers:rows.length };
+  }
+  if (matched.status === 'many' && (outstandingIntent || detailIntent)) {
+    return { intent:'customer-candidates', month, rows:matched.matches.map(row => balanceRow(row.customer)) };
+  }
+  if (matched.status === 'one' && (outstandingIntent || detailIntent || paidIntent)) {
+    const customer = matched.matches[0].customer;
+    if (detailIntent) {
+      const behavior = buildCustomerPaymentBehavior(state, customer, referenceDate, allocations);
+      const lifetime = buildCustomerLifetimeValue(state, customer, referenceDate);
+      const last = behavior.receipts[0] ?? null;
+      return { intent:'customer-detail', month, customerId:customer.id, customerNumber:customer.customerNumber, name:customer.name, package:customer.packageSpeed || 'Not recorded', area:customer.mohalla?.trim() || customer.zone?.trim() || 'Area not recorded', since:isCalendarDate(customer.connectionDate) ? customer.connectionDate : (isCalendarDate(customer.addedOn) ? customer.addedOn : null), totalOutstanding:behavior.totalOutstanding, currentBill:behavior.currentBill, lastPayment:last ? { date:last.date, amount:Number(last.amount), method:String(last.method ?? '').trim() || 'Not recorded' } : null, totalPaid:lifetime.totalHistoricalRevenue, totalPayments:lifetime.receiptCount, healthScore:behavior.health.score, healthCategory:behavior.health.category };
+    }
+    return { intent:'customer-balance', month, rows:[balanceRow(customer)] };
+  }
+  if (matched.status === 'one' && matched.matches[0].pure && !collectionIntent && !expenseIntent && !profitIntent) {
+    return { intent:'customer-balance', month, rows:[balanceRow(matched.matches[0].customer)] };
+  }
+
+  if (pendingIntent) {
+    const rows = pending.map(row => ({ customerId:row.customer.id, customerNumber:row.customer.customerNumber, name:row.customer.name, package:row.customer.packageSpeed || 'Not recorded', bill:amount(row.due), paid:amount((row.bill.payments ?? []).reduce((sum, payment) => sum + cents(payment.amount), 0)), remaining:amount(row.balance), dueDate:row.bill.dueDate ?? null }));
+    return { intent:'pending-list', month, rows, pendingTotal:amount(rows.reduce((sum, row) => sum + cents(row.remaining), 0)) };
+  }
+  if (profitIntent) {
+    if (period.kind === 'day') return { intent:'daily-summary', date:period.date, label:period.label, collection:amount(collectionCents), receiptCount:periodPayments.length, expenses:amount(expenseCents), expenseCount:periodExpenses.length };
+    if (period.kind === 'range') return { intent:'period-summary', from:period.from, to:period.to, label:period.label, collection:amount(collectionCents), receiptCount:periodPayments.length, expenses:amount(expenseCents), expenseCount:periodExpenses.length, net:amount(collectionCents - expenseCents) };
+    return { intent:'monthly-profit', month, collection:amount(monthCollectionCents), expenses:amount(monthExpenseCents), profit:amount(monthCollectionCents - monthExpenseCents), receiptCount:monthPayments.length, expenseCount:monthExpenses.length, basis:'Actual cash receipts minus recorded expenses; unpaid bills, inventory book value and estimated costs are excluded.' };
+  }
+  if (expenseIntent) {
+    if (period.kind === 'day') return { intent:'daily-expenses', date:period.date, label:period.label, expenses:amount(expenseCents), expenseCount:periodExpenses.length };
+    if (period.kind === 'range') return { intent:'period-expenses', from:period.from, to:period.to, label:period.label, expenses:amount(expenseCents), expenseCount:periodExpenses.length };
+    return { intent:'monthly-expenses', month, expenses:amount(monthExpenseCents), expenseCount:monthExpenses.length };
+  }
+  if (collectionIntent || monthNamed) {
+    if (period.kind === 'day') return { intent:'daily-collection', date:period.date, label:period.label, collection:amount(collectionCents), receiptCount:periodPayments.length };
+    if (period.kind === 'range') return { intent:'period-collection', from:period.from, to:period.to, label:period.label, collection:amount(collectionCents), receiptCount:periodPayments.length };
+    return { intent:'monthly-collection', month, collection:amount(monthCollectionCents), receiptCount:monthPayments.length };
+  }
+  return { intent:'help', message:'I could not match that question to the saved records, and nothing was changed. Try one of these instead:', suggestions:buildSuggestions(state, text, matched.suggestions) };
 }
 
 

@@ -7857,3 +7857,13 @@ body {
   transform: scale(1.02);
 }
 
+/* More Menu Payments Inbox button styling */
+.mobile-more-menu button[data-mobile-more="easypaisa"]::before {
+  content: "📥 ";
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+

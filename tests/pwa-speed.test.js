@@ -92,9 +92,9 @@ test('Web App Manifest shortcuts configuration is valid and conforms to spec', (
   assert.equal(manifest.short_name, 'ISP Billing');
   assert.equal(manifest.display, 'standalone');
   assert.ok(Array.isArray(manifest.shortcuts), 'Manifest has shortcuts array');
-  assert.equal(manifest.shortcuts.length, 3, 'Manifest defines 3 quick collection shortcuts');
+  assert.equal(manifest.shortcuts.length, 4, 'Manifest defines 4 shortcuts');
 
-  const [qcShortcut, addCustShortcut, duesShortcut] = manifest.shortcuts;
+  const [qcShortcut, addCustShortcut, duesShortcut, inboxShortcut] = manifest.shortcuts;
   assert.equal(qcShortcut.short_name, 'Quick Collect');
   assert.equal(qcShortcut.url, './#quick-collect');
   assert.ok(qcShortcut.icons && qcShortcut.icons.length > 0);
@@ -106,7 +106,12 @@ test('Web App Manifest shortcuts configuration is valid and conforms to spec', (
   assert.equal(duesShortcut.short_name, "Today's Dues");
   assert.equal(duesShortcut.url, './#today-dues');
   assert.ok(duesShortcut.icons && duesShortcut.icons.length > 0);
+
+  assert.equal(inboxShortcut.short_name, 'Inbox');
+  assert.equal(inboxShortcut.url, './#/easypaisa');
+  assert.ok(inboxShortcut.icons && inboxShortcut.icons.length > 0);
 });
+
 
 test('parsePwaActionFromUrl extracts action intents from hash and query parameters', () => {
   assert.equal(parsePwaActionFromUrl('#quick-collect'), 'quick-collect');

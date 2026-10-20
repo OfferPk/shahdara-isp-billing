@@ -262,8 +262,8 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
                   class="fcs-action-btn fcs-collect-btn"
                   data-fcs-action="collect"
                   data-customer-id="${escapeHtml(c.id)}"
-                  title="Quick Collect from ${escapeHtml(c.name)}">
-            ⚡ Quick Collect
+                  title="${statusLabel === 'NOT SET' ? `Set monthly fee or collect from ${escapeHtml(c.name)}` : `Quick Collect from ${escapeHtml(c.name)}`}">
+            ${statusLabel === 'NOT SET' ? '⚡ Collect / Set Fee' : '⚡ Quick Collect'}
           </button>
           <button type="button"
                   class="fcs-action-btn fcs-profile-btn"

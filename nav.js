@@ -3049,7 +3049,7 @@ export function getMobileNavTabForScreen(screen, hash = '') {
   if (s === 'transactions' || s === 'payments' || s === 'collect') return 'collection';
   if (s === 'reports' || s === 'bills' || s === 'alerts') return 'reports';
   if (s === 'recovery' || s === 'dues') return 'collection';
-  if (s === 'backup' || s === 'settings' || s === 'assistant' || s === 'inventory' || s === 'analytics' || s === 'expenses' || s === 'field-tools' || s === 'tools' || s === 'more') {
+  if (s === 'backup' || s === 'settings' || s === 'assistant' || s === 'inventory' || s === 'analytics' || s === 'expenses' || s === 'easypaisa' || s === 'payments-inbox' || s === 'field-tools' || s === 'tools' || s === 'more') {
     return 'more';
   }
   if (!s || s === 'home') return 'home';
@@ -3059,7 +3059,7 @@ export function getMobileNavTabForScreen(screen, hash = '') {
 /**
  * Synchronizes aria-current state across mobile bottom navigation tabs (Issue #285).
  * Also synchronizes #showCustomersButton on Home to prevent duplicate active state on Desktop (#285 / #278),
- * and updates speed dial suppression state.
+ * synchronizes More menu items, and updates speed dial suppression state.
  */
 export function syncMobileBottomNav(screen, hash) {
   if (typeof document === 'undefined') return 'home';
@@ -3079,6 +3079,19 @@ export function syncMobileBottomNav(screen, hash) {
       btn.setAttribute('aria-current', act ? 'page' : 'false');
     }
   });
+
+  // Keep More menu buttons aria-current in sync with the active screen
+  if (moreMenu && typeof moreMenu.querySelectorAll === 'function') {
+    const normalizedScreen = String(screen || '').toLowerCase();
+    const moreButtons = moreMenu.querySelectorAll('[data-mobile-more]');
+    moreButtons.forEach(btn => {
+      const moreAction = (btn.getAttribute?.('data-mobile-more') || '').toLowerCase();
+      const isActive = moreAction === normalizedScreen || (moreAction === 'easypaisa' && normalizedScreen === 'payments-inbox');
+      if (typeof btn.setAttribute === 'function') {
+        btn.setAttribute('aria-current', isActive ? 'page' : 'false');
+      }
+    });
+  }
 
   // Keep Desktop Home view-nav buttons clean (#285 / #278)
   const isHome = targetTab === 'home';

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Data Safety, Backup Age Indicator & One-Tap Share E2E Verification', () => {
-  test('data safety banner and dashboard KPI card display backup age and storage status', async ({ page, isMobile }) => {
+  test('data safety banner displays backup age and storage status (grid card removed)', async ({ page, isMobile }) => {
     await page.goto('/');
 
     // 1. Verify Data Safety Banner. Placement changed: the banner used to sit above
@@ -20,19 +20,15 @@ test.describe('Data Safety, Backup Age Indicator & One-Tap Share E2E Verificatio
     await expect(persistBadge).toBeVisible();
     await expect(persistBadge).toContainText(/Storage:/);
 
-    // 2. Verify Dashboard Data Safety Card
-    const card = page.locator('#dashboardDataSafetyCard');
-    await expect(card).toBeVisible();
-
-    const cardBadge = page.locator('#dashboardBackupAgeBadge');
-    await expect(cardBadge).toBeVisible();
-
-    const cardValue = page.locator('#dashboardBackupAgeValue');
-    await expect(cardValue).toBeVisible();
-
-    const cardEstimate = page.locator('#dashboardBackupStorageEstimate');
-    await expect(cardEstimate).toBeVisible();
-    await expect(cardEstimate).toContainText(/Storage:/);
+    // 2. The duplicated Dashboard Data Safety Card was removed by owner decision:
+    // the bottom-of-Home banner is the single Data Safety place. The card and its
+    // ids must not exist, and the storage estimate that only the card showed now
+    // lives in the banner persistence badge's title.
+    await expect(page.locator('#dashboardDataSafetyCard')).toHaveCount(0);
+    await expect(page.locator('#dashboardBackupAgeBadge')).toHaveCount(0);
+    await expect(page.locator('#dashboardBackupAgeValue')).toHaveCount(0);
+    await expect(page.locator('#dashboardBackupStorageEstimate')).toHaveCount(0);
+    await expect(persistBadge).toHaveAttribute('title', /used/);
 
     // Verify touch targets and dimensions on mobile
     if (isMobile) {
@@ -65,25 +61,17 @@ test.describe('Data Safety, Backup Age Indicator & One-Tap Share E2E Verificatio
     // Verify badge updates to "Backed up today" or "Today"
     const backupBadge = page.locator('#dataSafetyBackupBadge');
     await expect(backupBadge).toContainText(/Today/i);
-
-    const cardValue = page.locator('#dashboardBackupAgeValue');
-    await expect(cardValue).toContainText(/Today/i);
   });
 
-  test('dashboard share backup button and protect storage button operate correctly', async ({ page }) => {
+  test('banner protect storage button operates correctly and dashboard card buttons are gone', async ({ page }) => {
     await page.goto('/');
 
-    // Dashboard card share button
-    const cardShareBtn = page.locator('#dashboardShareBackupBtn');
-    await expect(cardShareBtn).toBeVisible();
+    // The duplicated dashboard card buttons were removed with the card.
+    await expect(page.locator('#dashboardShareBackupBtn')).toHaveCount(0);
+    await expect(page.locator('#dashboardProtectStorageBtn')).toHaveCount(0);
 
-    const downloadPromise = page.waitForEvent('download');
-    await cardShareBtn.click();
-    const download = await downloadPromise;
-    expect(download.suggestedFilename()).toContain('.json');
-
-    // Dashboard protect storage button
-    const protectBtn = page.locator('#dashboardProtectStorageBtn');
+    // Banner protect storage button (share via the banner is covered by the test above)
+    const protectBtn = page.locator('#dataSafetyProtectStorageBtn');
     await expect(protectBtn).toBeVisible();
     await protectBtn.click();
 
@@ -141,8 +129,7 @@ test.describe('Data Safety, Backup Age Indicator & One-Tap Share E2E Verificatio
     const banner = page.locator('#dataSafetyBanner');
     await expect(banner).toBeVisible();
 
-    const card = page.locator('#dashboardDataSafetyCard');
-    await expect(card).toBeVisible();
+    await expect(page.locator('#dashboardDataSafetyCard')).toHaveCount(0);
 
     const badge = page.locator('#dataSafetyBackupBadge');
     await expect(badge).toBeVisible();

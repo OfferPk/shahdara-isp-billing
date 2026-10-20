@@ -236,27 +236,7 @@ function updateDataSafetyUi(status = null) {
     const pText = storagePersistenceInfo.persisted ? 'Protected' : 'Best-Effort';
     bannerPersistenceBadge.textContent = `Storage: ${pText}`;
     bannerPersistenceBadge.className = `safety-badge ${storagePersistenceInfo.persisted ? 'badge-healthy' : 'badge-neutral'}`;
-  }
-
-  const card = $('#dashboardDataSafetyCard');
-  if (card) {
-    card.classList.remove('status-healthy', 'status-warning', 'status-danger');
-    card.classList.add(`status-${age.level}`);
-  }
-  const cardBadge = $('#dashboardBackupAgeBadge');
-  if (cardBadge) {
-    cardBadge.textContent = age.label;
-    cardBadge.className = `safety-badge badge-${age.level}`;
-  }
-  const cardValue = $('#dashboardBackupAgeValue');
-  if (cardValue) {
-    cardValue.textContent = age.shortLabel;
-  }
-  const cardEstimate = $('#dashboardBackupStorageEstimate');
-  if (cardEstimate) {
-    const persistStr = storagePersistenceInfo.persisted ? 'Protected' : 'Best-effort';
-    const usageStr = storageEstimateInfo.supported ? `${storageEstimateInfo.usageFormatted} used` : 'Local device only';
-    cardEstimate.textContent = `Storage: ${persistStr} · ${usageStr}`;
+    bannerPersistenceBadge.title = storageEstimateInfo.supported ? `Browser storage eviction protection status · ${storageEstimateInfo.usageFormatted} of ${storageEstimateInfo.quotaFormatted} (${storageEstimateInfo.percentUsed}% used)` : 'Browser storage eviction protection status';
   }
 
   const footerPersist = $('#backupStoragePersistence');
@@ -1647,10 +1627,8 @@ async function handleProtectStorageAction() {
 
 $('#shareJsonBackupButton')?.addEventListener('click', handleShareBackupAction);
 $('#dataSafetyShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
-$('#dashboardShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
 $('#requestStoragePersistenceBtn')?.addEventListener('click', handleProtectStorageAction);
 $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
-$('#dashboardProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
 
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
 $('#backupFrequencySelect').addEventListener('change', async event => {

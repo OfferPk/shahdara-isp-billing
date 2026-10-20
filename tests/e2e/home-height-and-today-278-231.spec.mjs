@@ -25,7 +25,7 @@ test.describe('Issue #278 & #231: Mobile Home Height Reduction & Owner Daily Sum
 
     await page.goto('/');
 
-    // 1. Verify Home document height is under 5,000 px (down >85% from ~33,100 px while keeping Daily Closing & Data Safety visible)
+    // 1. Verify Home document height is under 5,000 px (down >85% from ~33,100 px while keeping Daily Closing visible)
     const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
     expect(scrollHeight).toBeLessThan(5000);
 
@@ -38,8 +38,10 @@ test.describe('Issue #278 & #231: Mobile Home Height Reduction & Owner Daily Sum
     await expect(chartsDetails).not.toHaveAttribute('open');
     await expect(page.locator('.dashboard-charts-region')).toBeHidden();
 
-    // Data Safety, Daily Closing, and Target cards are directly visible per issue #278
-    await expect(page.locator('#dashboardDataSafetyCard')).toBeVisible();
+    // Daily Closing and Target cards are directly visible per issue #278.
+    // The Data Safety card was removed by owner decision (it duplicated the
+    // bottom-of-Home banner, which is now the single Data Safety place).
+    await expect(page.locator('#dashboardDataSafetyCard')).toHaveCount(0);
     await expect(page.locator('#openDailyClosingModalBtn')).toBeVisible();
     await expect(page.locator('#openCollectionTargetBtn')).toBeVisible();
 

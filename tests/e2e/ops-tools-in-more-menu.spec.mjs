@@ -46,8 +46,9 @@ test.describe('Operations & Intelligence Tools live in the More menu (#278)', ()
     expect(placement).toEqual({ inDashboard: false, inMoreMenu: true });
     await expect(page.locator('#dashboardSecondaryRegion')).toBeHidden();
 
-    // Home essentials stay on Home: Data Safety + Daily Closing cards
-    await expect(page.locator('#dashboardDataSafetyCard')).toBeVisible();
+    // Home essentials stay on Home: Daily Closing card (the Data Safety grid
+    // card was removed by owner decision — Data Safety lives in the bottom banner)
+    await expect(page.locator('#dashboardDataSafetyCard')).toHaveCount(0);
     await expect(page.locator('#openDailyClosingModalBtn')).toBeVisible();
 
     // Home height dropped: 4,602 px with the grid on Home (measured at 390x844, demo seed)
@@ -128,7 +129,7 @@ test.describe('Operations & Intelligence Tools live in the More menu (#278)', ()
     test.skip(isMobile, 'desktop layout check');
     await page.goto('/');
     await expect(page.locator('#dashboardSecondaryRegion')).toBeHidden();
-    await expect(page.locator('#dashboardDataSafetyCard')).toBeVisible();
+    await expect(page.locator('#dashboardDataSafetyCard')).toHaveCount(0);
     await expect(page.locator('#openDailyClosingModalBtn')).toBeVisible();
   });
 });

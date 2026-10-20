@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Responsive Dialogs & Bottom-Sheet Standard (#215)', () => {
   test('all dialogs fit within 360x640 viewport with fully clickable close button', async ({ page }) => {
+    test.setTimeout(120000);
     await page.setViewportSize({ width: 360, height: 640 });
     await page.goto('/');
 

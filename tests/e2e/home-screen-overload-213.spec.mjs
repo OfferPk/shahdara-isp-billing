@@ -191,12 +191,20 @@ test.describe('Issue #213: Home Screen Overload & Navigation Redesign', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto('/');
 
-    // All original 18 action buttons in #billingDashboard are still present and operable
-    const expectedTiles = [
+    // The 4 primary Home actions are still visible directly on Home
+    const primaryTiles = [
       '#quickActionReceivePayment',
       '#quickActionAddCustomer',
       '#homeActionDuesList',
-      '#quickActionDailyClosing',
+      '#quickActionDailyClosing'
+    ];
+    for (const selector of primaryTiles) {
+      await expect(page.locator(selector)).toBeVisible();
+    }
+
+    // The 15 Operations & Intelligence tiles moved off Home into the More menu
+    // (#278 follow-up): still present in the document at desktop size...
+    const opsTiles = [
       '#quickActionRecordExpense',
       '#quickActionMonthlyReports',
       '#quickActionAnalytics',
@@ -213,11 +221,22 @@ test.describe('Issue #213: Home Screen Overload & Navigation Redesign', () => {
       '#quickActionPnl',
       '#quickActionMomGrowth'
     ];
+    for (const selector of opsTiles) {
+      await expect(page.locator(selector)).toBeAttached();
+    }
+    await expect(page.locator('#dashboardSecondaryRegion')).toBeHidden();
 
-    for (const selector of expectedTiles) {
+    // ...and visible + operable at mobile size via More -> Operations & Intelligence Tools
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#mobileMoreButton').click();
+    await page.locator('#moreMenuOpsToolsDetails summary').click();
+    for (const selector of opsTiles) {
       const tile = page.locator(selector);
+      await tile.scrollIntoViewIfNeeded();
       await expect(tile).toBeVisible();
     }
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#mobileMoreMenu')).toBeHidden();
 
     // Verify Field Tools screen opens via #/field-tools
     await page.goto('/#/field-tools');

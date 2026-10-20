@@ -1,5 +1,23 @@
 import { test, expect } from '@playwright/test';
 
+// #278 follow-up: the Operations & Intelligence tiles moved from Home into the
+// More menu. On mobile, open a tile the way a user does (More menu ->
+// Operations & Intelligence Tools); on desktop the More menu is not rendered,
+// so dispatch the click directly — tile handlers are id-based and unchanged.
+async function clickOpsTile(page, selector) {
+  const tile = page.locator(selector);
+  if (await page.locator('#mobileMoreButton').isVisible()) {
+    await page.locator('#mobileMoreButton').click();
+    const details = page.locator('#moreMenuOpsToolsDetails');
+    if (!(await details.evaluate(d => d.open))) await details.locator('summary').click();
+    await tile.scrollIntoViewIfNeeded();
+    await expect(tile).toBeVisible();
+    await tile.click();
+  } else {
+    await tile.dispatchEvent('click');
+  }
+}
+
 test.describe('Top-to-Bottom App Functional Inventory & Browser Verification', () => {
   test.beforeEach(async ({ page }) => {
     // Capture console errors
@@ -157,46 +175,36 @@ test.describe('Top-to-Bottom App Functional Inventory & Browser Verification', (
     await page.keyboard.press('Escape');
     await expect(addCustDialog).not.toBeVisible();
 
-    // Test quick action: Top Defaulters modal
-    const topDefaultersBtn = page.locator('#quickActionTopDefaulters');
-    await expect(topDefaultersBtn).toBeVisible();
-    await topDefaultersBtn.click();
+    // Test quick action: Top Defaulters modal (tile now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionTopDefaulters');
     const defaultersModal = page.locator('#topDefaultersModal');
     await expect(defaultersModal).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(defaultersModal).not.toBeVisible();
 
-    // Test quick action: Area Collections modal
-    const areaCollBtn = page.locator('#quickActionAreaCollections');
-    await expect(areaCollBtn).toBeVisible();
-    await areaCollBtn.click();
+    // Test quick action: Area Collections modal (tile now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionAreaCollections');
     const areaCollModal = page.locator('#areaCollectionsModal');
     await expect(areaCollModal).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(areaCollModal).not.toBeVisible();
 
-    // Test quick action: Package Revenue modal
-    const pkgRevBtn = page.locator('#quickActionPackageRevenue');
-    await expect(pkgRevBtn).toBeVisible();
-    await pkgRevBtn.click();
+    // Test quick action: Package Revenue modal (tile now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionPackageRevenue');
     const pkgRevModal = page.locator('#packageRevenueModal');
     await expect(pkgRevModal).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(pkgRevModal).not.toBeVisible();
 
-    // Test quick action: P&L Statement modal
-    const pnlBtn = page.locator('#quickActionPnl');
-    await expect(pnlBtn).toBeVisible();
-    await pnlBtn.click();
+    // Test quick action: P&L Statement modal (tile now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionPnl');
     const pnlModal = page.locator('#pnlModal');
     await expect(pnlModal).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(pnlModal).not.toBeVisible();
 
-    // Test quick action: MoM Growth modal
-    const momBtn = page.locator('#quickActionMomGrowth');
-    await expect(momBtn).toBeVisible();
-    await momBtn.click();
+    // Test quick action: MoM Growth modal (tile now in the More menu, #278)
+    await clickOpsTile(page, '#quickActionMomGrowth');
     const momModal = page.locator('#momGrowthModal');
     await expect(momModal).toBeVisible();
     await page.keyboard.press('Escape');
@@ -333,10 +341,9 @@ test.describe('Top-to-Bottom App Functional Inventory & Browser Verification', (
       }
     }
 
-    // 2. Backup & Restore Controls
-    const backupBtn = page.locator('#quickActionBackupData');
-    if (await backupBtn.isVisible()) {
-      await backupBtn.click();
+    // 2. Backup & Restore Controls (tile now lives in the More menu, #278)
+    await clickOpsTile(page, '#quickActionBackupData');
+    {
       const backupControls = page.locator('#backupControls');
       await expect(backupControls).toBeVisible();
 

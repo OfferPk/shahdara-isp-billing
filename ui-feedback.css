@@ -172,8 +172,19 @@ button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 
 body.sr-screen-mode #addCustomerButton { display: none !important; }
 .cust-add-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 .cust-add-actions > button:not([hidden]) { min-height: 44px !important; padding: 0 10px !important; border-radius: 10px !important; font-size: 13px !important; white-space: nowrap; }
-.cust-list-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* #311: the toolbar lines up with the pane heading and search box (same
+   22px inner inset; 17px on small phones where the heading uses 17px). */
+.cust-list-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 22px 10px; }
 .cust-list-toolbar .sr-filter-jump { margin: 0; }
+@media (max-width: 620px) {
+  .cust-list-toolbar { padding-left: 17px; padding-right: 17px; }
+}
+/* #311: in the narrow desktop list pane the heading actions (Wizard, Bulk
+   add) wrap onto their own row instead of squeezing the count badge off
+   the "Customers" line. */
+#customerPane .pane-heading { flex-wrap: wrap; row-gap: 8px; }
+#customerPane .pane-heading h2 { white-space: nowrap; }
+#customerPane .pane-heading-actions { flex-wrap: wrap; }
 .cust-density-toggle:not([hidden]) { min-height: 44px !important; padding: 0 12px; border-radius: 10px; border: 1px solid #cfe0d8; background: #fff; color: #174f40; font-weight: 700; font-size: 13px; cursor: pointer; }
 .pane-heading .pane-heading-actions:empty { display: none; }
 

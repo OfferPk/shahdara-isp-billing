@@ -925,33 +925,64 @@ export function formatCustomerStatement(customer, { range = 'all', referenceDate
   const bills = Array.isArray(customer.bills) ? customer.bills : [];
   for (const bill of bills) {
     const billDate = bill.dueDate || (bill.month ? `${bill.month}-05` : '1970-01-01');
-    const charge = Number(bill.dueAmount ?? 0);
+    // The bill total everywhere else in the app (calculatePaymentAllocations)
+    // is dueAmount + lateFee; the statement must charge the same total or it
+    // under-bills the customer and disagrees with the app's own balance.
+    const dueValue = Number(bill.dueAmount ?? 0);
+    const lateFeeValue = Number(bill.lateFee ?? 0);
+    const lateFee = Number.isFinite(lateFeeValue) && lateFeeValue > 0 ? lateFeeValue : 0;
+    const charge = (Number.isFinite(dueValue) ? dueValue : 0) + lateFee;
     allEvents.push({
       date: billDate,
       type: 'bill',
       month: bill.month || '',
-      description: `Monthly Bill (${bill.month || 'Current'})`,
+      description: lateFee > 0 ? `Monthly Bill (${bill.month || 'Current'}) incl. Late Fee` : `Monthly Bill (${bill.month || 'Current'})`,
       charge: charge > 0 ? charge : 0,
       credit: 0,
       method: 'Billed Snapshot',
       ref: bill.id || ''
     });
 
-    // Gather bill payments
+    // Gather bill payments. A payment's discount is a settlement component
+    // (the allocation engine applies it against the bill before cash), so the
+    // statement shows it as its own credit line — capped at what is still
+    // owed on this bill, mirroring the allocation engine, so a settled bill
+    // never shows as still owed (or as phantom credit) on the statement.
     const payments = Array.isArray(bill.payments) ? bill.payments : [];
-    for (const payment of payments) {
+    let remainingCapacity = charge > 0 ? charge : 0;
+    const orderedPayments = [...payments].sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')) || String(a.id || '').localeCompare(String(b.id || '')));
+    for (const payment of orderedPayments) {
       const pDate = payment.date || (bill.month ? `${bill.month}-05` : '1970-01-01');
       const credit = Number(payment.amount ?? 0);
+      const cashCredit = Number.isFinite(credit) && credit > 0 ? credit : 0;
       allEvents.push({
         date: pDate,
         type: 'payment',
         month: bill.month || '',
         description: `Payment Received · ${payment.method || 'Cash'}${payment.reference ? ` (Ref: ${payment.reference})` : ''}`,
         charge: 0,
-        credit: credit > 0 ? credit : 0,
+        credit: cashCredit,
         method: payment.method || 'Cash',
         ref: payment.id || payment.reference || ''
       });
+      const discountValue = Number(payment.discount ?? 0);
+      if (Number.isFinite(discountValue) && discountValue > 0) {
+        const appliedDiscount = Math.min(discountValue, remainingCapacity);
+        if (appliedDiscount > 0) {
+          allEvents.push({
+            date: pDate,
+            type: 'discount',
+            month: bill.month || '',
+            description: `Discount / Concession${payment.discountReason ? ` (${payment.discountReason})` : ''}`,
+            charge: 0,
+            credit: appliedDiscount,
+            method: 'Discount',
+            ref: payment.id || payment.reference || ''
+          });
+          remainingCapacity -= appliedDiscount;
+        }
+      }
+      remainingCapacity -= Math.min(cashCredit, remainingCapacity);
     }
   }
 

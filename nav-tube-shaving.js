@@ -710,10 +710,23 @@ export function setupMobileTubeShavingModal() {
 
   // Clear History
   if (clearHistoryBtn) {
-    clearHistoryBtn.addEventListener('click', () => {
-      if (window.confirm('Clear all buffer tube shaving calibration logs?')) {
+    clearHistoryBtn.addEventListener('click', async () => {
+      const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+        ? await window.appConfirm({
+            tone: 'danger',
+            title: 'Clear buffer tube shaving calibration logs?',
+            subject: 'Field Tool · Buffer Tube Shaving Gauge',
+            message: 'All saved buffer tube mid-span stripping calibration and shaving audit logs will be permanently removed.',
+            confirmLabel: 'Clear calibration logs'
+          })
+        : (typeof window.confirm === 'function' ? window.confirm('Clear all buffer tube shaving calibration logs?') : true);
+
+      if (ask) {
         clearTubeShavingHistory();
         renderHistoryList();
+        if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+          window.toast('Tube shaving calibration logs cleared');
+        }
       }
     });
   }

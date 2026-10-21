@@ -680,7 +680,12 @@ export function setupMobileGpsBreadcrumbsModal(options = {}) {
           renderModalState();
         },
         (err) => {
-          alert('GPS Fix failed: ' + (err.message || 'Position unavailable'));
+          const msg = 'GPS Fix failed: ' + (err.message || 'Position unavailable');
+          if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+            window.toast(msg);
+          } else if (typeof alert === 'function') {
+            alert(msg);
+          }
         },
         { enableHighAccuracy: true, timeout: 8000 }
       );
@@ -703,7 +708,9 @@ export function setupMobileGpsBreadcrumbsModal(options = {}) {
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
-          alert('Technician location copied to clipboard! Opening WhatsApp...');
+          if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+            window.toast('Technician location copied to clipboard! Opening WhatsApp...');
+          }
           window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
         }).catch(() => {
           window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
@@ -715,10 +722,23 @@ export function setupMobileGpsBreadcrumbsModal(options = {}) {
   }
 
   if (btnClearTrail) {
-    btnClearTrail.addEventListener('click', () => {
-      if (confirm('Clear technician GPS breadcrumb trail history?')) {
+    btnClearTrail.addEventListener('click', async () => {
+      const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+        ? await window.appConfirm({
+            tone: 'danger',
+            title: 'Clear GPS breadcrumb trail?',
+            subject: 'Field Tool · GPS Tracking & Radar',
+            message: 'All recorded technician GPS breadcrumb trail points and geofencing telemetry will be cleared from this device.',
+            confirmLabel: 'Clear trail'
+          })
+        : (typeof confirm === 'function' ? confirm('Clear technician GPS breadcrumb trail history?') : true);
+
+      if (ask) {
         clearGpsBreadcrumbsStore(storage);
         renderModalState();
+        if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+          window.toast('GPS breadcrumb trail cleared');
+        }
       }
     });
   }

@@ -11,6 +11,7 @@ import {
   getPwaInstallState,
   isIosDevice,
   parsePwaActionFromUrl,
+  parsePwaCustomerIdFromUrl,
   executePwaAction,
   deferLowPriorityInit,
   createLazyModalController,
@@ -175,6 +176,24 @@ test('executePwaAction invokes corresponding action handlers', () => {
   assert.equal(statusCalled, true);
 
   assert.equal(executePwaAction('invalid-action', context), false);
+});
+
+test('parsePwaCustomerIdFromUrl extracts the customer id from #quick-collect/<id> deep links', () => {
+  assert.equal(parsePwaCustomerIdFromUrl('#quick-collect/seed-003'), 'seed-003');
+  assert.equal(parsePwaCustomerIdFromUrl('https://billing.shahdara.app/#quick-collect/cust-42'), 'cust-42');
+  // The deep link still parses as the plain quick-collect action.
+  assert.equal(parsePwaActionFromUrl('#quick-collect/seed-003'), 'quick-collect');
+  assert.equal(parsePwaCustomerIdFromUrl('#quick-collect'), null);
+  assert.equal(parsePwaCustomerIdFromUrl('#/collect'), null);
+  assert.equal(parsePwaCustomerIdFromUrl('#add-customer'), null);
+  assert.equal(parsePwaCustomerIdFromUrl(''), null);
+});
+
+test('executePwaAction quick-collect hands the handler a customer id slot (undefined without a deep link)', () => {
+  let received = 'not-called';
+  const ok = executePwaAction('quick-collect', { onQuickCollect: (customerId) => { received = customerId; } });
+  assert.equal(ok, true);
+  assert.equal(received, undefined);
 });
 
 test('isStandaloneMode and isPwaInstalled evaluate display mode and storage persistence', () => {

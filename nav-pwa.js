@@ -128,6 +128,23 @@ export function parsePwaActionFromUrl(urlOrHash = '') {
 }
 
 /**
+ * Customer id carried by a #quick-collect/<customerId> deep link (e.g. the Home
+ * Top 5 Overdue "Collect" links), or null when the URL names no customer.
+ *
+ * @param {string} [urlOrHash] - Full URL string, search string, or hash
+ * @returns {string|null}
+ */
+export function parsePwaCustomerIdFromUrl(urlOrHash = '') {
+  let target = String(urlOrHash || '');
+  if (!target && typeof window !== 'undefined' && window.location) {
+    target = window.location.hash || '';
+  }
+  const match = target.match(/#\/?quick-collect\/([^\s/?#]+)/i);
+  if (!match) return null;
+  try { return decodeURIComponent(match[1]); } catch { return match[1]; }
+}
+
+/**
  * Executes a parsed PWA action using the supplied handler context.
  *
  * @param {string} action
@@ -149,7 +166,8 @@ export function executePwaAction(action, context = {}) {
   switch (action) {
     case 'quick-collect':
       if (typeof context.onQuickCollect === 'function') {
-        context.onQuickCollect();
+        // A #quick-collect/<id> deep link preselects that customer.
+        context.onQuickCollect(parsePwaCustomerIdFromUrl() ?? undefined);
         announceToScreenReader('Quick Collect shortcut activated');
         return true;
       }

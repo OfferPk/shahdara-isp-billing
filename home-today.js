@@ -301,6 +301,29 @@ export function setupHomeTodaySection({ getState, getRefDate = () => new Date(),
     });
   }
 
+  // Wire Top 5 Overdue "Collect" links: open Quick Collect through the
+  // controller, preselected to the tapped customer, so the visit uses the
+  // canonical #/collect route (#263) exactly like the bottom-bar Collect
+  // button — and closing returns to Home. The href="#quick-collect/<id>"
+  // remains as a deep-link fallback (no-JS / open in new tab); the screen
+  // router treats it as the collect route too, so it can never strand the
+  // user in a dialog that reopens itself on close.
+  const overdueListEl2 = doc.getElementById('homeTopOverdueList');
+  if (overdueListEl2 && !overdueListEl2._collectWired) {
+    overdueListEl2._collectWired = true;
+    overdueListEl2.addEventListener('click', (event) => {
+      const link = event.target?.closest?.('.overdue-collect-link');
+      if (!link) return;
+      const rawId = (link.getAttribute('href') || '').match(/#quick-collect\/(.+)$/)?.[1];
+      const ctl = win.quickCollectModalController;
+      if (!rawId || typeof ctl?.open !== 'function') return; // let the deep link fallback run
+      let customerId = rawId;
+      try { customerId = decodeURIComponent(rawId); } catch { /* keep the raw id */ }
+      event.preventDefault();
+      ctl.open(customerId);
+    });
+  }
+
   // Initial render
   return update();
 }

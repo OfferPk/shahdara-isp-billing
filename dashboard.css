@@ -3929,3 +3929,59 @@
 
 
 
+
+/* Home summary cards — matched to the "Today's Summary" (Aaj ka khulasa)
+   card above them, with a living gradient line on every card's top border.
+   Colours come from tokens.css: no new hard-coded hex here, so the
+   hex ratchet is untouched. The strip itself is the .summary-card::before
+   that styles.css already lays out (3px, full width); previously only
+   three card types had a (static) colour, which is why the grid looked
+   inconsistent. */
+.summary-card {
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(22, 52, 43, 0.06);
+}
+.summary-card::before {
+  height: 4px;
+  background: linear-gradient(90deg,
+    var(--color-brand-500), var(--color-info), var(--color-paid),
+    var(--color-whatsapp), var(--color-pending), var(--color-overdue),
+    var(--color-brand-500));
+  background-size: 300% 100%;
+  animation: summary-line-flow 7s linear infinite;
+}
+@keyframes summary-line-flow {
+  from { background-position: 0% 0; }
+  to { background-position: 300% 0; }
+}
+
+/* The khulasa card wears the same line, so the two read as one family. */
+.home-today-card {
+  position: relative;
+  overflow: hidden;
+}
+.home-today-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg,
+    var(--color-brand-500), var(--color-info), var(--color-paid),
+    var(--color-whatsapp), var(--color-pending), var(--color-overdue),
+    var(--color-brand-500));
+  background-size: 300% 100%;
+  animation: summary-line-flow 7s linear infinite;
+}
+
+[data-theme="dark"] .summary-card {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summary-card::before,
+  .home-today-card::before {
+    animation: none;
+  }
+}

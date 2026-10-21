@@ -108,6 +108,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
+import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 import {
   getTodayDateString,
@@ -152,6 +153,7 @@ export let momGrowthModalController = null;
 export let dailyClosingModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
+export let staffPerformanceModalController = null;
 let state;
 try {
   state = readState(localStorage);
@@ -491,6 +493,7 @@ function renderDashboard() {
     if (recCountEl) recCountEl.textContent = String(wData.kpis.toReconnectCount);
   }
   worklistsModalController?.render?.();
+  staffPerformanceModalController?.refresh?.();
   // Home Screen Overload Redesign (#213): Populate compact KPI strip
   const kpiTodayEl = $('#kpiTodayCollection');
   if (kpiTodayEl) {
@@ -6617,6 +6620,9 @@ if (typeof document !== 'undefined') {
     },
     onToast: (msg, opts) => toast(msg, opts)
   });
+  staffPerformanceModalController = setupStaffPerformanceModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -7568,6 +7574,13 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const staffPerfModal = $('#staffPerformanceModal');
+  if (staffPerfModal && !staffPerformanceModalController) {
+    staffPerformanceModalController = setupStaffPerformanceModal(() => state, {
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const lateFeeModal = $('#lateFeeManagerModal');
   if (lateFeeModal && !lateFeeModalController) {
     lateFeeModalController = setupLateFeeModal({
@@ -7681,6 +7694,7 @@ if (typeof document !== 'undefined') {
     window.dailyClosingModalController = dailyClosingModalController;
     window.lateFeeModalController = lateFeeModalController;
     window.worklistsModalController = worklistsModalController;
+    window.staffPerformanceModalController = staffPerformanceModalController;
     window.openWadaFollowupModal = openWadaFollowupModal;
     window.openReminderStagesModal = openReminderStagesModal;
     window.openPaymentReminderModal = openPaymentReminderModal;

@@ -344,6 +344,7 @@
             <button id="openDailyClosingModalBtn" class="action-btn-sm daily-slip-btn" type="button">📊 Cash Closing Suite</button>
             <button id="openDailyRegisterBtn" class="action-btn-sm daily-slip-btn" type="button">📖 Daily Register</button>
             <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button">📋 Daily Slip</button>
+            <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog">👥 Staff Performance</button>
           </div>
         </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
@@ -6484,7 +6485,7 @@
             <button id="backButton" class="back-button" type="button"><span aria-hidden="true">←</span> Customers</button>
             <section class="customer-profile-card" aria-label="Customer profile card">
               <div class="detail-title-row">
-                <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><div class="profile-name-row"><h2 id="detailName"></h2><button id="editCustomerNameBtn" class="text-button profile-name-edit-btn" type="button" aria-label="Edit customer name" title="Edit customer name">✎ Edit name</button></div><div id="customerNameEditor" class="profile-name-editor" hidden><label class="sr-only" for="customerNameInput">Customer name</label><input id="customerNameInput" type="text" maxlength="100" autocomplete="off"><button id="saveCustomerNameBtn" class="primary-button" type="button">Save name</button><button id="cancelCustomerNameBtn" class="secondary-button" type="button">Cancel</button><p id="customerNameEditError" class="form-error" role="alert" hidden></p></div></div></div>
+                <div class="profile-identity-block"><span id="profileAvatar" class="profile-avatar" aria-hidden="true">C</span><div class="profile-identity-copy"><p id="detailCustomerNumber" class="detail-number"></p><p class="eyebrow">ISP CUSTOMER PROFILE</p><div class="profile-name-row"><h2 id="detailName"></h2><button id="editCustomerNameBtn" class="text-button profile-name-edit-btn" type="button" title="Edit customer name"><span aria-hidden="true">✎</span> Edit name</button></div><div id="customerNameEditor" class="profile-name-editor" hidden><label class="sr-only" for="customerNameInput">Customer name</label><input id="customerNameInput" type="text" maxlength="100" autocomplete="off"><button id="saveCustomerNameBtn" class="primary-button" type="button">Save name</button><button id="cancelCustomerNameBtn" class="secondary-button" type="button">Cancel</button><p id="customerNameEditError" class="form-error" role="alert" hidden></p></div></div></div>
                 <div class="profile-status-stack"><span id="profileServiceStatusBadge" class="profile-service-status profile-service-status-not-set" aria-label="Manual service status: Not set; not monitored">Service · Not set</span><span id="archiveStateBadge" class="archive-state-badge">Profile: Active</span></div>
               </div>
               <div id="customerCurrentBillSummary" class="customer-current-bill-summary profile-bill-first" role="region" aria-label="Current billing summary"></div>
@@ -20298,6 +20299,7 @@
           <button id="dcPrintA4Btn" class="secondary-button" type="button">📄 Print A4 Statement</button>
           <button id="dcPrintPosBtn" class="secondary-button" type="button">🧾 Thermal 80mm Slip</button>
           <button id="dcExportCsvBtn" class="secondary-button" type="button">📥 Export CSV (RFC-4180)</button>
+          <button id="openStaffPerfFromClosingBtn" class="secondary-button" type="button">👥 Staff Performance</button>
         </div>
         <button id="closeDailyClosingSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
@@ -20380,6 +20382,107 @@
           <button id="worklistPrintBtn" class="secondary-button" type="button">🖨️ Print Work Orders</button>
           <button id="worklistCopyDispatchBtn" class="secondary-button" type="button">📋 Copy Dispatch Manifest</button>
         </div>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Collector & Staff Collection Performance Suite Dialog (agent1 - shahdara-dashboard, Issue Backlog #9) -->
+  <dialog id="staffPerformanceModal" class="billing-modal staff-performance-modal" aria-labelledby="staffPerfModalTitle">
+    <div class="billing-modal-content staff-perf-modal-inner">
+      <header class="billing-modal-header staff-perf-modal-header">
+        <div class="billing-modal-title-group">
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">COLLECTOR &amp; STAFF PERFORMANCE</div>
+          <h2 id="staffPerfModalTitle">Collector &amp; Staff Performance</h2>
+          <span class="urdu-subtitle">ریکوری عملہ اور دکانوں کا کارکردگی اور کلوزنگ جائزہ</span>
+        </div>
+        <button id="closeStaffPerfModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="billing-modal-body staff-perf-modal-body">
+        <!-- Filter Toolbar -->
+        <div class="staff-perf-toolbar">
+          <div class="staff-perf-filter-group">
+            <select id="staffPerfMonthSelect" aria-label="Select collection period">
+              <option value="all">All Historical Periods</option>
+            </select>
+          </div>
+          <div class="staff-perf-filter-group">
+            <select id="staffPerfChannelSelect" aria-label="Filter collection channel">
+              <option value="all">All Channels (Cash &amp; Digital)</option>
+              <option value="cash">Cash Only (Physical Register)</option>
+              <option value="digital">Digital Only (Easypaisa / JazzCash / Bank)</option>
+            </select>
+          </div>
+          <div class="staff-perf-search-wrap">
+            <input id="staffPerfSearchInput" type="search" placeholder="Search collector, area, shop..." aria-label="Search collectors">
+          </div>
+          <div class="staff-perf-count-wrap">
+            <span id="staffPerfCountBadge" class="badge">0 collectors</span>
+          </div>
+        </div>
+
+        <!-- KPI HUD Tiles -->
+        <div class="staff-perf-kpi-grid">
+          <div class="staff-perf-kpi-tile">
+            <span class="staff-perf-kpi-label">Total Collections</span>
+            <strong id="staffPerfTotalCollected" class="staff-perf-kpi-val highlight">PKR 0</strong>
+          </div>
+          <div class="staff-perf-kpi-tile">
+            <span class="staff-perf-kpi-label">Receipts / Bills</span>
+            <strong id="staffPerfTotalReceipts" class="staff-perf-kpi-val">0 bills</strong>
+          </div>
+          <div class="staff-perf-kpi-tile">
+            <span class="staff-perf-kpi-label">Subscribers</span>
+            <strong id="staffPerfUniqueCustomers" class="staff-perf-kpi-val">0 cust</strong>
+          </div>
+          <div class="staff-perf-kpi-tile">
+            <span class="staff-perf-kpi-label">Average Ticket</span>
+            <strong id="staffPerfAvgTicket" class="staff-perf-kpi-val">PKR 0</strong>
+          </div>
+          <div class="staff-perf-kpi-tile">
+            <span class="staff-perf-kpi-label">Active Roster</span>
+            <strong id="staffPerfActiveCrew" class="staff-perf-kpi-val">0 active</strong>
+          </div>
+          <div class="staff-perf-kpi-tile">
+            <span class="staff-perf-kpi-label">Cash / Digital</span>
+            <strong id="staffPerfCashDigitalRatio" class="staff-perf-kpi-val">0% / 0%</strong>
+          </div>
+        </div>
+
+        <!-- SVG Performance Chart -->
+        <div id="staffPerfSvgContainer" class="staff-perf-svg-host" role="img" aria-label="Staff collection performance chart"></div>
+
+        <!-- Collectors Table -->
+        <div class="staff-perf-table-wrap">
+          <table class="staff-perf-table">
+            <thead>
+              <tr>
+                <th data-sort-staff="collector" tabindex="0" role="button" aria-sort="none">Collector / Staff ⬍</th>
+                <th data-sort-staff="category" tabindex="0" role="button" aria-sort="none">Role / Channel ⬍</th>
+                <th data-sort-staff="collections" tabindex="0" role="button" aria-sort="descending" style="text-align: right;">Total Collected ⬍</th>
+                <th data-sort-staff="receipts" tabindex="0" role="button" aria-sort="none" style="text-align: center;">Bills ⬍</th>
+                <th data-sort-staff="customers" tabindex="0" role="button" aria-sort="none" style="text-align: center;">Cust ⬍</th>
+                <th data-sort-staff="avgTicket" tabindex="0" role="button" aria-sort="none" style="text-align: right;">Avg Ticket ⬍</th>
+                <th data-sort-staff="cash" tabindex="0" role="button" aria-sort="none" style="text-align: right;">Cash ⬍</th>
+                <th data-sort-staff="digital" tabindex="0" role="button" aria-sort="none" style="text-align: right;">Digital ⬍</th>
+                <th style="text-align: left;">Top Area</th>
+              </tr>
+            </thead>
+            <tbody id="staffPerfTableBody">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer staff-perf-modal-footer">
+        <div class="staff-perf-footer-actions">
+          <button id="exportStaffPerfCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+          <button id="printStaffPerfA4Btn" class="secondary-button" type="button">🖨️ Print Statement (A4)</button>
+          <button id="printStaffPerfThermalBtn" class="secondary-button" type="button">🧾 Thermal Slip (80mm)</button>
+          <button id="shareStaffPerfWhatsAppBtn" class="secondary-button" type="button">📱 WhatsApp Briefing</button>
+        </div>
+        <button id="closeStaffPerfSecondaryBtn" class="secondary-button" type="button">Close</button>
       </footer>
     </div>
   </dialog>

@@ -846,10 +846,23 @@ export function setupCollectionTargetModal(state, options = {}) {
 
   // Remove target button
   if (removeBtn) {
-    removeBtn.addEventListener('click', () => {
-      if (confirm(`Remove the target for ${monthName(selectedMonth)}?`)) {
+    removeBtn.addEventListener('click', async () => {
+      const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+        ? await window.appConfirm({
+            tone: 'danger',
+            title: 'Remove this collection target?',
+            subject: `Target · ${monthName(selectedMonth)}`,
+            message: `The collection target for ${monthName(selectedMonth)} will be removed from this device.`,
+            confirmLabel: 'Remove target'
+          })
+        : (typeof confirm === 'function' ? confirm(`Remove the target for ${monthName(selectedMonth)}?`) : true);
+
+      if (ask) {
         removeCollectionTarget(selectedMonth);
         render();
+        if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+          window.toast(`Monthly target for ${monthName(selectedMonth)} removed.`);
+        }
       }
     });
   }

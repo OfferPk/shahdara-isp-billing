@@ -377,6 +377,27 @@
           </div>
           <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge"></div>
         </article>
+        <article class="dashboard-chart-card chart-card-worklists" id="worklistsSummaryCard" style="margin-top: 14px;">
+          <div class="worklists-card-header">
+            <div>
+              <h4 class="chart-title">Disconnection &amp; Reconnection Worklists</h4>
+              <p class="chart-subtitle">Field service actions: overdue suspensions &amp; paid restorations</p>
+            </div>
+            <button id="openWorklistsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">View Worklists / فہرست کھولیں</button>
+          </div>
+          <div class="worklists-card-kpis">
+            <div class="worklists-card-kpi">
+              <span class="worklists-card-kpi-label">To Disconnect</span>
+              <span id="worklistsSummaryDiscCount" class="worklists-card-kpi-value disc">0</span>
+              <span id="worklistsSummaryDiscAmount" class="worklists-card-kpi-sub">PKR 0 dues (&gt; 10d)</span>
+            </div>
+            <div class="worklists-card-kpi">
+              <span class="worklists-card-kpi-label">To Reconnect</span>
+              <span id="worklistsSummaryRecCount" class="worklists-card-kpi-value rec">0</span>
+              <span class="worklists-card-kpi-sub">Dues cleared &middot; ready</span>
+            </div>
+          </div>
+        </article>
       </div>
       <details id="homeChartsCollapsible" class="home-collapsible-section dashboard-charts-collapsible">
         <summary class="home-collapsible-summary">
@@ -6714,7 +6735,7 @@
         <section class="owner-report-panel" aria-labelledby="monthlyClosingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL MONTH CLOSE</p><h3 id="monthlyClosingHeading">Saved monthly closings</h3></div><p class="chart-caption">Created once when the app first opens in the next PKT calendar month. Status counts are manual values captured at the saved time, not monitored month-end status.</p></div><div id="savedMonthlyClosings" class="saved-closing-list" aria-live="polite"></div></section>
         <section class="owner-report-panel" aria-labelledby="monthComparisonHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL BUSINESS COMPARISON</p><h3 id="monthComparisonHeading">Compare two months</h3></div></div><div class="owner-filter-grid"><label for="compareMonthA">Earlier / first month<select id="compareMonthA"></select></label><label for="compareMonthB">Later / second month<select id="compareMonthB"></select></label></div><p id="monthComparisonBasis" class="chart-caption" role="status" aria-live="polite"></p><div id="monthComparisonMetrics" class="comparison-metric-grid" aria-live="polite"></div><div id="monthComparisonChart" class="comparison-bars" aria-label="Mobile month comparison chart"></div><div class="comparison-package-wrap"><h4>Package distribution</h4><ul id="monthPackageComparison" class="comparison-package-list"></ul></div><form id="performanceExplainForm" class="performance-explain-form"><label for="performanceMetric">Explain change in<select id="performanceMetric"><option value="billedAmount">Billed revenue</option><option value="collection">Cash collection</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="profit">Cash profit</option></select></label><button class="secondary-button" type="submit">Explain this change</button></form><div id="performanceExplanation" class="performance-explanation" role="status" aria-live="polite"></div></section>
         <section class="owner-report-panel" aria-labelledby="customerRankingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL CUSTOMER RANKINGS</p><h3 id="customerRankingHeading">Customer rankings</h3></div></div><div class="owner-filter-grid"><label for="rankingType">Ranking<select id="rankingType"></select></label><label for="rankingMonth">Month<select id="rankingMonth"></select></label><label for="rankingArea">Area / mohalla<select id="rankingArea"><option value="all">All recorded areas</option></select></label><label for="rankingPackage">Package<select id="rankingPackage"><option value="all">All recorded packages</option></select></label><label for="rankingStatus">Manual status<select id="rankingStatus"><option value="all">All statuses</option><option value="active">Active</option><option value="offline">Offline</option><option value="not-set">Not set</option><option value="archived">Archived</option></select></label></div><div id="customerRankingResults" class="owner-result-list" aria-live="polite"></div></section>
-        <section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL-ONLY · RULE-BASED</p><h3 id="smartAlertsHeading">Smart Alerts</h3></div><p class="chart-caption">Derived on this device from saved bills, receipts, expenses and dated package history. No background monitoring or contact.</p></div><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section><section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3></div><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><p id="recoveryFormula" class="chart-caption"></p><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section>
+        <section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL-ONLY · RULE-BASED</p><h3 id="smartAlertsHeading">Smart Alerts</h3></div><p class="chart-caption">Derived on this device from saved bills, receipts, expenses and dated package history. No background monitoring or contact.</p></div><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section><section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><button id="openWorklistsFromDuesBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px; margin-top: 4px;" aria-haspopup="dialog">📋 Disconnect / Reconnect Worklists</button></div><p id="recoveryFormula" class="chart-caption"></p><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section>
       </div>
     </section>
     <section id="analyticsView" class="phase3-view" aria-labelledby="analyticsHeading" hidden>
@@ -20271,6 +20292,86 @@
           <button id="dcExportCsvBtn" class="secondary-button" type="button">📥 Export CSV (RFC-4180)</button>
         </div>
         <button id="closeDailyClosingSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- Disconnection & Reconnection Worklists Modal Dialog (agent1 - shahdara-dashboard, Issue #227) -->
+  <dialog id="workListModal" class="billing-modal worklist-modal-dialog" aria-labelledby="workListModalTitle">
+    <div class="billing-modal-content worklist-modal-inner">
+      <header class="billing-modal-header worklist-modal-header">
+        <div class="billing-modal-title-group">
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">SERVICE SUSPENSION &amp; RESTORATION WORKLISTS</div>
+          <h2 id="workListModalTitle">Disconnection &amp; Reconnection Worklists</h2>
+          <span class="urdu-subtitle">واجبات کی عدم ادائیگی پر سروس منقطع اور ادائیگی کے بعد بحالی کے کام کی فہرست</span>
+        </div>
+        <button id="worklistCloseBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+
+      <div class="worklist-tabs" role="tablist">
+        <button type="button" class="worklist-tab-btn active" data-tab="disconnect" role="tab" aria-selected="true">
+          <span>⚠️ To Disconnect</span>
+          <span id="worklistDiscCountBadge" class="worklist-tab-badge">0</span>
+        </button>
+        <button type="button" class="worklist-tab-btn" data-tab="reconnect" role="tab" aria-selected="false">
+          <span>✅ To Reconnect</span>
+          <span id="worklistRecCountBadge" class="worklist-tab-badge">0</span>
+        </button>
+        <button type="button" class="worklist-tab-btn" data-tab="rules" role="tab" aria-selected="false">
+          <span>⚙️ Rules &amp; Thresholds</span>
+        </button>
+      </div>
+
+      <div class="billing-modal-body worklist-modal-body">
+        <div id="worklistSvgHost" class="worklist-svg-container" role="img" aria-label="Worklist telemetry chart"></div>
+
+        <div class="worklist-toolbar">
+          <div class="worklist-search-wrap">
+            <input id="worklistSearchInput" type="search" placeholder="Search name, account #, phone, area..." aria-label="Search worklist">
+          </div>
+          <div class="worklist-filter-wrap">
+            <select id="worklistAreaFilter" aria-label="Filter by area">
+              <option value="all">All recorded areas</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 1. Disconnect Tab Pane -->
+        <div id="worklistDisconnectPane" class="worklist-pane">
+          <div id="worklistDisconnectList" class="worklist-list" aria-live="polite"></div>
+        </div>
+
+        <!-- 2. Reconnect Tab Pane -->
+        <div id="worklistReconnectPane" class="worklist-pane" hidden>
+          <div id="worklistReconnectList" class="worklist-list" aria-live="polite"></div>
+        </div>
+
+        <!-- 3. Rules Tab Pane -->
+        <div id="worklistRulesPane" class="worklist-pane" hidden>
+          <form id="worklistRulesForm">
+            <div class="worklist-rules-grid">
+              <div class="worklist-field">
+                <label for="worklistRuleOverdueDays">Overdue Days Threshold (N days)</label>
+                <input id="worklistRuleOverdueDays" type="number" min="0" max="365" value="10">
+                <span class="worklist-field-desc">Customers overdue by more than this many days enter the "To Disconnect" list. Default: 10 days.</span>
+              </div>
+              <div class="worklist-field">
+                <label for="worklistRuleMinBalance">Minimum Balance (PKR)</label>
+                <input id="worklistRuleMinBalance" type="number" min="0" step="50" value="0">
+                <span class="worklist-field-desc">Minimum outstanding dues required to trigger disconnection. Default: 0 PKR.</span>
+              </div>
+            </div>
+            <button type="submit" class="primary-button" style="margin-top: 10px;">💾 Save Rules &amp; Recalculate</button>
+          </form>
+        </div>
+      </div>
+
+      <footer class="billing-modal-footer worklist-modal-footer">
+        <div class="worklist-footer-actions">
+          <button id="worklistExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
+          <button id="worklistPrintBtn" class="secondary-button" type="button">🖨️ Print Work Orders</button>
+          <button id="worklistCopyDispatchBtn" class="secondary-button" type="button">📋 Copy Dispatch Manifest</button>
+        </div>
       </footer>
     </div>
   </dialog>

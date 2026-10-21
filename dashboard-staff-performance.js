@@ -1195,5 +1195,40 @@ export function setupStaffPerformanceModal(stateInput = {}, options = {}) {
     openFromClosingBtn.addEventListener('click', () => controller.open());
   }
 
+  // Bilingual UI label synchronization (English <-> Urdu mode, #228)
+  function syncButtonLabels(lang) {
+    const isUrdu = lang === 'ur' || (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('lang') === 'ur');
+    if (openBtn) openBtn.textContent = isUrdu ? '👥 عملے کی کارکردگی' : '👥 Staff Performance';
+    if (openFromClosingBtn) openFromClosingBtn.textContent = isUrdu ? '👥 عملے کی کارکردگی' : '👥 Staff Performance';
+    if (csvBtn) csvBtn.textContent = isUrdu ? '📥 CSV برآمد کریں' : '📥 Export CSV';
+    if (printA4Btn) printA4Btn.textContent = isUrdu ? '🖨️ اسٹیٹمنٹ پرنٹ کریں (A4)' : '🖨️ Print Statement (A4)';
+    if (printSlipBtn) printSlipBtn.textContent = isUrdu ? '🧾 تھرمل سلپ (80mm)' : '🧾 Thermal Slip (80mm)';
+    if (waBtn) waBtn.textContent = isUrdu ? '📱 واٹس ایپ بریفنگ' : '📱 WhatsApp Briefing';
+    if (closeSecBtn) closeSecBtn.textContent = isUrdu ? 'بند کریں' : 'Close';
+  }
+
+  if (typeof document !== 'undefined' && document.documentElement) {
+    syncButtonLabels(document.documentElement.getAttribute('lang') || 'en');
+    if (typeof MutationObserver !== 'undefined') {
+      try {
+        const langObserver = new MutationObserver(mutations => {
+          for (const m of mutations) {
+            if (m.type === 'attributes' && (m.attributeName === 'lang' || m.attributeName === 'dir')) {
+              syncButtonLabels(document.documentElement.getAttribute('lang') || 'en');
+            }
+          }
+        });
+        langObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['lang', 'dir'] });
+      } catch { /* SSR / test environment */ }
+    }
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('shahdara:language-change', e => {
+      syncButtonLabels(e?.detail?.language || 'en');
+    });
+  }
+
   return controller;
 }
+

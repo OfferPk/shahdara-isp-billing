@@ -5133,6 +5133,7 @@ const openStatementBtn = $('#openAccountStatementBtn');
 const closeStatementBtn = $('#closeStatementModalBtn');
 const statementRangeSelect = $('#statementRangeSelect');
 const printStatementBtn = $('#printStatementBtn');
+const printStatement58Btn = $('#printStatement58Btn');
 const downloadStatementCsvBtn = $('#downloadStatementCsvBtn');
 const shareStatementWhatsAppBtn = $('#shareStatementWhatsAppBtn');
 
@@ -5181,6 +5182,21 @@ if (printStatementBtn) {
         toast('Printing is not supported in this browser.');
       } finally {
         document.body.classList.remove('printing-statement');
+      }
+    });
+  });
+}
+
+if (printStatement58Btn) {
+  printStatement58Btn.addEventListener('click', () => {
+    document.body.classList.add('printing-statement', 'printing-statement-58');
+    requestAnimationFrame(() => {
+      try {
+        window.print();
+      } catch {
+        toast('Printing is not supported in this browser.');
+      } finally {
+        document.body.classList.remove('printing-statement', 'printing-statement-58');
       }
     });
   });

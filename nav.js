@@ -363,6 +363,18 @@ export function setupSidebarRailToggle() {
     applyRailState(true);
   }
 
+  // Ensure every drawer button has accessible title and aria-label when rail collapses
+  if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+    document.querySelectorAll('.nav-drawer-item button').forEach(btn => {
+      const textSpan = btn.querySelector('span:not(.nav-drawer-icon):not(.nav-drawer-badge)');
+      const labelText = textSpan?.textContent?.trim();
+      if (labelText) {
+        if (!btn.getAttribute('title')) btn.setAttribute('title', labelText);
+        if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', labelText);
+      }
+    });
+  }
+
   if (toggleBtn && !toggleBtn.dataset?.wiredRail) {
     if (toggleBtn.dataset) toggleBtn.dataset.wiredRail = 'true';
     else if (toggleBtn.setAttribute) toggleBtn.setAttribute('data-wired-rail', 'true');
@@ -3099,7 +3111,7 @@ export function getMobileNavTabForScreen(screen, hash = '') {
   }
   const s = String(screen || '').toLowerCase();
   if (s === 'customers') return 'customers';
-  if (s === 'transactions' || s === 'payments' || s === 'collect') return 'collection';
+  if (s === 'transactions' || s === 'payments' || s === 'collect' || s === 'collection') return 'collection';
   if (s === 'reports' || s === 'bills' || s === 'alerts') return 'reports';
   if (s === 'recovery' || s === 'dues') return 'collection';
   if (s === 'backup' || s === 'settings' || s === 'assistant' || s === 'inventory' || s === 'analytics' || s === 'expenses' || s === 'easypaisa' || s === 'payments-inbox' || s === 'field-tools' || s === 'tools' || s === 'more') {
@@ -3139,7 +3151,11 @@ export function syncMobileBottomNav(screen, hash) {
     const moreButtons = moreMenu.querySelectorAll('[data-mobile-more]');
     moreButtons.forEach(btn => {
       const moreAction = (btn.getAttribute?.('data-mobile-more') || '').toLowerCase();
-      const isActive = moreAction === normalizedScreen || (moreAction === 'easypaisa' && normalizedScreen === 'payments-inbox');
+      const isActive = moreAction === normalizedScreen ||
+        (moreAction === 'easypaisa' && normalizedScreen === 'payments-inbox') ||
+        (moreAction === 'collection' && (normalizedScreen === 'transactions' || normalizedScreen === 'payments' || normalizedScreen === 'collect')) ||
+        (moreAction === 'recovery' && normalizedScreen === 'dues') ||
+        (moreAction === 'backup' && normalizedScreen === 'settings');
       if (typeof btn.setAttribute === 'function') {
         btn.setAttribute('aria-current', isActive ? 'page' : 'false');
       }

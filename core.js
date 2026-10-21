@@ -374,6 +374,15 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
     cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date')
   };
+  // Customer rename: only when the caller explicitly passes a name (the
+  // profile header's Edit name editor and the profile form). The name is
+  // the one field that may never be blanked — every list, bill and receipt
+  // is labelled with it.
+  if (Object.hasOwn(values, 'name')) {
+    const name = cleanText(values.name ?? '', 100, 'Customer name');
+    if (!name) throw new Error('Customer name cannot be empty.');
+    fields.name = name;
+  }
   const previousPrice = current.monthlySellingAmount ?? null;
   const nextPrice = fields.monthlySellingAmount ?? null;
   const priceChanged = (previousPrice === null) !== (nextPrice === null) || (previousPrice !== null && nextPrice !== null && moneyCents(previousPrice) !== moneyCents(nextPrice));

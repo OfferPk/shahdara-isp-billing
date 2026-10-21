@@ -1458,6 +1458,7 @@ function renderDetail() {
   $('#profileAvatar').textContent = initials(customer.name);
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
   $('#detailName').textContent = customer.name;
+  closeCustomerNameEditor();
   renderCurrentBillSummary(customer);
   renderCustomerProfileView(customer);
   $('#customerProfileView').hidden = profileEditMode;
@@ -1472,6 +1473,7 @@ function renderDetail() {
   $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : 'date not recorded') : '');
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
+  if ($('#profileNameInput')) $('#profileNameInput').value = customer.name ?? '';
   $('#mohallaInput').value = customer.mohalla ?? '';
   $('#zoneInput').value = customer.zone ?? '';
   $('#addressInput').value = customer.address ?? '';
@@ -2749,6 +2751,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
 
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
+      ...($('#profileNameInput') ? { name: $('#profileNameInput').value } : {}),
       mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:phoneVal,
       cnic: formattedCnic,
       ispProvider:$('#ispProviderInput').value,
@@ -2843,6 +2846,61 @@ $('#archiveCustomerButton').addEventListener('click', async () => {
   archiveSelectedCustomer(customer);
 });
 $('#unarchiveCustomerButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) restoreCustomer(customer.id); });
+
+// Inline customer rename (profile header): Edit name swaps the heading for
+// an input with Save name / Cancel; the change goes through
+// updateCustomerProfile so validation and persistence match the profile form.
+function closeCustomerNameEditor(focusEditButton = false) {
+  const editor = $('#customerNameEditor');
+  if (editor) editor.hidden = true;
+  const editBtn = $('#editCustomerNameBtn');
+  if (editBtn) editBtn.hidden = false;
+  const error = $('#customerNameEditError');
+  if (error) { error.hidden = true; error.textContent = ''; }
+  if (focusEditButton) editBtn?.focus();
+}
+$('#editCustomerNameBtn')?.addEventListener('click', () => {
+  const customer = selectedCustomer();
+  if (!customer) return;
+  const editor = $('#customerNameEditor');
+  const input = $('#customerNameInput');
+  if (!editor || !input) return;
+  input.value = customer.name ?? '';
+  editor.hidden = false;
+  $('#editCustomerNameBtn').hidden = true;
+  const error = $('#customerNameEditError');
+  if (error) { error.hidden = true; error.textContent = ''; }
+  input.focus();
+  input.select();
+});
+$('#cancelCustomerNameBtn')?.addEventListener('click', () => closeCustomerNameEditor(true));
+$('#customerNameInput')?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') { event.preventDefault(); $('#saveCustomerNameBtn')?.click(); }
+  if (event.key === 'Escape') { event.preventDefault(); closeCustomerNameEditor(true); }
+});
+$('#saveCustomerNameBtn')?.addEventListener('click', () => {
+  const customer = selectedCustomer();
+  const input = $('#customerNameInput');
+  if (!customer || !input) return;
+  const newName = input.value.trim();
+  const error = $('#customerNameEditError');
+  const showError = (message) => {
+    if (error) { error.textContent = message; error.hidden = false; }
+    input.focus();
+  };
+  if (!newName) { showError('Customer name cannot be empty.'); return; }
+  if (newName === customer.name) { closeCustomerNameEditor(); return; }
+  try {
+    state = updateCustomerProfile(state, customer.id, { name: newName });
+    save();
+    closeCustomerNameEditor();
+    renderDetail();
+    renderCustomers();
+    toast(`Customer name updated to “${newName}”.`);
+  } catch (err) {
+    showError(err?.message || 'Could not save the name.');
+  }
+});
 $('#deleteCustomerButton').addEventListener('click', async () => {
   const customer = selectedCustomer();
   if (!customer) return;

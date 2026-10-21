@@ -611,7 +611,15 @@ export function hasFormDraft(formId, storage = (typeof localStorage !== 'undefin
  * @param {{ formId?: string, onRestore?: Function, onClear?: Function, storage?: Storage }} [options]
  * @returns {{ restore: () => boolean, clear: () => void, getDraft: () => object|null }}
  */
-export function wireFormDraftAutosave(formElement, { formId, onRestore, onClear, storage } = {}) {
+export function wireFormDraftAutosave(formElement, formIdOrOptions, maybeOptions) {
+  // Accept both call shapes: (el, { formId, ... }) and the
+  // (el, 'formId', { ... }) form the app uses — previously the string
+  // shape silently dropped onRestore/onClear, so the "draft restored"
+  // notices never appeared even though drafts saved and refilled.
+  const options = typeof formIdOrOptions === 'string'
+    ? { ...(maybeOptions ?? {}), formId: formIdOrOptions }
+    : (formIdOrOptions ?? {});
+  const { formId, onRestore, onClear, storage } = options;
   const id = formId || formElement?.id;
   if (!formElement || !id) {
     return { restore: () => false, clear: () => {}, getDraft: () => null };

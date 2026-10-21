@@ -2540,6 +2540,11 @@ body:has(dialog[open]) #mobileSpeedDial,
    MOBILE INTERACTIVE BREADCRUMBS & ACTIVE TAB SLIDER INDICATOR
    ========================================================================== */
 
+/* Breadcrumb bar should never show on Home (Issue #340) */
+body[data-screen="home"] .mobile-breadcrumb-bar {
+  display: none !important;
+}
+
 .mobile-breadcrumb-bar {
   display: flex;
   align-items: center;

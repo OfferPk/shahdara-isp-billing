@@ -15144,6 +15144,66 @@ test('Payments Inbox & PWA Integration: More menu button, bottom nav sync, PWA a
   assert.ok(renderedNotSet.includes('title="Set monthly fee or collect from Unbilled Customer"'));
 });
 
+test('Issue #340: breadcrumb bar hides on Home, resets trail, and normalizes route hashes', async () => {
+  const { setupMobileBreadcrumbs } = await import('../nav.js');
+  const navCss = read('nav.css');
+  const appCode = read('app.js');
 
+  // Verify CSS rule hiding breadcrumbs on Home
+  assert.match(navCss, /body\[data-screen="home"\]\s*\.mobile-breadcrumb-bar\s*\{\s*display:\s*none\s*!important;\s*\}/);
 
+  // Verify app.js hash history normalization
+  assert.match(appCode, /const\s+targetHash\s*=\s*'#\/'\s*\+\s*view;/);
+  assert.match(appCode, /if\s*\(!raw\s*\|\|\s*raw\s*===\s*'home'\)\s*\{\s*mobileBreadcrumbs\?\.resetBreadcrumbs\(\);/);
 
+  // Verify setupMobileBreadcrumbs behavior when on Home
+  const container = { hidden: false, id: 'mobileBreadcrumbBar' };
+  const list = { innerHTML: '', children: [], appendChild() {}, id: 'breadcrumbList', addEventListener() {}, removeEventListener() {} };
+  const backBtn = { hidden: false, id: 'breadcrumbBackBtn', attributes: new Map(), setAttribute(k, v) { this.attributes.set(k, v); }, addEventListener() {}, removeEventListener() {} };
+
+  const prevDoc = globalThis.document;
+  const prevWin = globalThis.window;
+
+  globalThis.document = {
+    body: {
+      dataset: { screen: 'home' },
+      classList: { contains: () => false }
+    },
+    getElementById: id => (id === 'mobileBreadcrumbBar' ? container : id === 'breadcrumbList' ? list : id === 'breadcrumbBackBtn' ? backBtn : null),
+    createElement: () => ({ setAttribute() {}, appendChild() {}, addEventListener() {} })
+  };
+  globalThis.window = {
+    location: { hash: '#/home' },
+    addEventListener() {},
+    removeEventListener() {}
+  };
+
+  try {
+    const breadcrumbs = setupMobileBreadcrumbs({
+      containerId: 'mobileBreadcrumbBar',
+      listId: 'breadcrumbList',
+      backBtnId: 'breadcrumbBackBtn',
+      initialCrumbs: [
+        { id: 'home', label: 'Home' },
+        { id: 'customers', label: 'Customers' }
+      ]
+    });
+
+    // Even with multiple initial crumbs, being on Home must force container & backBtn hidden
+    assert.equal(container.hidden, true);
+    assert.equal(backBtn.hidden, true);
+    assert.equal(breadcrumbs.getBreadcrumbTrail().length, 1);
+    assert.equal(breadcrumbs.getBreadcrumbTrail()[0].id, 'home');
+
+    // Trying to push crumbs while on Home keeps container and backBtn hidden
+    breadcrumbs.pushCrumb({ id: 'customers', label: 'Customers' });
+    assert.equal(container.hidden, true);
+    assert.equal(backBtn.hidden, true);
+    assert.equal(breadcrumbs.getBreadcrumbTrail().length, 1);
+
+    breadcrumbs.destroy();
+  } finally {
+    globalThis.document = prevDoc;
+    globalThis.window = prevWin;
+  }
+});

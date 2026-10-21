@@ -2867,9 +2867,26 @@ export function setupMobileBreadcrumbs({
     ? initialCrumbs.map(c => ({ ...c }))
     : [{ id: 'home', label: 'Home' }];
 
+  function isHomeScreen() {
+    if (typeof document !== 'undefined' && document.body) {
+      if (document.body.dataset?.screen === 'home') return true;
+      if (document.body.dataset?.screen && !document.body.classList.contains('sr-screen-mode')) return true;
+    }
+    if (typeof window !== 'undefined' && window.location) {
+      const raw = (window.location.hash || '').replace(/^#\/?/, '').trim();
+      if (!raw || raw === 'home') return true;
+    }
+    return false;
+  }
+
   function render() {
+    const onHome = isHomeScreen();
+    if (onHome && trail.length > 1) {
+      trail = [{ id: 'home', label: 'Home' }];
+    }
+
     if (container) {
-      if (hideOnSingle && trail.length <= 1) {
+      if (onHome || (hideOnSingle && trail.length <= 1)) {
         container.hidden = true;
       } else {
         container.hidden = false;
@@ -2877,7 +2894,7 @@ export function setupMobileBreadcrumbs({
     }
 
     if (backBtn) {
-      backBtn.hidden = trail.length <= 1;
+      backBtn.hidden = onHome || trail.length <= 1;
       const prevCrumb = trail.length > 1 ? trail[trail.length - 2] : null;
       if (prevCrumb) {
         backBtn.setAttribute('aria-label', `Back to ${prevCrumb.label || prevCrumb.id}`);
@@ -2930,6 +2947,9 @@ export function setupMobileBreadcrumbs({
     triggerHaptic('selection');
     const targetCrumb = trail[index];
     trail = trail.slice(0, index + 1);
+    if (targetCrumb.id === 'home') {
+      trail = [{ id: 'home', label: 'Home' }];
+    }
     render();
     if (typeof onNavigate === 'function') {
       onNavigate(targetCrumb.id, targetCrumb.data, targetCrumb);
@@ -2956,6 +2976,9 @@ export function setupMobileBreadcrumbs({
     triggerHaptic('light');
     const popped = trail.pop();
     const current = trail[trail.length - 1];
+    if (current && current.id === 'home') {
+      trail = [{ id: 'home', label: 'Home' }];
+    }
     render();
     if (typeof onNavigate === 'function' && current) {
       onNavigate(current.id, current.data, current);
@@ -3007,6 +3030,28 @@ export function setupMobileBreadcrumbs({
     list.addEventListener('keydown', handleKeydown);
   }
 
+  function syncWithRoute() {
+    if (isHomeScreen()) {
+      trail = [{ id: 'home', label: 'Home' }];
+      render();
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('hashchange', syncWithRoute);
+    window.addEventListener('popstate', syncWithRoute);
+  }
+
+  let bodyObserver = null;
+  if (typeof MutationObserver !== 'undefined' && typeof document !== 'undefined' && document.body) {
+    bodyObserver = new MutationObserver(() => {
+      syncWithRoute();
+    });
+    try {
+      bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['data-screen', 'class'] });
+    } catch {}
+  }
+
   render();
 
   function updateCurrentCrumb({ label, data } = {}) {
@@ -3031,6 +3076,14 @@ export function setupMobileBreadcrumbs({
     destroy: () => {
       if (backBtn) backBtn.removeEventListener('click', handleBackClick);
       if (list) list.removeEventListener('keydown', handleKeydown);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hashchange', syncWithRoute);
+        window.removeEventListener('popstate', syncWithRoute);
+      }
+      if (bodyObserver) {
+        try { bodyObserver.disconnect(); } catch {}
+        bodyObserver = null;
+      }
     }
   };
 }

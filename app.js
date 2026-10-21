@@ -895,14 +895,18 @@ function switchView(view, { pushHistory = true } = {}) {
   document.querySelectorAll('[data-mobile-nav]').forEach(button => button.setAttribute('aria-current', button.dataset.mobileNav === mobileView ? 'page' : 'false'));
   navDrawer?.updateActive(view);
   tabSlider?.updateSlider();
-  mobileBreadcrumbs?.setBreadcrumbs([
-    { id: 'home', label: 'Home' },
-    { id: view, label: view.charAt(0).toUpperCase() + view.slice(1) }
-  ]);
+  if (view === 'home') {
+    mobileBreadcrumbs?.resetBreadcrumbs();
+  } else {
+    mobileBreadcrumbs?.setBreadcrumbs([
+      { id: 'home', label: 'Home' },
+      { id: view, label: view.charAt(0).toUpperCase() + view.slice(1) }
+    ]);
+  }
   if (view !== 'customers') appShell.classList.remove('show-detail');
   if (view !== 'customers') mobileActionSheetController?.clearContext();
   if (pushHistory && typeof window !== 'undefined' && window.location) {
-    const targetHash = '#' + view;
+    const targetHash = '#/' + view;
     if (window.location.hash !== targetHash) {
       try { history.pushState({ view }, '', targetHash); } catch {}
     }
@@ -3712,8 +3716,13 @@ mobileBreadcrumbs = setupMobileBreadcrumbs({
       else if (viewId === 'inventory') renderInventory();
       else if (viewId === 'expenses') renderExpenses();
     } else if (viewId === 'home') {
-      switchView('customers');
-      renderCustomers();
+      if (typeof window !== 'undefined' && window.location) {
+        window.location.hash = '#/home';
+      }
+      const homeTab = document.querySelector('[data-nav-target="home"]');
+      if (homeTab) {
+        homeTab.click();
+      }
     } else if (data?.customerId) {
       selectCustomer(data.customerId);
     }
@@ -7497,7 +7506,10 @@ if (typeof document !== 'undefined') {
 function handleRouteFromHash() {
   if (typeof window === 'undefined' || !window.location) return;
   const raw = (window.location.hash || '').replace(/^#\/?/, '').trim();
-  if (!raw) return;
+  if (!raw || raw === 'home') {
+    mobileBreadcrumbs?.resetBreadcrumbs();
+    return;
+  }
   if (raw.startsWith('customer=')) {
     const cid = decodeURIComponent(raw.slice('customer='.length));
     if (state.customers.some(c => c.id === cid)) {

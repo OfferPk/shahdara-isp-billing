@@ -1036,7 +1036,14 @@ export function setupSpectralAttenuationModal(options = {}) {
       const data = getCurrentFormData();
       const val = validateSpectralAttenuationInput(data);
       if (!val.isValid) {
-        alert('Validation errors:\n' + val.errors.join('\n'));
+        const errText = 'Validation errors:\n' + val.errors.join('\n');
+        if (typeof onToast === 'function') {
+          onToast(errText);
+        } else if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+          window.toast(errText);
+        } else if (typeof alert === 'function') {
+          alert(errText);
+        }
         return;
       }
       const record = buildSpectralAttenuationCertRecord(data);

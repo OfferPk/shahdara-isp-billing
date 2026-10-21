@@ -11478,7 +11478,14 @@ export function setupDropSafetyInspectionModal(options = {}) {
       });
 
       if (!val.isValid) {
-        alert('Validation error: ' + Object.values(val.errors).join(', '));
+        const errorMsg = 'Validation error: ' + Object.values(val.errors).join(', ');
+        if (typeof onToast === 'function') {
+          onToast(errorMsg);
+        } else if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+          window.toast(errorMsg);
+        } else if (typeof alert === 'function') {
+          alert(errorMsg);
+        }
         return;
       }
 

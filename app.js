@@ -489,7 +489,7 @@ function renderDashboard() {
   if (discCountEl || recCountEl) {
     const wData = calculateDisconnectReconnectWorklists(state, { referenceDate });
     if (discCountEl) discCountEl.textContent = String(wData.kpis.toDisconnectCount);
-    if (discAmtEl) discAmtEl.textContent = `PKR ${formatAmount(wData.kpis.toDisconnectTotalAmount)} dues (> ${wData.rules.disconnectOverdueDays}d)`;
+    if (discAmtEl) discAmtEl.textContent = `${formatAmount(wData.kpis.toDisconnectTotalAmount)} dues (> ${wData.rules.disconnectOverdueDays}d)`;
     if (recCountEl) recCountEl.textContent = String(wData.kpis.toReconnectCount);
   }
   worklistsModalController?.render?.();

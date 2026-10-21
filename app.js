@@ -18,6 +18,7 @@ import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
+import { customerHasMonthlyFee } from './nav-quick-collect.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
@@ -3673,6 +3674,16 @@ window.fastCustomerSearchController = setupFastCustomerSearchModal({
     selectCustomer(customerId);
   },
   onOpenQuickCollect: (customerId) => {
+    // #354: the search action is labelled "Collect / Set Fee" — for a
+    // customer with no monthly fee there is nothing to collect yet, so
+    // open the Set monthly bill editor first (the same dialog the
+    // Customers-list "Bill not set" chip opens) instead of Quick Collect
+    // with Full/Monthly/50% chips all worth Rs 0.
+    const customer = state.customers.find(c => c.id === customerId);
+    if (customer && !customerHasMonthlyFee(customer) && typeof window.openInlineBillEditor === 'function') {
+      window.openInlineBillEditor(customerId);
+      return;
+    }
     if (window.quickCollectModalController?.open) {
       window.quickCollectModalController.open(customerId);
     }

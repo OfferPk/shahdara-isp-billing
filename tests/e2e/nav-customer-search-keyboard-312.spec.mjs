@@ -15,6 +15,21 @@
 
 import { test, expect } from '@playwright/test';
 
+// Since #354, Enter / Collect on a customer with NO monthly fee opens the
+// Set monthly bill editor instead of Quick Collect. These #312 keyboard
+// tests are about Quick Collect, so give every customer a package first
+// (the app's own Collect Setup flow), which also generates their bills.
+async function giveEveryCustomerAfee(page) {
+  await page.evaluate(() => window.collectSetup?.open());
+  const setup = page.locator('#collectSetupModal');
+  await expect(setup).toBeVisible();
+  await page.locator('#collectSetupSelectAll').check();
+  const apply = page.locator('#collectSetupApplyBtn');
+  await expect(apply).toBeEnabled();
+  await apply.click();
+  await expect(setup).toBeHidden({ timeout: 10000 });
+}
+
 function trackErrors(page) {
   const errors = [];
   page.on('console', msg => {
@@ -33,6 +48,7 @@ test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Coll
   test('single result: typing nazeer and pressing Enter opens Quick Collect (#312)', async ({ page, isMobile }) => {
     const errors = trackErrors(page);
     await page.goto('/');
+    await giveEveryCustomerAfee(page);
 
     const searchModal = page.locator('#mobileCustomerSearchModal');
     const searchInput = page.locator('#fastCustomerSearchInput');
@@ -76,6 +92,7 @@ test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Coll
   test('multiple results: ArrowDown moves highlight and Enter opens Quick Collect (#312)', async ({ page }) => {
     const errors = trackErrors(page);
     await page.goto('/');
+    await giveEveryCustomerAfee(page);
 
     const searchModal = page.locator('#mobileCustomerSearchModal');
     const searchInput = page.locator('#fastCustomerSearchInput');

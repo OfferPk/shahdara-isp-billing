@@ -237,6 +237,60 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     }
   });
 
+  // #364: the app's own switchView() hides five of the six main views, but it
+  // only runs on view-tab clicks. Router-driven navigation (browser Back,
+  // drawer/sidebar, hash links, deep links) reaches apply() without it, so the
+  // previously shown view stayed un-hidden under the next screen. apply() is
+  // the single funnel for every path, so the cleanup lives here: after any
+  // navigation exactly one main view is un-hidden, the desktop view tabs and
+  // the mobile bottom nav highlight the screen actually shown, and the
+  // footer backup panel (the Backup screen's content) is closed again.
+  const APP_VIEWS = [
+    ['customersView', 'showCustomersButton'],
+    ['transactionsView', 'showTransactionsButton'],
+    ['billingReportsView', 'showReportsButton'],
+    ['analyticsView', 'showAnalyticsButton'],
+    ['inventoryView', 'showInventoryButton'],
+    ['expensesView', 'showExpensesButton']
+  ];
+  const SCREEN_VIEW = {
+    customers: 'customersView',
+    transactions: 'transactionsView',
+    reports: 'billingReportsView',
+    bills: 'billingReportsView',
+    recovery: 'billingReportsView',
+    alerts: 'billingReportsView',
+    analytics: 'analyticsView',
+    inventory: 'inventoryView',
+    expenses: 'expensesView'
+  };
+  function syncViewState(screen) {
+    const activeView = SCREEN_VIEW[screen] || null;
+    for (const [viewId, tabId] of APP_VIEWS) {
+      const section = doc.getElementById(viewId);
+      if (section && viewId !== activeView) section.setAttribute('hidden', '');
+      const tab = doc.getElementById(tabId);
+      if (tab) tab.setAttribute('aria-current', viewId === activeView ? 'page' : 'false');
+    }
+    if (screen !== 'backup') {
+      const panel = doc.getElementById('backupControls');
+      if (panel && !panel.hidden) {
+        panel.setAttribute('hidden', '');
+        doc.getElementById('backupControlsToggle')?.setAttribute('aria-expanded', 'false');
+      }
+    }
+    // Mirror switchView()'s mobile mapping so Back/hash navigation cannot
+    // leave a stale bottom-nav highlight either.
+    const mobileKey = screen === HOME ? 'home'
+      : screen === 'customers' ? 'customers'
+      : screen === 'transactions' ? 'collection'
+      : SCREEN_VIEW[screen] === 'billingReportsView' ? 'reports'
+      : 'more';
+    doc.querySelectorAll('[data-mobile-nav]').forEach(button => {
+      button.setAttribute('aria-current', button.getAttribute('data-mobile-nav') === mobileKey ? 'page' : 'false');
+    });
+  }
+
   function updateNavActive(activeScreen) {
     const targets = doc.querySelectorAll('[data-nav-target]');
     targets.forEach(btn => {
@@ -280,6 +334,7 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     } else {
       doc.getElementById('customersView')?.setAttribute('hidden', '');
     }
+    syncViewState(screen);
     current = screen;
     body.dataset.screen = screen;
     // #287: Bills / Monthly Report / Dues Recovery / Smart Alerts share one view

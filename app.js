@@ -4889,6 +4889,12 @@ $('#recordSaadSalaryExpenseBtn')?.addEventListener('click',()=>{
 
 $('#recordUmairSalaryExpenseBtn')?.addEventListener('click',()=>{
   const prefill=buildPayrollExpensePrefill('umair',state,selectedPayrollMonth);
+  if(!(Number(prefill.amount)>0)){
+    // No logged workdays for the selected month means there is no payout
+    // to record; prefilling PKR 0 only fails later at submit. Say so now.
+    toast(`No logged workdays for ${monthName(selectedPayrollMonth)} — log a workday first; there is no payout to record.`);
+    return;
+  }
   $('#expenseId').value='';
   $('#expenseDate').value=prefill.date;
   $('#expenseAmount').value=prefill.amount;

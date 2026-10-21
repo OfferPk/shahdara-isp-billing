@@ -751,11 +751,25 @@ export function setupMobileFiberIdentifierModal(state = {}, options = {}) {
     onToast('Exported audits to CSV');
   });
 
-  clearHistoryBtn?.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all fiber identifier audit logs?')) {
+  clearHistoryBtn?.addEventListener('click', async () => {
+    const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+      ? await window.appConfirm({
+          tone: 'danger',
+          title: 'Clear fiber identifier audit logs?',
+          subject: 'Field Tool · Fiber Identifier',
+          message: 'All saved live optical traffic inspection and tone detection audit logs will be permanently removed from this device.',
+          confirmLabel: 'Clear audit logs'
+        })
+      : (typeof confirm === 'function' ? confirm('Are you sure you want to clear all fiber identifier audit logs?') : true);
+
+    if (ask) {
       clearFiberIdentifierAuditLog(storage);
       renderHistory();
-      onToast('Fiber identifier audit logs cleared');
+      if (typeof onToast === 'function') {
+        onToast('Fiber identifier audit logs cleared');
+      } else if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+        window.toast('Fiber identifier audit logs cleared');
+      }
     }
   });
 

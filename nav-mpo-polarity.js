@@ -718,11 +718,25 @@ export function setupMobileMpoModal(state = {}, options = {}) {
     onToast('Exported audits to CSV');
   });
 
-  clearHistoryBtn?.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all MPO polarity audit logs?')) {
+  clearHistoryBtn?.addEventListener('click', async () => {
+    const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+      ? await window.appConfirm({
+          tone: 'danger',
+          title: 'Clear MPO polarity audit logs?',
+          subject: 'Field Tool · MPO Polarity & Pinning',
+          message: 'All saved MPO/MTP ribbon trunk channel polarity verification and pinning audit logs will be permanently removed.',
+          confirmLabel: 'Clear audit logs'
+        })
+      : (typeof confirm === 'function' ? confirm('Are you sure you want to clear all MPO polarity audit logs?') : true);
+
+    if (ask) {
       clearMpoPolarityAuditLog(storage);
       renderHistory();
-      onToast('MPO polarity audit logs cleared');
+      if (typeof onToast === 'function') {
+        onToast('MPO polarity audit logs cleared');
+      } else if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+        window.toast('MPO polarity audit logs cleared');
+      }
     }
   });
 

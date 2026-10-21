@@ -995,11 +995,25 @@ export function setupMobileOltsModal(state = {}, options = {}) {
   });
 
   // Action: Clear History
-  clearHistoryBtn?.addEventListener('click', () => {
-    if (confirm('Are you sure you want to clear all OLTS certification audit logs?')) {
+  clearHistoryBtn?.addEventListener('click', async () => {
+    const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+      ? await window.appConfirm({
+          tone: 'danger',
+          title: 'Clear OLTS certification audits?',
+          subject: 'Field Tool · OLTS Tier-1 Loss Certification',
+          message: 'All saved bi-directional optical insertion loss and Tier-1 pass/fail certification audit records will be permanently removed.',
+          confirmLabel: 'Clear certification logs'
+        })
+      : (typeof confirm === 'function' ? confirm('Are you sure you want to clear all OLTS certification audit logs?') : true);
+
+    if (ask) {
       clearOltsAuditLog(storage);
       renderHistory();
-      onToast('OLTS audit logs cleared');
+      if (typeof onToast === 'function') {
+        onToast('OLTS audit logs cleared');
+      } else if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+        window.toast('OLTS audit logs cleared');
+      }
     }
   });
 

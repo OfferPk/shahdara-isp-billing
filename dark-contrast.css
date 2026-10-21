@@ -138,3 +138,6 @@
   border-color: var(--dk-line) !important;
 }
 [data-theme="dark"] :is(.month-status, .report-status, .customer-billing-badge).status-partial { color: #9cc2f0 !important; background: #16283f !important; }
+/* Health-reasons list inside the card kept the base muted-grey text (3.0:1 on the dark shell);
+   the summary was already lifted by §2's summary rule, the <li> items were not. */
+[data-theme="dark"] .customer-health-reasons { color: var(--dk-muted) !important; }

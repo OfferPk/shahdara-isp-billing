@@ -30,6 +30,10 @@ test('dark-contrast has a billing badge variant for status-partial', () => {
   assert.match(css, /\[data-theme="dark"\] :is\(\.month-status, \.report-status, \.customer-billing-badge\)\.status-partial \{/);
 });
 
+test('dark-contrast lifts the health-reasons list text off the base grey', () => {
+  assert.match(css, /\[data-theme="dark"\] \.customer-health-reasons \{[^}]*color:[^}]*--dk-muted/);
+});
+
 test('dark tokens live in tokens.css (#230) and dark-contrast still uses them', () => {
   // #230 moved the --dk-* definitions into tokens.css (single source of
   // truth); dark-contrast.css keeps consuming them via var().

@@ -361,7 +361,7 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 }
 [data-theme="dark"] .home-collapsible-summary .collapsible-badge {
   background: rgba(63, 191, 159, 0.2);
-  color: #3fbf9f;
+  color: #6fe3c1;
 }
 
 /* #231 & #278: Home Aaj ka hisaab card & Top 5 overdue accounts */
@@ -418,11 +418,11 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
   padding: 0 16px;
   border: 0;
   border-radius: 12px;
-  background: #25D366;
+  background: #0E7A3D;
   color: #ffffff;
   font: 700 13px 'DM Sans', system-ui, sans-serif;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(37, 211, 102, 0.3);
+  box-shadow: 0 3px 10px rgba(14, 122, 61, 0.3);
   transition: filter 0.15s ease, transform 0.15s ease;
 }
 .home-today-wa-btn:hover {
@@ -459,7 +459,7 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 }
 .today-cell-sub {
   font-size: 11px;
-  color: #6c8077;
+  color: #5c6e66;
 }
 .home-today-overdue-wrap {
   border-top: 1px dashed var(--line, #dfe8e3);
@@ -532,7 +532,7 @@ body:not(.sr-screen-mode) #ownerCommandCenter {
 }
 .overdue-item-sub {
   font-size: 11px;
-  color: #6c8077;
+  color: #5c6e66;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -12251,7 +12251,7 @@ dialog::backdrop {
 }
 
 /* Inline Bill Edit Dialog (#315) */
-button.customer-billing-badge {
+.customer-billing-badge {
   font-family: inherit;
   font-size: 10px;
   line-height: 1.25;
@@ -12266,18 +12266,18 @@ button.customer-billing-badge {
   transition: transform 0.1s ease, filter 0.15s ease, box-shadow 0.15s ease;
   user-select: none;
 }
-button.customer-billing-badge:hover {
+.customer-billing-badge:hover {
   filter: brightness(0.94);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
-button.customer-billing-badge:active {
+.customer-billing-badge:active {
   transform: scale(0.97);
 }
-button.customer-billing-badge:focus-visible {
+.customer-billing-badge:focus-visible {
   outline: 2px solid var(--accent, #0284c7);
   outline-offset: 1px;
 }
-button.customer-billing-badge.no-fee {
+.customer-billing-badge.no-fee {
   border-style: dashed;
 }
 

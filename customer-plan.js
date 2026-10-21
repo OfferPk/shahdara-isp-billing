@@ -378,7 +378,7 @@ export function setupInlineBillEdit({ win = window, doc = document, getControlle
     }
   });
 
-  // Wire delegated click on document for customer cards
+  // Wire delegated click & keyboard on document for customer cards
   doc.addEventListener('click', event => {
     const btn = event.target.closest('[data-inline-bill-edit]');
     if (btn) {
@@ -387,6 +387,19 @@ export function setupInlineBillEdit({ win = window, doc = document, getControlle
       const customerId = btn.dataset.inlineBillEdit;
       if (customerId) {
         open(customerId);
+      }
+    }
+  });
+
+  doc.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      const btn = event.target.closest('[data-inline-bill-edit]');
+      if (btn) {
+        event.preventDefault();
+        const customerId = btn.dataset.inlineBillEdit;
+        if (customerId) {
+          open(customerId);
+        }
       }
     }
   });

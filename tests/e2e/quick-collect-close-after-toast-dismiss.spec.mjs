@@ -1,6 +1,6 @@
 // Repro / regression spec for the user-reported Quick Collect bug:
 //   Record a payment -> dismiss the "Payment recorded" toast popup BEFORE its
-//   10s Undo window ends -> the Quick Collect window then refuses to close.
+//   5s Undo window ends -> the Quick Collect window then refuses to close.
 // The dialog must ALWAYS close (header ×, success-step Done, Escape) whatever
 // state the toast / undo timers are in, and the recorded payment must stay.
 import { test, expect } from '@playwright/test';
@@ -95,7 +95,7 @@ test.describe('Quick Collect: close after dismissing the Payment-recorded toast 
     expect(errors).toEqual([]);
   });
 
-  test('undo button counts down live from 10s', async ({ page }) => {
+  test('undo button counts down live from 5s', async ({ page }) => {
     const errors = trackErrors(page);
     const modal = await openQuickCollectWithDues(page);
     await recordPayment(page, modal);
@@ -104,8 +104,8 @@ test.describe('Quick Collect: close after dismissing the Payment-recorded toast 
     const secondsLeft = async () => Number(((await undoBtn.textContent()) || '').match(/\((\d+)s\)/)?.[1] ?? NaN);
     const start = await secondsLeft();
     expect(start).toBeGreaterThan(0);
-    expect(start).toBeLessThanOrEqual(10);
-    // The label must tick DOWN (it is no longer a static "(10s)" label).
+    expect(start).toBeLessThanOrEqual(5);
+    // The label must tick DOWN (it is no longer a static "(5s)" label).
     await expect.poll(secondsLeft, { timeout: 5000 }).toBeLessThan(start);
     await page.locator('#quickCollectDoneCloseBtn').click();
     await expect(modal).toBeHidden();
@@ -160,7 +160,7 @@ test.describe('Quick Collect: close after dismissing the Payment-recorded toast 
     const errors = trackErrors(page);
     const modal = await openQuickCollectWithDues(page);
     const customerId = await recordPayment(page, modal);
-    // Close with the toast (and its Undo) still on screen, well before 10s.
+    // Close with the toast (and its Undo) still on screen, well before 5s.
     await page.locator('#quickCollectDoneCloseBtn').click();
     await expect(modal).toBeHidden();
     // Payment must NOT have been undone by the close: the customer is no

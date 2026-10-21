@@ -53,7 +53,7 @@ test.describe('Customers list in dark mode', () => {
     expect(buttonBg).not.toContain('rgb(255, 255, 255)');
     expect(buttonBg).not.toContain('rgb(251, 253, 252)');
     expect(buttonBg).toMatch(/rgb\(29, 53, 46\)|rgb\(24, 45, 39\)/); // --dk-surface-2 / --dk-surface stops
-    for (const sel of ['.customer-name', '.customer-number-line', '.customer-card-package', '.customer-card-stat strong', '.customer-card-open-hint']) {
+    for (const sel of ['.customer-name', '.customer-number-line', '.customer-card-package', '.customer-card-stat strong', '.customer-card-open-hint', '.customer-health-reasons li']) {
       const ratio = await card.locator(sel).first().evaluate((el) => window.__contrastOf(el));
       expect(ratio, `${sel} contrast`).toBeGreaterThanOrEqual(4.5);
     }

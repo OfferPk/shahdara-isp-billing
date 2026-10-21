@@ -16,7 +16,10 @@ import fs from 'node:fs';
 
 function trackErrors(page) {
   const errors = [];
-  page.on('console', m => { if (m.type() === 'error' && !/favicon|Failed to load resource/.test(m.text())) errors.push(m.text()); });
+  // Excluded: favicon/resource noise, and Chromium's "Blocked call to
+  // navigator.vibrate" policy message, which fires on programmatic
+  // reloads without a prior tap and is not an app error.
+  page.on('console', m => { if (m.type() === 'error' && !/favicon|Failed to load resource|navigator\.vibrate/.test(m.text())) errors.push(m.text()); });
   page.on('pageerror', e => errors.push(e.message));
   return errors;
 }
@@ -293,8 +296,11 @@ test.describe('Issue 358: Expenses screens deep functional test', () => {
       await page.setViewportSize(vp);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow).toBeLessThanOrEqual(1);
-      await expect(page.locator('#expensesHeading')).toBeVisible();
+      // Note: the phase3 heading is intentionally hidden at desktop
+      // widths (the screen title is deduplicated there), so assert on
+      // the always-rendered table content instead.
       await expect(page.locator('#expenseTable')).toContainText('Dark check');
+      await expect(page.locator('#expenseTable tr').first()).toBeVisible();
     }
     expect(errors).toEqual([]);
   });

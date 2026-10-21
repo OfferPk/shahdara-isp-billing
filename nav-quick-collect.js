@@ -856,6 +856,7 @@ export function setupQuickCollectModal({
   let activeDefaults = null;
   let activeReceipt = null;
   let activeUndoContext = null;
+  const UNDO_WINDOW_MS = 5000;
   let undoTimeoutId = null;
   let undoCountdownId = null;
   let undoDeadline = 0;
@@ -1119,11 +1120,12 @@ export function setupQuickCollectModal({
     }
   }
 
-  // Live countdown on the in-dialog Undo button ("Undo Payment (9s)" ... 1s),
-  // so the 10-second window is visible instead of a static "(10s)" label.
+  // Live countdown on the in-dialog Undo button ("Undo Payment (4s)" ... 1s),
+  // so the 5-second window is visible instead of a static "(5s)" label.
+  // (Was 10s until 2026-10-21 — the user asked for 5s: 10 felt uselessly long.)
   function startUndoCountdown() {
     stopUndoCountdown();
-    undoDeadline = Date.now() + 10000;
+    undoDeadline = Date.now() + UNDO_WINDOW_MS;
     const render = () => {
       if (!undoBtn || undoBtn.hidden) return;
       const left = Math.max(0, Math.ceil((undoDeadline - Date.now()) / 1000));
@@ -1137,7 +1139,7 @@ export function setupQuickCollectModal({
   // closed: the × / Done buttons (closeModal below), Escape, a backdrop tap,
   // the universal dialog controller, Bulk Collect taking over, or route sync.
   // Previously only closeModal() cleaned up, so a close that bypassed it left
-  // the 10s undo timer armed, the undo context set and the success step
+  // the 5s undo timer armed, the undo context set and the success step
   // mounted — stale timer/context state then leaked into the next opening.
   function handleDialogClosed() {
     if (closeCleanupHandled) return;
@@ -1434,7 +1436,7 @@ export function setupQuickCollectModal({
       if (undoBtn) {
         undoBtn.hidden = false;
         undoBtn.disabled = false;
-        undoBtn.textContent = '↩ Undo Payment (10s)';
+        undoBtn.textContent = '↩ Undo Payment (5s)';
       }
 
       if (undoTimeoutId) clearTimeout(undoTimeoutId);
@@ -1443,7 +1445,7 @@ export function setupQuickCollectModal({
         activeUndoContext = null;
         stopUndoCountdown();
         if (undoBtn) undoBtn.hidden = true;
-      }, 10000);
+      }, UNDO_WINDOW_MS);
       startUndoCountdown();
 
       // Update parent application state
@@ -1459,7 +1461,7 @@ export function setupQuickCollectModal({
           onAction: () => {
             executeUndo();
           },
-          duration: 10000
+          duration: UNDO_WINDOW_MS
         });
       }
 

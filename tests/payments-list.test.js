@@ -44,7 +44,7 @@ test('app.js renders compact payment rows with every action kept, and delete has
   const { readFileSync } = await import('node:fs');
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   for (const hook of ['data-print-receipt', 'data-print-thermal-receipt', 'data-print-thermal58-receipt', 'data-transaction-edit', 'data-transaction-delete', 'class="tx-row"', 'class="tx-details"', 'tx-day-header']) assert.ok(app.includes(hook), hook);
-  assert.match(app, /title:'Payment deleted', duration:10000, actionLabel:'Undo', onAction:\(\) => undoDeletePayment/);
+  assert.match(app, /title:'Payment deleted', duration:5000, actionLabel:'Undo', onAction:\(\) => undoDeletePayment/);
   assert.match(app, /input:\{ label:'Reason \(optional, kept in the deletion log\)'/);
   assert.match(app, /askLabel:'WhatsApp receipt'/);
 });

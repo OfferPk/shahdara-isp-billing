@@ -12,7 +12,7 @@ function trackErrors(page) {
   return errors;
 }
 
-test.describe('Quick Collect 3-tap collection, 10s Undo, and WhatsApp normalization', () => {
+test.describe('Quick Collect 3-tap collection, 5s Undo, and WhatsApp normalization', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await page.evaluate(() => {

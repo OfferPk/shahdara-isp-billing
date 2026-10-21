@@ -2259,7 +2259,7 @@ async function requestDeletePayment(customerId, month, paymentId) {
   const customer = state.customers.find(item => item.id === customerId);
   const payment = customer?.bills.find(bill => bill.month === month)?.payments.find(item => item.id === paymentId);
   if (!customer || !payment) return;
-  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports. You can undo for 10 seconds.', confirmLabel:'Delete payment', input:{ label:'Reason (optional, kept in the deletion log)', placeholder:'e.g. entered twice', maxLength:200 } });
+  const confirmed = await appConfirm({ tone:'danger', title:'Delete this payment?', subject:`${formatAmount(payment.amount)} · ${payment.date} · #${customer.customerNumber} ${customer.name}`, message:'It will be removed from this device\'s history, totals and exports. You can undo for 5 seconds.', confirmLabel:'Delete payment', input:{ label:'Reason (optional, kept in the deletion log)', placeholder:'e.g. entered twice', maxLength:200 } });
   if (!confirmed) return;
   const reason = (document.getElementById('appConfirmInput')?.value || '').trim();
   try {
@@ -2272,7 +2272,7 @@ async function requestDeletePayment(customerId, month, paymentId) {
     recordPaymentDeletion({ paymentId, customerId, customerNumber:customer.customerNumber, customerName:customer.name, month, date:payment.date, amount:payment.amount, method:payment.method, reason });
     if (selectedCustomerId === customerId) renderDetail();
     renderTransactions();
-    toast(`${formatAmount(payment.amount)} from #${customer.customerNumber} ${customer.name} was removed from this device.`, { type:'success', title:'Payment deleted', duration:10000, actionLabel:'Undo', onAction:() => undoDeletePayment(customerId, month, removed, index) });
+    toast(`${formatAmount(payment.amount)} from #${customer.customerNumber} ${customer.name} was removed from this device.`, { type:'success', title:'Payment deleted', duration:5000, actionLabel:'Undo', onAction:() => undoDeletePayment(customerId, month, removed, index) });
   } catch (error) { toast(error.message, { type:'error' }); }
 }
 function undoDeletePayment(customerId, month, removed, index) {
@@ -2911,7 +2911,7 @@ $('#deleteCustomerButton').addEventListener('click', async () => {
   const index = state.customers.findIndex(item => item.id === customer.id);
   const removed = state.customers[index];
   state = deleteCustomer(state, customer.id); selectedCustomerId = null; appShell.classList.remove('show-detail'); save(); renderDetail();
-  toast('Customer deleted from this device.', { type:'success', title:`#${customer.customerNumber} ${customer.name} deleted`, duration:10000, actionLabel:'Undo', onAction: () => {
+  toast('Customer deleted from this device.', { type:'success', title:`#${customer.customerNumber} ${customer.name} deleted`, duration:5000, actionLabel:'Undo', onAction: () => {
     if (state.customers.some(item => item.id === removed.id)) return;
     const customers = [...state.customers];
     customers.splice(Math.min(index, customers.length), 0, removed);

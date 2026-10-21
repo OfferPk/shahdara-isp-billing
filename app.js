@@ -105,6 +105,7 @@ import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
+import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 import {
   getTodayDateString,
@@ -148,6 +149,7 @@ export let pnlModalController = null;
 export let momGrowthModalController = null;
 export let dailyClosingModalController = null;
 export let lateFeeModalController = null;
+export let worklistsModalController = null;
 let state;
 try {
   state = readState(localStorage);
@@ -477,6 +479,16 @@ function renderDashboard() {
     }
   }
   collectionTargetController?.refresh();
+  const discCountEl = $('#worklistsSummaryDiscCount');
+  const discAmtEl = $('#worklistsSummaryDiscAmount');
+  const recCountEl = $('#worklistsSummaryRecCount');
+  if (discCountEl || recCountEl) {
+    const wData = calculateDisconnectReconnectWorklists(state, { referenceDate });
+    if (discCountEl) discCountEl.textContent = String(wData.kpis.toDisconnectCount);
+    if (discAmtEl) discAmtEl.textContent = `PKR ${formatAmount(wData.kpis.toDisconnectTotalAmount)} dues (> ${wData.rules.disconnectOverdueDays}d)`;
+    if (recCountEl) recCountEl.textContent = String(wData.kpis.toReconnectCount);
+  }
+  worklistsModalController?.render?.();
   // Home Screen Overload Redesign (#213): Populate compact KPI strip
   const kpiTodayEl = $('#kpiTodayCollection');
   if (kpiTodayEl) {
@@ -6395,6 +6407,20 @@ if (typeof document !== 'undefined') {
   dailyClosingModalController = setupDailyClosingModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
+  worklistsModalController = setupWorklistsModal(() => state, {
+    onUpdateState: (newState) => {
+      state = newState;
+      save();
+      renderDetail();
+      renderCustomers();
+      renderDashboard();
+    },
+    onFilterCustomer: (customerId) => {
+      selectCustomer(customerId);
+      switchView('customers');
+    },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   billingCorrectnessModalController = setupBillingCorrectnessModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -7328,6 +7354,24 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const workListModal = $('#workListModal');
+  if (workListModal && !worklistsModalController) {
+    worklistsModalController = setupWorklistsModal(() => state, {
+      onUpdateState: (newState) => {
+        state = newState;
+        save();
+        renderDetail();
+        renderCustomers();
+        renderDashboard();
+      },
+      onFilterCustomer: (customerId) => {
+        selectCustomer(customerId);
+        switchView('customers');
+      },
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const lateFeeModal = $('#lateFeeManagerModal');
   if (lateFeeModal && !lateFeeModalController) {
     lateFeeModalController = setupLateFeeModal({
@@ -7440,6 +7484,7 @@ if (typeof document !== 'undefined') {
     window.momGrowthModalController = momGrowthModalController;
     window.dailyClosingModalController = dailyClosingModalController;
     window.lateFeeModalController = lateFeeModalController;
+    window.worklistsModalController = worklistsModalController;
     window.openWadaFollowupModal = openWadaFollowupModal;
     window.openReminderStagesModal = openReminderStagesModal;
     window.openPaymentReminderModal = openPaymentReminderModal;

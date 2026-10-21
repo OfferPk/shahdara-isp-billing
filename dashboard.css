@@ -3409,6 +3409,513 @@
   color: #8fa59c;
 }
 
+/* ==========================================================================
+   Disconnection & Reconnection Worklists Suite (Issue #227)
+   ========================================================================== */
+.chart-card-worklists {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.worklists-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.worklists-card-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink, #14211e);
+  margin: 0 0 4px;
+}
+
+.worklists-card-header p {
+  font-size: 12px;
+  color: var(--muted, #60756c);
+  margin: 0;
+}
+
+.worklists-card-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.worklists-card-kpi {
+  background: var(--bg-soft, #f8faf9);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.worklists-card-kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.worklists-card-kpi-value {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink, #14211e);
+}
+
+.worklists-card-kpi-value.disc {
+  color: #dc2626;
+}
+
+.worklists-card-kpi-value.rec {
+  color: #059669;
+}
+
+.worklists-card-kpi-sub {
+  font-size: 10.5px;
+  color: var(--muted, #60756c);
+}
+
+/* Modal Dialog */
+#workListModal {
+  max-width: 680px;
+  width: 95vw;
+  max-height: 90vh;
+  padding: 0;
+  border-radius: 16px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+  color: var(--ink, #14211e);
+  overflow: hidden;
+}
+
+#workListModal::backdrop {
+  background: rgba(10, 20, 16, 0.65);
+  backdrop-filter: blur(2px);
+}
+
+.worklist-modal-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.worklist-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--bg-soft, #f4f8f6);
+  border-bottom: 1px solid var(--line, #e2ece7);
+}
+
+.worklist-modal-header h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.worklist-tabs {
+  display: flex;
+  background: var(--bg-soft, #f0f4f2);
+  padding: 4px 16px;
+  gap: 6px;
+  border-bottom: 1px solid var(--line, #e2ece7);
+}
+
+.worklist-tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, #5b6b67);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  min-height: 44px;
+}
+
+.worklist-tab-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--ink, #14211e);
+}
+
+.worklist-tab-btn.active {
+  background: var(--surface, #ffffff);
+  color: var(--primary, #0e5b4d);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.worklist-tab-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--line, #e2ece7);
+  color: var(--ink, #14211e);
+}
+
+.worklist-tab-btn.active .worklist-tab-badge {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+}
+
+.worklist-modal-body {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.worklist-svg-container {
+  margin-bottom: 4px;
+}
+
+.worklist-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.worklist-search-wrap {
+  flex: 1;
+  min-width: 180px;
+}
+
+.worklist-search-wrap input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--line, #ccd9d3);
+  border-radius: 8px;
+  font-size: 13px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.worklist-filter-wrap select {
+  padding: 8px 12px;
+  border: 1px solid var(--line, #ccd9d3);
+  border-radius: 8px;
+  font-size: 13px;
+  min-height: 44px;
+  background: var(--surface, #ffffff);
+}
+
+.worklist-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.worklist-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  transition: border-color 0.15s ease;
+}
+
+.worklist-item:hover {
+  border-color: #a4c2b7;
+}
+
+.worklist-item-disconnect {
+  border-left: 4px solid #ef4444;
+}
+
+.worklist-item-reconnect {
+  border-left: 4px solid #10b981;
+}
+
+.worklist-item-main {
+  flex: 1;
+  min-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.worklist-item-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.worklist-cust-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-soft, #f0f4f2);
+  color: var(--muted, #5b6b67);
+}
+
+.worklist-cust-name {
+  font-size: 14px;
+  color: var(--ink, #14211e);
+}
+
+.worklist-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.worklist-tag-overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.worklist-tag-cleared {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.worklist-item-meta {
+  font-size: 12px;
+  color: var(--muted, #60756c);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.worklist-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.worklist-amount-col {
+  text-align: right;
+  min-width: 90px;
+}
+
+.worklist-amount-col .amount-label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted, #60756c);
+  text-transform: uppercase;
+}
+
+.worklist-amount-col .amount-val {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.amount-val-due {
+  color: #dc2626;
+}
+
+.amount-val-zero {
+  color: #059669;
+}
+
+.worklist-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.worklist-wa-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 6px 10px;
+  min-height: 40px;
+}
+
+.worklist-mark-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  min-height: 40px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.worklist-modal-footer {
+  padding: 12px 18px;
+  background: var(--bg-soft, #f4f8f6);
+  border-top: 1px solid var(--line, #e2ece7);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.worklist-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.worklist-empty-state {
+  text-align: center;
+  padding: 30px 15px;
+  color: var(--muted, #60756c);
+}
+
+.worklist-empty-state .empty-icon {
+  font-size: 32px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.worklist-empty-state h4 {
+  font-size: 14px;
+  color: var(--ink, #14211e);
+  margin: 0 0 4px;
+}
+
+.worklist-empty-state p {
+  font-size: 12px;
+  margin: 0;
+}
+
+/* Rules Form Pane */
+.worklist-rules-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin: 10px 0;
+}
+
+.worklist-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.worklist-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink, #14211e);
+}
+
+.worklist-field input {
+  padding: 8px 12px;
+  border: 1px solid var(--line, #ccd9d3);
+  border-radius: 8px;
+  font-size: 13px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.worklist-field-desc {
+  font-size: 11px;
+  color: var(--muted, #60756c);
+}
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .chart-card-worklists {
+  background: #141f1c;
+  border-color: #243530;
+}
+
+[data-theme="dark"] .worklists-card-kpi {
+  background: #101917;
+  border-color: #243530;
+}
+
+[data-theme="dark"] #workListModal {
+  background: #131c19;
+  border-color: #243530;
+  color: #e3ece9;
+}
+
+[data-theme="dark"] .worklist-modal-header,
+[data-theme="dark"] .worklist-modal-footer {
+  background: #0e1513;
+  border-color: #243530;
+}
+
+[data-theme="dark"] .worklist-tabs {
+  background: #0e1513;
+  border-color: #243530;
+}
+
+[data-theme="dark"] .worklist-tab-btn {
+  color: #9db0ab;
+}
+
+[data-theme="dark"] .worklist-tab-btn.active {
+  background: #182420;
+  color: #3fbf9f;
+}
+
+[data-theme="dark"] .worklist-item {
+  background: #182420;
+  border-color: #243530;
+}
+
+[data-theme="dark"] .worklist-cust-badge {
+  background: #101917;
+  color: #9db0ab;
+}
+
+[data-theme="dark"] .worklist-cust-name {
+  color: #e3ece9;
+}
+
+[data-theme="dark"] .worklist-tag-overdue {
+  background: #3f1717;
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .worklist-tag-cleared {
+  background: #0f3223;
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .worklist-search-wrap input,
+[data-theme="dark"] .worklist-filter-wrap select,
+[data-theme="dark"] .worklist-field input {
+  background: #101917;
+  border-color: #243530;
+  color: #e3ece9;
+}
+
+[data-theme="dark"] .worklist-empty-state h4,
+[data-theme="dark"] .worklist-field label {
+  color: #e3ece9;
+}
+
+
 
 
 

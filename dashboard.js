@@ -6035,6 +6035,20 @@ export {
   setupMomGrowthModal
 } from './dashboard-mom-growth.js';
 
+export {
+  calculateDisconnectReconnectWorklists,
+  markCustomerDisconnected,
+  markCustomerReconnected,
+  revertCustomerServiceStatus,
+  renderWorklistsSvg,
+  generateWorklistsCsv,
+  generateWorklistsPrintHtml,
+  generateWorklistsBriefing,
+  setupWorklistsModal,
+  DEFAULT_WORKLIST_RULES,
+  WORKLIST_RULES_STORAGE_KEY
+} from './dashboard-worklists.js';
+
 
 
 

@@ -415,7 +415,7 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
   return `<tr class="customer-table-row ${isSelected ? 'is-selected' : ''} ${archived ? 'is-archived' : ''}" data-customer-row="${escapeHtml(customer.id)}">
     <td class="col-num">#${custNum}${archived ? ' (Archived)' : ''}</td>
     <td class="col-name">
-      <button class="customer-row-btn" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-label="Open profile for #${custNum} ${escapeHtml(customer.name)}">
+      <button class="customer-row-btn" type="button" data-customer-id="${escapeHtml(customer.id)}" title="Open profile for #${custNum} ${escapeHtml(customer.name)}">
         <strong>${escapeHtml(customer.name)}</strong>
         ${customer.phone ? `<small class="cust-phone">${escapeHtml(customer.phone)}</small>` : ''}
       </button>

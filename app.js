@@ -399,9 +399,9 @@ function renderDashboard() {
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
   $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
-  document.querySelector('[data-customer-service-filter="active"]').setAttribute('aria-label',`Filter by manual service status Active (${totals.activeServiceCount} unarchived)`);
-  document.querySelector('[data-customer-service-filter="offline"]').setAttribute('aria-label',`Filter by manual service status Offline (${totals.offlineServiceCount} unarchived)`);
-  document.querySelector('[data-customer-service-filter="not-set"]').setAttribute('aria-label',`Filter by manual service status Not set (${totals.unsetServiceCount} unarchived)`);
+  document.querySelector('[data-customer-service-filter="active"]').setAttribute('aria-label',`Active ${totals.activeServiceCount} — Filter by manual service status (${totals.activeServiceCount} unarchived)`);
+  document.querySelector('[data-customer-service-filter="offline"]').setAttribute('aria-label',`Offline ${totals.offlineServiceCount} — Filter by manual service status (${totals.offlineServiceCount} unarchived)`);
+  document.querySelector('[data-customer-service-filter="not-set"]').setAttribute('aria-label',`Not set ${totals.unsetServiceCount} — Filter by manual service status (${totals.unsetServiceCount} unarchived)`);
   $('#serviceStateCountsAnnouncement').textContent = `Manual service counts, excluding archived profiles: Active ${totals.activeServiceCount} · Offline ${totals.offlineServiceCount} · Not set ${totals.unsetServiceCount}`;
   $('#dashboardTotalCollection').textContent = retainedPayments.length ? formatAmount(totals.totalCollection) : 'No payment entries';
   $('#dashboardTotalDue').textContent = retainedBills.length === 0 ? 'No bill entries' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : 'Not set';
@@ -708,7 +708,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="Set customer ${customer.customerNumber} manual service status to ${label}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" aria-label="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}. Click to ${isFeeSet ? 'edit' : 'set'} monthly bill inline.">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(chipText)} — Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}. Click to ${isFeeSet ? 'edit' : 'set'} monthly bill inline.">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -808,7 +808,7 @@ function renderCustomers() {
         if (icon) icon.textContent = isDesc ? '▼' : '▲';
       } else {
         th.classList.remove('sort-active');
-        th.setAttribute('aria-sort', 'none');
+        th.removeAttribute('aria-sort');
         if (icon) icon.textContent = '⇅';
       }
     });
@@ -3936,7 +3936,7 @@ function renderAreaIntelligence() {
         th.setAttribute('aria-sort', areaSortAsc ? 'ascending' : 'descending');
         if (indicator) indicator.textContent = areaSortAsc ? ' ↑' : ' ↓';
       } else {
-        th.setAttribute('aria-sort', 'none');
+        th.removeAttribute('aria-sort');
         if (indicator) indicator.textContent = '';
       }
     });
@@ -4080,7 +4080,7 @@ function renderPackageSummaryTable() {
       th.setAttribute('aria-sort', packageSortAsc ? 'ascending' : 'descending');
       if (indicator) indicator.textContent = packageSortAsc ? ' ↑' : ' ↓';
     } else {
-      th.setAttribute('aria-sort', 'none');
+      th.removeAttribute('aria-sort');
       if (indicator) indicator.textContent = '';
     }
   });
@@ -4163,7 +4163,7 @@ function renderInventory() {
       th.setAttribute('aria-sort', inventorySortAsc ? 'ascending' : 'descending');
       if (indicator) indicator.textContent = inventorySortAsc ? ' ↑' : ' ↓';
     } else {
-      th.setAttribute('aria-sort', 'none');
+      th.removeAttribute('aria-sort');
       if (indicator) indicator.textContent = '';
     }
   });

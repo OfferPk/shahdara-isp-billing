@@ -1065,7 +1065,10 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
   const toggleBtns = container.querySelectorAll('.language-toggle-btn, #languageToggleBtn, #drawerLanguageToggleBtn, #mobileMoreLanguageToggleBtn');
   toggleBtns.forEach(btn => {
     btn.setAttribute('title', t('lang_switch_title', activeLang));
-    btn.setAttribute('aria-label', t('lang_aria_label', activeLang));
+    // The accessible name must contain the button's visible label text
+    // (axe label-content-name-mismatch, #229), so prefix it.
+    const visibleLabel = activeLang === 'ur' ? 'English' : 'اردو';
+    btn.setAttribute('aria-label', `${visibleLabel} — ${t('lang_aria_label', activeLang)}`);
   });
 
   // 13. Issue #228: translate every remaining visible button/heading from
@@ -1178,7 +1181,7 @@ export function renderLanguageToggleBtnHtml(lang = null, id = 'languageToggleBtn
   const active = lang && SUPPORTED_LANGUAGES.includes(lang) ? lang : getAppLanguage();
   const nextLabel = active === 'ur' ? 'English' : 'اردو';
   const title = t('lang_switch_title', active);
-  const aria = t('lang_aria_label', active);
+  const aria = `${nextLabel} — ${t('lang_aria_label', active)}`;
 
   return `
     <button id="${id}" class="language-toggle-btn ${extraClass}".trim() type="button" aria-label="${aria}" title="${title}">

@@ -15,6 +15,7 @@
     "@capacitor/core": "^7.6.9"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@capacitor/cli": "^7.6.9",
     "@playwright/test": "^1.64.1",
     "esbuild": "^0.28.2"

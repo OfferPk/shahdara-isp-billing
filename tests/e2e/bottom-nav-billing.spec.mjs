@@ -112,16 +112,35 @@ test.describe('Mobile Bottom Navigation & More Sheet Billing Polish', () => {
       }
     }
 
-    // Verify clicking 'Expenses' closes the menu and switches to expenses view
+    // Verify the primary 6 billing workflows are strictly first in order
+    const orderedActions = await moreMenu.locator('button[data-mobile-more]').evaluateAll(
+      btns => btns.map(b => b.getAttribute('data-mobile-more'))
+    );
+    expect(orderedActions.slice(0, 6)).toEqual([
+      'customers',
+      'collection',
+      'bills',
+      'expenses',
+      'reports',
+      'backup'
+    ]);
+
+    // Verify live badges on billing items
+    await expect(moreMenu.locator('button[data-mobile-more="customers"] .more-menu-badge')).toBeAttached();
+    await expect(moreMenu.locator('button[data-mobile-more="expenses"] .more-menu-badge')).toBeAttached();
+    await expect(moreMenu.locator('button[data-mobile-more="recovery"] .more-menu-badge')).toBeAttached();
+
+    // Verify clicking 'Expenses' closes the menu, switches to expenses view, and syncs active state
     const expensesBtn = moreMenu.locator('button[data-mobile-more="expenses"]');
     await expensesBtn.click();
     await expect(moreMenu).not.toBeVisible();
     await expect(moreBtn).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('#expensesView')).toBeVisible();
 
-    // Reopen More menu and verify Escape key dismisses it
+    // Reopen More menu and verify active state on Expenses button
     await moreBtn.click();
     await expect(moreMenu).toBeVisible();
+    await expect(moreMenu.locator('button[data-mobile-more="expenses"]')).toHaveAttribute('aria-current', 'page');
     await page.keyboard.press('Escape');
     await expect(moreMenu).not.toBeVisible();
 

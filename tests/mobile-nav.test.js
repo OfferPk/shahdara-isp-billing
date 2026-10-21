@@ -15207,3 +15207,124 @@ test('Issue #340: breadcrumb bar hides on Home, resets trail, and normalizes rou
     globalThis.window = prevWin;
   }
 });
+
+test('Backlog Item 8: bottom nav includes dues badge on Collection and More menu prioritizes billing items first', async () => {
+  const indexHtml = read('index.html');
+  const navCss = read('nav.css');
+
+  // Verify bottom nav Collection button has .has-badge and #bottomNavBadgeCollection with dues badge alert
+  assert.match(indexHtml, /id="bottomNavBadgeCollection"[^>]*class="[^"]*badge-alert[^"]*"/);
+  assert.match(indexHtml, /id="bottomNavBadgeCollection"[^>]*data-nav-badge="collection"/);
+  assert.match(indexHtml, /id="bottomNavBadgeCollection"[^>]*data-nav-badge-alias="dues"/);
+  assert.match(indexHtml, /id="mobileMoreButton"[^>]*data-mobile-nav="more"/);
+
+  // Verify More menu section labels and billing items order
+  assert.match(indexHtml, /class="more-menu-section-label"[^>]*>.*?Billing &amp; Business: Core Ledger/);
+
+  // Verify billing items are placed at the top of the More menu in prioritized order
+  const moreMenuIdx = indexHtml.indexOf('id="mobileMoreMenu"');
+  assert.ok(moreMenuIdx !== -1, 'mobileMoreMenu must exist');
+  const moreSub = indexHtml.slice(moreMenuIdx, moreMenuIdx + 4000);
+
+  const posCustomers = moreSub.indexOf('data-mobile-more="customers"');
+  const posCollection = moreSub.indexOf('data-mobile-more="collection"');
+  const posBills = moreSub.indexOf('data-mobile-more="bills"');
+  const posExpenses = moreSub.indexOf('data-mobile-more="expenses"');
+  const posReports = moreSub.indexOf('data-mobile-more="reports"');
+  const posBackup = moreSub.indexOf('data-mobile-more="backup"');
+
+  assert.ok(posCustomers !== -1, 'customers must be in more menu');
+  assert.ok(posCollection !== -1, 'collection must be in more menu');
+  assert.ok(posBills !== -1, 'bills must be in more menu');
+  assert.ok(posExpenses !== -1, 'expenses must be in more menu');
+  assert.ok(posReports !== -1, 'reports must be in more menu');
+  assert.ok(posBackup !== -1, 'backup must be in more menu');
+
+  // Assert order: customers < collection < bills < expenses < reports < backup
+  assert.ok(posCustomers < posCollection, 'Customers before Collection');
+  assert.ok(posCollection < posBills, 'Collection before Bills');
+  assert.ok(posBills < posExpenses, 'Bills before Expenses');
+  assert.ok(posExpenses < posReports, 'Expenses before Reports');
+  assert.ok(posReports < posBackup, 'Reports before Backup');
+
+  // Verify more-menu-badge styling and presence in HTML
+  assert.match(indexHtml, /class="more-menu-badge"[^>]*data-nav-badge="customers"/);
+  assert.match(indexHtml, /class="more-menu-badge"[^>]*data-nav-badge="expenses"/);
+  assert.match(indexHtml, /class="more-menu-badge badge-alert"[^>]*data-nav-badge="recovery"/);
+
+  // Verify nav.css styles for more-menu-badge and active states
+  assert.match(navCss, /\.more-menu-badge\b/);
+  assert.match(navCss, /\.more-menu-badge\.badge-alert\b/);
+  assert.match(navCss, /\.mobile-more-menu button\[aria-current="page"\]/);
+  assert.match(navCss, /\[data-theme="dark"\] \.more-menu-badge/);
+  assert.match(navCss, /\[dir="rtl"\] \.more-menu-badge/);
+});
+
+test('Backlog Item 8: getMobileNavTabForScreen and syncMobileBottomNav handle collection and route aliases', async () => {
+  const { getMobileNavTabForScreen, syncMobileBottomNav, setupSidebarRail } = await import('../nav.js');
+
+  // getMobileNavTabForScreen handles direct and alias inputs
+  assert.equal(getMobileNavTabForScreen('home'), 'home');
+  assert.equal(getMobileNavTabForScreen('customers'), 'customers');
+  assert.equal(getMobileNavTabForScreen('collection'), 'collection');
+  assert.equal(getMobileNavTabForScreen('transactions'), 'collection');
+  assert.equal(getMobileNavTabForScreen('payments'), 'collection');
+  assert.equal(getMobileNavTabForScreen('collect'), 'collection');
+  assert.equal(getMobileNavTabForScreen('reports'), 'reports');
+  assert.equal(getMobileNavTabForScreen('bills'), 'reports');
+  assert.equal(getMobileNavTabForScreen('alerts'), 'reports');
+  assert.equal(getMobileNavTabForScreen('recovery'), 'collection');
+  assert.equal(getMobileNavTabForScreen('dues'), 'collection');
+  assert.equal(getMobileNavTabForScreen('backup'), 'more');
+  assert.equal(getMobileNavTabForScreen('settings'), 'more');
+
+  // Test syncMobileBottomNav alias activation on More menu buttons
+  const createMockBtn = (action) => ({
+    attributes: new Map([['data-mobile-more', action], ['aria-current', 'false']]),
+    getAttribute(k) { return this.attributes.get(k); },
+    setAttribute(k, v) { this.attributes.set(k, v); }
+  });
+
+  const moreCollectionBtn = createMockBtn('collection');
+  const moreRecoveryBtn = createMockBtn('recovery');
+  const moreBackupBtn = createMockBtn('backup');
+  const moreEasypaisaBtn = createMockBtn('easypaisa');
+
+  const prevDoc = globalThis.document;
+  globalThis.document = {
+    querySelector: sel => (sel === '.mobile-bottom-nav' ? { querySelectorAll: () => [] } : null),
+    getElementById: id => {
+      if (id === 'mobileMoreMenu') {
+        return {
+          hidden: false,
+          querySelectorAll: sel => (sel === '[data-mobile-more]' ? [moreCollectionBtn, moreRecoveryBtn, moreBackupBtn, moreEasypaisaBtn] : [])
+        };
+      }
+      return null;
+    }
+  };
+
+  try {
+    // When screen is 'transactions', moreAction 'collection' must become active page
+    syncMobileBottomNav('transactions');
+    assert.equal(moreCollectionBtn.getAttribute('aria-current'), 'page');
+    assert.equal(moreRecoveryBtn.getAttribute('aria-current'), 'false');
+
+    // When screen is 'dues', moreAction 'recovery' must become active page
+    syncMobileBottomNav('dues');
+    assert.equal(moreCollectionBtn.getAttribute('aria-current'), 'false');
+    assert.equal(moreRecoveryBtn.getAttribute('aria-current'), 'page');
+
+    // When screen is 'settings', moreAction 'backup' must become active page
+    syncMobileBottomNav('settings');
+    assert.equal(moreBackupBtn.getAttribute('aria-current'), 'page');
+    assert.equal(moreRecoveryBtn.getAttribute('aria-current'), 'false');
+
+    // When screen is 'payments-inbox', moreAction 'easypaisa' must become active page
+    syncMobileBottomNav('payments-inbox');
+    assert.equal(moreEasypaisaBtn.getAttribute('aria-current'), 'page');
+  } finally {
+    globalThis.document = prevDoc;
+  }
+});
+

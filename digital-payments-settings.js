@@ -30,6 +30,30 @@ export function getDefaultDigitalPaymentsSettings() {
 }
 
 /**
+ * Cleans and bounds a digital payment settings object. Pure: no storage access.
+ * Used by load/save below and by the backup/restore engine (core.js) so a backup
+ * file's settings section is held to exactly the same rules as the dialog.
+ * @param {Object} input
+ * @returns {Object} Cleaned settings
+ */
+export function sanitizeDigitalPaymentsSettings(input = {}) {
+  const defaults = getDefaultDigitalPaymentsSettings();
+  const source = input && typeof input === 'object' ? input : {};
+  return {
+    ownerRaastId: String(source.ownerRaastId ?? '').trim().slice(0, 40),
+    ownerTillId: String(source.ownerTillId ?? '').trim().slice(0, 30),
+    ownerAccountTitle: String(source.ownerAccountTitle ?? defaults.ownerAccountTitle).trim().slice(0, 100),
+    ownerPhone: String(source.ownerPhone ?? '').trim().slice(0, 20),
+    ownerBankName: String(source.ownerBankName ?? '').trim().slice(0, 80),
+    ownerAccountNumber: String(source.ownerAccountNumber ?? '').trim().slice(0, 50),
+    ownerQrDataUrl: (typeof source.ownerQrDataUrl === 'string' && source.ownerQrDataUrl.startsWith('data:image/'))
+      ? source.ownerQrDataUrl.slice(0, 350000)
+      : '',
+    instructions: String(source.instructions ?? defaults.instructions).trim().slice(0, 200)
+  };
+}
+
+/**
  * Loads digital payment settings from storage with safe fallback.
  * @param {Storage|null} [storage]
  * @returns {Object}
@@ -42,16 +66,7 @@ export function getDigitalPaymentsSettings(storage = (typeof localStorage !== 'u
     if (!raw) return defaults;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return defaults;
-    return {
-      ownerRaastId: String(parsed.ownerRaastId ?? '').trim().slice(0, 40),
-      ownerTillId: String(parsed.ownerTillId ?? '').trim().slice(0, 30),
-      ownerAccountTitle: String(parsed.ownerAccountTitle ?? defaults.ownerAccountTitle).trim().slice(0, 100),
-      ownerPhone: String(parsed.ownerPhone ?? '').trim().slice(0, 20),
-      ownerBankName: String(parsed.ownerBankName ?? '').trim().slice(0, 80),
-      ownerAccountNumber: String(parsed.ownerAccountNumber ?? '').trim().slice(0, 50),
-      ownerQrDataUrl: typeof parsed.ownerQrDataUrl === 'string' && parsed.ownerQrDataUrl.startsWith('data:image/') ? parsed.ownerQrDataUrl : '',
-      instructions: String(parsed.instructions ?? defaults.instructions).trim().slice(0, 200)
-    };
+    return sanitizeDigitalPaymentsSettings(parsed);
   } catch {
     return defaults;
   }
@@ -64,19 +79,7 @@ export function getDigitalPaymentsSettings(storage = (typeof localStorage !== 'u
  * @returns {Object} Validated and saved settings
  */
 export function saveDigitalPaymentsSettings(input = {}, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
-  const defaults = getDefaultDigitalPaymentsSettings();
-  const cleaned = {
-    ownerRaastId: String(input.ownerRaastId ?? '').trim().slice(0, 40),
-    ownerTillId: String(input.ownerTillId ?? '').trim().slice(0, 30),
-    ownerAccountTitle: String(input.ownerAccountTitle ?? defaults.ownerAccountTitle).trim().slice(0, 100),
-    ownerPhone: String(input.ownerPhone ?? '').trim().slice(0, 20),
-    ownerBankName: String(input.ownerBankName ?? '').trim().slice(0, 80),
-    ownerAccountNumber: String(input.ownerAccountNumber ?? '').trim().slice(0, 50),
-    ownerQrDataUrl: (typeof input.ownerQrDataUrl === 'string' && input.ownerQrDataUrl.startsWith('data:image/'))
-      ? input.ownerQrDataUrl.slice(0, 350000)
-      : '',
-    instructions: String(input.instructions ?? defaults.instructions).trim().slice(0, 200)
-  };
+  const cleaned = sanitizeDigitalPaymentsSettings(input);
 
   if (storage) {
     try {
@@ -160,6 +163,7 @@ export function initDigitalPaymentsSettingsModal(options = {}) {
   const removeQrBtn = document.getElementById('settingRemoveOwnerQrBtn');
   const instructionsInput = document.getElementById('settingDigitalInstructions');
   const closeBtn = document.getElementById('closeDigitalPaymentsSettingsModalBtn');
+  const cancelBtn = document.getElementById('cancelDigitalPaymentsSettingsBtn');
   const triggerBtn = document.getElementById(options.triggerId || 'mobileMoreDigitalSettingsBtn');
 
   let currentQrDataUrl = '';
@@ -273,6 +277,7 @@ export function initDigitalPaymentsSettingsModal(options = {}) {
   });
 
   closeBtn?.addEventListener('click', closeModal);
+  cancelBtn?.addEventListener('click', closeModal);
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closeModal();
   });

@@ -115,3 +115,36 @@
 [data-theme="dark"] #backButton, [data-theme="dark"] #backButton * { color: var(--dk-accent) !important; }
 [data-theme="dark"] .profile-tabs button:not([aria-selected="true"]) { color: var(--dk-muted) !important; background: transparent !important; }
 [data-theme="dark"] #profileAvatar { background: var(--dk-surface-2) !important; color: var(--dk-accent) !important; }
+
+/* 6. Customer profile cards: the card body is a <button> painted with a light gradient in
+   styles.css (.customer-select.customer-profile-card-open). #288 darkened the <li> shell and
+   forced the text light, but never the button itself, leaving near-white text on a white card.
+   Same leak class: .service-choice chips and the archived Unarchive button kept white
+   backgrounds, and the billing badge had no dark variant for status-partial. */
+[data-theme="dark"] .customer-select.customer-profile-card-open {
+  background: linear-gradient(145deg, var(--dk-surface-2) 0%, var(--dk-surface) 100%) !important;
+  color: var(--dk-ink) !important;
+}
+[data-theme="dark"] .customer-select.customer-profile-card-open:hover {
+  background: linear-gradient(145deg, #224236 0%, var(--dk-surface-2) 100%) !important;
+}
+[data-theme="dark"] .customer-select.customer-profile-card-open[aria-current="true"] {
+  background: linear-gradient(145deg, #26503f 0%, #1e3d31 100%) !important;
+  box-shadow: inset 3px 0 0 var(--dk-accent);
+}
+[data-theme="dark"] .customer-card-open-hint { border-top-color: var(--dk-line) !important; }
+[data-theme="dark"] .customer-card-heading .avatar { box-shadow: inset 0 0 0 1px var(--dk-line); }
+[data-theme="dark"] .service-choice {
+  background: var(--dk-surface-2) !important;
+  color: var(--dk-ink) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .service-choice-active { background: #14382a !important; color: #8fe0b6 !important; border-color: #2c5c46 !important; }
+[data-theme="dark"] .service-choice-offline { background: #402a24 !important; color: #ffb4a8 !important; border-color: #6e453c !important; }
+[data-theme="dark"] .service-choice-not-set { background: var(--dk-surface-2) !important; color: var(--dk-muted) !important; border-color: var(--dk-line) !important; }
+[data-theme="dark"] .archived-unarchive-button {
+  background: var(--dk-surface-2) !important;
+  color: var(--dk-accent) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] :is(.month-status, .report-status, .customer-billing-badge).status-partial { color: #9cc2f0 !important; background: #16283f !important; }

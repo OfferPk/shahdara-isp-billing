@@ -478,7 +478,7 @@ export function renderWorklistsSvg(worklistData) {
         <text x="28" y="24" fill="#fca5a5" font-size="11" font-weight="600">TO DISCONNECT</text>
         <text x="16" y="52" fill="#fee2e2" font-size="22" font-weight="800">${discCount}</text>
         <text x="60" y="52" fill="#ef4444" font-size="12" font-weight="600">subscribers</text>
-        <text x="16" y="66" fill="#f87171" font-size="11">PKR ${formatPKR(kpis?.toDisconnectTotalAmount || 0)} dues (> ${rules.disconnectOverdueDays}d)</text>
+        <text x="16" y="66" fill="#f87171" font-size="11">${formatPKR(kpis?.toDisconnectTotalAmount || 0)} dues (> ${rules.disconnectOverdueDays}d)</text>
       </g>
       
       <!-- Reconnect Metric -->
@@ -596,7 +596,7 @@ export function generateWorklistsPrintHtml(worklistData) {
       <div class="kpi-row">
         <div class="kpi-card">
           <span>To Disconnect (منقطع کریں)</span>
-          <strong>${kpis.toDisconnectCount || 0} accounts &bull; PKR ${formatPKR(kpis.toDisconnectTotalAmount || 0)}</strong>
+          <strong>${kpis.toDisconnectCount || 0} accounts &bull; ${formatPKR(kpis.toDisconnectTotalAmount || 0)}</strong>
         </div>
         <div class="kpi-card">
           <span>To Reconnect (بحال کریں)</span>
@@ -687,12 +687,12 @@ export function generateWorklistsBriefing(worklistData) {
     `📅 Date: *${referenceDate}* (PKT)`,
     `⚙️ Rules: Overdue > ${rules.disconnectOverdueDays}d | Dues > PKR ${rules.disconnectMinBalance}`,
     '',
-    `*⚠️ TO DISCONNECT / منقطع لسٹ:* *${kpis.toDisconnectCount || 0}* accounts (Total: *PKR ${formatPKR(kpis.toDisconnectTotalAmount || 0)}*)`
+    `*⚠️ TO DISCONNECT / منقطع لسٹ:* *${kpis.toDisconnectCount || 0}* accounts (Total: *${formatPKR(kpis.toDisconnectTotalAmount || 0)}*)`
   ];
 
   if (toDisconnect.length > 0) {
     toDisconnect.slice(0, 10).forEach((c, i) => {
-      lines.push(`${i + 1}. #${c.customerNumber} ${c.name} (${c.area}) - PKR ${formatPKR(c.totalOutstanding)} [${c.maxOverdueDays}d late] 📞 ${c.phone}`);
+      lines.push(`${i + 1}. #${c.customerNumber} ${c.name} (${c.area}) - ${formatPKR(c.totalOutstanding)} [${c.maxOverdueDays}d late] 📞 ${c.phone}`);
     });
     if (toDisconnect.length > 10) {
       lines.push(`... and ${toDisconnect.length - 10} more accounts.`);
@@ -706,7 +706,7 @@ export function generateWorklistsBriefing(worklistData) {
 
   if (toReconnect.length > 0) {
     toReconnect.slice(0, 10).forEach((c, i) => {
-      lines.push(`${i + 1}. #${c.customerNumber} ${c.name} (${c.area}) - Paid PKR ${formatPKR(c.latestPaymentAmount)} on ${c.latestPaymentDate} 📞 ${c.phone}`);
+      lines.push(`${i + 1}. #${c.customerNumber} ${c.name} (${c.area}) - Paid ${formatPKR(c.latestPaymentAmount)} on ${c.latestPaymentDate} 📞 ${c.phone}`);
     });
     if (toReconnect.length > 10) {
       lines.push(`... and ${toReconnect.length - 10} more accounts.`);
@@ -838,7 +838,7 @@ export function setupWorklistsModal(getState, options = {}) {
               <div class="worklist-item-actions">
                 <div class="worklist-amount-col">
                   <span class="amount-label">Dues</span>
-                  <strong class="amount-val amount-val-due">PKR ${formatPKR(c.totalOutstanding)}</strong>
+                  <strong class="amount-val amount-val-due">${formatPKR(c.totalOutstanding)}</strong>
                 </div>
                 <div class="worklist-buttons-group">
                   <a href="${escapeHtml(c.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="secondary-button btn-sm worklist-wa-btn" title="Send WhatsApp disconnection warning">
@@ -893,7 +893,7 @@ export function setupWorklistsModal(getState, options = {}) {
                 <div class="worklist-item-meta">
                   <span>📍 ${escapeHtml(c.area)}</span>
                   <span>📦 ${escapeHtml(c.package)}</span>
-                  <span>💰 Paid PKR ${formatPKR(c.latestPaymentAmount)} on ${escapeHtml(c.latestPaymentDate)} (${escapeHtml(c.latestPaymentMethod)})</span>
+                  <span>💰 Paid ${formatPKR(c.latestPaymentAmount)} on ${escapeHtml(c.latestPaymentDate)} (${escapeHtml(c.latestPaymentMethod)})</span>
                 </div>
               </div>
               <div class="worklist-item-actions">

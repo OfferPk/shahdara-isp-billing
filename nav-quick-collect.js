@@ -27,6 +27,7 @@ import {
   formatDigitalPaymentWhatsAppText
 } from './digital-payments-settings.js';
 import { formatWhatsAppUrl } from './form-validation.js';
+import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import {
   isReceiptShared,
   markReceiptShared,
@@ -1601,6 +1602,40 @@ export function setupQuickCollectModal({
   printReceiptBtn?.addEventListener('click', () => {
     window.print?.();
   });
+
+  // #226: Bluetooth thermal print of the just-collected receipt. The button
+  // stays hidden when Web Bluetooth is unavailable (system print remains).
+  const bluetoothPrintBtn = document.getElementById('quickCollectBluetoothPrintBtn');
+  if (bluetoothPrintBtn) {
+    bluetoothPrintBtn.hidden = !isWebBluetoothAvailable();
+    bluetoothPrintBtn.addEventListener('click', async () => {
+      if (!activeReceipt) {
+        if (typeof onToast === 'function') onToast('No receipt to print yet.', { type: 'error' });
+        return;
+      }
+      try {
+        if (!thermalPrinter.isConnected()) await thermalPrinter.connect();
+        const money = (v) => `PKR ${Number(v || 0).toLocaleString('en-PK')}`;
+        const { bytes } = buildEscPosReceipt({
+          businessName: 'Shahdara ISP',
+          receiptNumber: activeReceipt.receiptNumber || '',
+          customerName: activeReceipt.customerName || '',
+          customerNumber: activeReceipt.customerNumber ? String(activeReceipt.customerNumber) : '',
+          monthLabel: activeReceipt.month || '',
+          dateTimeLabel: activeReceipt.date || '',
+          amount: money(activeReceipt.amount),
+          method: activeReceipt.method || '',
+          reference: activeReceipt.transactionId || '',
+          balanceDue: money(activeReceipt.newBalanceDue),
+          statusLabel: activeReceipt.isSettled ? 'PAID' : 'PARTIAL'
+        });
+        await thermalPrinter.print(bytes);
+        if (typeof onToast === 'function') onToast('Receipt sent to the Bluetooth printer.');
+      } catch (err) {
+        if (typeof onToast === 'function') onToast(`Bluetooth print failed: ${err?.message || err}`, { type: 'error' });
+      }
+    });
+  }
 
   // Collect Another loop
   anotherBtn?.addEventListener('click', () => {

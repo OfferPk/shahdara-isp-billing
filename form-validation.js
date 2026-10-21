@@ -8446,9 +8446,28 @@ export const SHAHDARA_BROADBAND_PLANS = [
 ];
 
 /**
+ * Parses a YYYY-MM-DD string as a plain calendar date. `new Date('2026-04-16')`
+ * is UTC midnight, so reading it back with local getters shifts the day (and
+ * at month boundaries the month) in timezones west of UTC — plan proration
+ * must use the date as written, not as locally reinterpreted.
+ */
+function parseIsoCalendarDate(dateStr) {
+  if (typeof dateStr !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr.trim());
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  if (month < 0 || month > 11 || day < 1 || day > 31) return null;
+  return { year, month, day };
+}
+
+/**
  * Calculates days in a calendar month for a given ISO date.
  */
 export function getDaysInCalendarMonth(dateStr) {
+  const iso = parseIsoCalendarDate(dateStr);
+  if (iso) return new Date(iso.year, iso.month + 1, 0).getDate();
   const d = dateStr ? new Date(dateStr) : new Date();
   if (isNaN(d.getTime())) return 30;
   const year = d.getFullYear();
@@ -8463,8 +8482,9 @@ export function calculatePlanMigrationProration(currentRate, targetRate, effecti
   const cRate = Math.max(0, Number(currentRate) || 0);
   const tRate = Math.max(0, Number(targetRate) || 0);
   
+  const iso = parseIsoCalendarDate(effectiveDateStr);
   const d = effectiveDateStr ? new Date(effectiveDateStr) : new Date();
-  const effectiveDay = isNaN(d.getTime()) ? 1 : Math.max(1, d.getDate());
+  const effectiveDay = iso ? iso.day : (isNaN(d.getTime()) ? 1 : Math.max(1, d.getDate()));
   const daysInMonth = Number(customDaysInMonth) || getDaysInCalendarMonth(effectiveDateStr);
 
   const clampedDay = Math.min(daysInMonth, effectiveDay);

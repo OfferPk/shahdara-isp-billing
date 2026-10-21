@@ -6610,6 +6610,48 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
   color: #34d399;
 }
 
+/* Top-bar fast-search trigger: same chrome as the neighbouring icon
+   buttons (language / theme). Without this base rule the button kept
+   the browser-default light-grey box, glaring in dark mode (issue 355). */
+.mobile-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2ece7);
+  background: var(--surface, #ffffff);
+  color: var(--ink, #182e2a);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.mobile-search-trigger:hover {
+  background: var(--mint, #e6f3ee);
+  border-color: var(--green, #0e5b4d);
+  color: var(--green, #0e5b4d);
+}
+
+[data-theme="dark"] .mobile-search-trigger {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e8f3ee;
+}
+
+[data-theme="dark"] .mobile-search-trigger:hover {
+  background: #1c322b;
+  border-color: #29b88f;
+  color: #34d399;
+}
+
 /* RTL Layout & Urdu Typography */
 /* RTL Layout & Urdu Typography */
 [dir="rtl"],

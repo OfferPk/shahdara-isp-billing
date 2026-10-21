@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shahdara Design System — Styleguide</title>
+<!-- Dev-only page: not linked from the app, not part of the PWA shell.
+     Renders tokens.css + components.css in both themes. -->
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+<link rel="stylesheet" href="./urdu-font.css">
+<style>
+  body { font-family: var(--font-sans); background: var(--color-neutral-100); color: var(--ink); margin: 0; padding: var(--space-6); }
+  [data-theme="dark"] body { background: var(--dk-bg); }
+  main { max-width: 880px; margin: 0 auto; display: grid; gap: var(--space-6); }
+  h1 { font-size: var(--text-2xl); } h2 { font-size: var(--text-lg); margin-bottom: var(--space-2); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-3); }
+  .swatch { border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--surface); }
+  .swatch i { display: block; height: 44px; }
+  .swatch span { display: block; padding: var(--space-2); font-size: var(--text-xs); color: var(--muted); }
+  .row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+  section { display: grid; gap: var(--space-3); }
+</style>
+</head>
+<body>
+<main>
+  <header class="row">
+    <h1>Shahdara Design System</h1>
+    <button class="ds-btn ds-btn--ghost" id="themeToggle" type="button">Toggle dark theme</button>
+  </header>
+
+  <section aria-labelledby="sg-colors">
+    <h2 id="sg-colors">Colour tokens</h2>
+    <div class="swatches">
+      <div class="swatch"><i style="background:var(--color-brand-600)"></i><span>--color-brand-600</span></div>
+      <div class="swatch"><i style="background:var(--color-brand-500)"></i><span>--color-brand-500 / --green</span></div>
+      <div class="swatch"><i style="background:var(--color-brand-soft)"></i><span>--color-brand-soft / --mint</span></div>
+      <div class="swatch"><i style="background:var(--color-paid)"></i><span>--color-paid</span></div>
+      <div class="swatch"><i style="background:var(--color-pending)"></i><span>--color-pending</span></div>
+      <div class="swatch"><i style="background:var(--color-overdue)"></i><span>--color-overdue</span></div>
+      <div class="swatch"><i style="background:var(--color-info)"></i><span>--color-info</span></div>
+      <div class="swatch"><i style="background:var(--color-whatsapp)"></i><span>--color-whatsapp</span></div>
+      <div class="swatch"><i style="background:var(--color-neutral-200)"></i><span>--color-neutral-200 / --line</span></div>
+      <div class="swatch"><i style="background:var(--color-neutral-500)"></i><span>--color-neutral-500 / --muted</span></div>
+      <div class="swatch"><i style="background:var(--color-neutral-900)"></i><span>--color-neutral-900 / --ink</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="sg-type">
+    <h2 id="sg-type">Type scale</h2>
+    <div style="font-size:var(--text-xs)">Text XS — 12px · labels, meta</div>
+    <div style="font-size:var(--text-sm)">Text SM — 14px · body copy</div>
+    <div style="font-size:var(--text-md)">Text MD — 16px · base size</div>
+    <div style="font-size:var(--text-lg)">Text LG — 20px · section titles</div>
+    <div style="font-size:var(--text-xl)">Text XL — 24px · KPI values</div>
+    <div style="font-size:var(--text-2xl)">Text 2XL — 32px · page titles</div>
+    <div class="ds-money" style="font-size:var(--text-lg)">Money (tabular): PKR 1,250,000 · 0300-1234567</div>
+    <div class="ds-urdu" lang="ur" dir="rtl" style="font-size:var(--text-md)">اردو — بل کی ادائیگی مکمل ہو گئی ہے، شکریہ</div>
+  </section>
+
+  <section aria-labelledby="sg-buttons">
+    <h2 id="sg-buttons">Buttons &amp; chips</h2>
+    <div class="row">
+      <button class="ds-btn ds-btn--primary" type="button">Collect payment</button>
+      <button class="ds-btn ds-btn--ghost" type="button">Cancel</button>
+      <button class="ds-btn ds-btn--danger" type="button">Delete</button>
+      <button class="ds-btn ds-btn--whatsapp" type="button">WhatsApp receipt</button>
+    </div>
+    <div class="row">
+      <span class="ds-chip ds-chip--paid">PAID</span>
+      <span class="ds-chip ds-chip--pending">PENDING</span>
+      <span class="ds-chip ds-chip--overdue">OVERDUE</span>
+      <span class="ds-chip ds-chip--info">JAZZCASH</span>
+      <span class="ds-chip">CASH</span>
+    </div>
+  </section>
+
+  <section aria-labelledby="sg-components">
+    <h2 id="sg-components">Card, KPI, list row, sheet, toast, empty, skeleton</h2>
+    <div class="ds-card">
+      <div class="ds-kpi">
+        <span class="ds-kpi__label">Collected today</span>
+        <span class="ds-kpi__value">PKR 48,500</span>
+        <span class="ds-kpi__hint">32 payments · 6 pending</span>
+      </div>
+    </div>
+    <div class="ds-row">
+      <div class="ds-row__main"><strong>#42 Muhammad Nazeer</strong><br><span style="color:var(--muted)">25 Mbps · Oct 2026</span></div>
+      <span class="ds-chip ds-chip--paid">PAID</span>
+      <span class="ds-row__amount">PKR 1,500</span>
+    </div>
+    <div class="ds-sheet"><strong>Bottom sheet</strong><br><span style="color:var(--muted)">Used for Quick Collect and confirmations on mobile.</span></div>
+    <div class="ds-toast" role="status">Payment recorded — receipt sent</div>
+    <div class="ds-empty"><div class="ds-empty__icon">🧾</div>No payments recorded for this month yet.</div>
+    <div class="ds-skeleton" aria-hidden="true"></div>
+  </section>
+</main>
+<script>
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const root = document.documentElement;
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  });
+</script>
+</body>
+</html>

@@ -6,6 +6,7 @@ const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8'
 const index = read('index.html');
 const app = read('app.js');
 const styles = read('styles.css');
+const tokens = read('tokens.css');
 
 test('theme toggle button and SVG icons exist in index.html topbar', () => {
   assert.match(index, /id="themeToggle"[^>]*class="theme-toggle"/);
@@ -17,8 +18,11 @@ test('theme toggle button and SVG icons exist in index.html topbar', () => {
 
 test('styles.css supports comprehensive dark and light themes with smooth transitions', () => {
   assert.match(styles, /\.theme-toggle\s*\{/);
-  assert.match(styles, /\[data-theme="dark"\]\s*\{/);
-  assert.match(styles, /@media\s*\(prefers-color-scheme:\s*dark\)/);
+  // #230: the bare [data-theme="dark"] token block and the system-dark token
+  // block moved from styles.css into tokens.css (single source of truth);
+  // the component-level dark rules remain in styles.css below.
+  assert.match(tokens, /\[data-theme="dark"\]\s*\{/);
+  assert.match(tokens, /@media\s*\(prefers-color-scheme:\s*dark\)/);
   assert.match(styles, /\[data-theme="dark"\]\s*\.theme-icon-moon\s*\{/);
   assert.match(styles, /\[data-theme="dark"\]\s*body\s*\{/);
   assert.match(styles, /\[data-theme="dark"\]\s*\.summary-card/);

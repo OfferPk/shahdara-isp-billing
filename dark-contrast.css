@@ -1,15 +1,5 @@
 /* Dark-mode contrast (#288). Loaded last so it can correct light-theme colours that leak into dark mode.
    Targets: text >= 4.5:1 (>= 3:1 for large headings) on the dark surfaces, and no white cards in dark. */
-[data-theme="dark"] {
-  --dk-bg: #14241f;
-  --dk-surface: #182d27;
-  --dk-surface-2: #1d352e;
-  --dk-line: #2d4a40;
-  --dk-ink: #e8f3ee;
-  --dk-muted: #b7cbc2;
-  --dk-subtle: #a3b9af;
-  --dk-accent: #86dcbb;
-}
 
 /* 1. Headings and the customer's name (#288: #detailName was 1.34:1). */
 [data-theme="dark"] :is(h1, h2, h3, h4, h5, h6):not(:is(button, .primary-button, [class*="chip"], [class*="badge"], [class*="pill"]) *),

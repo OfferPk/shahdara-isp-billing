@@ -1,0 +1,108 @@
+/* components.css — #230 design-system components.
+ * Built ONLY from tokens.css variables (no hard-coded hex — enforced by
+ * tests/design-tokens-230.test.js). The styleguide (styleguide.html)
+ * renders every component here in both themes. New app UI should compose
+ * these classes; the app's existing component styles predate the system
+ * and migrate incrementally under the hex ratchet. */
+
+.ds-btn {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-4);
+  min-height: 40px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ds-btn--primary { background: var(--green); color: var(--surface); border-color: var(--green); }
+.ds-btn--primary:hover { background: var(--green-dark); }
+.ds-btn--ghost { background: var(--surface); color: var(--ink); border-color: var(--line); }
+.ds-btn--ghost:hover { background: var(--surface-soft); }
+.ds-btn--danger { background: var(--surface); color: var(--color-overdue); border-color: var(--color-overdue); }
+.ds-btn--whatsapp { background: var(--color-whatsapp); color: var(--surface); border-color: var(--color-whatsapp); }
+
+.ds-chip {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-2);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+.ds-chip--paid { background: var(--color-paid-bg); color: var(--color-paid); }
+.ds-chip--pending { background: var(--color-pending-bg); color: var(--color-pending); }
+.ds-chip--overdue { background: var(--color-pending-bg); color: var(--color-overdue); }
+.ds-chip--info { background: var(--color-brand-soft); color: var(--color-info); }
+
+.ds-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: var(--space-4);
+}
+
+.ds-kpi { display: flex; flex-direction: column; gap: var(--space-1); }
+.ds-kpi__label { font-size: var(--text-xs); font-weight: 700; letter-spacing: 1.1px; color: var(--muted); text-transform: uppercase; }
+.ds-kpi__value { font-size: var(--text-xl); font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+.ds-kpi__hint { font-size: var(--text-xs); color: var(--muted); }
+
+.ds-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.ds-row__main { flex: 1; min-width: 0; }
+.ds-row__amount { font-weight: 700; font-variant-numeric: var(--numeric); }
+
+.ds-sheet {
+  background: var(--modal-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--elevation-2);
+  padding: var(--space-5) var(--space-4);
+}
+
+.ds-toast {
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  box-shadow: var(--elevation-2);
+}
+
+.ds-empty {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--muted);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+.ds-empty__icon { font-size: var(--text-2xl); margin-bottom: var(--space-2); }
+
+.ds-skeleton {
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft);
+  min-height: var(--space-4);
+  animation: ds-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ds-pulse { 50% { opacity: .45; } }
+
+.ds-money { font-variant-numeric: var(--numeric); }
+.ds-urdu { font-family: var(--font-urdu); line-height: 2; }

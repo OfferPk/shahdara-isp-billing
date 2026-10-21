@@ -30,7 +30,11 @@ test('dark-contrast has a billing badge variant for status-partial', () => {
   assert.match(css, /\[data-theme="dark"\] :is\(\.month-status, \.report-status, \.customer-billing-badge\)\.status-partial \{/);
 });
 
-test('dark-contrast still loads dark tokens (file was not emptied)', () => {
-  assert.match(css, /--dk-surface: #182d27/);
-  assert.match(css, /--dk-ink: #e8f3ee/);
+test('dark tokens live in tokens.css (#230) and dark-contrast still uses them', () => {
+  // #230 moved the --dk-* definitions into tokens.css (single source of
+  // truth); dark-contrast.css keeps consuming them via var().
+  const tokens = readFileSync(new URL('../tokens.css', import.meta.url), 'utf8');
+  assert.match(tokens, /--dk-surface: #182d27/);
+  assert.match(tokens, /--dk-ink: #e8f3ee/);
+  assert.match(css, /var\(--dk-surface\)/);
 });

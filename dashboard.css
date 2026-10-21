@@ -3586,15 +3586,36 @@
 }
 
 .worklist-modal-body {
-  padding: 16px;
-  overflow-y: auto;
+  padding: 14px 16px;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .worklist-svg-container {
   margin-bottom: 4px;
+}
+
+.worklist-svg-container svg {
+  display: block;
+  width: 100%;
+  height: 132px;
+}
+
+/* Issue 366: the customer list is the modal's one main scroll area.
+   The body no longer scrolls; panes flex and the list inside scrolls. */
+.worklist-pane:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#worklistRulesPane {
+  overflow-y: auto;
 }
 
 .worklist-toolbar {
@@ -3630,8 +3651,9 @@
 .worklist-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 380px;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -3641,7 +3663,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 10px 14px;
   background: var(--surface, #ffffff);
   border: 1px solid var(--line, #e2ece7);
   border-radius: 10px;
@@ -3711,7 +3733,7 @@
   color: var(--muted, #60756c);
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 4px 10px;
 }
 
 .worklist-item-actions {
@@ -3918,6 +3940,135 @@
 [data-theme="dark"] .worklist-empty-state h4,
 [data-theme="dark"] .worklist-field label {
   color: #e3ece9;
+}
+
+/* Issue 366 (mobile): compact modal chrome so the worklist — the one main
+   scroll area — shows several full customer rows at 390x844. Every element
+   (header, tabs, dispatch graphic, search, area filter, footer actions)
+   stays present; it just takes less vertical room. */
+@media (max-width: 640px) {
+  #workListModal .worklist-modal-inner {
+    max-height: calc(100dvh - 68px);
+  }
+
+  #workListModal .worklist-modal-header .eyebrow {
+    font-size: 10px !important;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    margin-bottom: 2px !important;
+  }
+
+  #workListModal .worklist-modal-header h2 {
+    font-size: 15.5px !important;
+    line-height: 1.3;
+  }
+
+  #workListModal .worklist-modal-header .urdu-subtitle {
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+
+  #workListModal .worklist-modal-body {
+    padding: 8px 10px;
+    gap: 7px;
+  }
+
+  #workListModal .worklist-svg-container svg {
+    height: 84px;
+  }
+
+  #workListModal .worklist-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  #workListModal .worklist-search-wrap {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  #workListModal .worklist-filter-wrap {
+    flex: 0 1 118px;
+    min-width: 0;
+  }
+
+  #workListModal .worklist-filter-wrap select {
+    width: 100%;
+    padding: 8px 6px;
+    font-size: 12.5px;
+  }
+
+  #workListModal .worklist-footer-actions {
+    flex-wrap: nowrap;
+    width: 100%;
+  }
+
+  #workListModal .worklist-footer-actions .secondary-button {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.3;
+    padding: 6px 4px;
+    text-align: center;
+    white-space: normal;
+  }
+
+  #workListModal #worklistExportCsvBtn {
+    flex-grow: 0.8;
+  }
+
+  #workListModal #worklistCopyDispatchBtn {
+    flex-grow: 1.3;
+  }
+
+  #workListModal .worklist-item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    padding: 7px 8px;
+  }
+
+  #workListModal .worklist-item-main {
+    min-width: 0;
+    gap: 2px;
+  }
+
+  #workListModal .worklist-item-meta {
+    font-size: 11.5px;
+    line-height: 1.4;
+    gap: 2px 8px;
+  }
+
+  #workListModal .worklist-item-actions {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  #workListModal .worklist-amount-col {
+    min-width: 0;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  #workListModal .worklist-amount-col .amount-val {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  #workListModal .worklist-buttons-group {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  #workListModal .worklist-wa-btn,
+  #workListModal .worklist-mark-btn {
+    min-height: 44px;
+    font-size: 11px;
+    padding: 5px 6px;
+    white-space: nowrap;
+  }
 }
 
 /* ==========================================================================

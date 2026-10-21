@@ -6049,6 +6049,21 @@ export {
   WORKLIST_RULES_STORAGE_KEY
 } from './dashboard-worklists.js';
 
+export {
+  calculateStaffPerformance,
+  filterStaffCollectors,
+  sortStaffCollectors,
+  renderStaffPerformanceSvg,
+  generateStaffPerformanceCsv,
+  generateStaffPerformancePrintHtml,
+  generateStaffPerformanceBriefing,
+  setupStaffPerformanceModal,
+  resolveCollectorName as resolveStaffCollectorName,
+  resolveCollectorCategory,
+  resolveCollectorTier,
+  STAFF_PERFORMANCE_CONSTANTS
+} from './dashboard-staff-performance.js';
+
 
 
 

@@ -3920,6 +3920,271 @@
   color: #e3ece9;
 }
 
+/* ==========================================================================
+   Collector & Staff Collection Performance Suite (agent1 - shahdara-dashboard)
+   ========================================================================== */
+#staffPerformanceModal {
+  max-width: 960px;
+  width: 95vw;
+  max-height: 90vh;
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--line, var(--border-color));
+  background: var(--modal-surface, var(--surface));
+  box-shadow: var(--shadow);
+  padding: 0;
+  overflow: hidden;
+}
+
+#staffPerformanceModal::backdrop {
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.staff-perf-modal-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.staff-perf-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: var(--space-4, 16px) var(--space-5, 20px);
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: var(--modal-surface, var(--surface));
+}
+
+.staff-perf-modal-body {
+  padding: var(--space-4, 16px) var(--space-5, 20px);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+}
+
+.staff-perf-toolbar {
+  display: flex;
+  gap: var(--space-2, 8px);
+  align-items: center;
+  flex-wrap: wrap;
+  background: var(--surface-soft);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid var(--line, var(--border-color));
+}
+
+.staff-perf-toolbar select,
+.staff-perf-toolbar input[type="search"] {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--line, var(--border-color));
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-xs, 12px);
+}
+
+.staff-perf-search-wrap {
+  flex: 1 1 200px;
+}
+
+.staff-perf-search-wrap input {
+  width: 100%;
+}
+
+.staff-perf-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: var(--space-2, 8px);
+}
+
+.staff-perf-kpi-tile {
+  background: var(--surface-soft);
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: var(--radius-sm, 8px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1, 4px);
+}
+
+.staff-perf-kpi-label {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.staff-perf-kpi-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink);
+  font-variant-numeric: var(--numeric);
+}
+
+.staff-perf-kpi-val.highlight {
+  color: var(--color-brand-600);
+}
+
+.staff-perf-svg-host {
+  width: 100%;
+  overflow-x: auto;
+  background: var(--surface-soft);
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: var(--radius-sm, 8px);
+  padding: var(--space-3, 12px);
+}
+
+.staff-perf-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: var(--radius-sm, 8px);
+}
+
+.staff-perf-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-xs, 12px);
+}
+
+.staff-perf-table th {
+  background: var(--surface-soft);
+  padding: var(--space-2, 8px) var(--space-2, 8px);
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--line);
+}
+
+.staff-perf-table th:hover {
+  background: var(--line);
+}
+
+.staff-perf-table td {
+  padding: var(--space-2, 8px) var(--space-2, 8px);
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  font-variant-numeric: var(--numeric);
+}
+
+.staff-perf-table tr:hover {
+  background: var(--surface-soft);
+}
+
+.collector-rank-tag {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  border-radius: var(--radius-pill);
+  background: var(--mint);
+  color: var(--color-brand-600);
+  font-size: 10px;
+  font-weight: 800;
+  margin-right: 6px;
+}
+
+.collector-role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.collector-role-badge.shop-register {
+  background: var(--color-pending-bg);
+  color: var(--color-pending);
+}
+
+.collector-role-badge.counter-till {
+  background: var(--mint);
+  color: var(--color-brand-600);
+}
+
+.collector-role-badge.digital-gateway {
+  background: var(--surface-soft);
+  color: var(--color-info);
+}
+
+.collector-role-badge.field-collector {
+  background: var(--color-paid-bg);
+  color: var(--color-paid);
+}
+
+.cash-stat {
+  font-weight: 700;
+  color: var(--color-paid);
+}
+
+.digital-stat {
+  font-weight: 700;
+  color: var(--color-info);
+}
+
+.staff-perf-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  padding: var(--space-3, 12px) var(--space-5, 20px);
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--modal-surface, var(--surface));
+}
+
+.staff-perf-footer-actions {
+  display: flex;
+  gap: var(--space-2, 8px);
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] #staffPerformanceModal {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .staff-perf-modal-header,
+[data-theme="dark"] .staff-perf-modal-footer {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .staff-perf-toolbar,
+[data-theme="dark"] .staff-perf-kpi-tile,
+[data-theme="dark"] .staff-perf-svg-host {
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .staff-perf-toolbar select,
+[data-theme="dark"] .staff-perf-toolbar input[type="search"] {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+[data-theme="dark"] .staff-perf-table th {
+  background: var(--surface-soft);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .staff-perf-table td {
+  border-color: var(--line);
+}
+
+[data-theme="dark"] .staff-perf-table tr:hover {
+  background: var(--surface-soft);
+}
+
 
 
 

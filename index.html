@@ -6182,6 +6182,7 @@
       <!-- Group 4: ⚙️ Settings & Tools -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
       <button type="button" data-mobile-more="digital-settings" id="mobileMoreDigitalSettingsBtn">💳 Digital Payments &amp; QR Settings</button>
+      <button type="button" data-mobile-more="bluetooth-printer" id="mobileMoreBluetoothPrinterBtn" hidden>🖨️ Bluetooth Printer</button>
       <button type="button" data-mobile-more="reminder-stages" id="mobileMoreReminderStagesBtn">⚙️ Reminder Stages Rules</button>
       <button type="button" data-mobile-more="shortcuts" id="mobileMoreShortcutsBtn">⌨️ Keyboard Shortcuts</button>
       <button type="button" data-mobile-more="pwa-status" id="mobileMorePwaStatusBtn">📲 PWA &amp; App Shortcuts</button>
@@ -18950,6 +18951,9 @@
           <button id="quickCollectPrintReceiptBtn" class="secondary-button" type="button">
             🖨️ Print Receipt Slip
           </button>
+          <button id="quickCollectBluetoothPrintBtn" class="secondary-button" type="button" hidden>
+            🖨️ Print on Bluetooth Printer
+          </button>
           <button id="quickCollectUndoBtn" class="secondary-button qc-undo-btn" type="button" style="border-color:var(--overdue, #c62828);color:var(--overdue, #c62828);">
             ↩ Undo Payment (10s)
           </button>
@@ -20468,6 +20472,27 @@
           Close
         </button>
       </footer>
+    </div>
+  </dialog>
+
+  <!-- Bluetooth Printer Dialog (#226) -->
+  <dialog id="bluetoothPrinterModal" class="modal-dialog" aria-labelledby="bluetoothPrinterTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <div>
+          <h2 id="bluetoothPrinterTitle" class="modal-title">🖨️ Bluetooth Thermal Printer</h2>
+          <p class="modal-subtitle">Print 58mm receipts on a paired Bluetooth printer (Web Bluetooth). Without a printer, the 58mm/80mm slip buttons use system print instead.</p>
+        </div>
+        <button id="closeBluetoothPrinterModalBtn" class="close-btn" type="button" aria-label="Close dialog">✕</button>
+      </header>
+      <div class="form-grid">
+        <p id="bluetoothPrinterStatus" role="status" aria-live="polite">Checking availability…</p>
+        <div class="modal-actions">
+          <button id="connectBluetoothPrinterBtn" class="primary-button" type="button">Connect printer</button>
+          <button id="testBluetoothPrinterBtn" class="secondary-button" type="button">Print test slip</button>
+          <button id="disconnectBluetoothPrinterBtn" class="secondary-button" type="button">Disconnect &amp; forget</button>
+        </div>
+      </div>
     </div>
   </dialog>
 

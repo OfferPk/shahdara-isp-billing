@@ -17,6 +17,7 @@ import {
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
+import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
@@ -1009,6 +1010,105 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
     finally { clearReceiptPrint(); }
   });
 }
+
+// #226: Bluetooth thermal printing. Every Bluetooth affordance stays hidden
+// unless Web Bluetooth exists; the system-print slips above remain the
+// fallback everywhere else.
+function bluetoothReceiptButtonMarkup(customerId, month, paymentId, customerNumber) {
+  if (!isWebBluetoothAvailable()) return '';
+  return `<button class="print-receipt-button bluetooth-receipt-button" type="button" data-print-bluetooth-receipt data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(paymentId)}" aria-label="Print receipt on Bluetooth printer for customer ${escapeHtml(customerNumber)}">BT print</button>`;
+}
+
+async function printBluetoothReceipt(customerId, month, paymentId) {
+  const customer = state.customers.find(row => row.id === customerId);
+  const bill = customer?.bills?.find(row => row.month === month);
+  const payment = bill?.payments?.find(row => row.id === paymentId);
+  if (!customer || !bill || !payment) { toast('This saved payment receipt is no longer available.'); return; }
+  try {
+    if (!thermalPrinter.isConnected()) {
+      toast('Choose your Bluetooth printer…');
+      await thermalPrinter.connect();
+    }
+    const receipt = buildPaymentReceipt(customer, bill, payment);
+    const fields = escPosFieldsFromPaymentReceipt(receipt, {
+      businessName: state.settings?.businessName || 'Shahdara ISP',
+      businessPhone: state.settings?.businessPhone || '0300-1234567'
+    });
+    await thermalPrinter.print(buildEscPosReceipt(fields).bytes);
+    toast('Receipt sent to the Bluetooth printer.');
+  } catch (err) {
+    toast(`Bluetooth print failed: ${err?.message || err}`);
+  }
+}
+
+function refreshBluetoothPrinterUi() {
+  const available = isWebBluetoothAvailable();
+  const tile = $('#mobileMoreBluetoothPrinterBtn');
+  if (tile) tile.hidden = !available;
+  const qcBtn = $('#quickCollectBluetoothPrintBtn');
+  if (qcBtn) qcBtn.hidden = !available;
+  const status = $('#bluetoothPrinterStatus');
+  if (status) {
+    if (!available) status.textContent = 'Web Bluetooth is not available in this browser. Use the 58mm/80mm slip buttons (system print) instead.';
+    else if (thermalPrinter.isConnected()) status.textContent = 'Printer connected and ready.';
+    else {
+      const remembered = thermalPrinter.remembered();
+      status.textContent = remembered
+        ? `Remembered printer: ${remembered.name}. Tap Connect and pick it again (the browser asks once per session).`
+        : 'No printer connected yet. Tap Connect printer and choose your 58mm printer.';
+    }
+  }
+}
+
+function setupBluetoothPrinterUi() {
+  refreshBluetoothPrinterUi();
+  const modal = $('#bluetoothPrinterModal');
+  $('#mobileMoreBluetoothPrinterBtn')?.addEventListener('click', () => {
+    refreshBluetoothPrinterUi();
+    if (modal?.showModal) modal.showModal();
+    else modal?.setAttribute('open', '');
+  });
+  $('#closeBluetoothPrinterModalBtn')?.addEventListener('click', () => {
+    if (modal?.close) modal.close();
+    else modal?.removeAttribute('open');
+  });
+  $('#connectBluetoothPrinterBtn')?.addEventListener('click', async () => {
+    try {
+      const info = await thermalPrinter.connect();
+      toast(`Printer connected: ${info.name}`);
+    } catch (err) {
+      toast(`Could not connect: ${err?.message || err}`);
+    }
+    refreshBluetoothPrinterUi();
+  });
+  $('#disconnectBluetoothPrinterBtn')?.addEventListener('click', async () => {
+    await thermalPrinter.disconnect();
+    thermalPrinter.forget();
+    toast('Printer disconnected and forgotten.');
+    refreshBluetoothPrinterUi();
+  });
+  $('#testBluetoothPrinterBtn')?.addEventListener('click', async () => {
+    try {
+      if (!thermalPrinter.isConnected()) await thermalPrinter.connect();
+      const { bytes } = buildEscPosReceipt({
+        businessName: state.settings?.businessName || 'Shahdara ISP',
+        businessPhone: state.settings?.businessPhone || '',
+        receiptNumber: 'TEST',
+        dateTimeLabel: new Date().toLocaleString('en-PK'),
+        amount: 'PKR 0',
+        statusLabel: 'TEST SLIP',
+        footerNote: 'Bluetooth printer test — connection OK.'
+      });
+      await thermalPrinter.print(bytes);
+      toast('Test slip sent to the printer.');
+    } catch (err) {
+      toast(`Test print failed: ${err?.message || err}`);
+    }
+    refreshBluetoothPrinterUi();
+  });
+}
+if (typeof document !== 'undefined') setupBluetoothPrinterUi();
+
 function billAmountAuditMarkup(bill) {
   const changes = bill?.amountHistory ?? [];
   if (!changes.length) return '';
@@ -1050,7 +1150,7 @@ function renderHistory(customer) {
       const allocation = paymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
       const receiptData = buildPaymentReceipt(customer, bill, payment);
       const discountMarkup = (payment.discount && Number(payment.discount) > 0) ? ` <span class="discount-badge-applied">-${formatAmount(payment.discount)} discount${payment.discountReason ? ` (${escapeHtml(payment.discountReason)})` : ''}</span>` : '';
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt${discountMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 80mm thermal slip for customer ${customer.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 58mm thermal slip for customer ${customer.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(formatAmount(payment.amount))} actual receipt${discountMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${paymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print receipt for customer ${customer.customerNumber}, payment dated ${escapeHtml(payment.date)}">Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 80mm thermal slip for customer ${customer.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="Print 58mm thermal slip for customer ${customer.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Edit payment for customer ${customer.customerNumber}">Edit</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="Delete payment for customer ${customer.customerNumber}">Delete</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
@@ -1082,6 +1182,7 @@ function renderHistory(customer) {
   historyContainer.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   historyContainer.querySelectorAll('[data-print-thermal-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { isThermal: true })));
   historyContainer.querySelectorAll('[data-print-thermal58-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { format: 'thermal-58' })));
+  historyContainer.querySelectorAll('[data-print-bluetooth-receipt]').forEach(button => button.addEventListener('click', () => printBluetoothReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   historyContainer.querySelectorAll('[data-apply-late-fee]').forEach(button => button.addEventListener('click', () => {
     const custId = button.dataset.customerId;
     const month = button.dataset.month;
@@ -1180,13 +1281,14 @@ function renderTransactions() {
       `Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span>`,
       serviceLabel ? `Manual service: ${serviceLabel}` : ''
     ].filter(Boolean).join(' · ');
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span></span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong><span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button><button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button></div></div></li>`;
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span></span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong><span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p><p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button></div></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   transactionList.querySelectorAll('[data-print-thermal-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { isThermal: true })));
   transactionList.querySelectorAll('[data-print-thermal58-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { format: 'thermal-58' })));
+  transactionList.querySelectorAll('[data-print-bluetooth-receipt]').forEach(button => button.addEventListener('click', () => printBluetoothReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   bindReceiptPhoneActions(transactionList);
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }

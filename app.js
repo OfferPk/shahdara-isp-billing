@@ -1771,10 +1771,11 @@ $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorag
 
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
 $('#backupFrequencySelect').addEventListener('change', async event => {
+  const frequency = event.currentTarget.value;
   try {
-    await localBackupStore.setFrequency(event.currentTarget.value);
+    await localBackupStore.setFrequency(frequency);
     await refreshBackupManager();
-    toast(`Automatic backups set to ${event.currentTarget.value}.`);
+    toast(`Automatic backups set to ${frequency}.`);
     void checkAutomaticBackup();
   } catch (error) {
     toast(`Backup schedule was not saved: ${error.message}`);

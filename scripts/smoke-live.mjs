@@ -53,17 +53,26 @@ async function runSmokeForViewport(browser, name, viewport, isMobile = false) {
     throw new Error(`Failed to load target URL ${TARGET_URL} after 3 attempts`);
   }
 
-  // Wait for customer view and roster count to initialize
-  await page.waitForSelector('#customersView', { state: 'visible', timeout: 15000 });
+  // Wait for billing dashboard on root route
+  await page.waitForSelector('#billingDashboard', { state: 'visible', timeout: 15000 });
 
   // Verify header is within bounds (no horizontal scroll)
   const isOverflowing = await page.evaluate(() => {
     return document.documentElement.scrollWidth > document.documentElement.clientWidth;
   });
 
-  const screenshotPath = path.join(OUTPUT_DIR, `smoke-${name}.png`);
+  const screenshotPath = path.join(OUTPUT_DIR, `smoke-${name}-home.png`);
   await page.screenshot({ path: screenshotPath, fullPage: false });
   console.log(`Saved screenshot: ${screenshotPath}`);
+
+  // Navigate to #/customers and verify customer view is visible
+  const customersUrl = TARGET_URL.replace(/#.*$/, '') + '#/customers';
+  await page.goto(customersUrl, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.waitForSelector('#customersView', { state: 'visible', timeout: 15000 });
+
+  const customersScreenshotPath = path.join(OUTPUT_DIR, `smoke-${name}-customers.png`);
+  await page.screenshot({ path: customersScreenshotPath, fullPage: false });
+  console.log(`Saved screenshot: ${customersScreenshotPath}`);
 
   if (pageErrors.length > 0) {
     throw new Error(`Page errors detected on ${name}:\n${pageErrors.join('\n')}`);

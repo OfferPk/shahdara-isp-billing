@@ -3,6 +3,8 @@
 // real Assistant screen: a new intent (new customers — the owner's original
 // screenshot question), a who-paid list, and the suggestion-chip fallback.
 import { test, expect } from '@playwright/test';
+import * as core from '../../core.js';
+import * as phase3 from '../../phase3.js';
 
 function trackErrors(page) {
   const errors = [];
@@ -12,28 +14,26 @@ function trackErrors(page) {
 }
 
 async function seedLedger(page) {
+  const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
+  let s = core.createInitialState(['E2E Ali', 'E2E Bilal']);
+  s = {
+    ...s,
+    customers: s.customers.map(c => c.name === 'E2E Ali'
+      ? { ...c, packageSpeed: '10 Mbps', mohalla: 'E2E Mohalla', serviceStatus: 'active', addedOn: today, connectionDate: null }
+      : { ...c, packageSpeed: '10 Mbps', mohalla: 'E2E Mohalla', serviceStatus: 'active', addedOn: '2020-01-01', connectionDate: null })
+  };
+  const [ali, bilal] = s.customers;
+  s = core.saveBillMonth(s, ali.id, { month, dueAmount: 1500, status: 'pending' });
+  s = core.saveBillMonth(s, bilal.id, { month, dueAmount: 1500, status: 'pending' });
+  s = core.addPayment(s, bilal.id, month, { date: today, amount: 1500, method: 'JazzCash' });
+  s = phase3.addExpense(s, { date: today, amount: '200', category: 'Cable', notes: '' }, new Date());
+
   await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
-  await page.reload();
-  await page.evaluate(async () => {
-    const core = await import('./core.js');
-    const phase3 = await import('./phase3.js');
-    const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
-    const month = today.slice(0, 7);
-    let s = core.createInitialState(['E2E Ali', 'E2E Bilal']);
-    s = {
-      ...s,
-      customers: s.customers.map(c => c.name === 'E2E Ali'
-        ? { ...c, packageSpeed: '10 Mbps', mohalla: 'E2E Mohalla', serviceStatus: 'active', addedOn: today, connectionDate: null }
-        : { ...c, packageSpeed: '10 Mbps', mohalla: 'E2E Mohalla', serviceStatus: 'active', addedOn: '2020-01-01', connectionDate: null })
-    };
-    const [ali, bilal] = s.customers;
-    s = core.saveBillMonth(s, ali.id, { month, dueAmount: 1500, status: 'pending' });
-    s = core.saveBillMonth(s, bilal.id, { month, dueAmount: 1500, status: 'pending' });
-    s = core.addPayment(s, bilal.id, month, { date: today, amount: 1500, method: 'JazzCash' });
-    s = phase3.addExpense(s, { date: today, amount: '200', category: 'Cable', notes: '' }, new Date());
-    localStorage.setItem(core.STORAGE_KEY, JSON.stringify(s));
-  });
+  await page.evaluate(({ key, state }) => {
+    localStorage.clear();
+    localStorage.setItem(key, JSON.stringify(state));
+  }, { key: core.STORAGE_KEY, state: s });
   await page.reload();
 }
 

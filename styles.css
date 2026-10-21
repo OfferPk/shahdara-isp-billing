@@ -3343,6 +3343,53 @@ html, body {
     background: transparent !important;
   }
 
+  /* Statement on a 58mm thermal roll (#225): named page so the A4 @page
+     rule elsewhere in this sheet does not win, one narrow column, the
+     billing-month column is dropped (the date already implies it) and
+     the signature block is omitted — a roll receipt is not signed. */
+  @page statement58 {
+    size: 58mm auto;
+    margin: 0;
+  }
+  body.printing-statement-58 #accountStatementModal {
+    page: statement58;
+    width: 58mm !important;
+    max-width: 58mm !important;
+  }
+  body.printing-statement-58 .customer-account-statement {
+    width: 54mm !important;
+    max-width: 54mm !important;
+    margin: 0 auto !important;
+    padding: 2mm !important;
+    font-size: 9px !important;
+    line-height: 1.45 !important;
+  }
+  body.printing-statement-58 .statement-info-box {
+    display: block !important;
+  }
+  body.printing-statement-58 .statement-summary-strip {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 2mm !important;
+  }
+  body.printing-statement-58 .statement-table {
+    width: 100% !important;
+    font-size: 8.5px !important;
+  }
+  body.printing-statement-58 .statement-table th,
+  body.printing-statement-58 .statement-table td {
+    padding: 1mm !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+  body.printing-statement-58 .statement-table th:nth-child(3),
+  body.printing-statement-58 .statement-table td:nth-child(3) {
+    display: none !important;
+  }
+  body.printing-statement-58 .statement-sign-block {
+    display: none !important;
+  }
+
   /* Thermal POS 80mm Print Mode */
   body.printing-thermal #receiptPrintArea,
   body.printing-thermal-80 #receiptPrintArea {

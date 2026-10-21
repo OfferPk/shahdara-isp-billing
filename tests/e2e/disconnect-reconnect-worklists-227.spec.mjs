@@ -106,7 +106,9 @@ test.describe('Issue #227: Disconnection & Reconnection Worklists Suite', () => 
     await expect(modal).toBeHidden();
 
     // 5. Verify Dues Recovery panel contains the worklists button
-    await page.goto('#/recovery');
+    await page.goto('/#/recovery');
+    await expect(page.locator('#billingReportsView')).toBeVisible();
+    await expect(page.locator('#billingReportsView')).toHaveAttribute('data-report-screen', 'recovery');
     const duesBtn = page.locator('#openWorklistsFromDuesBtn');
     await expect(duesBtn).toBeVisible();
     await duesBtn.click();

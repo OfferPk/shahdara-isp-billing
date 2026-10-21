@@ -3537,9 +3537,14 @@
   padding: 4px 16px;
   gap: 6px;
   border-bottom: 1px solid var(--line, #e2ece7);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .worklist-tab-btn {
+  flex-shrink: 0;
   background: transparent;
   border: none;
   border-radius: 8px;

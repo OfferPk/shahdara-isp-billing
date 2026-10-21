@@ -1,0 +1,136 @@
+/* tokens.css — #230 design tokens: the single source of truth for colour,
+   type, spacing, radius and elevation in the Shahdara app.
+ *
+ * History: these custom properties used to be defined in up to four
+ * conflicting places in styles.css / dark-contrast.css (the last one in
+ * source order silently won). They now live ONLY here; components.css and
+ * new code must reference tokens, never hard-coded hex (see
+ * tests/design-tokens-230.test.js for the ratchet on legacy files).
+ *
+ * The light values below are the values the app already rendered with
+ * (the cascade winners), so this file changes no pixel by itself.
+ */
+
+:root {
+  /* Type */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-urdu: "Noto Nastaliq Urdu", "Noto Naskh Arabic", serif;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 32px;
+  --numeric: tabular-nums; /* money figures always tabular */
+
+  /* Spacing — 4pt scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Elevation */
+  --elevation-0: none;
+  --elevation-1: 0 8px 24px rgba(22, 52, 43, .065);
+  --elevation-2: 0 24px 80px rgba(17, 45, 36, .31);
+  --shadow: var(--elevation-1); /* legacy alias used across the app */
+
+  /* Brand — Shahdara green family */
+  --color-brand-700: #094338;
+  --color-brand-600: #0e5b4d;
+  --color-brand-500: #145b4b;
+  --color-brand-dark: #0c463a;
+  --color-brand-soft: #e6f3ee;
+
+  /* Status */
+  --color-paid: #19704e;
+  --color-paid-bg: #e8f5ed;
+  --color-pending: #9a5e06;
+  --color-pending-bg: #fff5df;
+  --color-overdue: #b33c33;
+  --color-info: #0270a8;
+  --color-whatsapp: #0e7a3d;
+
+  /* Neutrals (green-tinted greys the app is built on) */
+  --color-neutral-0: #ffffff;
+  --color-neutral-50: #f6f9f7;
+  --color-neutral-100: #f4f7f5;
+  --color-neutral-200: #dce6e1;
+  --color-neutral-500: #586e65;
+  --color-neutral-900: #172e29;
+
+  /* Semantic aliases — the names the existing stylesheets use */
+  --green: var(--color-brand-500);
+  --green-dark: var(--color-brand-dark);
+  --mint: var(--color-brand-soft);
+  --ink: var(--color-neutral-900);
+  --muted: var(--color-neutral-500);
+  --line: var(--color-neutral-200);
+  --surface: var(--color-neutral-0);
+  --surface-soft: var(--color-neutral-50);
+  --modal-surface: var(--color-neutral-0);
+  --white: var(--color-neutral-0);
+  --amber: var(--color-pending);
+  --amber-bg: var(--color-pending-bg);
+}
+
+[data-theme="dark"] {
+  --color-brand-500: #29b88f;
+  --color-brand-dark: #1b8a6a;
+  --color-brand-soft: #16362d;
+  --color-pending: #fbbf24;
+  --color-pending-bg: #2d230d;
+  --ink: #e8f3ee;
+  --muted: #8ca39a;
+  --line: #253d35;
+  --surface: #14241f;
+  --surface-soft: #192d27;
+  --modal-surface: #14241f;
+  --shadow: 0 12px 38px rgba(0, 0, 0, .45);
+  --elevation-1: var(--shadow);
+
+  /* Dark surface set used by dark-contrast.css */
+  --dk-bg: #14241f;
+  --dk-surface: #182d27;
+  --dk-surface-2: #1d352e;
+  --dk-line: #2d4a40;
+  --dk-ink: #e8f3ee;
+  --dk-muted: #b7cbc2;
+  --dk-subtle: #a3b9af;
+  --dk-accent: #86dcbb;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-brand-500: #29b88f;
+    --color-brand-dark: #1b8a6a;
+    --color-brand-soft: #16362d;
+    --color-pending: #fbbf24;
+    --color-pending-bg: #2d230d;
+    --ink: #e8f3ee;
+    --muted: #8ca39a;
+    --line: #253d35;
+    --surface: #14241f;
+    --surface-soft: #192d27;
+    --modal-surface: #14241f;
+    --shadow: 0 12px 38px rgba(0, 0, 0, .45);
+    --elevation-1: var(--shadow);
+
+    --dk-bg: #14241f;
+    --dk-surface: #182d27;
+    --dk-surface-2: #1d352e;
+    --dk-line: #2d4a40;
+    --dk-ink: #e8f3ee;
+    --dk-muted: #b7cbc2;
+    --dk-subtle: #a3b9af;
+    --dk-accent: #86dcbb;
+  }
+}

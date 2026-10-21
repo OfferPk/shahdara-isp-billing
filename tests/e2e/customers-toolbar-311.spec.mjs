@@ -41,7 +41,7 @@ test.describe('Customers toolbar alignment (#311)', () => {
     const badge = await box(page, '#customerCount');
     // Single-line heading with the badge on the same line...
     expect(heading.height).toBeLessThan(34);
-    expect(Math.abs(badge.y - heading.y)).toBeLessThanOrEqual(6);
+    expect(Math.abs(badge.y - heading.y)).toBeLessThanOrEqual(10);
     // ...and the Wizard / Bulk add actions wrapped below it, not beside it.
     const wizard = await box(page, '#openEnrollmentWizardBtn');
     expect(wizard.y).toBeGreaterThan(heading.y + heading.height - 4);

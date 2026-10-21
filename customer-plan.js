@@ -45,7 +45,7 @@ export function applyCustomerPlan(state, customerId, plan, referenceDate = new D
   if (plan.fee !== null && plan.fee !== undefined) values.monthlySellingAmount = plan.fee;
   if (plan.connectionDate) values.connectionDate = plan.connectionDate;
   if (!Object.keys(values).length) return { nextState: state, billed: null };
-  values.packageChangeStaffName = 'Add customer';
+  values.packageChangeStaffName = plan.staffName || 'Add customer';
   let next = updateCustomerProfile(state, customerId, values, referenceDate);
   if (values.monthlySellingAmount) next = generateMonthlyBillsThroughCurrentMonth(next, referenceDate);
   const month = getPakistanLocalDate(referenceDate).slice(0, 7);
@@ -179,6 +179,239 @@ export function setupCustomerPlan({ win = window, doc = document, getController 
   return { normalizePlan, applyCustomerPlan };
 }
 
+export function setupInlineBillEdit({ win = window, doc = document, getController = () => win.quickCollectModalController } = {}) {
+  let dialog = doc.getElementById('inlineBillEditDialog');
+  if (!dialog) {
+    dialog = doc.createElement('dialog');
+    dialog.id = 'inlineBillEditDialog';
+    dialog.className = 'modal inline-bill-dialog';
+    dialog.setAttribute('aria-labelledby', 'inlineBillEditTitle');
+    dialog.innerHTML = `
+      <div class="modal-content inline-bill-modal-content">
+        <div class="modal-heading">
+          <div>
+            <p class="eyebrow" id="inlineBillEditEyebrow">MONTHLY BILL</p>
+            <h2 id="inlineBillEditTitle">Set monthly bill</h2>
+          </div>
+          <button class="close-button" type="button" data-close-dialog aria-label="Close">×</button>
+        </div>
+        <form id="inlineBillEditForm" method="dialog" novalidate>
+          <p id="inlineBillCustomerInfo" class="inline-bill-customer-info"></p>
+          
+          <div class="field-group">
+            <label class="field-label" for="inlineBillFeeInput">Monthly fee (PKR) <span class="required-indicator">*</span></label>
+            <input id="inlineBillFeeInput" name="monthlyFee" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 1500" required>
+          </div>
+
+          <div class="inline-bill-quick-picks" aria-label="Quick pick common fees">
+            <span class="quick-pick-label">Quick pick:</span>
+            <div class="quick-pick-chips">
+              <button type="button" class="chip-btn" data-fee="1000">Rs 1,000</button>
+              <button type="button" class="chip-btn" data-fee="1500">Rs 1,500</button>
+              <button type="button" class="chip-btn" data-fee="2000">Rs 2,000</button>
+              <button type="button" class="chip-btn" data-fee="2500">Rs 2,500</button>
+              <button type="button" class="chip-btn" data-fee="3000">Rs 3,000</button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="inlineBillPackageSelect">Package <span class="optional-label">Optional · e.g. 15MBPS</span></label>
+            <select id="inlineBillPackageSelect" name="packageId">
+              ${packageOptions('No package yet / custom fee')}
+            </select>
+          </div>
+
+          <p id="inlineBillError" class="field-error-message" role="alert" hidden></p>
+          <p id="inlineBillHint" class="inline-bill-hint" aria-live="polite">
+            This month's bill is created on save, so the customer shows as pending in Quick Collect and Bulk Collect.
+          </p>
+
+          <div class="modal-actions">
+            <button id="inlineBillCancelBtn" class="secondary-button" type="button" data-close-dialog>Cancel</button>
+            <button id="inlineBillSaveBtn" class="primary-button" type="submit">Save Bill</button>
+          </div>
+        </form>
+      </div>`;
+    doc.body.appendChild(dialog);
+  }
+
+  const form = dialog.querySelector('#inlineBillEditForm');
+  const feeInput = dialog.querySelector('#inlineBillFeeInput');
+  const pkgSelect = dialog.querySelector('#inlineBillPackageSelect');
+  const eyebrowEl = dialog.querySelector('#inlineBillEditEyebrow');
+  const titleEl = dialog.querySelector('#inlineBillEditTitle');
+  const custInfoEl = dialog.querySelector('#inlineBillCustomerInfo');
+  const errorBox = dialog.querySelector('#inlineBillError');
+  const submitBtn = dialog.querySelector('#inlineBillSaveBtn');
+
+  // Close handlers
+  dialog.querySelectorAll('[data-close-dialog]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (typeof dialog.close === 'function') dialog.close();
+      else dialog.removeAttribute('open');
+    });
+  });
+
+  // Package select changes fee
+  pkgSelect.addEventListener('change', () => {
+    const opt = pkgSelect.selectedOptions[0];
+    const price = opt?.dataset.price;
+    if (price) feeInput.value = price;
+    if (errorBox) errorBox.hidden = true;
+  });
+
+  // Quick pick chips
+  dialog.querySelectorAll('.inline-bill-quick-picks [data-fee]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      feeInput.value = btn.dataset.fee;
+      if (errorBox) errorBox.hidden = true;
+      feeInput.focus();
+    });
+  });
+
+  feeInput.addEventListener('input', () => {
+    if (errorBox) errorBox.hidden = true;
+  });
+
+  function open(customerId) {
+    const ctl = getController();
+    const st = ctl?.getState?.();
+    const customer = st?.customers?.find(c => c.id === customerId);
+    if (!customer) return;
+
+    dialog.dataset.customerId = customer.id;
+    const hasFee = customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && Number(customer.monthlySellingAmount) > 0;
+
+    eyebrowEl.textContent = hasFee ? 'EDIT MONTHLY BILL' : 'SET MONTHLY BILL';
+    titleEl.textContent = hasFee ? 'Edit monthly bill' : 'Set monthly bill';
+    submitBtn.textContent = hasFee ? 'Update Bill' : 'Save Bill';
+
+    custInfoEl.textContent = `#${customer.customerNumber} · ${customer.name}${customer.phone ? ` (${customer.phone})` : ''} · Area: ${customer.mohalla || customer.area || 'Not set'}`;
+
+    feeInput.value = hasFee ? String(customer.monthlySellingAmount) : '';
+    
+    // Select package if matching
+    pkgSelect.value = '';
+    if (customer.packageSpeed) {
+      const match = BILL_PACKAGES.find(p => p.label === customer.packageSpeed || p.id === customer.packageSpeed);
+      if (match) pkgSelect.value = match.id;
+    }
+
+    if (errorBox) {
+      errorBox.textContent = '';
+      errorBox.hidden = true;
+    }
+
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    } else {
+      dialog.setAttribute('open', '');
+    }
+
+    win.setTimeout(() => {
+      feeInput.focus();
+      feeInput.select?.();
+    }, 50);
+  }
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const feeVal = Number(feeInput.value.trim());
+    if (!Number.isFinite(feeVal) || feeVal <= 0) {
+      if (errorBox) {
+        errorBox.textContent = 'Monthly fee must be a positive number greater than zero.';
+        errorBox.hidden = false;
+      }
+      feeInput.focus();
+      return;
+    }
+
+    const ctl = getController();
+    const beforeState = ctl?.getState?.();
+    const customerId = dialog.dataset.customerId;
+    const customer = beforeState?.customers?.find(c => c.id === customerId);
+    if (!customer) return;
+
+    const selectedPkg = BILL_PACKAGES.find(p => p.id === pkgSelect.value);
+    const plan = {
+      packageLabel: selectedPkg ? selectedPkg.label : (customer.packageSpeed || ''),
+      fee: feeVal,
+      connectionDate: customer.connectionDate || null,
+      staffName: 'Inline edit'
+    };
+
+    try {
+      const { nextState } = applyCustomerPlan(beforeState, customer.id, plan);
+      ctl.commitState(nextState);
+
+      if (typeof dialog.close === 'function') dialog.close();
+      else dialog.removeAttribute('open');
+
+      const custName = customer.name;
+      const custNum = customer.customerNumber;
+      if (typeof win.toast === 'function') {
+        win.toast(`Monthly bill of PKR ${feeVal.toLocaleString()} set for #${custNum} ${custName}`, {
+          type: 'success',
+          actionLabel: 'Undo',
+          duration: 8000,
+          onAction: () => {
+            ctl.commitState(beforeState);
+            if (typeof win.toast === 'function') {
+              win.toast(`Restored previous billing for #${custNum} ${custName}`);
+            }
+          }
+        });
+      }
+
+      // Fast entry: move focus to next unset customer card
+      win.setTimeout(() => {
+        const nextUnset = doc.querySelector('.customer-billing-badge[data-inline-bill-edit][data-bill-unset="true"]');
+        if (nextUnset) {
+          nextUnset.focus();
+        }
+      }, 50);
+    } catch (err) {
+      if (errorBox) {
+        errorBox.textContent = err.message;
+        errorBox.hidden = false;
+      }
+    }
+  });
+
+  // Wire delegated click & keyboard on document for customer cards
+  doc.addEventListener('click', event => {
+    const btn = event.target.closest('[data-inline-bill-edit]');
+    if (btn) {
+      event.preventDefault();
+      event.stopPropagation();
+      const customerId = btn.dataset.inlineBillEdit;
+      if (customerId) {
+        open(customerId);
+      }
+    }
+  });
+
+  doc.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      const btn = event.target.closest('[data-inline-bill-edit]');
+      if (btn) {
+        event.preventDefault();
+        const customerId = btn.dataset.inlineBillEdit;
+        if (customerId) {
+          open(customerId);
+        }
+      }
+    }
+  });
+
+  if (win) {
+    win.openInlineBillEditor = open;
+  }
+
+  return { open };
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined' && document.body) {
   setupCustomerPlan();
+  setupInlineBillEdit();
 }

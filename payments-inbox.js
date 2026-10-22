@@ -50,7 +50,7 @@ export const INBOX_SETTINGS_KEY = 'easypaisaInbox.settings';
 
 export const DEFAULT_SETTINGS = {
   sheetUrl: '',
-  ownerNumber: '03055669955',
+  ownerNumber: '',
   autoMatchPhone: true
 };
 
@@ -649,7 +649,7 @@ export class PaymentsInboxController {
           </div>
           <div class="form-group">
             <label for="settingOwnerNumber">Your Registered Easypaisa Mobile Number</label>
-            <input type="tel" id="settingOwnerNumber" name="ownerNumber" class="form-input" placeholder="03055669955" value="${escapeHtml(settings.ownerNumber)}" required>
+            <input type="tel" id="settingOwnerNumber" name="ownerNumber" class="form-input" placeholder="Your Easypaisa number, e.g. 03XX-XXXXXXX" value="${escapeHtml(settings.ownerNumber)}" required>
             <small class="form-hint">Used to automatically classify transfers as Received vs Sent.</small>
           </div>
           <div class="modal-actions">

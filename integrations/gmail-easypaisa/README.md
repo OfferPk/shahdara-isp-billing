@@ -26,9 +26,9 @@ Part of GitHub Issue #305 (OfferPk/shahdara-isp-billing).
 1. In the Google Sheets menu, click **Extensions** > **Apps Script**.
 2. Erase any default code in `Code.gs`.
 3. Copy the entire contents of [`Code.gs`](./Code.gs) and paste it into the editor.
-4. *(Optional)* At the top of `Code.gs`, verify or update `OWNER_NUMBER`:
+4. **(Required)** At the top of `Code.gs`, set `OWNER_NUMBER` to **your own** Easypaisa number — the script ships with a placeholder and cannot tell Sent from Received until you replace it:
    ```javascript
-   OWNER_NUMBER: '03055669955', // Replace with your Easypaisa registered number
+   OWNER_NUMBER: '03XXXXXXXXX', // <-- REQUIRED: replace with YOUR OWN Easypaisa number (11 digits)
    ```
 5. Click the **Save** icon (diskette icon) or press `Ctrl + S`.
 
@@ -61,6 +61,9 @@ Part of GitHub Issue #305 (OfferPk/shahdara-isp-billing).
    - Navigate to **Payments Inbox** (`#/easypaisa`) or Settings.
    - Paste the published CSV URL into **Easypaisa Sheet CSV URL**.
    - Your incoming payments will now populate the Payments Inbox automatically with today's totals and customer phone matching!
+5. In the app's Payments Inbox **Settings**, also enter the **same** Easypaisa number you put in `OWNER_NUMBER` — the app uses it to label rows Sent vs Received, exactly like the sheet does.
+
+> **Safety note:** rows whose amount/total look like a phone number or an implausible figure, or whose first column is a date instead of a Transaction ID, are imported as **Needs review** rather than recorded as money — check those rows by hand instead of trusting a shifted CSV column.
 
 ---
 
@@ -89,5 +92,5 @@ Part of GitHub Issue #305 (OfferPk/shahdara-isp-billing).
 ## Troubleshooting
 
 - **No emails found**: Ensure you have received notifications from Easypaisa (`from:easypaisa` or `from:no-reply@easypaisa.com.pk`). If testing older emails, remove the `crm-processed` label from them in Gmail.
-- **Direction shows Unknown**: Double-check that `OWNER_NUMBER` in `CONFIG` matches your exact 11-digit mobile number (`03055669955`).
+- **Direction shows Unknown**: Double-check that `OWNER_NUMBER` in `CONFIG` is your exact 11-digit mobile number, and that the **same number** is saved in the app under Payments Inbox > Settings ("Your Easypaisa number"). The app no longer ships with anyone's number pre-filled.
 - **Duplicate Prevention**: The script inspects Column A for existing transaction IDs before appending. Even if a message is re-checked, duplicate records are strictly skipped.

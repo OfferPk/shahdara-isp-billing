@@ -44,7 +44,9 @@ test('issue #305 (Inbox): settings management loads defaults and normalizes owne
 
   const defaults = getInboxSettings();
   assert.equal(defaults.sheetUrl, '');
-  assert.equal(defaults.ownerNumber, '03055669955');
+  // Hardening (lane:muse on #305): no real person's number ships as a
+  // default — the owner enters their own number in Settings.
+  assert.equal(defaults.ownerNumber, '');
   assert.equal(defaults.autoMatchPhone, true);
 
   const updated = saveInboxSettings({

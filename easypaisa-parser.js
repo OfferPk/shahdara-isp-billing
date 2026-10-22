@@ -574,18 +574,32 @@ export function parseEasypaisaCsv(csvText, options = {}) {
       continue;
     }
 
-    const txnId = txnCol !== -1 && row[txnCol] ? row[txnCol] : (row[0] || `EP-CSV-${Date.now()}-${i}`);
-    const rawDate = dateCol !== -1 && row[dateCol] ? row[dateCol] : (row[1] || '');
-    const type = typeCol !== -1 && row[typeCol] ? row[typeCol] : (row[2] || 'Money Transfer to Easypaisa');
-    const senderName = senderNameCol !== -1 && row[senderNameCol] ? row[senderNameCol] : (row[3] || '');
-    const senderNumber = normalizeEasypaisaPhone(senderNumberCol !== -1 && row[senderNumberCol] ? row[senderNumberCol] : (row[4] || ''));
-    const receiverName = receiverNameCol !== -1 && row[receiverNameCol] ? row[receiverNameCol] : (row[5] || '');
-    const receiverNumber = normalizeEasypaisaPhone(receiverNumberCol !== -1 && row[receiverNumberCol] ? row[receiverNumberCol] : (row[6] || ''));
-    const rawAmount = amountCol !== -1 && row[amountCol] ? row[amountCol] : (row[7] || '');
-    const rawFee = feeCol !== -1 && row[feeCol] ? row[feeCol] : (row[8] || '0');
-    const rawTotal = totalCol !== -1 && row[totalCol] ? row[totalCol] : (row[9] || '');
-    const rawDirection = directionCol !== -1 && row[directionCol] ? row[directionCol] : (row[10] || '');
-    const rawStatus = statusCol !== -1 && row[statusCol] ? row[statusCol] : '';
+    // Cell reader: header columns win when a header row was detected.
+    // Without headers there are two positional layouts in the wild: the
+    // Google Sheet layout written by integrations/gmail-easypaisa/Code.gs
+    // (direction word at index 4, amount at 5, sender at 8/9) and the
+    // generic statement layout (sender at 3/4, amount at 7, direction at
+    // 10). The direction word is the reliable discriminator — guessing
+    // the wrong layout silently turns phone numbers into money.
+    const isSheetLayout = !hasHeaders && row.length >= 13 && /^(sent|received|unknown)$/i.test((row[4] || '').trim());
+    const cell = (headerIdx, sheetIdx, legacyIdx) => {
+      if (headerIdx !== -1 && row[headerIdx]) return row[headerIdx];
+      const idx = isSheetLayout ? sheetIdx : legacyIdx;
+      return idx >= 0 && row[idx] ? row[idx] : '';
+    };
+
+    let txnId = cell(txnCol, 0, 0) || `EP-CSV-${Date.now()}-${i}`;
+    const rawDate = cell(dateCol, 1, 1);
+    const type = cell(typeCol, 3, 2) || 'Money Transfer to Easypaisa';
+    const senderName = cell(senderNameCol, 8, 3);
+    const senderNumber = normalizeEasypaisaPhone(cell(senderNumberCol, 9, 4));
+    const receiverName = cell(receiverNameCol, 10, 5);
+    const receiverNumber = normalizeEasypaisaPhone(cell(receiverNumberCol, 11, 6));
+    const rawAmount = cell(amountCol, 5, 7);
+    const rawFee = cell(feeCol, 6, 8) || '0';
+    const rawTotal = cell(totalCol, 7, 9);
+    const rawDirection = cell(directionCol, 4, 10);
+    const rawStatus = cell(statusCol, 12, -1);
 
     const amount = parseEasypaisaAmount(rawAmount);
     const fee = parseEasypaisaAmount(rawFee) ?? 0;
@@ -597,8 +611,23 @@ export function parseEasypaisaCsv(csvText, options = {}) {
     else if (/^received$/i.test(rawDirection)) direction = 'Received';
     else direction = resolveDirection(senderNumber, receiverNumber, 'Unknown', options.ownerNumber);
 
-    const isParsed = amount !== null && amount > 0 && Boolean(txnId) && !txnId.startsWith('REVIEW-');
-    const status = rawStatus || (isParsed ? 'Parsed' : 'Needs review');
+    // Hardening guards: a shifted column must land in "Needs review",
+    // never in the ledger as if it were money.
+    const digitsOnly = value => String(value ?? '').replace(/\D/g, '');
+    const phoneShaped = value => /^03\d{9}$/.test(digitsOnly(value));
+    const MAX_PLAUSIBLE_PKR = 100000000;
+    let forceReview = false;
+    if (phoneShaped(rawAmount) || (amount !== null && amount > MAX_PLAUSIBLE_PKR)) forceReview = true;
+    if (phoneShaped(rawTotal) || total > MAX_PLAUSIBLE_PKR) forceReview = true;
+    // A date is not a transaction id: using one as the dedupe key would
+    // collapse unrelated rows and hide real duplicates.
+    if (/[-/ ]/.test(txnId) && parsePakistanDateTime(txnId).date) {
+      txnId = `REVIEW-CSV-${i}`;
+      forceReview = true;
+    }
+
+    const isParsed = !forceReview && amount !== null && amount > 0 && Boolean(txnId) && !txnId.startsWith('REVIEW-');
+    const status = forceReview ? 'Needs review' : (rawStatus && isParsed ? rawStatus : (isParsed ? 'Parsed' : 'Needs review'));
 
     results.push({
       status,

@@ -24,7 +24,7 @@ const CONFIG = {
 
   // Owner mobile number in standard 11-digit format (03XXXXXXXXX).
   // Used to distinguish incoming/received payments from outgoing/sent transfers.
-  OWNER_NUMBER: '03055669955',
+  OWNER_NUMBER: '03XXXXXXXXX', // <-- REQUIRED: replace with YOUR OWN Easypaisa number (11 digits)
 
   // Maximum number of Gmail threads to fetch per execution cycle.
   BATCH_SIZE: 50,

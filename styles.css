@@ -1494,6 +1494,23 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .business-health-formula p{margin:7px 0;color:#53695f}
 @media(max-width:620px){.business-health-panel{gap:12px;margin:14px 0;padding:12px}.business-health-heading{align-items:flex-start;gap:10px}.business-health-heading h3{font-size:18px}.business-health-score{min-width:94px;padding:9px 10px}.business-health-score-value{font-size:27px}.business-health-factor-grid{grid-template-columns:1fr}.business-health-factor{padding:11px}}
 @media(max-width:360px){.business-health-heading{display:grid}.business-health-score{justify-self:start;display:flex;align-items:center;gap:8px}.business-health-score-value{font-size:24px}}
+.business-health-next-step{color:#315c47 !important;font-weight:600}
+.isp-insights-panel{display:grid;gap:12px;margin:0 0 18px;padding:16px;border:1px solid var(--line,#dce9e2);border-radius:14px;background:var(--surface,#fff)}
+.isp-insights-heading h3{margin:2px 0 0;color:var(--ink,#244a3e);font:700 16px Manrope,system-ui,sans-serif}
+.isp-insights-heading .eyebrow{color:#477561;font-size:10px;font-weight:800;letter-spacing:.08em;margin:0}
+.isp-insights-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.isp-card{min-width:0;padding:12px;border:1px solid var(--line,#dfe9e4);border-radius:10px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:5px}
+.isp-card span{font-size:10px;font-weight:700;color:var(--muted,#60756c);line-height:1.4;text-transform:uppercase;letter-spacing:.04em}
+.isp-card strong{color:var(--green,#1e654b);font:700 clamp(18px,2vw,23px)/1.25 Manrope,system-ui,sans-serif;overflow-wrap:anywhere}
+.isp-card small{color:var(--muted,#5c6e66);font-size:10.5px;line-height:1.5}
+.isp-delta{font-size:11px;color:var(--muted,#5c6e66);font-weight:700}
+.isp-trend{display:grid;gap:6px}
+.isp-trend h4{margin:0;color:var(--ink,#29493c);font-size:13px}
+.isp-trend small{color:var(--muted,#5c6e66);font-size:10.5px;line-height:1.5}
+.isp-trend-row{display:grid;grid-template-columns:104px 1fr auto;align-items:center;gap:10px;font-size:12px;color:var(--ink,#263f34)}
+.isp-trend-row strong{font-size:12px;white-space:nowrap}
+.isp-trend-bar{display:block;height:8px;border-radius:99px;background:linear-gradient(90deg,#b45a50,#d97706);min-width:2px}
+@media(max-width:700px){.isp-insights-grid{grid-template-columns:1fr}.isp-insights-panel{padding:12px}.isp-trend-row{grid-template-columns:84px 1fr auto}}
 
 /* ==========================================================================
    Modern UI Redesign & Rich Theming (Dark/Light Mode, Cards, Responsive Layout)

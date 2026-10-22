@@ -141,3 +141,23 @@
 /* Health-reasons list inside the card kept the base muted-grey text (3.0:1 on the dark shell);
    the summary was already lifted by §2's summary rule, the <li> items were not. */
 [data-theme="dark"] .customer-health-reasons { color: var(--dk-muted) !important; }
+
+/* Business Health panel (issue 367): the panel itself kept its light gradient
+   background in dark mode while its text had already switched to the
+   dark-theme colours above — near-white text on a near-white card.
+   Give the panel and its score box the dark surfaces, and lift the
+   paragraph text styles.css hard-codes for the light theme. */
+[data-theme="dark"] .business-health-panel {
+  background: var(--dk-surface) !important;
+  background-image: none !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .business-health-score {
+  background: var(--dk-surface-2) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .business-health-score > span { color: var(--dk-muted) !important; }
+[data-theme="dark"] .business-health-heading p,
+[data-theme="dark"] .business-health-factor p,
+[data-theme="dark"] .business-health-empty { color: var(--dk-muted) !important; }
+[data-theme="dark"] .business-health-next-step { color: var(--dk-accent) !important; }

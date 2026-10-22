@@ -1,5 +1,6 @@
 import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY } from './phase3.js';
 import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
+import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -1391,9 +1392,22 @@ function validateBackupState(source) {
   return { ...source, ...phase3, version:1, nextCustomerNumber, customers, monthlyClosings };
 }
 
-export function createJsonBackup(state, exportedAt = new Date()) {
+export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
   const safeState = deepCopy(state);
-  return JSON.stringify({ format:BACKUP_FORMAT, formatVersion:1, exportedAt:localDateTimeValue(exportedAt), state:safeState }, null, 2);
+  const document = { format:BACKUP_FORMAT, formatVersion:1, exportedAt:localDateTimeValue(exportedAt), state:safeState };
+  // #359: the owner's digital payment settings (Raast/Till/bank/QR printed on
+  // receipts and WhatsApp reminders) live outside the ledger state, so backups
+  // used to lose them silently on a device change. They now travel in an
+  // optional top-level "settings" section. It is written only when the owner
+  // actually changed something (never for factory defaults), and readers that
+  // predate it ignore the unknown field — old backups and old app versions
+  // keep working in both directions.
+  if (options && typeof options === 'object' && options.digitalPaymentsSettings && typeof options.digitalPaymentsSettings === 'object') {
+    const cleaned = sanitizeDigitalPaymentsSettings(options.digitalPaymentsSettings);
+    const factory = sanitizeDigitalPaymentsSettings(getDefaultDigitalPaymentsSettings());
+    if (!sameJson(cleaned, factory)) document.settings = { digitalPayments:cleaned };
+  }
+  return JSON.stringify(document, null, 2);
 }
 
 /**
@@ -1401,7 +1415,7 @@ export function createJsonBackup(state, exportedAt = new Date()) {
  * nonblank profile fields and conflicting bill values always win; unique receipts,
  * bills, incidents and profiles are added only after the user explicitly applies it.
  */
-export function previewJsonBackupMerge(existingState, backupText) {
+export function previewJsonBackupMerge(existingState, backupText, options = {}) {
   if (typeof backupText !== 'string' || backupText.length > MAX_BACKUP_CHARACTERS) throw new Error('Backup is too large or is not readable JSON. No local data has changed.');
   let document;
   try { document = JSON.parse(backupText); }
@@ -1414,7 +1428,7 @@ export function previewJsonBackupMerge(existingState, backupText) {
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
@@ -1506,6 +1520,31 @@ export function previewJsonBackupMerge(existingState, backupText) {
   current.monthlyClosings.sort((a,b)=>b.month.localeCompare(a.month));
   current.customers.sort((a,b)=>a.customerNumber-b.customerNumber);
   current.nextCustomerNumber = Math.max(existingState.nextCustomerNumber ?? 1, incomingState.nextCustomerNumber, ...current.customers.map(customer=>customer.customerNumber+1));
+  // #359: optional digital-payments settings section (see createJsonBackup).
+  // Safe-merge rule, same as the ledger: adopt the backup's settings only when
+  // this device has none stored yet (fresh device / never opened the dialog)
+  // or still holds the factory defaults; when both sides hold different real
+  // settings, the existing ones are kept and the difference is a conflict.
+  let digitalPaymentsSettings = null;
+  const rawIncomingSettings = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.digitalPayments
+    : undefined;
+  if (rawIncomingSettings && typeof rawIncomingSettings === 'object' && !Array.isArray(rawIncomingSettings)) {
+    const incomingSettings = sanitizeDigitalPaymentsSettings(rawIncomingSettings);
+    const currentSettings = (options && typeof options === 'object' && options.currentDigitalPaymentsSettings && typeof options.currentDigitalPaymentsSettings === 'object')
+      ? sanitizeDigitalPaymentsSettings(options.currentDigitalPaymentsSettings)
+      : null;
+    const factorySettings = sanitizeDigitalPaymentsSettings(getDefaultDigitalPaymentsSettings());
+    if (currentSettings && sameJson(incomingSettings, currentSettings)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (!options?.currentDigitalPaymentsStored || (currentSettings && sameJson(currentSettings, factorySettings))) {
+      digitalPaymentsSettings = incomingSettings;
+      counts.digitalPaymentsSettingsRestored = 1;
+      counts.changes++;
+    } else {
+      conflicts.push({ customerNumber:null, name:'', field:'Digital payment settings differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '' };
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings };
 }

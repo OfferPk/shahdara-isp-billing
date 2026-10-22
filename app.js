@@ -7,7 +7,7 @@ import {
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill,
   calculateMethodCollectionTotals, findDuplicatePaymentReference
 } from './core.js?v=1.10.0';
-import { initDigitalPaymentsSettingsModal } from './digital-payments-settings.js?v=1.10.0';
+import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.10.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
@@ -1571,6 +1571,17 @@ function downloadJson(filename, text) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; document.body.append(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
 }
+// #359: digital payment settings live outside the ledger state — pass them to
+// the backup engine explicitly so exports carry them and restores can adopt
+// them under the safe-merge rules in previewJsonBackupMerge.
+function backupExtras() {
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings() };
+}
+function backupRestoreOptions() {
+  let stored = false;
+  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored };
+}
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
   warning.hidden = persistenceBlocked || storageAvailable;
@@ -1642,7 +1653,7 @@ async function recordBackupFailure(error) {
 async function saveLocalSnapshot(kind) {
   if (persistenceBlocked || !storageAvailable) throw new Error('Saved ledger data is unavailable or not writable. No backup was created.');
   const createdAt = new Date();
-  const backupText = createJsonBackup(state, createdAt);
+  const backupText = createJsonBackup(state, createdAt, backupExtras());
   const record = await localBackupStore.saveBackup(backupText, { kind, createdAt });
   try { localStorage.setItem(LAST_BACKUP_TIME_KEY, createdAt.toISOString()); } catch { /* ignore */ }
   updateDataSafetyUi();
@@ -1685,7 +1696,7 @@ function renderBackupPreview(preview) {
   if (plainSection) plainSection.hidden = false;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
-  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.`;
+  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}`;
   const list = $('#jsonBackupConflictList');
   list.replaceChildren();
   for (const conflict of conflicts.slice(0, 25)) {
@@ -1702,7 +1713,7 @@ function renderBackupPreview(preview) {
 $('#downloadJsonBackupButton').addEventListener('click', () => {
   if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
   const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
-  downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, createJsonBackup(state, new Date()));
+  downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, createJsonBackup(state, new Date(), backupExtras()));
   try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
   updateDataSafetyUi();
   toast('JSON backup downloaded to this device. Store it somewhere safe.');
@@ -1715,7 +1726,7 @@ async function handleShareBackupAction() {
   }
   const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
   const filename = `shahdara-isp-billing-backup-${fileStamp}.json`;
-  const backupText = createJsonBackup(state, new Date());
+  const backupText = createJsonBackup(state, new Date(), backupExtras());
 
   try {
     const result = await shareJsonBackupFile({ backupText, filename });
@@ -1760,10 +1771,11 @@ $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorag
 
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
 $('#backupFrequencySelect').addEventListener('change', async event => {
+  const frequency = event.currentTarget.value;
   try {
-    await localBackupStore.setFrequency(event.currentTarget.value);
+    await localBackupStore.setFrequency(frequency);
     await refreshBackupManager();
-    toast(`Automatic backups set to ${event.currentTarget.value}.`);
+    toast(`Automatic backups set to ${frequency}.`);
     void checkAutomaticBackup();
   } catch (error) {
     toast(`Backup schedule was not saved: ${error.message}`);
@@ -1795,7 +1807,7 @@ $('#restoreLocalBackupButton').addEventListener('click', async () => {
   if (!id) { toast('Choose a saved backup first.'); return; }
   try {
     const backup = await localBackupStore.getBackup(id);
-    renderBackupPreview(previewJsonBackupMerge(state, backup.backupText));
+    renderBackupPreview(previewJsonBackupMerge(state, backup.backupText, backupRestoreOptions()));
   } catch (error) { toast(`${error.message} No local data was changed.`); }
 });
 $('#backupControlsToggle').addEventListener('click', event => {
@@ -1853,7 +1865,7 @@ $('#unlockEncryptedRestoreBtn')?.addEventListener('click', async () => {
     const decryptedText = await decryptBackupJson(pendingEncryptedBackupText, pass);
     $('#encryptedRestoreSection').hidden = true;
     $('#plainBackupRestoreSection').hidden = false;
-    renderBackupPreview(previewJsonBackupMerge(state, decryptedText));
+    renderBackupPreview(previewJsonBackupMerge(state, decryptedText, backupRestoreOptions()));
     toast('🔐 Backup decrypted successfully! Review the safe merge preview.');
   } catch (err) {
     errEl.textContent = err.message || 'Decryption failed: incorrect passphrase.';
@@ -1878,7 +1890,7 @@ $('#jsonBackupFileInput').addEventListener('change', async event => {
       promptEncryptedRestore(text, inspection);
       return;
     }
-    renderBackupPreview(previewJsonBackupMerge(state, text));
+    renderBackupPreview(previewJsonBackupMerge(state, text, backupRestoreOptions()));
   }
   catch (error) { toast(`${error.message} No local data was changed.`); }
   finally {
@@ -1954,7 +1966,7 @@ async function getValidatedEncryptedBackupPayload() {
     return null;
   }
   err.hidden = true;
-  const rawBackup = createJsonBackup(state, new Date());
+  const rawBackup = createJsonBackup(state, new Date(), backupExtras());
   const encrypted = await encryptBackupJson(rawBackup, pass, { hint });
   return encrypted;
 }
@@ -2025,6 +2037,11 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     const restored = generateMonthlyBillsThroughCurrentMonth(pendingBackupPreview.state, new Date());
     persistState(restored, localStorage);
     state = restored; storageAvailable = true; persistenceBlocked = false; readFailureMessage = '';
+    if (pendingBackupPreview.digitalPaymentsSettings) {
+      saveDigitalPaymentsSettings(pendingBackupPreview.digitalPaymentsSettings);
+      const ownerPhone = pendingBackupPreview.digitalPaymentsSettings.ownerPhone;
+      if (ownerPhone) { try { localStorage.setItem('shahdara_owner_whatsapp_phone', ownerPhone); } catch { /* ignore */ } }
+    }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }

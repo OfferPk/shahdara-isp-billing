@@ -189,17 +189,25 @@ body.sr-screen-mode #addCustomerButton { display: none !important; }
 .pane-heading .pane-heading-actions:empty { display: none; }
 
 /* Compact list: one row per customer (~64-72 px). Details stay in the profile and behind "Show details". */
-.cust-compact .customer-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: 12px; box-shadow: none; }
+/* The card stacks vertically: card body on top, the billing-badge row under
+   it. (The old side-by-side grid gave the badge a ~156 px auto column, and
+   with the 92 px service-status pill inside the heading the customer name
+   was squeezed to ~42 px and ellipsized to "N…" — the name must own the
+   full heading width; see tests/e2e/customer-name-visible.spec.mjs.) */
+.cust-compact .customer-item { display: flex; flex-direction: column; align-items: stretch; border-radius: 12px; box-shadow: none; }
 .cust-compact .customer-item:hover { transform: none; }
 .cust-compact .customer-select.customer-profile-card-open { padding: 8px 10px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
-.cust-compact .customer-card-heading { gap: 10px; }
+.cust-compact .customer-card-heading { gap: 4px 10px; flex-wrap: wrap; }
 .cust-compact .customer-card-heading .avatar { width: 34px; height: 34px; border-radius: 10px; }
-.cust-compact .customer-card-heading .customer-copy { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 0; }
+.cust-compact .customer-card-heading .customer-copy { flex: 1 1 calc(100% - 44px); flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; row-gap: 0; }
+/* The status pill wraps onto its own line under the name (indented to the
+   text column), so it never competes with the name for width. */
+.cust-compact .customer-manual-state { margin-left: 44px; }
 .cust-compact .customer-card-heading .customer-number-line { order: 2; font-size: 11px; }
 .cust-compact .customer-card-heading .customer-name { order: 1; font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .cust-compact .customer-card-package { margin: 0 0 0 44px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cust-compact :is(.customer-card-stats, .customer-health-badge, .customer-card-open-hint, .customer-health-reasons, .service-choice-group) { display: none !important; }
-.cust-compact .customer-card-controls { padding: 0 10px 0 0; border: 0; margin: 0; background: transparent; display: flex; }
+.cust-compact .customer-card-controls { padding: 2px 10px 8px 54px; border: 0; margin: 0; background: transparent; display: flex; }
 .cust-compact .customer-billing-badge[data-short] { font-size: 0 !important; white-space: nowrap; }
 .cust-compact .customer-billing-badge[data-short]::after { content: attr(data-short); font-size: 12px; }
 .customer-manual-state.is-unset { display: none; }

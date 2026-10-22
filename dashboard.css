@@ -3520,6 +3520,7 @@
   padding: 14px 18px;
   background: var(--bg-soft, #f4f8f6);
   border-bottom: 1px solid var(--line, #e2ece7);
+  flex-shrink: 0;
 }
 
 .worklist-modal-header h2 {
@@ -3541,6 +3542,9 @@
   -webkit-overflow-scrolling: touch;
   max-width: 100%;
   box-sizing: border-box;
+  /* Issue 381: in the modal's flex column the tab row must never give up
+     height to the list — the list is the only shrinking/scrolling part. */
+  flex-shrink: 0;
 }
 
 .worklist-tab-btn {
@@ -3597,12 +3601,13 @@
 
 .worklist-svg-container {
   margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .worklist-svg-container svg {
   display: block;
   width: 100%;
-  height: 132px;
+  height: 116px;
 }
 
 /* Issue 366: the customer list is the modal's one main scroll area.
@@ -3622,6 +3627,7 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 }
 
 .worklist-search-wrap {
@@ -3651,7 +3657,7 @@
 .worklist-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
@@ -3663,7 +3669,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 8px 14px;
   background: var(--surface, #ffffff);
   border: 1px solid var(--line, #e2ece7);
   border-radius: 10px;
@@ -3802,6 +3808,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .worklist-footer-actions {
@@ -3974,7 +3981,7 @@
   }
 
   #workListModal .worklist-svg-container svg {
-    height: 84px;
+    height: 64px;
   }
 
   #workListModal .worklist-toolbar {

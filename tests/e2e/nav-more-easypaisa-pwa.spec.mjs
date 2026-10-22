@@ -40,7 +40,11 @@ test.describe('Mobile More Menu: Payments Inbox & PWA Integration', () => {
     await moreBtn.click();
     await expect(moreMenu).toBeVisible();
     await expect(inboxBtn).toBeVisible();
-    await expect(inboxBtn).toHaveText('Payments Inbox');
+    // The button carries a pending-count badge span (hidden at 0); its text
+    // is part of textContent, so assert the label plus a hidden zero badge
+    // instead of the button's exact full text.
+    await expect(inboxBtn).toContainText('Payments Inbox');
+    await expect(inboxBtn.locator('[data-nav-badge="easypaisa"]')).toBeHidden();
 
     // Click Payments Inbox
     await inboxBtn.click();

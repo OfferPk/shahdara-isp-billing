@@ -236,7 +236,12 @@ test.describe('Customer & payment polish', () => {
     const rows = page.locator('#customerList > li');
     for (let i = 0; i < 3; i++) {
       const box = await rows.nth(i).boundingBox();
-      expect(box.height).toBeLessThanOrEqual(80);
+      // Compact rows were ~72px when the billing badge sat beside the card
+      // body, but that layout squeezed the customer name to ~42px (issue
+      // #374). The accepted #374 fix stacks the badge row under the body,
+      // which makes a compact row ~108px — still one glanceable row with
+      // no stats block (that is what this budget protects).
+      expect(box.height).toBeLessThanOrEqual(112);
     }
     await expect(page.locator('#addCustomerButton')).toBeHidden();
     await expect(page.locator('#srPrimaryAction')).toBeVisible();

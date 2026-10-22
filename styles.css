@@ -1492,8 +1492,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .business-health-formula{padding:10px 12px;border:1px solid #e0e8e3;border-radius:9px;background:#fff}
 .business-health-formula ul{margin:7px 0;padding-left:20px;display:grid;gap:5px}
 .business-health-formula p{margin:7px 0;color:#53695f}
-@media(max-width:620px){.business-health-panel{gap:12px;margin:14px 0;padding:12px}.business-health-heading{align-items:flex-start;gap:10px}.business-health-heading h3{font-size:18px}.business-health-score{min-width:94px;padding:9px 10px}.business-health-score-value{font-size:27px}.business-health-factor-grid{grid-template-columns:1fr}.business-health-factor{padding:11px}}
-@media(max-width:360px){.business-health-heading{display:grid}.business-health-score{justify-self:start;display:flex;align-items:center;gap:8px}.business-health-score-value{font-size:24px}}
+@media(max-width:620px){.business-health-panel{gap:12px;margin:14px 0;padding:12px}.business-health-heading{display:grid;gap:10px}.business-health-heading h3{font-size:18px}.business-health-score{justify-self:stretch;display:flex;align-items:center;gap:10px;min-width:0;padding:9px 12px}.business-health-score-value{font-size:24px;white-space:normal;overflow-wrap:anywhere}.business-health-score>span{white-space:normal}.business-health-factor-grid{grid-template-columns:1fr}.business-health-factor{padding:11px}}
 .business-health-next-step{color:#315c47 !important;font-weight:600}
 .isp-insights-panel{display:grid;gap:12px;margin:0 0 18px;padding:16px;border:1px solid var(--line,#dce9e2);border-radius:14px;background:var(--surface,#fff)}
 .isp-insights-heading h3{margin:2px 0 0;color:var(--ink,#244a3e);font:700 16px Manrope,system-ui,sans-serif}

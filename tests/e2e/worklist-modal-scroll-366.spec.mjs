@@ -67,9 +67,17 @@ function measureLayout(page) {
       }
       el = el.parentElement;
     }
+    const allRows = [...list.querySelectorAll('.worklist-item')];
+    const lastRect = allRows.length ? allRows[allRows.length - 1].getBoundingClientRect() : null;
+    // 2px tolerance for the last row: content height is fractional while
+    // scrollTop clamps to an integer, so at max scroll the last row can
+    // sit ~0.7px past the list's bottom edge — visually fully visible.
+    const lastRowFullyVisible = !!lastRect &&
+      lastRect.top >= clipTop - 0.5 && lastRect.bottom <= clipBottom + 2;
     return {
       rowCount: list.querySelectorAll('.worklist-item').length,
       fullyVisible,
+      lastRowFullyVisible,
       listClientH: list.clientHeight,
       listScrollH: list.scrollHeight,
       scrollers,
@@ -127,7 +135,13 @@ test.describe('Issue #366: Worklists modal single scroll area + visible rows', (
     });
     await page.waitForTimeout(250);
     const after = await measureLayout(page);
-    expect(after.fullyVisible).toBeGreaterThanOrEqual(3);
+    // Intent: the last row is reachable and fully visible at the bottom.
+    // (Not ">= 3 full rows": rows with long names wrap to two lines at
+    // 390px, so where the final window lands depends on how many tall
+    // rows the list happens to contain — with the two RAJA TAIMOOR rows
+    // the bottom window shows 2 full rows plus the next one partially.)
+    expect(after.lastRowFullyVisible).toBe(true);
+    expect(after.fullyVisible).toBeGreaterThanOrEqual(2);
 
     // Tabs still work end to end (reconnect + rules panes render).
     await page.locator('.worklist-tab-btn[data-tab="reconnect"]').click();

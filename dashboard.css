@@ -3981,7 +3981,10 @@
   }
 
   #workListModal .worklist-svg-container svg {
-    height: 64px;
+    /* 52px leaves ~14px of slack under the third row: at 64px the row
+       cleared the clip by only ~2px, so font-swap timing could clip it
+       (issue 366 follow-up). The graphic scales to width either way. */
+    height: 52px;
   }
 
   #workListModal .worklist-toolbar {

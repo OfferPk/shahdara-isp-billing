@@ -145,7 +145,7 @@ test.describe('Issue #213: Home Screen Overload & Navigation Redesign', () => {
     expect(errors).toEqual([]);
   });
 
-  test('More menu: organized into 4 semantic groups and includes Field Tools', async ({ page }) => {
+  test('More menu: organized into semantic groups and includes Field Tools', async ({ page }) => {
     const errors = trackErrors(page);
     await setupMocks(page);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -158,13 +158,15 @@ test.describe('Issue #213: Home Screen Overload & Navigation Redesign', () => {
     const moreMenu = page.locator('#mobileMoreMenu');
     await expect(moreMenu).toBeVisible();
 
-    // Verify 4 section headers exist
+    // Verify the section headers exist. The menu was regrouped from four
+    // sections (Reports / Money / Customers / Settings) into three broader
+    // ones; every destination from the old groups is still present.
     const labels = moreMenu.locator('.more-menu-section-label');
-    await expect(labels).toHaveCount(4);
-    await expect(labels.nth(0)).toContainText('Reports');
-    await expect(labels.nth(1)).toContainText('Money');
-    await expect(labels.nth(2)).toContainText('Customers');
-    await expect(labels.nth(3)).toContainText('Settings');
+    await expect(labels).toHaveCount(3);
+    // Assert the runtime (i18n) texts, which replace the static HTML ones.
+    await expect(labels.nth(0)).toContainText('Reports & Analytics');
+    await expect(labels.nth(1)).toContainText('Customers & Data');
+    await expect(labels.nth(2)).toContainText('Settings & Tools');
 
     // Verify Field Tools button in More
     const fieldToolsBtn = page.locator('#mobileMoreFieldToolsBtn');

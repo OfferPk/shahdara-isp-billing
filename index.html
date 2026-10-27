@@ -7519,6 +7519,24 @@
             <option value="ytd">Current Calendar Year</option>
           </select>
         </label>
+        <label for="statementTypeFilter">Entry type:
+          <select id="statementTypeFilter">
+            <option value="all" selected>All entries</option>
+            <option value="bill">Bills only</option>
+            <option value="payment">Payments only</option>
+            <option value="discount">Discounts only</option>
+            <option value="adjustment">Adjustments only</option>
+          </select>
+        </label>
+        <label for="statementMonthFilter">Billing month:
+          <select id="statementMonthFilter">
+            <option value="all" selected>All months</option>
+          </select>
+        </label>
+        <label for="statementSearchInput">Search:
+          <input id="statementSearchInput" type="search" placeholder="Description, ref, method…">
+        </label>
+        <button id="clearStatementFilters" class="secondary-button" type="button">Clear filters</button>
         <div class="statement-modal-actions">
           <button id="printStatementBtn" class="primary-button" type="button">🖨️ Print Statement</button>
           <button id="printStatement58Btn" class="secondary-button" type="button" title="Print this statement on a 58mm thermal roll">🧾 Print 58mm</button>

@@ -101,6 +101,7 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.arrearsPackage || fields.arrearsPrevious || fields.arrearsTotal) {
     push(rowLine('Monthly pkg', fields.arrearsPackage, width));
+    if (fields.arrearsKist) push(rowLine('Kist', fields.arrearsKist, width));
     push(rowLine('Prev arrears', fields.arrearsPrevious, width));
     push(rowLine('Total due', fields.arrearsTotal, width));
     push(rowLine('Paid applied', fields.arrearsPaid, width));
@@ -170,6 +171,8 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     // SISP-2: itemized arrears breakdown (passed through from the receipt
     // object built by buildPaymentReceipt); rendered below by buildEscPosReceipt.
     arrearsPackage: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.packageAmount) : '',
+    // SISP-4: kist on this bill month (blank when none, like the other rows).
+    arrearsKist: receipt.arrearsBreakdown && receipt.arrearsBreakdown.kistAmount > 0 ? money(receipt.arrearsBreakdown.kistAmount) : '',
     arrearsPrevious: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.previousArrears) : '',
     arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
     arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',

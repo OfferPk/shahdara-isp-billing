@@ -3,6 +3,7 @@ import { createBillPackageSnapshot, validateBillPackageSnapshot } from './packag
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { sanitizeComplaints } from './complaint-register.js';
+import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -223,7 +224,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [], installmentPlans: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -1503,7 +1504,11 @@ function validateBackupState(source) {
       const lateFee = bill.lateFee !== undefined && bill.lateFee !== null ? (validBackupAmount(bill.lateFee, `late fee for ${bill.month}`), Number(bill.lateFee) || 0) : undefined;
       const lateFeeAppliedAt = bill.lateFeeAppliedAt ? String(bill.lateFeeAppliedAt) : undefined;
       const lateFeeReason = bill.lateFeeReason ? String(bill.lateFeeReason) : undefined;
-      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}) };
+      // SISP-4: kist lines ride the bill; sanitize them on backup import so
+      // a malformed line can never corrupt the ledger or the cycle.
+      const kistLines = sanitizeBillKistLines(bill.kistLines);
+      const kistTotal = kistLines.reduce((sum, line) => sum + line.amount, 0);
+      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}), kistLines, kistTotal: Math.round(kistTotal * 100) / 100 };
     });
     const incidents = sourceIncidents.map(incident => {
       if (!incident || typeof incident.id !== 'string' || !incident.id || incidentIds.has(incident.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate incident ID.`);
@@ -1528,7 +1533,10 @@ function validateBackupState(source) {
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null,
-      packageHistory, bills, incidents
+      packageHistory, bills, incidents,
+      // SISP-4: installment plans travel with the customer; old backups
+      // without the field import as an empty plan list (backward compatible).
+      installmentPlans: sanitizeInstallmentPlans(customer.installmentPlans)
     };
   });
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
@@ -1621,6 +1629,26 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     counts.mergedCustomers++;
     const customer = byId;
     for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu']) mergeField(customer, backupCustomer, key, backupCustomer);
+    // SISP-4: installment plans merge by plan id (not a plain field fill):
+    // a missing plan is adopted, and when both sides hold the same plan
+    // the further-billed copy wins — plan progress only ever moves
+    // forward, so taking the max monthsBilled never loses a billed kist.
+    customer.installmentPlans = customer.installmentPlans ?? [];
+    for (const incomingPlan of backupCustomer.installmentPlans ?? []) {
+      const existingPlan = customer.installmentPlans.find((plan) => plan.id === incomingPlan.id);
+      if (!existingPlan) { customer.installmentPlans.push(deepCopy(incomingPlan)); counts.changes++; continue; }
+      if (sameJson(existingPlan, incomingPlan)) continue;
+      const mergedPlan = sanitizeInstallmentPlans([{
+        ...existingPlan,
+        ...incomingPlan,
+        monthsBilled: Math.max(existingPlan.monthsBilled ?? 0, incomingPlan.monthsBilled ?? 0),
+        monthsPaid: Math.max(existingPlan.monthsPaid ?? 0, incomingPlan.monthsPaid ?? 0)
+      }])[0];
+      if (mergedPlan && !sameJson(existingPlan, mergedPlan)) {
+        Object.assign(existingPlan, mergedPlan);
+        counts.changes++;
+      }
+    }
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {
@@ -1642,6 +1670,19 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         else if (nonempty(oldValue) && !nonempty(newValue)) continue;
         else addConflict(backupCustomer, `bill ${incomingBill.month} ${key}`);
       }
+      // SISP-4: kist lines merge by plan + installment (a billed kist is
+      // never dropped by a restore), and kistTotal is recomputed from the
+      // union so it can never drift from its lines.
+      existingBill.kistLines = existingBill.kistLines ?? [];
+      for (const incomingLine of sanitizeBillKistLines(incomingBill.kistLines)) {
+        const key = `${incomingLine.planId}:${incomingLine.installmentNumber}`;
+        if (!sanitizeBillKistLines(existingBill.kistLines).some((line) => `${line.planId}:${line.installmentNumber}` === key)) {
+          existingBill.kistLines.push(deepCopy(incomingLine));
+          counts.changes++;
+        }
+      }
+      existingBill.kistLines = sanitizeBillKistLines(existingBill.kistLines);
+      existingBill.kistTotal = Math.round(existingBill.kistLines.reduce((sum, line) => sum + line.amount, 0) * 100) / 100;
       existingBill.amountHistory = existingBill.amountHistory ?? [];
       for (const correction of incomingBill.amountHistory) if (!existingBill.amountHistory.some(item=>sameJson(item,correction))) { existingBill.amountHistory.push(deepCopy(correction)); counts.changes++; }
       existingBill.payments = existingBill.payments ?? [];

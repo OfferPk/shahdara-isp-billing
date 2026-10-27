@@ -19,6 +19,7 @@
 // Tests use synthetic data only; no customer, bill or payment data is ever
 // fabricated here.
 import { calculatePaymentAllocations, formatPKR } from './core.js';
+import { advancePlansForBilledLines, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines } from './installment-plan.js';
 
 export const BILLING_CYCLES_KEY = 'sisp_billing_cycles_v1';
 
@@ -67,6 +68,7 @@ export function sanitizeBillingCycles(value) {
       ranAt: typeof entry.ranAt === 'string' ? entry.ranAt : '',
       totals: {
         totalBilled: num('totalBilled'),
+        totalKist: num('totalKist'),
         totalArrears: num('totalArrears'),
         totalAdvanceAvailable: num('totalAdvanceAvailable'),
         totalAdvanceApplied: num('totalAdvanceApplied'),
@@ -146,20 +148,35 @@ export function planCustomerCycleLine(customer, month) {
   const bills = Array.isArray(customer.bills) ? customer.bills : [];
   const existing = bills.find((bill) => bill?.month === month);
   let price;
+  let existingKistTotal = 0;
   if (existing) {
     const amount = Number(existing.dueAmount);
     if (!Number.isFinite(amount) || amount <= 0) return { ...base, skipped: true, reason: 'unpriced-bill' };
-    price = amount; // Rate-locked: never recompute an existing bill's amount.
+    // Rate-locked: never recompute an existing bill's amount. Its dueAmount
+    // already includes any kist billed earlier, so recover the package part
+    // by subtracting that kist — otherwise the kist would be counted twice.
+    existingKistTotal = billKistTotal(existing);
+    price = Math.max(0, rupees(cents(amount) - cents(existingKistTotal)));
   } else {
     price = applicablePriceForMonth(customer, month);
     if (price === null) return { ...base, skipped: true, reason: 'no-price' };
   }
+  // SISP-4: kist due this month rides the cycle, never a separate bill.
+  // kistLines are only the NEW installments (already-recorded ones on an
+  // existing bill are excluded by dueKistLines); kistAmount is the full
+  // kist on this month's bill so netDue stays correct after an apply.
+  const kistLines = dueKistLines(customer, month);
+  const kistNewAmount = rupees(kistLines.reduce((sum, line) => sum + cents(line.amount), 0));
+  const kistAmount = rupees(cents(existingKistTotal) + cents(kistNewAmount));
   const { previousArrears, advanceCredit, arrearsMonths } = arrearsAndAdvance(customer, month);
-  const gross = price + previousArrears;
+  const gross = price + kistAmount + previousArrears;
   return {
     ...base,
     skipped: false,
     currentMonthBill: price,
+    kistLines,
+    kistAmount,
+    kistNewAmount,
     previousArrears,
     advanceCredit,
     netDue: Math.max(0, gross - advanceCredit),
@@ -181,9 +198,10 @@ export function planBillingCycle(state, month) {
   const sum = (field) => lines.reduce((total, line) => total + (line[field] || 0), 0);
   const totals = {
     totalBilled: sum('currentMonthBill'),
+    totalKist: sum('kistAmount'),
     totalArrears: sum('previousArrears'),
     totalAdvanceAvailable: sum('advanceCredit'),
-    totalAdvanceApplied: lines.reduce((total, line) => total + Math.min(line.advanceCredit, line.currentMonthBill + line.previousArrears), 0),
+    totalAdvanceApplied: lines.reduce((total, line) => total + Math.min(line.advanceCredit, line.currentMonthBill + (line.kistAmount || 0) + line.previousArrears), 0),
     netExpectedCollection: sum('netDue'),
     billedCount: lines.length,
     skippedCount: skipped.length
@@ -214,22 +232,53 @@ export function applyBillingCycle(state, month, referenceDate = new Date()) {
   const createdBillIds = [];
   const customers = (state?.customers ?? []).map((customer) => {
     const line = byCustomerId.get(customer.id);
-    if (!line || line.existingBillId) return customer;
+    if (!line) return customer;
+    // SISP-4: an adopted bill still receives this month's kist lines
+    // (existing bill's dueAmount grows by exactly the new kist, and the
+    // plan's monthsBilled advances). Lines already on the bill are never
+    // re-added — dueKistLines excluded them from the plan.
+    if (line.existingBillId) {
+      if (!line.kistLines?.length) return customer;
+      const bills = (customer.bills ?? []).map((bill) => {
+        if (bill?.id !== line.existingBillId) return bill;
+        const oldLines = sanitizeBillKistLines(bill.kistLines);
+        const nextLines = [...oldLines, ...line.kistLines];
+        return {
+          ...bill,
+          dueAmount: rupees(cents(bill.dueAmount) + cents(line.kistNewAmount)),
+          kistLines: nextLines,
+          kistTotal: rupees(nextLines.reduce((sum, row) => sum + cents(row.amount), 0))
+        };
+      });
+      changed = true;
+      return {
+        ...customer,
+        bills,
+        installmentPlans: advancePlansForBilledLines(customer.installmentPlans, line.kistLines)
+      };
+    }
     const bill = {
       id: makeId(),
       month,
-      dueAmount: line.currentMonthBill,
+      dueAmount: rupees(cents(line.currentMonthBill) + cents(line.kistNewAmount || 0)),
       dueDate: `${month}-05`,
       status: 'pending',
       payments: [],
       generated: true,
       priceSnapshot: line.currentMonthBill,
       createdAt: (referenceDate instanceof Date ? referenceDate : new Date()).toISOString(),
-      amountHistory: []
+      amountHistory: [],
+      // SISP-4: kist rides this bill; priceSnapshot stays the package price.
+      kistLines: line.kistLines ?? [],
+      kistTotal: rupees((line.kistLines ?? []).reduce((sum, row) => sum + cents(row.amount), 0))
     };
     createdBillIds.push(bill.id);
     changed = true;
-    return { ...customer, bills: [...(customer.bills ?? []), bill].sort((a, b) => b.month.localeCompare(a.month)) };
+    return {
+      ...customer,
+      bills: [...(customer.bills ?? []), bill].sort((a, b) => b.month.localeCompare(a.month)),
+      installmentPlans: advancePlansForBilledLines(customer.installmentPlans, line.kistLines)
+    };
   });
   return { state: changed ? { ...state, customers } : state, plan, createdBillIds };
 }
@@ -276,9 +325,16 @@ export function buildArrearsBreakdown(customer, bill) {
   const paidAmount = rupees((summary?.sameMonthAppliedCents ?? 0) + (summary?.creditAppliedCents ?? 0));
   const discountApplied = rupees(summary?.discountAppliedCents ?? 0);
   const totalDue = amount + previousArrears;
+  // SISP-4: the bill amount already includes kist, so split it back out —
+  // the package line must show the package price, with kist as its own
+  // breakdown lines (WhatsApp + thermal receipts render them from here).
+  const kistAmount = billKistTotal(bill);
+  const kistLines = sanitizeBillKistLines(bill.kistLines);
   return {
     month: bill.month,
-    packageAmount: amount,
+    packageAmount: Math.max(0, rupees(cents(amount) - cents(kistAmount))),
+    kistAmount,
+    kistLines,
     previousArrears,
     totalDue,
     paidAmount,
@@ -291,6 +347,10 @@ export function arrearsBreakdownTextLines(breakdown) {
   if (!breakdown) return [];
   return [
     `Mahana Package: ${formatPKR(breakdown.packageAmount)}`,
+    ...(breakdown.kistAmount > 0 ? [
+      `Kist (installments this month): ${formatPKR(breakdown.kistAmount)}`,
+      ...(Array.isArray(breakdown.kistLines) ? breakdown.kistLines.map((line) => `  ${kistLineLabel(line)} — ${formatPKR(line.amount)}`) : [])
+    ] : []),
     `Sabiqa Baqaya (Previous Arrears): ${formatPKR(breakdown.previousArrears)}`,
     `Kul Qabil-e-Ada (Total Due): ${formatPKR(breakdown.totalDue)}`,
     `Wusool Paya (Paid): ${formatPKR(breakdown.paidAmount)}`,
@@ -343,6 +403,7 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
     const buckets = plan.defaulterBuckets;
     previewBox.innerHTML = `<div class="billing-cycle-totals">
       <p><span>Total billed this month</span><strong>${money(plan.totals.totalBilled)}</strong></p>
+      ${plan.totals.totalKist > 0 ? `<p><span>Kist installments included</span><strong>${money(plan.totals.totalKist)}</strong></p>` : ''}
       <p><span>Total arrears carried forward</span><strong>${money(plan.totals.totalArrears)}</strong></p>
       <p><span>Advance available / applied</span><strong>${money(plan.totals.totalAdvanceAvailable)} / ${money(plan.totals.totalAdvanceApplied)}</strong></p>
       <p><span>Net expected collection</span><strong>${money(plan.totals.netExpectedCollection)}</strong></p>
@@ -387,7 +448,7 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
       currentPlan = null;
       if (confirmBtn) confirmBtn.hidden = true;
       if (previewBox) previewBox.innerHTML = '';
-      if (resultBox) resultBox.innerHTML = `<p class="billing-cycle-success">✅ Billing cycle for ${escapeHtml(cycle.month)} ran: ${cycle.totals.billedCount} bills · ${money(cycle.totals.totalBilled)} billed · ${money(cycle.totals.totalArrears)} arrears carried · ${money(cycle.totals.netExpectedCollection)} net expected.</p>`;
+      if (resultBox) resultBox.innerHTML = `<p class="billing-cycle-success">✅ Billing cycle for ${escapeHtml(cycle.month)} ran: ${cycle.totals.billedCount} bills · ${money(cycle.totals.totalBilled)} billed${cycle.totals.totalKist > 0 ? ` · ${money(cycle.totals.totalKist)} kist included` : ''} · ${money(cycle.totals.totalArrears)} arrears carried · ${money(cycle.totals.netExpectedCollection)} net expected.</p>`;
       renderLastRun();
       if (onToast) onToast(`Billing cycle for ${cycle.month} ran: ${cycle.totals.billedCount} bills.`);
     } catch (error) {

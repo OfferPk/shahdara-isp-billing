@@ -12391,6 +12391,99 @@ dialog::backdrop {
 .profile-waada-section .waada-chip-custom {
   margin-top: 10px;
 }
+/* SISP-4: profile kist (installment) section — theme tokens only, so the
+ * progress bar and form read correctly in light and dark mode. */
+.profile-kist-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.profile-kist-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.profile-kist-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.profile-kist-empty {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.kist-plan {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.kist-plan-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13.5px;
+}
+.kist-plan-head span {
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.kist-progress-track {
+  height: 10px;
+  margin: 8px 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  overflow: hidden;
+}
+.kist-progress-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--green);
+}
+.kist-plan-meta {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 2px;
+}
+.kist-plan-detail {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.kist-add-form {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.kist-add-form h5 {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+}
+.kist-add-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.kist-add-grid input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 0 11px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.kist-add-grid input:focus {
+  outline: 3px solid var(--line);
+  border-color: var(--green);
+}
+@media (max-width: 480px) {
+  .kist-plan-head {
+    flex-wrap: wrap;
+  }
+}
 @media (max-width: 480px) {
   .waada-chip-row .waada-chip-btn {
     flex: 1 1 30%;

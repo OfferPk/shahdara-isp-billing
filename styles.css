@@ -12794,3 +12794,51 @@ dialog::backdrop {
 [data-theme="dark"] .package-history-list{color:var(--dk-muted)}
 [data-theme="dark"] .package-history-list li strong{color:var(--dk-ink)}
 [data-theme="dark"] .detail-name-sub{color:var(--dk-muted)}
+
+/* Profile tabs design: compact month summary cards, 2-col month forms,
+   2-col billing metrics on phones, themed incident pill/form (dark mode). */
+@media (max-width: 620px) {
+  .month-body { padding: 12px 10px 14px; }
+  .month-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-bottom: 12px;
+  }
+  .month-summary > span.month-summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: auto;
+    font-size: 10px;
+    color: var(--muted);
+    min-width: 0;
+  }
+  .month-summary > span.month-summary-stat > strong {
+    text-align: left;
+    font-size: 13px;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .month-summary-wide, .month-summary > div { grid-column: 1 / -1; }
+  .month-forms { gap: 12px; }
+  .month-forms .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .form-grid .form-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .form-grid .form-cell .field-label { margin: 0; }
+  .profile-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .profile-summary-stat { padding: 11px; min-height: 88px; }
+}
+.month-forms .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.form-grid .form-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.form-grid .form-cell .field-label { margin: 0; }
+[data-theme="dark"] .month-summary { color: var(--dk-muted); }
+[data-theme="dark"] .month-summary-stat { color: var(--dk-muted); }
+[data-theme="dark"] .month-summary-stat > strong { color: var(--dk-ink); }
+[data-theme="dark"] .form-card h4 { color: var(--dk-muted); }
+[data-theme="dark"] .incident-count { background: var(--dk-surface); border-color: var(--dk-line); color: var(--dk-muted); }
+[data-theme="dark"] .incident-form { background: var(--dk-surface); border-color: var(--dk-line); }
+[data-theme="dark"] .incident-field { color: var(--dk-muted); }

@@ -12,7 +12,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards
 } from './phase3.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
@@ -4068,6 +4068,41 @@ let areaSortKey = null;
 let areaSortAsc = true;
 let areaSearchQuery = '';
 
+function areaIntelMetric(label, display, missing, title) {
+  const titleAttr = title ? ` title="${phase3Cell(title)}"` : '';
+  if (missing) return `<div class="area-intel-metric"><span>${label}</span><span class="area-intel-missing"${titleAttr}>${phase3Cell(display)}</span></div>`;
+  return `<div class="area-intel-metric"><span>${label}</span><strong${titleAttr}>${phase3Cell(display)}</strong></div>`;
+}
+function areaIntelSectionMetrics(row) {
+  const amountOrMissing = value => value === null ? null : formatAmount(value);
+  return [
+    areaIntelMetric('Customers · current roster', String(row.totalCustomers), false),
+    areaIntelMetric('Active customers', row.activeCustomers === null ? 'Not recorded for this historical date' : String(row.activeCustomers), row.activeCustomers === null, row.activeCustomerSource),
+    areaIntelMetric('Monthly billing', amountOrMissing(row.billedAmount), row.billedAmount === null),
+    areaIntelMetric('Collected', amountOrMissing(row.collectedAmount), row.collectedAmount === null),
+    areaIntelMetric('Outstanding', amountOrMissing(row.outstanding), row.outstanding === null),
+    areaIntelMetric('Collection rate', row.collectionRate === null ? 'Not set' : `${row.collectionRate}%`, row.collectionRate === null),
+    areaIntelMetric('Average customer value', amountOrMissing(row.averageCustomerValue), row.averageCustomerValue === null),
+    areaIntelMetric('Expenses', amountOrMissing(row.expenses), row.expenses === null, row.expensesSource),
+    areaIntelMetric('Estimated profit', amountOrMissing(row.estimatedProfit), row.estimatedProfit === null, row.estimatedProfitBasis),
+  ].join('');
+}
+function areaIntelNoZoneNote(count) {
+  return count ? `<p class="area-intel-no-zone">Without a zone: ${count} customer${count === 1 ? '' : 's'}</p>` : '';
+}
+function areaIntelCardSection(section) {
+  const level = section.level === 'unassigned' ? 'Unassigned' : section.level;
+  const name = phase3Cell(section.label.replace(/^(?:Area|Mohalla|Zone):\s*/, ''));
+  return `<section class="area-intel-section"><h5><span class="area-intel-level">${phase3Cell(level)}</span> ${name}</h5><div class="area-intel-metrics">${areaIntelSectionMetrics(section.row)}</div>${areaIntelNoZoneNote(section.withoutZoneCustomers)}${section.children.map(areaIntelCardSection).join('')}</section>`;
+}
+function renderAreaIntelligenceCardsHtml(areaRows) {
+  return groupAreaIntelligenceCards(areaRows).map(group => {
+    const rootName = phase3Cell((group.root ? group.root.label : group.rootArea).replace(/^(?:Area|Mohalla|Zone):\s*/, ''));
+    const rootLevel = group.root ? (group.root.level === 'unassigned' ? 'Unassigned' : group.root.level) : 'Area';
+    const rootBody = group.root ? `<div class="area-intel-metrics">${areaIntelSectionMetrics(group.root.row)}</div>${areaIntelNoZoneNote(group.root.withoutZoneCustomers)}${group.root.children.map(areaIntelCardSection).join('')}` : '';
+    return `<article class="area-intel-card"><header class="area-intel-card-header"><span class="area-intel-level">${phase3Cell(rootLevel)}</span><h4>${rootName}</h4></header>${rootBody}${areaIntelNoZoneNote(group.orphanWithoutZoneCustomers)}${group.children.map(areaIntelCardSection).join('')}</article>`;
+  }).join('');
+}
 function renderAreaIntelligence() {
   const from=$('#areaIntelFrom')?.value,to=$('#areaIntelTo')?.value,table=$('#areaIntelligenceTable');if(!table)return;
   const areaChart=$('#areaRevenueChart'),zoneChart=$('#areaZoneRevenueChart'),packageChart=$('#packageRevenueChart'),basis=$('#areaIntelBasis');
@@ -4159,6 +4194,8 @@ function renderAreaIntelligence() {
       return `<tr class="area-row-${phase3Cell(row.level)}"><th scope="row"><span class="location-summary-label location-summary-${phase3Cell(row.level)}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${phase3Cell(row.level==='unassigned'?'Unassigned':row.level)}</span><span class="location-summary-value">${phase3Cell(label.replace(/^(?:Area|Mohalla|Zone):\s*/,''))}</span></span></th><td>${row.totalCustomers}</td><td title="${phase3Cell(row.activeCustomerSource)}">${phase3Cell(active)}</td><td>${phase3Cell(amountOrMissing(row.billedAmount))}</td><td>${phase3Cell(amountOrMissing(row.collectedAmount))}</td><td>${phase3Cell(amountOrMissing(row.outstanding))}</td><td>${row.collectionRate===null?'Not set':`${row.collectionRate}%`}</td><td>${phase3Cell(amountOrMissing(row.averageCustomerValue))}</td><td title="${phase3Cell(row.expensesSource)}">${phase3Cell(amountOrMissing(row.expenses))}</td><td title="${phase3Cell(row.estimatedProfitBasis)}">${phase3Cell(amountOrMissing(row.estimatedProfit))}</td></tr>`;
     }).join('');
 
+    const intelCards = $('#areaIntelligenceCards'); if (intelCards) intelCards.innerHTML = renderAreaIntelligenceCardsHtml(areaRows);
+
     const emptyEl = $('#areaIntelligenceEmpty');
     if (emptyEl) {
       emptyEl.hidden = areaRows.length > 0;
@@ -4178,6 +4215,7 @@ function renderAreaIntelligence() {
     basis.textContent=`${from} to ${to}. ${area.basis.customers} ${area.basis.activeCustomers} ${area.basis.billing} ${area.basis.collection} ${area.basis.outstanding} ${area.basis.collectionRate} ${area.basis.averageCustomerValue} ${area.basis.expenses} ${area.basis.profit}${area.unallocatedExpenseCount?` ${area.unallocatedExpenseCount} expense record(s) in this range have no location tag.`:''} ${packages.basis}`;
   } catch(error) {
     table.replaceChildren();
+    const intelCards = $('#areaIntelligenceCards'); if (intelCards) intelCards.replaceChildren();
     const emptyEl = $('#areaIntelligenceEmpty');
     if (emptyEl) {
       emptyEl.hidden=false;

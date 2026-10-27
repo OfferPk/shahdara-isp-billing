@@ -500,6 +500,52 @@ export function buildAreaIntelligence(state,{startDate,endDate},referenceDate=ne
     basis:{customers:'Customer counts use the current saved roster and saved location assignments; historical area/customer snapshots are not available.',activeCustomers:currentRosterStatus?'Current manual Active status, shown as of today; it is not network monitoring.':'Historical area-level active status is unavailable because no dated area/zone status snapshot is stored.',billing:'Positive saved bill snapshots grouped by service month; all bill months touching the selected date range are included in full.',collection:'Actual saved receipts grouped by their payment date within the selected date range.',outstanding:`Reconstructed from saved priced bills due through ${range.endMonth} and receipt dates through ${range.end}; no saved area-level month-close balance snapshot exists.`,collectionRate:'Actual receipt-date collections during the selected date range divided by saved billing for the service months touching that range; may exceed 100%.',averageCustomerValue:'Selected-range saved billing divided by distinct customers with a priced bill in those service months.',expenses:locationExpenses.length?'Only explicit saved area/mohalla/zone expense tags are included; unallocated expenses are not spread across locations.':'No explicitly area/zone-tagged expense entries are recorded in this date range.',profit:'Estimated only when this area/zone has an explicit expense allocation; collection less tagged expenses, with unallocated whole-business expenses excluded.'}};
 }
 
+/** Group flat area-intelligence rows into one card group per root area for the
+ *  narrow-screen card layout. The table's "Zone not set" rows are never cards:
+ *  their customer count folds into the parent section as withoutZoneCustomers
+ *  (parent totals already include those customers, so nothing is lost). The
+ *  area → mohalla → zone hierarchy is preserved by nesting zones under the
+ *  section named by their parentArea, independent of the caller's row order
+ *  (the table's sort can interleave rows). Input rows are never mutated. */
+export function groupAreaIntelligenceCards(rows) {
+  const groups = [], byRoot = new Map();
+  for (const row of rows ?? []) {
+    const rootKey = row.rootArea ?? 'Area not set';
+    if (!byRoot.has(rootKey)) { const group = { rootArea: rootKey, root: null, sections: [], noZoneRows: [] }; byRoot.set(rootKey, group); groups.push(group); }
+    const group = byRoot.get(rootKey);
+    if (row.area === 'Zone not set') { group.noZoneRows.push(row); continue; }
+    if (row.level === 'area' || row.level === 'unassigned') group.root = { level: row.level, label: row.area, row, withoutZoneCustomers: 0, children: [] };
+    else group.sections.push({ level: row.level, label: row.area, parentLabel: row.parentArea, row, withoutZoneCustomers: 0, children: [] });
+  }
+  for (const group of groups) {
+    const byLabel = new Map();
+    if (group.root) byLabel.set(group.root.label, group.root);
+    for (const section of group.sections) if (section.level === 'mohalla') byLabel.set(section.label, section);
+    const top = [];
+    for (const section of group.sections) {
+      if (section.level === 'mohalla') { top.push(section); continue; }
+      const parent = byLabel.get(section.parentLabel);
+      if (parent) parent.children.push(section); else top.push(section);
+    }
+    const attachNoZone = (label, count) => {
+      const walk = sections => {
+        for (const section of sections) {
+          if (section.label === label) { section.withoutZoneCustomers += count; return true; }
+          if (walk(section.children)) return true;
+        }
+        return false;
+      };
+      if (group.root && group.root.label === label) { group.root.withoutZoneCustomers += count; return true; }
+      return walk(top);
+    };
+    let orphanWithoutZoneCustomers = 0;
+    for (const row of group.noZoneRows) if (!attachNoZone(row.parentArea, row.totalCustomers ?? 0)) orphanWithoutZoneCustomers += row.totalCustomers ?? 0;
+    group.children = top; group.orphanWithoutZoneCustomers = orphanWithoutZoneCustomers;
+    delete group.sections; delete group.noZoneRows;
+  }
+  return groups;
+}
+
 /** Group saved service-month bill snapshots by recorded package labels for a date range. */
 export function buildPackageRevenue(state,{startDate,endDate},referenceDate=new Date()) {
   const range=rangeMonths(startDate,endDate),today=pktDate(referenceDate);

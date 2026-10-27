@@ -12,6 +12,8 @@
  */
 
 import { formatPKR, calculateDashboard } from './core.js';
+import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
+import { pkrNoteChipsMarkup } from './pkr-notes.js';
 import { calculateDailyClosingSummary } from './dashboard-daily-closing.js';
 
 export const OWNER_WHATSAPP_PHONE_KEY = 'shahdara_owner_whatsapp_phone';
@@ -91,6 +93,7 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
         id: c.id,
         customerNumber: c.customerNumber,
         name: c.name,
+        nameUrdu: c.nameUrdu || ' ',
         phone: c.phone || '',
         mohalla: c.mohalla || c.zone || 'Shahdara',
         balanceDue: Math.round(custTotalDueCents / 100)
@@ -211,6 +214,7 @@ export function renderHomeTodaySummary(doc = document, summary) {
     if (!summary.top5Overdue || summary.top5Overdue.length === 0) {
       overdueListEl.innerHTML = `<li class="overdue-empty-item">✅ No overdue accounts — all active customers cleared!</li>`;
     } else {
+      const overdueLang = currentAppLanguage();
       overdueListEl.innerHTML = summary.top5Overdue.map(c => {
         const rawPhone = c.phone || '';
         const waPhone = normalizeWhatsAppNumber(rawPhone);
@@ -223,15 +227,18 @@ export function renderHomeTodaySummary(doc = document, summary) {
             <div class="overdue-item-info">
               <span class="overdue-item-badge">#${c.customerNumber}</span>
               <div class="overdue-item-text">
-                <strong class="overdue-item-name">${c.name}</strong>
+                <strong class="overdue-item-name" dir="auto">${displayCustomerName(c, overdueLang)}</strong>
                 <span class="overdue-item-sub">${c.mohalla}</span>
               </div>
             </div>
             <div class="overdue-item-right">
-              <strong class="overdue-item-amount">${formatPKR(c.balanceDue)}</strong>
+              <div class="overdue-amount-col">
+                <strong class="overdue-item-amount">${formatPKR(c.balanceDue)}</strong>
+                ${pkrNoteChipsMarkup(c.balanceDue)}
+              </div>
               <div class="overdue-item-actions">
                 ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="overdue-wa-link" title="Send WhatsApp reminder" aria-label="Send WhatsApp to ${c.name}">💬 WhatsApp</a>` : ''}
-                <a href="#quick-collect/${c.id}" class="overdue-collect-link" title="Collect payment" aria-label="Collect from ${c.name}">💵 Collect</a>
+                <a href="#quick-collect/${c.id}" class="overdue-collect-link" title="Collect payment" aria-label="Collect from ${c.name}">Collect</a>
               </div>
             </div>
           </li>
@@ -309,6 +316,10 @@ export function setupHomeTodaySection({ getState, getRefDate = () => new Date(),
   // router treats it as the collect route too, so it can never strand the
   // user in a dialog that reopens itself on close.
   const overdueListEl2 = doc.getElementById('homeTopOverdueList');
+  if (overdueListEl2 && !overdueListEl2._langWired) {
+    overdueListEl2._langWired = true;
+    if (typeof win.addEventListener === 'function') win.addEventListener('shahdara:language-change', update);
+  }
   if (overdueListEl2 && !overdueListEl2._collectWired) {
     overdueListEl2._collectWired = true;
     overdueListEl2.addEventListener('click', (event) => {

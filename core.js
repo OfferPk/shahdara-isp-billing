@@ -219,10 +219,11 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const routerModel = cleanText(options.routerModel, 100, 'Router model');
   const routerPrice = checkCost(options.routerPrice);
   const fiberMeters = checkFiberMeters(options.fiberMeters);
+  const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -408,6 +409,7 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
     routerPrice: checkCost(valueOrCurrent('routerPrice')),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
+    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
     expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
     cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date')
   };
@@ -1618,7 +1620,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu']) mergeField(customer, backupCustomer, key, backupCustomer);
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {

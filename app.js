@@ -110,6 +110,7 @@ import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
+import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -763,7 +764,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="Set customer ${customer.customerNumber} manual service status to ${label}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name">${escapeHtml(customer.name)}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(chipText)} — Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}. Click to ${isFeeSet ? 'edit' : 'set'} monthly bill inline.">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(chipText)} — Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}. Click to ${isFeeSet ? 'edit' : 'set'} monthly bill inline.">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -1506,8 +1507,15 @@ function renderIncidents(customer) {
   $('#incidentList').querySelectorAll('[data-edit-incident]').forEach(button => button.addEventListener('click', () => showIncidentEditor(incidents.find(item => item.id === button.dataset.editIncident))));
   $('#incidentList').querySelectorAll('[data-delete-incident]').forEach(button => button.addEventListener('click', () => requestDeleteIncident(customer.id, button.dataset.deleteIncident)));
 }
-function profileReadonlyField(label, value) {
-  return `<div class="profile-readonly-field"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+function profileReadonlyField(label, value, wide = false) {
+  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+
+// Profile UI polish: compact grouped info. Related fields share one
+// 2-column group (phones stay side-by-side on narrow screens); long values
+// (address, notes) span both columns. NO field removed, NO label/value changed.
+function profileInfoGroupMarkup(heading, rows) {
+  return `<section class="profile-info-group"><h4>${escapeHtml(heading)}</h4><dl class="profile-readonly-grid">${rows.map(([label, value, wide]) => profileReadonlyField(label, value, wide)).join('')}</dl></section>`;
 }
 function customerLifetimeValueMarkup(lifetime) {
   const tenure=lifetime.tenure;
@@ -1531,25 +1539,6 @@ function renderCustomerProfileView(customer) {
   const phoneTargets = contactActionTargets(phone);
   const phoneActions = phoneTargets ? `<span class="profile-contact-actions" aria-label="Contact shortcuts"><a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">Call</a>${phoneTargets.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">WhatsApp</a>` : ''}</span>` : '';
   const phoneHint = phoneTargets?.whatsapp ? '' : '<p class="profile-contact-note">Save a full international number including its country code (for example, +923001234567) to enable WhatsApp receipt drafts. No country code is guessed.</p>';
-  const fields = [
-    ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set'],
-    ['Area / mohalla', customer.mohalla || 'Not set'],
-    ['Zone', customer.zone || 'Not set'],
-    ['Address', customer.address || 'Not set'],
-    ['Notes', customer.notes?.trim() || 'Not set'],
-    ['ISP / provider', customer.ispProvider || 'Not set'],
-    ['Service status', manualServiceStatusLabel(customer.serviceStatus)],
-    ['Package / speed', customer.packageSpeed || 'Not set'],
-    ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)],
-    ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)],
-    ['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'],
-    ['Connection fee', formatAmount(customer.connectionFee)],
-    ['Router installed', customer.routerModel || 'Not recorded'],
-    ['Router price', formatAmount(customer.routerPrice)],
-    ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`],
-    ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'],
-    ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']
-  ];
   const profit = customerPackageProfit(customer);
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
   // SISP-3: profile Waada chips — one-tap promise dates on the customer record.
@@ -1560,7 +1549,8 @@ function renderCustomerProfileView(customer) {
   // SISP-15: profile complaint history — this customer's register entries only.
   const customerComplaints = loadComplaints().filter((c) => String(c.customerId) === String(customer.id)).sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
   const complaintsSectionHtml = `<section class="profile-complaints-section" aria-label="Complaint history"><h4>🛠️ Complaint history</h4>${customerComplaints.length === 0 ? '<p class="profile-complaints-empty">No complaints recorded for this customer.</p>' : `<ul class="profile-complaints-list">${customerComplaints.map((c) => `<li><span><strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.issueCategory)} · ${escapeHtml(c.status)}</span><span>Reported ${escapeHtml(c.reportedAt || 'not recorded')} · downtime ${escapeHtml(formatDowntimeHours(c.downtimeHours))}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenComplaintRegisterBtn">Open complaint register</button></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}`;
+  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1621,7 +1611,20 @@ function renderDetail() {
   $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
   $('#profileAvatar').textContent = initials(customer.name);
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
-  $('#detailName').textContent = customer.name;
+  const shownName = displayCustomerName(customer, currentAppLanguage());
+  const detailNameEl = $('#detailName');
+  const detailNameSubEl = $('#detailNameSub');
+  detailNameEl.textContent = shownName;
+  detailNameEl.setAttribute('dir', 'auto');
+  if (detailNameSubEl) {
+    if (currentAppLanguage() === 'ur' && shownName !== customer.name) {
+      detailNameSubEl.textContent = customer.name;
+      detailNameSubEl.hidden = false;
+    } else {
+      detailNameSubEl.textContent = '';
+      detailNameSubEl.hidden = true;
+    }
+  }
   closeCustomerNameEditor();
   renderCurrentBillSummary(customer);
   renderCustomerProfileView(customer);
@@ -1638,6 +1641,7 @@ function renderDetail() {
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
   if ($('#profileNameInput')) $('#profileNameInput').value = customer.name ?? '';
+  if ($('#nameUrduInput')) $('#nameUrduInput').value = customer.nameUrdu ?? '';
   $('#mohallaInput').value = customer.mohalla ?? '';
   $('#zoneInput').value = customer.zone ?? '';
   $('#addressInput').value = customer.address ?? '';
@@ -2782,7 +2786,8 @@ function saveNewCustomer(allowDuplicateName = false) {
     routerPrice:$('#newCustomerRouterPrice').value,
     fiberMeters:$('#newCustomerFiberMeters').value,
     // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
-    serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set'
+    serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set',
+    nameUrdu:$('#newCustomerNameUrdu') ? $('#newCustomerNameUrdu').value.trim() : ''
   };
   const nameValidation = validateCustomerName(details.name);
   if (!nameValidation.valid) {
@@ -2951,6 +2956,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
       ...($('#profileNameInput') ? { name: $('#profileNameInput').value } : {}),
+      ...($('#nameUrduInput') ? { nameUrdu: $('#nameUrduInput').value } : {}),
       mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:phoneVal,
       cnic: formattedCnic,
       ispProvider:$('#ispProviderInput').value,
@@ -3894,6 +3900,13 @@ window.fastCustomerSearchController = setupFastCustomerSearchModal({
 // Setup Bilingual English / Urdu (اردو) Interface & RTL Layout (agent2 - shahdara-mobile-nav)
 window.languageController = setupLanguageToggle({
   onToast: (msg, opts) => toast(msg, opts)
+});
+
+// Profile UI polish: customer names are rendered by app code (not the
+// visible-text dictionary), so re-render them when the language changes.
+window.addEventListener('shahdara:language-change', () => {
+  renderDetail();
+  renderCustomers();
 });
 
 // Setup Pending Actions Center & Collection Promises Suite (agent2 - shahdara-mobile-nav)

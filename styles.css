@@ -1415,7 +1415,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   .saved-closing-card,.recovery-group,.recovery-customer-card{padding:10px}
 }
 
-/* Issue #361: on narrow screens the rankings filters sat in a cramped
+/* Issue 361: on narrow screens the rankings filters sat in a cramped
    2-column grid, so native select values clipped ("Highest-payir…",
    "All recorded a…"). At ≤700px the rankings filters stack full-width,
    one per row, so every label and selected value shows in full. The
@@ -1817,7 +1817,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   background: #182d27;
 }
 
-/* Issue #361: the summary-table row tints are hardcoded light (#f3f8f5 /
+/* Issue 361: the summary-table row tints are hardcoded light (#f3f8f5 /
    #fafcfb) with no dark override, and they beat the generic dark
    tbody-th background on specificity — so in dark mode the light row
    backgrounds survived while dark-contrast turned the text light, and
@@ -3567,7 +3567,7 @@ html, body {
     background: transparent !important;
   }
 
-  /* Statement on a 58mm thermal roll (#225): named page so the A4 @page
+  /* Statement on a 58mm thermal roll (issue 225): named page so the A4 @page
      rule elsewhere in this sheet does not win, one narrow column, the
      billing-month column is dropped (the date already implies it) and
      the signature block is omitted — a roll receipt is not signed. */
@@ -7886,7 +7886,7 @@ html, body {
   color: #f8fafc;
 }
 
-/* Digital Payments: JazzCash / Easypaisa / Raast / Bank (Issue #224 - agent4) */
+/* Digital Payments: JazzCash / Easypaisa / Raast / Bank (Issue 224 - agent4) */
 .qc-digital-fields {
   display: flex;
   flex-direction: column;
@@ -11722,7 +11722,7 @@ dialog::backdrop {
   }
 }
 
-/* #264: Mobile Expenses empty state card with generous bottom padding so FAB never covers text */
+/* Issue 264: Mobile Expenses empty state card with generous bottom padding so FAB never covers text */
 #expensesView #expensesEmpty,
 #expensesView #expensesFilterEmpty {
   display: block;
@@ -11769,7 +11769,7 @@ dialog::backdrop {
   color: #9ab4aa;
 }
 
-/* #264: Mobile Expenses responsive card list & clean sort chips (≤ 640px) */
+/* Issue 264: Mobile Expenses responsive card list & clean sort chips (≤ 640px) */
 @media (max-width: 640px) {
   #expensesView .table-scroll {
     overflow-x: visible;
@@ -11934,7 +11934,7 @@ dialog::backdrop {
   }
 }
 
-/* Quick Collect 3-Tap Flow (#220) & Method Chips */
+/* Quick Collect 3-Tap Flow (issue 220) & Method Chips */
 .qc-method-chips {
   display: flex;
   flex-wrap: wrap;
@@ -11985,7 +11985,7 @@ dialog::backdrop {
   border-color: #3fbf9f;
 }
 
-/* Toast with Undo Action Button (#220) */
+/* Toast with Undo Action Button (issue 220) */
 #toast {
   position: fixed;
   bottom: calc(72px + env(safe-area-inset-bottom, 0px));
@@ -12030,7 +12030,7 @@ dialog::backdrop {
 }
 
 /* ==========================================================================
-   WHATSAPP REMINDER QUEUE & PROMISE-TO-PAY (WADA) SUITE (#222)
+   WHATSAPP REMINDER QUEUE & PROMISE-TO-PAY (WADA) SUITE (issue 222)
    ========================================================================== */
 .reminder-queue-bar {
   display: flex;
@@ -12580,7 +12580,7 @@ dialog::backdrop {
 
 
 
-/* #287: Bills / Monthly Report / Dues Recovery / Smart Alerts are separate
+/* Issue 287: Bills / Monthly Report / Dues Recovery / Smart Alerts are separate
    screens over one shared view. The router sets data-report-screen on
    #billingReportsView; only that screen's sections are shown. Nothing is
    removed from the DOM, so every handler keeps working. */
@@ -12722,7 +12722,7 @@ dialog::backdrop {
 }
 
 
-/* #229 accessibility baseline: a clearly visible focus ring for keyboard
+/* Issue 229 accessibility baseline: a clearly visible focus ring for keyboard
    users on every interactive element. Component-level :focus-visible rules
    with higher specificity still win where they exist. */
 :focus-visible {

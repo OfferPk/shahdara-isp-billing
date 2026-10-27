@@ -6976,7 +6976,7 @@ body {
   border-bottom: 1px solid var(--border-color, #e2e8f0);
   /* Pills fix: the toolbar is a flex-column child of the modal card — it
      must never give up height to the scrolling list (same pattern as the
-     #381 worklist-tabs fix). */
+     worklist-tabs fix, issue 381). */
   flex-shrink: 0;
 }
 

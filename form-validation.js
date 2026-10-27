@@ -1101,11 +1101,67 @@ export function formatCustomerStatement(customer, { range = 'all', referenceDate
 }
 
 /**
+ * Entry types that appear in a customer ledger statement. These are the only
+ * types formatCustomerStatement ever produces, so the statement filters can
+ * offer exactly these values without any new data model.
+ */
+export const STATEMENT_ENTRY_TYPES = ['bill', 'payment', 'discount', 'adjustment'];
+
+/**
+ * View-only filter over already-computed statement events. This never
+ * recomputes balances: each event keeps the true running balance assigned by
+ * formatCustomerStatement, so a filtered view hides rows but never rewrites
+ * what the customer owes. Totals shown for a filtered view are plain sums of
+ * the visible rows; the statement's own period totals stay untouched.
+ * @param {Array} events - events from formatCustomerStatement
+ * @param {Object} [filters]
+ * @param {'all'|'bill'|'payment'|'discount'|'adjustment'} [filters.type='all']
+ * @param {string} [filters.month='all'] - billing month 'YYYY-MM' or 'all'
+ * @param {string} [filters.query=''] - case-insensitive substring over description, ref, month, method and type
+ * @returns {Array}
+ */
+export function filterStatementEvents(events, { type = 'all', month = 'all', query = '' } = {}) {
+  const q = String(query || '').trim().toLowerCase();
+  return (Array.isArray(events) ? events : []).filter(ev => {
+    if (type !== 'all' && ev.type !== type) return false;
+    if (month !== 'all' && ev.month !== month) return false;
+    if (q) {
+      const hay = [ev.description, ev.ref, ev.month, ev.method, ev.type]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Billing months present in a statement's events, newest first, for the
+ * month filter dropdown. Events without a month are shown under "All months".
+ * @param {Array} events - events from formatCustomerStatement
+ * @returns {Array<string>}
+ */
+export function statementFilterMonths(events) {
+  const months = new Set();
+  for (const ev of Array.isArray(events) ? events : []) {
+    if (ev.month) months.add(ev.month);
+  }
+  return [...months].sort().reverse();
+}
+
+/**
  * Generates printable HTML statement document for customer account ledger.
  * @param {Object} statement
+ * @param {Object} [view] - optional view override; when view.events is given,
+ *   only those rows are rendered (with their true running balances) and a
+ *   filter-status line is shown. Without it the output is exactly as before.
+ * @param {Array} [view.events]
+ * @param {string} [view.filterNote] - status line shown above the table; must
+ *   contain counts/sums only, never raw user input, so it is safe to render.
  * @returns {string}
  */
-export function generateCustomerStatementHtml(statement) {
+export function generateCustomerStatementHtml(statement, view = {}) {
   if (!statement || !statement.customer) {
     return '<div class="statement-empty">No customer data provided for statement.</div>';
   }
@@ -1121,7 +1177,9 @@ export function generateCustomerStatementHtml(statement) {
   const rangeLabel = rangeLabels[range] || 'All-time Ledger';
   const today = new Date().toISOString().slice(0, 10);
 
-  const rowsHtml = events.map(ev => `
+  const displayEvents = Array.isArray(view.events) ? view.events : events;
+  const isFilteredView = Array.isArray(view.events);
+  const rowsHtml = displayEvents.map(ev => `
     <tr>
       <td class="col-date">${ev.date}</td>
       <td class="col-desc"><strong>${ev.description}</strong></td>
@@ -1176,6 +1234,7 @@ export function generateCustomerStatementHtml(statement) {
       </div>
 
       <div class="statement-table-wrap">
+        ${view.filterNote ? `<div class="statement-filter-note" role="status">${view.filterNote}</div>` : ''}
         <table class="statement-table">
           <thead>
             <tr>
@@ -1198,7 +1257,9 @@ export function generateCustomerStatementHtml(statement) {
                 <td class="col-num balance-num">PKR ${openingBalance.toLocaleString()}</td>
               </tr>
             ` : ''}
-            ${rowsHtml || '<tr><td colspan="6" class="text-center muted">No billing or payment records found for this period.</td></tr>'}
+            ${rowsHtml || (isFilteredView
+              ? '<tr><td colspan="6" class="text-center muted">No entries match these filters. Clear the filters to see the full statement.</td></tr>'
+              : '<tr><td colspan="6" class="text-center muted">No billing or payment records found for this period.</td></tr>')}
           </tbody>
         </table>
       </div>

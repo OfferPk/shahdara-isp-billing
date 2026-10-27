@@ -42,7 +42,7 @@ import {
   sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
   generateCustomerRosterCsv, renderCustomerTableEmptyMarkup,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv,
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
   generateStandaloneInvoiceDocument, downloadHtmlFile,
@@ -5309,6 +5309,43 @@ $('#bulkReminderDispatchBtn')?.addEventListener('click', () => {
 });
 
 let currentStatementData = null;
+// View-only statement filters: they hide rows on screen (and in print, which
+// prints what you see) but never change currentStatementData, so CSV and
+// WhatsApp exports always carry the full statement.
+let statementFilters = { type: 'all', month: 'all', query: '' };
+
+function statementFiltersActive() {
+  return statementFilters.type !== 'all' || statementFilters.month !== 'all' || statementFilters.query.trim() !== '';
+}
+
+function renderStatementView() {
+  if (!currentStatementData) return;
+  const preview = $('#statementPreviewContainer');
+  if (!preview) return;
+  if (!statementFiltersActive()) {
+    preview.innerHTML = generateCustomerStatementHtml(currentStatementData);
+    return;
+  }
+  const visible = filterStatementEvents(currentStatementData.events, statementFilters);
+  const filteredCharges = visible.reduce((sum, ev) => sum + (ev.charge || 0), 0);
+  const filteredCredits = visible.reduce((sum, ev) => sum + (ev.credit || 0), 0);
+  const filterNote = `Showing ${visible.length} of ${currentStatementData.events.length} entries · Filtered charges PKR ${filteredCharges.toLocaleString()} · Filtered credits PKR ${filteredCredits.toLocaleString()} · Filters affect screen + print only; CSV / WhatsApp export the full statement.`;
+  preview.innerHTML = generateCustomerStatementHtml(currentStatementData, { events: visible, filterNote });
+}
+
+function refreshStatementMonthOptions() {
+  const monthSelect = $('#statementMonthFilter');
+  if (!monthSelect || !currentStatementData) return;
+  const months = statementFilterMonths(currentStatementData.events);
+  const previous = monthSelect.value;
+  monthSelect.innerHTML = '<option value="all" selected>All months</option>' + months.map(m => `<option value="${m}">${monthName(m)} (${m})</option>`).join('');
+  if (months.includes(previous)) {
+    monthSelect.value = previous;
+  } else {
+    monthSelect.value = 'all';
+    statementFilters.month = 'all';
+  }
+}
 
 function renderAccountStatement(range = 'all') {
   if (!selectedCustomerId) return;
@@ -5319,10 +5356,8 @@ function renderAccountStatement(range = 'all') {
     range,
     storage: typeof localStorage !== 'undefined' ? localStorage : null
   });
-  const preview = $('#statementPreviewContainer');
-  if (preview) {
-    preview.innerHTML = generateCustomerStatementHtml(currentStatementData);
-  }
+  refreshStatementMonthOptions();
+  renderStatementView();
 }
 
 const statementModal = $('#accountStatementModal');
@@ -5341,6 +5376,13 @@ if (openStatementBtn && statementModal) {
       return;
     }
     if (statementRangeSelect) statementRangeSelect.value = 'all';
+    statementFilters = { type: 'all', month: 'all', query: '' };
+    const statementTypeFilterEl = $('#statementTypeFilter');
+    const statementMonthFilterEl = $('#statementMonthFilter');
+    const statementSearchInputEl = $('#statementSearchInput');
+    if (statementTypeFilterEl) statementTypeFilterEl.value = 'all';
+    if (statementMonthFilterEl) statementMonthFilterEl.value = 'all';
+    if (statementSearchInputEl) statementSearchInputEl.value = '';
     renderAccountStatement('all');
     if (statementModal.showModal) statementModal.showModal();
     else statementModal.setAttribute('open', '');
@@ -5366,6 +5408,42 @@ if (statementModal) {
 if (statementRangeSelect) {
   statementRangeSelect.addEventListener('change', () => {
     renderAccountStatement(statementRangeSelect.value);
+  });
+}
+
+const statementTypeFilter = $('#statementTypeFilter');
+const statementMonthFilter = $('#statementMonthFilter');
+const statementSearchInput = $('#statementSearchInput');
+const clearStatementFiltersBtn = $('#clearStatementFilters');
+
+if (statementTypeFilter) {
+  statementTypeFilter.addEventListener('change', () => {
+    statementFilters.type = statementTypeFilter.value;
+    renderStatementView();
+  });
+}
+
+if (statementMonthFilter) {
+  statementMonthFilter.addEventListener('change', () => {
+    statementFilters.month = statementMonthFilter.value;
+    renderStatementView();
+  });
+}
+
+if (statementSearchInput) {
+  statementSearchInput.addEventListener('input', () => {
+    statementFilters.query = statementSearchInput.value;
+    renderStatementView();
+  });
+}
+
+if (clearStatementFiltersBtn) {
+  clearStatementFiltersBtn.addEventListener('click', () => {
+    statementFilters = { type: 'all', month: 'all', query: '' };
+    if (statementTypeFilter) statementTypeFilter.value = 'all';
+    if (statementMonthFilter) statementMonthFilter.value = 'all';
+    if (statementSearchInput) statementSearchInput.value = '';
+    renderStatementView();
   });
 }
 

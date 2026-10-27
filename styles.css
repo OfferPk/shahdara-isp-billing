@@ -2822,6 +2822,25 @@ html, body {
   gap: 8px;
 }
 
+.statement-modal-controls input[type="search"] {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid var(--line, #d0e0d8);
+  border-radius: 6px;
+  background: var(--surface, #ffffff);
+  color: var(--text, #172420);
+}
+
+.statement-filter-note {
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface-alt, #f7fbf9);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 8px;
+}
+
 .statement-preview-container {
   flex: 1;
   overflow-y: auto;
@@ -3115,6 +3134,18 @@ html, body {
 [data-theme="dark"] .statement-modal-controls select {
   background: #192e27;
   border-color: #355348;
+}
+
+[data-theme="dark"] .statement-modal-controls input[type="search"] {
+  background: #192e27;
+  border-color: #355348;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-filter-note {
+  background: #14241f;
+  border-color: #253d35;
+  color: #e6edea;
 }
 
 [data-theme="dark"] .statement-preview-container {

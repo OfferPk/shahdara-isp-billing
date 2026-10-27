@@ -785,6 +785,76 @@ export function buildIspInsights(state,referenceDate=new Date(),allocations=calc
   };
 }
 
+/** Area, zone & package breakdowns for the Analytics screen (#361).
+ * Bill-level grouping over saved priced bills up to the current Pakistan
+ * month. Every priced bill belongs to exactly one area group, one zone
+ * group and one package group, so billed/collected/outstanding/overdue
+ * totals reconcile across the three breakdowns and with the priced-bill
+ * ledger totals. Collected counts receipts recorded on the group's bills
+ * (a rate can exceed 100% where receipts exceed priced bills — the same
+ * convention as the health-score collection rate). Outstanding is the
+ * payment-allocation balance, never recomputed. Overdue is as of today
+ * (PKT): a bill whose due date has passed and whose allocation balance
+ * is still positive; a bill due today is not overdue. Unpriced bills are
+ * excluded (no price to bill) and counted separately; future service
+ * months are excluded. Saved bills of archived profiles are included as
+ * ledger history. Groups exist only where a priced bill exists, so every
+ * shown group has a collection rate; customers without priced bills do
+ * not appear. Area is the customer's saved area or mohalla; zone rows
+ * carry their parent area so same-named zones in different areas stay
+ * separate; package is the recorded package on each bill (snapshot or
+ * dated history). Customer counts are distinct customers with at least
+ * one priced bill in the group, so package counts do not sum — one
+ * customer can hold bills under several recorded packages over time. */
+const areaBreakdownLabel = customer => String(customer?.area ?? '').trim() || String(customer?.mohalla ?? '').trim() || 'Area not recorded';
+const zoneBreakdownLabel = customer => {
+  const zone = String(customer?.zone ?? '').trim();
+  if (!zone) return 'Zone not recorded';
+  const area = areaBreakdownLabel(customer);
+  return area === 'Area not recorded' ? zone : `${area} · ${zone}`;
+};
+export function buildAreaBreakdowns(state, referenceDate = new Date(), allocations = calculatePaymentAllocations(state)) {
+  const asOf = dateFor(referenceDate), currentMonth = monthFor(referenceDate);
+  const groups = { area: new Map(), zone: new Map(), package: new Map() };
+  const ensure = (map, key) => {
+    let group = map.get(key);
+    if (!group) { group = { name: key, customers: new Set(), billedCents: 0, collectedCents: 0, outstandingCents: 0, overdueBills: 0, overdueCustomers: new Set() }; map.set(key, group); }
+    return group;
+  };
+  let pricedBillCount = 0, unpricedBillCount = 0;
+  for (const customer of state.customers ?? []) {
+    const area = areaBreakdownLabel(customer), zone = zoneBreakdownLabel(customer);
+    for (const bill of customer.bills ?? []) {
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(bill.month ?? '')) || bill.month > currentMonth) continue;
+      if (!validPrice(bill.dueAmount)) { unpricedBillCount++; continue; }
+      pricedBillCount++;
+      const dueCents = cents(bill.dueAmount);
+      const balanceCents = Math.max(0, allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? dueCents);
+      const collectedCents = (bill.payments ?? []).filter(payment => Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0).reduce((sum, payment) => sum + cents(payment.amount), 0);
+      const pkg = recordedPackageForMonth(customer, bill, bill.month) ?? 'Package not recorded';
+      const overdue = /^\d{4}-\d{2}-\d{2}$/.test(bill.dueDate ?? '') && bill.dueDate < asOf && balanceCents > 0;
+      for (const [map, key] of [[groups.area, area], [groups.zone, zone], [groups.package, pkg]]) {
+        const group = ensure(map, key);
+        group.customers.add(customer.id);
+        group.billedCents += dueCents; group.collectedCents += collectedCents; group.outstandingCents += balanceCents;
+        if (overdue) { group.overdueBills++; group.overdueCustomers.add(customer.id); }
+      }
+    }
+  }
+  const finish = map => [...map.values()].map(group => ({
+    name: group.name, customers: group.customers.size,
+    billed: amount(group.billedCents), collected: amount(group.collectedCents), outstanding: amount(group.outstandingCents),
+    collectionRate: group.billedCents ? Number((group.collectedCents / group.billedCents * 100).toFixed(1)) : null,
+    overdueBills: group.overdueBills, overdueCustomers: group.overdueCustomers.size,
+  })).sort((a, b) => b.outstanding - a.outstanding || b.billed - a.billed || a.name.localeCompare(b.name));
+  const areas = finish(groups.area), zones = finish(groups.zone), packages = finish(groups.package);
+  const sum = (rows, key) => rows.reduce((total, row) => total + row[key], 0);
+  return {
+    asOf, currentMonth, pricedBillCount, unpricedBillCount, areas, zones, packages,
+    totals: { billed: sum(areas, 'billed'), collected: sum(areas, 'collected'), outstanding: sum(areas, 'outstanding'), overdueBills: sum(areas, 'overdueBills') },
+  };
+}
+
 function aggregateMonthCustomers(state,month,key,allocations) {
   const result=new Map();
   for(const customer of state.customers){let total=0;

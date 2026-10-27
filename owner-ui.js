@@ -1,7 +1,7 @@
 import { calculatePaymentAllocations } from './core.js';
 import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
-  buildIspInsights, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
+  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
 } from './owner-insights.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 
@@ -156,6 +156,17 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const lostDetail=result.lostThisMonth===null?'Needs dated cancellation / archive records':`${result.disconnectedThisMonth??0} disconnected · ${result.archivedThisMonth??0} archived`;
     host.innerHTML=`<div class="isp-insights-heading"><div><p class="eyebrow">ISP INSIGHTS · SAVED DATA ONLY</p><h3>Collection, overdue trend &amp; customer movement</h3></div></div><div class="isp-insights-grid"><article class="isp-card"><span>Collection rate · ${escapeHtml(monthName(result.currentMonth))} (so far)</span><strong>${rateText(result.collection.thisMonth)}${delta}</strong><small>Receipts ÷ priced bills, by payment date. Last month: ${rateText(result.collection.lastMonth)}. Revenue by package and by area are in the summary tables below.</small></article><article class="isp-card"><span>New customers · ${escapeHtml(monthName(result.currentMonth))}</span><strong>${countText(result.newThisMonth)}</strong><small>Profiles with a saved added-on date this month${result.newConnectionsThisMonth===null?'':` · ${result.newConnectionsThisMonth} with a connection date`}.</small></article><article class="isp-card"><span>Lost customers · ${escapeHtml(monthName(result.currentMonth))}</span><strong>${countText(result.lostThisMonth)}</strong><small>${escapeHtml(lostDetail)}. Current Active/Offline labels are never counted as lost.</small></article></div><div class="isp-trend"><h4>Outstanding (overdue) trend · last four months</h4>${trend}<small>Past months without a saved close use today's ledger balance for that month, so later payments can lower them.</small></div>`;
   }
+  function renderAreaBreakdowns() {
+    const host=$('#areaBreakdowns'); if(!host)return;
+    let result;
+    try{ result=buildAreaBreakdowns(getState(),new Date()); }catch{ host.replaceChildren(); return; }
+    const money=value=>formatAmount(value);
+    const rate=value=>value===null?'Not available':`${value.toFixed(1)}%`;
+    const card=row=>`<article class="area-breakdown-card"><h4>${escapeHtml(row.name)}</h4><div class="area-breakdown-metrics"><div><span>Customers with bills</span><strong>${row.customers}</strong></div><div><span>Billed</span><strong>${escapeHtml(money(row.billed))}</strong></div><div><span>Collected</span><strong>${escapeHtml(money(row.collected))}</strong></div><div><span>Outstanding</span><strong>${escapeHtml(money(row.outstanding))}</strong></div><div><span>Collection rate</span><strong>${rate(row.collectionRate)}</strong></div><div><span>Overdue bills · customers</span><strong>${row.overdueBills} · ${row.overdueCustomers}</strong></div></div></article>`;
+    const group=(title,rows,note)=>rows.length?`<section class="area-breakdown-group" aria-label="${escapeHtml(title)}"><h4>${escapeHtml(title)}</h4><div class="area-breakdown-grid">${rows.map(card).join('')}</div>${note?`<p class="chart-caption">${escapeHtml(note)}</p>`:''}</section>`:'';
+    const totals=result.totals;
+    host.innerHTML=`<div class="area-breakdown-heading"><div><p class="eyebrow">AREA · ZONE · PACKAGE BREAKDOWNS · SAVED DATA ONLY</p><h3>Area, zone &amp; package breakdowns</h3><p>Every priced bill belongs to exactly one area, one zone and one package group, so the three breakdowns reconcile to the same totals. Sorted by outstanding, highest first.</p></div></div>${result.pricedBillCount?`<div class="area-breakdown-totals" role="status"><div><span>Total billed</span><strong>${escapeHtml(money(totals.billed))}</strong></div><div><span>Total collected</span><strong>${escapeHtml(money(totals.collected))}</strong></div><div><span>Total outstanding</span><strong>${escapeHtml(money(totals.outstanding))}</strong></div><div><span>Overdue bills</span><strong>${totals.overdueBills}</strong></div></div>${group('Areas',result.areas,'Area is the customer\u2019s saved area or mohalla; customers without either appear as “Area not recorded”.')}${group('Zones',result.zones,'Zone rows show the parent area, so same-named zones in different areas stay separate. Do not add zone rows to area rows — both cover the same bills.')}${group('Packages',result.packages,'Package is the recorded package on each bill (snapshot or dated history); bills without one appear as “Package not recorded”. Customer counts per package do not sum — one customer can hold bills under several packages over time.')}<p class="chart-caption">Basis: saved priced bills up to ${escapeHtml(result.currentMonth)}; collected counts receipts recorded on those bills (a rate can exceed 100% where receipts exceed priced bills); outstanding is the allocation balance; overdue means a due date before ${escapeHtml(result.asOf)} with a positive balance. Unpriced bills are excluded (${result.unpricedBillCount} unpriced bill(s) carry no price). Saved bills of archived profiles are included as ledger history.</p>`:'<p class="empty-state">No priced bills are saved yet, so no area, zone or package breakdown is available.</p>'}`;
+  }
   function renderRankingOptions() {
     const type=$('#rankingType');
     if(type&&!type.options.length) type.innerHTML=CUSTOMER_RANKING_TYPES.map(row=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.label)}</option>`).join('');
@@ -227,7 +238,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     host.querySelectorAll('[data-open-smart-alert-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openSmartAlertCustomer)));
   }
   function refresh() {
-    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderIspInsights();renderRankings();renderRecovery();renderSmartAlerts();
+    renderCommand();renderClosings();renderComparison();renderBusinessHealthScore();renderIspInsights();renderAreaBreakdowns();renderRankings();renderRecovery();renderSmartAlerts();
   }
 
   $('#ownerCommandForm')?.addEventListener('submit',event=>{event.preventDefault();lastQuery=$('#ownerCommandInput').value;renderCommand(lastQuery);});

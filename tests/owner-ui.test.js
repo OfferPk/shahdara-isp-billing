@@ -34,7 +34,7 @@ test('monthly closing, comparisons and rankings are offline assets and use saved
 });
 
 test('business analytics offers local trend charts and a month/date-filtered Area Intelligence dashboard',()=>{
-  for(const id of ['revenueCollectionChart','growthChart','outstandingChart','expenseTrendChart','profitTrendChart','areaIntelMonth','areaIntelFrom','areaIntelTo','areaRevenueChart','areaZoneRevenueChart','packageRevenueChart','areaIntelligenceTable'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
+  for(const id of ['revenueCollectionChart','growthChart','outstandingChart','expenseTrendChart','profitTrendChart','areaIntelMonth','areaIntelFrom','areaIntelTo','areaRevenueChart','areaZoneRevenueChart','packageRevenueChart','areaIntelligenceTable','areaBreakdowns'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
   for(const title of ['Collection trend','Customer growth','Pending trend','Expense trend','Cash profit trend','Area-wise revenue','Zone-wise revenue','Package-wise revenue'])assert.ok(index.includes(title),`${title} chart is labeled`);
   assert.match(app,/buildAreaIntelligence\(state,\{startDate:from,endDate:to\}/);
   assert.match(app,/buildPackageRevenue\(state,\{startDate:from,endDate:to\}/);

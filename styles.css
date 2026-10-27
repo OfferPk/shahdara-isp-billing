@@ -1510,6 +1510,23 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .isp-trend-row strong{font-size:12px;white-space:nowrap}
 .isp-trend-bar{display:block;height:8px;border-radius:99px;background:linear-gradient(90deg,#b45a50,#d97706);min-width:2px}
 @media(max-width:700px){.isp-insights-grid{grid-template-columns:1fr}.isp-insights-panel{padding:12px}.isp-trend-row{grid-template-columns:84px 1fr auto}}
+.area-breakdowns-panel{display:grid;gap:14px;margin:0 0 18px;padding:16px;border:1px solid var(--line,#dce9e2);border-radius:14px;background:var(--surface,#fff)}
+.area-breakdown-heading h3{margin:2px 0 0;color:var(--ink,#244a3e);font:700 16px Manrope,system-ui,sans-serif}
+.area-breakdown-heading .eyebrow{color:#477561;font-size:10px;font-weight:800;letter-spacing:.08em;margin:0}
+.area-breakdown-heading p{margin:6px 0 0;color:var(--muted,#5c6e66);font-size:12px;line-height:1.5}
+.area-breakdown-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.area-breakdown-totals>div{min-width:0;padding:10px 12px;border:1px solid var(--line,#dfe9e4);border-radius:10px;background:var(--surface,#fff);display:flex;flex-direction:column;gap:4px}
+.area-breakdown-totals span{font-size:10px;font-weight:700;color:var(--muted,#60756c);text-transform:uppercase;letter-spacing:.04em}
+.area-breakdown-totals strong{color:var(--green,#1e654b);font:700 16px/1.3 Manrope,system-ui,sans-serif;overflow-wrap:anywhere}
+.area-breakdown-group h4{margin:0 0 8px;color:var(--ink,#29493c);font-size:13px}
+.area-breakdown-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.area-breakdown-card{min-width:0;padding:12px;border:1px solid var(--line,#dfe9e4);border-radius:10px;background:var(--surface,#fff)}
+.area-breakdown-card h4{margin:0 0 8px;color:var(--ink,#244a3e);font-size:13px;overflow-wrap:anywhere}
+.area-breakdown-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.area-breakdown-metrics>div{min-width:0;display:flex;flex-direction:column;gap:2px}
+.area-breakdown-metrics span{font-size:10px;font-weight:700;color:var(--muted,#60756c);text-transform:uppercase;letter-spacing:.04em;line-height:1.4}
+.area-breakdown-metrics strong{color:var(--ink,#263f34);font-size:12.5px;overflow-wrap:anywhere}
+@media(max-width:700px){.area-breakdowns-panel{padding:12px}.area-breakdown-totals{grid-template-columns:1fr 1fr}.area-breakdown-grid{grid-template-columns:1fr}}
 
 /* ==========================================================================
    Modern UI Redesign & Rich Theming (Dark/Light Mode, Cards, Responsive Layout)

@@ -12315,6 +12315,83 @@ dialog::backdrop {
   color: var(--muted, #5c6e66);
   font-style: italic;
 }
+/* SISP-3: broken-Waada pulse (opacity only — reuses existing badge colors). */
+@keyframes waadaPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.waada-pulse {
+  animation: waadaPulse 1.6s ease-in-out infinite;
+}
+.defaulter-waada-badge {
+  margin-top: 4px;
+}
+.defaulter-waada-badge .wada-badge {
+  display: inline-block;
+}
+/* SISP-3: Waada chip rows (defaulter dialog + customer profile). */
+.waada-chip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0;
+}
+.waada-chip-customer {
+  font-weight: 700;
+  margin: 0;
+}
+.waada-chip-current {
+  font-size: 12.5px;
+  color: var(--muted, #5c6e66);
+  margin: 0;
+}
+.waada-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.waada-chip-btn {
+  min-height: 44px;
+}
+.waada-chip-custom {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 12.5px;
+}
+.waada-chip-custom label {
+  font-weight: 600;
+}
+.waada-chip-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.profile-waada-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line, #e2ece7);
+}
+.profile-waada-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.profile-waada-current {
+  font-size: 12.5px;
+  color: var(--muted, #5c6e66);
+  margin: 0 0 10px;
+}
+.profile-waada-section .waada-chip-custom {
+  margin-top: 10px;
+}
+@media (max-width: 480px) {
+  .waada-chip-row .waada-chip-btn {
+    flex: 1 1 30%;
+  }
+  .waada-chip-custom input[type="date"] {
+    flex: 1 1 100%;
+  }
+}
 .wada-actions {
   display: flex;
   gap: 6px;

@@ -679,7 +679,32 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount);
   const bill = existing ? { ...existing, payments: [...existing.payments, payment] } : { id: makeId(), month, dueAmount: null, status: 'pending', payments: [payment] };
-  return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: existing ? c.bills.map(b => b.month === month ? bill : b) : [...c.bills, bill].sort((a,b) => b.month.localeCompare(a.month)) }) };
+  const nextState = { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: existing ? c.bills.map(b => b.month === month ? bill : b) : [...c.bills, bill].sort((a,b) => b.month.localeCompare(a.month)) }) };
+  // SISP-3: recording a FULL payment of the customer's pending balance
+  // automatically clears the Waada promise. Outstanding is the allocation
+  // balance across all priced bills (unpriced bills carry no due yet, so a
+  // customer with no priced bill at all keeps the promise).
+  const updated = nextState.customers.find(c => c.id === customerId);
+  if (updated && typeof updated.promiseDate === 'string' && updated.promiseDate.trim() !== '') {
+    const allocations = calculatePaymentAllocations(nextState);
+    let pricedBillSeen = false;
+    const outstandingCents = (updated.bills ?? []).reduce((sum, b) => {
+      const summary = allocations.forMonth(customerId, b.month);
+      if (summary && summary.balanceDueCents !== null && summary.balanceDueCents !== undefined) {
+        pricedBillSeen = true;
+        return sum + summary.balanceDueCents;
+      }
+      return sum;
+    }, 0);
+    if (pricedBillSeen && outstandingCents <= 0) {
+      const cleared = { ...updated };
+      delete cleared.promiseDate;
+      delete cleared.promiseAmount;
+      delete cleared.promiseNote;
+      return { ...nextState, customers: nextState.customers.map(c => c.id !== customerId ? c : cleared) };
+    }
+  }
+  return nextState;
 }
 
 export function correctPayment(state, customerId, month, paymentId, fields, referenceDate = new Date()) {
@@ -1584,7 +1609,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote']) mergeField(customer, backupCustomer, key, backupCustomer);
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {

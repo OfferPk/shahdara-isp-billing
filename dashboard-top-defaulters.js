@@ -24,6 +24,10 @@ import {
   formatWhatsAppUrl,
   buildPaymentReminderMessage
 } from './form-validation.js';
+import {
+  getWaadaTier,
+  setupWaadaChipDialog
+} from './waada-queue.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -94,7 +98,8 @@ export function calculateTopDefaulters(state, {
   area = 'all',
   riskLevel = 'all',
   search = '',
-  minOutstanding = 1
+  minOutstanding = 1,
+  waadaTier = 'all'
 } = {}) {
   const refYmd = formatDateYmd(referenceDate);
   const allocations = calculatePaymentAllocations(state || { customers: [] });
@@ -181,7 +186,12 @@ export function calculateTopDefaulters(state, {
         lastPaymentDate: latestPayment?.date || null,
         lastPaymentAmount: latestPayment?.amount ? Number(latestPayment.amount) : null,
         lastPaymentMethod: latestPayment?.method || null,
-        riskCategory
+        riskCategory,
+        // SISP-3: Waada promise fields live on the customer record.
+        promiseDate: typeof c.promiseDate === 'string' ? c.promiseDate : null,
+        promiseAmount: c.promiseAmount ?? null,
+        promiseNote: c.promiseNote ?? '',
+        waadaTier: getWaadaTier(c, totalOutstanding, refYmd)
       });
     }
   }
@@ -209,6 +219,12 @@ export function calculateTopDefaulters(state, {
 
   if (riskLevel && riskLevel !== 'all') {
     filtered = filtered.filter(item => item.riskCategory === riskLevel);
+  }
+
+  // SISP-3: Waada tier filter — 'broken' (overdue promises), 'active' (no
+  // promise), 'promised' (snoozed, future promise). 'all' keeps ranking.
+  if (waadaTier && waadaTier !== 'all') {
+    filtered = filtered.filter(item => item.waadaTier === waadaTier);
   }
 
   if (search && search.trim()) {
@@ -277,6 +293,7 @@ export function calculateTopDefaulters(state, {
       limit: limitNum || totalDefaultersCount,
       areaFilter: area,
       riskFilter: riskLevel,
+      waadaFilter: waadaTier,
       searchQuery: search,
       referenceDateYmd: refYmd
     }
@@ -706,6 +723,7 @@ export function generateTopDefaultersBriefing(defaulterData, referenceDate = new
 export function setupTopDefaultersModal(state, {
   onFilterCustomer = null,
   onToast = null,
+  onWaadaChange = null,
   clipboard = null
 } = {}) {
   if (typeof document === 'undefined') return null;
@@ -727,6 +745,7 @@ export function setupTopDefaultersModal(state, {
   const areaSelect = document.getElementById('topDefaultersAreaSelect');
   const limitSelect = document.getElementById('topDefaultersLimitSelect');
   const riskSelect = document.getElementById('topDefaultersRiskSelect');
+  const waadaSelect = document.getElementById('topDefaultersWaadaSelect');
 
   const kpiTopDues = document.getElementById('topDefaultersKpiTopDues');
   const kpiConcentration = document.getElementById('topDefaultersKpiConcentration');
@@ -749,8 +768,30 @@ export function setupTopDefaultersModal(state, {
     area: areaSelect ? areaSelect.value : 'all',
     limit: limitSelect ? Number(limitSelect.value) || 20 : 20,
     riskLevel: riskSelect ? riskSelect.value : 'all',
+    waadaTier: waadaSelect ? waadaSelect.value : 'all',
     referenceDate: new Date()
   });
+
+  // SISP-3: lazy Waada chip dialog — created on first use so the modal keeps
+  // working even if the dialog markup is absent (setup returns null there).
+  let waadaDialog = null;
+  const openWaadaDialog = (custId) => {
+    if (!waadaDialog) {
+      waadaDialog = setupWaadaChipDialog({
+        getCustomer: (id) => (getState().customers || []).find(c => c.id === id) || null,
+        onApply: (updated) => {
+          const list = getState().customers || [];
+          const idx = list.findIndex(c => c.id === updated.id);
+          if (idx >= 0) list[idx] = updated;
+          if (typeof onWaadaChange === 'function') onWaadaChange(updated);
+          renderContent();
+        },
+        onToast
+      });
+    }
+    if (waadaDialog) waadaDialog.open(custId);
+    else if (typeof onToast === 'function') onToast('Waada dialog is not available.');
+  };
 
   const renderContent = () => {
     const opts = getFilterOptions();
@@ -799,12 +840,20 @@ export function setupTopDefaultersModal(state, {
             `<span class="unpaid-month-tag">${escapeHtml(m.month)}</span>`
           ).join('');
 
+          // SISP-3: Waada promise badge — broken promises pulse red.
+          const waadaBadge = acc.waadaTier === 'broken'
+            ? `<span class="wada-badge wada-badge-broken waada-pulse">Waada Expired: ${escapeHtml(acc.promiseDate)}</span>`
+            : acc.waadaTier === 'promised'
+              ? `<span class="wada-badge wada-badge-upcoming">Waada: ${escapeHtml(acc.promiseDate)}</span>`
+              : '';
+
           return `
             <tr data-cust-id="${escapeHtml(acc.id)}" class="defaulter-row ${acc.riskCategory}">
               <td class="defaulter-rank-cell">#${acc.rank}</td>
               <td class="defaulter-cust-cell">
                 <strong>#${acc.customerNumber}</strong> ${escapeHtml(acc.name)}
                 <div class="defaulter-subtext">${escapeHtml(acc.mohalla || acc.address || 'Shahdara')}</div>
+                ${waadaBadge ? `<div class="defaulter-waada-badge">${waadaBadge}</div>` : ''}
               </td>
               <td>${escapeHtml(acc.area)}</td>
               <td class="defaulter-months-cell">
@@ -819,6 +868,9 @@ export function setupTopDefaultersModal(state, {
               </td>
               <td class="defaulter-risk-cell">${riskBadge}</td>
               <td class="table-actions-cell">
+                <button type="button" class="btn-xs secondary-button defaulter-waada-btn" data-cust-id="${escapeHtml(acc.id)}" title="Set Waada promise (one-tap chips)">
+                  🤝 Waada
+                </button>
                 <button type="button" class="btn-xs whatsapp-btn defaulter-wa-btn" data-cust-id="${escapeHtml(acc.id)}" title="Open WhatsApp reminder draft">
                   WhatsApp
                 </button>
@@ -838,10 +890,17 @@ export function setupTopDefaultersModal(state, {
   if (areaSelect) areaSelect.addEventListener('change', renderContent);
   if (limitSelect) limitSelect.addEventListener('change', renderContent);
   if (riskSelect) riskSelect.addEventListener('change', renderContent);
+  if (waadaSelect) waadaSelect.addEventListener('change', renderContent);
 
-  // Table action clicks (WhatsApp & View Profile)
+  // Table action clicks (Waada, WhatsApp & View Profile)
   if (tableBody) {
     tableBody.addEventListener('click', e => {
+      const waadaBtn = e.target.closest('.defaulter-waada-btn');
+      if (waadaBtn) {
+        openWaadaDialog(waadaBtn.dataset.custId);
+        return;
+      }
+
       const waBtn = e.target.closest('.defaulter-wa-btn');
       if (waBtn) {
         const custId = waBtn.dataset.custId;

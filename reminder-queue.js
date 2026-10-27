@@ -30,6 +30,7 @@ import {
   buildPaymentReminderMessage,
   escapeHtml
 } from './form-validation.js';
+import { getWaadaTier, WAADA_TIERS } from './waada-queue.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
@@ -664,6 +665,12 @@ export function getRemindersTodayQueue(state, options = {}) {
 
     overdueCustomersCount++;
 
+    // SISP-3 3-tier snooze: customers with a future Waada promise are kept
+    // OUT of the daily collection list (they live in the Promised tab), while
+    // broken promises pin to the very top of the queue below.
+    const waadaTier = getWaadaTier(c, balance, todayStr);
+    if (waadaTier === WAADA_TIERS.PROMISED) continue;
+
     const match = getMatchingReminderStage(c, balance, todayStr, stages, { storage, history });
     if (!match || !match.matched) continue;
 
@@ -711,12 +718,21 @@ export function getRemindersTodayQueue(state, options = {}) {
       templateType: match.template,
       alreadyReminded,
       messageText: reminderMessage,
-      whatsappUrl: wa.url
+      whatsappUrl: wa.url,
+      waadaTier,
+      promiseDate: typeof c.promiseDate === 'string' ? c.promiseDate : null,
+      promiseAmount: c.promiseAmount ?? null,
+      promiseNote: c.promiseNote ?? ''
     });
   }
 
-  // Sort queue: unreminded first, then highest balance first
+  // Sort queue: SISP-3 broken Waada promises pin to the very top, then
+  // unreminded first, then highest balance first (previous order preserved
+  // within each tier).
+  const waadaTierOrder = { [WAADA_TIERS.BROKEN]: 0, [WAADA_TIERS.ACTIVE]: 1 };
   queue.sort((a, b) => {
+    const tierDiff = (waadaTierOrder[a.waadaTier] ?? 1) - (waadaTierOrder[b.waadaTier] ?? 1);
+    if (tierDiff !== 0) return tierDiff;
     if (a.alreadyReminded !== b.alreadyReminded) {
       return a.alreadyReminded ? 1 : -1;
     }

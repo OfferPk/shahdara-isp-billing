@@ -1445,6 +1445,27 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .area-intelligence-table td{font-variant-numeric:tabular-nums}
 .area-intelligence-table tbody tr.area-row-zone th,.area-intelligence-table tbody tr.area-row-mohalla th{font-weight:600;color:#4d665c}
 .area-intelligence-table tbody tr.area-row-unassigned th,.area-intelligence-table tbody tr.area-row-unassigned td{background:#fafcfb;color:#73827c}
+/* Narrow-screen card layout for the Area Intelligence Dashboard table. The
+   wide table (min-width 1120px) is kept for desktop; at <=700px the table
+   hides and these cards render instead, so no column or amount is ever cut
+   off and no horizontal scroll is needed. Theme tokens only: the same
+   --surface/--ink/--muted/--line tokens as the area-breakdown cards, so both
+   light and dark themes stay readable. */
+.area-intelligence-cards{display:none}
+.area-intel-card{min-width:0;padding:14px;border:1px solid var(--line,#dfe9e4);border-radius:12px;background:var(--surface,#fff)}
+.area-intel-card-header{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.area-intel-card-header h4{margin:0;color:var(--ink,#244a3e);font:700 15px Manrope,system-ui,sans-serif;overflow-wrap:anywhere}
+.area-intel-level{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#60756c)}
+.area-intel-metrics{display:grid;gap:6px}
+.area-intel-metric{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
+.area-intel-metric>span{font-size:10px;font-weight:700;color:var(--muted,#60756c);text-transform:uppercase;letter-spacing:.04em;line-height:1.4}
+.area-intel-metric>strong{font-size:13px;color:var(--ink,#263f34);text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.area-intel-metric .area-intel-missing{font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--muted,#60756c);text-align:right;overflow-wrap:anywhere}
+.area-intel-section{margin-top:12px;padding-top:12px;border-top:1px solid var(--line,#dfe9e4)}
+.area-intel-section h5{margin:0 0 8px;color:var(--ink,#244a3e);font-size:13px;overflow-wrap:anywhere}
+.area-intel-section .area-intel-section{margin-left:10px;padding-left:10px;border-left:2px solid var(--line,#dfe9e4);border-top:0;padding-top:0}
+.area-intel-no-zone{margin:8px 0 0;color:var(--muted,#60756c);font-size:11px}
+@media(max-width:700px){.area-intelligence-card .table-scroll{display:none}.area-intelligence-cards{display:grid;gap:12px}}
 .chart-bar-negative{fill:#cf685b}.category-chart-svg{min-height:130px}
 @media(max-width:700px){.analytics-range-controls{grid-template-columns:1fr;gap:8px}.area-intel-chart-grid{grid-template-columns:1fr}.area-intel-chart-grid .chart-card:last-child{grid-column:auto}.area-intelligence-table{min-width:1060px}}
 @media(max-width:360px){.analytics-range-controls label{font-size:12px}.analytics-range-controls input,.analytics-range-controls select{font-size:16px;min-height:44px}}

@@ -6974,6 +6974,10 @@ body {
   gap: 10px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border-color, #e2e8f0);
+  /* Pills fix: the toolbar is a flex-column child of the modal card — it
+     must never give up height to the scrolling list (same pattern as the
+     #381 worklist-tabs fix). */
+  flex-shrink: 0;
 }
 
 .pending-actions-tabs {
@@ -6982,6 +6986,8 @@ body {
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  /* Pills fix: the row keeps its height in the flex-column card. */
+  flex-shrink: 0;
 }
 
 .pending-actions-tabs::-webkit-scrollbar {
@@ -7003,6 +7009,11 @@ body {
   gap: 6px;
   min-height: 36px;
   transition: all 0.15s ease;
+  /* Pills fix (core): without this the four pills shrink to ~1/4 of the
+     row each on narrow phones and the button text clips mid-word
+     ("All Pend" / "WhatsAp" / "Promi" / "Offlin"). A pill never shrinks
+     now — if labels ever overflow the row again, it scrolls instead. */
+  flex-shrink: 0;
 }
 
 .pending-actions-tab:hover {
@@ -7027,6 +7038,28 @@ body {
 .pending-actions-tab.active .tab-count-pill {
   background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
+}
+
+/* Pending Actions pills fix: on narrow phones the four long runtime
+   labels ("All Pending", "📱 WhatsApp Receipts", "🤝 Promises Due",
+   "💾 Offline Queue") must all be readable at once — no mid-word
+   truncation and no hidden horizontal scroll. The row wraps instead of
+   scrolling, with slightly tighter pills and toolbar padding so the
+   widest pill still fits a 320px phone. Desktop/tablet are untouched:
+   above 480px the row keeps its single-line scroll behaviour. */
+@media (max-width: 480px) {
+  .pending-actions-toolbar {
+    padding: 12px;
+  }
+
+  .pending-actions-tabs {
+    flex-wrap: wrap;
+  }
+
+  .pending-actions-tab {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
 }
 
 .pending-actions-quick-tools {

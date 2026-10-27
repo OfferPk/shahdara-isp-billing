@@ -86,7 +86,8 @@ test('#230 legacy hex ratchet: counts may only shrink', () => {
     'styles.css': 621, 'ui-feedback.css': 57, 'urdu-font.css': 1
   };
   for (const [file, max] of Object.entries(BASELINE)) {
-    const distinct = new Set(read(file).match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
+    // Strip comments first: issue numbers like "#230" or "#381" in comments are not colours
+    const distinct = new Set(read(file).replace(/\/\*[\s\S]*?\*\//g, '').match(/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g) || []);
     assert.ok(distinct.size <= max, `${file} has ${distinct.size} distinct hex colours, baseline is ${max} — use tokens.css variables instead of new hard-coded colours`);
   }
 });

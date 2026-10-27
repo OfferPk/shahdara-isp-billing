@@ -364,6 +364,57 @@ export function buildPhase3Analytics(state,referenceDate=new Date()) {
     currentBilledRevenue:revenueMap.size?money(currentBilledRevenueCents):0,currentOutstanding:outstanding.total};
 }
 
+export const PARTNER_SHARE_RATE = 0.5;
+const wholeRupees = value => Math.round(Number(value || 0));
+function partnerMonthSummary(revenueRaw, expensesRaw, receiptCount, expenseCount) {
+  const revenue = wholeRupees(revenueRaw);
+  const expenses = wholeRupees(expensesRaw);
+  const profit = revenue - expenses;
+  const share = profit > 0 ? Math.round(profit * PARTNER_SHARE_RATE) : 0;
+  return { revenue, expenses, profit, share, isLoss: profit < 0, receiptCount, expenseCount };
+}
+export function buildPartnerShareReport(state, selectedMonth, referenceDate = new Date()) {
+  const payments = paymentEntries(state);
+  const expenses = [...(state.expenses ?? [])];
+  const currentMonth = pktMonth(referenceDate);
+  const monthsSet = new Set([currentMonth]);
+  for (const { payment } of payments) { const month = monthOf(payment.date); if (month) monthsSet.add(month); }
+  for (const row of expenses) { const month = monthOf(row.date); if (month) monthsSet.add(month); }
+  const months = [...monthsSet].sort().reverse();
+  const month = MONTH_RE.test(String(selectedMonth ?? '')) ? String(selectedMonth) : currentMonth;
+  const byMonth = new Map();
+  const summarize = monthKey => {
+    if (!byMonth.has(monthKey)) {
+      const monthPayments = payments.filter(({ payment }) => monthOf(payment.date) === monthKey);
+      const monthExpenses = expenses.filter(row => monthOf(row.date) === monthKey);
+      const revenueRaw = monthPayments.reduce((sum, { payment }) => sum + Number(payment.amount || 0), 0);
+      const expensesRaw = monthExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+      const summary = partnerMonthSummary(revenueRaw, expensesRaw, monthPayments.length, monthExpenses.length);
+      const categories = new Map();
+      for (const row of monthExpenses) {
+        const category = String(row.category ?? '').trim() || 'Uncategorized';
+        const entry = categories.get(category) ?? { category, amount: 0, count: 0 };
+        entry.amount += Number(row.amount || 0); entry.count += 1;
+        categories.set(category, entry);
+      }
+      const categoryBreakdown = [...categories.values()]
+        .map(entry => ({ ...entry, amount: wholeRupees(entry.amount) }))
+        .sort((a, b) => b.amount - a.amount || a.category.localeCompare(b.category));
+      byMonth.set(monthKey, { month: monthKey, ...summary, categoryBreakdown });
+    }
+    return byMonth.get(monthKey);
+  };
+  const summary = summarize(month);
+  const previousMonth = summarize(addMonths(month, -1));
+  const history = months.map(key => summarize(key));
+  const allTime = history.reduce((total, row) => ({
+    revenue: total.revenue + row.revenue, expenses: total.expenses + row.expenses, profit: total.profit + row.profit,
+    share: total.share + row.share, receiptCount: total.receiptCount + row.receiptCount, expenseCount: total.expenseCount + row.expenseCount,
+  }), { revenue: 0, expenses: 0, profit: 0, share: 0, receiptCount: 0, expenseCount: 0 });
+  return { month, currentMonth, months, summary, previousMonth, allTime, history,
+    basis: 'Revenue is actual saved receipts grouped by payment date (PKT calendar month). Expenses are all dated recorded expenses grouped by payment date, across every recorded category — no category list is hardcoded. Profit = revenue − expenses; partner share = 50% of profit when profit is positive, otherwise 0 and the loss is shown. Amounts are whole rupees. This report records nothing.' };
+}
+
 function rangeMonths(startDate,endDate) {
   const start=requireDate(startDate,'Start date'),end=requireDate(endDate,'End date');
   if(start>end)throw new Error('Start date must be on or before the end date.');

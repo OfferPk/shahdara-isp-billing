@@ -12,7 +12,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport
 } from './phase3.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
@@ -572,7 +572,7 @@ function renderDashboard() {
       const modal = $('#dailyClosingModal');
       if (modal?.showModal) modal.showModal();
     },
-    onRecordExpense: () => { switchView('expenses'); renderExpenses(); },
+    onRecordExpense: () => { expenseActiveTab = 'ledger'; switchView('expenses'); renderExpenses(); },
     onMonthlyReport: () => { switchView('reports'); renderMonthlyReport(); },
     onAnalytics: () => { switchView('analytics'); renderAnalytics(); },
     onBackup: () => {
@@ -4396,6 +4396,56 @@ let expenseSortAsc = false;
 let expenseMonthFilter = 'all';
 let expenseCategoryFilter = 'all';
 let expenseSearchQuery = '';
+let expenseActiveTab = 'ledger';
+let nasirShareMonth = '';
+let aqibShareMonth = '';
+
+function syncExpenseTabs() {
+  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib' };
+  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel' };
+  for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === expenseActiveTab)); }
+  for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== expenseActiveTab; }
+}
+function partnerShareLine(label, value) { return `<div class="partner-share-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(value)}</span></div>`; }
+function renderPartnerShare(key) {
+  const name = key === 'nasir' ? 'Nasir' : 'Aqib';
+  const monthSelect = $(key === 'nasir' ? '#nasirShareMonth' : '#aqibShareMonth');
+  const host = $(key === 'nasir' ? '#nasirShareContent' : '#aqibShareContent');
+  if (!monthSelect || !host) return;
+  const report = buildPartnerShareReport(state, key === 'nasir' ? nasirShareMonth : aqibShareMonth, new Date());
+  if (key === 'nasir') nasirShareMonth = report.month; else aqibShareMonth = report.month;
+  const monthsKey = report.months.join(',');
+  if (monthSelect.dataset.months !== monthsKey) {
+    monthSelect.innerHTML = report.months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
+    monthSelect.dataset.months = monthsKey;
+  }
+  monthSelect.value = report.month;
+  const s = report.summary, prev = report.previousMonth, total = report.allTime;
+  const profitLabel = s.profit >= 0 ? 'Profit (bachat)' : 'Loss';
+  const profitClass = s.profit >= 0 ? 'partner-share-profit' : 'partner-share-loss';
+  const shareNote = s.profit > 0 ? '50% of this month’s profit' : (s.profit === 0 ? 'No profit, no share this month' : 'No share on a loss month — the loss is shown above');
+  const breakdown = s.categoryBreakdown.length
+    ? s.categoryBreakdown.map(row => partnerShareLine(`${row.category} · ${row.count} entr${row.count === 1 ? 'y' : 'ies'}`, formatAmount(row.amount))).join('')
+    : '<p class="phase3-note">No expenses recorded this month.</p>';
+  const history = report.history.map(row => {
+    const rowProfit = row.profit >= 0 ? `Profit ${formatAmount(row.profit)}` : `Loss ${formatAmount(-row.profit)}`;
+    return `<div class="partner-share-history-row"><strong>${escapeHtml(monthName(row.month))}</strong><small>Revenue ${formatAmount(row.revenue)} · Expenses ${formatAmount(row.expenses)} · ${rowProfit} · ${name}’s share ${formatAmount(row.share)}</small></div>`;
+  }).join('');
+  host.innerHTML = `<div class="partner-share-grid">`
+    + `<article class="phase3-metric"><span>Total revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(s.revenue))}</strong><small>${s.receiptCount} bill collection receipt${s.receiptCount === 1 ? '' : 's'}</small></article>`
+    + `<article class="phase3-metric"><span>Total expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(s.expenses))}</strong><small>${s.expenseCount} recorded expense entr${s.expenseCount === 1 ? 'y' : 'ies'} · every category</small></article>`
+    + `<article class="phase3-metric"><span>${profitLabel}</span><strong class="${profitClass}">${escapeHtml(formatAmount(s.profit))}</strong><small>Revenue − expenses</small></article>`
+    + `<article class="phase3-metric"><span>${name}’s share (50%)</span><strong>${escapeHtml(formatAmount(s.share))}</strong><small>${shareNote}</small></article></div>`
+    + `<p class="phase3-note">${escapeHtml(report.basis)}</p>`
+    + `<h4>Expense breakdown · ${escapeHtml(monthName(report.month))}</h4><div>${breakdown}</div>`
+    + `<h4>Previous month · ${escapeHtml(monthName(prev.month))}</h4><div>`
+    + partnerShareLine('Revenue', formatAmount(prev.revenue)) + partnerShareLine('Expenses', formatAmount(prev.expenses))
+    + partnerShareLine(prev.profit >= 0 ? 'Profit' : 'Loss', formatAmount(prev.profit)) + partnerShareLine(`${name}’s share`, formatAmount(prev.share)) + `</div>`
+    + `<h4>All time so far</h4><div>`
+    + partnerShareLine('Total revenue', formatAmount(total.revenue)) + partnerShareLine('Total expenses', formatAmount(total.expenses))
+    + partnerShareLine(total.profit >= 0 ? 'Total profit' : 'Total loss', formatAmount(total.profit)) + partnerShareLine(`Total ${name} share paid out so far`, formatAmount(total.share)) + `</div>`
+    + `<h4>Monthly history</h4><div class="partner-share-history">${history}</div>`;
+}
 
 function renderExpenses() {
   const payrollMonths=monthsForHistory();
@@ -4514,6 +4564,8 @@ function renderExpenses() {
     }
   }));
   updateNavigationBadges(state);
+  syncExpenseTabs();
+  if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
@@ -4944,6 +4996,9 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key!=='ledger')renderPartnerShare(key);});});
+$('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
+$('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
 $('#areaIntelMonth').addEventListener('change',event=>{
   const month=event.currentTarget.value;if(!month){renderAnalytics();return;}
@@ -5017,7 +5072,7 @@ $('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
   }
 });
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
-$('#showExpensesButton').addEventListener('click',()=>{switchView('expenses');renderExpenses();});
+$('#showExpensesButton').addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
 renderPhase3();
 refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses}).refresh;
 

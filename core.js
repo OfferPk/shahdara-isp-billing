@@ -110,6 +110,10 @@ export function readState(storage, key = STORAGE_KEY) {
       monthlyPriceSchedule,
       billingStartMonth:validMonthString(customer.billingStartMonth) ? customer.billingStartMonth : null,
       connectionDate:validDateOrNull(customer.connectionDate),
+      connectionFee:normalizeMoneyOrNull(customer.connectionFee),
+      routerModel:typeof customer.routerModel === 'string' ? customer.routerModel.trim().slice(0, 100) : '',
+      routerPrice:normalizeMoneyOrNull(customer.routerPrice),
+      fiberMeters:normalizeMetersOrNull(customer.fiberMeters),
       expiryDate:validDateOrNull(customer.expiryDate),
       cancellationDate:validDateOrNull(customer.cancellationDate),
       packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
@@ -128,6 +132,22 @@ export function readState(storage, key = STORAGE_KEY) {
 function validDateOrNull(value) {
   if (value === null || value === undefined || value === '') return null;
   try { return checkOptionalDate(value, 'Profile date'); } catch { return null; }
+}
+
+// Onboarding economics (connection fee / router / fiber) are optional: an
+// unrecorded value stays null (or '' for the router model) and is never
+// invented. Normalization only cleans corrupt saved values.
+function normalizeMoneyOrNull(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.round(number * 100) / 100;
+}
+function normalizeMetersOrNull(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.round(number * 10) / 10;
 }
 
 export function persistState(state, storage, key = STORAGE_KEY) {
@@ -194,10 +214,14 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const cnic = cleanText(options.cnic, 30, 'CNIC');
   const mohalla = cleanText(options.mohalla, 100, 'Mohalla');
   const zone = cleanText(options.zone, 100, 'Zone');
+  const connectionFee = checkCost(options.connectionFee);
+  const routerModel = cleanText(options.routerModel, 100, 'Router model');
+  const routerPrice = checkCost(options.routerPrice);
+  const fiberMeters = checkFiberMeters(options.fiberMeters);
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -334,6 +358,12 @@ function checkCost(value) {
   if (!Number.isFinite(number) || number < 0) throw new Error('Monthly purchase cost cannot be negative.');
   return Math.round(number * 100) / 100;
 }
+function checkFiberMeters(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < 0) throw new Error('Fiber wire used cannot be negative.');
+  return Math.round(number * 10) / 10;
+}
 function checkServiceStatus(value) {
   if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
   return value;
@@ -373,6 +403,10 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     monthlyPurchaseCost: checkCost(valueOrCurrent('monthlyPurchaseCost')),
     monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true),
     connectionDate: checkOptionalDate(valueOrCurrent('connectionDate'), 'Connection date'),
+    connectionFee: checkCost(valueOrCurrent('connectionFee')),
+    routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
+    routerPrice: checkCost(valueOrCurrent('routerPrice')),
+    fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
     expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
     cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date')
   };
@@ -807,6 +841,88 @@ export function summarizeCustomerTenure(customer, referenceDate = new Date()) {
 }
 
 const monthAllocationKey = (customerId, month) => JSON.stringify([customerId, month]);
+
+/**
+ * New-customers-by-month report (view-only aggregation over saved data).
+ *
+ * A customer's join month is the month they were added (addedOn), falling
+ * back to their connection date, then their billing-start month, then
+ * their earliest saved bill month. Customers with none of these are
+ * counted separately as undated — never forced into a month. Archived
+ * customers are included: they did join in that month, even if they
+ * were archived later. Nothing here rewrites balances or billing.
+ */
+function monthOfDate(value) {
+  if (typeof value !== 'string') return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return null;
+  return `${match[1]}-${match[2]}`;
+}
+function earliestBillMonth(customer) {
+  const months = (Array.isArray(customer.bills) ? customer.bills : [])
+    .map(bill => bill?.month)
+    .filter(month => validMonthString(month));
+  if (!months.length) return null;
+  return months.sort()[0];
+}
+export function customerJoinMonth(customer) {
+  if (!customer) return null;
+  return monthOfDate(customer.addedOn)
+    ?? monthOfDate(customer.connectionDate)
+    ?? (validMonthString(customer.billingStartMonth) ? customer.billingStartMonth : null)
+    ?? earliestBillMonth(customer);
+}
+function summarizeOnboarding(customers) {
+  let connectionFees = 0, routersIssued = 0, routerTotal = 0, fiberMeters = 0;
+  for (const customer of customers) {
+    const fee = Number(customer?.connectionFee);
+    if (Number.isFinite(fee) && fee > 0) connectionFees += fee;
+    if (String(customer?.routerModel ?? '').trim()) routersIssued += 1;
+    const price = Number(customer?.routerPrice);
+    if (Number.isFinite(price) && price > 0) routerTotal += price;
+    const meters = Number(customer?.fiberMeters);
+    if (Number.isFinite(meters) && meters > 0) fiberMeters += meters;
+  }
+  return {
+    count: customers.length,
+    connectionFees: Math.round(connectionFees * 100) / 100,
+    routersIssued,
+    routerTotal: Math.round(routerTotal * 100) / 100,
+    fiberMeters: Math.round(fiberMeters * 10) / 10
+  };
+}
+export function buildNewCustomerReport(customers, referenceDate = new Date()) {
+  const list = Array.isArray(customers) ? customers : [];
+  const byMonth = new Map();
+  let undatedCount = 0;
+  for (const customer of list) {
+    const month = customerJoinMonth(customer);
+    if (!month) { undatedCount += 1; continue; }
+    if (!byMonth.has(month)) byMonth.set(month, []);
+    byMonth.get(month).push(customer);
+  }
+  const months = [...byMonth.keys()].sort().reverse().map(month => {
+    const monthCustomers = byMonth.get(month).slice()
+      .sort((a, b) => (a.customerNumber ?? 0) - (b.customerNumber ?? 0));
+    return { month, customers: monthCustomers, totals: summarizeOnboarding(monthCustomers) };
+  });
+  return { months, undatedCount, totalCustomers: list.length, currentMonth: monthKey(referenceDate) };
+}
+export function newCustomerQuickRanges(referenceDate = new Date()) {
+  const current = monthKey(referenceDate);
+  return {
+    thisMonth: { start: current, end: current, label: 'This month' },
+    lastMonth: { start: shiftMonth(current, -1), end: shiftMonth(current, -1), label: 'Last month' },
+    last3Months: { start: shiftMonth(current, -2), end: current, label: 'Last 3 months' },
+    last6Months: { start: shiftMonth(current, -5), end: current, label: 'Last 6 months' }
+  };
+}
+export function filterNewCustomerMonths(months, startMonth, endMonth) {
+  return (Array.isArray(months) ? months : [])
+    .filter(entry => entry.month >= startMonth && entry.month <= endMonth);
+}
 
 /**
  * Recompute same-month receipt use and chronological carry-forward from the saved
@@ -1383,6 +1499,7 @@ function validateBackupState(source) {
       monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
+      connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null,
       packageHistory, bills, incidents
     };
   });
@@ -1467,7 +1584,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','addedOn','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt']) mergeField(customer, backupCustomer, key, backupCustomer);
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {

@@ -107,6 +107,7 @@ import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
+import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -151,6 +152,7 @@ export let packageRevenueModalController = null;
 export let pnlModalController = null;
 export let momGrowthModalController = null;
 export let dailyClosingModalController = null;
+export let shopSettlementModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -400,6 +402,20 @@ function renderDashboard() {
   const profilesWithCost = totals.providerCostBreakdown.reduce((sum,group) => sum + group.profilesWithCost, 0);
   const profilesWithProfit = state.customers.filter(customer => !customer.archived && customerPackageProfit(customer) !== null).length;
   $('#dashboardCustomerCount').textContent = totals.totalCustomers;
+  // SISP-1: shop settlement summary card (unsettled cash per shop).
+  const shopSummaryEl = $('#shopSettlementSummary');
+  if (shopSummaryEl) {
+    const shopSummaries = buildShopSummaries(state, loadShopSettlements(), referenceDate);
+    const totalUnsettled = shopSummaries.reduce((sum, s) => sum + s.unsettled, 0);
+    const pendingCount = shopSummaries.reduce((sum, s) => sum + s.unsettledReceiptCount, 0);
+    const valueEl = $('#dashboardShopSettlementValue');
+    if (valueEl) valueEl.textContent = shopSummaries.length === 0 ? 'No shop collections' : formatAmount(totalUnsettled);
+    const periodEl = $('#dashboardShopSettlementPeriod');
+    if (periodEl) periodEl.textContent = shopSummaries.length === 0 ? 'Unsettled cash sitting at shops' : `${shopSummaries.length} shop${shopSummaries.length === 1 ? '' : 's'} · ${pendingCount} pending receipt${pendingCount === 1 ? '' : 's'}`;
+    shopSummaryEl.innerHTML = shopSummaries.length === 0
+      ? ''
+      : shopSummaries.map((s) => `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(formatAmount(s.collectedThisMonth))} this month · last handover ${escapeHtml(s.lastHandoverDate || 'never')}</small></p>`).join('');
+  }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
   $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
@@ -1575,12 +1591,14 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements() };
 }
 function backupRestoreOptions() {
   let stored = false;
+  let shopStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored };
+  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -1696,7 +1714,7 @@ function renderBackupPreview(preview) {
   if (plainSection) plainSection.hidden = false;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
-  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}`;
+  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}`;
   const list = $('#jsonBackupConflictList');
   list.replaceChildren();
   for (const conflict of conflicts.slice(0, 25)) {
@@ -2041,6 +2059,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
       saveDigitalPaymentsSettings(pendingBackupPreview.digitalPaymentsSettings);
       const ownerPhone = pendingBackupPreview.digitalPaymentsSettings.ownerPhone;
       if (ownerPhone) { try { localStorage.setItem('shahdara_owner_whatsapp_phone', ownerPhone); } catch { /* ignore */ } }
+    }
+    if (pendingBackupPreview.shopSettlements) {
+      saveShopSettlements(pendingBackupPreview.shopSettlements);
     }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
@@ -6929,6 +6950,13 @@ if (typeof document !== 'undefined') {
   dailyClosingModalController = setupDailyClosingModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
+  shopSettlementModalController = setupShopSettlementModal(() => state, {
+    onUpdateState: (newState) => {
+      state = newState;
+      save();
+    },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   worklistsModalController = setupWorklistsModal(() => state, {
     onUpdateState: (newState) => {
       state = newState;
@@ -7879,6 +7907,17 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const shopSettlementModal = $('#shopSettlementModal');
+  if (shopSettlementModal && !shopSettlementModalController) {
+    shopSettlementModalController = setupShopSettlementModal(() => state, {
+      onUpdateState: (newState) => {
+        state = newState;
+        save();
+      },
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const workListModal = $('#workListModal');
   if (workListModal && !worklistsModalController) {
     worklistsModalController = setupWorklistsModal(() => state, {
@@ -8015,6 +8054,7 @@ if (typeof document !== 'undefined') {
     window.pnlModalController = pnlModalController;
     window.momGrowthModalController = momGrowthModalController;
     window.dailyClosingModalController = dailyClosingModalController;
+    window.shopSettlementModalController = shopSettlementModalController;
     window.lateFeeModalController = lateFeeModalController;
     window.worklistsModalController = worklistsModalController;
     window.staffPerformanceModalController = staffPerformanceModalController;

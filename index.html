@@ -356,6 +356,15 @@
             <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button">🏪 Shop Settlement</button>
           </div>
         </article>
+        <article class="summary-card summary-billing-cycle">
+          <p class="summary-label">📅 Monthly Billing Cycle</p>
+          <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
+          <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
+          <div id="billingCycleSummary" class="billing-cycle-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button">📅 Billing Cycle</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -20185,6 +20194,26 @@
             <button id="shopSettlementPrintBtn" class="secondary-button" type="button">Print receipt</button>
           </div>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="billingCycleModal" class="billing-modal billing-cycle-modal" aria-labelledby="billingCycleModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="billingCycleModalTitle">📅 Monthly Billing Cycle</h2>
+        <button id="billingCycleCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="billing-cycle-intro">Run one billing cycle for a month: each active customer gets their package bill plus previous arrears, minus advance credit. Rates lock per bill — later price changes never alter this cycle. A month can only be cycled once.</p>
+        <p id="billingCycleLastRun" class="billing-cycle-last-run"></p>
+        <form class="billing-cycle-form" onsubmit="return false;">
+          <label for="billingCycleMonthInput">Billing month</label>
+          <input id="billingCycleMonthInput" class="form-input" type="month" required>
+          <button id="billingCyclePreviewBtn" class="secondary-button" type="button">Preview cycle</button>
+        </form>
+        <div id="billingCyclePreview"></div>
+        <button id="billingCycleConfirmBtn" class="primary-button" type="button" hidden>Confirm &amp; run cycle</button>
+        <div id="billingCycleResult"></div>
       </div>
     </div>
   </dialog>

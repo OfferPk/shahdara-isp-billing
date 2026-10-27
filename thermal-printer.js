@@ -99,6 +99,13 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.method) push(rowLine('Method', fields.method, width));
   if (fields.reference) push(rowLine('Ref', fields.reference, width));
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
+  if (fields.arrearsPackage || fields.arrearsPrevious || fields.arrearsTotal) {
+    push(rowLine('Monthly pkg', fields.arrearsPackage, width));
+    push(rowLine('Prev arrears', fields.arrearsPrevious, width));
+    push(rowLine('Total due', fields.arrearsTotal, width));
+    push(rowLine('Paid applied', fields.arrearsPaid, width));
+    push(rowLine('Balance left', fields.arrearsBalance, width));
+  }
   if (fields.amount) push(rowLine('AMOUNT PAID', fields.amount, width));
   if (fields.balanceDue) push(rowLine('Balance due', fields.balanceDue, width));
   if (fields.statusLabel) push(rowLine('Status', fields.statusLabel, width));
@@ -160,6 +167,13 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     discount: receipt.discount ? money(receipt.discount) : '',
     balanceDue: balance,
     statusLabel: receipt.status || '',
+    // SISP-2: itemized arrears breakdown (passed through from the receipt
+    // object built by buildPaymentReceipt); rendered below by buildEscPosReceipt.
+    arrearsPackage: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.packageAmount) : '',
+    arrearsPrevious: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.previousArrears) : '',
+    arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
+    arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',
+    arrearsBalance: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.balanceDue) : '',
     footerNote: 'Thank you! Please keep this receipt.'
   };
 }

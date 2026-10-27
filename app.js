@@ -17,6 +17,7 @@ import {
 } from './phase3.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction } from './profile-ui.js?v=1.10.0';
+import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.10.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import { customerHasMonthlyFee } from './nav-quick-collect.js';
@@ -1567,8 +1568,18 @@ function renderCustomerProfileView(customer) {
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
   const downtimeSectionHtml = `<section class="profile-downtime-section" aria-label="Downtime analytics"><h4>📉 Downtime analytics</h4><p>This month: <strong>${escapeHtml(String(downtimeMonth.complaintCount))} complaint${downtimeMonth.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeMonth.totalDowntime))} h offline</strong>${downtimeMonth.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeMonth.primaryIssueTag)}` : ''}</p><p>All time: <strong>${escapeHtml(String(downtimeAll.complaintCount))} complaint${downtimeAll.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeAll.totalDowntime))} h offline</strong>${downtimeAll.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeAll.primaryIssueTag)}` : ''}</p><button type="button" class="secondary-button" id="profileOpenDowntimeAnalyticsBtn">Open downtime analytics</button></section>`;
+  // SISP-4: profile kist progress — one progress bar per installment plan
+  // (paid = billed installments whose bill month is fully settled, FIFO),
+  // plus the add-plan form. Plans are separate from the one-time
+  // connection/router/fiber fields above; they only ever bill through the
+  // monthly billing cycle, never from this form.
+  const kistProgress = buildKistProgress(customer, calculatePaymentAllocations(state));
+  const kistPlansHtml = kistProgress.plans.length === 0
+    ? '<p class="profile-kist-empty">No installments set up for this customer.</p>'
+    : kistProgress.plans.map((plan) => `<article class="kist-plan"><div class="kist-plan-head"><strong>${escapeHtml(plan.itemTitle)}</strong><span>${escapeHtml(plan.statusLabel)}</span></div><div class="kist-progress-track" role="progressbar" aria-label="${escapeHtml(plan.itemTitle)} progress" aria-valuenow="${plan.percentPaid}" aria-valuemin="0" aria-valuemax="100"><div class="kist-progress-fill" style="width: ${plan.percentPaid}%"></div></div><p class="kist-plan-meta">Paid ${plan.monthsPaid}/${plan.totalMonths} Installments • ${escapeHtml(formatAmount(plan.remainingAmount))} Remaining</p><p class="kist-plan-detail">Monthly kist ${escapeHtml(formatAmount(plan.monthlyKist))} · Billed ${plan.monthsBilled}/${plan.totalMonths} · Total ${escapeHtml(formatAmount(plan.totalAmount))}${plan.downPayment > 0 ? ` · Down payment ${escapeHtml(formatAmount(plan.downPayment))}` : ''}${plan.startDate ? ` · From ${escapeHtml(plan.startDate)}` : ''}</p>${plan.monthsBilled === 0 ? `<button type="button" class="secondary-button text-button danger" data-profile-kist-remove="${escapeHtml(plan.id)}">Remove plan</button>` : ''}</article>`).join('');
+  const kistSectionHtml = `<section class="profile-kist-section" aria-label="Installments (Kist)"><h4>💳 Kist / Installments — Hardware &amp; Wire</h4><p class="profile-kist-note">Installments are added to the monthly bill automatically when the billing cycle runs — never from here. Paid counts installments whose bill month is fully settled.</p>${kistPlansHtml}<form class="kist-add-form" novalidate><h5>Add installment plan</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">Item (router / ONU / fiber wire)</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="e.g. Tenda F3 Router + 120m Fiber" required><label class="field-label full" for="profileKistTotalAmount">Total amount (PKR)</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="e.g. 3000" required><label class="field-label full" for="profileKistDownPayment">Down payment (PKR) <span class="optional-label">Optional</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistTotalMonths">Months (2–6)</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">Monthly kist (PKR) <span class="optional-label">Optional · auto-split if blank</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Auto"><label class="field-label full" for="profileKistStartDate">Start date <span class="optional-label">Optional · first cycle on/after this date</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">Add installment plan</button></form></section>`;
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${downtimeSectionHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${downtimeSectionHtml}${kistSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1618,6 +1629,42 @@ function renderCustomerProfileView(customer) {
   if (profileDowntimeBtn) profileDowntimeBtn.addEventListener('click', () => {
     if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.open({ month: pakistanMonthNow() });
   });
+  // SISP-4: wire the profile kist form (add plan + remove unbilled plan).
+  // Adding a plan only records it — billing happens in the cycle, so this
+  // handler never touches bills, amounts or payments.
+  const kistSection = $('#customerProfileView').querySelector('.profile-kist-section');
+  if (kistSection) {
+    const applyProfileKist = (updated, message) => {
+      const idx = state.customers.findIndex(c => c.id === customer.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      renderDetail();
+      toast(message);
+    };
+    kistSection.querySelector('#profileKistAddBtn')?.addEventListener('click', () => {
+      try {
+        const plan = createInstallmentPlan({
+          itemTitle: kistSection.querySelector('#profileKistItemTitle')?.value ?? '',
+          totalAmount: kistSection.querySelector('#profileKistTotalAmount')?.value ?? '',
+          downPayment: kistSection.querySelector('#profileKistDownPayment')?.value ?? '',
+          totalMonths: kistSection.querySelector('#profileKistTotalMonths')?.value ?? '',
+          monthlyKist: kistSection.querySelector('#profileKistMonthlyKist')?.value ?? '',
+          startDate: kistSection.querySelector('#profileKistStartDate')?.value ?? ''
+        });
+        const plans = [...(customer.installmentPlans ?? []), plan];
+        applyProfileKist({ ...customer, installmentPlans: plans }, `Installment plan added: ${plan.itemTitle} (${plan.totalMonths} × ${formatAmount(plan.monthlyKist)}). It will bill with the next monthly cycle.`);
+      } catch (err) { toast(err?.message || 'Could not add installment plan.'); }
+    });
+    kistSection.querySelectorAll('[data-profile-kist-remove]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const planId = btn.getAttribute('data-profile-kist-remove');
+        const plans = (customer.installmentPlans ?? []).filter((plan) => plan.id !== planId);
+        // Only unbilled plans get a remove button, so this never deletes
+        // a billed installment or its history.
+        applyProfileKist({ ...customer, installmentPlans: plans }, 'Installment plan removed (nothing had been billed yet).');
+      });
+    });
+  }
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];

@@ -151,3 +151,38 @@
 @media (max-width: 480px) {
   .billing-cycle-totals p strong { text-align: left; }
 }
+/* SISP-15: centralized monthly complaint register + resolution timeline. Theme tokens only. */
+.complaint-register-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.complaint-register-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.complaint-register-summary p span { color: var(--ink); font-weight: 600; }
+.complaint-register-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.complaint-register-summary p small { color: var(--muted); }
+.complaint-register-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.complaint-register-form { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
+.complaint-register-form label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.complaint-register-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 12px; }
+.complaint-register-filters label { font-size: 13px; font-weight: 600; color: var(--ink); align-self: center; }
+.complaint-register-summary-line { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.complaint-register-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.complaint-register-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.complaint-register-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin-bottom: 8px; }
+.complaint-register-head strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.complaint-status-badge { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 10px; border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
+.complaint-register-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.complaint-register-card p span { overflow-wrap: anywhere; }
+.complaint-register-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.complaint-register-card .complaint-inline-input { min-width: 0; flex: 1 1 160px; }
+.complaint-downtime-wrap { display: flex; align-items: center; gap: 6px; flex: 1 1 160px; min-width: 0; }
+.complaint-downtime-wrap .complaint-downtime-input { flex: 1 1 100px; }
+.complaint-register-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.complaint-register-empty { color: var(--muted); font-size: 13px; }
+.profile-complaints-section { margin-top: 16px; }
+.profile-complaints-section h4 { margin: 0 0 8px; color: var(--ink); }
+.profile-complaints-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.profile-complaints-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: 13px; color: var(--muted); }
+.profile-complaints-list li strong { color: var(--ink); }
+@media (max-width: 480px) {
+  .complaint-register-filters { grid-template-columns: 1fr; }
+  .complaint-register-list { grid-template-columns: 1fr; }
+  .complaint-register-card p strong { text-align: left; }
+}

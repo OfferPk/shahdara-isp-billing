@@ -47,7 +47,7 @@ test.describe('Customer Ledger Statement Filters', () => {
   test('changing the entry-type filter shows a filter note and never breaks the table', async ({ page }) => {
     await page.locator('#statementTypeFilter').selectOption('payment');
     await expect(page.locator('#statementPreviewContainer .statement-filter-note')).toBeVisible();
-    await expect(page.locator('#statementPreviewContainer .statement-filter-note')).toContainText('Filters affect screen + print only');
+    await expect(page.locator('#statementPreviewContainer .statement-filter-note')).toContainText('CSV / WhatsApp exports cover only the visible entries');
     await expect(page.locator('#statementPreviewContainer .statement-table')).toBeVisible();
     // Period totals in the summary strip stay visible under any filter.
     await expect(page.locator('#statementPreviewContainer .statement-summary-strip')).toBeVisible();

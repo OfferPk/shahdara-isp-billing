@@ -1117,14 +1117,16 @@ export const STATEMENT_ENTRY_TYPES = ['bill', 'payment', 'discount', 'adjustment
  * @param {Object} [filters]
  * @param {'all'|'bill'|'payment'|'discount'|'adjustment'} [filters.type='all']
  * @param {string} [filters.month='all'] - billing month 'YYYY-MM' or 'all'
+ * @param {string} [filters.method='all'] - payment method as it appears on events, or 'all'
  * @param {string} [filters.query=''] - case-insensitive substring over description, ref, month, method and type
  * @returns {Array}
  */
-export function filterStatementEvents(events, { type = 'all', month = 'all', query = '' } = {}) {
+export function filterStatementEvents(events, { type = 'all', month = 'all', method = 'all', query = '' } = {}) {
   const q = String(query || '').trim().toLowerCase();
   return (Array.isArray(events) ? events : []).filter(ev => {
     if (type !== 'all' && ev.type !== type) return false;
     if (month !== 'all' && ev.month !== month) return false;
+    if (method !== 'all' && ev.method !== method) return false;
     if (q) {
       const hay = [ev.description, ev.ref, ev.month, ev.method, ev.type]
         .filter(Boolean)
@@ -1151,6 +1153,199 @@ export function statementFilterMonths(events) {
 }
 
 /**
+ * Payment methods actually present in a statement's events, sorted, for the
+ * method filter dropdown. Derived from the data — never a hardcoded list —
+ * so a new payment channel appears as soon as it is used.
+ * @param {Array} events - events from formatCustomerStatement
+ * @returns {Array<string>}
+ */
+export function statementFilterMethods(events) {
+  const methods = new Set();
+  for (const ev of Array.isArray(events) ? events : []) {
+    if (ev.method) methods.add(ev.method);
+  }
+  return [...methods].sort((a, b) => String(a).localeCompare(String(b)));
+}
+
+/**
+ * Statement sort orders. 'date-asc' is today's order (chronological, bills
+ * before other entries on the same date) and stays the default so the modal
+ * looks unchanged until the user picks a sort.
+ */
+export const STATEMENT_SORTS = ['date-asc', 'date-desc', 'amount-desc', 'amount-asc'];
+
+/**
+ * Reorders already-computed statement events for display. Sorting only
+ * reorders rows: it never touches an event's running balance, and it never
+ * mutates the input array.
+ * @param {Array} events - events from formatCustomerStatement
+ * @param {string} [sort='date-asc']
+ * @returns {Array}
+ */
+export function sortStatementEvents(events, sort = 'date-asc') {
+  const list = (Array.isArray(events) ? events : []).map((ev, index) => ({ ev, index }));
+  const rowAmount = (ev) => (ev.charge > 0 ? ev.charge : ev.credit || 0);
+  const byDateAsc = (a, b) => {
+    const cmp = String(a.ev.date || '').localeCompare(String(b.ev.date || ''));
+    if (cmp !== 0) return cmp;
+    if (a.ev.type === 'bill' && b.ev.type !== 'bill') return -1;
+    if (a.ev.type !== 'bill' && b.ev.type === 'bill') return 1;
+    return a.index - b.index;
+  };
+  if (sort === 'date-desc') {
+    list.sort((a, b) => {
+      const cmp = String(b.ev.date || '').localeCompare(String(a.ev.date || ''));
+      return cmp !== 0 ? cmp : a.index - b.index;
+    });
+  } else if (sort === 'amount-desc') {
+    list.sort((a, b) => rowAmount(b.ev) - rowAmount(a.ev) || byDateAsc(a, b));
+  } else if (sort === 'amount-asc') {
+    list.sort((a, b) => rowAmount(a.ev) - rowAmount(b.ev) || byDateAsc(a, b));
+  } else {
+    list.sort(byDateAsc);
+  }
+  return list.map(({ ev }) => ev);
+}
+
+/**
+ * Month subtotals over (visible) statement events: billed, paid and net
+ * balance per billing month, newest first. Plain sums of the given rows —
+ * never a recomputation of running balances. Events without a month land in
+ * an '—' bucket so subtotal sums always reconcile with the visible rows.
+ * @param {Array} events - events from formatCustomerStatement (visible rows)
+ * @returns {Array<{month: string, billed: number, paid: number, balance: number}>}
+ */
+export function statementMonthSubtotals(events) {
+  const byMonth = new Map();
+  for (const ev of Array.isArray(events) ? events : []) {
+    const key = ev.month || '';
+    const row = byMonth.get(key) || { month: key, billed: 0, paid: 0, balance: 0 };
+    row.billed += ev.charge || 0;
+    row.paid += ev.credit || 0;
+    row.balance = row.billed - row.paid;
+    byMonth.set(key, row);
+  }
+  return [...byMonth.values()].sort((a, b) => {
+    if (a.month === b.month) return 0;
+    if (!a.month) return 1;
+    if (!b.month) return -1;
+    return String(b.month).localeCompare(String(a.month));
+  });
+}
+
+/**
+ * Whole days a date string ('YYYY-MM-DD') is past relative to a reference
+ * date string. Returns 0 for future dates, today, and unparseable input.
+ * Dates parse as UTC so the count never shifts with the device timezone.
+ * @param {string} dateStr
+ * @param {string} referenceDateStr - 'YYYY-MM-DD'; defaults to today (UTC)
+ * @returns {number}
+ */
+export function statementDaysOverdue(dateStr, referenceDateStr = new Date().toISOString().slice(0, 10)) {
+  const dueMs = Date.parse(`${String(dateStr || '')}T00:00:00Z`);
+  const refMs = Date.parse(`${String(referenceDateStr || '')}T00:00:00Z`);
+  if (!Number.isFinite(dueMs) || !Number.isFinite(refMs)) return 0;
+  return Math.max(0, Math.floor((refMs - dueMs) / 86400000));
+}
+
+/**
+ * Aging of an outstanding balance across buckets, allocated to the oldest
+ * bills first (FIFO): payments already made are not tied to specific bills,
+ * so the amount still owed is treated as the oldest debt. Bill charges that
+ * cannot be aged (no due date) and any remainder beyond total bill charges
+ * (e.g. adjustment charges) fall in the oldest bill's bucket, or 'Not due'
+ * when there are no bills at all. Pure: never touches running balances.
+ * @param {Array} events - bill events from formatCustomerStatement (all bills, not a filtered view)
+ * @param {number} outstandingBalance - amount still owed (statement currentBalance, clamped at 0)
+ * @param {string} referenceDateStr - 'YYYY-MM-DD'; defaults to today (UTC)
+ * @returns {{buckets: Array<{key: string, label: string, amount: number}>, total: number}}
+ */
+export function statementAging(events, outstandingBalance = 0, referenceDateStr = new Date().toISOString().slice(0, 10)) {
+  const buckets = [
+    { key: 'not-due', label: 'Not due', amount: 0 },
+    { key: '1-30', label: '1–30 days', amount: 0 },
+    { key: '31-60', label: '31–60 days', amount: 0 },
+    { key: '61-90', label: '61–90 days', amount: 0 },
+    { key: '90+', label: '90+ days', amount: 0 }
+  ];
+  const byKey = new Map(buckets.map(b => [b.key, b]));
+  const outstanding = Math.max(0, Number(outstandingBalance) || 0);
+  const bills = (Array.isArray(events) ? events : [])
+    .filter(ev => ev.type === 'bill' && (ev.charge || 0) > 0)
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  const bucketKeyFor = (bill) => {
+    const days = statementDaysOverdue(bill.date, referenceDateStr);
+    if (days <= 0) return 'not-due';
+    if (days <= 30) return '1-30';
+    if (days <= 60) return '31-60';
+    if (days <= 90) return '61-90';
+    return '90+';
+  };
+  let remaining = outstanding;
+  for (const bill of bills) {
+    if (remaining <= 0) break;
+    const alloc = Math.min(bill.charge, remaining);
+    byKey.get(bucketKeyFor(bill)).amount += alloc;
+    remaining -= alloc;
+  }
+  if (remaining > 0) {
+    // Remainder has no bill to attach to: age it with the oldest bill, or
+    // leave it Not due when the ledger has no bills at all.
+    const fallbackKey = bills.length > 0 ? bucketKeyFor(bills[0]) : 'not-due';
+    byKey.get(fallbackKey).amount += remaining;
+  }
+  return { buckets, total: outstanding };
+}
+
+/**
+ * Dependency-free SVG line chart of running balance over time for statement
+ * events (their date vs runningBalance). Returns '' for an empty list; a
+ * single point renders as one dot so the chart never crashes on thin data.
+ * Values are numbers only, so the markup needs no escaping.
+ * @param {Array} events - events from formatCustomerStatement (visible rows)
+ * @param {Object} [size]
+ * @returns {string} SVG markup or ''
+ */
+export function statementTrendSvg(events, { width = 560, height = 120 } = {}) {
+  const list = Array.isArray(events) ? events : [];
+  if (list.length === 0) return '';
+  const padX = 8;
+  const padTop = 16;
+  const padBottom = 14;
+  const innerW = width - padX * 2;
+  const innerH = height - padTop - padBottom;
+  const balances = list.map(ev => Number(ev.runningBalance) || 0);
+  const minBal = Math.min(...balances);
+  const maxBal = Math.max(...balances);
+  const yFor = (bal) => {
+    if (maxBal === minBal) return padTop + innerH / 2;
+    return padTop + innerH - ((bal - minBal) / (maxBal - minBal)) * innerH;
+  };
+  const times = list.map(ev => Date.parse(`${String(ev.date || '')}T00:00:00Z`));
+  const allValid = times.every(t => Number.isFinite(t));
+  const minT = allValid ? Math.min(...times) : 0;
+  const maxT = allValid ? Math.max(...times) : list.length - 1;
+  const xFor = (i) => {
+    if (list.length === 1) return padX + innerW / 2;
+    const t = allValid ? times[i] : i;
+    const lo = allValid ? minT : 0;
+    const hi = allValid ? maxT : list.length - 1;
+    if (hi === lo) return padX + innerW / 2;
+    return padX + ((t - lo) / (hi - lo)) * innerW;
+  };
+  const points = list.map((ev, i) => `${xFor(i).toFixed(1)},${yFor(balances[i]).toFixed(1)}`).join(' ');
+  const dots = list.map((ev, i) => `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(balances[i]).toFixed(1)}" r="3" fill="#0e5b4d" />`).join('');
+  const firstY = yFor(balances[0]);
+  const lastY = yFor(balances[balances.length - 1]);
+  const labels = `<text x="${xFor(0).toFixed(1)}" y="${(firstY < padTop + innerH / 2 ? firstY + 14 : firstY - 8).toFixed(1)}" font-size="10" fill="#64748b">PKR ${balances[0].toLocaleString()}</text>` +
+    (list.length > 1 ? `<text x="${xFor(list.length - 1).toFixed(1)}" y="${(lastY < padTop + innerH / 2 ? lastY + 14 : lastY - 8).toFixed(1)}" text-anchor="end" font-size="10" fill="#64748b">PKR ${balances[balances.length - 1].toLocaleString()}</text>` : '');
+  const zeroLine = (minBal < 0 && maxBal > 0)
+    ? `<line x1="${padX}" x2="${width - padX}" y1="${yFor(0).toFixed(1)}" y2="${yFor(0).toFixed(1)}" stroke="#cbd5e1" stroke-dasharray="4 3" />`
+    : '';
+  return `<svg class="statement-trend-svg" viewBox="0 0 ${width} ${height}" width="100%" role="img" aria-label="Balance trend chart">${zeroLine}<polyline points="${points}" fill="none" stroke="#0e5b4d" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />${dots}${labels}</svg>`;
+}
+
+/**
  * Generates printable HTML statement document for customer account ledger.
  * @param {Object} statement
  * @param {Object} [view] - optional view override; when view.events is given,
@@ -1159,6 +1354,15 @@ export function statementFilterMonths(events) {
  * @param {Array} [view.events]
  * @param {string} [view.filterNote] - status line shown above the table; must
  *   contain counts/sums only, never raw user input, so it is safe to render.
+ * @param {Array} [view.monthSubtotals] - rows from statementMonthSubtotals;
+ *   when present a month-subtotal block renders above the table.
+ * @param {Object} [view.aging] - result of statementAging; when present an
+ *   aging block renders above the table.
+ * @param {string} [view.trendSvg] - SVG from statementTrendSvg for the
+ *   displayed rows; when present (or view.trendNote is) a trend block
+ *   renders above the table.
+ * @param {string} [view.trendNote] - plain note shown when there is no trend
+ *   chart (empty or single-entry view).
  * @returns {string}
  */
 export function generateCustomerStatementHtml(statement, view = {}) {
@@ -1179,16 +1383,59 @@ export function generateCustomerStatementHtml(statement, view = {}) {
 
   const displayEvents = Array.isArray(view.events) ? view.events : events;
   const isFilteredView = Array.isArray(view.events);
-  const rowsHtml = displayEvents.map(ev => `
-    <tr>
+  const rowsHtml = displayEvents.map((ev, idx) => {
+    const overdueDays = ev.type === 'bill' && (ev.charge || 0) > 0 ? statementDaysOverdue(ev.date, today) : 0;
+    const overdueBadge = overdueDays > 0 ? ` <span class="statement-overdue-badge">⏰ ${overdueDays}d overdue</span>` : '';
+    return `
+    <tr data-statement-row="${idx}" class="statement-row" tabindex="0" title="View entry detail">
       <td class="col-date">${ev.date}</td>
-      <td class="col-desc"><strong>${ev.description}</strong></td>
+      <td class="col-desc"><strong>${ev.description}</strong>${overdueBadge}</td>
       <td class="col-month">${ev.month || '—'}</td>
       <td class="col-num charge-num">${ev.charge > 0 ? `PKR ${ev.charge.toLocaleString()}` : '—'}</td>
       <td class="col-num credit-num">${ev.credit > 0 ? `PKR ${ev.credit.toLocaleString()}` : '—'}</td>
       <td class="col-num balance-num ${ev.runningBalance > 0 ? 'is-due' : 'is-settled'}">PKR ${ev.runningBalance.toLocaleString()}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
+
+  const monthSubtotalsHtml = Array.isArray(view.monthSubtotals) && view.monthSubtotals.length > 0 ? `
+      <section class="statement-month-subtotals">
+        <h3 class="statement-block-title">Month subtotals (visible entries)</h3>
+        <table class="statement-mini-table">
+          <thead><tr><th>Billing Month</th><th class="num-col">Billed</th><th class="num-col">Paid</th><th class="num-col">Balance</th></tr></thead>
+          <tbody>
+            ${view.monthSubtotals.map(row => `
+            <tr>
+              <td>${row.month || '—'}</td>
+              <td class="col-num">PKR ${row.billed.toLocaleString()}</td>
+              <td class="col-num">PKR ${row.paid.toLocaleString()}</td>
+              <td class="col-num balance-num ${row.balance > 0 ? 'is-due' : 'is-settled'}">PKR ${row.balance.toLocaleString()}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </section>` : '';
+
+  const agingHtml = view.aging ? `
+      <section class="statement-aging">
+        <h3 class="statement-block-title">Aging of outstanding balance</h3>
+        ${view.aging.total > 0 ? `
+        <table class="statement-mini-table">
+          <thead><tr><th>Age bucket</th><th class="num-col">Amount owed</th></tr></thead>
+          <tbody>
+            ${view.aging.buckets.map(bucket => `
+            <tr>
+              <td>${bucket.label}</td>
+              <td class="col-num balance-num ${bucket.amount > 0 ? 'is-due' : ''}">PKR ${bucket.amount.toLocaleString()}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>` : '<p class="muted">Account settled — no outstanding balance to age.</p>'}
+      </section>` : '';
+
+  const trendHtml = (view.trendSvg !== undefined || view.trendNote !== undefined) ? `
+      <section class="statement-trend">
+        <h3 class="statement-block-title">Balance trend (visible entries)</h3>
+        ${view.trendSvg || `<p class="muted">${view.trendNote || 'No entries to chart.'}</p>`}
+      </section>` : '';
 
   return `
     <article class="customer-account-statement" data-customer-id="${customer.id}">
@@ -1232,6 +1479,7 @@ export function generateCustomerStatementHtml(statement, view = {}) {
           <strong class="summary-card-val">PKR ${currentBalance.toLocaleString()}</strong>
         </div>
       </div>
+      ${monthSubtotalsHtml}${agingHtml}${trendHtml}
 
       <div class="statement-table-wrap">
         ${view.filterNote ? `<div class="statement-filter-note" role="status">${view.filterNote}</div>` : ''}
@@ -1286,14 +1534,22 @@ export function generateCustomerStatementHtml(statement, view = {}) {
 /**
  * Formats a concise bilingual Urdu & English WhatsApp summary of the customer account ledger statement.
  * @param {Object} statement - Result of formatCustomerStatement
+ * @param {Object} [view] - optional view override; when view.events is given,
+ *   the summary covers only those (visible) rows and says so, so filtered
+ *   totals are never mistaken for period totals. Without it the output is
+ *   exactly as before.
  * @returns {string} Formatted text suitable for WhatsApp dispatch
  */
-export function formatCustomerStatementWhatsApp(statement) {
+export function formatCustomerStatementWhatsApp(statement, view = {}) {
   if (!statement || !statement.customer) {
     return 'Customer ledger information is currently unavailable.';
   }
 
   const { customer, range, openingBalance, totalBilled, totalPaid, currentBalance, events } = statement;
+  const displayEvents = Array.isArray(view.events) ? view.events : events;
+  const isFilteredView = Array.isArray(view.events);
+  const filteredCharges = displayEvents.reduce((sum, ev) => sum + (ev.charge || 0), 0);
+  const filteredCredits = displayEvents.reduce((sum, ev) => sum + (ev.credit || 0), 0);
   const rangeLabels = {
     all: 'All-time Ledger / مکمل کھاتہ',
     '3m': 'Last 3 Months / گزشتہ 3 ماہ',
@@ -1318,23 +1574,31 @@ export function formatCustomerStatementWhatsApp(statement) {
     `📊 *FINANCIAL SUMMARY / مالیاتی خلاصہ:*`
   ];
 
-  if (openingBalance !== 0) {
-    lines.push(`• Opening Balance / پچھلا بقایا: *PKR ${Number(openingBalance).toLocaleString()}*`);
+  if (isFilteredView) {
+    lines.push(`🔎 *Filtered view:* ${displayEvents.length} of ${events.length} entries — totals below cover only the visible entries.`);
+    lines.push(`• Filtered Charges / نظر آنے والے بلز: *PKR ${filteredCharges.toLocaleString()}*`);
+    lines.push(`• Filtered Payments / نظر آنے والی وصولی: *PKR ${filteredCredits.toLocaleString()}*`);
+    lines.push(`• Net of Visible Entries / نظر آنے والی رقم کا فرق: *PKR ${(filteredCharges - filteredCredits).toLocaleString()}*`);
+  } else {
+    if (openingBalance !== 0) {
+      lines.push(`• Opening Balance / پچھلا بقایا: *PKR ${Number(openingBalance).toLocaleString()}*`);
+    }
+    lines.push(`• Total Billed Charges / کل بلز: *PKR ${Number(totalBilled).toLocaleString()}*`);
+    lines.push(`• Total Payments Received / کل وصولی: *PKR ${Number(totalPaid).toLocaleString()}*`);
+    lines.push(`• Net Current Balance / موجودہ بقایا: *PKR ${Number(currentBalance).toLocaleString()}*`);
   }
-  lines.push(`• Total Billed Charges / کل بلز: *PKR ${Number(totalBilled).toLocaleString()}*`);
-  lines.push(`• Total Payments Received / کل وصولی: *PKR ${Number(totalPaid).toLocaleString()}*`);
-  lines.push(`• Net Current Balance / موجودہ بقایا: *PKR ${Number(currentBalance).toLocaleString()}*`);
 
-  if (currentBalance > 0) {
+  const statusBalance = isFilteredView ? (filteredCharges - filteredCredits) : currentBalance;
+  if (statusBalance > 0) {
     lines.push(`⚠️ *Status:* Dues Pending (برائے مہربانی بقایا جات جلد ادا فرمائیں)`);
   } else {
     lines.push(`✅ *Status:* Account Settled / Clear (اکاؤنٹ کلیئر ہے، شکریہ)`);
   }
 
-  if (Array.isArray(events) && events.length > 0) {
+  if (Array.isArray(displayEvents) && displayEvents.length > 0) {
     lines.push(`--------------------------------`);
     lines.push(`📝 *RECENT TRANSACTIONS / حالیہ لین دین:*`);
-    const recent = events.slice(-5);
+    const recent = displayEvents.slice(-5);
     for (const ev of recent) {
       const typeIcon = ev.type === 'bill' ? '🧾' : ev.type === 'payment' ? '💵' : '⚙️';
       const amtStr = ev.charge > 0 ? `+PKR ${Number(ev.charge).toLocaleString()}` : `-PKR ${Number(ev.credit).toLocaleString()}`;
@@ -1354,9 +1618,12 @@ export function formatCustomerStatementWhatsApp(statement) {
  * Exports customer ledger statement to CSV file and triggers download.
  * @param {Object} statement
  * @param {Document} [doc]
+ * @param {Object} [view] - optional view override; when view.events is given,
+ *   only those (visible) rows are exported, preceded by a NOTE row saying
+ *   so. Without it the export is exactly as before.
  * @returns {boolean}
  */
-export function downloadCustomerStatementCsv(statement, doc = (typeof document !== 'undefined' ? document : null)) {
+export function downloadCustomerStatementCsv(statement, doc = (typeof document !== 'undefined' ? document : null), view = {}) {
   if (!statement || !statement.customer) return false;
 
   const headerSpecs = [
@@ -1370,7 +1637,9 @@ export function downloadCustomerStatementCsv(statement, doc = (typeof document !
     { label: 'Running Balance (PKR)', key: 'runningBalance' }
   ];
 
-  const csvRows = statement.events.map(ev => ({
+  const displayEvents = Array.isArray(view.events) ? view.events : statement.events;
+  const isFilteredView = Array.isArray(view.events);
+  const csvRows = displayEvents.map(ev => ({
     date: ev.date,
     type: ev.type.toUpperCase(),
     month: ev.month || '',
@@ -1380,10 +1649,23 @@ export function downloadCustomerStatementCsv(statement, doc = (typeof document !
     credit: ev.credit || 0,
     runningBalance: ev.runningBalance
   }));
+  if (isFilteredView) {
+    csvRows.unshift({
+      date: 'NOTE',
+      type: '',
+      month: '',
+      description: `Filtered view: showing ${displayEvents.length} of ${statement.events.length} entries; rows cover only the visible entries`,
+      method: '',
+      charge: '',
+      credit: '',
+      runningBalance: ''
+    });
+  }
 
   const csv = generateCsvContent(headerSpecs, csvRows);
   const custName = (statement.customer.name || 'customer').replace(/[^\w-]/g, '_');
-  const filename = `statement_${custName}_${statement.range}_${new Date().toISOString().slice(0, 10)}.csv`;
+  const filteredSuffix = isFilteredView ? '_filtered' : '';
+  const filename = `statement_${custName}_${statement.range}${filteredSuffix}_${new Date().toISOString().slice(0, 10)}.csv`;
   return downloadCsvFile(filename, csv, doc);
 }
 

@@ -2841,6 +2841,114 @@ html, body {
   border-radius: 8px;
 }
 
+.statement-block-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--primary, #0e5b4d);
+  margin: 0 0 8px;
+}
+
+.statement-month-subtotals,
+.statement-aging,
+.statement-trend {
+  margin-bottom: 20px;
+}
+
+.statement-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.statement-mini-table th {
+  text-align: left;
+  background: #f1f5f9;
+  padding: 7px 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.statement-mini-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #eef2f0;
+}
+
+.statement-mini-table .num-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.statement-trend-svg {
+  display: block;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.statement-row {
+  cursor: pointer;
+}
+
+.statement-row:hover td,
+.statement-row:focus td {
+  background: #f0f9f6;
+}
+
+.statement-overdue-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.statement-detail-card {
+  max-width: 520px;
+  margin: auto;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+
+.statement-detail-list {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.statement-detail-list > div {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eef2f0;
+}
+
+.statement-detail-list dt {
+  flex: 0 0 130px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.statement-detail-list dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.statement-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.statement-detail-actions [hidden] {
+  display: none;
+}
+
 .statement-preview-container {
   flex: 1;
   overflow-y: auto;
@@ -3192,6 +3300,50 @@ html, body {
   color: #9cb1a7;
 }
 
+[data-theme="dark"] .statement-block-title {
+  color: #7fd4bd;
+}
+
+[data-theme="dark"] .statement-mini-table th {
+  background: #192e27;
+  border-color: #2a473d;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-mini-table td {
+  border-color: #253d35;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-trend-svg {
+  background: #182c25;
+  border-color: #2a473d;
+}
+
+[data-theme="dark"] .statement-row:hover td,
+[data-theme="dark"] .statement-row:focus td {
+  background: #1d352c;
+}
+
+[data-theme="dark"] .statement-overdue-badge {
+  color: #fca5a5;
+  background: #3b1212;
+  border-color: #5b2222;
+}
+
+[data-theme="dark"] .statement-detail-card {
+  background: #14241f;
+  color: #e6edea;
+}
+
+[data-theme="dark"] .statement-detail-list > div {
+  border-color: #253d35;
+}
+
+[data-theme="dark"] .statement-detail-list dt {
+  color: #9cb1a7;
+}
+
 /* Mobile Responsive Overrides for Statement, Batch Receipt, and Reminder Modals */
 @media (max-width: 620px) {
   .statement-modal {
@@ -3383,6 +3535,16 @@ html, body {
     display: none !important;
   }
   body.printing-statement-58 .statement-sign-block {
+    display: none !important;
+  }
+  body.printing-statement-58 .statement-mini-table {
+    font-size: 8.5px !important;
+  }
+  body.printing-statement-58 .statement-mini-table th,
+  body.printing-statement-58 .statement-mini-table td {
+    padding: 1mm !important;
+  }
+  body.printing-statement-58 .statement-trend {
     display: none !important;
   }
 

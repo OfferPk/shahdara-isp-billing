@@ -42,7 +42,7 @@ import {
   sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
   generateCustomerRosterCsv, renderCustomerTableEmptyMarkup,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths,
+  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths, statementFilterMethods, sortStatementEvents, statementMonthSubtotals, statementAging, statementTrendSvg, statementDaysOverdue,
   formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
   buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
   generateStandaloneInvoiceDocument, downloadHtmlFile,
@@ -5310,27 +5310,51 @@ $('#bulkReminderDispatchBtn')?.addEventListener('click', () => {
 
 let currentStatementData = null;
 // View-only statement filters: they hide rows on screen (and in print, which
-// prints what you see) but never change currentStatementData, so CSV and
-// WhatsApp exports always carry the full statement.
-let statementFilters = { type: 'all', month: 'all', query: '' };
+// prints what you see) but never change currentStatementData. CSV and
+// WhatsApp exports now follow the visible view: unfiltered they export the
+// full statement exactly as before; filtered they export only the visible
+// rows and say so. Running balances are never recomputed anywhere here.
+let statementFilters = { type: 'all', month: 'all', method: 'all', sort: 'date-asc', query: '' };
+// Last rendered (filtered + sorted) rows, so a clicked row resolves to the
+// exact event shown on screen. Rebuilt on every renderStatementView call.
+let lastStatementVisibleEvents = [];
+// Event currently shown in the statement detail dialog (for Schedule Promise).
+let currentStatementDetailEvent = null;
 
 function statementFiltersActive() {
-  return statementFilters.type !== 'all' || statementFilters.month !== 'all' || statementFilters.query.trim() !== '';
+  return statementFilters.type !== 'all' || statementFilters.month !== 'all' || statementFilters.method !== 'all' || statementFilters.query.trim() !== '';
+}
+
+function statementTodayStr() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function renderStatementView() {
   if (!currentStatementData) return;
   const preview = $('#statementPreviewContainer');
   if (!preview) return;
-  if (!statementFiltersActive()) {
-    preview.innerHTML = generateCustomerStatementHtml(currentStatementData);
-    return;
+  const filtered = filterStatementEvents(currentStatementData.events, statementFilters);
+  const visible = sortStatementEvents(filtered, statementFilters.sort);
+  lastStatementVisibleEvents = visible;
+  // Blocks (subtotals / aging / trend) always render; view.events is only
+  // overridden when the view actually differs from the full statement, so
+  // an unfiltered empty ledger still shows its own empty message.
+  const view = {
+    monthSubtotals: statementMonthSubtotals(visible),
+    aging: statementAging(currentStatementData.events, currentStatementData.currentBalance, statementTodayStr()),
+    trendSvg: statementTrendSvg(visible)
+  };
+  if (visible.length === 0) view.trendNote = 'No entries to chart.';
+  else if (visible.length === 1) view.trendNote = 'Only one entry — the trend needs more history.';
+  if (statementFiltersActive() || statementFilters.sort !== 'date-asc') {
+    view.events = visible;
   }
-  const visible = filterStatementEvents(currentStatementData.events, statementFilters);
-  const filteredCharges = visible.reduce((sum, ev) => sum + (ev.charge || 0), 0);
-  const filteredCredits = visible.reduce((sum, ev) => sum + (ev.credit || 0), 0);
-  const filterNote = `Showing ${visible.length} of ${currentStatementData.events.length} entries · Filtered charges PKR ${filteredCharges.toLocaleString()} · Filtered credits PKR ${filteredCredits.toLocaleString()} · Filters affect screen + print only; CSV / WhatsApp export the full statement.`;
-  preview.innerHTML = generateCustomerStatementHtml(currentStatementData, { events: visible, filterNote });
+  if (statementFiltersActive()) {
+    const filteredCharges = visible.reduce((sum, ev) => sum + (ev.charge || 0), 0);
+    const filteredCredits = visible.reduce((sum, ev) => sum + (ev.credit || 0), 0);
+    view.filterNote = `Showing ${visible.length} of ${currentStatementData.events.length} entries · Filtered charges PKR ${filteredCharges.toLocaleString()} · Filtered credits PKR ${filteredCredits.toLocaleString()} · CSV / WhatsApp exports cover only the visible entries.`;
+  }
+  preview.innerHTML = generateCustomerStatementHtml(currentStatementData, view);
 }
 
 function refreshStatementMonthOptions() {
@@ -5347,6 +5371,20 @@ function refreshStatementMonthOptions() {
   }
 }
 
+function refreshStatementMethodOptions() {
+  const methodSelect = $('#statementMethodFilter');
+  if (!methodSelect || !currentStatementData) return;
+  const methods = statementFilterMethods(currentStatementData.events);
+  const previous = methodSelect.value;
+  methodSelect.innerHTML = '<option value="all" selected>All methods</option>' + methods.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+  if (methods.includes(previous)) {
+    methodSelect.value = previous;
+  } else {
+    methodSelect.value = 'all';
+    statementFilters.method = 'all';
+  }
+}
+
 function renderAccountStatement(range = 'all') {
   if (!selectedCustomerId) return;
   const customer = state.customers.find(c => c.id === selectedCustomerId);
@@ -5357,6 +5395,7 @@ function renderAccountStatement(range = 'all') {
     storage: typeof localStorage !== 'undefined' ? localStorage : null
   });
   refreshStatementMonthOptions();
+  refreshStatementMethodOptions();
   renderStatementView();
 }
 
@@ -5376,12 +5415,16 @@ if (openStatementBtn && statementModal) {
       return;
     }
     if (statementRangeSelect) statementRangeSelect.value = 'all';
-    statementFilters = { type: 'all', month: 'all', query: '' };
+    statementFilters = { type: 'all', month: 'all', method: 'all', sort: 'date-asc', query: '' };
     const statementTypeFilterEl = $('#statementTypeFilter');
     const statementMonthFilterEl = $('#statementMonthFilter');
+    const statementMethodFilterEl = $('#statementMethodFilter');
+    const statementSortSelectEl = $('#statementSortSelect');
     const statementSearchInputEl = $('#statementSearchInput');
     if (statementTypeFilterEl) statementTypeFilterEl.value = 'all';
     if (statementMonthFilterEl) statementMonthFilterEl.value = 'all';
+    if (statementMethodFilterEl) statementMethodFilterEl.value = 'all';
+    if (statementSortSelectEl) statementSortSelectEl.value = 'date-asc';
     if (statementSearchInputEl) statementSearchInputEl.value = '';
     renderAccountStatement('all');
     if (statementModal.showModal) statementModal.showModal();
@@ -5413,6 +5456,8 @@ if (statementRangeSelect) {
 
 const statementTypeFilter = $('#statementTypeFilter');
 const statementMonthFilter = $('#statementMonthFilter');
+const statementMethodFilter = $('#statementMethodFilter');
+const statementSortSelect = $('#statementSortSelect');
 const statementSearchInput = $('#statementSearchInput');
 const clearStatementFiltersBtn = $('#clearStatementFilters');
 
@@ -5430,6 +5475,20 @@ if (statementMonthFilter) {
   });
 }
 
+if (statementMethodFilter) {
+  statementMethodFilter.addEventListener('change', () => {
+    statementFilters.method = statementMethodFilter.value;
+    renderStatementView();
+  });
+}
+
+if (statementSortSelect) {
+  statementSortSelect.addEventListener('change', () => {
+    statementFilters.sort = statementSortSelect.value;
+    renderStatementView();
+  });
+}
+
 if (statementSearchInput) {
   statementSearchInput.addEventListener('input', () => {
     statementFilters.query = statementSearchInput.value;
@@ -5439,11 +5498,114 @@ if (statementSearchInput) {
 
 if (clearStatementFiltersBtn) {
   clearStatementFiltersBtn.addEventListener('click', () => {
-    statementFilters = { type: 'all', month: 'all', query: '' };
+    statementFilters = { type: 'all', month: 'all', method: 'all', sort: 'date-asc', query: '' };
     if (statementTypeFilter) statementTypeFilter.value = 'all';
     if (statementMonthFilter) statementMonthFilter.value = 'all';
+    if (statementMethodFilter) statementMethodFilter.value = 'all';
+    if (statementSortSelect) statementSortSelect.value = 'date-asc';
     if (statementSearchInput) statementSearchInput.value = '';
     renderStatementView();
+  });
+}
+
+// Statement row detail: clicking a row opens a read-only detail view of that
+// exact event (resolved via lastStatementVisibleEvents, the rows on screen).
+const statementPreviewContainer = $('#statementPreviewContainer');
+const statementEventDetailModal = $('#statementEventDetailModal');
+const statementEventDetailBody = $('#statementEventDetailBody');
+const closeStatementDetailBtn = $('#closeStatementDetailBtn');
+const statementDetailSchedulePromiseBtn = $('#statementDetailSchedulePromiseBtn');
+
+function openStatementEventDetail(index) {
+  const ev = lastStatementVisibleEvents[index];
+  if (!ev || !statementEventDetailModal || !statementEventDetailBody) return;
+  currentStatementDetailEvent = ev;
+  const amount = ev.charge > 0 ? ev.charge : ev.credit;
+  const amountLabel = ev.charge > 0 ? 'Charge' : 'Credit';
+  const overdueDays = ev.type === 'bill' && (ev.charge || 0) > 0 ? statementDaysOverdue(ev.date, statementTodayStr()) : 0;
+  statementEventDetailBody.innerHTML = `
+    <dl class="statement-detail-list">
+      <div><dt>Date</dt><dd>${escapeHtml(ev.date)}</dd></div>
+      <div><dt>Type</dt><dd>${escapeHtml(ev.type)}</dd></div>
+      <div><dt>Description</dt><dd>${escapeHtml(ev.description)}${overdueDays > 0 ? ` <span class="statement-overdue-badge">⏰ ${overdueDays}d overdue</span>` : ''}</dd></div>
+      <div><dt>Reference</dt><dd>${escapeHtml(ev.ref || '—')}</dd></div>
+      <div><dt>Method</dt><dd>${escapeHtml(ev.method || '—')}</dd></div>
+      <div><dt>Billing month</dt><dd>${escapeHtml(ev.month || '—')}</dd></div>
+      <div><dt>${amountLabel}</dt><dd>PKR ${Number(amount || 0).toLocaleString()}</dd></div>
+      <div><dt>Running balance</dt><dd>PKR ${Number(ev.runningBalance || 0).toLocaleString()}</dd></div>
+    </dl>`;
+  if (statementDetailSchedulePromiseBtn) {
+    statementDetailSchedulePromiseBtn.hidden = overdueDays <= 0;
+  }
+  if (statementEventDetailModal.showModal) statementEventDetailModal.showModal();
+  else statementEventDetailModal.setAttribute('open', '');
+}
+
+if (statementPreviewContainer) {
+  statementPreviewContainer.addEventListener('click', (e) => {
+    const row = e.target.closest ? e.target.closest('tr[data-statement-row]') : null;
+    if (!row) return;
+    openStatementEventDetail(Number(row.dataset.statementRow));
+  });
+  statementPreviewContainer.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const row = e.target.closest ? e.target.closest('tr[data-statement-row]') : null;
+    if (!row) return;
+    e.preventDefault();
+    openStatementEventDetail(Number(row.dataset.statementRow));
+  });
+}
+
+if (closeStatementDetailBtn && statementEventDetailModal) {
+  closeStatementDetailBtn.addEventListener('click', () => {
+    if (statementEventDetailModal.close) statementEventDetailModal.close();
+    else statementEventDetailModal.removeAttribute('open');
+  });
+}
+
+if (statementEventDetailModal) {
+  statementEventDetailModal.addEventListener('click', (e) => {
+    if (e.target === statementEventDetailModal) {
+      if (statementEventDetailModal.close) statementEventDetailModal.close();
+      else statementEventDetailModal.removeAttribute('open');
+    }
+  });
+}
+
+// From a statement detail view, an overdue bill can seed the EXISTING
+// collection-promise form: the pending-actions modal opens, its own toggle
+// reveals the form (defaulting the date to tomorrow, PKT) and renders the
+// customer options, then the customer, amount and a note are prefilled. No
+// data is written until the user submits that form themselves.
+if (statementDetailSchedulePromiseBtn) {
+  statementDetailSchedulePromiseBtn.addEventListener('click', () => {
+    const ev = currentStatementDetailEvent;
+    if (!ev || !currentStatementData?.customer) return;
+    if (statementEventDetailModal?.close) statementEventDetailModal.close();
+    else statementEventDetailModal?.removeAttribute('open');
+    window.pendingActionsController?.open();
+    setTimeout(() => {
+      // The form's own toggle renders the customer options and defaults the
+      // date to tomorrow (PKT); only click it when the form is hidden, so a
+      // form left open from before is not accidentally closed.
+      const formContainer = document.getElementById('pendingPromiseFormContainer');
+      if (formContainer && formContainer.hidden) {
+        document.getElementById('toggleSchedulePromiseFormBtn')?.click();
+      }
+      const customerSelect = document.getElementById('promiseCustomerSelect');
+      if (customerSelect) customerSelect.value = currentStatementData.customer.id;
+      const amountInput = document.getElementById('promiseAmountInput');
+      if (amountInput) amountInput.value = String(ev.charge || 0);
+      const noteInput = document.getElementById('promiseNoteInput');
+      if (noteInput && !noteInput.value) noteInput.value = ev.month ? `Statement bill ${ev.month}` : 'Statement bill';
+      const dateInput = document.getElementById('promiseDateInput');
+      if (dateInput && !dateInput.value) {
+        const tomorrowPkt = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Karachi' }));
+        tomorrowPkt.setDate(tomorrowPkt.getDate() + 1);
+        const pad = (n) => String(n).padStart(2, '0');
+        dateInput.value = `${tomorrowPkt.getFullYear()}-${pad(tomorrowPkt.getMonth() + 1)}-${pad(tomorrowPkt.getDate())}`;
+      }
+    }, 0);
   });
 }
 
@@ -5480,8 +5642,12 @@ if (printStatement58Btn) {
 if (downloadStatementCsvBtn) {
   downloadStatementCsvBtn.addEventListener('click', () => {
     if (currentStatementData) {
-      downloadCustomerStatementCsv(currentStatementData);
-      toast('Customer statement CSV downloaded.');
+      // Exports follow the visible view: unfiltered they carry the full
+      // statement exactly as before; filtered they carry only the rows on
+      // screen, with a NOTE row saying so.
+      const exportView = statementFiltersActive() ? { events: lastStatementVisibleEvents } : {};
+      downloadCustomerStatementCsv(currentStatementData, undefined, exportView);
+      toast(statementFiltersActive() ? 'Filtered statement CSV downloaded (visible entries only).' : 'Customer statement CSV downloaded.');
     }
   });
 }
@@ -5492,7 +5658,8 @@ if (shareStatementWhatsAppBtn) {
       toast('No customer statement data to share.');
       return;
     }
-    const text = formatCustomerStatementWhatsApp(currentStatementData);
+    const exportView = statementFiltersActive() ? { events: lastStatementVisibleEvents } : {};
+    const text = formatCustomerStatementWhatsApp(currentStatementData, exportView);
     const phone = currentStatementData.customer.phone || '';
     const phoneRes = formatWhatsAppUrl(phone, text);
     if (phoneRes.validPhone && phoneRes.url) {

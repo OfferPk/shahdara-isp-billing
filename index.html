@@ -7533,6 +7533,19 @@
             <option value="all" selected>All months</option>
           </select>
         </label>
+        <label for="statementMethodFilter">Payment method:
+          <select id="statementMethodFilter">
+            <option value="all" selected>All methods</option>
+          </select>
+        </label>
+        <label for="statementSortSelect">Sort:
+          <select id="statementSortSelect">
+            <option value="date-asc" selected>Date: oldest first</option>
+            <option value="date-desc">Date: newest first</option>
+            <option value="amount-desc">Amount: high to low</option>
+            <option value="amount-asc">Amount: low to high</option>
+          </select>
+        </label>
         <label for="statementSearchInput">Search:
           <input id="statementSearchInput" type="search" placeholder="Description, ref, method…">
         </label>
@@ -7545,6 +7558,21 @@
         </div>
       </div>
       <div id="statementPreviewContainer" class="statement-preview-container" tabindex="0" role="region" aria-label="Customer statement preview">
+      </div>
+    </section>
+  </dialog>
+  <dialog id="statementEventDetailModal" class="modal statement-detail-modal" aria-labelledby="statementDetailTitle">
+    <section class="statement-detail-card">
+      <div class="modal-heading">
+        <div>
+          <p class="eyebrow">CUSTOMER ACCOUNT LEDGER</p>
+          <h2 id="statementDetailTitle">Entry Detail</h2>
+        </div>
+        <button id="closeStatementDetailBtn" class="close-button" type="button" aria-label="Close entry detail">×</button>
+      </div>
+      <div id="statementEventDetailBody"></div>
+      <div class="statement-detail-actions">
+        <button id="statementDetailSchedulePromiseBtn" class="primary-button" type="button" hidden>🤝 Schedule Promise</button>
       </div>
     </section>
   </dialog>

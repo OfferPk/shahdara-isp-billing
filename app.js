@@ -111,6 +111,7 @@ import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
+import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -157,6 +158,7 @@ export let momGrowthModalController = null;
 export let dailyClosingModalController = null;
 export let shopSettlementModalController = null;
 export let billingCycleModalController = null;
+export let complaintRegisterModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -435,6 +437,18 @@ function renderDashboard() {
     cycleSummaryEl.innerHTML = latest
       ? `<p><span>${escapeHtml(monthName(latest.month))}</span><strong>${escapeHtml(formatAmount(latest.totals.totalBilled))} billed</strong><small> · ${escapeHtml(formatAmount(latest.totals.totalArrears))} arrears carried · ${escapeHtml(latest.ranAt || '')}</small></p>`
       : '';
+  }
+  // SISP-15: complaint register card (open faults + this-month downtime).
+  const complaintSummaryEl = $('#complaintRegisterSummary');
+  if (complaintSummaryEl) {
+    const summary = buildComplaintSummary(loadComplaints(), referenceDate);
+    const valueEl = $('#dashboardComplaintValue');
+    const periodEl = $('#dashboardComplaintPeriod');
+    if (valueEl) valueEl.textContent = summary.total === 0 ? 'No complaints' : `${summary.open} open · ${summary.inProgress} in progress`;
+    if (periodEl) periodEl.textContent = summary.total === 0 ? 'Open faults and resolution downtime' : `${summary.resolved} resolved · ${summary.thisMonthCount} this month · ${summary.thisMonthDowntime} h downtime`;
+    complaintSummaryEl.innerHTML = summary.total === 0
+      ? ''
+      : `<p><span>Open now</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(String(summary.inProgress))} in progress · ${escapeHtml(String(summary.resolved))} resolved</small></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -1543,7 +1557,10 @@ function renderCustomerProfileView(customer) {
   const waadaLabel = customer.promiseDate ? waadaBadgeLabel(customer, waadaToday) : null;
   const waadaBadge = waadaLabel ? `<span class="wada-badge ${customer.promiseDate < waadaToday ? 'wada-badge-broken waada-pulse' : 'wada-badge-upcoming'}">${escapeHtml(waadaLabel)}</span>` : '';
   const waadaSectionHtml = `<section class="profile-waada-section" aria-label="Waada promise"><h4>🤝 Waada Tareekh — Promise to Pay</h4><p class="profile-waada-current">${customer.promiseDate ? `Promise: <strong>${escapeHtml(customer.promiseDate)}</strong>${customer.promiseAmount ? ` · PKR ${Number(customer.promiseAmount).toLocaleString()}` : ''}${customer.promiseNote ? ` · “${escapeHtml(customer.promiseNote)}”` : ''} ${waadaBadge}` : 'No promise set.'}</p><div class="waada-chip-row" role="group" aria-label="Quick-set promise date"><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="plus2">+2 Days</button><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="plus5">+5 Days</button><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="tenth">10th of Month</button></div><div class="waada-chip-custom"><label for="profileWaadaCustomDate">Custom Date</label><input id="profileWaadaCustomDate" type="date" aria-label="Custom promise date"><button type="button" class="primary-button" id="profileWaadaSetCustomBtn">Set Date</button><button type="button" class="secondary-button text-button danger" id="profileWaadaClearBtn">Clear Promise</button></div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}`;
+  // SISP-15: profile complaint history — this customer's register entries only.
+  const customerComplaints = loadComplaints().filter((c) => String(c.customerId) === String(customer.id)).sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
+  const complaintsSectionHtml = `<section class="profile-complaints-section" aria-label="Complaint history"><h4>🛠️ Complaint history</h4>${customerComplaints.length === 0 ? '<p class="profile-complaints-empty">No complaints recorded for this customer.</p>' : `<ul class="profile-complaints-list">${customerComplaints.map((c) => `<li><span><strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.issueCategory)} · ${escapeHtml(c.status)}</span><span>Reported ${escapeHtml(c.reportedAt || 'not recorded')} · downtime ${escapeHtml(formatDowntimeHours(c.downtimeHours))}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenComplaintRegisterBtn">Open complaint register</button></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1583,6 +1600,11 @@ function renderCustomerProfileView(customer) {
       applyProfileWaada(clearCustomerWaada(customer), 'Waada promise cleared.');
     });
   }
+  // SISP-15: profile button opens the register pre-filtered to this customer.
+  const profileComplaintBtn = $('#customerProfileView').querySelector('#profileOpenComplaintRegisterBtn');
+  if (profileComplaintBtn) profileComplaintBtn.addEventListener('click', () => {
+    if (complaintRegisterModalController) complaintRegisterModalController.open({ customer: String(customer.id) });
+  });
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -1717,14 +1739,16 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints() };
 }
 function backupRestoreOptions() {
   let stored = false;
   let shopStored = false;
+  let complaintsStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
   try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored };
+  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -2188,6 +2212,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.shopSettlements) {
       saveShopSettlements(pendingBackupPreview.shopSettlements);
+    }
+    if (pendingBackupPreview.complaints) {
+      saveComplaints(pendingBackupPreview.complaints);
     }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
@@ -7132,6 +7159,13 @@ if (typeof document !== 'undefined') {
     onUpdateState: (newState) => {
       state = newState;
       save();
+    },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  complaintRegisterModalController = setupComplaintRegisterModal(() => state, {
+    onComplaintsChanged: () => {
+      renderDashboard();
+      renderDetail();
     },
     onToast: (msg, opts) => toast(msg, opts)
   });

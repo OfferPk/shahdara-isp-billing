@@ -2,6 +2,7 @@ import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES
 import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
+import { sanitizeComplaints } from './complaint-register.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -1558,6 +1559,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeShopSettlements(options.shopSettlements);
     if (cleaned.length) document.settings = { ...(document.settings || {}), shopSettlements: cleaned };
   }
+  // SISP-15: complaint register records live outside the ledger state
+  // (localStorage key sisp_complaints_ledger_v1), so they travel in an
+  // optional `settings.complaints` section. Written only when at least one
+  // complaint exists; readers that predate it ignore the unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.complaints) && options.complaints.length) {
+    const cleaned = sanitizeComplaints(options.complaints);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), complaints: cleaned };
+  }
   return JSON.stringify(document, null, 2);
 }
 
@@ -1579,7 +1588,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
@@ -1719,6 +1728,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Shop settlement records differ from this device' });
     }
   }
+  // SISP-15: optional complaint register records section (see createJsonBackup).
+  // Safe-merge rule, same as shop settlements: adopt the backup's records
+  // only when this device has none stored yet; when both sides hold
+  // different real records, keep existing + conflict.
+  let complaints = null;
+  const rawIncomingComplaints = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.complaints
+    : undefined;
+  if (Array.isArray(rawIncomingComplaints) && rawIncomingComplaints.length) {
+    const incomingComplaints = sanitizeComplaints(rawIncomingComplaints);
+    const currentComplaints = (options && typeof options === 'object' && Array.isArray(options.currentComplaints))
+      ? sanitizeComplaints(options.currentComplaints)
+      : [];
+    if (incomingComplaints.length && sameJson(incomingComplaints, currentComplaints)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingComplaints.length && (!options?.currentComplaintsStored || currentComplaints.length === 0)) {
+      complaints = incomingComplaints;
+      counts.complaintsRestored = 1;
+      counts.changes++;
+    } else if (incomingComplaints.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Complaint register records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements };
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints };
 }

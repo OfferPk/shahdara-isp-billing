@@ -12627,3 +12627,23 @@ dialog::backdrop {
 [data-theme="dark"] :focus-visible {
   outline-color: #7dd3fc !important;
 }
+
+/* Partner share tabs (Expenses view): theme-token colours only, so both
+   light and dark themes stay readable. Panels reuse .phase3-metric cards. */
+.expense-tabs{display:flex;gap:6px;overflow-x:auto;margin:2px 0 12px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft);scrollbar-width:thin}
+.expense-tab-button{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:var(--muted);padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
+.expense-tab-button[aria-selected=true]{border-color:var(--color-brand-700);background:var(--color-brand-700);color:#fff;box-shadow:0 2px 7px rgba(9,67,56,.15)}
+.expense-tab-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
+.partner-share-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.partner-share-loss{color:var(--color-overdue)!important}
+.partner-share-profit{color:var(--color-paid)!important}
+.partner-share-row{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line);min-width:0}
+.partner-share-row:first-of-type{border-top:0}
+.partner-share-row span:first-child{min-width:0;overflow-wrap:anywhere}
+.partner-share-row span:last-child{flex-shrink:0;font-variant-numeric:tabular-nums}
+.partner-share-history{display:grid;gap:8px}
+.partner-share-history-row{padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft)}
+.partner-share-history-row strong{display:block;overflow-wrap:anywhere}
+.partner-share-history-row small{display:block;margin-top:4px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
+@media(max-width:700px){.partner-share-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:360px){.partner-share-grid{grid-template-columns:1fr}.expense-tab-button{padding:7px 8px;font-size:11px}}

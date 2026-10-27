@@ -109,6 +109,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
+import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
@@ -1537,7 +1538,12 @@ function renderCustomerProfileView(customer) {
   ];
   const profit = customerPackageProfit(customer);
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>`;
+  // SISP-3: profile Waada chips — one-tap promise dates on the customer record.
+  const waadaToday = getTodayDateString();
+  const waadaLabel = customer.promiseDate ? waadaBadgeLabel(customer, waadaToday) : null;
+  const waadaBadge = waadaLabel ? `<span class="wada-badge ${customer.promiseDate < waadaToday ? 'wada-badge-broken waada-pulse' : 'wada-badge-upcoming'}">${escapeHtml(waadaLabel)}</span>` : '';
+  const waadaSectionHtml = `<section class="profile-waada-section" aria-label="Waada promise"><h4>🤝 Waada Tareekh — Promise to Pay</h4><p class="profile-waada-current">${customer.promiseDate ? `Promise: <strong>${escapeHtml(customer.promiseDate)}</strong>${customer.promiseAmount ? ` · PKR ${Number(customer.promiseAmount).toLocaleString()}` : ''}${customer.promiseNote ? ` · “${escapeHtml(customer.promiseNote)}”` : ''} ${waadaBadge}` : 'No promise set.'}</p><div class="waada-chip-row" role="group" aria-label="Quick-set promise date"><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="plus2">+2 Days</button><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="plus5">+5 Days</button><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="tenth">10th of Month</button></div><div class="waada-chip-custom"><label for="profileWaadaCustomDate">Custom Date</label><input id="profileWaadaCustomDate" type="date" aria-label="Custom promise date"><button type="button" class="primary-button" id="profileWaadaSetCustomBtn">Set Date</button><button type="button" class="secondary-button text-button danger" id="profileWaadaClearBtn">Clear Promise</button></div></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div><dl class="profile-readonly-grid">${profileReadonlyField('Phone / WhatsApp number', phone || 'Not set')}${fields.map(([label,value]) => profileReadonlyField(label,value)).join('')}</dl>${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1545,6 +1551,38 @@ function renderCustomerProfileView(customer) {
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
+  // SISP-3: wire the profile Waada chips (persist + re-render on every action).
+  const waadaSection = $('#customerProfileView').querySelector('.profile-waada-section');
+  if (waadaSection) {
+    const applyProfileWaada = (updated, message) => {
+      const idx = state.customers.findIndex(c => c.id === customer.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      renderDetail();
+      toast(message);
+    };
+    const setProfileWaada = (date) => {
+      try {
+        applyProfileWaada(setCustomerWaada(customer, { promiseDate: date, promiseAmount: customer.promiseAmount ?? null, promiseNote: customer.promiseNote ?? '' }), `Waada set: ${date}.`);
+      } catch (err) { toast(err?.message || 'Could not set promise.'); }
+    };
+    waadaSection.querySelectorAll('[data-profile-waada-chip]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const date = computeWaadaChipDate(btn.getAttribute('data-profile-waada-chip'), getTodayDateString());
+        if (!date) { toast('Could not compute promise date.'); return; }
+        setProfileWaada(date);
+      });
+    });
+    waadaSection.querySelector('#profileWaadaSetCustomBtn')?.addEventListener('click', () => {
+      const input = waadaSection.querySelector('#profileWaadaCustomDate');
+      const date = computeWaadaChipDate('custom', getTodayDateString(), input?.value);
+      if (!date) { toast('Pick a valid date first.'); return; }
+      setProfileWaada(date);
+    });
+    waadaSection.querySelector('#profileWaadaClearBtn')?.addEventListener('click', () => {
+      applyProfileWaada(clearCustomerWaada(customer), 'Waada promise cleared.');
+    });
+  }
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -7049,7 +7087,8 @@ if (typeof document !== 'undefined') {
       selectCustomer(customerId);
       switchView('customers');
     },
-    onToast: (msg, opts) => toast(msg, opts)
+    onToast: (msg, opts) => toast(msg, opts),
+    onWaadaChange: () => { try { persistState(state, localStorage); } catch {} }
   });
   areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
     onFilterCustomerArea: (areaName) => {
@@ -7991,7 +8030,8 @@ if (typeof document !== 'undefined') {
         selectCustomer(customerId);
         switchView('customers');
       },
-      onToast: (msg, opts) => toast(msg, opts)
+      onToast: (msg, opts) => toast(msg, opts),
+      onWaadaChange: () => { try { persistState(state, localStorage); } catch {} }
     });
   }
 

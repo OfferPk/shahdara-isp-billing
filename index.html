@@ -19705,6 +19705,14 @@
                 <option value="moderate">Moderate (1m)</option>
               </select>
             </div>
+            <div class="defaulter-select-box">
+              <select id="topDefaultersWaadaSelect" class="defaulter-waada-select" aria-label="Waada promise tier">
+                <option value="all">All Waada Tiers</option>
+                <option value="broken">🔴 Broken Waada (overdue promise)</option>
+                <option value="active">🟠 Active Dues (no promise)</option>
+                <option value="promised">🕒 Promised / Snoozed</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -19742,6 +19750,33 @@
         </div>
         <button id="closeTopDefaultersSecondaryBtn" class="primary-button" type="button">Close</button>
       </footer>
+    </div>
+  </dialog>
+
+  <!-- SISP-3: Waada Tareekh one-tap chip dialog (opened from defaulter rows) -->
+  <dialog id="waadaChipDialog" class="billing-modal waada-chip-dialog" aria-labelledby="waadaChipDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="waadaChipDialogTitle">🤝 Waada Tareekh — Promise to Pay</h2>
+        <button id="waadaChipCloseBtn" class="secondary-button" type="button" aria-label="Close Waada dialog">✕</button>
+      </header>
+      <div class="waada-chip-body">
+        <p id="waadaChipCustomerLabel" class="waada-chip-customer"></p>
+        <p id="waadaChipCurrent" class="waada-chip-current"></p>
+        <div class="waada-chip-row" role="group" aria-label="Quick-set promise date">
+          <button type="button" class="secondary-button waada-chip-btn" data-waada-chip="plus2">+2 Days</button>
+          <button type="button" class="secondary-button waada-chip-btn" data-waada-chip="plus5">+5 Days</button>
+          <button type="button" class="secondary-button waada-chip-btn" data-waada-chip="tenth">10th of Month</button>
+        </div>
+        <div class="waada-chip-custom">
+          <label for="waadaChipCustomDate">Custom Date</label>
+          <input id="waadaChipCustomDate" type="date" aria-label="Custom promise date">
+          <button id="waadaChipSetCustomBtn" class="primary-button" type="button">Set Date</button>
+        </div>
+        <div class="waada-chip-footer">
+          <button id="waadaChipClearBtn" class="secondary-button text-button danger" type="button">Clear Promise</button>
+        </div>
+      </div>
     </div>
   </dialog>
 

@@ -112,7 +112,8 @@ import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShop
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
-import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
+import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
+import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -160,6 +161,7 @@ export let dailyClosingModalController = null;
 export let shopSettlementModalController = null;
 export let billingCycleModalController = null;
 export let complaintRegisterModalController = null;
+export let downtimeAnalyticsModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -450,6 +452,18 @@ function renderDashboard() {
     complaintSummaryEl.innerHTML = summary.total === 0
       ? ''
       : `<p><span>Open now</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(String(summary.inProgress))} in progress · ${escapeHtml(String(summary.resolved))} resolved</small></p>`;
+  }
+  // SISP-16: downtime analytics card (this-month customer + network downtime).
+  const downtimeSummaryEl = $('#downtimeAnalyticsSummary');
+  if (downtimeSummaryEl) {
+    const analytics = buildMonthlyDowntimeAnalytics(loadComplaints(), pakistanMonthNow(referenceDate));
+    const valueEl = $('#dashboardDowntimeValue');
+    const periodEl = $('#dashboardDowntimePeriod');
+    if (valueEl) valueEl.textContent = analytics.totalComplaints === 0 ? 'No downtime' : `${analytics.totalDowntime} h downtime`;
+    if (periodEl) periodEl.textContent = analytics.totalComplaints === 0 ? 'Per-customer and network outage hours' : `${analytics.totalComplaints} complaints · ${analytics.perCustomer.length} customers affected`;
+    downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
+      ? ''
+      : `<p><span>Top customer</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(String(analytics.areaOutageComplaints))} zone-wide faults · ${escapeHtml(String(analytics.areaOutageDowntime))} h</small></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -1549,8 +1563,12 @@ function renderCustomerProfileView(customer) {
   // SISP-15: profile complaint history — this customer's register entries only.
   const customerComplaints = loadComplaints().filter((c) => String(c.customerId) === String(customer.id)).sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
   const complaintsSectionHtml = `<section class="profile-complaints-section" aria-label="Complaint history"><h4>🛠️ Complaint history</h4>${customerComplaints.length === 0 ? '<p class="profile-complaints-empty">No complaints recorded for this customer.</p>' : `<ul class="profile-complaints-list">${customerComplaints.map((c) => `<li><span><strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.issueCategory)} · ${escapeHtml(c.status)}</span><span>Reported ${escapeHtml(c.reportedAt || 'not recorded')} · downtime ${escapeHtml(formatDowntimeHours(c.downtimeHours))}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenComplaintRegisterBtn">Open complaint register</button></section>`;
+  // SISP-16: profile downtime summary — this month + all time for this customer.
+  const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
+  const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
+  const downtimeSectionHtml = `<section class="profile-downtime-section" aria-label="Downtime analytics"><h4>📉 Downtime analytics</h4><p>This month: <strong>${escapeHtml(String(downtimeMonth.complaintCount))} complaint${downtimeMonth.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeMonth.totalDowntime))} h offline</strong>${downtimeMonth.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeMonth.primaryIssueTag)}` : ''}</p><p>All time: <strong>${escapeHtml(String(downtimeAll.complaintCount))} complaint${downtimeAll.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeAll.totalDowntime))} h offline</strong>${downtimeAll.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeAll.primaryIssueTag)}` : ''}</p><button type="button" class="secondary-button" id="profileOpenDowntimeAnalyticsBtn">Open downtime analytics</button></section>`;
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${downtimeSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1594,6 +1612,11 @@ function renderCustomerProfileView(customer) {
   const profileComplaintBtn = $('#customerProfileView').querySelector('#profileOpenComplaintRegisterBtn');
   if (profileComplaintBtn) profileComplaintBtn.addEventListener('click', () => {
     if (complaintRegisterModalController) complaintRegisterModalController.open({ customer: String(customer.id) });
+  });
+  // SISP-16: profile button opens the downtime analytics modal (current month).
+  const profileDowntimeBtn = $('#customerProfileView').querySelector('#profileOpenDowntimeAnalyticsBtn');
+  if (profileDowntimeBtn) profileDowntimeBtn.addEventListener('click', () => {
+    if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.open({ month: pakistanMonthNow() });
   });
 }
 function renderCurrentBillSummary(customer) {
@@ -7179,7 +7202,11 @@ if (typeof document !== 'undefined') {
     onComplaintsChanged: () => {
       renderDashboard();
       renderDetail();
+      if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
     },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   worklistsModalController = setupWorklistsModal(() => state, {

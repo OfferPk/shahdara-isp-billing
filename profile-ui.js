@@ -1,4 +1,5 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
+import { arrearsBreakdownTextLines } from './billing-cycle.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -146,6 +147,12 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
     `📆 Billing Month: ${formatReceiptMonth(month)}`,
     `📦 Package date: ${packageDate} (renewal day: 1st of every month)`
   ];
+
+  // SISP-2: itemized arrears breakdown on the WhatsApp receipt, when the
+  // caller attached one (app.js computes it per bill month).
+  if (receipt?.arrearsBreakdown) {
+    lines.push('', '📋 Bill breakdown:', ...arrearsBreakdownTextLines(receipt.arrearsBreakdown));
+  }
 
   if (billStatus === 'paid') {
     const nextBillDueDate = nextCycleDueDateFromBillMonth(month);

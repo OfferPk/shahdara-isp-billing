@@ -129,3 +129,25 @@
   .shop-settlement-cards { grid-template-columns: 1fr; }
   .shop-settlement-card p strong { text-align: left; }
 }
+/* SISP-2: monthly billing cycle card + modal. Theme tokens only. */
+.billing-cycle-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.billing-cycle-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.billing-cycle-summary p span { color: var(--ink); font-weight: 600; }
+.billing-cycle-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.billing-cycle-summary p small { color: var(--muted); }
+.billing-cycle-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.billing-cycle-last-run { color: var(--ink); font-size: 13px; margin: 0 0 12px; }
+.billing-cycle-form { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
+.billing-cycle-form label { font-size: 13px; font-weight: 600; color: var(--ink); }
+.billing-cycle-totals { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 16px; }
+.billing-cycle-totals p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.billing-cycle-totals p strong { color: var(--ink); font-variant-numeric: var(--numeric); text-align: right; overflow-wrap: anywhere; }
+.billing-cycle-table { min-width: 0; width: 100%; }
+.billing-cycle-table th, .billing-cycle-table td { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.billing-cycle-skipped { color: var(--muted); font-size: 13px; margin: 0 0 16px; padding-left: 20px; }
+.billing-cycle-confirm-note { color: var(--muted); font-size: 13px; }
+.billing-cycle-warning { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; overflow-wrap: anywhere; }
+.billing-cycle-success { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .billing-cycle-totals p strong { text-align: left; }
+}

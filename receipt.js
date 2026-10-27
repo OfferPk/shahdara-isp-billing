@@ -1,5 +1,6 @@
 import { calculatePaymentAllocations } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
+import { buildArrearsBreakdown } from './billing-cycle.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -119,7 +120,11 @@ export function buildPaymentReceipt(customer, bill, payment) {
     servicePeriodStart,
     servicePeriodEnd,
     status,
-    balanceDueCents
+    balanceDueCents,
+    // SISP-2: itemized arrears breakdown for this bill month (package,
+    // previous arrears, total due, paid applied, balance). Null when the
+    // bill has no price — the breakdown needs a priced bill month.
+    arrearsBreakdown: buildArrearsBreakdown(customer, bill)
   };
 }
 
@@ -183,6 +188,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
+    ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div><div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>
@@ -217,6 +223,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
+    ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div><div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>
@@ -248,6 +255,13 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.lateFee > 0 ? [['Late Fee Surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),
     ...(receipt.discount > 0 ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
+    ...(receipt.arrearsBreakdown ? [
+      ['Mahana Package / ماہانہ پیکیج', formatAmount(receipt.arrearsBreakdown.packageAmount)],
+      ['Sabiqa Baqaya / سابقہ بقایا', formatAmount(receipt.arrearsBreakdown.previousArrears)],
+      ['Kul Qabil-e-Ada / کل قابل ادا', formatAmount(receipt.arrearsBreakdown.totalDue)],
+      ['Wusool Paya / وصول پایا', formatAmount(receipt.arrearsBreakdown.paidAmount)],
+      ['Baqi Rehta / باقی رہتا', formatAmount(receipt.arrearsBreakdown.balanceDue)]
+    ] : []),
     ['Package Date', receipt.packageDate],
     ['Amount Received / رقم موصول', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount), 'receipt-amount'],
     ['Payment Method / ذریعہ ادائیگی', receipt.paymentMethod],

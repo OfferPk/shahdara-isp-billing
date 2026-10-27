@@ -347,6 +347,15 @@
             <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog">👥 Staff Performance</button>
           </div>
         </article>
+        <article class="summary-card summary-shop-settlement">
+          <p class="summary-label">🏪 Shop Cash Collection &amp; Handover</p>
+          <strong id="dashboardShopSettlementValue" class="summary-value">No shop collections</strong>
+          <p id="dashboardShopSettlementPeriod" class="summary-period">Unsettled cash sitting at shops</p>
+          <div id="shopSettlementSummary" class="shop-settlement-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button">🏪 Shop Settlement</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -20145,6 +20154,40 @@
   </dialog>
 
   <!-- Daily Cash Closing & Till Reconciliation Suite Dialog (agent1 - shahdara-dashboard) -->
+  <dialog id="shopSettlementModal" class="billing-modal shop-settlement-modal" aria-labelledby="shopSettlementModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="shopSettlementModalTitle">🏪 Shop Cash Collection &amp; Handover</h2>
+        <button id="shopSettlementCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="shop-settlement-intro">Cash collected at shops stays unsettled until the owner receives it. Pick a shop to see its pending receipts, then record a full or partial handover.</p>
+        <div id="shopSettlementCards" class="shop-settlement-cards"></div>
+        <h3>Pending receipts</h3>
+        <div id="shopSettlementReceiptList"></div>
+        <form id="shopSettlementForm" class="shop-settlement-form">
+          <label for="shopSettlementShopSelect">Shop</label>
+          <select id="shopSettlementShopSelect" class="form-input" required></select>
+          <label for="shopSettlementAmountInput">Amount received (PKR)</label>
+          <input id="shopSettlementAmountInput" class="form-input" type="number" min="1" step="1" inputmode="numeric" required placeholder="e.g. 18000">
+          <label for="shopSettlementDateInput">Handover date</label>
+          <input id="shopSettlementDateInput" class="form-input" type="date" required>
+          <label for="shopSettlementNoteInput">Note (optional)</label>
+          <input id="shopSettlementNoteInput" class="form-input" type="text" placeholder="e.g. Cash received at home">
+          <button id="shopSettlementSubmitBtn" class="primary-button" type="submit">Receive Cash / Settle Shop</button>
+        </form>
+        <div id="shopSettlementReceiptActions" hidden>
+          <h3>Settlement receipt</h3>
+          <pre id="shopSettlementReceiptText" class="shop-settlement-receipt-text"></pre>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="shopSettlementCopyBtn" class="secondary-button" type="button">Copy receipt</button>
+            <button id="shopSettlementWhatsAppBtn" class="secondary-button" type="button">WhatsApp receipt</button>
+            <button id="shopSettlementPrintBtn" class="secondary-button" type="button">Print receipt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
   <dialog id="dailyClosingModal" class="billing-modal daily-closing-modal" aria-labelledby="dailyClosingModalTitle">
     <div class="billing-modal-content">
       <header class="billing-modal-header">

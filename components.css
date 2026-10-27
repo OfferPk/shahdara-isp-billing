@@ -186,3 +186,27 @@
   .complaint-register-list { grid-template-columns: 1fr; }
   .complaint-register-card p strong { text-align: left; }
 }
+
+/* SISP-16: downtime hours analytics. Theme tokens only — no hardcoded surfaces, so dark mode stays correct. */
+.downtime-analytics-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.downtime-analytics-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.downtime-analytics-summary p span { color: var(--ink); font-weight: 600; }
+.downtime-analytics-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.downtime-analytics-summary p small { color: var(--muted); }
+.downtime-analytics-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.downtime-analytics-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.downtime-analytics-cause-list, .downtime-analytics-customer-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.downtime-cause-card, .downtime-customer-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.downtime-cause-card p, .downtime-customer-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.downtime-cause-card p strong, .downtime-customer-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.downtime-analytics-empty { color: var(--muted); font-size: 13px; }
+.profile-downtime-section { margin-top: 16px; }
+.profile-downtime-section h4 { margin: 0 0 8px; color: var(--ink); }
+.profile-downtime-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.profile-downtime-section p strong { color: var(--ink); }
+@media (max-width: 480px) {
+  .downtime-analytics-cause-list { grid-template-columns: 1fr; }
+  .downtime-analytics-customer-list { grid-template-columns: 1fr; }
+  .downtime-cause-card p strong { text-align: left; }
+  .downtime-customer-card p strong { text-align: left; }
+}

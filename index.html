@@ -6440,6 +6440,7 @@
           <div class="customer-list-search-control"><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search">Clear</button></div>
           <p id="customerListSearchHelp" class="customer-list-search-help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
         </div>
+        <section id="newCustomersPanel" class="new-customers-panel" aria-label="New customers by month"></section>
         <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
         <div id="customerTableWrap" class="customer-table-wrap" hidden>
           <div class="customer-table-scroll">
@@ -6580,6 +6581,10 @@
                 <label class="profile-field" for="monthlyPurchaseCostInput"><span class="field-label">Monthly provider purchase cost (PKR) <span class="optional-label">Optional</span></span><input id="monthlyPurchaseCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="monthlySellingAmountInput"><span class="field-label">Monthly selling amount (PKR) <span class="optional-label">Optional · also this month’s bill</span></span><input id="monthlySellingAmountInput" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Not set — excluded from dues"></label>
                 <label class="profile-field" for="connectionDateInput"><span class="field-label">Connection / subscription start date <span class="optional-label">Optional · enter the real date</span></span><input id="connectionDateInput" type="date"></label>
+                <label class="profile-field" for="connectionFeeInput"><span class="field-label">Connection fee (PKR) <span class="optional-label">Optional · one-time fee taken at install</span></span><input id="connectionFeeInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="routerModelInput"><span class="field-label">Router installed <span class="optional-label">Optional · model given to the customer</span></span><input id="routerModelInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="routerPriceInput"><span class="field-label">Router price (PKR) <span class="optional-label">Optional</span></span><input id="routerPriceInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="fiberMetersInput"><span class="field-label">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></span><input id="fiberMetersInput" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="expiryDateInput"><span class="field-label">Expiry / end date <span class="optional-label">Optional</span></span><input id="expiryDateInput" type="date"></label>
                 <label class="profile-field" for="cancellationDateInput"><span class="field-label">Explicit cancellation date <span class="optional-label">Optional · Offline is not churn</span></span><input id="cancellationDateInput" type="date"></label>
                 <label class="profile-field" for="packageChangeStaffNameInput"><span class="field-label">Package-change staff name <span class="optional-label">Optional · used only for next change</span></span><input id="packageChangeStaffNameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
@@ -7032,6 +7037,14 @@
         <input id="newCustomerMohalla" name="mohalla" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
         <label class="field-label" for="newCustomerZone">Zone <span class="optional-label">Optional</span></label>
         <input id="newCustomerZone" name="zone" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
+        <label class="field-label" for="newCustomerConnectionFee">Connection fee (PKR) <span class="optional-label">Optional · one-time fee taken at install</span></label>
+        <input id="newCustomerConnectionFee" name="connectionFee" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter only if charged">
+        <label class="field-label" for="newCustomerRouterModel">Router installed <span class="optional-label">Optional · model given to the customer</span></label>
+        <input id="newCustomerRouterModel" name="routerModel" type="text" maxlength="100" autocomplete="off" placeholder="e.g. Huawei HG6245D">
+        <label class="field-label" for="newCustomerRouterPrice">Router price (PKR) <span class="optional-label">Optional</span></label>
+        <input id="newCustomerRouterPrice" name="routerPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter only if charged">
+        <label class="field-label" for="newCustomerFiberMeters">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></label>
+        <input id="newCustomerFiberMeters" name="fiberMeters" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 85">
         <label class="field-label" for="newCustomerServiceStatus">Service status <span class="optional-label">Manual · change it any time in the profile</span></label>
         <select id="newCustomerServiceStatus" name="serviceStatus"><option value="active" selected>Active · connected</option><option value="offline">Offline</option><option value="not-set">Not set</option></select>
         <div id="addCustomerError" class="form-error" role="alert" hidden></div>

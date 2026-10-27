@@ -5,7 +5,8 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill,
-  calculateMethodCollectionTotals, findDuplicatePaymentReference
+  calculateMethodCollectionTotals, findDuplicatePaymentReference,
+  buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges
 } from './core.js?v=1.10.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.10.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
@@ -184,6 +185,9 @@ let selectedReportFilter = 'all';
 let selectedServiceFilter = 'all';
 let selectedBillingFilter = 'all';
 let selectedBillingMonth = monthsForHistory()[0];
+// New-customers panel state (customer ledger): a quick view or one chosen month.
+let newCustomersView = 'thisMonth';
+let newCustomersMonth = '';
 let selectedPayrollMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
 let toastTimer;
@@ -737,6 +741,66 @@ let customerSortBy = 'number-asc';
 let customerAreaFilter = 'all';
 let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem('shahdara_customer_view_mode')) || 'cards';
 
+// New-customers panel (customer ledger): view-only monthly join counts and
+// onboarding totals over saved customers. Join months come from
+// buildNewCustomerReport; this function never rewrites any saved value.
+function renderNewCustomersPanel() {
+  const mount = $('#newCustomersPanel');
+  if (!mount) return;
+  const report = buildNewCustomerReport(state.customers, new Date());
+  const ranges = newCustomerQuickRanges(new Date());
+  let shown = [];
+  let heading = '';
+  if (newCustomersView === 'month' && newCustomersMonth) {
+    shown = report.months.filter(entry => entry.month === newCustomersMonth);
+    heading = monthName(newCustomersMonth);
+  } else {
+    if (!ranges[newCustomersView]) newCustomersView = 'thisMonth';
+    const range = ranges[newCustomersView];
+    shown = filterNewCustomerMonths(report.months, range.start, range.end);
+    heading = range.start === range.end
+      ? `${range.label} · ${monthName(range.start)}`
+      : `${range.label} · ${monthName(range.start)} – ${monthName(range.end)}`;
+  }
+  const totals = shown.reduce((sum, entry) => ({
+    count: sum.count + entry.totals.count,
+    connectionFees: sum.connectionFees + entry.totals.connectionFees,
+    routersIssued: sum.routersIssued + entry.totals.routersIssued,
+    routerTotal: sum.routerTotal + entry.totals.routerTotal,
+    fiberMeters: sum.fiberMeters + entry.totals.fiberMeters
+  }), { count: 0, connectionFees: 0, routersIssued: 0, routerTotal: 0, fiberMeters: 0 });
+  totals.connectionFees = Math.round(totals.connectionFees * 100) / 100;
+  totals.routerTotal = Math.round(totals.routerTotal * 100) / 100;
+  totals.fiberMeters = Math.round(totals.fiberMeters * 10) / 10;
+  const rows = shown.flatMap(entry => entry.customers.map(customer => {
+    const onboarding = [];
+    if (customer.connectionFee !== null && customer.connectionFee !== undefined && Number(customer.connectionFee) > 0) onboarding.push(`Fee ${formatAmount(customer.connectionFee)}`);
+    if (String(customer.routerModel ?? '').trim()) onboarding.push(`Router ${escapeHtml(customer.routerModel)}${customer.routerPrice !== null && customer.routerPrice !== undefined && Number(customer.routerPrice) > 0 ? ` (${formatAmount(customer.routerPrice)})` : ''}`);
+    if (customer.fiberMeters !== null && customer.fiberMeters !== undefined && Number(customer.fiberMeters) > 0) onboarding.push(`${customer.fiberMeters} m fiber`);
+    return `<li><button class="new-customer-row" type="button" data-customer-id="${escapeHtml(customer.id)}"><span class="new-customer-name">#${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}</span><span class="new-customer-meta">${escapeHtml(customer.mohalla || 'Area not set')} · joined ${escapeHtml(entry.month)}</span><span class="new-customer-onb">${onboarding.length ? onboarding.join(' · ') : 'Onboarding details not recorded'}</span></button></li>`;
+  })).join('');
+  const monthOptions = report.months.map(entry => `<option value="${escapeHtml(entry.month)}"${entry.month === newCustomersMonth ? ' selected' : ''}>${escapeHtml(monthName(entry.month))} (${entry.totals.count})</option>`).join('');
+  mount.innerHTML = `<div class="new-customers-head"><div><p class="eyebrow">NEW CUSTOMERS</p><h3>New customers by month</h3></div><p class="new-customers-heading">${escapeHtml(heading)}</p></div>`
+    + `<div class="new-customers-controls" role="group" aria-label="New-customer quick views">`
+    + Object.entries(ranges).map(([key, range]) => `<button class="customer-filter-button" type="button" data-newcust-view="${key}" aria-pressed="${newCustomersView === key ? 'true' : 'false'}">${range.label}</button>`).join('')
+    + `<label class="new-customers-month" for="newCustomersMonthSelect">Month <select id="newCustomersMonthSelect"><option value="">Choose a month…</option>${monthOptions}</select></label></div>`
+    + `<div class="new-customers-totals" role="status"><span><strong>${totals.count}</strong> new customers</span><span>Connection fees <strong>${formatAmount(totals.connectionFees)}</strong></span><span><strong>${totals.routersIssued}</strong> routers · <strong>${formatAmount(totals.routerTotal)}</strong></span><span>Fiber <strong>${totals.fiberMeters} m</strong></span></div>`
+    + (rows ? `<ul class="new-customers-list">${rows}</ul>` : `<p class="new-customers-empty">No new customers in this view.</p>`)
+    + `<p class="new-customers-note">Join counts include customers archived later.${report.undatedCount ? ` ${report.undatedCount} customer${report.undatedCount === 1 ? '' : 's'} have no join date (added before dates were recorded) and are not counted in any month.` : ''}</p>`;
+  mount.querySelectorAll('[data-newcust-view]').forEach(button => button.addEventListener('click', () => {
+    newCustomersView = button.dataset.newcustView;
+    newCustomersMonth = '';
+    renderNewCustomersPanel();
+  }));
+  const monthSelect = $('#newCustomersMonthSelect');
+  if (monthSelect) monthSelect.addEventListener('change', () => {
+    if (!monthSelect.value) return;
+    newCustomersView = 'month';
+    newCustomersMonth = monthSelect.value;
+    renderNewCustomersPanel();
+  });
+  mount.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
+}
 function renderCustomers() {
   const customerQuery = customerListQuery();
   const healthAllocations = calculatePaymentAllocations(state);
@@ -859,6 +923,7 @@ function renderCustomers() {
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-set-service]').forEach(button => button.addEventListener('click', () => setManualServiceStatus(button.dataset.setService, button.dataset.serviceStatus)));
   $('#archivedCustomerList').querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
+  renderNewCustomersPanel();
   updateNavigationBadges(state);
 }
 function setManualServiceStatus(customerId, serviceStatus) {
@@ -1448,6 +1513,10 @@ function renderCustomerProfileView(customer) {
     ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)],
     ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)],
     ['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'],
+    ['Connection fee', formatAmount(customer.connectionFee)],
+    ['Router installed', customer.routerModel || 'Not recorded'],
+    ['Router price', formatAmount(customer.routerPrice)],
+    ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`],
     ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'],
     ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']
   ];
@@ -1505,6 +1574,10 @@ function renderDetail() {
   $('#monthlyPurchaseCostInput').value = customer.monthlyPurchaseCost ?? '';
   $('#monthlySellingAmountInput').value = customer.monthlySellingAmount ?? '';
   $('#connectionDateInput').value = customer.connectionDate ?? '';
+  $('#connectionFeeInput').value = customer.connectionFee ?? '';
+  $('#routerModelInput').value = customer.routerModel ?? '';
+  $('#routerPriceInput').value = customer.routerPrice ?? '';
+  $('#fiberMetersInput').value = customer.fiberMeters ?? '';
   $('#expiryDateInput').value = customer.expiryDate ?? '';
   $('#cancellationDateInput').value = customer.cancellationDate ?? '';
   $('#packageChangeStaffNameInput').value = '';
@@ -2624,6 +2697,10 @@ function saveNewCustomer(allowDuplicateName = false) {
     address:$('#newCustomerAddress').value,
     mohalla:$('#newCustomerMohalla').value,
     zone:$('#newCustomerZone').value,
+    connectionFee:$('#newCustomerConnectionFee').value,
+    routerModel:$('#newCustomerRouterModel').value,
+    routerPrice:$('#newCustomerRouterPrice').value,
+    fiberMeters:$('#newCustomerFiberMeters').value,
     // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
     serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set'
   };
@@ -2800,6 +2877,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       serviceStatus:$('#serviceStatusInput').value,
       packageSpeed:$('#packageSpeedInput').value, monthlyPurchaseCost:$('#monthlyPurchaseCostInput').value,
       monthlySellingAmount:$('#monthlySellingAmountInput').value, connectionDate:$('#connectionDateInput').value,
+      connectionFee:$('#connectionFeeInput').value, routerModel:$('#routerModelInput').value,
+      routerPrice:$('#routerPriceInput').value, fiberMeters:$('#fiberMetersInput').value,
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
       packageChangeStaffName:$('#packageChangeStaffNameInput').value,
       proRataAdjustment, proRatedBillAmount, voucherId

@@ -894,3 +894,47 @@ body.field-mode-open { overflow: hidden; }
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+
+/* Red back-arrow close button: the one unmistakable way out of every modal,
+   dialog and sheet. Solid overdue-red circle with a white back arrow, 48px
+   tap target, identical in light and dark mode (theme tokens only, so the
+   old white-box-in-dark-mode look cannot come back). Covers every close
+   class the app uses; the channel-remove button in nav-wdm-spectrum.js
+   deliberately uses .wdm-remove-btn instead, so it is untouched. */
+.close-button,
+.modal-close-btn,
+.billing-modal-close,
+.modal-close,
+.close-btn,
+.field-tools-close-btn,
+.sheet-close-btn {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-overdue);
+  color: var(--color-neutral-0);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.close-button:focus-visible,
+.modal-close-btn:focus-visible,
+.billing-modal-close:focus-visible,
+.modal-close:focus-visible,
+.close-btn:focus-visible,
+.field-tools-close-btn:focus-visible,
+.sheet-close-btn:focus-visible {
+  outline: 3px solid var(--color-neutral-0);
+  outline-offset: 2px;
+}

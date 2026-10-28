@@ -60,7 +60,7 @@ export function setupCollectSetup({ win = window, doc = document, getController 
     <section class="collect-setup-card">
       <div class="modal-heading">
         <div><p class="eyebrow">BILLING SETUP</p><h2 id="collectSetupTitle">Set packages &amp; monthly fee</h2></div>
-        <button id="closeCollectSetupBtn" class="close-button" type="button" aria-label="Close package setup">×</button>
+        <button id="closeCollectSetupBtn" class="close-button" type="button" aria-label="Close package setup">↩</button>
       </div>
       <p class="cs-note">Customers without a package/fee get no bill, so they never show as pending. Pick a package for the selected customers; this month's bill is created right away.</p>
       <div class="cs-grid">

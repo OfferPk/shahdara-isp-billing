@@ -249,10 +249,14 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const routerPrice = checkCost(options.routerPrice);
   const fiberMeters = checkFiberMeters(options.fiberMeters);
   const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
+  const pppoeUsername = cleanText(options.pppoeUsername, 100, 'PPPoE username');
+  const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
+  const staticIp = cleanText(options.staticIp, 45, 'Static IP');
+  const macAddress = cleanText(options.macAddress, 20, 'MAC address');
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -439,6 +443,10 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     routerPrice: checkCost(valueOrCurrent('routerPrice')),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
     nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
+    pppoeUsername: cleanText(valueOrCurrent('pppoeUsername') ?? '', 100, 'PPPoE username'),
+    pppoePassword: cleanText(valueOrCurrent('pppoePassword') ?? '', 100, 'PPPoE password'),
+    staticIp: cleanText(valueOrCurrent('staticIp') ?? '', 45, 'Static IP'),
+    macAddress: cleanText(valueOrCurrent('macAddress') ?? '', 20, 'MAC address'),
     expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
     cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date'),
     // SISP-7: feeder link — whose converter/switch feeds this customer, and
@@ -1735,7 +1743,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-8: skipped months merge by union (a skipped month only ever
     // means "never backfill this month") — never a conflict, never lost.
     {

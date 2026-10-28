@@ -6705,6 +6705,10 @@
                 <label class="profile-field" for="routerModelInput"><span class="field-label">Router installed <span class="optional-label">Optional · model given to the customer</span></span><input id="routerModelInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="routerPriceInput"><span class="field-label">Router price (PKR) <span class="optional-label">Optional</span></span><input id="routerPriceInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="fiberMetersInput"><span class="field-label">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></span><input id="fiberMetersInput" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="pppoeUsernameInput"><span class="field-label">PPPoE username <span class="optional-label">Optional · for the MikroTik RouterOS script</span></span><input id="pppoeUsernameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="pppoePasswordInput"><span class="field-label">PPPoE password <span class="optional-label">Optional · shown only inside the copyable RouterOS script</span></span><input id="pppoePasswordInput" type="password" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="staticIpInput"><span class="field-label">Static IP <span class="optional-label">Optional · queue target for the RouterOS script</span></span><input id="staticIpInput" type="text" maxlength="45" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="macAddressInput"><span class="field-label">MAC address <span class="optional-label">Optional · ARP binding for the RouterOS script</span></span><input id="macAddressInput" type="text" maxlength="20" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="expiryDateInput"><span class="field-label">Expiry / end date <span class="optional-label">Optional</span></span><input id="expiryDateInput" type="date"></label>
                 <label class="profile-field" for="cancellationDateInput"><span class="field-label">Explicit cancellation date <span class="optional-label">Optional · Offline is not churn</span></span><input id="cancellationDateInput" type="date"></label>
                 <label class="profile-field" for="packageChangeStaffNameInput"><span class="field-label">Package-change staff name <span class="optional-label">Optional · used only for next change</span></span><input id="packageChangeStaffNameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
@@ -19853,12 +19857,22 @@
             No delinquent accounts matching criteria. All subscribers are in good standing!
           </p>
         </div>
+
+        <!-- SISP-13: MikroTik defaulter lock / restore script output -->
+        <div id="topDefaultersMikrotikOutput" class="mikrotik-output-block" hidden>
+          <h4 class="modal-section-title">MikroTik RouterOS script</h4>
+          <p id="topDefaultersMikrotikNote" class="mikrotik-output-note"></p>
+          <textarea id="topDefaultersMikrotikScript" class="mikrotik-script-box" readonly rows="12" aria-label="Generated MikroTik RouterOS script"></textarea>
+          <button id="topDefaultersMikrotikCopyBtn" class="secondary-button" type="button">📋 Copy script</button>
+        </div>
       </div>
 
       <footer class="billing-modal-footer">
         <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
           <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
+          <button id="topDefaultersMikrotikLockBtn" class="secondary-button" type="button">📡 MikroTik Lock Script</button>
+          <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
           <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
           <button id="topDefaultersPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
         </div>

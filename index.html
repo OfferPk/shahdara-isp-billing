@@ -404,6 +404,15 @@
             <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button">📉 Downtime Analytics</button>
           </div>
         </article>
+        <article class="summary-card summary-monthly-complaint-report">
+          <p class="summary-label">📋 Monthly Complaint Report</p>
+          <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
+          <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
+          <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Monthly Report</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -20387,6 +20396,42 @@
         <div id="downtimeAnalyticsCauseList" class="downtime-analytics-cause-list"></div>
         <h3>Per-customer downtime</h3>
         <div id="downtimeAnalyticsCustomerList" class="downtime-analytics-customer-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="monthlyComplaintReportModal" class="billing-modal monthly-complaint-report-modal" aria-labelledby="monthlyComplaintReportModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="monthlyComplaintReportModalTitle">📋 Monthly Complaint Report</h2>
+        <button id="monthlyComplaintReportCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="monthly-report-intro">One month, four parts: totals, per-customer frequency, cause breakdown, and the full chronological log. Zone-wide faults count toward the network totals, not toward any single customer.</p>
+        <label for="monthlyComplaintReportMonth">Month</label>
+        <input id="monthlyComplaintReportMonth" class="form-input" type="month" aria-label="Report month">
+        <p id="monthlyReportSummaryLine" class="monthly-report-summary-line"></p>
+        <h3>Monthly summary</h3>
+        <div id="monthlyReportSummaryCards" class="monthly-report-summary-cards"></div>
+        <h3>Customer complaint frequency &amp; offline hours</h3>
+        <div id="monthlyReportCustomerTable" class="monthly-report-table-wrap"></div>
+        <h3>Cause-wise outage breakdown</h3>
+        <div id="monthlyReportCauseTable" class="monthly-report-table-wrap"></div>
+        <h3>Full chronological complaint log</h3>
+        <div id="monthlyReportLogTable" class="monthly-report-table-wrap"></div>
+        <h3>WhatsApp monthly summary</h3>
+        <div class="monthly-report-share-row">
+          <label for="monthlyReportSummaryScript">Summary language</label>
+          <select id="monthlyReportSummaryScript" class="form-input" aria-label="Summary language">
+            <option value="roman">Roman Urdu</option>
+            <option value="urdu">Urdu script</option>
+          </select>
+        </div>
+        <textarea id="monthlyReportSummaryText" class="monthly-report-summary-text" rows="4" readonly aria-label="WhatsApp monthly summary"></textarea>
+        <div class="monthly-report-actions">
+          <button id="monthlyReportPrintBtn" class="action-btn-sm daily-slip-btn" type="button">🖨️ Print / Save PDF</button>
+          <button id="monthlyReportCsvBtn" class="action-btn-sm daily-slip-btn" type="button">📄 Export CSV</button>
+          <button id="monthlyReportCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy WhatsApp summary</button>
+        </div>
       </div>
     </div>
   </dialog>

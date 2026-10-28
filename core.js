@@ -7,6 +7,7 @@ import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
+import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
@@ -1662,6 +1663,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSaadPayments(options.saadPayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), saadPayments: cleaned };
   }
+  // Installation tracker: requests live outside the ledger state
+  // (localStorage key sisp_install_requests_v1), so they travel in an
+  // optional `settings.installRequests` section. Written only when at
+  // least one request exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.installRequests) && options.installRequests.length) {
+    const cleaned = sanitizeInstallRequests(options.installRequests);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), installRequests: cleaned };
+  }
   // SISP-10: checksum-verified transfer. The stamp covers the canonical
   // (key-sorted) form of the document, so it survives re-formatting, and
   // readers that predate it ignore the unknown field — old backups and old
@@ -2011,6 +2020,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Saad payment records differ from this device' });
     }
   }
+  // Installation tracker: optional request section (see createJsonBackup).
+  // Safe-merge rule, same as the Saad visit log: adopt the backup's
+  // records only when this device has none stored yet; when both sides
+  // hold different real records, keep existing + conflict.
+  let installRequests = null;
+  const rawIncomingInstallRequests = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.installRequests
+    : undefined;
+  if (Array.isArray(rawIncomingInstallRequests) && rawIncomingInstallRequests.length) {
+    const incomingInstallRequests = sanitizeInstallRequests(rawIncomingInstallRequests);
+    const currentInstallRequests = (options && typeof options === 'object' && Array.isArray(options.currentInstallRequests))
+      ? sanitizeInstallRequests(options.currentInstallRequests)
+      : [];
+    if (incomingInstallRequests.length && sameJson(incomingInstallRequests, currentInstallRequests)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingInstallRequests.length && (!options?.currentInstallRequestsStored || currentInstallRequests.length === 0)) {
+      installRequests = incomingInstallRequests;
+      counts.installRequestsRestored = 1;
+      counts.changes++;
+    } else if (incomingInstallRequests.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Installation request records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, checksumStatus:checksum.status };
 }

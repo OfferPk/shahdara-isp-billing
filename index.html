@@ -462,6 +462,15 @@
             <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔧 Saad Visits</button>
           </div>
         </article>
+        <article class="summary-card summary-install-tracker">
+          <p class="summary-label">📡 Installation Tracker</p>
+          <strong id="dashboardInstallTrackerValue" class="summary-value">No requests yet</strong>
+          <p id="dashboardInstallTrackerPeriod" class="summary-period">New connection requests &amp; install delays</p>
+          <div id="installTrackerSummary" class="install-tracker-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button">📡 Installation Tracker</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -20726,6 +20735,81 @@
         </form>
         <h3>Visit log</h3>
         <div id="saadVisitsList" class="saad-visits-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="installTrackerModal" class="billing-modal install-tracker-modal" aria-labelledby="installTrackerModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="installTrackerModalTitle">📡 New Customer Installation Tracker</h2>
+        <button id="installTrackerCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="install-tracker-intro">Jab koi naya connection maange aur aksar pehle payment bhej de — lekin connection dinon tak na lage — to request aur delay ki wajah yahan darj karein. Mahine ke aakhir me summary batayegi: kis customer ka connection kitne din me lagga, aur jo delay hua wo kyun hua.</p>
+        <label for="installTrackerMonth">Month (request month)</label>
+        <input id="installTrackerMonth" class="form-input" type="month" aria-label="Summary month">
+        <h3>Month-end summary</h3>
+        <div id="installTrackerMonthSummary" class="install-tracker-month-summary"></div>
+        <h3>Log a new request</h3>
+        <form id="installRequestForm" class="install-tracker-form">
+          <label for="installRequestName">Requester name (required — need not be a customer yet)</label>
+          <input id="installRequestName" class="form-input" type="text" maxlength="100" required aria-label="Requester name">
+          <label for="installRequestCustomerSearch">Find customer to link (name / number / area — optional)</label>
+          <input id="installRequestCustomerSearch" class="form-input" type="text" maxlength="100" placeholder="e.g. Faisal" aria-label="Search customers">
+          <label for="installRequestCustomer">Link to a customer (optional — reference only, never changes the customer)</label>
+          <select id="installRequestCustomer" class="form-input" aria-label="Linked customer"></select>
+          <label for="installRequestPhone">Phone (optional)</label>
+          <input id="installRequestPhone" class="form-input" type="tel" maxlength="30" aria-label="Phone">
+          <label for="installRequestDate">Request date (when the payment/request came)</label>
+          <input id="installRequestDate" class="form-input" type="date" required aria-label="Request date">
+          <label for="installRequestAmount">Amount paid (PKR — enter 0 if nothing paid yet)</label>
+          <input id="installRequestAmount" class="form-input" type="number" min="0" step="any" inputmode="decimal" required aria-label="Amount paid">
+          <label for="installRequestPayMethod">Payment method</label>
+          <select id="installRequestPayMethod" class="form-input" aria-label="Payment method">
+            <option value="easypaisa">EasyPaisa</option>
+            <option value="jazzcash">JazzCash</option>
+            <option value="cash">Cash</option>
+            <option value="bank">Bank Transfer</option>
+            <option value="other">Other</option>
+          </select>
+          <label for="installRequestPayReference">Payment reference / TID (optional)</label>
+          <input id="installRequestPayReference" class="form-input" type="text" maxlength="100" aria-label="Payment reference">
+          <label for="installRequestInstallDate">Install date (leave blank while still pending)</label>
+          <input id="installRequestInstallDate" class="form-input" type="date" aria-label="Install date">
+          <label for="installRequestReasonPreset">Delay reason — quick pick (optional)</label>
+          <select id="installRequestReasonPreset" class="form-input" aria-label="Delay reason preset">
+            <option value="">No reason yet</option>
+            <option value="Fiber/ONU late — Nasir">Fiber/ONU late — Nasir</option>
+            <option value="Saad did not come">Saad did not come</option>
+            <option value="Customer not available">Customer not available</option>
+            <option value="Weather / area issue">Weather / area issue</option>
+            <option value="Other">Other (type below)</option>
+          </select>
+          <label for="installRequestReasonCustom">Delay reason — custom text (wins over the quick pick; please note it whenever install is later than request)</label>
+          <input id="installRequestReasonCustom" class="form-input" type="text" maxlength="200" aria-label="Custom delay reason">
+          <button class="action-btn-sm daily-slip-btn" type="submit">➕ Request darj karein</button>
+        </form>
+        <h3>Mark a pending request installed</h3>
+        <form id="installMarkForm" class="install-tracker-form">
+          <label for="installMarkRequest">Pending request</label>
+          <select id="installMarkRequest" class="form-input" aria-label="Pending request"></select>
+          <label for="installMarkDate">Install date</label>
+          <input id="installMarkDate" class="form-input" type="date" required aria-label="Install date">
+          <label for="installMarkReasonPreset">Delay reason — quick pick (optional)</label>
+          <select id="installMarkReasonPreset" class="form-input" aria-label="Delay reason preset">
+            <option value="">Keep existing reason</option>
+            <option value="Fiber/ONU late — Nasir">Fiber/ONU late — Nasir</option>
+            <option value="Saad did not come">Saad did not come</option>
+            <option value="Customer not available">Customer not available</option>
+            <option value="Weather / area issue">Weather / area issue</option>
+            <option value="Other">Other (type below)</option>
+          </select>
+          <label for="installMarkReasonCustom">Delay reason — custom text (wins over the quick pick)</label>
+          <input id="installMarkReasonCustom" class="form-input" type="text" maxlength="200" aria-label="Custom delay reason">
+          <button class="action-btn-sm daily-slip-btn" type="submit">✅ Installed mark karein</button>
+        </form>
+        <h3>Request log</h3>
+        <div id="installTrackerList" class="install-tracker-list"></div>
       </div>
     </div>
   </dialog>

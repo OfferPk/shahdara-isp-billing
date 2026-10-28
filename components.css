@@ -676,3 +676,21 @@ body.field-mode-open { overflow: hidden; }
 .backup-checksum-note.checksum-mismatch { color: var(--color-overdue); font-weight: 700; }
 .sync-code-paste { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .sync-code-paste textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+/* Installation tracker: dashboard card + modal lists. Theme tokens only — no hardcoded surfaces, so dark mode stays correct. */
+.install-tracker-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.install-tracker-month-summary { margin: 8px 0 16px; }
+.install-tracker-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.install-tracker-summary-cards p { display: flex; flex-direction: column; gap: 4px; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 12px; color: var(--muted); }
+.install-tracker-summary-cards p strong { color: var(--ink); font-size: 18px; overflow-wrap: anywhere; }
+.install-tracker-note { color: var(--muted); font-size: 12px; margin: 0 0 16px; }
+.install-tracker-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.install-tracker-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.install-tracker-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.install-tracker-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.install-tracker-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.install-tracker-form .form-input { width: 100%; }
+.install-tracker-empty { color: var(--muted); font-size: 13px; margin: 0; }
+@media (max-width: 700px) {
+  .install-tracker-list { grid-template-columns: 1fr; }
+  .install-tracker-card p strong { text-align: left; }
+}

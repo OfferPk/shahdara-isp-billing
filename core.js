@@ -12,6 +12,7 @@ import { sanitizeLoanEntries } from './loan-ledger.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
+import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
@@ -2037,6 +2038,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizePendingWorks(options.pendingWorks);
     if (cleaned.length) document.settings = { ...(document.settings || {}), pendingWorks: cleaned };
   }
+  // SISP-35: billing groups live outside the ledger state
+  // (localStorage key sisp_billing_groups_v1), so they travel in an
+  // optional `settings.billingGroups` section. Written only when at
+  // least one group exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.billingGroups) && options.billingGroups.length) {
+    const cleaned = sanitizeBillingGroups(options.billingGroups);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), billingGroups: cleaned };
+  }
   // SISP-20: monthly closing notes live outside the ledger state
   // (localStorage key sisp_monthly_closing_notes_v1), so they travel in an
   // optional `settings.monthlyClosingNotes` section. Written only when at
@@ -2553,6 +2562,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Pending work records differ from this device' });
     }
   }
+  // SISP-35 billing groups: optional link section (see createJsonBackup).
+  // Safe-merge rule, same as Pending Works: adopt the backup's groups
+  // only when this device has none stored yet; when both sides hold
+  // different real groups, keep existing + conflict.
+  let billingGroups = null;
+  const rawIncomingBillingGroups = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.billingGroups
+    : undefined;
+  if (Array.isArray(rawIncomingBillingGroups) && rawIncomingBillingGroups.length) {
+    const incomingBillingGroups = sanitizeBillingGroups(rawIncomingBillingGroups);
+    const currentBillingGroups = (options && typeof options === 'object' && Array.isArray(options.currentBillingGroups))
+      ? sanitizeBillingGroups(options.currentBillingGroups)
+      : [];
+    if (incomingBillingGroups.length && sameJson(incomingBillingGroups, currentBillingGroups)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingBillingGroups.length && (!options?.currentBillingGroupsStored || currentBillingGroups.length === 0)) {
+      billingGroups = incomingBillingGroups;
+      counts.billingGroupsRestored = 1;
+      counts.changes++;
+    } else if (incomingBillingGroups.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Billing group records differ from this device' });
+    }
+  }
   let monthlyClosingNotes = null;
   const rawIncomingNotes = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
     ? document.settings.monthlyClosingNotes
@@ -2663,5 +2695,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
 }

@@ -938,3 +938,22 @@ body.field-mode-open { overflow: hidden; }
   outline: 3px solid var(--color-neutral-0);
   outline-offset: 2px;
 }
+/* SISP-35: group billing — theme tokens only, mobile-first cards. */
+.group-billing-intro, .group-billing-count-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.group-billing-members { display: grid; gap: 8px; margin: 8px 0 16px; max-height: 260px; overflow-y: auto; }
+.group-billing-member { display: flex; gap: 10px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.group-billing-member input { width: 20px; height: 20px; flex-shrink: 0; }
+.group-billing-collect-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 16px; }
+.group-billing-list { display: grid; gap: 12px; }
+.group-billing-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.group-billing-card p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.group-billing-card p strong { color: var(--ink); text-align: right; }
+.group-billing-members p { margin: 0 0 6px; }
+.group-billing-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.group-billing-empty { color: var(--muted); font-size: 13px; }
+.group-billing-receipt-panel { margin-top: 16px; }
+.group-billing-receipt-text { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .group-billing-collect-bar { grid-template-columns: 1fr; }
+  .group-billing-actions .primary-button, .group-billing-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
+}

@@ -7,6 +7,7 @@ import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
+import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -415,8 +416,17 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
     nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
     expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
-    cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date')
+    cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date'),
+    // SISP-7: feeder link — whose converter/switch feeds this customer, and
+    // which feeder zone (Side 1 to Side 4c) the drop belongs to. An unknown
+    // zone value coerces to '' rather than blocking an unrelated save.
+    upstreamCustomerId: cleanText(valueOrCurrent('upstreamCustomerId') ?? '', 100, 'Upstream customer'),
+    fiberZone: normalizeFiberZone(valueOrCurrent('fiberZone') ?? '')
   };
+  // SISP-7: a feeder link must point at a real customer, never at itself,
+  // and never close a cycle back to this customer.
+  const feederLinkError = validateUpstreamLink(state.customers, customerId, fields.upstreamCustomerId);
+  if (feederLinkError) throw new Error(feederLinkError);
   // Customer rename: only when the caller explicitly passes a name (the
   // profile header's Edit name editor and the profile form). The name is
   // the one field that may never be blanked — every list, bill and receipt
@@ -1655,7 +1665,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-4: installment plans merge by plan id (not a plain field fill):
     // a missing plan is adopted, and when both sides hold the same plan
     // the further-billed copy wins — plan progress only ever moves

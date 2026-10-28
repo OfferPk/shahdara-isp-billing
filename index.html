@@ -20102,6 +20102,28 @@
     </div>
   </dialog>
 
+  <!-- SISP-34: Void / Reverse Payment dialog. The original payment row is
+       never deleted — voiding marks it voided and rolls every ledger leg
+       back (balance, shop cash, Waada promise) with an audit record. -->
+  <dialog id="voidPaymentDialog" class="billing-modal void-payment-dialog" aria-labelledby="voidPaymentDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="voidPaymentDialogTitle">Void / Reverse Payment</h2>
+        <button id="voidPaymentCloseBtn" class="secondary-button" type="button" aria-label="Close void dialog">✕</button>
+      </header>
+      <div class="void-payment-body">
+        <p id="voidPaymentSummary" class="void-payment-summary"></p>
+        <p class="field-help">Voiding keeps the original payment in history and restores the customer's unpaid balance, removes it from shop unsettled cash, and restores a Waada promise it had cleared. A payment already handed over from a shop cannot be voided.</p>
+        <label class="field-label full" for="voidPaymentReasonInput">Void reason <span class="optional-label">Required — kept in the void audit</span></label>
+        <textarea id="voidPaymentReasonInput" class="full" rows="2" maxlength="200" placeholder="e.g. entered twice, wrong amount, wrong customer" required></textarea>
+      </div>
+      <div class="billing-modal-footer">
+        <button id="voidPaymentCancelBtn" class="secondary-button" type="button">Cancel</button>
+        <button id="voidPaymentConfirmBtn" class="primary-button" type="button">Void payment</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- Area-Wise Collections & Recovery Performance Modal Dialog -->
   <dialog id="areaCollectionsModal" class="billing-modal area-collections-modal" aria-labelledby="areaCollectionsModalTitle">
     <div class="billing-modal-content">

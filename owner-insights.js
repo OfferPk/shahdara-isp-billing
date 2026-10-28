@@ -442,7 +442,7 @@ export function answerOwnerCommand(state, query, referenceDate = new Date()) {
   };
   const balanceRow = customer => {
     const rows = entries.filter(row => row.customer.id === customer.id && row.due !== null), selected = rows.find(row => row.bill.month === month), selectedBill = (customer.bills ?? []).find(row => row.month === month);
-    const actualPaid = (selectedBill?.payments ?? []).reduce((sum, payment) => sum + cents(payment.amount), 0), credit = allocations.forMonth(customer.id, month)?.creditAppliedCents ?? 0;
+    const actualPaid = (selectedBill?.payments ?? []).filter((payment) => payment?.voided !== true).reduce((sum, payment) => sum + cents(payment.amount), 0), credit = allocations.forMonth(customer.id, month)?.creditAppliedCents ?? 0;
     return { customerId:customer.id, customerNumber:customer.customerNumber, name:customer.name, package:customer.packageSpeed || 'Not recorded', month, bill:selected ? amount(selected.due) : null, paid:amount(actualPaid), creditApplied:amount(credit), remaining:selected ? amount(selected.balance) : 0, totalOutstanding:amount(rows.reduce((sum, row) => sum + row.balance, 0)) };
   };
 
@@ -601,7 +601,7 @@ export function answerOwnerCommand(state, query, referenceDate = new Date()) {
   }
 
   if (pendingIntent) {
-    const rows = pending.map(row => ({ customerId:row.customer.id, customerNumber:row.customer.customerNumber, name:row.customer.name, package:row.customer.packageSpeed || 'Not recorded', bill:amount(row.due), paid:amount((row.bill.payments ?? []).reduce((sum, payment) => sum + cents(payment.amount), 0)), remaining:amount(row.balance), dueDate:row.bill.dueDate ?? null }));
+    const rows = pending.map(row => ({ customerId:row.customer.id, customerNumber:row.customer.customerNumber, name:row.customer.name, package:row.customer.packageSpeed || 'Not recorded', bill:amount(row.due), paid:amount((row.bill.payments ?? []).filter((payment) => payment?.voided !== true).reduce((sum, payment) => sum + cents(payment.amount), 0)), remaining:amount(row.balance), dueDate:row.bill.dueDate ?? null }));
     return { intent:'pending-list', month, rows, pendingTotal:amount(rows.reduce((sum, row) => sum + cents(row.remaining), 0)) };
   }
   if (profitIntent) {
@@ -856,7 +856,7 @@ export function buildAreaBreakdowns(state, referenceDate = new Date(), allocatio
       pricedBillCount++;
       const dueCents = cents(bill.dueAmount);
       const balanceCents = Math.max(0, allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? dueCents);
-      const collectedCents = (bill.payments ?? []).filter(payment => Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0).reduce((sum, payment) => sum + cents(payment.amount), 0);
+      const collectedCents = (bill.payments ?? []).filter((payment) => payment?.voided !== true).filter(payment => Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0).reduce((sum, payment) => sum + cents(payment.amount), 0);
       const pkg = recordedPackageForMonth(customer, bill, bill.month) ?? 'Package not recorded';
       const overdue = /^\d{4}-\d{2}-\d{2}$/.test(bill.dueDate ?? '') && bill.dueDate < asOf && balanceCents > 0;
       for (const [map, key] of [[groups.area, area], [groups.zone, zone], [groups.package, pkg]]) {

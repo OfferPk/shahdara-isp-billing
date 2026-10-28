@@ -181,7 +181,8 @@ export function paginateRows(items, page = 1, pageSize = 15) {
  * @returns {{ count: number, totalAmount: number, averageAmount: number, methodCounts: Record<string, number> }}
  */
 export function calculateTransactionSummary(transactions) {
-  const list = Array.isArray(transactions) ? transactions : [];
+  // SISP-34: voided rows are history, not collected cash.
+  const list = (Array.isArray(transactions) ? transactions : []).filter((tx) => tx?.voided !== true);
   const count = list.length;
   const totalAmount = list.reduce((sum, tx) => sum + (Number(tx.amount) || 0), 0);
   const averageAmount = count > 0 ? Math.round(totalAmount / count) : 0;

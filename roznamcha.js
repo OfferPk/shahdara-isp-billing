@@ -203,6 +203,8 @@ export function collectDirectCashPayments(state, date) {
     for (const bill of bills) {
       const list = Array.isArray(bill?.payments) ? bill.payments : [];
       for (const payment of list) {
+        // SISP-34: voided cash is not drawer cash anymore.
+        if (payment?.voided === true) continue;
         if (payment?.date === date && payment?.method === 'Cash') {
           const amount = moneyValue(payment.amount);
           if (amount > 0) {

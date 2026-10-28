@@ -19,6 +19,7 @@ import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanit
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
+import { sanitizeVoidPayments } from './payment-void-audit.js';
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
@@ -757,6 +758,9 @@ export function calculateMethodCollectionTotals(state, month = null) {
     for (const bill of (customer.bills ?? [])) {
       if (month && bill.month !== month) continue;
       for (const payment of (bill.payments ?? [])) {
+        // SISP-34: voided payments are not receipts anymore — they never
+        // count toward method/cash/digital collection totals.
+        if (payment?.voided === true) continue;
         if (month && typeof payment.date === 'string' && payment.date.slice(0, 7) !== month) continue;
         const amt = Number(payment.amount) || 0;
         const method = String(payment.method || 'Cash').trim();
@@ -846,9 +850,21 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
     }, 0);
     if (pricedBillSeen && outstandingCents <= 0) {
       const cleared = { ...updated };
+      // SISP-34: stamp the cleared promise onto the payment that cleared
+      // it, so voiding that payment later can restore exactly this
+      // promise (and nothing else). The stamp is data, not behavior.
+      const stamp = {
+        promiseDate: updated.promiseDate,
+        promiseAmount: updated.promiseAmount ?? null,
+        promiseNote: updated.promiseNote ?? ''
+      };
       delete cleared.promiseDate;
       delete cleared.promiseAmount;
       delete cleared.promiseNote;
+      cleared.bills = (cleared.bills ?? []).map(b => b.month !== month ? b : {
+        ...b,
+        payments: (b.payments ?? []).map(p => p.id === payment.id ? { ...p, clearedWaada: stamp } : p)
+      });
       return { ...nextState, customers: nextState.customers.map(c => c.id !== customerId ? c : cleared) };
     }
   }
@@ -860,6 +876,9 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   const bill = customer.bills.find(b => b.month === month);
   const existingPayment = bill?.payments.find(p => p.id === paymentId);
   if (!existingPayment) throw new Error('Payment not found.');
+  // SISP-34: a voided receipt is frozen history — correcting it would
+  // silently drop the voided flag and un-void it.
+  if (existingPayment.voided === true) throw new Error('Cannot correct a voided payment. Voided receipts are kept as history.');
   const mergedFields = {
     ...fields,
     discount: fields.discount !== undefined ? fields.discount : existingPayment.discount,
@@ -877,6 +896,8 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
   if (!bill?.payments.some(payment => payment.id === paymentId)) throw new Error('Payment not found.');
+  // SISP-34: deleting a voided row would erase the void audit trail.
+  if (bill.payments.find(payment => payment.id === paymentId)?.voided === true) throw new Error('Cannot delete a voided payment. Voided receipts are kept as history.');
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
     ...c,
     bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.filter(payment => payment.id !== paymentId) })
@@ -1133,7 +1154,8 @@ export function removeConcessionFromBill(state, customerId, month, { reason = 'O
 }
 
 export function recordedAmount(bill) {
-  return (bill?.payments ?? []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+  // SISP-34: voided payments are kept as history but are not receipts.
+  return (bill?.payments ?? []).filter((p) => p?.voided !== true).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
 
 /**
@@ -1149,6 +1171,8 @@ export function summarizeCustomerReceipts(customer) {
   for (const bill of Array.isArray(customer?.bills) ? customer.bills : []) {
     for (const payment of Array.isArray(bill?.payments) ? bill.payments : []) {
       if (!payment || typeof payment !== 'object') continue;
+      // SISP-34: voided receipts are history, not cash — never counted.
+      if (payment.voided === true) continue;
       const paymentId = typeof payment.id === 'string' ? payment.id.trim() : '';
       if (paymentId && seenPaymentIds.has(paymentId)) continue;
       let date;
@@ -1300,7 +1324,7 @@ export function calculatePaymentAllocations(state) {
       const key = monthAllocationKey(customer.id, bill.month);
       const summary = { customerId:customer.id, month:bill.month, billAmountCents:null, baseAmountCents:null, lateFeeCents:0, shiftingFeeCents:0, actualReceiptsCents:0, discountAppliedCents:0, sameMonthAppliedCents:0, creditAppliedCents:0, creditSources:[], balanceDueCents:null, excessGeneratedCents:0, creditForwardedCents:0, pendingCreditCents:0 };
       byCustomerMonth.set(key, summary);
-      const payments = [...(bill.payments ?? [])].sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+      const payments = [...(bill.payments ?? [])].filter((p) => p?.voided !== true).sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
       summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + moneyCents(payment.amount), 0);
       const amount = bill.dueAmount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) {
@@ -1402,6 +1426,8 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
   return state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).map(payment => ({
     id: payment.id,
     paymentId: payment.id,
+    // SISP-34: voided rows stay listed as history; totals skip them.
+    voided: payment.voided === true,
     customerId: customer.id,
     customerNumber: customer.customerNumber,
     customerName: customer.name,
@@ -2046,6 +2072,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizePartnerSettlements(options.partnerSettlements);
     if (cleaned.length) document.settings = { ...(document.settings || {}), partnerSettlements: cleaned };
   }
+  // SISP-34: voided payment records live outside the ledger state
+  // (localStorage key sisp_voided_payments_v1), so they travel in an
+  // optional `settings.voidPayments` section. Written only when at least
+  // one void exists; readers that predate it ignore the unknown field.
+  // Placed BEFORE the checksum stamp so the checksum covers it.
+  if (options && typeof options === 'object' && Array.isArray(options.voidPayments) && options.voidPayments.length) {
+    const cleaned = sanitizeVoidPayments(options.voidPayments);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), voidPayments: cleaned };
+  }
   document.checksum = computeBackupChecksum(document);  return JSON.stringify(document, null, 2);}
 
 /**
@@ -2074,7 +2109,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -2604,6 +2639,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Partner settlement records differ from this device' });
     }
   }
+  // SISP-34: optional voided payment records section (see
+  // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
+  // the backup's records only when this device has none stored yet;
+  // when both sides hold different real records, keep existing + conflict.
+  let voidPayments = null;
+  const rawIncomingVoids = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.voidPayments
+    : undefined;
+  if (Array.isArray(rawIncomingVoids) && rawIncomingVoids.length) {
+    const incomingVoids = sanitizeVoidPayments(rawIncomingVoids);
+    const currentVoids = (options && typeof options === 'object' && Array.isArray(options.currentVoidPayments))
+      ? sanitizeVoidPayments(options.currentVoidPayments)
+      : [];
+    if (incomingVoids.length && sameJson(incomingVoids, currentVoids)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingVoids.length && (!options?.currentVoidPaymentsStored || currentVoids.length === 0)) {
+      voidPayments = incomingVoids;
+      counts.voidPaymentsRestored = 1;
+      counts.changes++;
+    } else if (incomingVoids.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Voided payment records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, homeBudget, waTemplates, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
 }

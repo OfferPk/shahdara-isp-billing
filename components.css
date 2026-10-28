@@ -820,6 +820,11 @@ body.field-mode-open { overflow: hidden; }
 .wallet-ledger-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
 .wallet-ledger-badge.verified { background: var(--green); color: var(--color-neutral-0); }
 .wallet-ledger-badge.pending { background: var(--color-overdue); color: var(--color-neutral-0); }
+/* SISP-34: VOID badge on voided payment rows. Token-only, same pair as the
+   wallet pending badge, so it stays readable in light and dark mode. */
+.void-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-overdue); color: var(--color-neutral-0); white-space: nowrap; }
+.void-payment { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.void-payment:hover { text-decoration: underline; }
 .wallet-ledger-dup { border-color: var(--color-overdue); }
 .wallet-ledger-dup ul { margin: 6px 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
 .wallet-ledger-note, .wallet-ledger-empty, .wallet-ledger-summary-line { color: var(--muted); font-size: 13px; }

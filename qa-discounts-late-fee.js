@@ -322,7 +322,7 @@ export function findOverdueBillsWithLateFeeStatus(state, {
       });
 
       // Calculate total discounts recorded on this bill
-      const billDiscounts = (bill.payments ?? []).reduce((sum, p) => sum + (Number(p.discount) || 0), 0);
+      const billDiscounts = (bill.payments ?? []).filter((p) => p?.voided !== true).reduce((sum, p) => sum + (Number(p.discount) || 0), 0);
       totalDiscountsGivenPkr += billDiscounts;
 
       if (evalResult.hasLateFee) {

@@ -55,6 +55,11 @@ export function buildPaymentReceipt(customer, bill, payment) {
   const speedMatch = packageLabel.match(/\b(\d+(?:\.\d+)?)\s*Mbps\b/i);
   const billDue = positiveAmount(bill.dueAmount);
   const lateFee = positiveAmount(bill.lateFee) || 0;
+  // SISP-30: an applied outage concession reduces what this receipt settles.
+  // The bill amount itself is untouched; the concession is subtracted here so
+  // the balance (and the PAID / PARTIAL seal) reflect the net due.
+  const concessionAmount = positiveAmount(bill.concessionAmount) || 0;
+  const concessionReason = text(bill.concessionReason);
   const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
   const packageType = packageSnapshot?.packageType ?? classifyPackagePrice(nominalPrice);
   const customerBills = Array.isArray(customer.bills) ? customer.bills : [];
@@ -66,7 +71,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
   let status = 'RECEIVED';
   let balanceDueCents = null;
   if (billDue !== null && selectedIndex >= 0) {
-    const dueCents = cents(billDue) + cents(lateFee);
+    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount));
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
@@ -116,6 +121,8 @@ export function buildPaymentReceipt(customer, bill, payment) {
     nominalPrice,
     lateFee,
     lateFeeReason: text(bill.lateFeeReason),
+    concessionAmount,
+    concessionReason,
     totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee,
     discount: positiveAmount(payment.discount) || 0,
     discountReason: text(payment.discountReason),
@@ -210,6 +217,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
+    ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
@@ -244,6 +252,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Monthly Fee / ماہانہ واجبات:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
+    ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
@@ -276,6 +285,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Nominal Package Price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
     ...(receipt.lateFee > 0 ? [['Late Fee Surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),
+    ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.discount > 0 ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
     ...(receipt.arrearsBreakdown ? [
       ['Mahana Package / ماہانہ پیکیج', formatAmount(receipt.arrearsBreakdown.packageAmount)],

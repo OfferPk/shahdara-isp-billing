@@ -1050,6 +1050,80 @@ export function recordCustomerRelocation(state, customerId, input = {}, referenc
   };
 }
 
+
+// SISP-30: Outage concession (Reaayat). Mirrors the late-fee shape: the bill
+// amount itself is never rewritten — the concession rides as audited bill
+// fields (concessionAmount + concessionReason + concessionAppliedAt) plus an
+// amountHistory entry, and presentation layers subtract it from the net due.
+// Dispute Guard: applying SETS the amount (never adds, so re-applying cannot
+// stack) and clamps it to the bill's gross amount (dueAmount + lateFee), so
+// a concession can never increase a due or drive it below zero.
+export function applyConcessionToBill(state, customerId, month, { amount = 0, reason = '' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  const gross = Number(bill.dueAmount) + Number(bill.lateFee || 0);
+  if (!Number.isFinite(gross) || gross <= 0) throw new Error('Cannot apply an outage concession to an unpriced bill.');
+  const requested = Number(amount);
+  if (!Number.isFinite(requested) || requested <= 0) throw new Error('Concession amount must be a positive number.');
+  const cleanAmount = Math.min(Math.round(requested * 100) / 100, Math.round(gross * 100) / 100);
+  const cleanReason = String(reason || 'Outage Reaayat').trim() || 'Outage Reaayat';
+  const amountHistory = [...(bill.amountHistory ?? [])];
+  amountHistory.push({
+    changedAt: localDateTimeValue(referenceDate),
+    type: 'concession_applied',
+    previousConcession: bill.concessionAmount ?? 0,
+    concession: cleanAmount,
+    note: cleanReason
+  });
+  const updatedBill = {
+    ...bill,
+    concessionAmount: cleanAmount,
+    concessionReason: cleanReason,
+    concessionAppliedAt: localDateTimeValue(referenceDate),
+    amountHistory
+  };
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      bills: c.bills.map(b => b.month !== month ? b : updatedBill)
+    })
+  };
+}
+
+export function removeConcessionFromBill(state, customerId, month, { reason = 'Outage concession removed by owner' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  if (!bill.concessionAmount) return state;
+  const cleanReason = String(reason || 'Outage concession removed by owner').trim();
+  const amountHistory = [...(bill.amountHistory ?? [])];
+  amountHistory.push({
+    changedAt: localDateTimeValue(referenceDate),
+    type: 'concession_removed',
+    previousConcession: bill.concessionAmount,
+    concession: 0,
+    note: cleanReason
+  });
+  const updatedBill = {
+    ...bill,
+    concessionAmount: 0,
+    concessionReason: cleanReason,
+    concessionAppliedAt: null,
+    amountHistory
+  };
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      bills: c.bills.map(b => b.month !== month ? b : updatedBill)
+    })
+  };
+}
+
 export function recordedAmount(bill) {
   return (bill?.payments ?? []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
@@ -2077,7 +2151,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }

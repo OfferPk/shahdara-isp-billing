@@ -434,6 +434,15 @@
 
           </div>
         </article>
+        <article class="summary-card summary-inventory-book">
+          <p class="summary-label">📦 Stock Book</p>
+          <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
+          <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
+          <div id="inventoryBookSummary" class="inventory-book-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button">📦 Stock Book</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -20562,6 +20571,41 @@
         </div>
         <button id="roznamchaCopySummaryBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Summary copy karein (WhatsApp)</button>
 
+      </div>
+    </div>
+  </dialog>
+  <dialog id="inventoryBookModal" class="billing-modal inventory-book-modal" aria-labelledby="inventoryBookModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="inventoryBookModalTitle">📦 Stock Book</h2>
+        <button id="inventoryBookCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="inventory-book-intro">Bulk stock in and field usage out, kept offline. Available stock is always the log total in minus total out — it can never drift from its own entries.</p>
+        <p id="inventoryBookSummaryLine" class="inventory-book-summary-line"></p>
+        <h3>Available stock</h3>
+        <div id="inventoryBookStockList" class="inventory-book-stock-list"></div>
+        <h3>Record stock in / out</h3>
+        <form id="inventoryBookForm" class="inventory-book-form">
+          <label for="inventoryBookItem">Item</label>
+          <select id="inventoryBookItem" class="form-input" aria-label="Stock item"></select>
+          <label for="inventoryBookKind">Movement</label>
+          <select id="inventoryBookKind" class="form-input" aria-label="Movement type">
+            <option value="in">Stock In (Purchase)</option>
+            <option value="out">Stock Out (Used / Assigned)</option>
+          </select>
+          <label for="inventoryBookQty">Quantity</label>
+          <input id="inventoryBookQty" class="form-input" type="number" min="0" step="any" required aria-label="Quantity">
+          <label for="inventoryBookDate">Date</label>
+          <input id="inventoryBookDate" class="form-input" type="date" required aria-label="Movement date">
+          <label for="inventoryBookCustomer">Customer (for stock out)</label>
+          <input id="inventoryBookCustomer" class="form-input" type="text" aria-label="Customer name">
+          <label for="inventoryBookNote">Note</label>
+          <input id="inventoryBookNote" class="form-input" type="text" aria-label="Note">
+          <button class="action-btn-sm daily-slip-btn" type="submit">Record movement</button>
+        </form>
+        <h3>Movement log</h3>
+        <div id="inventoryBookLogList" class="inventory-book-log-list"></div>
       </div>
     </div>
   </dialog>

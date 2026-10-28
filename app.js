@@ -16,6 +16,7 @@ import {
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla
 } from './phase3.js?v=1.11.0';
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
+import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.11.0';
 import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.11.0';
@@ -523,6 +524,19 @@ function checkMonthlyBilling() {
 }
 function renderDashboard() {
   const referenceDate = new Date();
+  // SISP-27: upstream bandwidth bill due banner.
+  const overheadBannerEl = $('#overheadsDueBanner');
+  if (overheadBannerEl) {
+    const dueStatus = bandwidthDueStatus(state, loadOverheads(), referenceDate);
+    if (dueStatus.due) {
+      overheadBannerEl.hidden = false;
+      overheadBannerEl.innerHTML = `<span>\u26a1 Upstream bandwidth bill not yet paid for ${escapeHtml(monthName(dueStatus.month))} — post it before the month closes so profit and partner shares stay true.</span><button id="overheadsDueBannerBtn" class="secondary-button" type="button">Post overhead</button>`;
+      $('#overheadsDueBannerBtn')?.addEventListener('click', () => { expenseActiveTab = 'overheads'; switchView('expenses'); syncExpenseTabs(); renderOverheads(); });
+    } else {
+      overheadBannerEl.hidden = true;
+      overheadBannerEl.innerHTML = '';
+    }
+  }
   const totals = calculateDashboard(state, referenceDate);
   const currentCash = buildMonthlyClosingSnapshot(state, totals.currentMonth, referenceDate);
   const retainedMonths = new Set(monthsForHistory(referenceDate));
@@ -2290,7 +2304,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), waTemplates: getStoredWaTemplates() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), waTemplates: getStoredWaTemplates() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -2307,6 +2321,7 @@ function backupRestoreOptions() {
   let partnerSettlementsStored = false;
   let homeBudgetStored = false;
   let loansStored = false;
+  let overheadsStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
@@ -2321,9 +2336,10 @@ function backupRestoreOptions() {
   try { partnerSettlementsStored = localStorage.getItem(PARTNER_SETTLEMENTS_KEY) !== null; } catch { partnerSettlementsStored = false; }
   try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
   try { loansStored = localStorage.getItem(LOAN_KEY) !== null; } catch { loansStored = false; }
+  try { overheadsStored = localStorage.getItem(OVERHEAD_KEY) !== null; } catch { overheadsStored = false; }
   let waTemplatesStored = false;
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -2875,6 +2891,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.partnerSettlements) {
       savePartnerSettlements(pendingBackupPreview.partnerSettlements);
+    }
+    if (pendingBackupPreview.overheads) {
+      saveOverheads(pendingBackupPreview.overheads);
     }    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
@@ -5389,8 +5408,8 @@ let nasirShareMonth = '';
 let aqibShareMonth = '';
 
 function syncExpenseTabs() {
-  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement' };
-  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel' };
+  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement', overheads: '#expenseTabOverheads' };
+  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel', overheads: '#overheadsPanel' };
   for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === expenseActiveTab)); }
   for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== expenseActiveTab; }
 }
@@ -5523,6 +5542,91 @@ function renderPartnerSettlement() {
    Templates live under sisp_wa_templates_v1 (never in the business ledger).
    The campaign steps unpaid customers one by one; Send & Next opens the
    WhatsApp draft and only then stamps lastRemindedAt on the customer. */
+let overheadsMonth = '';
+function renderOverheads() {
+  const monthSelect = $('#overheadsMonth');
+  const host = $('#overheadsTemplates');
+  const postingsHost = $('#overheadsPostings');
+  const summaryHost = $('#overheadsShareSummary');
+  const statusEl = $('#overheadsStatus');
+  if (!monthSelect || !host) return;
+  const report = buildPartnerShareReport(state, overheadsMonth, new Date());
+  overheadsMonth = report.month;
+  const monthsKey = report.months.join(',');
+  if (monthSelect.dataset.months !== monthsKey) {
+    monthSelect.innerHTML = report.months.map(month => `<option value="${escapeHtml(month)}">${escapeHtml(monthName(month))}</option>`).join('');
+    monthSelect.dataset.months = monthsKey;
+  }
+  monthSelect.value = report.month;
+  const data = loadOverheads();
+  const templates = resolveOverheadTemplates(data);
+  const todayPkt = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+  const defaultDate = report.month === todayPkt.slice(0, 7) ? todayPkt : `${report.month}-01`;
+  host.innerHTML = templates.map(template => {
+    const live = overheadPostingFor(data, state, template.id, report.month);
+    const amountValue = template.defaultAmount === null || template.defaultAmount === undefined ? '' : template.defaultAmount;
+    return `<div class="overheads-template-row"><div class="overheads-template-info"><strong>${escapeHtml(template.label)}</strong><small>Posts as ${escapeHtml(template.category)}</small>${live ? `<small class="overheads-posted">Posted \u2713 ${escapeHtml(formatAmount(live.amount))} on ${escapeHtml(live.date)}</small>` : ''}</div>`
+      + `<label>Amount (PKR)<input type="number" min="0.01" step="0.01" inputmode="decimal" data-overhead-amount="${escapeHtml(template.id)}" value="${escapeHtml(String(amountValue))}" placeholder="Enter actual amount"></label>`
+      + `<label>Date (PKT)<input type="date" data-overhead-date="${escapeHtml(template.id)}" value="${escapeHtml(defaultDate)}"></label>`
+      + `<button class="primary-button" type="button" data-overhead-post="${escapeHtml(template.id)}" ${live ? 'disabled' : ''}>${live ? 'Posted' : 'Post to expense ledger'}</button></div>`;
+  }).join('');
+  host.querySelectorAll('[data-overhead-post]').forEach(button => button.addEventListener('click', () => {
+    const templateId = button.dataset.overheadPost;
+    const amountInput = host.querySelector(`[data-overhead-amount="${templateId}"]`);
+    const dateInput = host.querySelector(`[data-overhead-date="${templateId}"]`);
+    try {
+      const result = postOverhead(state, loadOverheads(), templateId, { amount: amountInput?.value, date: dateInput?.value });
+      state = result.state;
+      save();
+      saveOverheads(result.overheads);
+      renderOverheads();
+      renderDashboard();
+      toast('Overhead posted to the expense ledger on this device.');
+    } catch (error) { toast(error.message); }
+  }));
+  const saveDefaultsBtn = $('#overheadsSaveDefaultsBtn');
+  if (saveDefaultsBtn && !saveDefaultsBtn.dataset.wired) {
+    saveDefaultsBtn.dataset.wired = 'true';
+    saveDefaultsBtn.addEventListener('click', () => {
+      try {
+        let next = loadOverheads();
+        host.querySelectorAll('[data-overhead-amount]').forEach(input => {
+          const templateId = input.dataset.overheadAmount;
+          next = updateOverheadDefault(next, templateId, input.value === '' ? null : input.value);
+        });
+        saveOverheads(next);
+        toast('Default overhead amounts saved on this device.');
+        renderOverheads();
+      } catch (error) { toast(error.message); }
+    });
+  }
+  const expenseIds = new Set((state.expenses ?? []).map(row => row.id));
+  const postings = [...data.postings].sort((a, b) => b.date.localeCompare(a.date) || b.month.localeCompare(a.month));
+  if (postingsHost) {
+    postingsHost.innerHTML = postings.length === 0 ? '' : postings.map(posting => {
+      const template = templates.find(row => row.id === posting.templateId);
+      const stale = !expenseIds.has(posting.expenseId);
+      return `<div class="overheads-posting-row"><strong>${escapeHtml(template?.label ?? 'Unknown overhead')}</strong><span>${escapeHtml(monthName(posting.month))} · ${escapeHtml(formatAmount(posting.amount))} · ${escapeHtml(posting.date)}</span>${stale ? '<small class="overheads-stale">Expense deleted from the ledger — posting no longer counts</small>' : ''}${posting.note ? `<small>${escapeHtml(posting.note)}</small>` : ''}</div>`;
+    }).join('');
+  }
+  const postingsEmpty = $('#overheadsPostingsEmpty');
+  if (postingsEmpty) postingsEmpty.hidden = postings.length > 0;
+  if (summaryHost) {
+    const s = report.summary;
+    summaryHost.innerHTML = `<article class="phase3-metric"><span>Revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(s.revenue))}</strong><small>${s.receiptCount} receipt${s.receiptCount === 1 ? '' : 's'}</small></article>`
+      + `<article class="phase3-metric"><span>Expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(s.expenses))}</strong><small>${s.expenseCount} recorded entr${s.expenseCount === 1 ? 'y' : 'ies'} · every category</small></article>`
+      + `<article class="phase3-metric"><span>${s.profit >= 0 ? 'Profit' : 'Loss'}</span><strong>${escapeHtml(formatAmount(s.profit))}</strong><small>Revenue \u2212 expenses</small></article>`
+      + `<article class="phase3-metric"><span>Nasir share (50%)</span><strong>${escapeHtml(formatAmount(s.share))}</strong><small>${s.profit > 0 ? '50% of profit' : 'No share on a zero/loss month'}</small></article>`
+      + `<article class="phase3-metric"><span>Aqib share (50%)</span><strong>${escapeHtml(formatAmount(s.share))}</strong><small>${s.profit > 0 ? '50% of profit' : 'No share on a zero/loss month'}</small></article>`;
+  }
+  if (statusEl) {
+    const due = bandwidthDueStatus(state, data, new Date());
+    statusEl.textContent = due.due
+      ? `Upstream bandwidth bill for ${monthName(due.month)} is not yet paid — post it above so profit and partner shares stay true.`
+      : `Upstream bandwidth bill for ${monthName(due.month)} is paid${due.paidVia === 'expense' ? ' (recorded directly in the expense ledger)' : ''}.`;
+  }
+}
+
 let waStudioLang = {};
 let waCampaign = null;
 let waCampaignSent = 0;
@@ -5921,6 +6025,7 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   syncExpenseTabs();
   if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
   if (expenseActiveTab === 'settlement') renderPartnerSettlement();
+  if (expenseActiveTab === 'overheads') renderOverheads();
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses();renderHomeBudget(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
@@ -6355,10 +6460,11 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key!=='ledger')renderPartnerShare(key);});});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
+$('#overheadsMonth')?.addEventListener('change',event=>{overheadsMonth=event.currentTarget.value;renderOverheads();});
 $('#partnerLedgerForm')?.addEventListener('submit',event=>{
   event.preventDefault();
   try {

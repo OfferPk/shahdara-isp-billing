@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'shahdara-isp-billing-';
 // build.mjs rewrites CACHE_NAME (adds a content hash) and APP_FILES (every file in dist/) in dist/sw.js (#210).
-const CACHE_NAME = 'shahdara-isp-billing-v37-b1f011ab57';
-const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-OFQ3XHAA.js","./chunk-SL7UCT2X.js","./chunk-STOWRXPT.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./ui-feedback.js","./urdu-font.css"];
+const CACHE_NAME = 'shahdara-isp-billing-v37-f3204f9e54';
+const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-CEKX7TNY.js","./chunk-OFQ3XHAA.js","./chunk-SL7UCT2X.js","./chunk-STOWRXPT.js","./chunk-VGJWJN6P.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./ui-feedback.js","./urdu-font.css"];
 
 // Bypass the HTTP cache while precaching so a new worker never stores files from the previous deploy.
 const freshRequest = url => (typeof Request === 'function' ? new Request(url, { cache:'reload' }) : url);

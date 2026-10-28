@@ -24,7 +24,7 @@ import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePay
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
-import { customerHasMonthlyFee } from './nav-quick-collect.js';
+import { customerHasMonthlyFee, executeQuickCollection } from './nav-quick-collect.js';
 import { setupFieldMode } from './field-mode.js?v=1.11.0';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
@@ -157,6 +157,7 @@ import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, 
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
+import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -237,6 +238,7 @@ export let installTrackerModalController = null;
 export let pendingWorksModalController = null;
 export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
+export let groupBillingModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
@@ -728,6 +730,18 @@ function renderDashboard() {
     poleSummaryEl.innerHTML = poleSummary.mappedCount === 0
       ? ''
       : `<p><span>Mapped</span><strong>${poleSummary.mappedCount} of ${poleSummary.totalCustomers} customers</strong></p>`;
+  }
+  // SISP-35: group billing card — group count + live collectible total.
+  const groupBillingSummaryEl = $('#groupBillingSummary');
+  if (groupBillingSummaryEl) {
+    const groupSummary = billingGroupsSummary(loadBillingGroups(), state.customers, monthsForHistory(new Date())[0], calculatePaymentAllocations(state));
+    const groupValueEl = $('#dashboardGroupBillingValue');
+    const groupPeriodEl = $('#dashboardGroupBillingPeriod');
+    if (groupValueEl) groupValueEl.textContent = groupSummary.groupCount === 0 ? 'No groups yet' : formatAmount(groupSummary.totalDueCents / 100);
+    if (groupPeriodEl) groupPeriodEl.textContent = groupSummary.groupCount === 0 ? 'Family / landlord groups' : `${groupSummary.groupCount} group(s) · ${groupSummary.groupsWithDue} with dues`;
+    groupBillingSummaryEl.innerHTML = groupSummary.groupCount === 0
+      ? ''
+      : `<p><span>Collectible total</span><strong>${escapeHtml(formatAmount(groupSummary.totalDueCents / 100))}</strong></p>`;
   }
   // SISP-19: pending hardware recovery card (disconnected customers
   // holding unrecovered ISP-owned hardware).
@@ -2447,7 +2461,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -2460,6 +2474,7 @@ function backupRestoreOptions() {
   let saadPaymentsStored = false;
   let installRequestsStored = false;
   let pendingWorksStored = false;
+  let billingGroupsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
   let homeBudgetStored = false;
@@ -2473,6 +2488,7 @@ function backupRestoreOptions() {
   try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
   try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
+  try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
@@ -2484,7 +2500,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -3028,6 +3044,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.pendingWorks) {
       savePendingWorks(pendingBackupPreview.pendingWorks);
+    }
+    if (pendingBackupPreview.billingGroups) {
+      saveBillingGroups(pendingBackupPreview.billingGroups);
     }
     if (pendingBackupPreview.monthlyClosingNotes) {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
@@ -8978,6 +8997,31 @@ if (typeof document !== 'undefined') {
   // SISP-32: pole & landmark directory + zone lineman cheat-sheet.
   poleLandmarkModalController = setupPoleLandmarkModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
+  });
+  // SISP-35: group billing modal — collect reuses quick collection per
+  // member, then persists exactly like a single quick collection.
+  groupBillingModalController = setupGroupBillingModal(() => state, {
+    onGroupsChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts),
+    getAllocations: (liveState) => calculatePaymentAllocations(liveState),
+    currentMonth: () => monthsForHistory(new Date())[0],
+    onCollectGroup: (group, { date, method }) => {
+      const month = monthsForHistory(new Date())[0];
+      const result = collectGroupFull(state, group, {
+        date, method, month,
+        allocations: calculatePaymentAllocations(state),
+        execute: executeQuickCollection
+      });
+      if (result.collected) {
+        state = result.nextState;
+        save();
+        renderDetail();
+        renderTransactions();
+        renderMonthlyReport();
+      }
+      return { ...result, receipt: buildGroupReceipt({ ...result, date, method }) };
+    }
   });
   // SISP-19: pending hardware recovery modal (derived list, no new store).
   const hardwareRecoveryModal = $('#hardwareRecoveryModal');

@@ -136,6 +136,12 @@ export function readState(storage, key = STORAGE_KEY) {
         router:validDateOrNull(customer.hardwareRecovered?.router ?? null),
         mediaConverter:validDateOrNull(customer.hardwareRecovered?.mediaConverter ?? null)
       },
+      // SISP-24: optical splitter assignment + last RX reading — old saves
+      // without them load as empty / null, never as invented data.
+      splitterBoxId:typeof customer.splitterBoxId === 'string' ? customer.splitterBoxId.trim().slice(0, 100) : '',
+      splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
+      oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
+      lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
       expiryDate:validDateOrNull(customer.expiryDate),
       cancellationDate:validDateOrNull(customer.cancellationDate),
       packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
@@ -266,6 +272,11 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const mediaConverterOwnership = checkCustodyOwnership(options.mediaConverterOwnership);
   const serialNumber = cleanText(options.serialNumber, 100, 'Serial / MAC number');
   const securityDeposit = checkCost(options.securityDeposit);
+  // SISP-24: optical splitter assignment + last RX reading (all optional).
+  const splitterBoxId = cleanText(options.splitterBoxId, 100, 'Splitter box');
+  const splitterPort = checkSplitterPort(options.splitterPort);
+  const oltPonPort = cleanText(options.oltPonPort, 100, 'PON port');
+  const lastRxDbm = checkRxDbm(options.lastRxDbm);
   const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
   const pppoeUsername = cleanText(options.pppoeUsername, 100, 'PPPoE username');
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
@@ -274,7 +285,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -417,6 +428,20 @@ function checkFiberMeters(value) {
   if (!Number.isFinite(number) || number < 0) throw new Error('Fiber wire used cannot be negative.');
   return Math.round(number * 10) / 10;
 }
+// SISP-24: splitter port is a 1-based PLC port (1:8 or 1:16 box).
+function checkSplitterPort(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1 || number > 16) throw new Error('Splitter port must be between 1 and 16.');
+  return number;
+}
+// SISP-24: optical RX power in dBm (negative; -26.0 dBm is the weak-signal line).
+function checkRxDbm(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < -60 || number > 10) throw new Error('Optical RX signal must be between -60 and 10 dBm.');
+  return Math.round(number * 10) / 10;
+}
 function checkServiceStatus(value) {
   if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
   return value;
@@ -465,6 +490,12 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true),
     connectionDate: checkOptionalDate(valueOrCurrent('connectionDate'), 'Connection date'),
     connectionFee: checkCost(valueOrCurrent('connectionFee')),
+    // SISP-24: optical splitter assignment + last RX reading (optional;
+    // absent on pre-SISP-24 records, which read back as empty / null).
+    splitterBoxId: cleanText(valueOrCurrent('splitterBoxId') ?? '', 100, 'Splitter box'),
+    splitterPort: checkSplitterPort(valueOrCurrent('splitterPort')),
+    oltPonPort: cleanText(valueOrCurrent('oltPonPort') ?? '', 100, 'OLT PON port'),
+    lastRxDbm: checkRxDbm(valueOrCurrent('lastRxDbm')),
     routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
     routerPrice: checkCost(valueOrCurrent('routerPrice')),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),

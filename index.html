@@ -416,6 +416,16 @@
           </div>
         </article>
 
+        <article class="summary-card summary-splitter-map">
+          <p class="summary-label">🔌 Splitter Port Map</p>
+          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
+          <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
+          <div id="splitterMapSummary" class="splitter-map-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔌 Splitter Port Map</button>
+          </div>
+        </article>
+
         <article class="summary-card summary-monthly-complaint-report">
           <p class="summary-label">📋 Monthly Complaint Report</p>
           <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
@@ -6745,6 +6755,10 @@
                 <label class="profile-field" for="routerModelInput"><span class="field-label">Router installed <span class="optional-label">Optional · model given to the customer</span></span><input id="routerModelInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="routerPriceInput"><span class="field-label">Router price (PKR) <span class="optional-label">Optional</span></span><input id="routerPriceInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="fiberMetersInput"><span class="field-label">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></span><input id="fiberMetersInput" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="splitterBoxIdInput"><span class="field-label">Splitter box <span class="optional-label">Optional · e.g. SPL-Barrian-02</span></span><input id="splitterBoxIdInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="splitterPortInput"><span class="field-label">Splitter port <span class="optional-label">Optional · 1–16</span></span><input id="splitterPortInput" type="number" min="1" max="16" step="1" inputmode="numeric" placeholder="Not set"></label>
+                <label class="profile-field" for="oltPonPortInput"><span class="field-label">PON port <span class="optional-label">Optional · e.g. PON 1/2/3</span></span><input id="oltPonPortInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="lastRxDbmInput"><span class="field-label">Last RX signal (dBm) <span class="optional-label">Optional · below −26.0 flags weak signal</span></span><input id="lastRxDbmInput" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="pppoeUsernameInput"><span class="field-label">PPPoE username <span class="optional-label">Optional · for the MikroTik RouterOS script</span></span><input id="pppoeUsernameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="pppoePasswordInput"><span class="field-label">PPPoE password <span class="optional-label">Optional · shown only inside the copyable RouterOS script</span></span><input id="pppoePasswordInput" type="password" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="staticIpInput"><span class="field-label">Static IP <span class="optional-label">Optional · queue target for the RouterOS script</span></span><input id="staticIpInput" type="text" maxlength="45" autocomplete="off" placeholder="Not set"></label>
@@ -7249,6 +7263,14 @@
         <input id="newCustomerRouterPrice" name="routerPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter only if charged">
         <label class="field-label" for="newCustomerFiberMeters">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></label>
         <input id="newCustomerFiberMeters" name="fiberMeters" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 85">
+        <label class="field-label" for="newCustomerSplitterBox">Splitter box <span class="optional-label">Optional · e.g. SPL-Barrian-02</span></label>
+        <input id="newCustomerSplitterBox" name="splitterBoxId" type="text" maxlength="100" autocomplete="off" placeholder="e.g. SPL-Barrian-02">
+        <label class="field-label" for="newCustomerSplitterPort">Splitter port <span class="optional-label">Optional · 1–16</span></label>
+        <input id="newCustomerSplitterPort" name="splitterPort" type="number" min="1" max="16" step="1" inputmode="numeric" placeholder="e.g. 4">
+        <label class="field-label" for="newCustomerOltPonPort">PON port <span class="optional-label">Optional · e.g. PON 1/2/3</span></label>
+        <input id="newCustomerOltPonPort" name="oltPonPort" type="text" maxlength="100" autocomplete="off" placeholder="e.g. PON 1/2/3">
+        <label class="field-label" for="newCustomerLastRxDbm">Last RX signal (dBm) <span class="optional-label">Optional · below −26.0 flags weak signal</span></label>
+        <input id="newCustomerLastRxDbm" name="lastRxDbm" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="e.g. -19.4">
         <label class="field-label" for="newCustomerServiceStatus">Service status <span class="optional-label">Manual · change it any time in the profile</span></label>
         <select id="newCustomerServiceStatus" name="serviceStatus"><option value="active" selected>Active · connected</option><option value="offline">Offline</option><option value="not-set">Not set</option></select>
         <div id="addCustomerError" class="form-error" role="alert" hidden></div>
@@ -20611,6 +20633,25 @@
         <div id="downtimeAnalyticsCauseList" class="downtime-analytics-cause-list"></div>
         <h3>Per-customer downtime</h3>
         <div id="downtimeAnalyticsCustomerList" class="downtime-analytics-customer-list"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="splitterMapModal" class="billing-modal splitter-map-modal" aria-labelledby="splitterMapModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="splitterMapModalTitle">🔌 Splitter Port Map</h2>
+        <button id="splitterMapCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="splitter-map-intro">Which street PLC splitter box and port feeds each customer, and whether their optical RX signal is healthy. Below −26.0 dBm flags a high-loss attenuation warning.</p>
+        <label for="splitterMapBoxSelect">Splitter box</label>
+        <select id="splitterMapBoxSelect" class="form-input" aria-label="Splitter box"></select>
+        <p id="splitterMapSummaryLine" class="splitter-map-summary-line"></p>
+        <h3>Port map</h3>
+        <div id="splitterMapGrid" class="splitter-map-grid-wrap"></div>
+        <h3>Weak signals — check attenuation</h3>
+        <div id="splitterMapWeakList" class="splitter-map-weak-list"></div>
       </div>
     </div>
   </dialog>

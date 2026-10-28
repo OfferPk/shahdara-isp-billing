@@ -120,6 +120,7 @@ import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
+import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
 import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
@@ -199,6 +200,7 @@ export let billingCycleModalController = null;
 export let complaintRegisterModalController = null;
 export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
+export let splitterMapModalController = null;
 export let monthlyComplaintReportModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
@@ -575,6 +577,18 @@ function renderDashboard() {
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
       : `<p><span>Top customer</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(String(analytics.areaOutageComplaints))} zone-wide faults · ${escapeHtml(String(analytics.areaOutageDowntime))} h</small></p>`;
+  }
+  // SISP-24: splitter port map card (boxes mapped, ports used, weak signals).
+  const splitterSummaryEl = $('#splitterMapSummary');
+  if (splitterSummaryEl) {
+    const overview = buildSplitterOverview(state.customers);
+    const splitterValueEl = $('#dashboardSplitterValue');
+    const splitterPeriodEl = $('#dashboardSplitterPeriod');
+    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? 'No splitter boxes' : `${overview.boxCount} box${overview.boxCount === 1 ? '' : 'es'} · ${overview.occupiedPorts} ports used`;
+    if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? 'Splitter box port map and RX signal health' : `${overview.freePorts} spare port${overview.freePorts === 1 ? '' : 's'}${overview.weakCount ? ` · ${overview.weakCount} weak signal${overview.weakCount === 1 ? '' : 's'}` : ' · no weak signals'}`;
+    splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
+      ? ''
+      : `<p><span>Weakest signal</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || 'Unnamed')} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} port ${escapeHtml(String(overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? ''))}</small></p>`;
   }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
   const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
@@ -1842,6 +1856,16 @@ function renderCustomerProfileView(customer) {
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
   const downtimeSectionHtml = `<section class="profile-downtime-section" aria-label="Downtime analytics"><h4>📉 Downtime analytics</h4><p>This month: <strong>${escapeHtml(String(downtimeMonth.complaintCount))} complaint${downtimeMonth.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeMonth.totalDowntime))} h offline</strong>${downtimeMonth.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeMonth.primaryIssueTag)}` : ''}</p><p>All time: <strong>${escapeHtml(String(downtimeAll.complaintCount))} complaint${downtimeAll.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeAll.totalDowntime))} h offline</strong>${downtimeAll.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeAll.primaryIssueTag)}` : ''}</p><button type="button" class="secondary-button" id="profileOpenDowntimeAnalyticsBtn">Open downtime analytics</button></section>`;
+  // SISP-24: profile optical section — splitter box, port, PON port and
+  // last RX reading, with a red high-loss badge below -26.0 dBm.
+  const opticalFields = normalizeOpticalFields(customer);
+  const opticalStatus = rxSignalStatus(opticalFields.lastRxDbm);
+  const opticalBadge = opticalStatus === 'weak'
+    ? '<span class="safety-badge badge-danger">High-loss · weak signal — check attenuation</span>'
+    : opticalStatus === 'healthy'
+      ? '<span class="safety-badge badge-healthy">Signal OK</span>'
+      : '';
+  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="Optical splitter"><h4>🔌 Optical splitter</h4><p>Splitter box: <strong>${escapeHtml(opticalFields.splitterBoxId || 'Not recorded')}</strong>${opticalFields.splitterPort !== null ? ` · port <strong>${opticalFields.splitterPort}</strong>` : ''}</p><p>PON port: <strong>${escapeHtml(opticalFields.oltPonPort || 'Not recorded')}</strong> · Last RX: <strong>${escapeHtml(formatRxDbm(opticalFields.lastRxDbm))}</strong> ${opticalBadge}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">Open splitter port map</button></section>`;
   // SISP-7: profile feeder section — upstream house, feeder zone, and how
   // many downstream subscribers lose internet if this house goes down.
   const feederFields = normalizeFeederFields(customer);
@@ -1873,8 +1897,7 @@ function renderCustomerProfileView(customer) {
   const custodyChecklist = disconnectionChecklist(customer);
   const custodyPending = custodyChecklist.filter(item => !item.recovered);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="Hardware custody"><h4>📦 Hardware Custody — Returnable Equipment</h4><p>Router ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.routerOwnership))}</strong> · Media converter / ONU ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.mediaConverterOwnership))}</strong></p><p>Serial / MAC number: <strong>${escapeHtml(custodyFields.serialNumber || 'Not recorded')}</strong> · Security deposit: <strong>${escapeHtml(formatAmount(custodyFields.securityDeposit))}</strong> · Installed fiber drop length: <strong>${escapeHtml(customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`)}</strong></p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? '<p class="profile-custody-note">No ISP-owned hardware recorded. Set ownership in Edit — on disconnection (archive), ISP-owned items appear in Pending Hardware Recovery.</p>' : '<p class="profile-custody-note">ISP-owned hardware is installed. On disconnection (archive), unrecovered items appear in Pending Hardware Recovery.</p>') : (custodyChecklist.length === 0 ? '<p class="profile-custody-note">Disconnected — no ISP-owned hardware to recover.</p>' : `<div class="profile-custody-checklist" role="group" aria-label="Disconnection recovery checklist"><p><strong>Disconnection recovery checklist</strong> — ISP-owned hardware to recover from this house:</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)}${item.recovered ? ` · <span class="custody-recovered">✅ Recovered ${escapeHtml(item.recoveredAt)}</span>` : ` · <span class="custody-pending">⏳ Pending recovery</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">Mark recovered</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? '<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">Mark all recovered</button>' : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}`;
-  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
     $('#customerProfileView').hidden = true;
@@ -1929,6 +1952,11 @@ function renderCustomerProfileView(customer) {
   const profileDowntimeBtn = $('#customerProfileView').querySelector('#profileOpenDowntimeAnalyticsBtn');
   if (profileDowntimeBtn) profileDowntimeBtn.addEventListener('click', () => {
     if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.open({ month: pakistanMonthNow() });
+  });
+  // SISP-24: profile button opens the splitter port map on this customer's box.
+  const profileSplitterBtn = $('#customerProfileView').querySelector('#profileOpenSplitterMapBtn');
+  if (profileSplitterBtn) profileSplitterBtn.addEventListener('click', () => {
+    if (splitterMapModalController) splitterMapModalController.open({ boxId: normalizeOpticalFields(customer).splitterBoxId });
   });
   // SISP-7: profile button traces this customer's downstream impact.
   const profileOutageTraceBtn = $('#customerProfileView').querySelector('#profileOutageTraceBtn');
@@ -2089,6 +2117,11 @@ function renderDetail() {
   $('#routerModelInput').value = customer.routerModel ?? '';
   $('#routerPriceInput').value = customer.routerPrice ?? '';
   $('#fiberMetersInput').value = customer.fiberMeters ?? '';
+  // SISP-24: optical splitter assignment + last RX reading (optional).
+  $('#splitterBoxIdInput').value = customer.splitterBoxId ?? '';
+  $('#splitterPortInput').value = customer.splitterPort ?? '';
+  $('#oltPonPortInput').value = customer.oltPonPort ?? '';
+  $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
   // SISP-7: feeder link fields — upstream select excludes this customer;
   // the saved upstream stays visible even if that house was archived.
   const feederSaved = normalizeFeederFields(customer);
@@ -3338,6 +3371,11 @@ function saveNewCustomer(allowDuplicateName = false) {
     routerModel:$('#newCustomerRouterModel').value,
     routerPrice:$('#newCustomerRouterPrice').value,
     fiberMeters:$('#newCustomerFiberMeters').value,
+    // SISP-24: optical splitter assignment + last RX reading (optional).
+    splitterBoxId:$('#newCustomerSplitterBox').value,
+    splitterPort:$('#newCustomerSplitterPort').value,
+    oltPonPort:$('#newCustomerOltPonPort').value,
+    lastRxDbm:$('#newCustomerLastRxDbm').value,
     // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
     serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set',
     nameUrdu:$('#newCustomerNameUrdu') ? $('#newCustomerNameUrdu').value.trim() : ''
@@ -3518,6 +3556,9 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       monthlySellingAmount:$('#monthlySellingAmountInput').value, connectionDate:$('#connectionDateInput').value,
       connectionFee:$('#connectionFeeInput').value, routerModel:$('#routerModelInput').value,
       routerPrice:$('#routerPriceInput').value, fiberMeters:$('#fiberMetersInput').value,
+      // SISP-24: optical splitter assignment + last RX reading (optional).
+      splitterBoxId:$('#splitterBoxIdInput').value, splitterPort:$('#splitterPortInput').value,
+      oltPonPort:$('#oltPonPortInput').value, lastRxDbm:$('#lastRxDbmInput').value,
       upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
       fiberZone:$('#fiberZoneInput') ? $('#fiberZoneInput').value : '',
       ...($('#pppoeUsernameInput') ? { pppoeUsername: $('#pppoeUsernameInput').value } : {}),
@@ -3537,6 +3578,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     });
     profileEditMode = false;
     save(); renderDetail();
+    if (splitterMapModalController) splitterMapModalController.refresh();
     if (proRataAdjustment !== null) {
       toast(`Customer profile and mid-month pro-rata adjustment (PKR ${proRataAdjustment >= 0 ? '+' : ''}${proRataAdjustment.toLocaleString()}) saved.`);
     } else {
@@ -7966,6 +8008,9 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  splitterMapModalController = setupSplitterMapModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {

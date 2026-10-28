@@ -717,3 +717,14 @@ body.field-mode-open { overflow: hidden; }
 .mikrotik-output-block {
   margin-top: 16px;
 }
+/* SISP-14: QR Khata Card modal — theme tokens only, no new colours. The QR
+ * canvas itself is drawn light-on-dark by qr-card.js (scanners need contrast);
+ * the modal container keeps the shared .modal theme surface. */
+.qr-khata-card-body { text-align: center; padding: 4px 8px 12px; }
+.qr-khata-isp { font-weight: 700; letter-spacing: 0.02em; margin: 0 0 2px; }
+.qr-khata-card-body h3 { margin: 8px 0 2px; }
+.qr-khata-line { margin: 3px 0; }
+.qr-khata-canvas { display: block; margin: 12px auto; max-width: 100%; height: auto; }
+.qr-khata-note { margin: 12px 0; }
+.qr-khata-link { word-break: break-all; font-size: 0.85em; margin: 10px 0 0; }
+.qr-khata-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }

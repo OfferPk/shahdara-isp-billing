@@ -1475,6 +1475,21 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
    tokens keep both light and dark themes readable. */
 .area-summary-cards{display:none}
 @media(max-width:700px){.area-summary-card .table-scroll{display:none}.area-summary-cards{display:grid;gap:12px}}
+/* Home Budget entry list: one flexible row per entry instead of a table, so
+   phone widths never scroll sideways. Theme tokens only, so both light and
+   dark themes stay readable. */
+.home-budget-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:10px}
+.home-budget-item{min-width:0;padding:12px 14px;border:1px solid var(--line,#dfe9e4);border-radius:12px;background:var(--surface,#fff)}
+.home-budget-item-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
+.home-budget-item-category{font-size:10px;font-weight:700;color:var(--muted,#60756c);text-transform:uppercase;letter-spacing:.04em;overflow-wrap:anywhere}
+.home-budget-item-amount{flex:0 0 auto;font-size:15px;font-weight:700;color:var(--ink,#263f34);font-variant-numeric:tabular-nums}
+.home-budget-item-date{margin-top:2px;font-size:12px;color:var(--muted,#60756c)}
+.home-budget-item-notes{margin:6px 0 0;font-size:13px;color:var(--ink,#263f34);overflow-wrap:anywhere}
+.home-budget-item-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.home-budget-month-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px}
+.home-budget-month-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0}
+.home-budget-month-row>span{font-size:12px;font-weight:700;color:var(--muted,#60756c)}
+.home-budget-month-row>strong{font-size:13px;color:var(--ink,#263f34);text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .chart-bar-negative{fill:#cf685b}.category-chart-svg{min-height:130px}
 @media(max-width:700px){.analytics-range-controls{grid-template-columns:1fr;gap:8px}.area-intel-chart-grid{grid-template-columns:1fr}.area-intel-chart-grid .chart-card:last-child{grid-column:auto}.area-intelligence-table{min-width:1060px}}
 @media(max-width:360px){.analytics-range-controls label{font-size:12px}.analytics-range-controls input,.analytics-range-controls select{font-size:16px;min-height:44px}}

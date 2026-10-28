@@ -99,7 +99,10 @@ test('an absent bill is Not set even when a monthly selling price exists', () =>
 });
 
 test('help disclosures and profile tabs have accessible names, relationships, and keyboard support', () => {
-  assert.match(index, /<details class="help-tip[^\"]*"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance">/);
+  // Urdu phase 2 annotated this summary with data-i18n-aria-label (same
+  // aria-label value, translated in Urdu mode); [^>]* allows that attribute
+  // after aria-controls instead of pinning exact adjacency.
+  assert.match(index, /<details class="help-tip[^\"]*"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance"[^>]*>/);
   assert.match(index, /id="dashboardGuidance" class="help-tip-content" role="tooltip"/);
   assert.match(index, /id="filterGuidance" class="help-tip-content" role="tooltip"/);
   for (const [tabId,panelId,label] of [

@@ -239,67 +239,67 @@
     </section>
     <section id="billingDashboard" class="dashboard" aria-labelledby="dashboardTitle">
       <div class="dashboard-heading">
-        <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
-        <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
+        <div><p class="eyebrow" data-i18n="dash_eyebrow_live">LIVE SUMMARY</p><h2 id="dashboardTitle" data-i18n="dash_title">Billing dashboard</h2></div>
+        <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units" data-i18n="dash_units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button" data-i18n="dash_add_payment">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance" data-i18n-aria-label="dash_guidance_aria">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip" data-i18n="dash_guidance">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
       <div id="overheadsDueBanner" class="overheads-due-banner" role="alert" hidden></div>
-      <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators">
+      <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators" data-i18n-aria-label="dash_kpi_region_aria">
         <div class="home-kpi-card kpi-card-today" id="kpiCardToday">
-          <span class="home-kpi-label">Today Collected</span>
+          <span class="home-kpi-label" data-i18n="dash_kpi_today">Today Collected</span>
           <strong id="kpiTodayCollection" class="home-kpi-val">PKR 0</strong>
-          <span class="home-kpi-sub">Today's cash</span>
+          <span class="home-kpi-sub" data-i18n="dash_kpi_today_sub">Today's cash</span>
         </div>
         <div class="home-kpi-card kpi-card-month" id="kpiCardMonth">
-          <span class="home-kpi-label">Month Collected / Billed</span>
+          <span class="home-kpi-label" data-i18n="dash_kpi_month">Month Collected / Billed</span>
           <strong id="kpiMonthCollectionBilled" class="home-kpi-val">PKR 0 / 0</strong>
           <span class="home-kpi-sub" id="kpiMonthRateSub">Current month</span>
         </div>
         <div class="home-kpi-card kpi-card-dues" id="kpiCardDues">
-          <span class="home-kpi-label">Total Dues</span>
+          <span class="home-kpi-label" data-i18n="dash_kpi_dues">Total Dues</span>
           <strong id="kpiTotalDue" class="home-kpi-val">PKR 0</strong>
-          <span class="home-kpi-sub">Outstanding balance</span>
+          <span class="home-kpi-sub" data-i18n="dash_kpi_dues_sub">Outstanding balance</span>
         </div>
         <div class="home-kpi-card kpi-card-defaulters" id="kpiCardDefaulters">
-          <span class="home-kpi-label">Customers with Dues</span>
+          <span class="home-kpi-label" data-i18n="dash_kpi_defaulters">Customers with Dues</span>
           <strong id="kpiCustomersWithDues" class="home-kpi-val">0</strong>
-          <span class="home-kpi-sub">Pending accounts</span>
+          <span class="home-kpi-sub" data-i18n="dash_kpi_defaulters_sub">Pending accounts</span>
         </div>
       </div>
-      <div class="home-primary-actions" id="homePrimaryActions" role="region" aria-label="Primary billing actions">
-        <button id="quickActionReceivePayment" class="home-primary-btn quick-action-tile primary-action-collect" type="button" aria-label="Payment lo — Receive customer payment (Record customer receipt)">
+      <div class="home-primary-actions" id="homePrimaryActions" role="region" aria-label="Primary billing actions" data-i18n-aria-label="dash_actions_region_aria">
+        <button id="quickActionReceivePayment" class="home-primary-btn quick-action-tile primary-action-collect" type="button" aria-label="Payment lo — Receive customer payment (Record customer receipt)" data-i18n-aria-label="dash_tile_collect_aria">
           <span class="home-primary-icon quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           </span>
           <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label">Payment lo</span>
-            <span class="home-primary-subtitle quick-action-sub">Receive customer payment</span>
+            <span class="home-primary-title quick-action-label" data-i18n="dash_tile_collect_title">Payment lo</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_collect_sub">Receive customer payment</span>
           </span>
         </button>
-        <button id="quickActionAddCustomer" class="home-primary-btn quick-action-tile primary-action-customer" type="button" aria-label="Customer add - New connection profile">
+        <button id="quickActionAddCustomer" class="home-primary-btn quick-action-tile primary-action-customer" type="button" aria-label="Customer add - New connection profile" data-i18n-aria-label="dash_tile_customer_aria">
           <span class="home-primary-icon quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
           </span>
           <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label">Customer add</span>
-            <span class="home-primary-subtitle quick-action-sub">New connection profile</span>
+            <span class="home-primary-title quick-action-label" data-i18n="dash_tile_customer_title">Customer add</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_customer_sub">New connection profile</span>
           </span>
         </button>
-        <button id="homeActionDuesList" class="home-primary-btn quick-action-tile primary-action-dues" type="button" aria-label="Dues list — Recovery &amp; defaulters (Top defaulters and recovery)">
+        <button id="homeActionDuesList" class="home-primary-btn quick-action-tile primary-action-dues" type="button" aria-label="Dues list — Recovery &amp; defaulters (Top defaulters and recovery)" data-i18n-aria-label="dash_tile_dues_aria">
           <span class="home-primary-icon quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
           </span>
           <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label">Dues list</span>
-            <span class="home-primary-subtitle quick-action-sub">Recovery &amp; defaulters</span>
+            <span class="home-primary-title quick-action-label" data-i18n="dash_tile_dues_title">Dues list</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_dues_sub">Recovery &amp; defaulters</span>
           </span>
         </button>
-        <button id="quickActionDailyClosing" class="home-primary-btn quick-action-tile primary-action-closing" type="button" aria-label="Aaj ka hisaab — Cash till &amp; closing (Cash register &amp; daily closing)">
+        <button id="quickActionDailyClosing" class="home-primary-btn quick-action-tile primary-action-closing" type="button" aria-label="Aaj ka hisaab — Cash till &amp; closing (Cash register &amp; daily closing)" data-i18n-aria-label="dash_tile_closing_aria">
           <span class="home-primary-icon quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M7 15h2"/><path d="M15 15h2"/></svg>
           </span>
           <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label">Aaj ka hisaab</span>
-            <span class="home-primary-subtitle quick-action-sub">Cash till &amp; closing</span>
+            <span class="home-primary-title quick-action-label" data-i18n="dash_tile_closing_title">Aaj ka hisaab</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_closing_sub">Cash till &amp; closing</span>
           </span>
         </button>
       </div>
@@ -308,307 +308,307 @@
         <div class="home-today-card" id="homeTodaySummaryCard">
           <div class="home-today-header">
             <div class="home-today-title-wrap">
-              <span class="home-today-badge">📅 Aaj · Today</span>
-              <h3 id="homeTodayHeading" class="home-today-title">Today's Summary · آج کا خلاصہ</h3>
+              <span class="home-today-badge" data-i18n="dash_today_badge">📅 Aaj · Today</span>
+              <h3 id="homeTodayHeading" class="home-today-title" data-i18n="dash_today_heading">Today's Summary · آج کا خلاصہ</h3>
               <p class="home-today-subtitle" id="homeTodayDateText">Live closing register &amp; collection status</p>
             </div>
-            <button id="sendDailySummaryWhatsAppBtn" class="home-today-wa-btn" type="button" aria-label="Send to my WhatsApp (daily summary)">
+            <button id="sendDailySummaryWhatsAppBtn" class="home-today-wa-btn" type="button" aria-label="Send to my WhatsApp (daily summary)" data-i18n-aria-label="dash_today_wa_aria">
               <span class="wa-btn-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
               </span>
-              <span class="wa-btn-text">Send to my WhatsApp</span>
+              <span class="wa-btn-text" data-i18n="dash_today_wa_text">Send to my WhatsApp</span>
             </button>
           </div>
           <!-- Metrics 4-grid -->
           <div class="home-today-metrics-grid">
             <div class="home-today-metric-cell">
-              <span class="today-cell-label">Collected Today (آج کی وصولی)</span>
+              <span class="today-cell-label" data-i18n="dash_today_label_collected">Collected Today (آج کی وصولی)</span>
               <strong id="homeTodayCollected" class="today-cell-val">PKR 0</strong>
               <span id="homeTodayCashVsDigital" class="today-cell-sub">Cash: PKR 0 · Digital: PKR 0</span>
             </div>
             <div class="home-today-metric-cell">
-              <span class="today-cell-label">Month Target (ماہانہ وصولی)</span>
+              <span class="today-cell-label" data-i18n="dash_today_label_target">Month Target (ماہانہ وصولی)</span>
               <strong id="homeTodayTargetPct" class="today-cell-val">0%</strong>
               <span id="homeTodayCollectedVsBilled" class="today-cell-sub">PKR 0 / PKR 0 billed</span>
             </div>
             <div class="home-today-metric-cell">
-              <span class="today-cell-label">Total Dues (کل واجبات)</span>
+              <span class="today-cell-label" data-i18n="dash_today_label_dues">Total Dues (کل واجبات)</span>
               <strong id="homeTodayTotalDues" class="today-cell-val">PKR 0</strong>
               <span id="homeTodayDuesCount" class="today-cell-sub">0 accounts with dues</span>
             </div>
             <div class="home-today-metric-cell">
-              <span class="today-cell-label">New Customers (نئے صارفین)</span>
+              <span class="today-cell-label" data-i18n="dash_today_label_new">New Customers (نئے صارفین)</span>
               <strong id="homeTodayNewCustomers" class="today-cell-val">0</strong>
-              <span class="today-cell-sub">Connected this month</span>
+              <span class="today-cell-sub" data-i18n="dash_today_sub_connected">Connected this month</span>
             </div>
           </div>
           <!-- Top 5 Defaulters / Overdue Accounts -->
           <div class="home-today-overdue-wrap" id="homeTodayOverdueWrap">
             <div class="home-today-overdue-header">
-              <span class="overdue-header-title">Top 5 Overdue Accounts · بڑے بقایاجات</span>
-              <a href="#/recovery" class="overdue-view-all-link">View all dues →</a>
+              <span class="overdue-header-title" data-i18n="dash_today_overdue_title">Top 5 Overdue Accounts · بڑے بقایاجات</span>
+              <a href="#/recovery" class="overdue-view-all-link" data-i18n="dash_today_overdue_all">View all dues →</a>
             </div>
-            <ul id="homeTopOverdueList" class="home-top-overdue-list" aria-label="Top 5 overdue customer accounts">
+            <ul id="homeTopOverdueList" class="home-top-overdue-list" aria-label="Top 5 overdue customer accounts" data-i18n-aria-label="dash_today_overdue_aria">
               <!-- Populated dynamically via JS -->
             </ul>
           </div>
         </div>
       </section>
-      <div class="summary-grid" aria-live="polite" aria-label="Live billing totals">
-        <article class="summary-card summary-current-due"><p class="summary-label">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
-        <article class="summary-card summary-total-due"><p class="summary-label">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
-        <article class="summary-card summary-today-collection"><p class="summary-label">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
+      <div class="summary-grid" aria-live="polite" aria-label="Live billing totals" data-i18n-aria-label="dash_summary_grid_aria">
+        <article class="summary-card summary-current-due"><p class="summary-label" data-i18n="dash_card_month_due">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
+        <article class="summary-card summary-total-due"><p class="summary-label" data-i18n="dash_card_total_due">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
+        <article class="summary-card summary-today-collection"><p class="summary-label" data-i18n="dash_card_today_coll">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
         <article class="summary-card summary-daily-closing">
           <div class="daily-closing-header">
-            <p class="summary-label">Daily Register &amp; Closing</p>
+            <p class="summary-label" data-i18n="dash_card_closing">Daily Register &amp; Closing</p>
             <span id="dashboardClosingStatusBadge" class="closing-badge badge-no-activity">No Activity</span>
           </div>
           <strong id="dashboardDailyClosingValue" class="summary-value">No payment entries</strong>
           <p id="dashboardDailyClosingPeriod" class="summary-period">Benchmark target: calculating...</p>
           <div class="daily-closing-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDailyClosingModalBtn" class="action-btn-sm daily-slip-btn" type="button">📊 Cash Closing Suite</button>
-            <button id="openDailyRegisterBtn" class="action-btn-sm daily-slip-btn" type="button">📖 Daily Register</button>
-            <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button">📋 Daily Slip</button>
-            <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog">👥 Staff Performance</button>
+            <button id="openDailyClosingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cash_suite">📊 Cash Closing Suite</button>
+            <button id="openDailyRegisterBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_daily_register">📖 Daily Register</button>
+            <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_daily_slip">📋 Daily Slip</button>
+            <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog" data-i18n="dash_btn_staff_perf">👥 Staff Performance</button>
           </div>
         </article>
         <article class="summary-card summary-shop-settlement">
-          <p class="summary-label">🏪 Shop Cash Collection &amp; Handover</p>
+          <p class="summary-label" data-i18n="dash_card_shop">🏪 Shop Cash Collection &amp; Handover</p>
           <strong id="dashboardShopSettlementValue" class="summary-value">No shop collections</strong>
           <p id="dashboardShopSettlementPeriod" class="summary-period">Unsettled cash sitting at shops</p>
           <div id="shopSettlementSummary" class="shop-settlement-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button">🏪 Shop Settlement</button>
+            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_shop_settlement">🏪 Shop Settlement</button>
           </div>
         </article>
         <article class="summary-card summary-billing-cycle">
-          <p class="summary-label">📅 Monthly Billing Cycle</p>
+          <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
           <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
           <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
           <div id="billingCycleSummary" class="billing-cycle-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button">📅 Billing Cycle</button>
+            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
           </div>
         </article>
         <article class="summary-card summary-complaint-register">
-          <p class="summary-label">🛠️ Complaint Register</p>
+          <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
           <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
           <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
           <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button">🛠️ Complaint Register</button>
+            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
           </div>
         </article>
         <article class="summary-card summary-field-tickets">
-          <p class="summary-label">🔧 Field Tickets</p>
+          <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
           <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
           <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
           <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔧 Field Tickets</button>
+            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
           </div>
         </article>
         <article class="summary-card summary-downtime-analytics">
-          <p class="summary-label">📉 Downtime Analytics</p>
+          <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
           <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
           <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
           <div id="downtimeAnalyticsSummary" class="downtime-analytics-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button">📉 Downtime Analytics</button>
+            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
           </div>
         </article>
 
         <article class="summary-card summary-splitter-map">
-          <p class="summary-label">🔌 Splitter Port Map</p>
+          <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
           <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
           <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
           <div id="splitterMapSummary" class="splitter-map-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔌 Splitter Port Map</button>
+            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
           </div>
         </article>
 
         <article class="summary-card summary-monthly-complaint-report">
-          <p class="summary-label">📋 Monthly Complaint Report</p>
+          <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
           <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
           <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
           <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Monthly Report</button>
+            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_monthly_report">📋 Monthly Report</button>
           </div>
         </article>
 
         <article class="summary-card summary-roznamcha">
-          <p class="summary-label">📒 Daily Roznamcha</p>
+          <p class="summary-label" data-i18n="dash_card_roznamcha">📒 Daily Roznamcha</p>
           <strong id="dashboardRoznamchaValue" class="summary-value">No drawer yet</strong>
           <p id="dashboardRoznamchaPeriod" class="summary-period">Cash drawer, shop handovers and petty expenses</p>
           <div id="roznamchaSummary" class="roznamcha-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openRoznamchaModalBtn" class="action-btn-sm daily-slip-btn" type="button">📒 Roznamcha</button>
+            <button id="openRoznamchaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_roznamcha">📒 Roznamcha</button>
 
           </div>
         </article>
         <article class="summary-card summary-inventory-book">
-          <p class="summary-label">📦 Stock Book</p>
+          <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
           <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
           <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
           <div id="inventoryBookSummary" class="inventory-book-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button">📦 Stock Book</button>
+            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
           </div>
         </article>
         <article class="summary-card summary-outage-impact">
-          <p class="summary-label">⚡ Feeder Outage Impact</p>
+          <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
           <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
           <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
           <div id="outageImpactSummary" class="outage-impact-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button">⚡ Trace Outage Impact</button>
+            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
           </div>
         </article>
         <article class="summary-card summary-saad-visits">
-          <p class="summary-label">🔧 Saad Visit Log</p>
+          <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
           <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
           <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
           <div id="saadVisitsSummary" class="saad-visits-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔧 Saad Visits</button>
+            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
           </div>
         </article>
         <article class="summary-card summary-install-tracker">
-          <p class="summary-label">📡 Installation Tracker</p>
+          <p class="summary-label" data-i18n="dash_card_install">📡 Installation Tracker</p>
           <strong id="dashboardInstallTrackerValue" class="summary-value">No requests yet</strong>
           <p id="dashboardInstallTrackerPeriod" class="summary-period">New connection requests &amp; install delays</p>
           <div id="installTrackerSummary" class="install-tracker-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button">📡 Installation Tracker</button>
+            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_install">📡 Installation Tracker</button>
           </div>
         </article>
         <article class="summary-card summary-pending-works">
-          <p class="summary-label">📌 Pending Works</p>
+          <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
           <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
           <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
           <div id="pendingWorksSummary" class="pending-works-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button">📌 Pending Works</button>
+            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
           </div>
         </article>
         <article class="summary-card summary-pole-landmark">
-          <p class="summary-label">📍 Pole &amp; Landmark Directory</p>
+          <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
           <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
           <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
           <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button">📍 Zone Lineman Cheat-Sheet</button>
+            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
           </div>
         </article>
         <article class="summary-card summary-group-billing">
-          <p class="summary-label">👨‍👩‍👧 Group Billing</p>
+          <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
           <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
           <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
           <div id="groupBillingSummary" class="group-billing-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button">👨‍👩‍👧 Group Billing</button>
+            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
           </div>
         </article>
         <article class="summary-card summary-hardware-recovery">
-          <p class="summary-label">📦 Pending Hardware Recovery</p>
+          <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
           <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
           <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
           <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button">📦 Pending Hardware Recovery</button>
+            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
           </div>
         </article>
         <article class="summary-card summary-owner-khata">
-          <p class="summary-label">📕 Owner Khata Closing</p>
+          <p class="summary-label" data-i18n="dash_card_khata">📕 Owner Khata Closing</p>
           <strong id="dashboardOwnerKhataValue" class="summary-value">No activity</strong>
           <p id="dashboardOwnerKhataPeriod" class="summary-period">Monthly income, expenses, shares &amp; outages</p>
           <div id="ownerKhataSummary" class="owner-khata-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button">📕 Owner Khata Closing</button>          </div>
+            <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_khata">📕 Owner Khata Closing</button>          </div>
         </article>
         <article class="summary-card summary-wallet-ledger">
-          <p class="summary-label">💳 Digital Wallet Ledger</p>
+          <p class="summary-label" data-i18n="dash_card_wallet">💳 Digital Wallet Ledger</p>
           <strong id="dashboardWalletValue" class="summary-value">No digital payments</strong>
           <p id="dashboardWalletPeriod" class="summary-period">EasyPaisa · JazzCash · NayaPay · Bank Transfer</p>
           <div id="walletLedgerSummary" class="wallet-ledger-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button">💳 Wallet Ledger</button>
+            <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_wallet">💳 Wallet Ledger</button>
           </div>
-        </article>        <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
-        <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
-        <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
-        <article class="summary-card summary-cash-profit"><p class="summary-label">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
-        <article class="summary-card summary-customer-count"><p class="summary-label">Customer profiles</p><strong id="dashboardCustomerCount" class="summary-value">74</strong><p id="dashboardCustomerPeriod" class="summary-period">Roster profiles; subscription state is listed separately</p></article>
-        <article class="summary-card summary-active-customers"><p class="summary-label">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
-        <article class="summary-card summary-bill-status"><p class="summary-label">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
-        <article class="summary-card summary-new-connections"><p class="summary-label">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
+        </article>        <article class="summary-card summary-month-collection"><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
+        <article class="summary-card summary-month-revenue"><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
+        <article class="summary-card summary-expenses"><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
+        <article class="summary-card summary-cash-profit"><p class="summary-label" data-i18n="dash_card_profit">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
+        <article class="summary-card summary-customer-count"><p class="summary-label" data-i18n="dash_card_profiles">Customer profiles</p><strong id="dashboardCustomerCount" class="summary-value">74</strong><p id="dashboardCustomerPeriod" class="summary-period">Roster profiles; subscription state is listed separately</p></article>
+        <article class="summary-card summary-active-customers"><p class="summary-label" data-i18n="dash_card_active">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
+        <article class="summary-card summary-bill-status"><p class="summary-label" data-i18n="dash_card_bill_status">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
+        <article class="summary-card summary-new-connections"><p class="summary-label" data-i18n="dash_card_new_conn">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
         <article class="summary-card summary-velocity">
-          <p class="summary-label">Collection velocity &amp; projection</p>
+          <p class="summary-label" data-i18n="dash_card_velocity">Collection velocity &amp; projection</p>
           <strong id="dashboardCollectionVelocity" class="summary-value">PKR 0 / day</strong>
           <p id="dashboardCollectionVelocityPeriod" class="summary-period">Projected month-end closing</p>
-          <div class="velocity-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Collection rate of billed amount">
+          <div class="velocity-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Collection rate of billed amount" data-i18n-aria-label="dash_velocity_aria">
             <div id="dashboardVelocityFill" class="velocity-fill" style="width: 0%"></div>
           </div>
         </article>
-        <article class="summary-card summary-total-collection"><p class="summary-label">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
-        <article class="summary-card summary-credit"><p class="summary-label">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
-        <article class="summary-card summary-previous-collection"><p class="summary-label">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
-        <article class="summary-card summary-profit"><p class="summary-label">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
-        <article class="summary-card summary-provider-cost"><p class="summary-label">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
+        <article class="summary-card summary-total-collection"><p class="summary-label" data-i18n="dash_card_total_coll">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
+        <article class="summary-card summary-credit"><p class="summary-label" data-i18n="dash_card_credit">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
+        <article class="summary-card summary-previous-collection"><p class="summary-label" data-i18n="dash_card_prev_coll">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
+        <article class="summary-card summary-profit"><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
+        <article class="summary-card summary-provider-cost"><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
       <div class="dashboard-target-section" id="dashboardTargetSection" style="margin: 14px 0;">
         <article class="dashboard-chart-card chart-card-target">
           <div class="chart-card-header chart-card-header-flex">
             <div>
-              <h4 class="chart-title">Monthly Collection vs Target</h4>
-              <p class="chart-subtitle">Target achievement, daily run-rate, and month-end projection</p>
+              <h4 class="chart-title" data-i18n="dash_target_title">Monthly Collection vs Target</h4>
+              <p class="chart-subtitle" data-i18n="dash_target_sub">Target achievement, daily run-rate, and month-end projection</p>
             </div>
-            <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Set / Manage Target</button>
+            <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog" data-i18n="dash_btn_target">Set / Manage Target</button>
           </div>
-          <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge"></div>
+          <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge" data-i18n-aria-label="dash_target_gauge_aria"></div>
         </article>
         <article class="dashboard-chart-card chart-card-worklists" id="worklistsSummaryCard" style="margin-top: 14px;">
           <div class="worklists-card-header">
             <div>
-              <h4 class="chart-title">Disconnection &amp; Reconnection Worklists</h4>
-              <p class="chart-subtitle">Field service actions: overdue suspensions &amp; paid restorations</p>
+              <h4 class="chart-title" data-i18n="dash_worklists_title">Disconnection &amp; Reconnection Worklists</h4>
+              <p class="chart-subtitle" data-i18n="dash_worklists_sub">Field service actions: overdue suspensions &amp; paid restorations</p>
             </div>
-            <button id="openWorklistsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">View Worklists / فہرست کھولیں</button>
+            <button id="openWorklistsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog" data-i18n="dash_btn_worklists">View Worklists / فہرست کھولیں</button>
           </div>
           <div class="worklists-card-kpis">
             <div class="worklists-card-kpi">
-              <span class="worklists-card-kpi-label">To Disconnect</span>
+              <span class="worklists-card-kpi-label" data-i18n="dash_worklists_disc">To Disconnect</span>
               <span id="worklistsSummaryDiscCount" class="worklists-card-kpi-value disc">0</span>
               <span id="worklistsSummaryDiscAmount" class="worklists-card-kpi-sub">PKR 0 dues (&gt; 10d)</span>
             </div>
             <div class="worklists-card-kpi">
-              <span class="worklists-card-kpi-label">To Reconnect</span>
+              <span class="worklists-card-kpi-label" data-i18n="dash_worklists_rec">To Reconnect</span>
               <span id="worklistsSummaryRecCount" class="worklists-card-kpi-value rec">0</span>
-              <span class="worklists-card-kpi-sub">Dues cleared &middot; ready</span>
+              <span class="worklists-card-kpi-sub" data-i18n="dash_worklists_ready">Dues cleared &middot; ready</span>
             </div>
           </div>
         </article>
       </div>
       <details id="homeChartsCollapsible" class="home-collapsible-section dashboard-charts-collapsible">
         <summary class="home-collapsible-summary">
-          <span>📊 Performance &amp; Collection Analytics</span>
-          <span class="collapsible-badge">Charts</span>
+          <span data-i18n="dash_charts_collapse">📊 Performance &amp; Collection Analytics</span>
+          <span class="collapsible-badge" data-i18n="dash_charts_badge">Charts</span>
           <span class="summary-arrow" aria-hidden="true">▾</span>
         </summary>
       <section class="dashboard-charts-region" aria-labelledby="dashboardChartsHeading">
         <div class="dashboard-charts-header">
-          <p class="eyebrow">VISUAL LEDGER INSIGHTS</p>
-          <h3 id="dashboardChartsHeading">Performance &amp; Collection Analytics</h3>
-          <p class="dashboard-charts-sub">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
+          <p class="eyebrow" data-i18n="dash_charts_eyebrow">VISUAL LEDGER INSIGHTS</p>
+          <h3 id="dashboardChartsHeading" data-i18n="dash_charts_heading">Performance &amp; Collection Analytics</h3>
+          <p class="dashboard-charts-sub" data-i18n="dash_charts_caption">Pure client-side offline SVG charts. Real-time ledger calculations.</p>
         </div>
         <div class="dashboard-charts-grid">
           <article class="dashboard-chart-card chart-card-trend">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Revenue &amp; Collections Trend</h4>
-                <p class="chart-subtitle">Billed snapshot revenue vs actual receipts dated in each month</p>
+                <h4 class="chart-title" data-i18n="dash_chart_03_title">Revenue &amp; Collections Trend</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_03_sub">Billed snapshot revenue vs actual receipts dated in each month</p>
               </div>
               <div id="dashboardTrendRangeGroup" class="chart-time-range-group" role="group" aria-label="Select trend duration">
                 <button type="button" class="chart-range-btn" data-months="3">3M</button>
@@ -620,16 +620,16 @@
           </article>
           <article class="dashboard-chart-card chart-card-donut">
             <div class="chart-card-header">
-              <h4 class="chart-title">Current Month Bill Settlement</h4>
-              <p class="chart-subtitle">Paid, partial, and unpaid bills distribution</p>
+              <h4 class="chart-title" data-i18n="dash_chart_04_title">Current Month Bill Settlement</h4>
+              <p class="chart-subtitle" data-i18n="dash_chart_04_sub">Paid, partial, and unpaid bills distribution</p>
             </div>
             <div id="dashboardStatusChart" class="chart-svg-container" role="img" aria-label="Bill payment status donut chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-area">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Outstanding Dues by Area</h4>
-                <p class="chart-subtitle">Uncollected balances grouped by customer location</p>
+                <h4 class="chart-title" data-i18n="dash_chart_05_title">Outstanding Dues by Area</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_05_sub">Uncollected balances grouped by customer location</p>
               </div>
               <button id="dashboardOpenAreaModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">View All</button>
             </div>
@@ -637,16 +637,16 @@
           </article>
           <article class="dashboard-chart-card chart-card-package">
             <div class="chart-card-header">
-              <h4 class="chart-title">Package Tier Distribution</h4>
-              <p class="chart-subtitle">Subscribers and monthly revenue by tier</p>
+              <h4 class="chart-title" data-i18n="dash_chart_06_title">Package Tier Distribution</h4>
+              <p class="chart-subtitle" data-i18n="dash_chart_06_sub">Subscribers and monthly revenue by tier</p>
             </div>
             <div id="dashboardPackageChart" class="chart-svg-container" role="img" aria-label="Package tier distribution donut chart"></div>
           </article>
           <article class="dashboard-chart-card chart-card-health">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Customer Health &amp; Delinquency Matrix</h4>
-                <p class="chart-subtitle">Account standing, watchlist, and overdue risk segments</p>
+                <h4 class="chart-title" data-i18n="dash_chart_07_title">Customer Health &amp; Delinquency Matrix</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_07_sub">Account standing, watchlist, and overdue risk segments</p>
               </div>
               <div id="dashboardHealthActions" class="health-filter-group" role="group" aria-label="Quick filter customers by health">
                 <button type="button" class="health-filter-btn health-btn-good" data-filter-health="goodStanding" title="Filter roster: Good Standing">Good</button>
@@ -660,8 +660,8 @@
           <article class="dashboard-chart-card chart-card-methods">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Payment Settlement Channels</h4>
-                <p class="chart-subtitle">Cash vs digital wallet volume and transaction distribution</p>
+                <h4 class="chart-title" data-i18n="dash_chart_08_title">Payment Settlement Channels</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_08_sub">Cash vs digital wallet volume and transaction distribution</p>
               </div>
               <div id="dashboardMethodRangeGroup" class="chart-time-range-group" role="group" aria-label="Select payment methods filter">
                 <button type="button" class="chart-range-btn is-active" data-period="currentMonth">Month</button>
@@ -674,8 +674,8 @@
           <article class="dashboard-chart-card chart-card-churn">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Customer Retention &amp; Churn Risk</h4>
-                <p class="chart-subtitle">Predictive risk gauge based on offline tenure and consecutive dues</p>
+                <h4 class="chart-title" data-i18n="dash_chart_09_title">Customer Retention &amp; Churn Risk</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_09_sub">Predictive risk gauge based on offline tenure and consecutive dues</p>
               </div>
               <button id="dashboardOpenChurnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">View At-Risk</button>
             </div>
@@ -684,8 +684,8 @@
           <article class="dashboard-chart-card chart-card-heatmap">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Geographic Collection Heatmap</h4>
-                <p class="chart-subtitle">Collection efficiency &amp; recovery rate by operational zone</p>
+                <h4 class="chart-title" data-i18n="dash_chart_10_title">Geographic Collection Heatmap</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_10_sub">Collection efficiency &amp; recovery rate by operational zone</p>
               </div>
               <div id="dashboardHeatmapActions" class="heatmap-filter-group" role="group" aria-label="Filter areas by collection recovery">
                 <button type="button" class="heatmap-filter-btn is-active" data-filter-heat="all">All</button>
@@ -699,8 +699,8 @@
           <article class="dashboard-chart-card chart-card-seasonal">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Seasonal Cashflow &amp; Multi-Year Velocity</h4>
-                <p class="chart-subtitle">Jan–Dec collection trajectories and year-over-year pacing</p>
+                <h4 class="chart-title" data-i18n="dash_chart_11_title">Seasonal Cashflow &amp; Multi-Year Velocity</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_11_sub">Jan–Dec collection trajectories and year-over-year pacing</p>
               </div>
               <div id="dashboardSeasonalActions" class="chart-range-group" role="group" aria-label="Seasonal cashflow metric">
                 <button type="button" class="chart-range-btn is-active" data-seasonal-metric="collections">Collections</button>
@@ -712,8 +712,8 @@
           <article class="dashboard-chart-card chart-card-margin">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Package Margin &amp; Wholesale Transit</h4>
-                <p class="chart-subtitle">Upstream bandwidth cost vs gross profit contribution by tier</p>
+                <h4 class="chart-title" data-i18n="dash_chart_12_title">Package Margin &amp; Wholesale Transit</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_12_sub">Upstream bandwidth cost vs gross profit contribution by tier</p>
               </div>
               <button id="dashboardOpenMarginSimulatorBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Simulate Margins</button>
             </div>
@@ -722,8 +722,8 @@
           <article class="dashboard-chart-card chart-card-ltv">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Customer Lifetime Value (LTV) &amp; Cohorts</h4>
-                <p class="chart-subtitle">Historical collected revenue and retention progression by tenure</p>
+                <h4 class="chart-title" data-i18n="dash_chart_13_title">Customer Lifetime Value (LTV) &amp; Cohorts</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_13_sub">Historical collected revenue and retention progression by tenure</p>
               </div>
               <div class="chart-header-actions-row">
                 <div id="dashboardLtvMetricGroup" class="chart-range-group" role="group" aria-label="LTV cohort display metric">
@@ -738,8 +738,8 @@
           <article class="dashboard-chart-card chart-card-incident">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Network Outages &amp; Incident Matrix</h4>
-                <p class="chart-subtitle">Area complaint frequency, MTTR recovery speed, and active downtime</p>
+                <h4 class="chart-title" data-i18n="dash_chart_14_title">Network Outages &amp; Incident Matrix</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_14_sub">Area complaint frequency, MTTR recovery speed, and active downtime</p>
               </div>
               <button id="dashboardOpenIncidentModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Incident Matrix</button>
             </div>
@@ -748,8 +748,8 @@
           <article class="dashboard-chart-card chart-card-projection">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Forward Cashflow &amp; Churn Projections</h4>
-                <p class="chart-subtitle">6-month forward recurring revenue scenarios &amp; collection curves</p>
+                <h4 class="chart-title" data-i18n="dash_chart_15_title">Forward Cashflow &amp; Churn Projections</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_15_sub">6-month forward recurring revenue scenarios &amp; collection curves</p>
               </div>
               <div class="chart-header-actions-row">
                 <div id="dashboardProjectionScenarioGroup" class="chart-range-group" role="group" aria-label="Projection scenario">
@@ -765,8 +765,8 @@
           <article class="dashboard-chart-card chart-card-upstream">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Upstream ISP Transit &amp; Failover</h4>
-                <p class="chart-subtitle">Wholesale link latency, bandwidth capacity, and multi-homed routing</p>
+                <h4 class="chart-title" data-i18n="dash_chart_16_title">Upstream ISP Transit &amp; Failover</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_16_sub">Wholesale link latency, bandwidth capacity, and multi-homed routing</p>
               </div>
               <button id="dashboardOpenUpstreamModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Upstream Routes</button>
             </div>
@@ -775,8 +775,8 @@
           <article class="dashboard-chart-card chart-card-acquisition">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Subscriber Acquisition ROI &amp; Payback</h4>
-                <p class="chart-subtitle">Channel CAC economics, payback velocity, and marketing ROI</p>
+                <h4 class="chart-title" data-i18n="dash_chart_17_title">Subscriber Acquisition ROI &amp; Payback</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_17_sub">Channel CAC economics, payback velocity, and marketing ROI</p>
               </div>
               <button id="dashboardOpenAcquisitionModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Channel ROI</button>
             </div>
@@ -785,8 +785,8 @@
           <article class="dashboard-chart-card chart-card-shaping">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Peak Traffic &amp; Bandwidth Shaping</h4>
-                <p class="chart-subtitle">Diurnal 24h utilization, contention ratios, and growth forecast</p>
+                <h4 class="chart-title" data-i18n="dash_chart_18_title">Peak Traffic &amp; Bandwidth Shaping</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_18_sub">Diurnal 24h utilization, contention ratios, and growth forecast</p>
               </div>
               <button id="dashboardOpenShapingModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Shaping Forecast</button>
             </div>
@@ -795,8 +795,8 @@
           <article class="dashboard-chart-card chart-card-fiber">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Fiber Distribution Hubs &amp; Splitter Matrix</h4>
-                <p class="chart-subtitle">Optical port allocation, dark fiber headroom, and attenuation tracking</p>
+                <h4 class="chart-title" data-i18n="dash_chart_19_title">Fiber Distribution Hubs &amp; Splitter Matrix</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_19_sub">Optical port allocation, dark fiber headroom, and attenuation tracking</p>
               </div>
               <button id="dashboardOpenFiberModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Optical Port Matrix</button>
             </div>
@@ -805,8 +805,8 @@
           <article class="dashboard-chart-card chart-card-delinquency">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Delinquency Recovery Pipeline &amp; Escalation Pacing</h4>
-                <p class="chart-subtitle">Aging stages, weighted recovery probability, and field collector pacing</p>
+                <h4 class="chart-title" data-i18n="dash_chart_20_title">Delinquency Recovery Pipeline &amp; Escalation Pacing</h4>
+                <p class="chart-subtitle" data-i18n="dash_chart_20_sub">Aging stages, weighted recovery probability, and field collector pacing</p>
               </div>
               <div>
                 <button id="dashboardOpenDelinquencyModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Recovery Pipeline</button>
@@ -819,7 +819,7 @@
           <article class="dashboard-chart-card chart-card-cpe">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">CPE &amp; ONU Asset Lifecycle Tracker</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_21_title">CPE &amp; ONU Asset Lifecycle Tracker</h4>
                 <p class="chart-subtitle">Field deployments, dormant hardware at risk, and warehouse spares runway</p>
               </div>
               <button id="dashboardOpenCpeModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">CPE Fleet Audit</button>
@@ -829,7 +829,7 @@
           <article class="dashboard-chart-card chart-card-power">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Power Outage &amp; OLT Battery Health</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_22_title">Power Outage &amp; OLT Battery Health</h4>
                 <p class="chart-subtitle">POP battery bank discharge, generator fuel reserves, and load shedding runtime</p>
               </div>
               <button id="dashboardOpenPowerModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Power Fleet Audit</button>
@@ -839,7 +839,7 @@
           <article class="dashboard-chart-card chart-card-route-density">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Area Route Density &amp; Collector Pacing</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_23_title">Area Route Density &amp; Collector Pacing</h4>
                 <p class="chart-subtitle">Field collection route yield, stop density clustering, and recovery crew allocation</p>
               </div>
               <button id="dashboardOpenRouteDensityModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Route Density Matrix</button>
@@ -849,7 +849,7 @@
           <article class="dashboard-chart-card chart-card-otdr">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">OTDR Fiber Fault Locator &amp; Break Estimator</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_24_title">OTDR Fiber Fault Locator &amp; Break Estimator</h4>
                 <p class="chart-subtitle">Laser pulse backscattering, optical cut distance localization, and splicing crew dispatch</p>
               </div>
               <button id="dashboardOpenOtdrModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OTDR Trace Diagnostics</button>
@@ -859,7 +859,7 @@
           <article class="dashboard-chart-card chart-card-solar">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Solar Hybrid Inverter &amp; Grid Load Shedding</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_25_title">Solar Hybrid Inverter &amp; Grid Load Shedding</h4>
                 <p class="chart-subtitle">Photovoltaic generation, POP battery SoC autonomy, and LESCO blackout resilience</p>
               </div>
               <button id="dashboardOpenSolarModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Inverter Diagnostics</button>
@@ -869,7 +869,7 @@
           <article class="dashboard-chart-card chart-card-aerial">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Aerial Fiber Pole Tension &amp; Catenary Sag</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_26_title">Aerial Fiber Pole Tension &amp; Catenary Sag</h4>
                 <p class="chart-subtitle">Wind gust aerodynamic drag, mid-span sag clearance, and pole mechanical load risk</p>
               </div>
               <button id="dashboardOpenAerialModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Pole Stress Diagnostics</button>
@@ -879,7 +879,7 @@
           <article class="dashboard-chart-card chart-card-microwave">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Microwave Backhaul Rain Fade &amp; Link Budget</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_27_title">Microwave Backhaul Rain Fade &amp; Link Budget</h4>
                 <p class="chart-subtitle">ITU-R P.838 rain attenuation, RSL fade margin, and monsoon adaptive modulation</p>
               </div>
               <button id="dashboardOpenMicrowaveModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Rain Fade Diagnostics</button>
@@ -889,7 +889,7 @@
           <article class="dashboard-chart-card chart-card-splice">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Aerial Fiber Splice Closures &amp; Micro-Bend Loss</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_28_title">Aerial Fiber Splice Closures &amp; Micro-Bend Loss</h4>
                 <p class="chart-subtitle">FOSC dome tray fill saturation, slack loop bend radius, and 1550nm loss penalty</p>
               </div>
               <button id="dashboardOpenSpliceModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Splice Diagnostics</button>
@@ -899,7 +899,7 @@
           <article class="dashboard-chart-card chart-card-jetting">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Underground Duct Jetting &amp; Cable Friction</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_29_title">Underground Duct Jetting &amp; Cable Friction</h4>
                 <p class="chart-subtitle">Pneumatic hydraulic pressure, Euler buckling threshold, and capstan bend reach</p>
               </div>
               <button id="dashboardOpenJettingModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Jetting Diagnostics</button>
@@ -909,7 +909,7 @@
           <article class="dashboard-chart-card chart-card-pon-dba">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">OLT PON Port DBA &amp; Latency Queues</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_30_title">OLT PON Port DBA &amp; Latency Queues</h4>
                 <p class="chart-subtitle">Upstream TDMA burst grants, SR-DBA vs NSR-DBA scheduling, and SLA jitter horizons</p>
               </div>
               <button id="dashboardOpenPonDbaModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">DBA Diagnostics</button>
@@ -919,7 +919,7 @@
           <article class="dashboard-chart-card chart-card-splicer">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Fusion Splicer Arc Wear &amp; Cleave Angle</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_31_title">Fusion Splicer Arc Wear &amp; Cleave Angle</h4>
                 <p class="chart-subtitle">Electrode discharge degradation, rotary blade wear, and optical insertion loss</p>
               </div>
               <button id="dashboardOpenSplicerModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Splicer Diagnostics</button>
@@ -929,7 +929,7 @@
           <article class="dashboard-chart-card chart-card-bgp">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Core BGP Peering &amp; Route Flap Damping</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_32_title">Core BGP Peering &amp; Route Flap Damping</h4>
                 <p class="chart-subtitle">Upstream ASN transit convergence, RFC 2439 penalty decay, and RPKI ROA security</p>
               </div>
               <button id="dashboardOpenBgpModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">BGP Diagnostics</button>
@@ -939,7 +939,7 @@
           <article class="dashboard-chart-card chart-card-iptv">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Downstream IPTV Multicast &amp; Zapping</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_33_title">Downstream IPTV Multicast &amp; Zapping</h4>
                 <p class="chart-subtitle">GPON OLT IGMP snooping, keyframe GOP wait, and Fast Channel Change (FCC) latency</p>
               </div>
               <button id="dashboardOpenIptvModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">IPTV Diagnostics</button>
@@ -949,7 +949,7 @@
           <article class="dashboard-chart-card chart-card-dns">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Edge DNS Resolvers &amp; DNSSEC Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_34_title">Edge DNS Resolvers &amp; DNSSEC Matrix</h4>
                 <p class="chart-subtitle">POP recursive caching, RAM hit ratio, upstream forwarding latency, and DNSSEC validation</p>
               </div>
               <button id="dashboardOpenDnsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">DNS Diagnostics</button>
@@ -959,7 +959,7 @@
           <article class="dashboard-chart-card chart-card-dwdm">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">DWDM Optical Channels &amp; OSNR Budget</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_35_title">DWDM Optical Channels &amp; OSNR Budget</h4>
                 <p class="chart-subtitle">C-Band ITU-T 100GHz grid transponders, EDFA cascaded ASE noise, and SD-FEC margin</p>
               </div>
               <button id="dashboardOpenDwdmModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">DWDM Diagnostics</button>
@@ -969,7 +969,7 @@
           <article class="dashboard-chart-card chart-card-osc">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Optical Supervisory Channel (OSC) &amp; Loopback Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_36_title">Optical Supervisory Channel (OSC) &amp; Loopback Matrix</h4>
                 <p class="chart-subtitle">ITU-T G.692/G.709 1510/1610nm telemetry, optical power margin, and remote loopback testing</p>
               </div>
               <button id="dashboardOpenOscModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OSC Diagnostics</button>
@@ -979,7 +979,7 @@
           <article class="dashboard-chart-card chart-card-qinq">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Metro Ethernet QinQ &amp; LACP Trunk Saturation</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_37_title">Metro Ethernet QinQ &amp; LACP Trunk Saturation</h4>
                 <p class="chart-subtitle">IEEE 802.1ad VLAN stacking (0x88A8/0x8100), 802.3ad trunk bundling, and port saturation matrix</p>
               </div>
               <button id="dashboardOpenQinqModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">QinQ Diagnostics</button>
@@ -989,7 +989,7 @@
           <article class="dashboard-chart-card chart-card-synce">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier SyncE &amp; IEEE 1588v2 PTP Clock Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_38_title">Carrier SyncE &amp; IEEE 1588v2 PTP Clock Matrix</h4>
                 <p class="chart-subtitle">ITU-T G.8262 frequency (ESMC SSM) &amp; G.8275.1 microsecond phase synchronization</p>
               </div>
               <button id="dashboardOpenSyncEModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">SyncE Diagnostics</button>
@@ -999,7 +999,7 @@
           <article class="dashboard-chart-card chart-card-roadm">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">ROADM Flex-Grid WSS Optical Rerouting</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_39_title">ROADM Flex-Grid WSS Optical Rerouting</h4>
                 <p class="chart-subtitle">LCoS wavelength selective switching, express bypass (&lt;1µs), and protection matrix</p>
               </div>
               <button id="dashboardOpenRoadmModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">ROADM Diagnostics</button>
@@ -1009,7 +1009,7 @@
           <article class="dashboard-chart-card chart-card-micro-otdr">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">SFP Micro-OTDR Transceiver Reflectometry</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_40_title">SFP Micro-OTDR Transceiver Reflectometry</h4>
                 <p class="chart-subtitle">ITU-T G.984 / SFF-8472 embedded ToF backscatter, break isolation, and ORL matrix</p>
               </div>
               <button id="dashboardOpenMicroOtdrModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Micro-OTDR Diagnostics</button>
@@ -1019,7 +1019,7 @@
           <article class="dashboard-chart-card chart-card-mclag">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">MC-LAG Dual-Chassis Redundancy Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_41_title">MC-LAG Dual-Chassis Redundancy Matrix</h4>
                 <p class="chart-subtitle">RFC 7275 ICCP &amp; IEEE 802.1AX active-active forwarding, ICL bypass, and failover</p>
               </div>
               <button id="dashboardOpenMclagModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MC-LAG Diagnostics</button>
@@ -1029,7 +1029,7 @@
           <article class="dashboard-chart-card chart-card-flowspec">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">BGP Flowspec DDoS Mitigation Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_42_title">BGP Flowspec DDoS Mitigation Matrix</h4>
                 <p class="chart-subtitle">RFC 5575 / 8955 dynamic edge rate-limiting, hardware TCAM filtering &amp; scrubbing</p>
               </div>
               <button id="dashboardOpenFlowspecModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Flowspec Diagnostics</button>
@@ -1039,7 +1039,7 @@
           <article class="dashboard-chart-card chart-card-raman">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Optical Fiber Raman Amplifier (FRA) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_43_title">Optical Fiber Raman Amplifier (FRA) Matrix</h4>
                 <p class="chart-subtitle">ITU-T G.665 distributed gain, Stimulated Raman Scattering (SRS), and OSNR improvement</p>
               </div>
               <button id="dashboardOpenRamanModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Raman Diagnostics</button>
@@ -1049,7 +1049,7 @@
           <article class="dashboard-chart-card chart-card-sr-mpls">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier Segment Routing (SR-MPLS / SRv6) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_44_title">Carrier Segment Routing (SR-MPLS / SRv6) Matrix</h4>
                 <p class="chart-subtitle">RFC 8402 source routing, TI-LFA sub-50ms fast reroute, and low-latency LSP traffic engineering</p>
               </div>
               <button id="dashboardOpenSrMplsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Segment Routing Diagnostics</button>
@@ -1059,7 +1059,7 @@
           <article class="dashboard-chart-card chart-card-pmd">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">DWDM Polarization Mode Dispersion (PMD) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_45_title">DWDM Polarization Mode Dispersion (PMD) Matrix</h4>
                 <p class="chart-subtitle">ITU-T G.650.2 Differential Group Delay (DGD), Maxwellian tail statistics, and OSNR penalties</p>
               </div>
               <button id="dashboardOpenPmdModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">PMD Diagnostics</button>
@@ -1069,7 +1069,7 @@
           <article class="dashboard-chart-card chart-card-evpn">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">MP-BGP EVPN / VXLAN Network Virtualization Overlay Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_46_title">MP-BGP EVPN / VXLAN Network Virtualization Overlay Matrix</h4>
                 <p class="chart-subtitle">RFC 7432 / RFC 8365 Leaf-Spine overlay, Anycast Gateway (IRB), ARP suppression &amp; MTU headroom</p>
               </div>
               <button id="dashboardOpenEvpnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">EVPN Diagnostics</button>
@@ -1079,7 +1079,7 @@
           <article class="dashboard-chart-card chart-card-kerr">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Optical Fiber Nonlinear Kerr Effects &amp; Threshold Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_47_title">Optical Fiber Nonlinear Kerr Effects &amp; Threshold Matrix</h4>
                 <p class="chart-subtitle">ITU-T G.652/G.655 DWDM C-band Self-Phase (SPM), Cross-Phase (XPM) &amp; Four-Wave Mixing (FWM) estimator</p>
               </div>
               <button id="dashboardOpenKerrModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Kerr Diagnostics</button>
@@ -1089,7 +1089,7 @@
           <article class="dashboard-chart-card chart-card-mpls-te">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Core MPLS Traffic Engineering &amp; FRR Headroom Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_48_title">Core MPLS Traffic Engineering &amp; FRR Headroom Matrix</h4>
                 <p class="chart-subtitle">RFC 3209 RSVP-TE explicit LSP routing, RFC 4090 sub-50ms facility bypass &amp; unreserved bandwidth</p>
               </div>
               <button id="dashboardOpenMplsTeModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MPLS-TE Diagnostics</button>
@@ -1099,7 +1099,7 @@
           <article class="dashboard-chart-card chart-card-mef-ethernet">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier Ethernet E-Line / E-LAN Bandwidth Profiles</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_49_title">Carrier Ethernet E-Line / E-LAN Bandwidth Profiles</h4>
                 <p class="chart-subtitle">MEF 6.2/10.3 services, RFC 4115 color-aware dual token bucket policing &amp; MEF 23.1 CoS SLAs</p>
               </div>
               <button id="dashboardOpenMefEthernetModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MEF SLA Diagnostics</button>
@@ -1109,7 +1109,7 @@
           <article class="dashboard-chart-card chart-card-erps-ring">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Metro Ethernet Ring Protection (ITU-T G.8032 ERPS)</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_50_title">Metro Ethernet Ring Protection (ITU-T G.8032 ERPS)</h4>
                 <p class="chart-subtitle">Resilient fiber ring topology, R-APS protocol, RPL link blocking &amp; sub-50ms protection switching</p>
               </div>
               <button id="dashboardOpenErpsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">ERPS Ring Diagnostics</button>
@@ -1119,7 +1119,7 @@
           <article class="dashboard-chart-card chart-card-y1731-oam">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier Ethernet OAM &amp; PM (ITU-T Y.1731 / 802.1ag)</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_51_title">Carrier Ethernet OAM &amp; PM (ITU-T Y.1731 / 802.1ag)</h4>
                 <p class="chart-subtitle">Microsecond two-way frame delay (DMM/DMR), delay variation (FDV), synthetic loss &amp; SLA availability</p>
               </div>
               <button id="dashboardOpenY1731ModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Y.1731 SLA Diagnostics</button>
@@ -1129,7 +1129,7 @@
           <article class="dashboard-chart-card chart-card-pseudowire">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier MPLS Pseudowire (VPWS / EoMPLS) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_52_title">Carrier MPLS Pseudowire (VPWS / EoMPLS) Matrix</h4>
                 <p class="chart-subtitle">RFC 4447/3985 dual-label stack, 4-byte Control Word, 16-bit sequence numbering &amp; jitter playout buffer</p>
               </div>
               <button id="dashboardOpenPseudowireModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Pseudowire Diagnostics</button>
@@ -1139,7 +1139,7 @@
           <article class="dashboard-chart-card chart-card-bfd">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier BFD (RFC 5880 / 5881 / 7130) Fault Detection Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_53_title">Carrier BFD (RFC 5880 / 5881 / 7130) Fault Detection Matrix</h4>
                 <p class="chart-subtitle">Microsecond asynchronous heartbeat, Echo function, Micro-BFD on LAG &amp; sub-50ms rapid failover</p>
               </div>
               <button id="dashboardOpenBfdModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">BFD Peering Diagnostics</button>
@@ -1149,7 +1149,7 @@
           <article class="dashboard-chart-card chart-card-vpls">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier MPLS VPLS (RFC 4761 / 4762) Multi-Point Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_54_title">Carrier MPLS VPLS (RFC 4761 / 4762) Multi-Point Matrix</h4>
                 <p class="chart-subtitle">Full-mesh pseudowires, split-horizon loop suppression, MAC learning table &amp; BUM flood policing</p>
               </div>
               <button id="dashboardOpenVplsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">VPLS Mesh Diagnostics</button>
@@ -1159,7 +1159,7 @@
           <article class="dashboard-chart-card chart-card-botda">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Brillouin Sensing (BOTDA / ITU-T G.650.2) DTSS Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_55_title">Brillouin Sensing (BOTDA / ITU-T G.650.2) DTSS Matrix</h4>
                 <p class="chart-subtitle">Distributed temperature and strain sensing, Lorentzian BGS shift, river crossing sag &amp; mechanical fatigue life</p>
               </div>
               <button id="dashboardOpenBotdaModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">BOTDA Sensing Diagnostics</button>
@@ -1169,7 +1169,7 @@
           <article class="dashboard-chart-card chart-card-cgnat">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier CGNAT (RFC 6598 / 7422) Port-Block Allocation Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_56_title">Carrier CGNAT (RFC 6598 / 7422) Port-Block Allocation Matrix</h4>
                 <p class="chart-subtitle">RFC 6598 Shared IPv4 space, Deterministic PBA, subscriber session quota &amp; port exhaustion drop mitigation</p>
               </div>
               <button id="dashboardOpenCgnatModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">CGNAT Pool Diagnostics</button>
@@ -1179,7 +1179,7 @@
           <article class="dashboard-chart-card chart-card-olt-chassis">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Optical OLT Chassis (ITU-T G.984 / G.9807.1) Capacity Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_57_title">Optical OLT Chassis (ITU-T G.984 / G.9807.1) Capacity Matrix</h4>
                 <p class="chart-subtitle">Modular line-card slots, 16P PON density, cascaded PLC splitter optical budget &amp; ONT margin telemetry</p>
               </div>
               <button id="dashboardOpenOltChassisModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OLT Chassis Diagnostics</button>
@@ -1189,7 +1189,7 @@
           <article class="dashboard-chart-card chart-card-srv6">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier SRv6 (RFC 8986 / 8754) Network Programming Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_58_title">Carrier SRv6 (RFC 8986 / 8754) Network Programming Matrix</h4>
                 <p class="chart-subtitle">IPv6 Segment Routing Header (SRH), End.DT4/DT6 Tenant VRF, Micro-SID (uSID) &amp; Path MTU Telemetry</p>
               </div>
               <button id="dashboardOpenSrv6ModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">SRv6 Policy Diagnostics</button>
@@ -1199,7 +1199,7 @@
           <article class="dashboard-chart-card chart-card-flex-algo">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier Flex-Algo (RFC 9350 / 9351) Multi-Plane Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_59_title">Carrier Flex-Algo (RFC 9350 / 9351) Multi-Plane Matrix</h4>
                 <p class="chart-subtitle">Microsecond min-delay optimization, SRLG disjoint paths, optical express planes &amp; multi-topology telemetry</p>
               </div>
               <button id="dashboardOpenFlexAlgoModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Flex-Algo Diagnostics</button>
@@ -1209,7 +1209,7 @@
           <article class="dashboard-chart-card chart-card-optical-evm">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Optical Modulation &amp; Constellation EVM (ITU-T G.698.2) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_60_title">Optical Modulation &amp; Constellation EVM (ITU-T G.698.2) Matrix</h4>
                 <p class="chart-subtitle">Coherent DP-QPSK, DQPSK, DPSK, 16-QAM constellation error vector magnitude &amp; chromatic dispersion telemetry</p>
               </div>
               <button id="dashboardOpenOpticalEvmModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Constellation EVM Diagnostics</button>
@@ -1219,7 +1219,7 @@
           <article class="dashboard-chart-card chart-card-otn">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Optical Transport Network (OTN - ITU-T G.709) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_61_title">Optical Transport Network (OTN - ITU-T G.709) Matrix</h4>
                 <p class="chart-subtitle">Multi-rate ODUk/OTUk framing hierarchy, Soft-Decision FEC coding gain &amp; defect alarm telemetry</p>
               </div>
               <button id="dashboardOpenOtnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OTN Diagnostics</button>
@@ -1229,7 +1229,7 @@
           <article class="dashboard-chart-card chart-card-mpls-tp">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier MPLS-TP (ITU-T G.8113.1) 1:1 Protection Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_62_title">Carrier MPLS-TP (ITU-T G.8113.1) 1:1 Protection Matrix</h4>
                 <p class="chart-subtitle">Bidirectional co-routed path protection, G-ACh CC-V OAM &amp; sub-50ms fault recovery telemetry</p>
               </div>
               <button id="dashboardOpenMplsTpModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">MPLS-TP Diagnostics</button>
@@ -1239,7 +1239,7 @@
           <article class="dashboard-chart-card chart-card-l3vpn">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier BGP/MPLS IP VPN (L3VPN - RFC 4364) Multi-VRF Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_63_title">Carrier BGP/MPLS IP VPN (L3VPN - RFC 4364) Multi-VRF Matrix</h4>
                 <p class="chart-subtitle">Multi-VRF route distribution, 2-level MPLS label encapsulation &amp; PE-CE isolation telemetry</p>
               </div>
               <button id="dashboardOpenL3VpnModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">L3VPN Diagnostics</button>
@@ -1249,7 +1249,7 @@
           <article class="dashboard-chart-card chart-card-edfa-cascade">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier DWDM Cascaded EDFA &amp; DGE Equalization Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_64_title">Carrier DWDM Cascaded EDFA &amp; DGE Equalization Matrix</h4>
                 <p class="chart-subtitle">Multi-span optical amplification, ASE noise accumulation &amp; dynamic spectral ripple flattening</p>
               </div>
               <button id="dashboardOpenEdfaCascadeModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">EDFA Cascade Diagnostics</button>
@@ -1259,7 +1259,7 @@
           <article class="dashboard-chart-card chart-card-ptp-tbc">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier PTP IEEE 1588v2 Telecom Boundary Clock (T-BC) Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_65_title">Carrier PTP IEEE 1588v2 Telecom Boundary Clock (T-BC) Matrix</h4>
                 <p class="chart-subtitle">Nanosecond time error (|maxTE|), phase wander &amp; fiber delay asymmetry alignment</p>
               </div>
               <button id="dashboardOpenPtpTbcModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">PTP Diagnostics</button>
@@ -1269,7 +1269,7 @@
           <article class="dashboard-chart-card chart-card-rpki">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier BGP Route Origin Validation (ROV / RFC 6811) &amp; Flap Damping Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_66_title">Carrier BGP Route Origin Validation (ROV / RFC 6811) &amp; Flap Damping Matrix</h4>
                 <p class="chart-subtitle">RPKI cryptographically signed ROA verification, prefix hijack mitigation &amp; RFC 2439 penalty decay</p>
               </div>
               <button id="dashboardOpenRpkiModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">RPKI Diagnostics</button>
@@ -1279,7 +1279,7 @@
           <article class="dashboard-chart-card chart-card-polarization">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier Coherent Optical Polarization Mode State &amp; DSP Equalizer Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_67_title">Carrier Coherent Optical Polarization Mode State &amp; DSP Equalizer Matrix</h4>
                 <p class="chart-subtitle">Stokes vector (S0, S1, S2, S3), Poincaré sphere SOP rotation &amp; 2&times;2 butterfly FIR equalization</p>
               </div>
               <button id="dashboardOpenPolarizationModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog">Polarization Diagnostics</button>
@@ -1289,7 +1289,7 @@
           <article class="dashboard-chart-card chart-card-rocev2">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier RoCEv2 Lossless Fabric, Priority Flow Control (PFC) &amp; ECN Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_68_title">Carrier RoCEv2 Lossless Fabric, Priority Flow Control (PFC) &amp; ECN Matrix</h4>
                 <p class="chart-subtitle">IEEE 802.1Qbb CoS 3 headroom sizing, RFC 3168 RED/ECN marking, DCQCN rate adaptation &amp; deadlock mitigation</p>
               </div>
               <button id="openDashboardRocev2Btn" class="chart-action-link" type="button" aria-haspopup="dialog">RoCEv2 Diagnostics</button>
@@ -1299,7 +1299,7 @@
           <article class="dashboard-chart-card chart-card-olp">
             <div class="chart-card-header chart-card-header-flex">
               <div>
-                <h4 class="chart-title">Carrier Optical Line Protection (OLP 1+1) &amp; Hitless Switch Matrix</h4>
+                <h4 class="chart-title" data-i18n="dash_chart_69_title">Carrier Optical Line Protection (OLP 1+1) &amp; Hitless Switch Matrix</h4>
                 <p class="chart-subtitle">ITU-T G.873.1 dual-fed / selective-receiving, &lt;20ms automated optical path protection &amp; LOS failover</p>
               </div>
               <button id="openDashboardOlpBtn" class="chart-action-link" type="button" aria-haspopup="dialog">OLP Diagnostics</button>
@@ -1319,12 +1319,12 @@
       </details>
       <details id="homeProviderCostDetails" class="home-collapsible-section">
         <summary class="home-collapsible-summary">
-          <span>💼 Monthly Provider Cost Breakdown</span>
+          <span data-i18n="dash_prov_title">💼 Monthly Provider Cost Breakdown</span>
           <span class="summary-arrow" aria-hidden="true">▾</span>
         </summary>
-      <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden>No provider-cost entries have been configured.</p></section>
+      <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow" data-i18n="dash_prov_eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading" data-i18n="dash_prov_heading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer" data-i18n="dash_prov_explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden data-i18n="dash_prov_empty">No provider-cost entries have been configured.</p></section>
       </details>
-      <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading">Owner Command Center</h3><p>Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟"><button id="ownerVoiceButton" class="secondary-button" type="button">Voice · on-device only</button><button class="primary-button" type="submit">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
+      <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow" data-i18n="dash_owner_eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading" data-i18n="dash_owner_heading">Owner Command Center</h3><p data-i18n="dash_owner_note">Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge" data-i18n="dash_owner_badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput" data-i18n="dash_owner_input_label">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟" data-i18n-placeholder="dash_owner_placeholder"><button id="ownerVoiceButton" class="secondary-button" type="button" data-i18n="dash_owner_voice_btn">Voice · on-device only</button><button class="primary-button" type="submit" data-i18n="dash_owner_ask">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite" data-i18n="dash_owner_voice_note">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
       <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
 
       <dialog id="dashboardAreaModal" class="dashboard-modal" aria-labelledby="dashboardAreaModalTitle">

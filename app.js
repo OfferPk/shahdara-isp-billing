@@ -34,6 +34,7 @@ import {
   encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload
 } from './backup-store.js?v=1.10.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.10.0';
+import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.10.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.10.0';
@@ -256,6 +257,60 @@ function getLatestBackupTimestamp(status = null) {
   return new Date(localTime) > new Date(storeTime) ? localTime : storeTime;
 }
 
+// SISP-10: off-device export record. Local IndexedDB snapshots deliberately
+// do NOT call this — a browser cache clear wipes them too, so only a copy
+// that left the device (JSON download / share / encrypted export / sync-code
+// copy) resets the health badge.
+function recordOffDeviceBackupExport() {
+  const nowIso = new Date().toISOString();
+  try { localStorage.setItem(LAST_BACKUP_TIME_KEY, nowIso); } catch { /* ignore */ }
+  try { localStorage.setItem(BACKUP_HEALTH_KEY, JSON.stringify({ lastExportAt: nowIso, paymentCountAtExport: countAllPayments(state) })); } catch { /* ignore */ }
+}
+
+function readBackupHealthRecord() {
+  try {
+    const raw = localStorage.getItem(BACKUP_HEALTH_KEY);
+    if (raw) {
+      const record = JSON.parse(raw);
+      if (record && typeof record.lastExportAt === 'string') return record;
+    }
+  } catch { /* ignore */ }
+  // Migration: ledgers that exported before the health record existed fall
+  // back to the legacy timestamp with a date-based payment count.
+  try {
+    const legacy = localStorage.getItem(LAST_BACKUP_TIME_KEY);
+    if (legacy) return { lastExportAt: legacy, paymentCountAtExport: null };
+  } catch { /* ignore */ }
+  return { lastExportAt: null, paymentCountAtExport: null };
+}
+
+// SISP-10 top-bar badge. Refreshed from updateDataSafetyUi, which already
+// runs on load, on dashboard renders, and after every export.
+function renderBackupHealthBadge() {
+  const badge = $('#backupHealthBadge');
+  if (!badge) return;
+  const record = readBackupHealthRecord();
+  let paymentsSinceExport = null;
+  if (Number.isSafeInteger(record.paymentCountAtExport)) {
+    paymentsSinceExport = Math.max(0, countAllPayments(state) - record.paymentCountAtExport);
+  } else if (record.lastExportAt) {
+    paymentsSinceExport = countPaymentsAfterDate(state, record.lastExportAt.slice(0, 10));
+  }
+  const health = assessBackupHealth({ lastExportAt: record.lastExportAt, paymentsSinceExport, now: new Date() });
+  const emojiEl = $('#backupHealthEmoji');
+  const labelEl = $('#backupHealthLabel');
+  if (emojiEl) emojiEl.textContent = health.emoji;
+  if (labelEl) labelEl.textContent = health.label;
+  badge.className = `backup-health-badge health-${health.status}${health.pulse ? ' is-critical' : ''}`;
+  badge.title = `${health.title} Tap to download a JSON backup.`;
+  badge.setAttribute('aria-label', `${health.label}. ${health.title} Tap to download a JSON backup.`);
+}
+
+$('#backupHealthBadge')?.addEventListener('click', () => {
+  // Spec: tapping the badge triggers a 1-click JSON backup download.
+  $('#downloadJsonBackupButton')?.click();
+});
+
 function updateDataSafetyUi(status = null) {
   const latestBackupAt = getLatestBackupTimestamp(status);
   const age = calculateBackupAge(latestBackupAt, new Date());
@@ -286,6 +341,7 @@ function updateDataSafetyUi(status = null) {
       ? `${storageEstimateInfo.usageFormatted} of ${storageEstimateInfo.quotaFormatted} (${storageEstimateInfo.percentUsed}% used)`
       : 'Storage quota API not supported in this browser';
   }
+  renderBackupHealthBadge();
 }
 
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
@@ -2117,6 +2173,18 @@ function renderBackupPreview(preview) {
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
   $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}`;
+  // SISP-10: surface checksum verification in the preview. 'mismatch' can
+  // never be applied (preview.canApply is false); 'unverified' means a
+  // legacy backup without a checksum field.
+  const checksumNote = $('#jsonBackupChecksumNote');
+  if (checksumNote) {
+    checksumNote.textContent = preview.checksumStatus === 'verified'
+      ? '✓ Checksum verified — this backup arrived intact.'
+      : preview.checksumStatus === 'mismatch'
+        ? '⛔ Checksum mismatch — this backup was corrupted or edited in transit. It cannot be applied; export a fresh copy from the original device.'
+        : '⚠️ No checksum found — this is an older backup, so integrity could not be verified. Review the preview carefully before applying.';
+    checksumNote.className = `backup-checksum-note checksum-${preview.checksumStatus ?? 'unverified'}`;
+  }
   const list = $('#jsonBackupConflictList');
   list.replaceChildren();
   for (const conflict of conflicts.slice(0, 25)) {
@@ -2134,7 +2202,7 @@ $('#downloadJsonBackupButton').addEventListener('click', () => {
   if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
   const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
   downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, createJsonBackup(state, new Date(), backupExtras()));
-  try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+  recordOffDeviceBackupExport();
   updateDataSafetyUi();
   toast('JSON backup downloaded to this device. Store it somewhere safe.');
 });
@@ -2151,12 +2219,12 @@ async function handleShareBackupAction() {
   try {
     const result = await shareJsonBackupFile({ backupText, filename });
     if (result.method === 'share') {
-      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      recordOffDeviceBackupExport();
       updateDataSafetyUi();
       toast('Backup shared successfully! Keep it safe.');
     } else if (result.method === 'download') {
       downloadJson(result.filename, result.backupText);
-      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      recordOffDeviceBackupExport();
       updateDataSafetyUi();
       toast('JSON backup downloaded (file share fallback). Store it somewhere safe.');
     } else if (result.method === 'cancelled') {
@@ -2190,6 +2258,41 @@ $('#requestStoragePersistenceBtn')?.addEventListener('click', handleProtectStora
 $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
 
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
+
+// SISP-10: 1-click clipboard sync code — copy the checksum-stamped backup
+// text to move the ledger to another device (desktop ↔ phone) in seconds,
+// and paste a received code back in. Copying counts as an off-device export.
+$('#copySyncCodeButton')?.addEventListener('click', async () => {
+  if (persistenceBlocked) { toast('Saved data could not be read; a sync code of the blank recovery screen would be unsafe.'); return; }
+  const backupText = createJsonBackup(state, new Date(), backupExtras());
+  try {
+    await navigator.clipboard.writeText(backupText);
+    recordOffDeviceBackupExport();
+    updateDataSafetyUi();
+    toast('Sync code copied — paste it on the other device to restore.');
+  } catch {
+    // Clipboard API unavailable (non-secure context / denied permission):
+    // fall back to a file download so the transfer still works.
+    const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
+    downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, backupText);
+    recordOffDeviceBackupExport();
+    updateDataSafetyUi();
+    toast('Clipboard unavailable — sync code downloaded as a file instead.');
+  }
+});
+
+$('#importSyncCodeButton')?.addEventListener('click', () => {
+  const input = $('#pasteSyncCodeText');
+  const text = input?.value?.trim();
+  if (!text) { toast('Paste a sync code first.'); return; }
+  if (text.length > 25 * 1024 * 1024) { toast('Sync code is too large. No local data was changed.'); return; }
+  try {
+    const inspection = inspectBackupFileHeader(text);
+    if (!inspection.valid) { toast(`${inspection.error} No local data was changed.`); return; }
+    if (inspection.encrypted) { promptEncryptedRestore(text, inspection); return; }
+    renderBackupPreview(previewJsonBackupMerge(state, text, backupRestoreOptions()));
+  } catch (error) { toast(`${error.message} No local data was changed.`); }
+});
 $('#backupFrequencySelect').addEventListener('change', async event => {
   const frequency = event.currentTarget.value;
   try {
@@ -2398,7 +2501,7 @@ $('#downloadEncryptedBackupBtn')?.addEventListener('click', async () => {
     const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
     const filename = `shahdara-isp-billing-encrypted-backup-${fileStamp}.json`;
     downloadJson(filename, encrypted);
-    try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+    recordOffDeviceBackupExport();
     updateDataSafetyUi();
     closeEncryptedBackupDialog();
     toast('🔐 Encrypted backup downloaded! Store it safely and remember your passphrase.');
@@ -2417,13 +2520,13 @@ $('#shareEncryptedBackupBtn')?.addEventListener('click', async () => {
     const filename = `shahdara-isp-billing-encrypted-backup-${fileStamp}.json`;
     const result = await shareJsonBackupFile({ backupText: encrypted, filename });
     if (result.method === 'share') {
-      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      recordOffDeviceBackupExport();
       updateDataSafetyUi();
       closeEncryptedBackupDialog();
       toast('🔐 Encrypted backup shared! Select Google Drive or WhatsApp to save.');
     } else if (result.method === 'download') {
       downloadJson(result.filename, result.backupText);
-      try { localStorage.setItem(LAST_BACKUP_TIME_KEY, new Date().toISOString()); } catch { /* ignore */ }
+      recordOffDeviceBackupExport();
       updateDataSafetyUi();
       closeEncryptedBackupDialog();
       toast('🔐 Web Share unavailable; encrypted backup downloaded instead.');

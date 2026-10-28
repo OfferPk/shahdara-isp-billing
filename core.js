@@ -10,6 +10,7 @@ import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
+import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -1661,6 +1662,11 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSaadPayments(options.saadPayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), saadPayments: cleaned };
   }
+  // SISP-10: checksum-verified transfer. The stamp covers the canonical
+  // (key-sorted) form of the document, so it survives re-formatting, and
+  // readers that predate it ignore the unknown field — old backups and old
+  // app versions keep working in both directions.
+  document.checksum = computeBackupChecksum(document);
   return JSON.stringify(document, null, 2);
 }
 
@@ -1679,6 +1685,14 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const formatVer = Number(document.formatVersion);
   if (formatVer > 1) throw new Error('Backup format version is newer than supported by this app. No local data has changed.');
   if (!formatVer || formatVer < 1) document.formatVersion = 1;
+  // SISP-10: checksum verification runs AFTER deep validation, not before
+  // it. A mismatch means the file was corrupted or edited in transit, so
+  // the preview is apply-blocked (canApply false) and the UI warns — but
+  // validation errors (duplicate IDs, invalid snapshots, bad expenses)
+  // still surface with their specific messages instead of being masked.
+  // A missing checksum means a legacy backup: it still merges, reported
+  // as 'unverified' so the preview can warn.
+  const checksum = verifyBackupChecksum(backupText);
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
@@ -1998,5 +2012,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, checksumStatus:checksum.status };
 }

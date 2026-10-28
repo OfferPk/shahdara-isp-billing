@@ -129,7 +129,8 @@ import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, 
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
-import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
+import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
+import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 import {
@@ -204,7 +205,7 @@ export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
 export let pendingWorksModalController = null;
-export let lateFeeModalController = null;
+export let ownerKhataModalController = null;export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
@@ -673,6 +674,26 @@ function renderDashboard() {
     recoverySummaryEl.innerHTML = pending.length === 0
       ? ''
       : `<p><span>First pending</span><strong>${escapeHtml(pending[0].customer.name)} (#${escapeHtml(String(pending[0].customer.customerNumber))})</strong><small> · ${escapeHtml(pending[0].items.map(item => item.label).join(', '))}</small></p>`;
+  }
+  // SISP-20: owner khata closing card (current-month financials + network).
+  const ownerKhataSummaryEl = $('#ownerKhataSummary');
+  if (ownerKhataSummaryEl) {
+    const khataMonth = pakistanMonthNow(referenceDate);
+    const khataSaved = (state.monthlyClosings ?? []).find((row) => row.month === khataMonth) ?? null;
+    const khata = buildOwnerKhataReport(state, khataMonth, {
+      complaints: loadComplaints(),
+      settlements: loadShopSettlements(),
+      notes: loadMonthlyClosingNotes(),
+      savedSnapshot: khataSaved,
+      referenceDate
+    });
+    const valueEl = $('#dashboardOwnerKhataValue');
+    const periodEl = $('#dashboardOwnerKhataPeriod');
+    if (valueEl) valueEl.textContent = khata.receiptCount === 0 && khata.expenseCount === 0 ? 'No activity' : `${formatAmount(khata.profit)} net profit`;
+    if (periodEl) periodEl.textContent = `${monthName(khataMonth)} · collected ${formatAmount(khata.collected)} · arrears ${formatAmount(khata.pendingArrears)}`;
+    ownerKhataSummaryEl.innerHTML = khata.receiptCount === 0 && khata.expenseCount === 0 && khata.totalComplaints === 0
+      ? ''
+      : `<p><span>Shares</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · Nasir / Aqib · ${escapeHtml(String(khata.totalComplaints))} complaints · ${escapeHtml(String(khata.totalDowntime))} h offline</small></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -2169,8 +2190,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() };
-}
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes() };}
 function backupRestoreOptions() {
   let stored = false;
   let shopStored = false;
@@ -2192,8 +2212,19 @@ function backupRestoreOptions() {
   try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
   try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored };
-}
+  let notesStored = false;
+  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
+  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
+  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
+  try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
+  try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
+  try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
+  try { saadVisitsStored = localStorage.getItem(SAAD_VISITS_KEY) !== null; } catch { saadVisitsStored = false; }
+  try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
+  try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
+  try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
+  try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored };}
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
   warning.hidden = persistenceBlocked || storageAvailable;
@@ -2728,6 +2759,8 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     if (pendingBackupPreview.pendingWorks) {
       savePendingWorks(pendingBackupPreview.pendingWorks);
     }
+    if (pendingBackupPreview.monthlyClosingNotes) {
+      saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
@@ -7820,7 +7853,9 @@ if (typeof document !== 'undefined') {
     }
   });
 
-  worklistsModalController = setupWorklistsModal(() => state, {
+  ownerKhataModalController = setupOwnerKhataModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });  worklistsModalController = setupWorklistsModal(() => state, {
     onUpdateState: (newState) => {
       state = newState;
       save();

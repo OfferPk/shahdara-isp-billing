@@ -771,3 +771,14 @@ body.field-mode-open { overflow: hidden; }
 @media (max-width: 700px) {
   .hardware-recovery-head { flex-direction: column; }
 }
+/* SISP-20: owner khata closing card + modal (theme tokens only, no hex). */
+.owner-khata-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.owner-khata-body .owner-khata-section { margin-bottom: 16px; }
+.owner-khata-body .owner-khata-section h3 { font-size: 14px; margin: 0 0 8px; }
+.owner-khata-body .owner-khata-section p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px 0; }
+.owner-khata-body .owner-khata-section p span { color: var(--muted); }
+.owner-khata-body .owner-khata-section p small { color: var(--muted); }
+.owner-khata-footnote { color: var(--muted); font-size: 12px; margin-top: 12px; }
+@media (max-width: 700px) {
+  .owner-khata-body .owner-khata-section p strong { text-align: left; }
+}

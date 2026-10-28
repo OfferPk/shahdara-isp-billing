@@ -116,6 +116,7 @@ import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShop
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
+import { calculateInstallationCost } from './installation-cost.js?v=1.10.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
@@ -982,6 +983,12 @@ function renderNewCustomersPanel() {
     if (customer.connectionFee !== null && customer.connectionFee !== undefined && Number(customer.connectionFee) > 0) onboarding.push(`Fee ${formatAmount(customer.connectionFee)}`);
     if (String(customer.routerModel ?? '').trim()) onboarding.push(`Router ${escapeHtml(customer.routerModel)}${customer.routerPrice !== null && customer.routerPrice !== undefined && Number(customer.routerPrice) > 0 ? ` (${formatAmount(customer.routerPrice)})` : ''}`);
     if (customer.fiberMeters !== null && customer.fiberMeters !== undefined && Number(customer.fiberMeters) > 0) onboarding.push(`${customer.fiberMeters} m fiber`);
+    // SISP-23: per-installation subsidy/surplus badge on the ledger row.
+    const installCost = calculateInstallationCost(customer);
+    if (installCost.status === 'surplus') onboarding.push(`Install: net surplus ${formatAmount(installCost.net)}`);
+    else if (installCost.status === 'subsidy') onboarding.push(`Install: ISP subsidy ${formatAmount(installCost.subsidy)}${installCost.breakEvenMonths !== null ? ` · break-even ${installCost.breakEvenMonths} bill${installCost.breakEvenMonths === 1 ? '' : 's'}` : ''}`);
+    else if (installCost.status === 'break-even') onboarding.push('Install: break-even');
+    else if (installCost.status === 'unknown') onboarding.push(`Install cost ${formatAmount(installCost.totalCost)} · fee not recorded`);
     return `<li><button class="new-customer-row" type="button" data-customer-id="${escapeHtml(customer.id)}"><span class="new-customer-name">#${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}</span><span class="new-customer-meta">${escapeHtml(customer.mohalla || 'Area not set')} · joined ${escapeHtml(entry.month)}</span><span class="new-customer-onb">${onboarding.length ? onboarding.join(' · ') : 'Onboarding details not recorded'}</span></button></li>`;
   })).join('');
   const monthOptions = report.months.map(entry => `<option value="${escapeHtml(entry.month)}"${entry.month === newCustomersMonth ? ' selected' : ''}>${escapeHtml(monthName(entry.month))} (${entry.totals.count})</option>`).join('');
@@ -1730,6 +1737,23 @@ function customerLifetimeValueMarkup(lifetime) {
   const future=lifetime.estimatedFutureValue===null?'Insufficient history':formatAmount(lifetime.estimatedFutureValue);
   return `<section class="customer-lifetime-value" aria-labelledby="customerLifetimeValueHeading"><h3 id="customerLifetimeValueHeading">Customer lifetime value (CLV)</h3><dl class="customer-lifetime-grid"><div><dt>Historical revenue collected</dt><dd>${escapeHtml(formatAmount(lifetime.totalHistoricalRevenue))}</dd><dd class="customer-lifetime-basis">${lifetime.receiptCount} valid local receipt${lifetime.receiptCount===1?'':'s'}; actual receipts only.</dd></div><div><dt>Customer tenure</dt><dd>${escapeHtml(tenureLabel)}</dd><dd class="customer-lifetime-basis">${escapeHtml(tenureBasis)}</dd></div><div><dt>Average monthly revenue</dt><dd>${escapeHtml(monthlyRevenue)}</dd><dd class="customer-lifetime-basis">${escapeHtml(lifetime.averageMonthlyRevenueBasis)}</dd></div><div><dt>Average payment delay</dt><dd>${escapeHtml(delay)}</dd><dd class="customer-lifetime-basis">${escapeHtml(delayBasis)}</dd></div><div class="customer-lifetime-estimate"><dt>Estimated future value · next 12 months</dt><dd>${escapeHtml(future)}</dd><dd class="customer-lifetime-basis">${escapeHtml(lifetime.estimatedFutureValueBasis)}</dd></div></dl><p class="customer-lifetime-note">The future value is an estimate, not collected cash or a guarantee. It extrapolates the saved receipt average; it does not model customer loss, costs or future price changes.</p></section>`;
 }
+// SISP-23: one-line installation profitability summary for the profile
+// Connection group. Plain text (the field renderer escapes it); the
+// partial-cost note matters because a subsidy computed without a fiber
+// rate is only a lower bound, never the final number.
+function installationCostProfileLine(customer) {
+  const cost = calculateInstallationCost(customer);
+  if (cost.status === 'not-recorded') return 'Not recorded';
+  const costText = `Cost ${formatAmount(cost.totalCost)}${cost.totalIsPartial ? ' (partial — fiber rate not set)' : ''}`;
+  if (cost.status === 'unknown') return `${costText} · connection fee not recorded`;
+  if (cost.status === 'surplus') return `Net surplus ${formatAmount(cost.net)} · ${costText}`;
+  if (cost.status === 'break-even') return `Break-even · ${costText}`;
+  const breakEven = cost.breakEvenMonths === null
+    ? 'break-even not computable (monthly amount not set)'
+    : `break-even in ${cost.breakEvenMonths} monthly bill${cost.breakEvenMonths === 1 ? '' : 's'}`;
+  return `ISP Hardware Subsidy ${formatAmount(cost.subsidy)} · ${costText} · ${breakEven}`;
+}
+
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const cnic = String(customer.cnic ?? '').trim();
@@ -1780,7 +1804,7 @@ function renderCustomerProfileView(customer) {
   // inside this copyable script (that is the point of the feature).
   const mikrotikSnippet = buildCustomerMikrotikSnippet(customer);
   const mikrotikSectionHtml = `<section class="profile-mikrotik-section" aria-label="MikroTik script"><h4>📡 MikroTik script</h4><p class="profile-mikrotik-note">Copy into WinBox Terminal. Read-only — this never changes bills or customer records. PPPoE username, password, static IP and MAC come from the profile edit form.</p><textarea id="profileMikrotikScript" class="mikrotik-script-box" readonly rows="10" aria-label="MikroTik script for this customer">${escapeHtml(mikrotikSnippet)}</textarea><button type="button" class="secondary-button" id="profileMikrotikCopyBtn">📋 Copy MikroTik script</button></section>`;
-  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['PPPoE username', customer.pppoeUsername || 'Not set'], ['Static IP', customer.staticIp || 'Not set'], ['MAC address', customer.macAddress || 'Not set'], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
+  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Media converter cost', formatAmount(customer.mediaConverterCost)], ['Lineman install fee', formatAmount(customer.linemanInstallFee)], ['Fiber rate per meter', customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? 'Not recorded' : `${formatAmount(customer.fiberPerMeterRate)} / m`], ['Installation cost & profitability', installationCostProfileLine(customer)], ['PPPoE username', customer.pppoeUsername || 'Not set'], ['Static IP', customer.staticIp || 'Not set'], ['MAC address', customer.macAddress || 'Not set'], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
   $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
@@ -1967,6 +1991,9 @@ function renderDetail() {
   $('#routerModelInput').value = customer.routerModel ?? '';
   $('#routerPriceInput').value = customer.routerPrice ?? '';
   $('#fiberMetersInput').value = customer.fiberMeters ?? '';
+  if ($('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
+  if ($('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
+  if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';
   // SISP-7: feeder link fields — upstream select excludes this customer;
   // the saved upstream stays visible even if that house was archived.
   const feederSaved = normalizeFeederFields(customer);
@@ -3195,6 +3222,9 @@ function saveNewCustomer(allowDuplicateName = false) {
     routerModel:$('#newCustomerRouterModel').value,
     routerPrice:$('#newCustomerRouterPrice').value,
     fiberMeters:$('#newCustomerFiberMeters').value,
+    mediaConverterCost:$('#newCustomerMediaConverterCost') ? $('#newCustomerMediaConverterCost').value : '',
+    linemanInstallFee:$('#newCustomerLinemanInstallFee') ? $('#newCustomerLinemanInstallFee').value : '',
+    fiberPerMeterRate:$('#newCustomerFiberPerMeterRate') ? $('#newCustomerFiberPerMeterRate').value : '',
     // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
     serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set',
     nameUrdu:$('#newCustomerNameUrdu') ? $('#newCustomerNameUrdu').value.trim() : ''
@@ -3375,6 +3405,9 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       monthlySellingAmount:$('#monthlySellingAmountInput').value, connectionDate:$('#connectionDateInput').value,
       connectionFee:$('#connectionFeeInput').value, routerModel:$('#routerModelInput').value,
       routerPrice:$('#routerPriceInput').value, fiberMeters:$('#fiberMetersInput').value,
+      ...($('#mediaConverterCostInput') ? { mediaConverterCost: $('#mediaConverterCostInput').value } : {}),
+      ...($('#linemanInstallFeeInput') ? { linemanInstallFee: $('#linemanInstallFeeInput').value } : {}),
+      ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),
       upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
       fiberZone:$('#fiberZoneInput') ? $('#fiberZoneInput').value : '',
       ...($('#pppoeUsernameInput') ? { pppoeUsername: $('#pppoeUsernameInput').value } : {}),

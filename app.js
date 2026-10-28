@@ -114,6 +114,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
+import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl } from './partner-settlement.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
@@ -2238,10 +2239,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks(), monthlyClosingNotes: loadMonthlyClosingNotes() };
-}
-function backupRestoreOptions() {
-  let stored = false;
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements() };}function backupRestoreOptions() {  let stored = false;
   let shopStored = false;
   let complaintsStored = false;
   let roznamchaStored = false;
@@ -2251,9 +2249,10 @@ function backupRestoreOptions() {
   let saadPaymentsStored = false;
   let installRequestsStored = false;
   let pendingWorksStored = false;
+  let partnerLedgerStored = false;
+  let partnerSettlementsStored = false;
   let homeBudgetStored = false;
-  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
-  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
+  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
   try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
@@ -2264,11 +2263,10 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
+  try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
+  try { partnerSettlementsStored = localStorage.getItem(PARTNER_SETTLEMENTS_KEY) !== null; } catch { partnerSettlementsStored = false; }
   try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored };
-}
-function renderStorageWarning() {
-  const warning = $('#storageRecoveryWarning');
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored };}function renderStorageWarning() {  const warning = $('#storageRecoveryWarning');
   warning.hidden = persistenceBlocked || storageAvailable;
   warning.textContent = persistenceBlocked ? `Saved billing data could not be read (${readFailureMessage || 'storage error'}). The app has not overwritten it. Use a valid JSON backup and review the merge before restoring.` : !storageAvailable ? 'Browser storage is unavailable; recent edits may not survive closing this page. Download a JSON backup after storage becomes available.' : '';
   $('#downloadJsonBackupButton').disabled = persistenceBlocked;
@@ -2806,7 +2804,12 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.monthlyClosingNotes) {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
-    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
+    if (pendingBackupPreview.partnerLedger) {
+      savePartnerLedgerEntries(pendingBackupPreview.partnerLedger);
+    }
+    if (pendingBackupPreview.partnerSettlements) {
+      savePartnerSettlements(pendingBackupPreview.partnerSettlements);
+    }    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
 });
@@ -5270,8 +5273,8 @@ let nasirShareMonth = '';
 let aqibShareMonth = '';
 
 function syncExpenseTabs() {
-  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib' };
-  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel' };
+  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement' };
+  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel' };
   for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === expenseActiveTab)); }
   for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== expenseActiveTab; }
 }
@@ -5316,6 +5319,90 @@ function renderPartnerShare(key) {
     + `<h4>Monthly history</h4><div class="partner-share-history">${history}</div>`;
 }
 
+let partnerSettlementMonth = '';
+let partnerLedgerEditId = '';
+
+function partnerSettlementRow(label, value) { return `<div class="partner-settlement-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`; }
+
+// SISP-22: reconciliation tab. Profit/share come from buildPartnerShareReport
+// via buildPartnerSettlementReport; this function only renders and saves
+// ledger entries / slips, never bills, receipts or expenses.
+function renderPartnerSettlement() {
+  const monthSelect = $('#partnerSettlementMonth');
+  const host = $('#partnerSettlementContent');
+  if (!monthSelect || !host) return;
+  const entries = loadPartnerLedgerEntries();
+  const settlements = loadPartnerSettlements();
+  const report = buildPartnerSettlementReport(state, partnerSettlementMonth, entries, new Date());
+  partnerSettlementMonth = report.month;
+  const monthsKey = report.months.join(',');
+  if (monthSelect.dataset.months !== monthsKey) {
+    monthSelect.innerHTML = report.months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
+    monthSelect.dataset.months = monthsKey;
+  }
+  monthSelect.value = report.month;
+  const slip = settlementForMonth(settlements, report.month);
+  const cards = report.perPartner.map(row => {
+    const detail = row.isReceivable
+      ? `<div class="partner-settlement-row partner-settlement-receivable"><span>Receivable — ${escapeHtml(row.partner)} owes the business</span><strong>${escapeHtml(formatAmount(row.receivableAmount))}</strong></div>`
+      : `<div class="partner-settlement-row"><span>Net payout</span><strong>${escapeHtml(formatAmount(row.netPayout))}</strong></div>`;
+    return `<article class="partner-settlement-card"><h4>${escapeHtml(row.partner)}</h4>`
+      + partnerSettlementRow('Share (50% of profit)', formatAmount(row.share))
+      + partnerSettlementRow(`Out-of-pocket purchases (${row.capitalCount})`, formatAmount(row.capital))
+      + partnerSettlementRow(`Mid-month drawings (${row.drawingCount})`, formatAmount(row.drawings))
+      + detail + `</article>`;
+  }).join('');
+  const profitLabel = report.profit >= 0 ? 'Net profit' : 'Net loss';
+  host.innerHTML = `<div class="partner-share-grid">`
+    + `<article class="phase3-metric"><span>Total revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.revenue))}</strong><small>${report.receiptCount} bill collection receipt${report.receiptCount === 1 ? '' : 's'}</small></article>`
+    + `<article class="phase3-metric"><span>Total expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.expenses))}</strong><small>${report.expenseCount} recorded expense entr${report.expenseCount === 1 ? 'y' : 'ies'}</small></article>`
+    + `<article class="phase3-metric"><span>${profitLabel}</span><strong>${escapeHtml(formatAmount(report.profit))}</strong><small>Revenue − expenses</small></article>`
+    + `<article class="phase3-metric"><span>Each partner share (50%)</span><strong>${escapeHtml(formatAmount(report.share))}</strong><small>${report.profit > 0 ? '50% of this month’s profit' : 'No share on a loss / zero month'}</small></article></div>`
+    + `<div class="partner-settlement-cards">${cards}</div>`
+    + `<p class="phase3-note">${escapeHtml(report.basis)}</p>`;
+  const statusEl = $('#partnerSettlementStatus');
+  if (statusEl) {
+    statusEl.textContent = slip
+      ? (slip.status === 'reopened'
+        ? `Saved slip for ${monthName(report.month)} was re-opened — confirm again to lock the current figures.`
+        : `Saved slip for ${monthName(report.month)} is confirmed. Confirm again to replace it with the current figures.`)
+      : `No saved slip for ${monthName(report.month)} yet — confirm below to lock these figures.`;
+  }
+  const waLink = $('#partnerSettlementWhatsAppLink');
+  if (waLink) waLink.href = partnerSettlementWhatsAppUrl(generatePartnerSettlementWhatsAppText(report, slip));
+  const reopenBtn = $('#partnerSettlementReopenBtn');
+  if (reopenBtn) reopenBtn.disabled = !slip;
+  const table = $('#partnerLedgerTable');
+  const emptyEl = $('#partnerLedgerEmpty');
+  if (table) {
+    table.innerHTML = report.entries.map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.partner)}</td><td>${escapeHtml(row.type === 'drawing' ? 'Drawing — cash taken' : 'Capital — out-of-pocket')}</td><td>${escapeHtml(formatAmount(row.amount))}</td><td>${escapeHtml(row.note || '—')}</td><td><button class="text-button" type="button" data-edit-partner-ledger="${escapeHtml(row.id)}">Edit</button> <button class="text-button" type="button" data-delete-partner-ledger="${escapeHtml(row.id)}">Delete</button></td></tr>`).join('');
+    table.querySelectorAll('[data-edit-partner-ledger]').forEach(button => button.addEventListener('click', () => {
+      const entry = loadPartnerLedgerEntries().find(row => row.id === button.dataset.editPartnerLedger);
+      if (!entry) return;
+      partnerLedgerEditId = entry.id;
+      $('#partnerLedgerId').value = entry.id;
+      $('#partnerLedgerPartner').value = entry.partner;
+      $('#partnerLedgerType').value = entry.type;
+      $('#partnerLedgerAmount').value = entry.amount;
+      $('#partnerLedgerDate').value = entry.date;
+      $('#partnerLedgerNote').value = entry.note || '';
+      $('#partnerLedgerSubmit').textContent = 'Save movement changes';
+      $('#partnerLedgerCancel').hidden = false;
+      $('#partnerLedgerForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+    table.querySelectorAll('[data-delete-partner-ledger]').forEach(button => button.addEventListener('click', async () => {
+      const entry = loadPartnerLedgerEntries().find(row => row.id === button.dataset.deletePartnerLedger);
+      if (!entry) return;
+      if (!await appConfirm({ tone: 'danger', title: 'Delete this partner movement?', subject: `${entry.partner} · ${entry.type} · ${formatAmount(entry.amount)} · ${entry.date}`, message: 'The month’s reconciliation will be recomputed without it. Bills, receipts and expenses are untouched.', confirmLabel: 'Delete' })) return;
+      savePartnerLedgerEntries(deletePartnerLedgerEntry(loadPartnerLedgerEntries(), entry.id));
+      toast('Partner movement deleted from this device.');
+      renderPartnerSettlement();
+    }));
+  }
+  if (emptyEl) emptyEl.hidden = report.entries.length > 0;
+  const dateInput = $('#partnerLedgerDate');
+  if (dateInput && !dateInput.value && !partnerLedgerEditId) dateInput.value = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+}
 /* Home Budget — personal household ledger. Kept fully apart from the business
    expense ledger: own storage key (sisp_home_budget_v1), own section, and no
    business code ever reads it, so home spending cannot touch profit or
@@ -5492,8 +5579,7 @@ const resetHomeBudgetFiltersHandler = () => {
   renderHomeBudget();
 };
 $('#homeBudgetClearFilters')?.addEventListener('click', resetHomeBudgetFiltersHandler);
-$('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFiltersHandler);
-function renderExpenses() {
+$('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFiltersHandler);function renderExpenses() {
   const payrollMonths=monthsForHistory();
   if(!payrollMonths.includes(selectedPayrollMonth))selectedPayrollMonth=payrollMonths[0];
   const payrollMonthSelect=$('#payrollMonth');
@@ -5612,6 +5698,7 @@ function renderExpenses() {
   updateNavigationBadges(state);
   syncExpenseTabs();
   if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
+  if (expenseActiveTab === 'settlement') renderPartnerSettlement();
 }
 function renderPhase3() { renderAnalytics();renderInventory();renderExpenses();renderHomeBudget(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
@@ -6042,9 +6129,53 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key!=='ledger')renderPartnerShare(key);});});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
+$('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
+$('#partnerLedgerForm')?.addEventListener('submit',event=>{
+  event.preventDefault();
+  try {
+    const entry = cleanPartnerLedgerEntry({
+      partner: $('#partnerLedgerPartner').value,
+      type: $('#partnerLedgerType').value,
+      amount: $('#partnerLedgerAmount').value,
+      date: $('#partnerLedgerDate').value,
+      note: $('#partnerLedgerNote').value
+    }, partnerLedgerEditId || null);
+    savePartnerLedgerEntries(upsertPartnerLedgerEntry(loadPartnerLedgerEntries(), entry));
+    partnerLedgerEditId = '';
+    $('#partnerLedgerForm').reset();
+    $('#partnerLedgerId').value = '';
+    $('#partnerLedgerSubmit').textContent = 'Record movement';
+    $('#partnerLedgerCancel').hidden = true;
+    toast('Partner movement recorded on this device.');
+    renderPartnerSettlement();
+  } catch (error) { toast(error.message, { type: 'error' }); }
+});
+$('#partnerLedgerCancel')?.addEventListener('click',()=>{
+  partnerLedgerEditId = '';
+  $('#partnerLedgerForm').reset();
+  $('#partnerLedgerId').value = '';
+  $('#partnerLedgerSubmit').textContent = 'Record movement';
+  $('#partnerLedgerCancel').hidden = true;
+});
+$('#partnerSettlementConfirmBtn')?.addEventListener('click',()=>{
+  try {
+    const report = buildPartnerSettlementReport(state, partnerSettlementMonth, loadPartnerLedgerEntries(), new Date());
+    const slip = createPartnerSettlement(report);
+    savePartnerSettlements(upsertPartnerSettlement(loadPartnerSettlements(), slip));
+    toast(`Settlement slip confirmed for ${monthName(report.month)}. Bills, receipts and expenses were not changed.`);
+    renderPartnerSettlement();
+  } catch (error) { toast(error.message, { type: 'error' }); }
+});
+$('#partnerSettlementReopenBtn')?.addEventListener('click',()=>{
+  try {
+    savePartnerSettlements(reopenPartnerSettlement(loadPartnerSettlements(), partnerSettlementMonth));
+    toast('Saved settlement slip re-opened. Confirm again to lock new figures.');
+    renderPartnerSettlement();
+  } catch (error) { toast(error.message, { type: 'error' }); }
+});
 $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
 $('#areaIntelMonth').addEventListener('change',event=>{
   const month=event.currentTarget.value;if(!month){renderAnalytics();return;}

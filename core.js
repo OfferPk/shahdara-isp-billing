@@ -15,7 +15,7 @@ import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import 
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
-
+import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
@@ -1805,8 +1805,21 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
   // (key-sorted) form of the document, so it survives re-formatting, and
   // readers that predate it ignore the unknown field — old backups and old
   // app versions keep working in both directions.
-  document.checksum = computeBackupChecksum(document);  return JSON.stringify(document, null, 2);
-}
+  // SISP-22: partner ledger entries + monthly settlement slips live outside
+  // the ledger state (localStorage keys sisp_partner_ledger_v1 /
+  // sisp_partner_settlements_v1), so they travel in optional
+  // `settings.partnerLedger` / `settings.partnerSettlements` sections.
+  // Written only when at least one record exists; readers that predate
+  // them ignore the unknown fields.
+  if (options && typeof options === 'object' && Array.isArray(options.partnerLedger) && options.partnerLedger.length) {
+    const cleaned = sanitizePartnerLedgerEntries(options.partnerLedger);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), partnerLedger: cleaned };
+  }
+  if (options && typeof options === 'object' && Array.isArray(options.partnerSettlements) && options.partnerSettlements.length) {
+    const cleaned = sanitizePartnerSettlements(options.partnerSettlements);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), partnerSettlements: cleaned };
+  }
+  document.checksum = computeBackupChecksum(document);  return JSON.stringify(document, null, 2);}
 
 /**
  * Validate a JSON backup and produce a preview-only, non-destructive merge. Existing
@@ -1834,10 +1847,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, homeBudgetRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, changes:0 };
-  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
-  const nonempty = value => !(value === null || value === undefined || value === '');
-  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, homeBudgetRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -2248,6 +2258,47 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Monthly closing notes differ from this device' });
     }
   }
+  // SISP-22: optional partner ledger + settlement slip sections (see
+  // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
+  // the backup's records only when this device has none stored yet;
+  // when both sides hold different real records, keep existing + conflict.
+  let partnerLedger = null;
+  const rawIncomingLedger = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.partnerLedger
+    : undefined;
+  if (Array.isArray(rawIncomingLedger) && rawIncomingLedger.length) {
+    const incomingLedger = sanitizePartnerLedgerEntries(rawIncomingLedger);
+    const currentLedger = (options && typeof options === 'object' && Array.isArray(options.currentPartnerLedger))
+      ? sanitizePartnerLedgerEntries(options.currentPartnerLedger)
+      : [];
+    if (incomingLedger.length && sameJson(incomingLedger, currentLedger)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingLedger.length && (!options?.currentPartnerLedgerStored || currentLedger.length === 0)) {
+      partnerLedger = incomingLedger;
+      counts.partnerLedgerRestored = 1;
+      counts.changes++;
+    } else if (incomingLedger.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Partner ledger records differ from this device' });
+    }
+  }
+  let partnerSettlements = null;
+  const rawIncomingSettlements = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.partnerSettlements
+    : undefined;
+  if (Array.isArray(rawIncomingSettlements) && rawIncomingSettlements.length) {
+    const incomingSettlements = sanitizePartnerSettlements(rawIncomingSettlements);
+    const currentSettlements = (options && typeof options === 'object' && Array.isArray(options.currentPartnerSettlements))
+      ? sanitizePartnerSettlements(options.currentPartnerSettlements)
+      : [];
+    if (incomingSettlements.length && sameJson(incomingSettlements, currentSettlements)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSettlements.length && (!options?.currentPartnerSettlementsStored || currentSettlements.length === 0)) {
+      partnerSettlements = incomingSettlements;
+      counts.partnerSettlementsRestored = 1;
+      counts.changes++;
+    } else if (incomingSettlements.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Partner settlement records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, homeBudget, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, checksumStatus:checksum.status };
-}
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, checksumStatus:checksum.status };}

@@ -40,7 +40,7 @@ import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerC
 import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.11.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.11.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 
 import {
   validatePakistanPhone,
@@ -1084,27 +1084,31 @@ function profileReceiptSummaryMarkup(customer) {
 }
 function customerCardMarkup(customer, archived = false, allocations = calculatePaymentAllocations(state)) {
   const receipts = summarizeCustomerReceipts(customer);
-  const tenure = tenurePresentation(customer);
+  const cardIsUr = currentAppLanguage() === 'ur';
+  const tenure = cardIsUr ? buildUrduTenure(customer) : tenurePresentation(customer);
   const monthBill = (customer.bills ?? []).find(bill => bill.month === selectedBillingMonth);
   const billing = statusPresentation(customer, monthBill);
+  const CUST_BILL_WORDS = { paid: 'cust_bill_paid', pending: 'cust_bill_pending', partial: 'cust_bill_partial', 'not-set': 'cust_not_set' };
+  const billWord = t(CUST_BILL_WORDS[billing.value] || 'cust_not_set');
   const isFeeSet = customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && Number(customer.monthlySellingAmount) > 0;
   const chipText = isFeeSet
-    ? (billing.value === 'not-set' ? `Rs ${customer.monthlySellingAmount}/mo` : `${billing.label} · Rs ${customer.monthlySellingAmount}/mo`)
-    : (billing.value === 'not-set' ? 'Bill not set' : `${billing.label}`);
-  const billingLabel = `${monthName(selectedBillingMonth)} bill: ${chipText}`;
-  const manualStatus = manualServiceStatusLabel(customer.serviceStatus);
+    ? (billing.value === 'not-set' ? t('cust_card_chip_fee', null, { amount: customer.monthlySellingAmount }) : `${billWord} · ${t('cust_card_chip_fee', null, { amount: customer.monthlySellingAmount })}`)
+    : (billing.value === 'not-set' ? t('cust_bill_not_set') : billWord);
+  const CUST_SERVICE_WORDS = { active: 'cust_service_active', offline: 'cust_service_offline', 'not-set': 'cust_not_set' };
+  const manualStatus = t('cust_service_status_chip', null, { status: t(CUST_SERVICE_WORDS[customer.serviceStatus] || 'cust_not_set') });
   const health = buildCustomerHealthScore(state, customer, new Date(), allocations);
-  const healthLabel = health?.score === null || !health ? 'Health · insufficient history' : `Health · ${health.score}/100 · ${health.category}`;
+  const CUST_HEALTH_CATS = { 'Insufficient history': 'cust_health_cat_insufficient', 'Insufficient recorded metrics': 'cust_health_cat_insufficient_metrics', 'Strong recorded indicators': 'cust_health_cat_strong', 'Mixed recorded indicators': 'cust_health_cat_mixed', 'Needs attention': 'cust_health_cat_attention' };
+  const healthLabel = health?.score === null || !health ? `${t('cust_card_health')} · ${t('cust_health_cat_insufficient')}` : `${t('cust_card_health')} · ${health.score}/100 · ${CUST_HEALTH_CATS[health.category] ? t(CUST_HEALTH_CATS[health.category]) : health.category}`;
   const healthReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
-  const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : 'No receipts';
-  const receiptCount = receipts.receiptCount ? plural(receipts.receiptCount, 'recorded receipt') : 'No payment entries';
-  const openLabel = `Open customer profile for #${customer.customerNumber}, ${customer.name}. Total actual receipts: ${receiptValue}. ${healthLabel}. Time with ISP: ${tenure.primary}. ${tenure.detail}.`;
+  const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : t('cust_card_no_receipts');
+  const receiptCount = receipts.receiptCount ? (cardIsUr ? t('cust_card_recorded_receipts', null, { count: receipts.receiptCount }) : plural(receipts.receiptCount, 'recorded receipt')) : t('cust_card_no_payment_entries');
+  const openLabel = t('cust_card_open_profile_title', null, { number: customer.customerNumber, name: customer.name, receipts: receiptValue, health: healthLabel, tenurePrimary: tenure.primary, tenureDetail: tenure.detail });
   const serviceButtons = ['active','offline','not-set'].map(status => {
-    const label = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[status];
+    const label = t(CUST_SERVICE_WORDS[status]);
     const selected = status === customer.serviceStatus;
-    return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="Set customer ${customer.customerNumber} manual service status to ${label}">${label}</button>`;
+    return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="${t('cust_service_button_aria', null, { number: customer.customerNumber, status: label })}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ' · Archived' : ''}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>Actually received</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || 'Package not set')}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">Open full profile and monthly billing history <span aria-hidden="true">→</span></span></button><details class="customer-health-reasons"><summary>Health reasons</summary><ul>${healthReasons || '<li>Not enough completed priced months for an automatic score.</li>'}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(chipText)} — Billing status for ${escapeHtml(monthName(selectedBillingMonth))}: ${billing.label}. Click to ${isFeeSet ? 'edit' : 'set'} monthly bill inline.">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="Manual service status for customer ${customer.customerNumber}, ${escapeHtml(customer.name)}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">Unarchive</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -1115,23 +1119,52 @@ let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getI
 // New-customers panel (customer ledger): view-only monthly join counts and
 // onboarding totals over saved customers. Join months come from
 // buildNewCustomerReport; this function never rewrites any saved value.
+
+// Urdu auto-translation phase 1: month names on the Customers page only.
+// Other screens keep monthName() until their own phase; only the customers
+// renderers below call this helper.
+const CUST_MONTH_KEYS = { '01': 'cust_month_jan', '02': 'cust_month_feb', '03': 'cust_month_mar', '04': 'cust_month_apr', '05': 'cust_month_may', '06': 'cust_month_jun', '07': 'cust_month_jul', '08': 'cust_month_aug', '09': 'cust_month_sep', '10': 'cust_month_oct', '11': 'cust_month_nov', '12': 'cust_month_dec' };
+function displayMonthName(month) {
+  const raw = String(month || '');
+  if (currentAppLanguage() === 'ur' && /^\d{4}-\d{2}$/.test(raw)) {
+    const key = CUST_MONTH_KEYS[raw.slice(5, 7)];
+    if (key) return `${t(key)} ${raw.slice(0, 4)}`;
+  }
+  return monthName(month);
+}
+
+// Urdu tenure lines for customer cards (phase 1). tenurePresentation() stays
+// untouched so the profile screen is unchanged until its own phase; the card
+// picks this version in Urdu mode only. Dates keep humanDate() output.
+function buildUrduTenure(customer) {
+  const tenure = summarizeCustomerTenure(customer, new Date());
+  const months = t('cust_tenure_months', null, { months: tenure.serviceMonths });
+  if (tenure.status === 'current') return { primary: months, detail: t('cust_tenure_connected_since', null, { date: humanDate(tenure.connectionDate) }) };
+  if (tenure.status === 'ended') return { primary: months, detail: t('cust_tenure_ended', null, { date: humanDate(tenure.endDate) }) };
+  if (tenure.status === 'future') return { primary: t('cust_tenure_not_started'), detail: t('cust_tenure_recorded_date', null, { date: humanDate(tenure.connectionDate) }) };
+  if (tenure.status === 'end-date-unknown') return { primary: t('cust_tenure_end_unknown'), detail: t('cust_tenure_connected_duration_unknown', null, { date: humanDate(tenure.connectionDate) }) };
+  if (tenure.status === 'date-review') return { primary: t('cust_tenure_check_dates'), detail: t('cust_tenure_end_before_connection', null, { date: humanDate(tenure.endDate) }) };
+  return { primary: t('cust_tenure_not_recorded'), detail: tenure.profileAddedOn ? t('cust_tenure_profile_added', null, { date: humanDate(tenure.profileAddedOn) }) : t('cust_tenure_connection_not_recorded') };
+}
 function renderNewCustomersPanel() {
   const mount = $('#newCustomersPanel');
   if (!mount) return;
   const report = buildNewCustomerReport(state.customers, new Date());
   const ranges = newCustomerQuickRanges(new Date());
+  const NEWCUST_RANGE_KEYS = { thisMonth: 'cust_newcust_this_month', lastMonth: 'cust_newcust_last_month', last3Months: 'cust_newcust_last_3_months', last6Months: 'cust_newcust_last_6_months' };
   let shown = [];
   let heading = '';
   if (newCustomersView === 'month' && newCustomersMonth) {
     shown = report.months.filter(entry => entry.month === newCustomersMonth);
-    heading = monthName(newCustomersMonth);
+    heading = displayMonthName(newCustomersMonth);
   } else {
     if (!ranges[newCustomersView]) newCustomersView = 'thisMonth';
     const range = ranges[newCustomersView];
     shown = filterNewCustomerMonths(report.months, range.start, range.end);
+    const rangeLabel = t(NEWCUST_RANGE_KEYS[newCustomersView]);
     heading = range.start === range.end
-      ? `${range.label} · ${monthName(range.start)}`
-      : `${range.label} · ${monthName(range.start)} – ${monthName(range.end)}`;
+      ? `${rangeLabel} · ${displayMonthName(range.start)}`
+      : `${rangeLabel} · ${displayMonthName(range.start)} – ${displayMonthName(range.end)}`;
   }
   const totals = shown.reduce((sum, entry) => ({
     count: sum.count + entry.totals.count,
@@ -1145,25 +1178,27 @@ function renderNewCustomersPanel() {
   totals.fiberMeters = Math.round(totals.fiberMeters * 10) / 10;
   const rows = shown.flatMap(entry => entry.customers.map(customer => {
     const onboarding = [];
-    if (customer.connectionFee !== null && customer.connectionFee !== undefined && Number(customer.connectionFee) > 0) onboarding.push(`Fee ${formatAmount(customer.connectionFee)}`);
-    if (String(customer.routerModel ?? '').trim()) onboarding.push(`Router ${escapeHtml(customer.routerModel)}${customer.routerPrice !== null && customer.routerPrice !== undefined && Number(customer.routerPrice) > 0 ? ` (${formatAmount(customer.routerPrice)})` : ''}`);
-    if (customer.fiberMeters !== null && customer.fiberMeters !== undefined && Number(customer.fiberMeters) > 0) onboarding.push(`${customer.fiberMeters} m fiber`);
+    const panelIsUr = currentAppLanguage() === 'ur';
+    if (customer.connectionFee !== null && customer.connectionFee !== undefined && Number(customer.connectionFee) > 0) onboarding.push(t('cust_newcust_fee', null, { amount: formatAmount(customer.connectionFee) }));
+    if (String(customer.routerModel ?? '').trim()) onboarding.push(t('cust_newcust_router', null, { model: escapeHtml(customer.routerModel) }) + (customer.routerPrice !== null && customer.routerPrice !== undefined && Number(customer.routerPrice) > 0 ? ` (${formatAmount(customer.routerPrice)})` : ''));
+    if (customer.fiberMeters !== null && customer.fiberMeters !== undefined && Number(customer.fiberMeters) > 0) onboarding.push(t('cust_newcust_fiber_m', null, { meters: customer.fiberMeters }));
     // SISP-23: per-installation subsidy/surplus badge on the ledger row.
     const installCost = calculateInstallationCost(customer);
-    if (installCost.status === 'surplus') onboarding.push(`Install: net surplus ${formatAmount(installCost.net)}`);
-    else if (installCost.status === 'subsidy') onboarding.push(`Install: ISP subsidy ${formatAmount(installCost.subsidy)}${installCost.breakEvenMonths !== null ? ` · break-even ${installCost.breakEvenMonths} bill${installCost.breakEvenMonths === 1 ? '' : 's'}` : ''}`);
-    else if (installCost.status === 'break-even') onboarding.push('Install: break-even');
-    else if (installCost.status === 'unknown') onboarding.push(`Install cost ${formatAmount(installCost.totalCost)} · fee not recorded`);
-    return `<li><button class="new-customer-row" type="button" data-customer-id="${escapeHtml(customer.id)}"><span class="new-customer-name">#${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}</span><span class="new-customer-meta">${escapeHtml(customer.mohalla || 'Area not set')} · joined ${escapeHtml(entry.month)}</span><span class="new-customer-onb">${onboarding.length ? onboarding.join(' · ') : 'Onboarding details not recorded'}</span></button></li>`;
+    if (installCost.status === 'surplus') onboarding.push(t('cust_newcust_install_surplus', null, { amount: formatAmount(installCost.net) }));
+    else if (installCost.status === 'subsidy') onboarding.push(t('cust_newcust_install_subsidy', null, { amount: formatAmount(installCost.subsidy) }) + (installCost.breakEvenMonths !== null ? (panelIsUr ? t('cust_newcust_install_breakeven_suffix', null, { months: installCost.breakEvenMonths }) : ` · break-even ${installCost.breakEvenMonths} bill${installCost.breakEvenMonths === 1 ? '' : 's'}`) : ''));
+    else if (installCost.status === 'break-even') onboarding.push(t('cust_newcust_install_breakeven'));
+    else if (installCost.status === 'unknown') onboarding.push(t('cust_newcust_install_unknown', null, { cost: formatAmount(installCost.totalCost) }));
+    return `<li><button class="new-customer-row" type="button" data-customer-id="${escapeHtml(customer.id)}"><span class="new-customer-name">#${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}</span><span class="new-customer-meta">${escapeHtml(customer.mohalla || t('cust_newcust_area_not_set'))} · ${t('cust_newcust_joined', null, { month: entry.month })}</span><span class="new-customer-onb">${onboarding.length ? onboarding.join(' · ') : t('cust_newcust_onboarding_none')}</span></button></li>`;
   })).join('');
-  const monthOptions = report.months.map(entry => `<option value="${escapeHtml(entry.month)}"${entry.month === newCustomersMonth ? ' selected' : ''}>${escapeHtml(monthName(entry.month))} (${entry.totals.count})</option>`).join('');
-  mount.innerHTML = `<div class="new-customers-head"><div><p class="eyebrow">NEW CUSTOMERS</p><h3>New customers by month</h3></div><p class="new-customers-heading">${escapeHtml(heading)}</p></div>`
-    + `<div class="new-customers-controls" role="group" aria-label="New-customer quick views">`
-    + Object.entries(ranges).map(([key, range]) => `<button class="customer-filter-button" type="button" data-newcust-view="${key}" aria-pressed="${newCustomersView === key ? 'true' : 'false'}">${range.label}</button>`).join('')
-    + `<label class="new-customers-month" for="newCustomersMonthSelect">Month <select id="newCustomersMonthSelect"><option value="">Choose a month…</option>${monthOptions}</select></label></div>`
-    + `<div class="new-customers-totals" role="status"><span><strong>${totals.count}</strong> new customers</span><span>Connection fees <strong>${formatAmount(totals.connectionFees)}</strong></span><span><strong>${totals.routersIssued}</strong> routers · <strong>${formatAmount(totals.routerTotal)}</strong></span><span>Fiber <strong>${totals.fiberMeters} m</strong></span></div>`
-    + (rows ? `<ul class="new-customers-list">${rows}</ul>` : `<p class="new-customers-empty">No new customers in this view.</p>`)
-    + `<p class="new-customers-note">Join counts include customers archived later.${report.undatedCount ? ` ${report.undatedCount} customer${report.undatedCount === 1 ? '' : 's'} have no join date (added before dates were recorded) and are not counted in any month.` : ''}</p>`;
+  const monthOptions = report.months.map(entry => `<option value="${escapeHtml(entry.month)}"${entry.month === newCustomersMonth ? ' selected' : ''}>${escapeHtml(displayMonthName(entry.month))} (${entry.totals.count})</option>`).join('');
+  const panelIsUr = currentAppLanguage() === 'ur';
+  mount.innerHTML = `<div class="new-customers-head"><div><p class="eyebrow">${t('cust_new_customers_eyebrow')}</p><h3>${t('cust_new_customers_by_month')}</h3></div><p class="new-customers-heading">${escapeHtml(heading)}</p></div>`
+    + `<div class="new-customers-controls" role="group" aria-label="${t('cust_newcust_quick_views_aria')}">`
+    + Object.entries(ranges).map(([key, range]) => `<button class="customer-filter-button" type="button" data-newcust-view="${key}" aria-pressed="${newCustomersView === key ? 'true' : 'false'}">${t(NEWCUST_RANGE_KEYS[key])}</button>`).join('')
+    + `<label class="new-customers-month" for="newCustomersMonthSelect">${t('cust_newcust_month_label')} <select id="newCustomersMonthSelect"><option value="">${t('cust_newcust_choose_month')}</option>${monthOptions}</select></label></div>`
+    + `<div class="new-customers-totals" role="status"><span>${t('cust_newcust_count', null, { count: `<strong>${totals.count}</strong>` })}</span><span>${t('cust_newcust_connection_fees')} <strong>${formatAmount(totals.connectionFees)}</strong></span><span><strong>${totals.routersIssued}</strong> ${t('cust_newcust_routers')} · <strong>${formatAmount(totals.routerTotal)}</strong></span><span>${t('cust_newcust_fiber')} <strong>${t('cust_newcust_fiber_meters', null, { meters: totals.fiberMeters })}</strong></span></div>`
+    + (rows ? `<ul class="new-customers-list">${rows}</ul>` : `<p class="new-customers-empty">${t('cust_newcust_empty')}</p>`)
+    + `<p class="new-customers-note">${t('cust_newcust_note')}${report.undatedCount ? (panelIsUr ? ` ${t('cust_newcust_undated', null, { count: report.undatedCount })}` : ` ${report.undatedCount} customer${report.undatedCount === 1 ? '' : 's'} have no join date (added before dates were recorded) and are not counted in any month.`) : ''}</p>`;
   mount.querySelectorAll('[data-newcust-view]').forEach(button => button.addEventListener('click', () => {
     newCustomersView = button.dataset.newcustView;
     newCustomersMonth = '';
@@ -1187,13 +1222,19 @@ function renderCustomers() {
   if (areaSelect) {
     const areaOptions = groupAreasWithCounts(state.customers.filter(c => !c.archived), c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
     const currentVal = customerAreaFilter;
-    areaSelect.innerHTML = '<option value="all">All areas</option>' + areaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+    areaSelect.innerHTML = `<option value="all">${t('cust_all_areas')}</option>` + areaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
     if (!areaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
       customerAreaFilter = 'all';
       areaSelect.value = 'all';
     } else {
       areaSelect.value = customerAreaFilter;
     }
+  }
+
+  const monthSelect = $('#customerFilterMonth');
+  if (monthSelect) {
+    monthSelect.innerHTML = monthsForHistory().map(month => `<option value="${escapeHtml(month)}">${escapeHtml(displayMonthName(month))}</option>`).join('');
+    monthSelect.value = selectedBillingMonth;
   }
 
   const sortSelect = $('#customerSortSelect');
@@ -1223,7 +1264,7 @@ function renderCustomers() {
   if (pagNav) {
     pagNav.hidden = active.length === 0;
     const pageInfo = $('#customerPageInfo');
-    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages} (${active.length} total)`;
+    if (pageInfo) pageInfo.textContent = t('cust_page_info', null, { page: paged.page, totalPages: paged.totalPages, total: active.length });
     const prevBtn = $('#customerPrevPage');
     if (prevBtn) prevBtn.disabled = paged.page <= 1;
     const nextBtn = $('#customerNextPage');
@@ -1292,7 +1333,7 @@ function renderCustomers() {
   $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {
-    emptySearch.textContent = customerQuery.trim() || customerAreaFilter !== 'all' ? 'No matching customers.' : 'No customers match these service and billing filters.';
+    emptySearch.textContent = customerQuery.trim() || customerAreaFilter !== 'all' ? t('cust_no_matching') : t('cust_no_match_filters');
     emptySearch.hidden = active.length > 0 || archived.length > 0;
   }
   document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerServiceFilter === selectedServiceFilter ? 'true' : 'false'));

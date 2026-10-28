@@ -15,6 +15,8 @@
  *   messages instead of browser bubbles.
  */
 
+import { t } from './nav-language.js';
+
 export const TOAST_TYPES = {
   success: { icon: '✓', title: 'Done' },
   error: { icon: '!', title: "Couldn't do that" },
@@ -564,18 +566,28 @@ export function setupCustomerSection(doc = document, win = window) {
     const compact = density !== 'detailed';
     list.classList.toggle('cust-compact', compact);
     doc.getElementById('archivedCustomerList')?.classList.toggle('cust-compact', compact);
-    toggle.textContent = compact ? '☰ Show details' : '▤ Compact list';
+    toggle.textContent = compact ? t('cust_density_detailed') : t('cust_density_compact');
     toggle.setAttribute('aria-pressed', String(!compact));
-    toggle.title = compact ? 'Show receipts, tenure, health and service buttons on each card' : 'One line per customer';
+    toggle.title = compact ? t('cust_density_detailed_title') : t('cust_density_compact_title');
   };
   toggle.addEventListener('click', () => {
     density = density === 'detailed' ? 'compact' : 'detailed';
     try { win.localStorage.setItem(DENSITY_KEY, density); } catch {}
     apply();
   });
+  // Urdu auto-translation phase 1: the toggle is created once, so re-apply
+  // its label when the language changes (guarded: setup runs once per window,
+  // but direct re-entry must not stack listeners).
+  try {
+    if (toggle.dataset && !toggle.dataset.i18nBound && typeof win.addEventListener === 'function') {
+      toggle.dataset.i18nBound = '1';
+      win.addEventListener('shahdara:language-change', apply);
+    }
+  } catch {}
   // "Service status: Not set" on every card says nothing; hide that chip (the profile still shows/edits it).
+  // Phase 1: the chip is translated in Urdu mode, so match both wordings.
   const markUnset = () => {
-    list.querySelectorAll('.customer-manual-state').forEach(el => el.classList.toggle('is-unset', /not set/i.test(el.textContent)));
+    list.querySelectorAll('.customer-manual-state').forEach(el => el.classList.toggle('is-unset', /not set|منتخب نہیں/i.test(el.textContent)));
     // Compact rows show only the status ("Paid", "Pending"…); the full label stays in aria-label / title.
     list.querySelectorAll('.customer-billing-badge').forEach(el => {
       const full = el.textContent.trim();

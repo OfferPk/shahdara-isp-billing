@@ -6582,102 +6582,102 @@
         </div>
       </details>
     </div>
-    <section id="customersView" class="page-view" aria-label="Customer profiles">
+    <section id="customersView" class="page-view" aria-label="Customer profiles" data-i18n-aria-label="cust_profiles_aria">
     <div class="app-shell">
-      <section id="customerPane" class="customer-pane" aria-label="Customers">
+      <section id="customerPane" class="customer-pane" aria-label="Customers" data-i18n-aria-label="cust_heading_customers">
         <div id="pullToRefreshIndicator" class="pull-to-refresh-indicator" aria-hidden="true">
           <div class="pull-refresh-spinner"></div>
-          <span class="pull-refresh-text">Pull to refresh</span>
+          <span class="pull-refresh-text" data-i18n="cust_pull_refresh">Pull to refresh</span>
         </div>
         <div class="pane-heading">
-          <div><p class="eyebrow">LOCAL LEDGER</p><h2>Customers <span id="customerCount" class="count-badge">0</span></h2></div>
+          <div><p class="eyebrow" data-i18n="cust_local_ledger">LOCAL LEDGER</p><h2><span data-i18n="cust_heading_customers">Customers</span> <span id="customerCount" class="count-badge">0</span></h2></div>
           <div class="pane-heading-actions">
-            <button id="openEnrollmentWizardBtn" class="action-btn-sm wizard-trigger-btn" type="button" title="Open Mobile Field Technician Enrollment Wizard">📱 Wizard</button>
-            <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer">+</button>
+            <button id="openEnrollmentWizardBtn" class="action-btn-sm wizard-trigger-btn" type="button" title="Open Mobile Field Technician Enrollment Wizard" data-i18n="cust_wizard" data-i18n-title="cust_wizard_title">📱 Wizard</button>
+            <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer" data-i18n-aria-label="cust_add_customer" data-i18n-title="cust_add_customer">+</button>
           </div>
         </div>
-        <section class="customer-filter-panel" aria-label="Customer filters">
-          <label class="customer-filter-month" for="customerFilterMonth">Billing month <select id="customerFilterMonth"></select></label>
-          <div class="customer-filter-group service-filter-toolbar" role="group" aria-label="Filter by manual service status; counts exclude archived profiles"><span class="customer-filter-label">Service</span><button class="customer-filter-button" type="button" data-customer-service-filter="all" aria-pressed="true">All</button><button class="customer-filter-button" type="button" data-customer-service-filter="active" aria-pressed="false" aria-label="Active — Filter by manual service status"><span>Active</span> <span id="serviceCountActive" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="offline" aria-pressed="false" aria-label="Offline — Filter by manual service status"><span>Offline</span> <span id="serviceCountOffline" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="not-set" aria-pressed="false" aria-label="Not set — Filter by manual service status"><span>Not set</span> <span id="serviceCountNotSet" class="service-count-badge" aria-hidden="true">—</span></button><span id="serviceStateCountsAnnouncement" class="sr-only" role="status" aria-live="polite">Manual service counts loading</span></div>
-          <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month"><span class="customer-filter-label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false">Not set</button></div>
-          <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
+        <section class="customer-filter-panel" aria-label="Customer filters" data-i18n-aria-label="cust_filters_aria">
+          <label class="customer-filter-month" for="customerFilterMonth"><span data-i18n="cust_billing_month">Billing month</span> <select id="customerFilterMonth"></select></label>
+          <div class="customer-filter-group service-filter-toolbar" role="group" aria-label="Filter by manual service status; counts exclude archived profiles" data-i18n-aria-label="cust_service_filter_aria"><span class="customer-filter-label" data-i18n="cust_service_label">Service</span><button class="customer-filter-button" type="button" data-customer-service-filter="all" aria-pressed="true" data-i18n="all">All</button><button class="customer-filter-button" type="button" data-customer-service-filter="active" aria-pressed="false" aria-label="Active — Filter by manual service status" data-i18n-aria-label="cust_service_active_aria"><span data-i18n="cust_service_active">Active</span> <span id="serviceCountActive" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="offline" aria-pressed="false" aria-label="Offline — Filter by manual service status" data-i18n-aria-label="cust_service_offline_aria"><span data-i18n="cust_service_offline">Offline</span> <span id="serviceCountOffline" class="service-count-badge" aria-hidden="true">—</span></button><button class="customer-filter-button" type="button" data-customer-service-filter="not-set" aria-pressed="false" aria-label="Not set — Filter by manual service status" data-i18n-aria-label="cust_service_not_set_aria"><span data-i18n="cust_not_set">Not set</span> <span id="serviceCountNotSet" class="service-count-badge" aria-hidden="true">—</span></button><span id="serviceStateCountsAnnouncement" class="sr-only" role="status" aria-live="polite" data-i18n="cust_service_counts_loading">Manual service counts loading</span></div>
+          <div class="customer-filter-group" role="group" aria-label="Filter by billing status for selected month" data-i18n-aria-label="cust_bill_filter_aria"><span class="customer-filter-label" data-i18n="cust_bill_status_label">Bill status</span><button class="customer-filter-button" type="button" data-customer-billing-filter="all" aria-pressed="true" data-i18n="cust_all_incl_not_set">All (incl. Not set)</button><button class="customer-filter-button" type="button" data-customer-billing-filter="paid" aria-pressed="false" data-i18n="cust_bill_paid">Paid</button><button class="customer-filter-button" type="button" data-customer-billing-filter="pending" aria-pressed="false" data-i18n="cust_bill_pending">Pending</button><button class="customer-filter-button" type="button" data-customer-billing-filter="partial" aria-pressed="false" data-i18n="cust_bill_partial">Partial</button><button class="customer-filter-button" type="button" data-customer-billing-filter="not-set" aria-pressed="false" data-i18n="cust_not_set">Not set</button></div>
+          <details class="help-tip filter-help"><summary class="help-icon" aria-label="Service and billing status guidance" aria-controls="filterGuidance" data-i18n-aria-label="cust_filter_help_aria">i</summary><span id="filterGuidance" class="help-tip-content" role="tooltip" data-i18n="cust_filter_help">Service status is set by the operator and is not monitored. Billing status is derived from the saved bill amount, actual receipts, and carried credit.</span></details>
           <div class="customer-filter-row-secondary">
-            <label class="customer-filter-area" for="customerFilterArea">Area / Mohalla
-              <select id="customerFilterArea" aria-label="Filter roster by area or mohalla">
-                <option value="all" selected>All areas</option>
+            <label class="customer-filter-area" for="customerFilterArea"><span data-i18n="cust_area_label">Area / Mohalla</span>
+              <select id="customerFilterArea" aria-label="Filter roster by area or mohalla" data-i18n-aria-label="cust_filter_area_aria">
+                <option value="all" selected data-i18n="cust_all_areas">All areas</option>
               </select>
             </label>
-            <label class="customer-sort-label" for="customerSortSelect">Sort roster
-              <select id="customerSortSelect" aria-label="Sort customer roster">
-                <option value="number-asc" selected>Customer # (1 → 99)</option>
-                <option value="number-desc">Customer # (99 → 1)</option>
-                <option value="name-asc">Name (A → Z)</option>
-                <option value="name-desc">Name (Z → A)</option>
-                <option value="mohalla-asc">Area (A → Z)</option>
-                <option value="balance-desc">Dues / Balance (High → Low)</option>
-                <option value="balance-asc">Dues / Balance (Low → High)</option>
-                <option value="received-desc">Collected (High → Low)</option>
+            <label class="customer-sort-label" for="customerSortSelect"><span data-i18n="cust_sort_label">Sort roster</span>
+              <select id="customerSortSelect" aria-label="Sort customer roster" data-i18n-aria-label="cust_sort_roster_aria">
+                <option value="number-asc" selected data-i18n="cust_sort_number_asc">Customer # (1 → 99)</option>
+                <option value="number-desc" data-i18n="cust_sort_number_desc">Customer # (99 → 1)</option>
+                <option value="name-asc" data-i18n="cust_sort_name_asc">Name (A → Z)</option>
+                <option value="name-desc" data-i18n="cust_sort_name_desc">Name (Z → A)</option>
+                <option value="mohalla-asc" data-i18n="cust_sort_mohalla_asc">Area (A → Z)</option>
+                <option value="balance-desc" data-i18n="cust_sort_balance_desc">Dues / Balance (High → Low)</option>
+                <option value="balance-asc" data-i18n="cust_sort_balance_asc">Dues / Balance (Low → High)</option>
+                <option value="received-desc" data-i18n="cust_sort_received_desc">Collected (High → Low)</option>
               </select>
             </label>
-            <div class="customer-view-toggle" role="group" aria-label="Roster view layout">
-              <button id="customerViewCardsBtn" class="customer-view-btn is-active" type="button" aria-pressed="true" title="Card View">🗂️ Cards</button>
-              <button id="customerViewTableBtn" class="customer-view-btn" type="button" aria-pressed="false" title="Table View">📋 Table</button>
-              <button id="customerTableExpandBtn" class="customer-view-btn customer-expand-btn" type="button" aria-pressed="false" title="Maximize Table / Full Screen Width" hidden>⛶ Expand</button>
+            <div class="customer-view-toggle" role="group" aria-label="Roster view layout" data-i18n-aria-label="cust_view_layout_aria">
+              <button id="customerViewCardsBtn" class="customer-view-btn is-active" type="button" aria-pressed="true" title="Card View" data-i18n="cust_cards" data-i18n-title="cust_cards_title">🗂️ Cards</button>
+              <button id="customerViewTableBtn" class="customer-view-btn" type="button" aria-pressed="false" title="Table View" data-i18n="cust_table" data-i18n-title="cust_table_title">📋 Table</button>
+              <button id="customerTableExpandBtn" class="customer-view-btn customer-expand-btn" type="button" aria-pressed="false" title="Maximize Table / Full Screen Width" hidden data-i18n="cust_expand" data-i18n-title="cust_expand_title">⛶ Expand</button>
             </div>
-            <button id="exportCustomerRosterCsvBtn" class="secondary-button export-roster-btn" type="button" title="Export customer roster to CSV">📥 Export CSV</button>
+            <button id="exportCustomerRosterCsvBtn" class="secondary-button export-roster-btn" type="button" title="Export customer roster to CSV" data-i18n="cust_export_roster" data-i18n-title="cust_export_roster_title">📥 Export CSV</button>
           </div>
         </section>
         <div class="customer-list-search">
-          <label class="customer-list-search-label" for="customerListSearch">Search this list</label>
-          <div class="customer-list-search-control"><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search">Clear</button></div>
-          <p id="customerListSearchHelp" class="customer-list-search-help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
+          <label class="customer-list-search-label" for="customerListSearch" data-i18n="cust_search_list_label">Search this list</label>
+          <div class="customer-list-search-control"><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID" data-i18n-placeholder="cust_search_placeholder"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search" data-i18n="cust_search_clear" data-i18n-aria-label="cust_search_clear_aria">Clear</button></div>
+          <p id="customerListSearchHelp" class="customer-list-search-help" data-i18n="cust_search_help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
         </div>
-        <section id="newCustomersPanel" class="new-customers-panel" aria-label="New customers by month"></section>
-        <ul id="customerList" class="customer-list" aria-label="Customer list"></ul>
+        <section id="newCustomersPanel" class="new-customers-panel" aria-label="New customers by month" data-i18n-aria-label="cust_newcust_panel_aria"></section>
+        <ul id="customerList" class="customer-list" aria-label="Customer list" data-i18n-aria-label="cust_list_aria"></ul>
         <div id="customerTableWrap" class="customer-table-wrap" hidden>
           <div class="customer-table-scroll">
-            <table id="customerRosterTable" class="customer-roster-table" aria-label="Customer Roster Table">
+            <table id="customerRosterTable" class="customer-roster-table" aria-label="Customer Roster Table" data-i18n-aria-label="cust_table_aria">
               <thead>
                 <tr>
                   <th scope="col" class="col-num" data-sort-cust="number" role="columnheader" tabindex="0" aria-sort="ascending"># <span class="sort-icon" aria-hidden="true">▲</span></th>
-                  <th scope="col" class="col-name" data-sort-cust="name" role="columnheader" tabindex="0">Customer <span class="sort-icon" aria-hidden="true">⇅</span></th>
-                  <th scope="col" class="col-area" data-sort-cust="mohalla" role="columnheader" tabindex="0">Area / Mohalla <span class="sort-icon" aria-hidden="true">⇅</span></th>
-                  <th scope="col" class="col-plan" data-sort-cust="package" role="columnheader" tabindex="0">Plan <span class="sort-icon" aria-hidden="true">⇅</span></th>
-                  <th scope="col" class="col-service" role="columnheader">Service</th>
-                  <th scope="col" class="col-billing" role="columnheader">Status</th>
-                  <th scope="col" class="col-balance" data-sort-cust="balance" role="columnheader" tabindex="0">Balance Due <span class="sort-icon" aria-hidden="true">⇅</span></th>
-                  <th scope="col" class="col-action" role="columnheader">Action</th>
+                  <th scope="col" class="col-name" data-sort-cust="name" role="columnheader" tabindex="0"><span data-i18n="cust_th_customer">Customer</span> <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-area" data-sort-cust="mohalla" role="columnheader" tabindex="0"><span data-i18n="cust_th_area">Area / Mohalla</span> <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-plan" data-sort-cust="package" role="columnheader" tabindex="0"><span data-i18n="cust_th_plan">Plan</span> <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-service" role="columnheader"><span data-i18n="cust_th_service">Service</span></th>
+                  <th scope="col" class="col-billing" role="columnheader"><span data-i18n="cust_th_status">Status</span></th>
+                  <th scope="col" class="col-balance" data-sort-cust="balance" role="columnheader" tabindex="0"><span data-i18n="cust_th_balance">Balance Due</span> <span class="sort-icon" aria-hidden="true">⇅</span></th>
+                  <th scope="col" class="col-action" role="columnheader"><span data-i18n="cust_th_action">Action</span></th>
                 </tr>
               </thead>
               <tbody id="customerRosterTableBody"></tbody>
             </table>
           </div>
         </div>
-        <nav id="customerPagination" class="table-pagination" aria-label="Customer list pagination">
-          <button id="customerPrevPage" class="pagination-btn" type="button" aria-label="Previous customer page">← Previous</button>
+        <nav id="customerPagination" class="table-pagination" aria-label="Customer list pagination" data-i18n-aria-label="cust_pagination_aria">
+          <button id="customerPrevPage" class="pagination-btn" type="button" aria-label="Previous customer page" data-i18n="cust_prev" data-i18n-aria-label="cust_prev_aria">← Previous</button>
           <span id="customerPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
-          <button id="customerNextPage" class="pagination-btn" type="button" aria-label="Next customer page">Next →</button>
-          <label class="pagination-size-label" for="customerPageSize">Per page
-            <select id="customerPageSize" aria-label="Customers per page">
+          <button id="customerNextPage" class="pagination-btn" type="button" aria-label="Next customer page" data-i18n="cust_next" data-i18n-aria-label="cust_next_aria">Next →</button>
+          <label class="pagination-size-label" for="customerPageSize"><span data-i18n="cust_per_page">Per page</span>
+            <select id="customerPageSize" aria-label="Customers per page" data-i18n-aria-label="cust_per_page_aria">
               <option value="15" selected>15</option>
               <option value="30">30</option>
               <option value="60">60</option>
-              <option value="all">All</option>
+              <option value="all" data-i18n="all">All</option>
             </select>
           </label>
         </nav>
-        <details id="archivedCustomersPanel" class="archived-customers-panel"><summary>Archived customers <span id="archivedCustomerCount" class="count-badge">0</span></summary><ul id="archivedCustomerList" class="archived-customer-list" aria-label="Archived customer profiles"></ul></details>
+        <details id="archivedCustomersPanel" class="archived-customers-panel"><summary><span data-i18n="cust_archived">Archived customers</span> <span id="archivedCustomerCount" class="count-badge">0</span></summary><ul id="archivedCustomerList" class="archived-customer-list" aria-label="Archived customer profiles" data-i18n-aria-label="cust_archived_list_aria"></ul></details>
         <p id="noSearchResults" class="muted empty-search" hidden>No matching customers.</p>
-        <div class="pane-footer"><span class="local-lock" aria-hidden="true">▣</span> Billing entries never leave this browser.</div>
+        <div class="pane-footer"><span class="local-lock" aria-hidden="true">▣</span> <span data-i18n="cust_footer">Billing entries never leave this browser.</span></div>
       </section>
 
       <section id="detailPane" class="detail-pane" aria-label="Customer billing details">
         <div id="welcomeState" class="welcome-card">
           <div class="welcome-icon" aria-hidden="true">▤</div>
-          <p class="eyebrow">CUSTOMER LEDGER</p>
-          <h2>Select a customer to open their ledger</h2>
-          <p>Pick a customer from the list to see their bills, payments and history, or use + Add Customer.</p>
-          <p class="welcome-count"><strong id="welcomeCount">0</strong> customers · up to 24 months per customer</p>
+          <p class="eyebrow" data-i18n="cust_welcome_eyebrow">CUSTOMER LEDGER</p>
+          <h2 data-i18n="cust_welcome_heading">Select a customer to open their ledger</h2>
+          <p data-i18n="cust_welcome_pick">Pick a customer from the list to see their bills, payments and history, or use + Add Customer.</p>
+          <p class="welcome-count"><strong id="welcomeCount">0</strong> <span data-i18n="cust_welcome_count_suffix">customers · up to 24 months per customer</span></p>
         </div>
         <div id="customerDetail" hidden>
           <div class="detail-head">

@@ -117,6 +117,7 @@ import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
+import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -165,6 +166,7 @@ export let shopSettlementModalController = null;
 export let billingCycleModalController = null;
 export let complaintRegisterModalController = null;
 export let downtimeAnalyticsModalController = null;
+export let monthlyComplaintReportModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -467,6 +469,18 @@ function renderDashboard() {
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
       : `<p><span>Top customer</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(String(analytics.areaOutageComplaints))} zone-wide faults · ${escapeHtml(String(analytics.areaOutageDowntime))} h</small></p>`;
+  }
+  // SISP-17: monthly complaint report card (this-month 4-part report totals).
+  const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
+  if (monthlyReportSummaryEl) {
+    const report = buildMonthlyComplaintReport(loadComplaints(), pakistanMonthNow(referenceDate));
+    const valueEl = $('#dashboardMonthlyReportValue');
+    const periodEl = $('#dashboardMonthlyReportPeriod');
+    if (valueEl) valueEl.textContent = report.summary.totalComplaints === 0 ? 'No complaints' : `${report.summary.totalComplaints} complaints · ${report.summary.totalDowntime} h net off`;
+    if (periodEl) periodEl.textContent = report.summary.totalComplaints === 0 ? '4-part monthly report: summary, customers, causes, full log' : `${report.summary.resolvedCount} resolved · ${report.summary.pendingCount} pending · ${report.summary.fiberCutHours} h Fiber Cut`;
+    monthlyReportSummaryEl.innerHTML = report.summary.totalComplaints === 0
+      ? ''
+      : `<p><span>Top customer</span><strong>${escapeHtml(report.perCustomer.length ? `${report.perCustomer[0].customerName} · ${report.perCustomer[0].complaintCount} complaints` : '—')}</strong></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -7288,10 +7302,14 @@ if (typeof document !== 'undefined') {
       renderDashboard();
       renderDetail();
       if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
+      if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
     },
     onToast: (msg, opts) => toast(msg, opts)
   });
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   worklistsModalController = setupWorklistsModal(() => state, {

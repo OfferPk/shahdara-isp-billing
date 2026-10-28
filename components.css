@@ -211,6 +211,7 @@
   .downtime-customer-card p strong { text-align: left; }
 }
 
+
 /* SISP-5: 1-thumb field collection mode. Theme tokens only — no hardcoded
    surfaces, so dark mode stays correct. Single-column layout with
    border-box sizing throughout: zero horizontal scroll at 360px. */
@@ -497,4 +498,32 @@ body.field-mode-open { overflow: hidden; }
 @media (max-width: 360px) {
   .field-mode-view { padding-left: 12px; padding-right: 12px; }
   .field-mode-head h2 { font-size: var(--text-md); }
+
+}
+/* SISP-17: Monthly Complaint Report (token-only; dialog uses shared .billing-modal). */
+.monthly-complaint-report-summary p span { color: var(--ink); font-weight: 600; }
+.monthly-complaint-report-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.monthly-report-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.monthly-report-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.monthly-report-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.monthly-report-stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.monthly-report-stat-card strong { display: block; color: var(--ink); font-size: 18px; overflow-wrap: anywhere; }
+.monthly-report-stat-card span { color: var(--muted); font-size: 12px; }
+.monthly-report-table-wrap { margin: 8px 0 16px; min-width: 0; }
+.monthly-report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.monthly-report-table th, .monthly-report-table td { border: 1px solid var(--line); padding: 8px 10px; text-align: left; color: var(--ink); overflow-wrap: anywhere; }
+.monthly-report-table th { background: var(--surface); color: var(--muted); font-size: 12px; }
+.monthly-report-empty { color: var(--muted); font-size: 13px; }
+.monthly-report-share-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.monthly-report-share-row label { color: var(--muted); font-size: 13px; }
+.monthly-report-summary-text { width: 100%; box-sizing: border-box; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; margin: 0 0 12px; }
+.monthly-report-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 700px) {
+  .monthly-report-table thead { display: none; }
+  .monthly-report-table, .monthly-report-table tbody, .monthly-report-table tr, .monthly-report-table td { display: block; width: 100%; box-sizing: border-box; }
+  .monthly-report-table tr { border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; background: var(--surface); }
+  .monthly-report-table td { border: 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+  .monthly-report-table td:last-child { border-bottom: 0; }
+  .monthly-report-table td::before { content: attr(data-label); color: var(--muted); font-size: 12px; }
+
 }

@@ -3,6 +3,7 @@ import { createBillPackageSnapshot, validateBillPackageSnapshot } from './packag
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { sanitizeComplaints } from './complaint-register.js';
+import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 
 export const INITIAL_NAMES = Object.freeze([
@@ -1577,6 +1578,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeComplaints(options.complaints);
     if (cleaned.length) document.settings = { ...(document.settings || {}), complaints: cleaned };
   }
+  // SISP-11: roznamcha day records live outside the ledger state
+  // (localStorage key sisp_roznamcha_v1), so they travel in an
+  // optional `settings.roznamchaDays` section. Written only when at
+  // least one day exists; readers that predate it ignore the unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.roznamchaDays) && options.roznamchaDays.length) {
+    const cleaned = sanitizeRoznamchaDays(options.roznamchaDays);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), roznamchaDays: cleaned };
+  }
   return JSON.stringify(document, null, 2);
 }
 
@@ -1598,7 +1607,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
@@ -1794,6 +1803,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Complaint register records differ from this device' });
     }
   }
+  // SISP-11: optional roznamcha day records section (see createJsonBackup).
+  // Safe-merge rule, same as shop settlements: adopt the backup's records
+  // only when this device has none stored yet; when both sides hold
+  // different real records, keep existing + conflict.
+  let roznamchaDays = null;
+  const rawIncomingRoznamcha = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.roznamchaDays
+    : undefined;
+  if (Array.isArray(rawIncomingRoznamcha) && rawIncomingRoznamcha.length) {
+    const incomingRoznamcha = sanitizeRoznamchaDays(rawIncomingRoznamcha);
+    const currentRoznamcha = (options && typeof options === 'object' && Array.isArray(options.currentRoznamchaDays))
+      ? sanitizeRoznamchaDays(options.currentRoznamchaDays)
+      : [];
+    if (incomingRoznamcha.length && sameJson(incomingRoznamcha, currentRoznamcha)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingRoznamcha.length && (!options?.currentRoznamchaDaysStored || currentRoznamcha.length === 0)) {
+      roznamchaDays = incomingRoznamcha;
+      counts.roznamchaDaysRestored = 1;
+      counts.changes++;
+    } else if (incomingRoznamcha.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Roznamcha day records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints };
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays };
 }

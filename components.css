@@ -212,6 +212,7 @@
 }
 
 
+
 /* SISP-5: 1-thumb field collection mode. Theme tokens only — no hardcoded
    surfaces, so dark mode stays correct. Single-column layout with
    border-box sizing throughout: zero horizontal scroll at 360px. */
@@ -525,5 +526,25 @@ body.field-mode-open { overflow: hidden; }
   .monthly-report-table td { border: 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
   .monthly-report-table td:last-child { border-bottom: 0; }
   .monthly-report-table td::before { content: attr(data-label); color: var(--muted); font-size: 12px; }
+
+
+}
+/* SISP-11: Daily Cash Roznamcha card + modal (theme tokens only). */
+.roznamcha-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.roznamcha-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.roznamcha-summary p span { color: var(--ink); font-weight: 600; }
+.roznamcha-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.roznamcha-summary p small { color: var(--muted); }
+.roznamcha-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.roznamcha-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.roznamcha-inflows, .roznamcha-outflows { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; }
+.roznamcha-inflows p, .roznamcha-outflows p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.roznamcha-inflows p span, .roznamcha-outflows p span { color: var(--ink); }
+.roznamcha-inflows p strong, .roznamcha-outflows p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.roznamcha-empty { color: var(--muted); font-size: 13px; margin: 0; }
+.roznamcha-outflow-form { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+.roznamcha-close-block { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
+@media (max-width: 700px) {
+  .roznamcha-inflows p, .roznamcha-outflows p { flex-direction: column; }
 
 }

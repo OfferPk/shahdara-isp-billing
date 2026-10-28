@@ -1,7 +1,7 @@
 import { calculatePaymentAllocations } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown } from './billing-cycle.js';
-import { kistLineLabel } from './installment-plan.js';
+import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
@@ -321,6 +321,87 @@ export function generatePaymentReceiptHtml(receipt, {
       <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
       <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
     </div>
+  </footer>
+</article>`;
+}
+
+// SISP-29: Down-Payment + Kist Schedule Receipt. The down payment itself
+// is recorded as an ordinary payment entry (via core.addPayment) on the
+// current month's bill, so this snapshot only describes that payment plus
+// the plan it belongs to — it never creates a second ledger entry. The
+// schedule mirrors cycle billing (monthlyKist per installment); the
+// remaining figure is the plan's stated remainder (total - down payment).
+export function buildDownPaymentKistReceipt(customer, plan, payment) {
+  if (!customer || !plan || !payment) throw new Error('A saved customer, installment plan and down payment are required.');
+  const sane = sanitizeInstallmentPlan(plan);
+  if (!sane) throw new Error('A valid installment plan is required.');
+  const paid = positiveAmount(payment.amount);
+  if (paid === null) throw new Error('A valid down payment amount is required.');
+  return {
+    customerName: text(customer.name),
+    customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    receiptNumber: generateReceiptNumber({
+      customerNumber: customer.customerNumber,
+      paymentDate: validStoredDate(payment.date),
+      paymentId: payment.id
+    }),
+    paymentDate: validStoredDate(payment.date),
+    paymentMethod: text(payment.method),
+    itemTitle: sane.itemTitle,
+    totalAmount: sane.totalAmount,
+    downPayment: sane.downPayment,
+    paidDownPayment: paid,
+    monthlyKist: sane.monthlyKist,
+    totalMonths: sane.totalMonths,
+    remainingAfterDownPayment: Math.max(0, Number((sane.totalAmount - sane.downPayment).toFixed(2))),
+    schedule: kistSchedule(sane),
+    urduNote: RECEIPT_URDU_NOTE
+  };
+}
+
+// SISP-29: printable down-payment receipt. Single A4-style layout reusing
+// the standard receipt classes, so the existing print CSS applies. Paper
+// styling is deliberate (like the SISP-6 slip), not an app UI surface.
+export function buildDownPaymentKistReceiptHtml(receipt, {
+  businessName = 'Shahdara ISP',
+  businessPhone = '0300-1234567',
+  areaName = 'Shahdara, Lahore'
+} = {}) {
+  if (!receipt) return '';
+  const formatAmount = (val) => {
+    if (val === null || val === undefined || val === '') return 'PKR 0';
+    const num = Number(val);
+    return `PKR ${num.toLocaleString()}`;
+  };
+  const rows = (Array.isArray(receipt.schedule) ? receipt.schedule : [])
+    .map((row) => `<div class="receipt-field"><dt>Kist ${row.installmentNumber}/${row.totalMonths}:</dt><dd>${formatAmount(row.amount)} (${row.status === 'billed' ? 'billed' : 'remaining'})</dd></div>`).join('');
+  return `<article class="receipt-sheet" data-receipt-format="down-payment-kist">
+  <header class="receipt-head">
+    <div class="receipt-brand">${escapeHtml(businessName)}</div>
+    <h1>Down Payment Receipt / پیشگی ادائیگی رسید</h1>
+    <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
+    <div class="receipt-receipt-no">Receipt #: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
+  </header>
+  <div class="receipt-divider">================================</div>
+  <dl class="receipt-fields">
+    <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
+    <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
+    <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(receipt.customerName)}</dd></div>
+    <div class="receipt-field"><dt>Item / چیز:</dt><dd>${escapeHtml(receipt.itemTitle)}</dd></div>
+    <div class="receipt-field"><dt>Payment Method / طریقہ کار:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
+    <div class="receipt-divider">--------------------------------</div>
+    <div class="receipt-field"><dt>Total Amount / کل رقم:</dt><dd>${formatAmount(receipt.totalAmount)}</dd></div>
+    <div class="receipt-field receipt-paid-field"><dt><strong>Down Payment Received / موصولہ پیشگی:</strong></dt><dd><strong>${formatAmount(receipt.paidDownPayment)}</strong></dd></div>
+    <div class="receipt-field"><dt>Monthly Kist / ماہانہ قسط:</dt><dd>${formatAmount(receipt.monthlyKist)} × ${receipt.totalMonths} months</dd></div>
+    <div class="receipt-field"><dt>Remaining After Down Payment / بقایا:</dt><dd>${formatAmount(receipt.remainingAfterDownPayment)}</dd></div>
+    <div class="receipt-divider">--------------------------------</div>
+    <div class="receipt-field"><dt>Kist Schedule / قسطوں کی تفصیل:</dt><dd></dd></div>
+    ${rows}
+  </dl>
+  <div class="receipt-divider">--------------------------------</div>
+  <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
+  <footer class="receipt-terms">
+    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
   </footer>
 </article>`;
 }

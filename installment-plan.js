@@ -27,6 +27,19 @@
 //
 // Tests use synthetic data only; no customer, bill or payment data is ever
 // fabricated here.
+//
+// SISP-29: Early Payoff & Down-Payment Receipt. A plan may be settled early
+// (settlePlanEarly) — monthsBilled/monthsPaid jump to totalMonths and the
+// status flips to "completed", so dueKistLines (and therefore the SISP-2
+// cycle) never bills it again. The payoff amount is exactly
+// totalAmount - downPayment - monthlyKist * monthsBilled. A settled-early
+// plan keeps optional payoffAmount/payoffDate audit fields, which
+// buildKistProgress honours (paid in full, Rs 0 remaining) even when the
+// allocation-derived paid count would say otherwise, because the unbilled
+// installments were never turned into bills. kistSchedule mirrors cycle
+// billing (monthlyKist per installment) for receipts; any rounding
+// remainder is reconciled by the payoff formula at settlement, and the
+// cycle's per-month math is never changed by this module.
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -114,6 +127,16 @@ export function sanitizeInstallmentPlan(value) {
   let monthsPaid = Number.isSafeInteger(Number(value.monthsPaid)) ? Number(value.monthsPaid) : 0;
   monthsBilled = Math.max(0, Math.min(totalMonths, monthsBilled));
   monthsPaid = Math.max(0, Math.min(monthsBilled, monthsPaid));
+  // SISP-29: optional early-payoff audit fields. Absent on old plans
+  // (null); a settled-early plan always carries at least payoffAmount
+  // (0 is valid — a rounding-zero remainder still counts as settled).
+  // NOTE: Number(null) is 0, so null/undefined must map to NaN first,
+  // otherwise every old plan would look settled-early.
+  const payoffAmountRaw = value.payoffAmount ?? NaN;
+  const payoffAmount = payoffAmountRaw !== '' && Number.isFinite(Number(payoffAmountRaw)) && Number(payoffAmountRaw) >= 0
+    ? money(Number(payoffAmountRaw))
+    : null;
+  const payoffDate = validDate(value.payoffDate) ? value.payoffDate : null;
   return {
     id: value.id,
     itemTitle: value.itemTitle.trim().slice(0, 100),
@@ -123,6 +146,8 @@ export function sanitizeInstallmentPlan(value) {
     totalMonths,
     monthsBilled,
     monthsPaid,
+    payoffAmount,
+    payoffDate,
     startDate: validDate(value.startDate) ? value.startDate : null,
     // Status is derived, never trusted from storage: a plan is completed
     // exactly when every installment has been billed.
@@ -257,6 +282,63 @@ export function advancePlansForBilledLines(plans, appliedLines) {
 }
 
 /**
+ * Remaining unpaid balance of one plan, exactly as SISP-29 defines it:
+ * totalAmount - downPayment - monthlyKist * monthsBilled. Zero for
+ * completed plans (including settled-early ones) and for unusable input.
+ */
+export function earlyPayoffAmount(plan) {
+  const sanitized = sanitizeInstallmentPlan(plan);
+  if (!sanitized || sanitized.status !== 'active') return 0;
+  return Math.max(0, money(sanitized.totalAmount - sanitized.downPayment - sanitized.monthlyKist * sanitized.monthsBilled));
+}
+
+/**
+ * Settle one active plan early. Returns a new sanitized plan list: the
+ * matching plan gets monthsBilled = monthsPaid = totalMonths (so sanitize
+ * derives status "completed") plus payoffAmount/payoffDate audit fields.
+ * Completed plans, unknown ids and unusable input leave the list
+ * unchanged (sanitized). This alone guarantees the next SISP-2 cycle
+ * bills Rs 0 for the plan: dueKistLines skips completed plans and plans
+ * with monthsBilled >= totalMonths.
+ */
+export function settlePlanEarly(plans, planId, { date = null } = {}) {
+  const sanitized = sanitizeInstallmentPlans(plans);
+  if (typeof planId !== 'string' || !planId) return sanitized;
+  return sanitized.map((plan) => {
+    if (plan.id !== planId || plan.status !== 'active') return plan;
+    return sanitizeInstallmentPlan({
+      ...plan,
+      monthsBilled: plan.totalMonths,
+      monthsPaid: plan.totalMonths,
+      payoffAmount: earlyPayoffAmount(plan),
+      payoffDate: validDate(date) ? date : null
+    });
+  });
+}
+
+/**
+ * Receipt schedule for one plan: one row per installment at the cycle's
+ * monthlyKist, marked billed/remaining by monthsBilled. The rows mirror
+ * what the SISP-2 cycle bills each month; they are not a second billing
+ * path, and the payoff formula (not this schedule) reconciles any
+ * rounding remainder when a plan is settled early.
+ */
+export function kistSchedule(plan) {
+  const sanitized = sanitizeInstallmentPlan(plan);
+  if (!sanitized) return [];
+  const rows = [];
+  for (let i = 1; i <= sanitized.totalMonths; i++) {
+    rows.push({
+      installmentNumber: i,
+      totalMonths: sanitized.totalMonths,
+      amount: sanitized.monthlyKist,
+      status: i <= sanitized.monthsBilled ? 'billed' : 'remaining'
+    });
+  }
+  return rows;
+}
+
+/**
  * Progress for every plan on a customer, for the profile progress bar.
  * `allocations` is the optional result of core.calculatePaymentAllocations
  * ({ forMonth(customerId, month) -> { balanceDueCents } }); when supplied,
@@ -278,13 +360,20 @@ export function buildKistProgress(customer, allocations = null) {
     }
   }
   const detailed = plans.map((plan) => {
+    // SISP-29: a settled-early plan is paid in full with Rs 0 remaining,
+    // even though its unbilled installments never became bills (so the
+    // allocation-derived paid count below would undercount them).
+    const settledEarly = plan.payoffAmount !== null || plan.payoffDate !== null;
     let monthsPaid = plan.monthsPaid;
-    if (allocations && typeof allocations.forMonth === 'function') {
+    if (!settledEarly && allocations && typeof allocations.forMonth === 'function') {
       const paidLines = bills.flatMap((bill) => sanitizeBillKistLines(bill.kistLines)
         .filter((line) => line.planId === plan.id && settledMonths.has(bill.month)));
       monthsPaid = Math.min(plan.monthsBilled, paidLines.length);
     }
-    const remainingAmount = Math.max(0, money(plan.totalAmount - plan.downPayment - plan.monthlyKist * monthsPaid));
+    if (settledEarly) monthsPaid = plan.totalMonths;
+    const remainingAmount = settledEarly
+      ? 0
+      : Math.max(0, money(plan.totalAmount - plan.downPayment - plan.monthlyKist * monthsPaid));
     return {
       ...plan,
       monthsPaid,

@@ -1,6 +1,7 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
 import { arrearsBreakdownTextLines } from './billing-cycle.js';
 import { pauseStatusLabel, sanitizePauseFields } from './pause-billing.js';
+import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -218,5 +219,25 @@ export function pauseBillingSummary(customer) {
       : (pauseSkippedMonths.length > 0
         ? `Not paused.${skippedNote} — those months stay unbilled.`
         : 'Not paused')
+  };
+}
+
+// SISP-29: payoff presentation for one kist plan card. Pure: the payoff
+// amount is exactly totalAmount - downPayment - monthlyKist * monthsBilled
+// (0 for completed plans), and a settled-early plan reports its recorded
+// payoff amount/date. app.js renders the button/label from this object.
+export function kistSettlementPresentation(plan) {
+  const sane = sanitizeInstallmentPlan(plan);
+  if (!sane) return { canPayoff: false, payoffAmount: 0, payoffLabel: '', settledEarly: false, settledLabel: '' };
+  const settledEarly = sane.payoffAmount !== null || sane.payoffDate !== null;
+  const payoffAmount = earlyPayoffAmount(sane);
+  return {
+    canPayoff: sane.status === 'active',
+    payoffAmount,
+    payoffLabel: sane.status === 'active' ? `Early payoff · ${formatPKR(payoffAmount)}` : '',
+    settledEarly,
+    settledLabel: settledEarly
+      ? `Settled early · ${formatPKR(sane.payoffAmount ?? 0)}${sane.payoffDate ? ` on ${sane.payoffDate}` : ''}`
+      : ''
   };
 }

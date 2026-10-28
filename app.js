@@ -122,12 +122,13 @@ import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurri
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
-import { INVENTORY_KEY, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
+import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
+import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -154,6 +155,25 @@ import {
 
 
 
+
+// SISP-19 wiring into the SISP-18 stock book: when hardware is marked
+// recovered, the device comes BACK into stock. This runs AFTER the
+// recovery record is saved (both call sites persist first), so a stock
+// failure can never lose a recovery — failures only produce a warning
+// toast naming the outcome, and the recovery itself stays saved.
+function recordRecoveryStock(beforeCustomer, updatedCustomer) {
+  const movements = recoveryStockMovements(beforeCustomer, updatedCustomer);
+  if (movements.length === 0) return;
+  let stored = loadInventory();
+  const failed = [];
+  for (const movement of movements) {
+    try { stored = addMovement(stored, movement); }
+    catch (err) { failed.push(movement.itemId); }
+  }
+  let saved = true;
+  try { saveInventory(stored); } catch { saved = false; }
+  if (failed.length > 0 || !saved) toast('Hardware recovered, but the stock book could not be updated — check Stock Book.');
+}
 
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
@@ -639,6 +659,20 @@ function renderDashboard() {
     pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0
       ? ''
       : `<p><span>⚠️ Due</span><strong>${escapeHtml(pendingSummary.dueItems.map((item) => item.note).join(' · '))}</strong></p>`;
+  }
+  // SISP-19: pending hardware recovery card (disconnected customers
+  // holding unrecovered ISP-owned hardware).
+  const recoverySummaryEl = $('#hardwareRecoverySummary');
+  if (recoverySummaryEl) {
+    const pending = pendingHardwareRecovery(state.customers);
+    const pendingItems = pending.reduce((sum, entry) => sum + entry.items.length, 0);
+    const valueEl = $('#dashboardHardwareRecoveryValue');
+    const periodEl = $('#dashboardHardwareRecoveryPeriod');
+    if (valueEl) valueEl.textContent = pending.length === 0 ? 'Nothing pending' : `${pending.length} customer${pending.length === 1 ? '' : 's'} · ${pendingItems} item${pendingItems === 1 ? '' : 's'}`;
+    if (periodEl) periodEl.textContent = pending.length === 0 ? 'ISP-owned hardware at disconnected houses' : 'Mark items recovered as they come back';
+    recoverySummaryEl.innerHTML = pending.length === 0
+      ? ''
+      : `<p><span>First pending</span><strong>${escapeHtml(pending[0].customer.name)} (#${escapeHtml(String(pending[0].customer.customerNumber))})</strong><small> · ${escapeHtml(pending[0].items.map(item => item.label).join(', '))}</small></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -1796,7 +1830,14 @@ function renderCustomerProfileView(customer) {
   const mikrotikSnippet = buildCustomerMikrotikSnippet(customer);
   const mikrotikSectionHtml = `<section class="profile-mikrotik-section" aria-label="MikroTik script"><h4>📡 MikroTik script</h4><p class="profile-mikrotik-note">Copy into WinBox Terminal. Read-only — this never changes bills or customer records. PPPoE username, password, static IP and MAC come from the profile edit form.</p><textarea id="profileMikrotikScript" class="mikrotik-script-box" readonly rows="10" aria-label="MikroTik script for this customer">${escapeHtml(mikrotikSnippet)}</textarea><button type="button" class="secondary-button" id="profileMikrotikCopyBtn">📋 Copy MikroTik script</button></section>`;
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['PPPoE username', customer.pppoeUsername || 'Not set'], ['Static IP', customer.staticIp || 'Not set'], ['MAC address', customer.macAddress || 'Not set'], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}`;
+  // SISP-19: profile hardware custody — ownership fields on the record,
+  // plus the disconnection recovery checklist once archived (archive is
+  // the app's disconnect action). Fiber drop length reuses fiberMeters.
+  const custodyFields = normalizeCustodyFields(customer);
+  const custodyChecklist = disconnectionChecklist(customer);
+  const custodyPending = custodyChecklist.filter(item => !item.recovered);
+  const custodySectionHtml = `<section class="profile-custody-section" aria-label="Hardware custody"><h4>📦 Hardware Custody — Returnable Equipment</h4><p>Router ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.routerOwnership))}</strong> · Media converter / ONU ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.mediaConverterOwnership))}</strong></p><p>Serial / MAC number: <strong>${escapeHtml(custodyFields.serialNumber || 'Not recorded')}</strong> · Security deposit: <strong>${escapeHtml(formatAmount(custodyFields.securityDeposit))}</strong> · Installed fiber drop length: <strong>${escapeHtml(customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`)}</strong></p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? '<p class="profile-custody-note">No ISP-owned hardware recorded. Set ownership in Edit — on disconnection (archive), ISP-owned items appear in Pending Hardware Recovery.</p>' : '<p class="profile-custody-note">ISP-owned hardware is installed. On disconnection (archive), unrecovered items appear in Pending Hardware Recovery.</p>') : (custodyChecklist.length === 0 ? '<p class="profile-custody-note">Disconnected — no ISP-owned hardware to recover.</p>' : `<div class="profile-custody-checklist" role="group" aria-label="Disconnection recovery checklist"><p><strong>Disconnection recovery checklist</strong> — ISP-owned hardware to recover from this house:</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)}${item.recovered ? ` · <span class="custody-recovered">✅ Recovered ${escapeHtml(item.recoveredAt)}</span>` : ` · <span class="custody-pending">⏳ Pending recovery</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">Mark recovered</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? '<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">Mark all recovered</button>' : ''}</div>`)}</section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1911,6 +1952,34 @@ function renderCustomerProfileView(customer) {
       });
     });
   }
+  // SISP-19: wire the profile recovery checklist (persist + re-render).
+  // Recovery dates are set ONLY here — never by the profile edit form.
+  const custodySection = $('#customerProfileView').querySelector('.profile-custody-section');
+  if (custodySection) {
+    const applyProfileCustody = (beforeCustomer, updated, message) => {
+      const idx = state.customers.findIndex(c => c.id === customer.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      recordRecoveryStock(beforeCustomer, updated);
+      renderDetail();
+      renderDashboard();
+      toast(message);
+    };
+    custodySection.querySelectorAll('[data-profile-custody-recover]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        try {
+          const updated = markHardwareRecovered(customer, btn.getAttribute('data-profile-custody-recover'), getTodayDateString());
+          applyProfileCustody(customer, updated, 'Hardware marked recovered.');
+        } catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+      });
+    });
+    custodySection.querySelector('#profileCustodyRecoverAllBtn')?.addEventListener('click', () => {
+      try {
+        const updated = markAllHardwareRecovered(customer, getTodayDateString());
+        applyProfileCustody(customer, updated, 'All hardware marked recovered.');
+      } catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    });
+  }
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -2007,6 +2076,13 @@ function renderDetail() {
   if ($('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
   if ($('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
   if ($('#macAddressInput')) $('#macAddressInput').value = customer.macAddress ?? '';
+  // SISP-19: custody fields (ownership selects + serial + deposit).
+  // normalizeCustodyFields guards legacy/invalid ownership values.
+  const custodyEditFields = normalizeCustodyFields(customer);
+  if ($('#routerOwnershipInput')) $('#routerOwnershipInput').value = custodyEditFields.routerOwnership;
+  if ($('#mediaConverterOwnershipInput')) $('#mediaConverterOwnershipInput').value = custodyEditFields.mediaConverterOwnership;
+  if ($('#serialNumberInput')) $('#serialNumberInput').value = customer.serialNumber ?? '';
+  if ($('#securityDepositInput')) $('#securityDepositInput').value = customer.securityDeposit ?? '';
   $('#expiryDateInput').value = customer.expiryDate ?? '';
   $('#cancellationDateInput').value = customer.cancellationDate ?? '';
   $('#packageChangeStaffNameInput').value = '';
@@ -3403,6 +3479,9 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       ...($('#pppoePasswordInput') ? { pppoePassword: $('#pppoePasswordInput').value } : {}),
       ...($('#staticIpInput') ? { staticIp: $('#staticIpInput').value } : {}),
       ...($('#macAddressInput') ? { macAddress: $('#macAddressInput').value } : {}),
+      // SISP-19: custody fields (recovery dates are never saved from here).
+      routerOwnership:$('#routerOwnershipInput')?.value ?? '', mediaConverterOwnership:$('#mediaConverterOwnershipInput')?.value ?? '',
+      serialNumber:$('#serialNumberInput')?.value ?? '', securityDeposit:$('#securityDepositInput')?.value ?? '',
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
       // SISP-8: vacation hold (validation errors surface as a toast).
       paused: $('#pauseBillingCheckbox')?.checked === true,
@@ -3486,7 +3565,15 @@ function restoreCustomer(customerId) {
   } catch (error) { toast(error.message); }
 }
 function archiveSelectedCustomer(customer) {
-  try { state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail(); toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) }); }
+  try {
+    state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail();
+    toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) });
+    // SISP-19: archiving IS disconnection — surface the recovery list
+    // immediately when ISP-owned hardware is now pending.
+    const archived = state.customers.find(c => c.id === customer.id);
+    const pendingCount = archived ? pendingHardwareRecovery([archived]).reduce((sum, entry) => sum + entry.items.length, 0) : 0;
+    if (pendingCount > 0) toast(`${pendingCount} ISP-owned item${pendingCount === 1 ? '' : 's'} pending hardware recovery — see Pending Hardware Recovery.`);
+  }
   catch (error) { toast(error.message); }
 }
 $('#archiveCustomerButton').addEventListener('click', async () => {
@@ -7683,6 +7770,56 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts),
     onConfirm: (opts) => appConfirm(opts)
   });
+  // SISP-19: pending hardware recovery modal (derived list, no new store).
+  const hardwareRecoveryModal = $('#hardwareRecoveryModal');
+  const hardwareRecoveryList = $('#hardwareRecoveryList');
+  const renderHardwareRecoveryList = () => {
+    if (!hardwareRecoveryList) return;
+    const pending = pendingHardwareRecovery(state.customers);
+    if (pending.length === 0) {
+      hardwareRecoveryList.innerHTML = '<p class="hardware-recovery-empty">Nothing pending — no disconnected customer holds unrecovered ISP-owned hardware.</p>';
+      return;
+    }
+    hardwareRecoveryList.innerHTML = pending.map(({ customer, items }) => `<article class="hardware-recovery-entry"><div class="hardware-recovery-head"><strong>${escapeHtml(customer.name)} (#${escapeHtml(String(customer.customerNumber))})</strong><span>${escapeHtml(customer.mohalla || 'Area not set')}</span></div><ul>${items.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)} <button type="button" class="secondary-button" data-hardware-recover="${escapeHtml(customer.id)}:${escapeHtml(item.key)}">Mark recovered</button></li>`).join('')}</ul><div class="hardware-recovery-actions"><button type="button" class="secondary-button" data-hardware-recover-all="${escapeHtml(customer.id)}">Mark all recovered</button><button type="button" class="secondary-button" data-hardware-open-customer="${escapeHtml(customer.id)}">Open customer</button></div></article>`).join('');
+  };
+  const openHardwareRecoveryModal = () => {
+    renderHardwareRecoveryList();
+    if (hardwareRecoveryModal && typeof hardwareRecoveryModal.showModal === 'function') hardwareRecoveryModal.showModal();
+  };
+  $('#hardwareRecoveryCloseBtn')?.addEventListener('click', () => hardwareRecoveryModal?.close());
+  $('#openHardwareRecoveryModalBtn')?.addEventListener('click', openHardwareRecoveryModal);
+  hardwareRecoveryList?.addEventListener('click', (event) => {
+    const recoverBtn = event.target.closest('[data-hardware-recover]');
+    const recoverAllBtn = event.target.closest('[data-hardware-recover-all]');
+    const openBtn = event.target.closest('[data-hardware-open-customer]');
+    const applyRecovery = (beforeCustomer, updated, message) => {
+      const idx = state.customers.findIndex(c => c.id === updated.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      recordRecoveryStock(beforeCustomer, updated);
+      renderHardwareRecoveryList();
+      renderDashboard();
+      renderDetail();
+      toast(message);
+    };
+    if (recoverBtn) {
+      const [customerId, itemKey] = String(recoverBtn.getAttribute('data-hardware-recover')).split(':');
+      const customer = state.customers.find(c => c.id === customerId);
+      if (!customer) return;
+      try { applyRecovery(customer, markHardwareRecovered(customer, itemKey, getTodayDateString()), 'Hardware marked recovered.'); }
+      catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    } else if (recoverAllBtn) {
+      const customer = state.customers.find(c => c.id === recoverAllBtn.getAttribute('data-hardware-recover-all'));
+      if (!customer) return;
+      try { applyRecovery(customer, markAllHardwareRecovered(customer, getTodayDateString()), 'All hardware marked recovered.'); }
+      catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    } else if (openBtn) {
+      hardwareRecoveryModal?.close();
+      switchView('customers');
+      selectCustomer(openBtn.getAttribute('data-hardware-open-customer'));
+    }
+  });
+
   worklistsModalController = setupWorklistsModal(() => state, {
     onUpdateState: (newState) => {
       state = newState;

@@ -1,0 +1,656 @@
+/**
+ * saad-visits.js — Saad visit log (per-visit job record, NOT daily attendance).
+ *
+ * Vision (owner's words): Saad does NOT come to work every day — he comes
+ * only when needed, mainly to do splicing. Every time he comes, the
+ * operator records: whose work he did (customer), which area's fiber he
+ * fixed, or which new connection he installed — plus HOW LONG he worked.
+ *
+ * This is deliberately NOT the phase3 payroll attendance list
+ * (state.saadAttendanceDays, informational dates only). Nothing here
+ * touches any pay computation: SAAD_BASE_MONTHLY_SALARY and the
+ * per-eligible-customer rate in phase3.js are untouched. Payments recorded
+ * here are a record of what was ACTUALLY PAID (manual entries), never a
+ * computed salary.
+ *
+ * Storage: visits live in localStorage under SAAD_VISITS_KEY
+ * (sisp_saad_visits_v1) and payments under SAAD_PAYMENTS_KEY
+ * (sisp_saad_payments_v1), each a flat array. One record per visit:
+ * date (Pakistan date), visit type, customer (picked from the real
+ * customer list — never a typed free-text name alone), area/mohalla
+ * (defaults from the picked customer, editable override for area-level
+ * fiber work with no single customer), fiber meters used (recorded only
+ * — NEVER auto-deducted from stock, SISP-18 inventory code untouched),
+ * start/end time and/or hours worked (first-class fields, never a
+ * free-text note), optional link to a SISP-12 field ticket (TKT id, only
+ * when that ticket exists), optional note.
+ *
+ * Monthly figures are always COMPUTED from the stored visits, never typed
+ * in: distinct days present (a day counts once even with 2 visits),
+ * total hours (sum of visit durations), per-day breakdown (date -> where
+ * he worked + hours that day), and payment totals split Salary /
+ * Commission. Attendance entry is fully MANUAL: the operator opens the
+ * log, picks the date, and the month view aggregates what was entered.
+ * No auto check-in, no GPS, no automatic detection.
+ *
+ * Backup: visits + payments travel in the JSON backup `settings.saadVisits`
+ * and `settings.saadPayments` sections (see core.js), under the same
+ * safe-merge rule as the SISP-15 complaint register and SISP-18 stock
+ * book: adopted only when this device has none stored yet.
+ *
+ * This module imports nothing: customers and ticket ids are passed in by
+ * callers, so the pure helpers stay testable without the app. Tests use
+ * synthetic data only.
+ */
+
+export const SAAD_VISITS_KEY = 'sisp_saad_visits_v1';
+export const SAAD_PAYMENTS_KEY = 'sisp_saad_payments_v1';
+
+/** Visit types: id + display label. */
+export const VISIT_TYPES = [
+  { id: 'splicing', label: 'Splicing' },
+  { id: 'fiber-fix', label: 'Fiber fix' },
+  { id: 'install', label: 'New connection install' },
+  { id: 'other', label: 'Other work' }
+];
+
+export const VISIT_TYPE_IDS = VISIT_TYPES.map((t) => t.id);
+
+/** Payment types: id + display label. */
+export const PAYMENT_TYPES = [
+  { id: 'salary', label: 'Salary' },
+  { id: 'commission', label: 'Commission' }
+];
+
+export const PAYMENT_TYPE_IDS = PAYMENT_TYPES.map((t) => t.id);
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const VISIT_ID_RE = /^SV-(\d+)$/;
+const PAYMENT_ID_RE = /^SP-(\d+)$/;
+
+function cleanText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** YYYY-MM-DD in Pakistan time (mirrors roznamcha.js pakistanToday). */
+export function pakistanDateToday(referenceDate = new Date()) {
+  const date = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+    ? referenceDate
+    : new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** YYYY-MM month of a YYYY-MM-DD date. */
+export function monthOf(date) {
+  return DATE_RE.test(String(date || '')) ? String(date).slice(0, 7) : '';
+}
+
+/** Minutes between two HH:MM times on the same day, or null when unusable. */
+export function minutesBetween(startTime, endTime) {
+  if (!TIME_RE.test(String(startTime || '')) || !TIME_RE.test(String(endTime || ''))) return null;
+  const toMin = (t) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  return toMin(endTime) - toMin(startTime);
+}
+
+/** Duration in hours (2dp) from start/end times, or null when not computable. */
+export function hoursFromTimes(startTime, endTime) {
+  const mins = minutesBetween(startTime, endTime);
+  if (mins === null || mins <= 0) return null;
+  return Math.round((mins / 60) * 100) / 100;
+}
+
+/** Display hours without trailing zeros: 7, 3.5, 7.25. */
+export function formatHours(hours) {
+  const n = Math.round(Number(hours || 0) * 100) / 100;
+  if (!Number.isFinite(n)) return '0';
+  return String(n);
+}
+
+export function visitTypeLabel(typeId) {
+  return VISIT_TYPES.find((t) => t.id === typeId)?.label || typeId || '—';
+}
+
+export function paymentTypeLabel(typeId) {
+  return PAYMENT_TYPES.find((t) => t.id === typeId)?.label || typeId || '—';
+}
+
+/** Where Saad worked on this visit: customer name (+ number) or area. */
+export function visitWhereLabel(visit) {
+  if (!visit) return '—';
+  if (visit.customerName) {
+    return visit.customerNumber !== null && visit.customerNumber !== undefined && visit.customerNumber !== ''
+      ? `${visit.customerName} (#${visit.customerNumber})`
+      : visit.customerName;
+  }
+  return visit.area || '—';
+}
+
+/** Drops malformed rows; keeps clean visits in stored order. */
+export function sanitizeSaadVisits(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const date = DATE_RE.test(String(entry.date || '')) ? String(entry.date) : '';
+    if (!date) continue;
+    const type = VISIT_TYPE_IDS.includes(entry.type) ? entry.type : null;
+    if (!type) continue;
+    const startTime = TIME_RE.test(String(entry.startTime || '')) ? String(entry.startTime) : '';
+    const endTime = TIME_RE.test(String(entry.endTime || '')) ? String(entry.endTime) : '';
+    let hoursWorked = null;
+    if (entry.hoursWorked !== null && entry.hoursWorked !== undefined && entry.hoursWorked !== '') {
+      const n = Number(entry.hoursWorked);
+      if (Number.isFinite(n) && n >= 0) hoursWorked = Math.round(n * 100) / 100;
+    }
+    if (hoursWorked === null) hoursWorked = hoursFromTimes(startTime, endTime);
+    let fiberMeters = null;
+    if (entry.fiberMeters !== null && entry.fiberMeters !== undefined && entry.fiberMeters !== '') {
+      const n = Number(entry.fiberMeters);
+      if (Number.isFinite(n) && n > 0) fiberMeters = Math.round(n * 100) / 100;
+    }
+    out.push({
+      id: cleanText(entry.id),
+      date,
+      type,
+      customerId: cleanText(entry.customerId),
+      customerName: cleanText(entry.customerName),
+      customerNumber: entry.customerNumber === null || entry.customerNumber === undefined || entry.customerNumber === ''
+        ? null
+        : entry.customerNumber,
+      area: cleanText(entry.area),
+      fiberMeters,
+      startTime,
+      endTime,
+      hoursWorked,
+      ticketId: cleanText(entry.ticketId),
+      note: cleanText(entry.note),
+      createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
+    });
+  }
+  return out;
+}
+
+/** Drops malformed rows; keeps clean payments in stored order. */
+export function sanitizeSaadPayments(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const date = DATE_RE.test(String(entry.date || '')) ? String(entry.date) : '';
+    if (!date) continue;
+    const type = PAYMENT_TYPE_IDS.includes(entry.type) ? entry.type : null;
+    if (!type) continue;
+    const amount = Number(entry.amount);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    out.push({
+      id: cleanText(entry.id),
+      date,
+      type,
+      amount: Math.round(amount * 100) / 100,
+      note: cleanText(entry.note),
+      createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
+    });
+  }
+  return out;
+}
+
+/** Reads visit records; [] on missing/corrupt storage. */
+export function loadSaadVisits(storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return [];
+    const raw = store.getItem(SAAD_VISITS_KEY);
+    if (!raw) return [];
+    return sanitizeSaadVisits(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+/** Persists visit records; never throws. */
+export function saveSaadVisits(visits, storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return false;
+    store.setItem(SAAD_VISITS_KEY, JSON.stringify(sanitizeSaadVisits(visits)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Reads payment records; [] on missing/corrupt storage. */
+export function loadSaadPayments(storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return [];
+    const raw = store.getItem(SAAD_PAYMENTS_KEY);
+    if (!raw) return [];
+    return sanitizeSaadPayments(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+/** Persists payment records; never throws. */
+export function saveSaadPayments(payments, storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return false;
+    store.setItem(SAAD_PAYMENTS_KEY, JSON.stringify(sanitizeSaadPayments(payments)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function nextVisitId(visits) {
+  let max = 0;
+  for (const v of visits) {
+    const match = VISIT_ID_RE.exec(String(v.id || ''));
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `SV-${max + 1}`;
+}
+
+function nextPaymentId(payments) {
+  let max = 0;
+  for (const p of payments) {
+    const match = PAYMENT_ID_RE.exec(String(p.id || ''));
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `SP-${max + 1}`;
+}
+
+/**
+ * Hours for one visit: stored hours, else duration from start/end times,
+ * else 0 (unknown hours never inflate a monthly total).
+ */
+export function visitHours(visit) {
+  if (!visit) return 0;
+  if (visit.hoursWorked !== null && visit.hoursWorked !== undefined && Number.isFinite(Number(visit.hoursWorked))) {
+    return Math.round(Number(visit.hoursWorked) * 100) / 100;
+  }
+  return hoursFromTimes(visit.startTime, visit.endTime) || 0;
+}
+
+/**
+ * Appends one visit. Throws on a bad date, unknown type, an unknown
+ * customer id, an unknown ticket id, bad fiber meters, or missing hours.
+ * Hours rule: start + end times together win (duration); otherwise the
+ * entered hours number is used; at least one of the two is required, and
+ * a lone start or end time without its pair is rejected. A visit must
+ * identify the work: a real customer, an area, or both — never neither.
+ * Returns the new visit list (input untouched). Fiber meters are recorded
+ * only: this never touches stock.
+ */
+export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } = {}) {
+  const clean = sanitizeSaadVisits(visits);
+  const date = DATE_RE.test(String(input.date || '')) ? String(input.date) : '';
+  if (!date) throw new Error('A valid visit date is required.');
+  const type = VISIT_TYPE_IDS.includes(input.type) ? input.type : null;
+  if (!type) throw new Error('A valid work type is required.');
+  const customerId = cleanText(input.customerId);
+  let customerName = '';
+  let customerNumber = null;
+  let area = cleanText(input.area);
+  if (customerId) {
+    const customer = customers.find((c) => String(c.id) === customerId);
+    if (!customer) throw new Error('Pick a customer from the list — free-text names are not accepted.');
+    customerName = cleanText(customer.name);
+    customerNumber = customer.customerNumber === null || customer.customerNumber === undefined
+      ? null
+      : customer.customerNumber;
+    if (!area) area = cleanText(customer.mohalla) || cleanText(customer.zone);
+  }
+  if (!customerId && !area) {
+    throw new Error('Pick a customer or enter the area — every visit must say where Saad worked.');
+  }
+  const startTime = TIME_RE.test(String(input.startTime || '')) ? String(input.startTime) : '';
+  const endTime = TIME_RE.test(String(input.endTime || '')) ? String(input.endTime) : '';
+  if ((startTime && !endTime) || (!startTime && endTime)) {
+    throw new Error('Enter both start and end time, or neither (with hours worked instead).');
+  }
+  let hoursWorked = null;
+  if (startTime && endTime) {
+    hoursWorked = hoursFromTimes(startTime, endTime);
+    if (hoursWorked === null) throw new Error('End time must be after start time.');
+  } else if (input.hoursWorked !== null && input.hoursWorked !== undefined && input.hoursWorked !== '') {
+    const n = Number(input.hoursWorked);
+    if (!Number.isFinite(n) || n <= 0) throw new Error('Hours worked must be a positive number.');
+    hoursWorked = Math.round(n * 100) / 100;
+  }
+  if (hoursWorked === null) throw new Error('Enter start + end time, or hours worked — every visit must record how long Saad worked.');
+  let fiberMeters = null;
+  if (input.fiberMeters !== null && input.fiberMeters !== undefined && input.fiberMeters !== '') {
+    const n = Number(input.fiberMeters);
+    if (!Number.isFinite(n) || n <= 0) throw new Error('Fiber meters must be a positive number.');
+    fiberMeters = Math.round(n * 100) / 100;
+  }
+  const ticketId = cleanText(input.ticketId);
+  if (ticketId && !ticketIds.map(String).includes(ticketId)) {
+    throw new Error('That ticket id does not exist — link only a real field ticket, or leave it blank.');
+  }
+  const record = {
+    id: nextVisitId(clean),
+    date,
+    type,
+    customerId,
+    customerName,
+    customerNumber,
+    area,
+    fiberMeters,
+    startTime,
+    endTime,
+    hoursWorked,
+    ticketId,
+    note: cleanText(input.note),
+    createdAt: new Date().toISOString()
+  };
+  return [...clean, record];
+}
+
+/**
+ * Appends one payment (record of what was ACTUALLY PAID — never a salary
+ * computation). Throws on a bad date, a non-positive amount, or an unknown
+ * type. Returns the new payment list (input untouched).
+ */
+export function addSaadPayment(payments, input) {
+  const clean = sanitizeSaadPayments(payments);
+  const date = DATE_RE.test(String(input.date || '')) ? String(input.date) : '';
+  if (!date) throw new Error('A valid payment date is required.');
+  const type = PAYMENT_TYPE_IDS.includes(input.type) ? input.type : null;
+  if (!type) throw new Error('Payment type must be Salary or Commission.');
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Payment amount must be a positive PKR number.');
+  const record = {
+    id: nextPaymentId(clean),
+    date,
+    type,
+    amount: Math.round(amount * 100) / 100,
+    note: cleanText(input.note),
+    createdAt: new Date().toISOString()
+  };
+  return [...clean, record];
+}
+
+/** Visits in one YYYY-MM month, oldest first (for per-day breakdowns). */
+export function visitsForMonth(visits, month) {
+  return sanitizeSaadVisits(visits)
+    .filter((v) => monthOf(v.date) === month)
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : 0;
+    });
+}
+
+/** Visit log, latest first (date desc, then created order desc). */
+export function sortedVisitLog(visits) {
+  const clean = sanitizeSaadVisits(visits);
+  return [...clean].sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
+  });
+}
+
+/** Filtered log: by month and/or type; newest first. */
+export function filterSaadVisits(visits, { month = '', type = '' } = {}) {
+  return sortedVisitLog(visits).filter((v) => {
+    if (month && monthOf(v.date) !== month) return false;
+    if (type && v.type !== type) return false;
+    return true;
+  });
+}
+
+/**
+ * Month-end summary, fully COMPUTED from stored visits + payments:
+ * - daysPresent: exact dates Saad came (a day counts ONCE even with 2 visits)
+ * - totalHours: sum of all visit durations that month
+ * - perDay: [{ date, visits, hours, places[] }] — where he worked each day
+ * - type counts + total fiber meters recorded
+ * - payments: salaryTotal, commissionTotal, grandTotal (0 when none)
+ * A month with no visits yields 0 days / 0 hours, never blank or a crash.
+ */
+export function buildMonthlySaadSummary(visits, payments, month) {
+  const monthVisits = visitsForMonth(visits, month);
+  const byDay = new Map();
+  for (const v of monthVisits) {
+    if (!byDay.has(v.date)) byDay.set(v.date, []);
+    byDay.get(v.date).push(v);
+  }
+  const perDay = [...byDay.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([date, dayVisits]) => ({
+      date,
+      visits: dayVisits,
+      hours: Math.round(dayVisits.reduce((sum, v) => sum + visitHours(v), 0) * 100) / 100,
+      places: [...new Set(dayVisits.map((v) => visitWhereLabel(v)))]
+    }));
+  const countType = (id) => monthVisits.filter((v) => v.type === id).length;
+  const monthPayments = sanitizeSaadPayments(payments).filter((p) => monthOf(p.date) === month);
+  const salaryTotal = monthPayments.filter((p) => p.type === 'salary').reduce((s, p) => s + p.amount, 0);
+  const commissionTotal = monthPayments.filter((p) => p.type === 'commission').reduce((s, p) => s + p.amount, 0);
+  return {
+    month,
+    visits: monthVisits,
+    daysPresent: perDay.map((d) => d.date),
+    dayCount: perDay.length,
+    totalHours: Math.round(perDay.reduce((s, d) => s + d.hours, 0) * 100) / 100,
+    perDay,
+    splicingCount: countType('splicing'),
+    fiberFixCount: countType('fiber-fix'),
+    installCount: countType('install'),
+    otherCount: countType('other'),
+    totalFiberMeters: Math.round(monthVisits.reduce((s, v) => s + (v.fiberMeters || 0), 0) * 100) / 100,
+    payments: monthPayments,
+    salaryTotal: Math.round(salaryTotal * 100) / 100,
+    commissionTotal: Math.round(commissionTotal * 100) / 100,
+    grandTotal: Math.round((salaryTotal + commissionTotal) * 100) / 100
+  };
+}
+
+/**
+ * Dashboard + modal controller, following the inventory-book pattern:
+ * open() / refresh(), open button wired by id, close button, form submits.
+ * getState supplies the live customer list; listTicketIds supplies existing
+ * field-ticket ids for the optional ticket link (both injected so this
+ * module stays import-free).
+ */
+export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listTicketIds } = {}) {
+  const dialog = typeof document !== 'undefined' ? document.getElementById('saadVisitsModal') : null;
+  if (!dialog) return null;
+  const $ = (id) => dialog.querySelector(`#${id}`);
+  const getCustomers = () => {
+    try {
+      const state = typeof getState === 'function' ? getState() : null;
+      return Array.isArray(state?.customers) ? state.customers : [];
+    } catch {
+      return [];
+    }
+  };
+
+  function customerOptions(customers, query) {
+    const q = (query || '').trim().toLowerCase();
+    const rows = customers.filter((c) => {
+      if (!q) return true;
+      return String(c.name || '').toLowerCase().includes(q)
+        || String(c.customerNumber ?? '').includes(q)
+        || String(c.mohalla || '').toLowerCase().includes(q);
+    });
+    return rows.map((c) => {
+      const label = `${c.name || 'Unnamed'} (#${c.customerNumber ?? '—'})${c.mohalla ? ` · ${c.mohalla}` : ''}`;
+      return `<option value="${escapeHtml(String(c.id))}">${escapeHtml(label)}</option>`;
+    }).join('');
+  }
+
+  function refreshCustomerSelect() {
+    const select = $('saadVisitCustomer');
+    if (!select) return;
+    const prev = select.value;
+    const placeholder = '<option value="">Area-level work — no single customer</option>';
+    select.innerHTML = placeholder + customerOptions(getCustomers(), $('saadVisitCustomerSearch')?.value);
+    if ([...select.options].some((o) => o.value === prev)) select.value = prev;
+  }
+
+  function render() {
+    const month = $('saadVisitsMonth')?.value || monthOf(pakistanDateToday());
+    if ($('saadVisitsMonth') && !$('saadVisitsMonth').value) $('saadVisitsMonth').value = month;
+    const typeFilter = $('saadVisitsTypeFilter')?.value || '';
+    const visits = loadSaadVisits();
+    const payments = loadSaadPayments();
+    const summary = buildMonthlySaadSummary(visits, payments, month);
+    const summaryEl = $('saadVisitsMonthSummary');
+    if (summaryEl) {
+      const dayLines = summary.perDay.length === 0
+        ? '<p class="saad-visits-empty">Is mahine koi visit darj nahi hui.</p>'
+        : summary.perDay.map((d) => `
+          <article class="saad-visits-day-card">
+            <p><span>${escapeHtml(d.date)}</span><strong>${escapeHtml(formatHours(d.hours))} h</strong></p>
+            <p><span>Where</span><strong>${escapeHtml(d.places.join(' · '))}</strong></p>
+            <p><span>Work</span><strong>${escapeHtml(d.visits.map((v) => visitTypeLabel(v.type)).join(', '))}</strong></p>
+          </article>`).join('');
+      const paymentLines = summary.payments.length === 0
+        ? '<p class="saad-visits-empty">Is mahine koi payment darj nahi hui (0 PKR).</p>'
+        : summary.payments.map((p) => `
+          <p><span>${escapeHtml(p.date)} · ${escapeHtml(paymentTypeLabel(p.type))}</span><strong>${escapeHtml(String(p.amount))} PKR</strong></p>`).join('');
+      summaryEl.innerHTML = `
+        <div class="saad-visits-summary-cards">
+          <p><span>Days present</span><strong>${summary.dayCount}</strong></p>
+          <p><span>Total hours</span><strong>${escapeHtml(formatHours(summary.totalHours))} h</strong></p>
+          <p><span>Visits</span><strong>${summary.visits.length}</strong></p>
+          <p><span>Splicing / Fiber fix / Installs</span><strong>${summary.splicingCount} / ${summary.fiberFixCount} / ${summary.installCount}</strong></p>
+          <p><span>Paid — Salary</span><strong>${escapeHtml(String(summary.salaryTotal))} PKR</strong></p>
+          <p><span>Paid — Commission</span><strong>${escapeHtml(String(summary.commissionTotal))} PKR</strong></p>
+          <p><span>Paid — Total</span><strong>${escapeHtml(String(summary.grandTotal))} PKR</strong></p>
+        </div>
+        <h3>Days he came (${escapeHtml(month)})</h3>
+        <p class="saad-visits-dates">${summary.daysPresent.length ? escapeHtml(summary.daysPresent.join(' · ')) : '—'}</p>
+        <h3>Per-day breakdown</h3>
+        <div class="saad-visits-day-list">${dayLines}</div>
+        <h3>Payments this month</h3>
+        <div class="saad-visits-payment-list">${paymentLines}</div>`;
+    }
+    const listEl = $('saadVisitsList');
+    if (listEl) {
+      const rows = filterSaadVisits(visits, { month, type: typeFilter });
+      listEl.innerHTML = rows.length === 0
+        ? '<p class="saad-visits-empty">No visits match this filter.</p>'
+        : rows.map((v) => `
+          <article class="saad-visits-card">
+            <p><span>${escapeHtml(visitTypeLabel(v.type))}</span><strong>${escapeHtml(v.date)} · ${escapeHtml(formatHours(visitHours(v)))} h</strong></p>
+            <p><span>Where</span><strong>${escapeHtml(visitWhereLabel(v))}</strong></p>
+            ${v.area && v.customerName ? `<p><span>Area</span><strong>${escapeHtml(v.area)}</strong></p>` : ''}
+            ${v.fiberMeters !== null ? `<p><span>Fiber used</span><strong>${escapeHtml(String(v.fiberMeters))} m (recorded only)</strong></p>` : ''}
+            ${v.startTime && v.endTime ? `<p><span>Time</span><strong>${escapeHtml(v.startTime)} – ${escapeHtml(v.endTime)}</strong></p>` : ''}
+            ${v.ticketId ? `<p><span>Ticket</span><strong>${escapeHtml(v.ticketId)}</strong></p>` : ''}
+            ${v.note ? `<p><span>Note</span><strong>${escapeHtml(v.note)}</strong></p>` : ''}
+          </article>`).join('');
+    }
+    refreshCustomerSelect();
+    const dateInput = $('saadVisitDate');
+    if (dateInput && !dateInput.value) dateInput.value = pakistanDateToday();
+    const payDateInput = $('saadPaymentDate');
+    if (payDateInput && !payDateInput.value) payDateInput.value = pakistanDateToday();
+  }
+
+  const searchInput = $('saadVisitCustomerSearch');
+  if (searchInput) searchInput.addEventListener('input', refreshCustomerSelect);
+  const customerSelect = $('saadVisitCustomer');
+  if (customerSelect) customerSelect.addEventListener('change', () => {
+    const customer = getCustomers().find((c) => String(c.id) === customerSelect.value);
+    const areaInput = $('saadVisitArea');
+    if (customer && areaInput) {
+      const fallback = cleanText(customer.mohalla) || cleanText(customer.zone);
+      if (fallback) areaInput.value = fallback;
+    }
+  });
+  const monthInput = $('saadVisitsMonth');
+  if (monthInput) monthInput.addEventListener('change', render);
+  const typeFilter = $('saadVisitsTypeFilter');
+  if (typeFilter) typeFilter.addEventListener('change', render);
+
+  const form = $('saadVisitForm');
+  if (form) {
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      try {
+        const ticketIds = typeof listTicketIds === 'function' ? listTicketIds() : [];
+        const updated = addSaadVisit(loadSaadVisits(), {
+          date: $('saadVisitDate')?.value,
+          type: $('saadVisitType')?.value,
+          customerId: $('saadVisitCustomer')?.value,
+          area: $('saadVisitArea')?.value,
+          fiberMeters: $('saadVisitFiberMeters')?.value,
+          startTime: $('saadVisitStartTime')?.value,
+          endTime: $('saadVisitEndTime')?.value,
+          hoursWorked: $('saadVisitHours')?.value,
+          ticketId: $('saadVisitTicket')?.value,
+          note: $('saadVisitNote')?.value
+        }, { customers: getCustomers(), ticketIds });
+        saveSaadVisits(updated);
+        form.reset();
+        const dateInput = $('saadVisitDate');
+        if (dateInput) dateInput.value = pakistanDateToday();
+        refreshCustomerSelect();
+        render();
+        if (typeof onVisitsChanged === 'function') onVisitsChanged();
+        if (typeof onToast === 'function') onToast('Saad visit recorded.');
+      } catch (error) {
+        if (typeof onToast === 'function') onToast(error.message || 'Could not record visit.');
+      }
+    });
+  }
+  const payForm = $('saadPaymentForm');
+  if (payForm) {
+    payForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      try {
+        const updated = addSaadPayment(loadSaadPayments(), {
+          date: $('saadPaymentDate')?.value,
+          amount: $('saadPaymentAmount')?.value,
+          type: $('saadPaymentType')?.value,
+          note: $('saadPaymentNote')?.value
+        });
+        saveSaadPayments(updated);
+        payForm.reset();
+        const payDateInput = $('saadPaymentDate');
+        if (payDateInput) payDateInput.value = pakistanDateToday();
+        render();
+        if (typeof onVisitsChanged === 'function') onVisitsChanged();
+        if (typeof onToast === 'function') onToast('Saad payment recorded.');
+      } catch (error) {
+        if (typeof onToast === 'function') onToast(error.message || 'Could not record payment.');
+      }
+    });
+  }
+  const closeBtn = $('saadVisitsCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
+  const openBtn = typeof document !== 'undefined' ? document.getElementById('openSaadVisitsModalBtn') : null;
+  if (openBtn) openBtn.addEventListener('click', () => {
+    render();
+    dialog.showModal();
+  });
+
+  return {
+    open() {
+      render();
+      dialog.showModal();
+    },
+    refresh: render
+  };
+}

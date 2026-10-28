@@ -6,6 +6,7 @@ import { sanitizeComplaints } from './complaint-register.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
+import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 
@@ -1614,6 +1615,19 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeInventory(options.inventory);
     if (cleaned.length) document.settings = { ...(document.settings || {}), inventory: cleaned };
   }
+  // Saad visit log: visits + payments live outside the ledger state
+  // (localStorage keys sisp_saad_visits_v1 / sisp_saad_payments_v1), so
+  // they travel in optional `settings.saadVisits` / `settings.saadPayments`
+  // sections. Written only when at least one record exists; readers that
+  // predate them ignore the unknown fields.
+  if (options && typeof options === 'object' && Array.isArray(options.saadVisits) && options.saadVisits.length) {
+    const cleaned = sanitizeSaadVisits(options.saadVisits);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), saadVisits: cleaned };
+  }
+  if (options && typeof options === 'object' && Array.isArray(options.saadPayments) && options.saadPayments.length) {
+    const cleaned = sanitizeSaadPayments(options.saadPayments);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), saadPayments: cleaned };
+  }
   return JSON.stringify(document, null, 2);
 }
 
@@ -1900,6 +1914,48 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Stock book records differ from this device' });
     }
   }
+  // Saad visit log: optional visit + payment sections (see createJsonBackup).
+  // Safe-merge rule, same as the stock book: adopt the backup's records
+  // only when this device has none stored yet; when both sides hold
+  // different real records, keep existing + conflict.
+  let saadVisits = null;
+  const rawIncomingSaadVisits = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.saadVisits
+    : undefined;
+  if (Array.isArray(rawIncomingSaadVisits) && rawIncomingSaadVisits.length) {
+    const incomingSaadVisits = sanitizeSaadVisits(rawIncomingSaadVisits);
+    const currentSaadVisits = (options && typeof options === 'object' && Array.isArray(options.currentSaadVisits))
+      ? sanitizeSaadVisits(options.currentSaadVisits)
+      : [];
+    if (incomingSaadVisits.length && sameJson(incomingSaadVisits, currentSaadVisits)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSaadVisits.length && (!options?.currentSaadVisitsStored || currentSaadVisits.length === 0)) {
+      saadVisits = incomingSaadVisits;
+      counts.saadVisitsRestored = 1;
+      counts.changes++;
+    } else if (incomingSaadVisits.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Saad visit records differ from this device' });
+    }
+  }
+  let saadPayments = null;
+  const rawIncomingSaadPayments = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.saadPayments
+    : undefined;
+  if (Array.isArray(rawIncomingSaadPayments) && rawIncomingSaadPayments.length) {
+    const incomingSaadPayments = sanitizeSaadPayments(rawIncomingSaadPayments);
+    const currentSaadPayments = (options && typeof options === 'object' && Array.isArray(options.currentSaadPayments))
+      ? sanitizeSaadPayments(options.currentSaadPayments)
+      : [];
+    if (incomingSaadPayments.length && sameJson(incomingSaadPayments, currentSaadPayments)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSaadPayments.length && (!options?.currentSaadPaymentsStored || currentSaadPayments.length === 0)) {
+      saadPayments = incomingSaadPayments;
+      counts.saadPaymentsRestored = 1;
+      counts.changes++;
+    } else if (incomingSaadPayments.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Saad payment records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory };
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments };
 }

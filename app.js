@@ -122,6 +122,7 @@ import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from '.
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
 import { INVENTORY_KEY, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
+import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -175,6 +176,7 @@ export let monthlyComplaintReportModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
 export let outageImpactModalController = null;
+export let saadVisitsModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -539,6 +541,18 @@ function renderDashboard() {
     outageSummaryEl.innerHTML = feeder.maxSource
       ? `<p><span>Longest chain</span><strong>${escapeHtml(feeder.maxSource.name || 'Unknown')} · ${feeder.maxDownstream} downstream</strong></p>`
       : '';
+  }
+  // Saad visit log: this-month visits, days present and hours worked.
+  const saadSummaryEl = $('#saadVisitsSummary');
+  if (saadSummaryEl) {
+    const summary = buildMonthlySaadSummary(loadSaadVisits(), loadSaadPayments(), pakistanMonthNow(referenceDate));
+    const valueEl = $('#dashboardSaadVisitsValue');
+    const periodEl = $('#dashboardSaadVisitsPeriod');
+    if (valueEl) valueEl.textContent = summary.visits.length === 0 ? 'No visits yet' : `${summary.visits.length} visit${summary.visits.length === 1 ? '' : 's'} · ${summary.dayCount} day${summary.dayCount === 1 ? '' : 's'}`;
+    if (periodEl) periodEl.textContent = summary.visits.length === 0 ? 'Saad field visits, hours & payments' : `${formatHours(summary.totalHours)} hours worked · ${summary.grandTotal} PKR paid`;
+    saadSummaryEl.innerHTML = summary.visits.length === 0
+      ? ''
+      : `<p><span>Latest</span><strong>${escapeHtml(summary.visits[summary.visits.length - 1].date)} · ${escapeHtml(visitWhereLabel(summary.visits[summary.visits.length - 1]))} · ${escapeHtml(formatHours(visitHours(summary.visits[summary.visits.length - 1])))} h</strong></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -1953,7 +1967,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -1962,13 +1976,17 @@ function backupRestoreOptions() {
   let roznamchaStored = false;
   let ticketsStored = false;
   let inventoryStored = false;
+  let saadVisitsStored = false;
+  let saadPaymentsStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
   try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
   try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
   try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored };
+  try { saadVisitsStored = localStorage.getItem(SAAD_VISITS_KEY) !== null; } catch { saadVisitsStored = false; }
+  try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -2444,6 +2462,12 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.inventory) {
       saveInventory(pendingBackupPreview.inventory);
+    }
+    if (pendingBackupPreview.saadVisits) {
+      saveSaadVisits(pendingBackupPreview.saadVisits);
+    }
+    if (pendingBackupPreview.saadPayments) {
+      saveSaadPayments(pendingBackupPreview.saadPayments);
     }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
@@ -7447,6 +7471,11 @@ if (typeof document !== 'undefined') {
   });
   outageImpactModalController = setupOutageImpactModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
+  });
+  saadVisitsModalController = setupSaadVisitsModal(() => state, {
+    onVisitsChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    listTicketIds: () => loadTickets().map((t) => t.id)
   });
   worklistsModalController = setupWorklistsModal(() => state, {
     onUpdateState: (newState) => {

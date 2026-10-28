@@ -620,3 +620,24 @@ body.field-mode-open { overflow: hidden; }
   .outage-impact-result-list { grid-template-columns: 1fr; }
   .outage-impact-card p strong { text-align: left; }
 }
+
+/* Saad visit log: per-visit job record + month-end summary. Token-only. */
+.saad-visits-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.saad-visits-month-summary { margin: 8px 0 16px; }
+.saad-visits-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.saad-visits-summary-cards p { display: flex; flex-direction: column; gap: 4px; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 12px; color: var(--muted); }
+.saad-visits-summary-cards p strong { color: var(--ink); font-size: 18px; overflow-wrap: anywhere; }
+.saad-visits-dates { color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.saad-visits-day-list, .saad-visits-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.saad-visits-day-card, .saad-visits-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.saad-visits-day-card p, .saad-visits-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.saad-visits-day-card p strong, .saad-visits-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.saad-visits-payment-list p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.saad-visits-payment-list p strong { color: var(--ink); }
+.saad-visits-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.saad-visits-form .form-input { width: 100%; }
+.saad-visits-empty { color: var(--muted); font-size: 13px; margin: 0; }
+@media (max-width: 700px) {
+  .saad-visits-day-list, .saad-visits-list { grid-template-columns: 1fr; }
+  .saad-visits-day-card p strong, .saad-visits-card p strong { text-align: left; }
+}

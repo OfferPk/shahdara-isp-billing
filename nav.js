@@ -1537,14 +1537,15 @@ function escapeHtml(str) {
  */
 export function setupSwipeNavigation({
   container = (typeof document !== 'undefined' ? (document.getElementById('main') || document.body) : null),
-  views = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'],
+  views = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'loans'],
   viewLabels = {
     customers: 'Customers',
     transactions: 'Transactions',
     reports: 'Monthly Report',
     analytics: 'Area Analytics',
     inventory: 'Inventory',
-    expenses: 'Expenses'
+    expenses: 'Expenses',
+    loans: 'Loan Ledger'
   },
   getCurrentView,
   onNavigate,
@@ -1579,7 +1580,8 @@ export function setupSwipeNavigation({
       ['reports', 'billingReportsView'],
       ['analytics', 'analyticsView'],
       ['inventory', 'inventoryView'],
-      ['expenses', 'expensesView']
+      ['expenses', 'expensesView'],
+      ['loans', 'loanView']
     ];
     for (const [name, id] of map) {
       const el = document.getElementById(id);

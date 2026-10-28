@@ -1308,6 +1308,9 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .owner-result-main span{font-size:10px;color:var(--muted);overflow-wrap:anywhere}
 .owner-result-value{font-size:12px;font-weight:700;color:var(--ink)}
 .owner-result-card .secondary-button{min-height:36px;padding:0 9px}
+.owner-crown-name{display:inline-flex;align-items:center;gap:8px}
+.owner-crown-avatar{position:relative;flex:0 0 auto;width:36px;height:36px;margin-top:8px;border-radius:50%;display:grid;place-items:center;background:var(--mint);color:var(--green);font:800 12px/1 'DM Sans',system-ui,sans-serif;box-shadow:inset 0 0 0 1px var(--line)}
+.owner-crown-avatar-crown{position:absolute;left:50%;top:-11px;transform:translateX(-50%);font-size:17px;line-height:1;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 .recovery-group-heading{align-items:center;border-bottom:1px solid var(--line);padding-bottom:9px;margin-bottom:9px}
 .recovery-group-heading span{font-size:11px;color:var(--muted);text-align:right}
 .recovery-customer-list{display:grid;gap:8px}
@@ -1491,6 +1494,10 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .home-budget-month-row>span{font-size:12px;font-weight:700;color:var(--muted,#60756c)}
 .home-budget-month-row>strong{font-size:13px;color:var(--ink,#263f34);text-align:right;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
 .chart-bar-negative{fill:#cf685b}.category-chart-svg{min-height:130px}
+/* Loan ledger person cards: one card per person, always a single-column
+   list (card internals reuse the theme-token .area-intel-card classes, so
+   both light and dark themes stay readable with no horizontal scroll). */
+.loan-person-cards{display:grid;gap:12px}
 @media(max-width:700px){.analytics-range-controls{grid-template-columns:1fr;gap:8px}.area-intel-chart-grid{grid-template-columns:1fr}.area-intel-chart-grid .chart-card:last-child{grid-column:auto}.area-intelligence-table{min-width:1060px}}
 @media(max-width:360px){.analytics-range-controls label{font-size:12px}.analytics-range-controls input,.analytics-range-controls select{font-size:16px;min-height:44px}}
 

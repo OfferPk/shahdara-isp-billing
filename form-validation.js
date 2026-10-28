@@ -4,6 +4,7 @@
  */
 import { buildPayrollSummary } from './core.js';
 import { EXPENSE_CATEGORIES, canonicalMohalla } from './phase3.js';
+import { t } from './nav-language.js';
 
 /**
  * Validates a Pakistani or international phone number.
@@ -406,13 +407,14 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
   const isSelected = customer.id === selectedCustomerId;
   const balance = getCustomerMonthBalance(customer, selectedBillingMonth, allocations);
   const area = customer.mohalla || customer.area || '—';
-  const plan = customer.packageSpeed || 'Not set';
+  const plan = customer.packageSpeed || t('cust_not_set');
   const service = customer.serviceStatus || 'not-set';
-  const serviceLabel = ({ active: 'Active', offline: 'Offline', 'not-set': 'Not set' })[service] || 'Not set';
+  const CUST_TABLE_SERVICE_WORDS = { active: 'cust_service_active', offline: 'cust_service_offline', 'not-set': 'cust_not_set' };
+  const serviceLabel = t(CUST_TABLE_SERVICE_WORDS[service] || 'cust_not_set');
 
   const monthBill = (customer.bills || []).find(b => b.month === selectedBillingMonth);
   let billingStatus = 'not-set';
-  let billingLabel = 'Not set';
+  let billingLabel = t('cust_not_set');
   let billingClass = 'status-empty';
   if (monthBill) {
     if (allocations?.byMonth) {
@@ -426,10 +428,10 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
       else if (billed > 0) billingStatus = 'pending';
     }
     const map = {
-      paid: { label: 'Paid', cls: 'status-received' },
-      pending: { label: 'Pending', cls: 'status-pending' },
-      partial: { label: 'Partial', cls: 'status-partial' },
-      'not-set': { label: 'Not set', cls: 'status-empty' }
+      paid: { label: t('cust_bill_paid'), cls: 'status-received' },
+      pending: { label: t('cust_bill_pending'), cls: 'status-pending' },
+      partial: { label: t('cust_bill_partial'), cls: 'status-partial' },
+      'not-set': { label: t('cust_not_set'), cls: 'status-empty' }
     };
     const s = map[billingStatus] || map['not-set'];
     billingLabel = s.label;
@@ -439,9 +441,9 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
   const safeNum = Number(balance || 0).toLocaleString();
 
   return `<tr class="customer-table-row ${isSelected ? 'is-selected' : ''} ${archived ? 'is-archived' : ''}" data-customer-row="${escapeHtml(customer.id)}">
-    <td class="col-num">#${custNum}${archived ? ' (Archived)' : ''}</td>
+    <td class="col-num">#${custNum}${archived ? ` ${t('cust_table_archived')}` : ''}</td>
     <td class="col-name">
-      <button class="customer-row-btn" type="button" data-customer-id="${escapeHtml(customer.id)}" title="Open profile for #${custNum} ${escapeHtml(customer.name)}">
+      <button class="customer-row-btn" type="button" data-customer-id="${escapeHtml(customer.id)}" title="${escapeHtml(t('cust_table_open_profile_title', null, { number: custNum, name: customer.name }))}">
         <strong>${escapeHtml(customer.name)}</strong>
         ${customer.phone ? `<small class="cust-phone">${escapeHtml(customer.phone)}</small>` : ''}
       </button>
@@ -452,7 +454,7 @@ export function renderCustomerTableRowMarkup(customer, { selectedCustomerId = ''
     <td class="col-billing"><span class="table-billing-badge ${billingClass}">${escapeHtml(billingLabel)}</span></td>
     <td class="col-balance font-mono ${balance > 0 ? 'text-due' : 'text-clear'}">PKR ${safeNum}</td>
     <td class="col-action">
-      <button class="secondary-button table-select-btn" type="button" data-customer-id="${escapeHtml(customer.id)}">Open →</button>
+      <button class="secondary-button table-select-btn" type="button" data-customer-id="${escapeHtml(customer.id)}">${t('cust_table_open')}</button>
     </td>
   </tr>`;
 }
@@ -537,18 +539,18 @@ export function generateCustomerRosterCsv(customers = [], { billingMonth = '', a
  */
 export function renderCustomerTableEmptyMarkup(query = '', area = 'all') {
   const q = String(query || '').trim();
-  const a = area && area !== 'all' ? ` in ${area}` : '';
-  let msg = 'No customers found.';
-  if (q && a) msg = `No customers matching "${q}"${a}.`;
-  else if (q) msg = `No customers matching "${q}".`;
-  else if (a) msg = `No customers found${a}.`;
+  const a = area && area !== 'all' ? area : '';
+  let msg = t('cust_table_empty');
+  if (q && a) msg = t('cust_table_empty_query_area', null, { query: q, area: a });
+  else if (q) msg = t('cust_table_empty_query', null, { query: q });
+  else if (a) msg = t('cust_table_empty_area', null, { area: a });
 
   return `<tr class="customer-table-empty-row">
     <td colspan="8" class="table-empty-cell">
       <div class="customer-table-empty">
         <span class="empty-icon" aria-hidden="true">🔍</span>
         <p class="empty-msg">${escapeHtml(msg)}</p>
-        <button id="resetCustomerTableFiltersBtn" class="secondary-button reset-filter-btn" type="button">Reset Filters & Search</button>
+        <button id="resetCustomerTableFiltersBtn" class="secondary-button reset-filter-btn" type="button">${t('cust_table_reset')}</button>
       </div>
     </td>
   </tr>`;

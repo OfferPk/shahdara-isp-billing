@@ -601,3 +601,22 @@ body.field-mode-open { overflow: hidden; }
   .inventory-stock-card p strong { text-align: left; }
   .inventory-log-card p strong { text-align: left; }
 }
+/* SISP-7: feeder outage impact — mirrors the downtime analytics cards. */
+.outage-impact-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.outage-impact-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.outage-impact-result-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.outage-impact-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.outage-impact-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.outage-impact-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.outage-impact-card .outage-impact-message { display: block; color: var(--ink); }
+.outage-impact-empty, .outage-impact-no-phone { color: var(--muted); font-size: 13px; }
+.outage-impact-script { border: 0; padding: 0; margin: 12px 0; display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+.outage-impact-script legend { color: var(--ink); font-weight: 600; margin-bottom: 4px; }
+.profile-outage-section { margin-top: 16px; }
+.profile-outage-section h4 { margin: 0 0 8px; color: var(--ink); }
+.profile-outage-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.profile-outage-section p strong { color: var(--ink); }
+@media (max-width: 480px) {
+  .outage-impact-result-list { grid-template-columns: 1fr; }
+  .outage-impact-card p strong { text-align: left; }
+}

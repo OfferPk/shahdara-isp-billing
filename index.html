@@ -502,6 +502,15 @@
             <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button">📍 Zone Lineman Cheat-Sheet</button>
           </div>
         </article>
+        <article class="summary-card summary-group-billing">
+          <p class="summary-label">👨‍👩‍👧 Group Billing</p>
+          <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
+          <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
+          <div id="groupBillingSummary" class="group-billing-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button">👨‍👩‍👧 Group Billing</button>
+          </div>
+        </article>
         <article class="summary-card summary-hardware-recovery">
           <p class="summary-label">📦 Pending Hardware Recovery</p>
           <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
@@ -21169,6 +21178,59 @@
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
           <button id="poleCheatDownloadBtn" class="action-btn-sm daily-slip-btn" type="button">⬇️ Export cheat-sheet (.txt)</button>
           <button id="poleCheatCopyBtn" class="secondary-button" type="button">📋 Copy cheat-sheet</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="groupBillingModal" class="billing-modal group-billing-modal" aria-labelledby="groupBillingModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="groupBillingModalTitle">👨‍👩‍👧 Group Billing</h2>
+        <button id="groupBillingCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="group-billing-intro">Ek landlord ya family ki kayi connections ko ek group me link karein — har connection ka apna record, bill aur history waisa ka waisa rehta hai. Group ka total un sab ka is mahine ka baqaya jama kar ke banta hai, aur "Collect Group Total" se sab ka bill ek tap me paid hota hai, ek combined receipt ke saath.</p>
+        <p id="groupBillingCountNote" class="group-billing-count-note"></p>
+        <form id="groupBillingForm" class="group-billing-form">
+          <input id="groupBillingEditId" type="hidden" value="">
+          <label for="groupBillingTitle">Group title</label>
+          <input id="groupBillingTitle" class="form-input" type="text" maxlength="100" required aria-label="Group title" placeholder="e.g. Khan Family, Plaza Shops">
+          <label for="groupBillingMemberFilter">Find connection</label>
+          <input id="groupBillingMemberFilter" class="form-input" type="text" aria-label="Filter connections by name or number" placeholder="Search name, number or phone">
+          <fieldset>
+            <legend>Connections (tick at least one)</legend>
+            <div id="groupBillingMembers" class="group-billing-members"></div>
+          </fieldset>
+          <button id="groupBillingSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit">➕ Group banayein</button>
+          <button id="groupBillingCancelEditBtn" class="secondary-button" type="button" hidden>Cancel edit</button>
+        </form>
+        <h3>Collect settings (used by every Collect Group Total button below)</h3>
+        <div class="group-billing-collect-bar">
+          <label for="groupBillingCollectDate">Date</label>
+          <input id="groupBillingCollectDate" class="form-input" type="date" aria-label="Collection date">
+          <label for="groupBillingCollectMethod">Method</label>
+          <select id="groupBillingCollectMethod" class="form-input" aria-label="Collection method">
+            <option value="Cash">Cash</option>
+            <option value="JazzCash">JazzCash</option>
+            <option value="Easypaisa">Easypaisa</option>
+            <option value="NayaPay">NayaPay</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Raast">Raast</option>
+            <option value="Cash at Waseem Abbasi shop">Cash at Waseem Abbasi shop</option>
+            <option value="Cash at Hassan shop">Cash at Hassan shop</option>
+            <option value="Cash at Balla shop">Cash at Balla shop</option>
+          </select>
+        </div>
+        <h3>Groups</h3>
+        <div id="groupBillingList" class="group-billing-list"></div>
+        <div id="groupBillingReceiptPanel" class="group-billing-receipt-panel" hidden>
+          <h3>Combined receipt</h3>
+          <pre id="groupBillingReceiptText" class="group-billing-receipt-text"></pre>
+          <div class="group-billing-actions">
+            <button id="groupBillingCopyBtn" class="secondary-button" type="button">📋 Copy receipt</button>
+            <a id="groupBillingWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
+            <button id="groupBillingPrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
+          </div>
         </div>
       </div>
     </div>

@@ -1975,6 +1975,12 @@ function renderCustomerProfileView(customer) {
   const phoneHint = phoneTargets?.whatsapp ? '' : '<p class="profile-contact-note">Save a full international number including its country code (for example, +923001234567) to enable WhatsApp receipt drafts. No country code is guessed.</p>';
   const profit = customerPackageProfit(customer);
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
+  // SISP-8: vacation-hold summary for the Service group below. This must be
+  // computed here: renderDetail has its own pauseSummary const for the header
+  // badge, but that binding is local to renderDetail and invisible here —
+  // without this line every profile render (and every payment save, via the
+  // save callback's renderDetail) threw "pauseSummary is not defined".
+  const pauseSummary = pauseBillingSummary(customer);
   // SISP-3: profile Waada chips — one-tap promise dates on the customer record.
   const waadaToday = getTodayDateString();
   const waadaLabel = customer.promiseDate ? waadaBadgeLabel(customer, waadaToday) : null;

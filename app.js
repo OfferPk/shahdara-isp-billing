@@ -20,6 +20,7 @@ import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch,
 import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.10.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.10.0';
+import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import { customerHasMonthlyFee } from './nav-quick-collect.js';
 import { setupFieldMode } from './field-mode.js?v=1.10.0';
@@ -1805,7 +1806,7 @@ function renderCustomerProfileView(customer) {
   const mikrotikSnippet = buildCustomerMikrotikSnippet(customer);
   const mikrotikSectionHtml = `<section class="profile-mikrotik-section" aria-label="MikroTik script"><h4>📡 MikroTik script</h4><p class="profile-mikrotik-note">Copy into WinBox Terminal. Read-only — this never changes bills or customer records. PPPoE username, password, static IP and MAC come from the profile edit form.</p><textarea id="profileMikrotikScript" class="mikrotik-script-box" readonly rows="10" aria-label="MikroTik script for this customer">${escapeHtml(mikrotikSnippet)}</textarea><button type="button" class="secondary-button" id="profileMikrotikCopyBtn">📋 Copy MikroTik script</button></section>`;
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Media converter cost', formatAmount(customer.mediaConverterCost)], ['Lineman install fee', formatAmount(customer.linemanInstallFee)], ['Fiber rate per meter', customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? 'Not recorded' : `${formatAmount(customer.fiberPerMeterRate)} / m`], ['Installation cost & profitability', installationCostProfileLine(customer)], ['PPPoE username', customer.pppoeUsername || 'Not set'], ['Static IP', customer.staticIp || 'Not set'], ['MAC address', customer.macAddress || 'Not set'], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1813,6 +1814,8 @@ function renderCustomerProfileView(customer) {
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
+  // SISP-14: QR Khata Card button on the profile.
+  $('#customerProfileView').querySelector('#profileQrCardButton')?.addEventListener('click', () => openQrKhataCard(customer));
   // SISP-3: wire the profile Waada chips (persist + re-render on every action).
   const waadaSection = $('#customerProfileView').querySelector('.profile-waada-section');
   if (waadaSection) {
@@ -8809,6 +8812,95 @@ if (typeof document !== 'undefined') {
 
 
 
+// SISP-14: QR Khata Card modal — printable wallet card + scannable deep link.
+// The QR encodes only the deep link (id + route), never financial data.
+function openQrKhataCard(customer) {
+  const dialog = $('#qrKhataCardModal');
+  if (!dialog || !customer) return;
+  const model = buildKhataCardModel(customer, { baseUrl: resolveQrBaseUrl(window.location?.href) });
+  if (!model) return;
+  $('#qrKhataCardName').textContent = model.customerName;
+  $('#qrKhataCardConnection').textContent = `Connection ID: ${model.connectionLabel}`;
+  $('#qrKhataCardRate').textContent = model.monthlyPackageRate === null
+    ? 'Package rate: Not set'
+    : `Package rate: ${formatAmount(model.monthlyPackageRate)}/month${model.packageSpeed ? ` · ${model.packageSpeed}` : ''}`;
+  const areaEl = $('#qrKhataCardArea');
+  areaEl.textContent = model.areaZone || '';
+  areaEl.hidden = !model.areaZone;
+  $('#qrKhataCardShops').textContent = `Pay at: ${model.shops.join(' · ')}`;
+  const linkEl = $('#qrKhataCardLink');
+  linkEl.textContent = model.deepLink;
+  linkEl.href = model.deepLink;
+  const canvas = $('#qrKhataCardCanvas');
+  const fallback = $('#qrKhataCardFallback');
+  let qrDataUrl = null;
+  try {
+    drawQrToCanvas(canvas, encodeQrMatrix(model.deepLink), { modulePx: 5, margin: 4 });
+    canvas.hidden = false;
+    fallback.hidden = true;
+    qrDataUrl = canvas.toDataURL('image/png');
+  } catch {
+    canvas.hidden = true;
+    fallback.hidden = false;
+  }
+  const pngBtn = $('#qrKhataCardPngBtn');
+  pngBtn.disabled = !qrDataUrl;
+  pngBtn.onclick = () => {
+    if (!qrDataUrl) return;
+    const a = document.createElement('a');
+    a.href = qrDataUrl;
+    a.download = `khata-card-${model.connectionLabel.replace(/[^A-Za-z0-9_-]/g, '') || 'customer'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+  $('#qrKhataCardPrintBtn').onclick = () => {
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast('Print window blocked — allow pop-ups for this site and try again.');
+      return;
+    }
+    win.document.write(buildKhataCardPrintHtml(model, qrDataUrl));
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+  $('#qrKhataCardCopyBtn').onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(model.deepLink);
+      toast('Khata link copied.');
+    } catch {
+      toast('Copy failed — long-press the link to copy it.');
+    }
+  };
+  $('#closeQrKhataCardModalBtn').onclick = () => dialog.close();
+  dialog.showModal();
+}
+
+// SISP-14: shop-counter QR deep link (?customer=[id]&action=pay) on app load.
+// action=pay opens the payment modal; anything else opens the profile. An
+// unknown id shows a toast and never leaks another customer's data. The query
+// is stripped after handling so a refresh does not re-open the payment modal.
+function handleCustomerDeepLink() {
+  if (typeof window === 'undefined' || !window.location) return;
+  const parsed = parseCustomerDeepLink(window.location.search || '');
+  if (!parsed) return;
+  const target = resolveDeepLinkCustomer(state.customers, parsed.customerId);
+  try {
+    const url = new URL(window.location.href);
+    url.search = '';
+    window.history.replaceState(null, '', url.toString());
+  } catch {}
+  if (!target) {
+    toast('Customer not found for this QR link.');
+    return;
+  }
+  selectCustomer(target.id, { pushHistory: false });
+  if (parsed.action === 'pay' && window.quickCollectModalController?.selectAndOpen) {
+    window.quickCollectModalController.selectAndOpen(target.id);
+  }
+}
+
 function handleRouteFromHash() {
   if (typeof window === 'undefined' || !window.location) return;
   const raw = (window.location.hash || '').replace(/^#\/?/, '').trim();
@@ -8863,4 +8955,6 @@ window.addEventListener('hashchange', handleRouteFromHash);
 if (typeof window !== 'undefined' && window.location?.hash) {
   handleRouteFromHash();
 }
+// SISP-14: shop-counter QR deep link (?customer=[id]&action=pay) on app load.
+handleCustomerDeepLink();
 }

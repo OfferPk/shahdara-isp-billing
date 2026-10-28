@@ -641,3 +641,38 @@ body.field-mode-open { overflow: hidden; }
   .saad-visits-day-list, .saad-visits-list { grid-template-columns: 1fr; }
   .saad-visits-day-card p strong, .saad-visits-card p strong { text-align: left; }
 }
+/* SISP-10: top-bar backup health badge (mirrors .network-status-pill; token-only). */
+.backup-health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font: 600 11.5px/1 Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+.backup-health-badge:hover { border-color: var(--muted); }
+.backup-health-badge:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
+.backup-health-badge.is-critical { animation: backup-health-pulse 1.6s ease-in-out infinite; }
+@keyframes backup-health-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@media (max-width: 480px) {
+  /* Keep the top bar from overflowing on phones: emoji only, label hidden. */
+  .backup-health-badge .backup-health-label { display: none; }
+  .backup-health-badge { padding: 0 8px; }
+}
+/* SISP-10: checksum note in the restore preview + sync-code paste block. */
+.backup-checksum-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.backup-checksum-note.checksum-verified { color: var(--ink); }
+.backup-checksum-note.checksum-unverified { color: var(--color-overdue); }
+.backup-checksum-note.checksum-mismatch { color: var(--color-overdue); font-weight: 700; }
+.sync-code-paste { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+.sync-code-paste textarea { width: 100%; box-sizing: border-box; resize: vertical; }

@@ -242,6 +242,7 @@
         <div><p class="eyebrow">LIVE SUMMARY</p><h2 id="dashboardTitle">Billing dashboard</h2></div>
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
+      <div id="overheadsDueBanner" class="overheads-due-banner" role="alert" hidden></div>
       <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators">
         <div class="home-kpi-card kpi-card-today" id="kpiCardToday">
           <span class="home-kpi-label">Today Collected</span>
@@ -7037,6 +7038,7 @@
           <button id="expenseTabNasir" class="expense-tab-button" type="button" role="tab" aria-controls="nasirSharePanel" aria-selected="false">Nasir share</button>
           <button id="expenseTabAqib" class="expense-tab-button" type="button" role="tab" aria-controls="aqibSharePanel" aria-selected="false">Aqib share</button>
           <button id="expenseTabSettlement" class="expense-tab-button" type="button" role="tab" aria-controls="partnerSettlementPanel" aria-selected="false">Partner settlement</button>
+          <button id="expenseTabOverheads" class="expense-tab-button" type="button" role="tab" aria-controls="overheadsPanel" aria-selected="false">Fixed overheads</button>
         </nav>
         <div id="expensesLedgerPanel" role="tabpanel" aria-labelledby="expenseTabLedger">
         <div class="phase3-metric-grid"><article class="phase3-metric"><span>Recorded expenses</span><strong id="expenseEntryCount">Not set</strong><small id="expenseEntryHelp">No expense entries recorded</small></article><article class="phase3-metric"><span>This month’s recorded expenses</span><strong id="expenseCurrentMonthTotal">Not set</strong><small>By actual payment date (PKT)</small></article><article class="phase3-metric"><span>Filtered expenses total</span><strong id="expenseFilteredTotal">PKR 0</strong><small id="expenseFilteredHelp">Matching current filters</small></article></div>
@@ -7101,6 +7103,16 @@
           <section class="table-card" aria-labelledby="partnerLedgerHeading"><div class="table-heading"><div><p class="eyebrow">MID-MONTH MOVEMENTS ONLY</p><h3 id="partnerLedgerHeading">Add a drawing or capital outlay</h3></div></div>
           <form id="partnerLedgerForm" class="phase3-form" novalidate><input id="partnerLedgerId" name="partnerLedgerId" type="hidden"><label>Partner<select id="partnerLedgerPartner" name="partner" required><option value="">Choose partner</option><option>Nasir</option><option>Aqib</option></select></label><label>Type<select id="partnerLedgerType" name="type" required><option value="">Choose type</option><option value="drawing">Drawing — cash taken</option><option value="capital">Capital — out-of-pocket purchase</option></select></label><label>Amount (PKR)<input id="partnerLedgerAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount"></label><label>Date (PKT)<input id="partnerLedgerDate" name="date" type="date" required></label><label class="form-wide">Note<textarea id="partnerLedgerNote" name="note" maxlength="500" rows="2" placeholder="Optional — e.g. ONU purchase, cash taken"></textarea></label><div class="form-actions form-wide"><button id="partnerLedgerSubmit" class="primary-button" type="submit">Record movement</button><button id="partnerLedgerCancel" class="secondary-button" type="button" hidden>Cancel edit</button></div></form>
           <div class="table-scroll"><table><thead><tr><th scope="col">Date</th><th scope="col">Partner</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Note</th><th scope="col">Actions</th></tr></thead><tbody id="partnerLedgerTable"></tbody></table></div><p id="partnerLedgerEmpty" class="empty-state">No drawings or capital outlays recorded for this month.</p></section>
+        </section>
+        <section id="overheadsPanel" class="table-card overheads-panel" role="tabpanel" aria-labelledby="expenseTabOverheads" hidden>
+          <div class="table-heading"><div><p class="eyebrow">FIXED MONTHLY OVERHEADS · TRUE NET PROFIT</p><h3>Fixed overheads</h3></div><label class="payroll-month-label" for="overheadsMonth">Selected month<select id="overheadsMonth"></select></label></div>
+          <p class="phase3-note">Recurring fixed ISP costs — upstream bandwidth, OLT room power, lineman salary, maintenance reserve. Posting sends the amount into the dated expense ledger, so the month&apos;s profit and Nasir/Aqib 50% shares update from the same computation — nothing is calculated twice. A template can be posted once per month; deleting its expense from the ledger clears the posting.</p>
+          <div id="overheadsShareSummary" class="phase3-metric-grid"></div>
+          <div id="overheadsTemplates" aria-live="polite"></div>
+          <div class="form-actions"><button id="overheadsSaveDefaultsBtn" class="secondary-button" type="button">Save default amounts</button></div>
+          <p id="overheadsStatus" class="phase3-note" role="status" aria-live="polite"></p>
+          <section class="table-card" aria-labelledby="overheadsPostingsHeading"><div class="table-heading"><div><p class="eyebrow">POSTED OVERHEADS</p><h3 id="overheadsPostingsHeading">Posted overheads</h3></div></div>
+          <div id="overheadsPostings"></div><p id="overheadsPostingsEmpty" class="empty-state">No overheads posted yet.</p></section>
         </section>
       </div>
     </section>

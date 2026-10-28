@@ -18,6 +18,7 @@ import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
+import { sanitizeOverheads } from './fixed-overheads.js';
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
@@ -1826,6 +1827,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeMonthlyClosingNotes(options.monthlyClosingNotes);
     if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), monthlyClosingNotes: cleaned };
   }
+  // SISP-27: fixed overhead templates + postings live outside the ledger
+  // state (localStorage key sisp_overheads_v1), so they travel in an
+  // optional `settings.overheads` section. Written only when a default
+  // override or a posting exists; readers that predate it ignore the
+  // unknown field. Placed before the checksum stamp so the stamp covers it.
+  if (options && typeof options === 'object' && options.overheads && typeof options.overheads === 'object' && !Array.isArray(options.overheads)) {
+    const cleaned = sanitizeOverheads(options.overheads);
+    if (cleaned.templates.length || cleaned.postings.length) document.settings = { ...(document.settings || {}), overheads: cleaned };
+  }
   // SISP-10: checksum-verified transfer. The stamp covers the canonical
   // (key-sorted) form of the document, so it survives re-formatting, and
   // readers that predate it ignore the unknown field — old backups and old
@@ -2328,6 +2338,31 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Monthly closing notes differ from this device' });
     }
   }
+  // SISP-27: optional fixed-overheads section (see createJsonBackup).
+  // Safe-merge rule, same as the monthly closing notes: adopt the
+  // backup's records only when this device has none stored yet; when
+  // both sides hold different real records, keep existing + conflict.
+  let overheads = null;
+  const rawIncomingOverheads = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.overheads
+    : undefined;
+  if (rawIncomingOverheads && typeof rawIncomingOverheads === 'object' && !Array.isArray(rawIncomingOverheads)) {
+    const incomingOverheads = sanitizeOverheads(rawIncomingOverheads);
+    const currentOverheads = (options && typeof options === 'object' && options.currentOverheads && typeof options.currentOverheads === 'object')
+      ? sanitizeOverheads(options.currentOverheads)
+      : { templates: [], postings: [] };
+    const incomingHasRecords = incomingOverheads.templates.length > 0 || incomingOverheads.postings.length > 0;
+    const currentHasRecords = currentOverheads.templates.length > 0 || currentOverheads.postings.length > 0;
+    if (incomingHasRecords && sameJson(incomingOverheads, currentOverheads)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingHasRecords && (!options?.currentOverheadsStored || !currentHasRecords)) {
+      overheads = incomingOverheads;
+      counts.overheadsRestored = 1;
+      counts.changes++;
+    } else if (incomingHasRecords) {
+      conflicts.push({ customerNumber:null, name:'', field:'Fixed overhead records differ from this device' });
+    }
+  }
   // SISP-22: optional partner ledger + settlement slip sections (see
   // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
   // the backup's records only when this device has none stored yet;
@@ -2371,5 +2406,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, waTemplates, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, homeBudget, waTemplates, checksumStatus:checksum.status };
 }

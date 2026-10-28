@@ -493,6 +493,15 @@
             <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button">📌 Pending Works</button>
           </div>
         </article>
+        <article class="summary-card summary-pole-landmark">
+          <p class="summary-label">📍 Pole &amp; Landmark Directory</p>
+          <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
+          <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
+          <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button">📍 Zone Lineman Cheat-Sheet</button>
+          </div>
+        </article>
         <article class="summary-card summary-hardware-recovery">
           <p class="summary-label">📦 Pending Hardware Recovery</p>
           <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
@@ -6768,6 +6777,9 @@
                 <label class="profile-field" for="splitterPortInput"><span class="field-label">Splitter port <span class="optional-label">Optional · 1–16</span></span><input id="splitterPortInput" type="number" min="1" max="16" step="1" inputmode="numeric" placeholder="Not set"></label>
                 <label class="profile-field" for="oltPonPortInput"><span class="field-label">PON port <span class="optional-label">Optional · e.g. PON 1/2/3</span></span><input id="oltPonPortInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="lastRxDbmInput"><span class="field-label">Last RX signal (dBm) <span class="optional-label">Optional · below −26.0 flags weak signal</span></span><input id="lastRxDbmInput" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="poleNumberInput"><span class="field-label">Pole / landmark <span class="optional-label">Optional · e.g. Pole #14 near Masjid Bilal</span></span><input id="poleNumberInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="boxLocationNoteInput"><span class="field-label">Box location note <span class="optional-label">Optional · e.g. 2nd Floor White Gate</span></span><input id="boxLocationNoteInput" type="text" maxlength="200" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="dropWireCoreColorInput"><span class="field-label">Drop wire color <span class="optional-label">Optional · e.g. Blue/Orange</span></span><input id="dropWireCoreColorInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="mediaConverterCostInput"><span class="field-label">Media converter cost (PKR) <span class="optional-label">Optional · only if a converter was installed</span></span><input id="mediaConverterCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="linemanInstallFeeInput"><span class="field-label">Lineman install fee (PKR) <span class="optional-label">Optional · paid to the installer</span></span><input id="linemanInstallFeeInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="fiberPerMeterRateInput"><span class="field-label">Fiber rate per meter (PKR) <span class="optional-label">Optional · needed to price the fiber used</span></span><input id="fiberPerMeterRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>                <label class="profile-field" for="pppoeUsernameInput"><span class="field-label">PPPoE username <span class="optional-label">Optional · for the MikroTik RouterOS script</span></span><input id="pppoeUsernameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
@@ -21115,6 +21127,27 @@
           <input id="relocationDate" class="form-input" type="date" aria-label="Shift date">
           <button id="relocationSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit">🏠 Record shift</button>
         </form>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="poleLandmarkModal" class="billing-modal pole-landmark-modal" aria-labelledby="poleLandmarkModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="poleLandmarkModalTitle">📍 Zone Lineman Cheat-Sheet</h2>
+        <button id="poleCheatCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="pole-cheat-intro">Which pole or landmark carries each customer's fiber drop and converter box, grouped by zone so a lineman can find the box in 30 seconds. Archived customers are not listed.</p>
+        <p id="poleCheatSummaryLine" class="pole-cheat-summary-line"></p>
+        <label for="poleCheatZoneSelect">Zone</label>
+        <select id="poleCheatZoneSelect" class="form-input" aria-label="Filter cheat-sheet by zone">
+          <option value="all">All zones</option>
+        </select>
+        <div id="poleCheatList" class="pole-cheat-list"></div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="poleCheatDownloadBtn" class="action-btn-sm daily-slip-btn" type="button">⬇️ Export cheat-sheet (.txt)</button>
+          <button id="poleCheatCopyBtn" class="secondary-button" type="button">📋 Copy cheat-sheet</button>
+        </div>
       </div>
     </div>
   </dialog>

@@ -155,7 +155,7 @@ import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHour
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
-import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
+import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -235,7 +235,7 @@ export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
 export let pendingWorksModalController = null;
 export let relocationModalController = null;
-export let ownerKhataModalController = null;export let walletLedgerModalController = null;
+export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
@@ -715,6 +715,18 @@ function renderDashboard() {
     pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0
       ? ''
       : `<p><span>⚠️ Due</span><strong>${escapeHtml(pendingSummary.dueItems.map((item) => item.note).join(' · '))}</strong></p>`;
+  }
+  // SISP-32: pole & landmark directory — poles mapped vs live customers.
+  const poleSummaryEl = $('#poleLandmarkSummary');
+  if (poleSummaryEl) {
+    const poleSummary = poleDirectorySummary(state.customers);
+    const poleValueEl = $('#dashboardPoleLandmarkValue');
+    const polePeriodEl = $('#dashboardPoleLandmarkPeriod');
+    if (poleValueEl) poleValueEl.textContent = poleSummary.mappedCount === 0 ? 'No poles mapped' : `${poleSummary.mappedCount} pole${poleSummary.mappedCount === 1 ? '' : 's'} mapped`;
+    if (polePeriodEl) polePeriodEl.textContent = `${poleSummary.totalCustomers} customers · Street pole, landmark & drop-wire directory`;
+    poleSummaryEl.innerHTML = poleSummary.mappedCount === 0
+      ? ''
+      : `<p><span>Mapped</span><strong>${poleSummary.mappedCount} of ${poleSummary.totalCustomers} customers</strong></p>`;
   }
   // SISP-19: pending hardware recovery card (disconnected customers
   // holding unrecovered ISP-owned hardware).
@@ -1984,6 +1996,9 @@ function renderCustomerProfileView(customer) {
       ? '<span class="safety-badge badge-healthy">Signal OK</span>'
       : '';
   const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="Optical splitter"><h4>🔌 Optical splitter</h4><p>Splitter box: <strong>${escapeHtml(opticalFields.splitterBoxId || 'Not recorded')}</strong>${opticalFields.splitterPort !== null ? ` · port <strong>${opticalFields.splitterPort}</strong>` : ''}</p><p>PON port: <strong>${escapeHtml(opticalFields.oltPonPort || 'Not recorded')}</strong> · Last RX: <strong>${escapeHtml(formatRxDbm(opticalFields.lastRxDbm))}</strong> ${opticalBadge}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">Open splitter port map</button></section>`;
+  // SISP-32: pole & landmark directory — where the drop and box live.
+  const poleFields = normalizePoleFields(customer);
+  const poleSectionHtml = `<section class="profile-splitter-section" aria-label="Pole and landmark"><h4>📍 Pole &amp; landmark</h4><p>Pole / landmark: <strong>${escapeHtml(poleFields.poleNumber || 'Not recorded')}</strong></p><p>Box location: <strong>${escapeHtml(poleFields.boxLocationNote || 'Not recorded')}</strong> · Drop wire color: <strong>${escapeHtml(poleFields.dropWireCoreColor || 'Not recorded')}</strong></p><p class="profile-pole-note">Edit these on the profile form so any lineman can find this box.</p></section>`;
   // SISP-7: profile feeder section — upstream house, feeder zone, and how
   // many downstream subscribers lose internet if this house goes down.
   const feederFields = normalizeFeederFields(customer);
@@ -2015,8 +2030,7 @@ function renderCustomerProfileView(customer) {
   const custodyChecklist = disconnectionChecklist(customer);
   const custodyPending = custodyChecklist.filter(item => !item.recovered);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="Hardware custody"><h4>📦 Hardware Custody — Returnable Equipment</h4><p>Router ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.routerOwnership))}</strong> · Media converter / ONU ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.mediaConverterOwnership))}</strong></p><p>Serial / MAC number: <strong>${escapeHtml(custodyFields.serialNumber || 'Not recorded')}</strong> · Security deposit: <strong>${escapeHtml(formatAmount(custodyFields.securityDeposit))}</strong> · Installed fiber drop length: <strong>${escapeHtml(customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`)}</strong></p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? '<p class="profile-custody-note">No ISP-owned hardware recorded. Set ownership in Edit — on disconnection (archive), ISP-owned items appear in Pending Hardware Recovery.</p>' : '<p class="profile-custody-note">ISP-owned hardware is installed. On disconnection (archive), unrecovered items appear in Pending Hardware Recovery.</p>') : (custodyChecklist.length === 0 ? '<p class="profile-custody-note">Disconnected — no ISP-owned hardware to recover.</p>' : `<div class="profile-custody-checklist" role="group" aria-label="Disconnection recovery checklist"><p><strong>Disconnection recovery checklist</strong> — ISP-owned hardware to recover from this house:</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)}${item.recovered ? ` · <span class="custody-recovered">✅ Recovered ${escapeHtml(item.recoveredAt)}</span>` : ` · <span class="custody-pending">⏳ Pending recovery</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">Mark recovered</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? '<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">Mark all recovered</button>' : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;
-    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -2297,6 +2311,10 @@ function renderDetail() {
   $('#splitterPortInput').value = customer.splitterPort ?? '';
   $('#oltPonPortInput').value = customer.oltPonPort ?? '';
   $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
+  // SISP-32: pole & landmark directory (optional).
+  if ($('#poleNumberInput')) $('#poleNumberInput').value = customer.poleNumber ?? '';
+  if ($('#boxLocationNoteInput')) $('#boxLocationNoteInput').value = customer.boxLocationNote ?? '';
+  if ($('#dropWireCoreColorInput')) $('#dropWireCoreColorInput').value = customer.dropWireCoreColor ?? '';
   if ($('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
   if ($('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
   if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
@@ -3760,6 +3778,10 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       // SISP-24: optical splitter assignment + last RX reading (optional).
       splitterBoxId:$('#splitterBoxIdInput').value, splitterPort:$('#splitterPortInput').value,
       oltPonPort:$('#oltPonPortInput').value, lastRxDbm:$('#lastRxDbmInput').value,
+      // SISP-32: pole & landmark directory (optional).
+      ...($('#poleNumberInput') ? { poleNumber: $('#poleNumberInput').value } : {}),
+      ...($('#boxLocationNoteInput') ? { boxLocationNote: $('#boxLocationNoteInput').value } : {}),
+      ...($('#dropWireCoreColorInput') ? { dropWireCoreColor: $('#dropWireCoreColorInput').value } : {}),
       ...($('#mediaConverterCostInput') ? { mediaConverterCost: $('#mediaConverterCostInput').value } : {}),
       ...($('#linemanInstallFeeInput') ? { linemanInstallFee: $('#linemanInstallFeeInput').value } : {}),
       ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
@@ -8856,6 +8878,10 @@ if (typeof document !== 'undefined') {
       renderDetail();
       renderDashboard();
     },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  // SISP-32: pole & landmark directory + zone lineman cheat-sheet.
+  poleLandmarkModalController = setupPoleLandmarkModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   // SISP-19: pending hardware recovery modal (derived list, no new store).

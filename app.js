@@ -1,7 +1,7 @@
 import {
   INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
-  deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
+  deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill,
@@ -13,8 +13,9 @@ import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla
 } from './phase3.js?v=1.10.0';
+import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.10.0';
 import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.10.0';
@@ -45,7 +46,7 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 
 import {
   validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
-  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
+  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, groupAreasWithCounts, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
   generateCustomerRosterCsv, renderCustomerTableEmptyMarkup,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths, statementFilterMethods, sortStatementEvents, statementMonthSubtotals, statementAging, statementTrendSvg, statementDaysOverdue,
@@ -114,6 +115,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
+import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl } from './partner-settlement.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
@@ -121,15 +123,20 @@ import { calculateInstallationCost } from './installation-cost.js?v=1.10.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
+import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
-import { INVENTORY_KEY, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
+import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
+import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.10.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
+import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
-import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
-import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
+import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
+import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
+import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
+import { buildWalletReconciliation, walletVerificationLabel, walletReconciliationSummaryText, DIGITAL_BREAKDOWN_METHODS } from './wallet-reconciliation.js';import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 import {
   getTodayDateString,
@@ -155,6 +162,25 @@ import {
 
 
 
+// SISP-19 wiring into the SISP-18 stock book: when hardware is marked
+// recovered, the device comes BACK into stock. This runs AFTER the
+// recovery record is saved (both call sites persist first), so a stock
+// failure can never lose a recovery — failures only produce a warning
+// toast naming the outcome, and the recovery itself stays saved.
+function recordRecoveryStock(beforeCustomer, updatedCustomer) {
+  const movements = recoveryStockMovements(beforeCustomer, updatedCustomer);
+  if (movements.length === 0) return;
+  let stored = loadInventory();
+  const failed = [];
+  for (const movement of movements) {
+    try { stored = addMovement(stored, movement); }
+    catch (err) { failed.push(movement.itemId); }
+  }
+  let saved = true;
+  try { saveInventory(stored); } catch { saved = false; }
+  if (failed.length > 0 || !saved) toast('Hardware recovered, but the stock book could not be updated — check Stock Book.');
+}
+
 const $ = selector => document.querySelector(selector);
 const appShell = $('.app-shell');
 const customerList = $('#customerList');
@@ -177,14 +203,16 @@ export let billingCycleModalController = null;
 export let complaintRegisterModalController = null;
 export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
+export let splitterMapModalController = null;
 export let monthlyComplaintReportModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
 export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
-export let lateFeeModalController = null;
-export let worklistsModalController = null;
+export let pendingWorksModalController = null;
+export let ownerKhataModalController = null;export let walletLedgerModalController = null;
+export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
 try {
@@ -553,6 +581,18 @@ function renderDashboard() {
       ? ''
       : `<p><span>Top customer</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(String(analytics.areaOutageComplaints))} zone-wide faults · ${escapeHtml(String(analytics.areaOutageDowntime))} h</small></p>`;
   }
+  // SISP-24: splitter port map card (boxes mapped, ports used, weak signals).
+  const splitterSummaryEl = $('#splitterMapSummary');
+  if (splitterSummaryEl) {
+    const overview = buildSplitterOverview(state.customers);
+    const splitterValueEl = $('#dashboardSplitterValue');
+    const splitterPeriodEl = $('#dashboardSplitterPeriod');
+    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? 'No splitter boxes' : `${overview.boxCount} box${overview.boxCount === 1 ? '' : 'es'} · ${overview.occupiedPorts} ports used`;
+    if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? 'Splitter box port map and RX signal health' : `${overview.freePorts} spare port${overview.freePorts === 1 ? '' : 's'}${overview.weakCount ? ` · ${overview.weakCount} weak signal${overview.weakCount === 1 ? '' : 's'}` : ' · no weak signals'}`;
+    splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
+      ? ''
+      : `<p><span>Weakest signal</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || 'Unnamed')} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} port ${escapeHtml(String(overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? ''))}</small></p>`;
+  }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
   const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
   if (monthlyReportSummaryEl) {
@@ -627,6 +667,66 @@ function renderDashboard() {
       ? ''
       : `<p><span>Latest</span><strong>${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requestDate)} · ${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requesterName)} · ${escapeHtml(String(installSummary.requests[installSummary.requests.length - 1].amountPaid))} PKR</strong></p>`;
   }
+  // Pending works: due reminders + nearest threshold progress.
+  const pendingWorksSummaryEl = $('#pendingWorksSummary');
+  if (pendingWorksSummaryEl) {
+    const pendingSummary = pendingWorksSummary(loadPendingWorks(), countActiveCustomers(state.customers));
+    const pendingValueEl = $('#dashboardPendingWorksValue');
+    const pendingPeriodEl = $('#dashboardPendingWorksPeriod');
+    if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? 'Nothing pending' : pendingSummary.dueCount > 0 ? `${pendingSummary.dueCount} due now` : `${pendingSummary.pendingCount} pending`;
+    if (pendingPeriodEl) pendingPeriodEl.textContent = pendingSummary.nearestLabel ? `Nearest: ${pendingSummary.nearestLabel}` : 'Owner notes & reminders';
+    pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0
+      ? ''
+      : `<p><span>⚠️ Due</span><strong>${escapeHtml(pendingSummary.dueItems.map((item) => item.note).join(' · '))}</strong></p>`;
+  }
+  // SISP-19: pending hardware recovery card (disconnected customers
+  // holding unrecovered ISP-owned hardware).
+  const recoverySummaryEl = $('#hardwareRecoverySummary');
+  if (recoverySummaryEl) {
+    const pending = pendingHardwareRecovery(state.customers);
+    const pendingItems = pending.reduce((sum, entry) => sum + entry.items.length, 0);
+    const valueEl = $('#dashboardHardwareRecoveryValue');
+    const periodEl = $('#dashboardHardwareRecoveryPeriod');
+    if (valueEl) valueEl.textContent = pending.length === 0 ? 'Nothing pending' : `${pending.length} customer${pending.length === 1 ? '' : 's'} · ${pendingItems} item${pendingItems === 1 ? '' : 's'}`;
+    if (periodEl) periodEl.textContent = pending.length === 0 ? 'ISP-owned hardware at disconnected houses' : 'Mark items recovered as they come back';
+    recoverySummaryEl.innerHTML = pending.length === 0
+      ? ''
+      : `<p><span>First pending</span><strong>${escapeHtml(pending[0].customer.name)} (#${escapeHtml(String(pending[0].customer.customerNumber))})</strong><small> · ${escapeHtml(pending[0].items.map(item => item.label).join(', '))}</small></p>`;
+  }
+  // SISP-20: owner khata closing card (current-month financials + network).
+  const ownerKhataSummaryEl = $('#ownerKhataSummary');
+  if (ownerKhataSummaryEl) {
+    const khataMonth = pakistanMonthNow(referenceDate);
+    const khataSaved = (state.monthlyClosings ?? []).find((row) => row.month === khataMonth) ?? null;
+    const khata = buildOwnerKhataReport(state, khataMonth, {
+      complaints: loadComplaints(),
+      settlements: loadShopSettlements(),
+      notes: loadMonthlyClosingNotes(),
+      savedSnapshot: khataSaved,
+      referenceDate
+    });
+    const valueEl = $('#dashboardOwnerKhataValue');
+    const periodEl = $('#dashboardOwnerKhataPeriod');
+    if (valueEl) valueEl.textContent = khata.receiptCount === 0 && khata.expenseCount === 0 ? 'No activity' : `${formatAmount(khata.profit)} net profit`;
+    if (periodEl) periodEl.textContent = `${monthName(khataMonth)} · collected ${formatAmount(khata.collected)} · arrears ${formatAmount(khata.pendingArrears)}`;
+    ownerKhataSummaryEl.innerHTML = khata.receiptCount === 0 && khata.expenseCount === 0 && khata.totalComplaints === 0
+      ? ''
+      : `<p><span>Shares</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · Nasir / Aqib · ${escapeHtml(String(khata.totalComplaints))} complaints · ${escapeHtml(String(khata.totalDowntime))} h offline</small></p>`;
+  }
+  // SISP-21: digital wallet ledger card (this-month wallet totals + flags).
+  const walletSummaryEl = $('#walletLedgerSummary');
+  if (walletSummaryEl) {
+    const wallet = buildWalletReconciliation(state.customers, totals.currentMonth, loadShopSettlements());
+    const valueEl = $('#dashboardWalletValue');
+    const periodEl = $('#dashboardWalletPeriod');
+    if (valueEl) valueEl.textContent = wallet.digitalCount === 0 ? 'No digital payments' : formatAmount(wallet.digitalTotal);
+    if (periodEl) periodEl.textContent = wallet.digitalCount === 0
+      ? 'EasyPaisa · JazzCash · NayaPay · Bank Transfer'
+      : `${wallet.pendingVerification.length} pending verification${wallet.duplicateGroups.length ? ` · ${wallet.duplicateGroups.length} duplicate TID${wallet.duplicateGroups.length === 1 ? '' : 's'}` : ''}`;
+    walletSummaryEl.innerHTML = wallet.digitalCount === 0
+      ? ''
+      : DIGITAL_BREAKDOWN_METHODS.filter((label) => (wallet.byWallet[label]?.count ?? 0) > 0)
+        .map((label) => `<p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(wallet.byWallet[label].amount))}</strong><small> · ${escapeHtml(String(wallet.byWallet[label].count))} payment${wallet.byWallet[label].count === 1 ? '' : 's'} · ${escapeHtml(String(wallet.byWallet[label].verifiedCount))} verified</small></p>`).join('');  }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
   $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
@@ -916,7 +1016,7 @@ function profileReceiptSummaryMarkup(customer) {
   const scoreText = health?.score === null || health?.score === undefined ? 'Insufficient history' : `${health.score}/100 · ${health.category}`;
   const scoreReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
   const behaviorCards = behavior ? `<article class="profile-summary-stat"><span>Outstanding · all saved bills</span><strong>${escapeHtml(formatAmount(behavior.totalOutstanding))}</strong><small>Credit is tracked separately.</small></article><article class="profile-summary-stat"><span>Unused advance / credit</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : 'None recorded'}</strong><small>Prepaid receipt balance not yet applied.</small></article><article class="profile-summary-stat"><span>Average monthly actual payment</span><strong>${behavior.averageMonthlyPayment===null?'Not calculable':escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(behavior.averageMonthlyPaymentBasis)}</small></article><article class="profile-summary-stat"><span>Average settlement delay</span><strong>${behavior.averagePaymentDelayDays===null?'Not recorded':`${behavior.averagePaymentDelayDays} days`}</strong><small>${behavior.delaySampleCount} saved due-date/settlement pair(s).</small></article><article class="profile-summary-stat"><span>Payment range</span><strong>${behavior.highestPayment===null?'Not recorded':`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>Lowest to highest actual receipt.</small></article><article class="profile-summary-stat"><span>Late / partial payments</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${behavior.totalPayments} actual receipt(s) in history.</small></article><article class="profile-summary-stat"><span>Payment consistency</span><strong>${behavior.paymentConsistency===null?'Insufficient history':`${behavior.paymentConsistency}%`}</strong><small>${behavior.consistencySettledMonths}/${behavior.consistencyBillMonths} completed priced months settled.</small></article><article class="profile-summary-stat"><span>Last payment</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):'Not recorded'}</strong><small>${lastPayment?`${escapeHtml(humanDate(lastPayment.date))} · actual receipt`: 'No actual receipts recorded.'}</small></article>` : '';
-  return `<section class="customer-receipt-summary" aria-label="Customer 360: receipts, credit, payment behavior and health"><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>Total actually received</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : 'No receipts recorded'}</strong><small>${receipts.receiptCount ? `${plural(receipts.receiptCount, 'recorded receipt')} · across all saved months` : 'Bills and charges are not counted as receipts.'}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${behaviorCards}</div><section class="customer-health-summary" aria-label="Customer health score"><strong>Health: ${escapeHtml(scoreText)}</strong><details><summary>Why this score / history basis</summary><ul>${scoreReasons || '<li>No score reasons are available.</li>'}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>Receipts by payment month</strong><span>Grouped by actual payment date · bill amounts excluded</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="Actual receipts by payment month">${receiptRows}</ul>` : '<p class="receipt-month-empty">No actual receipt entries have been recorded.</p>'}</div></section>`;
+  return `<section class="customer-receipt-summary" aria-label="Customer 360: receipts, credit, payment behavior and health"><div class="profile-summary-heading"><h3>Receipts & payment behavior</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ Edit customer</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>Total actually received</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : 'No receipts recorded'}</strong><small>${receipts.receiptCount ? `${plural(receipts.receiptCount, 'recorded receipt')} · across all saved months` : 'Bills and charges are not counted as receipts.'}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>Time with ISP</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${behaviorCards}</div><section class="customer-health-summary" aria-label="Customer health score"><strong>Health: ${escapeHtml(scoreText)}</strong><details><summary>Why this score / history basis</summary><ul>${scoreReasons || '<li>No score reasons are available.</li>'}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>Receipts by payment month</strong><span>Grouped by actual payment date · bill amounts excluded</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="Actual receipts by payment month">${receiptRows}</ul>` : '<p class="receipt-month-empty">No actual receipt entries have been recorded.</p>'}</div></section>`;
 }
 function customerCardMarkup(customer, archived = false, allocations = calculatePaymentAllocations(state)) {
   const receipts = summarizeCustomerReceipts(customer);
@@ -1021,10 +1121,10 @@ function renderCustomers() {
   // Sync unique areas into dropdown
   const areaSelect = $('#customerFilterArea');
   if (areaSelect) {
-    const areas = getUniqueCustomerAreas(state.customers.filter(c => !c.archived));
+    const areaOptions = groupAreasWithCounts(state.customers.filter(c => !c.archived), c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
     const currentVal = customerAreaFilter;
-    areaSelect.innerHTML = '<option value="all">All areas</option>' + areas.map(a => `<option value="${escapeHtml(a)}"${a === currentVal ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
-    if (!areas.includes(currentVal) && currentVal !== 'all') {
+    areaSelect.innerHTML = '<option value="all">All areas</option>' + areaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+    if (!areaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
       customerAreaFilter = 'all';
       areaSelect.value = 'all';
     } else {
@@ -1183,7 +1283,7 @@ function renderGlobalSearch() {
   }));
 }
 function switchView(view, { pushHistory = true } = {}) {
-  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'] };
+  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'], homeBudget:['homeBudgetView','showHomeBudgetButton'], loans:['loanView','showLoansButton'] };
   if (!views[view]) view = 'customers';
   for (const [name, [sectionId, buttonId]] of Object.entries(views)) {
     const active = name === view;
@@ -1782,6 +1882,16 @@ function renderCustomerProfileView(customer) {
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
   const downtimeSectionHtml = `<section class="profile-downtime-section" aria-label="Downtime analytics"><h4>📉 Downtime analytics</h4><p>This month: <strong>${escapeHtml(String(downtimeMonth.complaintCount))} complaint${downtimeMonth.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeMonth.totalDowntime))} h offline</strong>${downtimeMonth.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeMonth.primaryIssueTag)}` : ''}</p><p>All time: <strong>${escapeHtml(String(downtimeAll.complaintCount))} complaint${downtimeAll.complaintCount === 1 ? '' : 's'} · ${escapeHtml(String(downtimeAll.totalDowntime))} h offline</strong>${downtimeAll.primaryIssueTag ? ` · main issue ${escapeHtml(downtimeAll.primaryIssueTag)}` : ''}</p><button type="button" class="secondary-button" id="profileOpenDowntimeAnalyticsBtn">Open downtime analytics</button></section>`;
+  // SISP-24: profile optical section — splitter box, port, PON port and
+  // last RX reading, with a red high-loss badge below -26.0 dBm.
+  const opticalFields = normalizeOpticalFields(customer);
+  const opticalStatus = rxSignalStatus(opticalFields.lastRxDbm);
+  const opticalBadge = opticalStatus === 'weak'
+    ? '<span class="safety-badge badge-danger">High-loss · weak signal — check attenuation</span>'
+    : opticalStatus === 'healthy'
+      ? '<span class="safety-badge badge-healthy">Signal OK</span>'
+      : '';
+  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="Optical splitter"><h4>🔌 Optical splitter</h4><p>Splitter box: <strong>${escapeHtml(opticalFields.splitterBoxId || 'Not recorded')}</strong>${opticalFields.splitterPort !== null ? ` · port <strong>${opticalFields.splitterPort}</strong>` : ''}</p><p>PON port: <strong>${escapeHtml(opticalFields.oltPonPort || 'Not recorded')}</strong> · Last RX: <strong>${escapeHtml(formatRxDbm(opticalFields.lastRxDbm))}</strong> ${opticalBadge}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">Open splitter port map</button></section>`;
   // SISP-7: profile feeder section — upstream house, feeder zone, and how
   // many downstream subscribers lose internet if this house goes down.
   const feederFields = normalizeFeederFields(customer);
@@ -1806,10 +1916,14 @@ function renderCustomerProfileView(customer) {
   const mikrotikSnippet = buildCustomerMikrotikSnippet(customer);
   const mikrotikSectionHtml = `<section class="profile-mikrotik-section" aria-label="MikroTik script"><h4>📡 MikroTik script</h4><p class="profile-mikrotik-note">Copy into WinBox Terminal. Read-only — this never changes bills or customer records. PPPoE username, password, static IP and MAC come from the profile edit form.</p><textarea id="profileMikrotikScript" class="mikrotik-script-box" readonly rows="10" aria-label="MikroTik script for this customer">${escapeHtml(mikrotikSnippet)}</textarea><button type="button" class="secondary-button" id="profileMikrotikCopyBtn">📋 Copy MikroTik script</button></section>`;
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Media converter cost', formatAmount(customer.mediaConverterCost)], ['Lineman install fee', formatAmount(customer.linemanInstallFee)], ['Fiber rate per meter', customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? 'Not recorded' : `${formatAmount(customer.fiberPerMeterRate)} / m`], ['Installation cost & profitability', installationCostProfileLine(customer)], ['PPPoE username', customer.pppoeUsername || 'Not set'], ['Static IP', customer.staticIp || 'Not set'], ['MAC address', customer.macAddress || 'Not set'], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}`;
-  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
-  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
-    profileEditMode = true;
+  // SISP-19: profile hardware custody — ownership fields on the record,
+  // plus the disconnection recovery checklist once archived (archive is
+  // the app's disconnect action). Fiber drop length reuses fiberMeters.
+  const custodyFields = normalizeCustodyFields(customer);
+  const custodyChecklist = disconnectionChecklist(customer);
+  const custodyPending = custodyChecklist.filter(item => !item.recovered);
+  const custodySectionHtml = `<section class="profile-custody-section" aria-label="Hardware custody"><h4>📦 Hardware Custody — Returnable Equipment</h4><p>Router ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.routerOwnership))}</strong> · Media converter / ONU ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.mediaConverterOwnership))}</strong></p><p>Serial / MAC number: <strong>${escapeHtml(custodyFields.serialNumber || 'Not recorded')}</strong> · Security deposit: <strong>${escapeHtml(formatAmount(custodyFields.securityDeposit))}</strong> · Installed fiber drop length: <strong>${escapeHtml(customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`)}</strong></p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? '<p class="profile-custody-note">No ISP-owned hardware recorded. Set ownership in Edit — on disconnection (archive), ISP-owned items appear in Pending Hardware Recovery.</p>' : '<p class="profile-custody-note">ISP-owned hardware is installed. On disconnection (archive), unrecovered items appear in Pending Hardware Recovery.</p>') : (custodyChecklist.length === 0 ? '<p class="profile-custody-note">Disconnected — no ISP-owned hardware to recover.</p>' : `<div class="profile-custody-checklist" role="group" aria-label="Disconnection recovery checklist"><p><strong>Disconnection recovery checklist</strong> — ISP-owned hardware to recover from this house:</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)}${item.recovered ? ` · <span class="custody-recovered">✅ Recovered ${escapeHtml(item.recoveredAt)}</span>` : ` · <span class="custody-pending">⏳ Pending recovery</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">Mark recovered</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? '<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">Mark all recovered</button>' : ''}</div>`)}</section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;
     $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -1862,6 +1976,11 @@ function renderCustomerProfileView(customer) {
   const profileDowntimeBtn = $('#customerProfileView').querySelector('#profileOpenDowntimeAnalyticsBtn');
   if (profileDowntimeBtn) profileDowntimeBtn.addEventListener('click', () => {
     if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.open({ month: pakistanMonthNow() });
+  });
+  // SISP-24: profile button opens the splitter port map on this customer's box.
+  const profileSplitterBtn = $('#customerProfileView').querySelector('#profileOpenSplitterMapBtn');
+  if (profileSplitterBtn) profileSplitterBtn.addEventListener('click', () => {
+    if (splitterMapModalController) splitterMapModalController.open({ boxId: normalizeOpticalFields(customer).splitterBoxId });
   });
   // SISP-7: profile button traces this customer's downstream impact.
   const profileOutageTraceBtn = $('#customerProfileView').querySelector('#profileOutageTraceBtn');
@@ -1921,6 +2040,34 @@ function renderCustomerProfileView(customer) {
       });
     });
   }
+  // SISP-19: wire the profile recovery checklist (persist + re-render).
+  // Recovery dates are set ONLY here — never by the profile edit form.
+  const custodySection = $('#customerProfileView').querySelector('.profile-custody-section');
+  if (custodySection) {
+    const applyProfileCustody = (beforeCustomer, updated, message) => {
+      const idx = state.customers.findIndex(c => c.id === customer.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      recordRecoveryStock(beforeCustomer, updated);
+      renderDetail();
+      renderDashboard();
+      toast(message);
+    };
+    custodySection.querySelectorAll('[data-profile-custody-recover]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        try {
+          const updated = markHardwareRecovered(customer, btn.getAttribute('data-profile-custody-recover'), getTodayDateString());
+          applyProfileCustody(customer, updated, 'Hardware marked recovered.');
+        } catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+      });
+    });
+    custodySection.querySelector('#profileCustodyRecoverAllBtn')?.addEventListener('click', () => {
+      try {
+        const updated = markAllHardwareRecovered(customer, getTodayDateString());
+        applyProfileCustody(customer, updated, 'All hardware marked recovered.');
+      } catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    });
+  }
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -1935,6 +2082,10 @@ function renderDetail() {
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
   $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
+  $('#customerReceiptSummary').querySelector('[data-edit-customer]')?.addEventListener('click', (event) => {
+    const id = event.currentTarget.getAttribute('data-edit-customer');
+    if (id) editCustomerProfile(id);
+  });
   $('#profileAvatar').textContent = initials(customer.name);
   $('#detailCustomerNumber').textContent = `Customer #${customer.customerNumber}`;
   const shownName = displayCustomerName(customer, currentAppLanguage());
@@ -1994,10 +2145,14 @@ function renderDetail() {
   $('#routerModelInput').value = customer.routerModel ?? '';
   $('#routerPriceInput').value = customer.routerPrice ?? '';
   $('#fiberMetersInput').value = customer.fiberMeters ?? '';
+  // SISP-24: optical splitter assignment + last RX reading (optional).
+  $('#splitterBoxIdInput').value = customer.splitterBoxId ?? '';
+  $('#splitterPortInput').value = customer.splitterPort ?? '';
+  $('#oltPonPortInput').value = customer.oltPonPort ?? '';
+  $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
   if ($('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
   if ($('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
-  if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';
-  // SISP-7: feeder link fields — upstream select excludes this customer;
+  if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
   // the saved upstream stays visible even if that house was archived.
   const feederSaved = normalizeFeederFields(customer);
   const upstreamSelect = $('#upstreamCustomerInput');
@@ -2020,6 +2175,13 @@ function renderDetail() {
   if ($('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
   if ($('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
   if ($('#macAddressInput')) $('#macAddressInput').value = customer.macAddress ?? '';
+  // SISP-19: custody fields (ownership selects + serial + deposit).
+  // normalizeCustodyFields guards legacy/invalid ownership values.
+  const custodyEditFields = normalizeCustodyFields(customer);
+  if ($('#routerOwnershipInput')) $('#routerOwnershipInput').value = custodyEditFields.routerOwnership;
+  if ($('#mediaConverterOwnershipInput')) $('#mediaConverterOwnershipInput').value = custodyEditFields.mediaConverterOwnership;
+  if ($('#serialNumberInput')) $('#serialNumberInput').value = customer.serialNumber ?? '';
+  if ($('#securityDepositInput')) $('#securityDepositInput').value = customer.securityDeposit ?? '';
   $('#expiryDateInput').value = customer.expiryDate ?? '';
   $('#cancellationDateInput').value = customer.cancellationDate ?? '';
   $('#packageChangeStaffNameInput').value = '';
@@ -2106,11 +2268,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests() };
-}
-function backupRestoreOptions() {
-  let stored = false;
-  let shopStored = false;
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements() };}function backupRestoreOptions() {  let stored = false;  let shopStored = false;
   let complaintsStored = false;
   let roznamchaStored = false;
   let ticketsStored = false;
@@ -2118,20 +2276,26 @@ function backupRestoreOptions() {
   let saadVisitsStored = false;
   let saadPaymentsStored = false;
   let installRequestsStored = false;
-  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
-  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
-  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
+  let pendingWorksStored = false;
+  let partnerLedgerStored = false;
+  let partnerSettlementsStored = false;
+  let homeBudgetStored = false;
+  let loansStored = false;
+  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
   try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
   try { saadVisitsStored = localStorage.getItem(SAAD_VISITS_KEY) !== null; } catch { saadVisitsStored = false; }
   try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
   try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored };
-}
-function renderStorageWarning() {
-  const warning = $('#storageRecoveryWarning');
-  warning.hidden = persistenceBlocked || storageAvailable;
+  try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
+  let notesStored = false;
+  try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
+  try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
+  try { partnerSettlementsStored = localStorage.getItem(PARTNER_SETTLEMENTS_KEY) !== null; } catch { partnerSettlementsStored = false; }
+  try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
+  try { loansStored = localStorage.getItem(LOAN_KEY) !== null; } catch { loansStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored };}function renderStorageWarning() {  const warning = $('#storageRecoveryWarning');  warning.hidden = persistenceBlocked || storageAvailable;
   warning.textContent = persistenceBlocked ? `Saved billing data could not be read (${readFailureMessage || 'storage error'}). The app has not overwritten it. Use a valid JSON backup and review the merge before restoring.` : !storageAvailable ? 'Browser storage is unavailable; recent edits may not survive closing this page. Download a JSON backup after storage becomes available.' : '';
   $('#downloadJsonBackupButton').disabled = persistenceBlocked;
   $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
@@ -2243,7 +2407,7 @@ function renderBackupPreview(preview) {
   if (plainSection) plainSection.hidden = false;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
-  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}`;
+  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}${counts.homeBudgetRestored ? ' Home budget records will also be restored.' : ''}`;
   // SISP-10: surface checksum verification in the preview. 'mismatch' can
   // never be applied (preview.canApply is false); 'unverified' means a
   // legacy backup without a checksum field.
@@ -2642,6 +2806,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     if (pendingBackupPreview.complaints) {
       saveComplaints(pendingBackupPreview.complaints);
     }
+    if (pendingBackupPreview.homeBudget) {
+      saveHomeBudgetExpenses(pendingBackupPreview.homeBudget);
+    }
     if (pendingBackupPreview.roznamchaDays) {
       saveRoznamchaDays(pendingBackupPreview.roznamchaDays);
     }
@@ -2650,6 +2817,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.inventory) {
       saveInventory(pendingBackupPreview.inventory);
+    }
+    if (pendingBackupPreview.loans) {
+      saveLoans(pendingBackupPreview.loans);
     }
     if (pendingBackupPreview.saadVisits) {
       saveSaadVisits(pendingBackupPreview.saadVisits);
@@ -2660,7 +2830,17 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     if (pendingBackupPreview.installRequests) {
       saveInstallRequests(pendingBackupPreview.installRequests);
     }
-    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
+    if (pendingBackupPreview.pendingWorks) {
+      savePendingWorks(pendingBackupPreview.pendingWorks);
+    }
+    if (pendingBackupPreview.monthlyClosingNotes) {
+      saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
+    if (pendingBackupPreview.partnerLedger) {
+      savePartnerLedgerEntries(pendingBackupPreview.partnerLedger);
+    }
+    if (pendingBackupPreview.partnerSettlements) {
+      savePartnerSettlements(pendingBackupPreview.partnerSettlements);
+    }    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
 });
@@ -3225,10 +3405,14 @@ function saveNewCustomer(allowDuplicateName = false) {
     routerModel:$('#newCustomerRouterModel').value,
     routerPrice:$('#newCustomerRouterPrice').value,
     fiberMeters:$('#newCustomerFiberMeters').value,
+    // SISP-24: optical splitter assignment + last RX reading (optional).
+    splitterBoxId:$('#newCustomerSplitterBox').value,
+    splitterPort:$('#newCustomerSplitterPort').value,
+    oltPonPort:$('#newCustomerOltPonPort').value,
+    lastRxDbm:$('#newCustomerLastRxDbm').value,
     mediaConverterCost:$('#newCustomerMediaConverterCost') ? $('#newCustomerMediaConverterCost').value : '',
     linemanInstallFee:$('#newCustomerLinemanInstallFee') ? $('#newCustomerLinemanInstallFee').value : '',
-    fiberPerMeterRate:$('#newCustomerFiberPerMeterRate') ? $('#newCustomerFiberPerMeterRate').value : '',
-    // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
+    fiberPerMeterRate:$('#newCustomerFiberPerMeterRate') ? $('#newCustomerFiberPerMeterRate').value : '',    // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
     serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set',
     nameUrdu:$('#newCustomerNameUrdu') ? $('#newCustomerNameUrdu').value.trim() : ''
   };
@@ -3408,15 +3592,20 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       monthlySellingAmount:$('#monthlySellingAmountInput').value, connectionDate:$('#connectionDateInput').value,
       connectionFee:$('#connectionFeeInput').value, routerModel:$('#routerModelInput').value,
       routerPrice:$('#routerPriceInput').value, fiberMeters:$('#fiberMetersInput').value,
+      // SISP-24: optical splitter assignment + last RX reading (optional).
+      splitterBoxId:$('#splitterBoxIdInput').value, splitterPort:$('#splitterPortInput').value,
+      oltPonPort:$('#oltPonPortInput').value, lastRxDbm:$('#lastRxDbmInput').value,
       ...($('#mediaConverterCostInput') ? { mediaConverterCost: $('#mediaConverterCostInput').value } : {}),
       ...($('#linemanInstallFeeInput') ? { linemanInstallFee: $('#linemanInstallFeeInput').value } : {}),
-      ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),
-      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
+      ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
       fiberZone:$('#fiberZoneInput') ? $('#fiberZoneInput').value : '',
       ...($('#pppoeUsernameInput') ? { pppoeUsername: $('#pppoeUsernameInput').value } : {}),
       ...($('#pppoePasswordInput') ? { pppoePassword: $('#pppoePasswordInput').value } : {}),
       ...($('#staticIpInput') ? { staticIp: $('#staticIpInput').value } : {}),
       ...($('#macAddressInput') ? { macAddress: $('#macAddressInput').value } : {}),
+      // SISP-19: custody fields (recovery dates are never saved from here).
+      routerOwnership:$('#routerOwnershipInput')?.value ?? '', mediaConverterOwnership:$('#mediaConverterOwnershipInput')?.value ?? '',
+      serialNumber:$('#serialNumberInput')?.value ?? '', securityDeposit:$('#securityDepositInput')?.value ?? '',
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
       // SISP-8: vacation hold (validation errors surface as a toast).
       paused: $('#pauseBillingCheckbox')?.checked === true,
@@ -3427,6 +3616,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     });
     profileEditMode = false;
     save(); renderDetail();
+    if (splitterMapModalController) splitterMapModalController.refresh();
     if (proRataAdjustment !== null) {
       toast(`Customer profile and mid-month pro-rata adjustment (PKR ${proRataAdjustment >= 0 ? '+' : ''}${proRataAdjustment.toLocaleString()}) saved.`);
     } else {
@@ -3500,7 +3690,15 @@ function restoreCustomer(customerId) {
   } catch (error) { toast(error.message); }
 }
 function archiveSelectedCustomer(customer) {
-  try { state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail(); toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) }); }
+  try {
+    state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail();
+    toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) });
+    // SISP-19: archiving IS disconnection — surface the recovery list
+    // immediately when ISP-owned hardware is now pending.
+    const archived = state.customers.find(c => c.id === customer.id);
+    const pendingCount = archived ? pendingHardwareRecovery([archived]).reduce((sum, entry) => sum + entry.items.length, 0) : 0;
+    if (pendingCount > 0) toast(`${pendingCount} ISP-owned item${pendingCount === 1 ? '' : 's'} pending hardware recovery — see Pending Hardware Recovery.`);
+  }
   catch (error) { toast(error.message); }
 }
 $('#archiveCustomerButton').addEventListener('click', async () => {
@@ -3658,13 +3856,15 @@ navDrawer = setupNavigationDrawer({
       window.screenRouter?.go('alerts');
     } else if (target === 'recovery') {
       window.screenRouter?.go('recovery');
-    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
       else if (target === 'analytics') renderAnalytics();
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
+      else if (target === 'homeBudget') renderHomeBudget();
+      else if (target === 'loans') renderLoans();
       else if (target === 'customers') renderCustomers();
     }
   },
@@ -3679,13 +3879,15 @@ updateNavigationBadges(state);
 setupNetworkStatusIndicator({ onToast: toast });
 setupKeyboardShortcuts({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
       else if (target === 'analytics') renderAnalytics();
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
+      else if (target === 'homeBudget') renderHomeBudget();
+      else if (target === 'loans') renderLoans();
       else if (target === 'customers') renderCustomers();
     } else if (target === 'backup') {
       const toggle = $('#backupControlsToggle');
@@ -3795,13 +3997,15 @@ mobileActionSheetController = setupMobileActionSheet({
 
 const commandPalette = setupCommandPalette({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
       else if (target === 'analytics') renderAnalytics();
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
+      else if (target === 'homeBudget') renderHomeBudget();
+      else if (target === 'loans') renderLoans();
       else if (target === 'customers') renderCustomers();
     } else if (target === 'dashboard') {
       switchView('customers');
@@ -3863,7 +4067,7 @@ setupPullToRefresh({
 
 setupSwipeNavigation({
   container: document.getElementById('main') || document.body,
-  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'],
+  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'],
   onNavigate: (target) => {
     switchView(target);
     if (target === 'transactions') renderTransactions();
@@ -3871,6 +4075,8 @@ setupSwipeNavigation({
     else if (target === 'analytics') renderAnalytics();
     else if (target === 'inventory') renderInventory();
     else if (target === 'expenses') renderExpenses();
+    else if (target === 'homeBudget') renderHomeBudget();
+    else if (target === 'loans') renderLoans();
     else if (target === 'customers') renderCustomers();
   }
 });
@@ -4560,7 +4766,7 @@ setupMobileSpeedDial({
 // Setup Interactive Mobile Breadcrumbs Trail
 mobileBreadcrumbs = setupMobileBreadcrumbs({
   onNavigate: (viewId, data) => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(viewId)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(viewId)) {
       switchView(viewId);
       if (viewId === 'customers') renderCustomers();
       else if (viewId === 'transactions') renderTransactions();
@@ -4568,6 +4774,8 @@ mobileBreadcrumbs = setupMobileBreadcrumbs({
       else if (viewId === 'analytics') renderAnalytics();
       else if (viewId === 'inventory') renderInventory();
       else if (viewId === 'expenses') renderExpenses();
+      else if (viewId === 'homeBudget') renderHomeBudget();
+      else if (viewId === 'loans') renderLoans();
     } else if (viewId === 'home') {
       if (typeof window !== 'undefined' && window.location) {
         window.location.hash = '#/home';
@@ -4988,6 +5196,43 @@ let inventoryCategoryFilter = 'all';
 let inventoryStockFilter = 'all';
 let inventorySearchQuery = '';
 
+let loanSearchQuery = '', loanDirectionFilter = 'all';
+function renderLoans() {
+  const entries = loadLoans();
+  const totals = loanGrandTotals(entries);
+  const summaries = loanPersonSummaries(entries);
+  const metric = (id, value) => { const node = $(`#${id}`); if (node) node.textContent = value; };
+  metric('loanTotalDena', totals.entryCount ? formatAmount(totals.dena) : 'No loans recorded');
+  metric('loanTotalLena', totals.entryCount ? formatAmount(totals.lena) : 'No loans recorded');
+  metric('loanNetPosition', totals.entryCount ? (totals.net > 0 ? `${formatAmount(totals.net)} to receive` : totals.net < 0 ? `${formatAmount(-totals.net)} to pay` : 'Settled') : 'No loans recorded');
+  metric('loanOpenPeople', totals.entryCount ? `${totals.outstandingPersonCount} of ${totals.personCount}` : 'No loans recorded');
+  const options = $('#loanPersonOptions'); if (options) options.innerHTML = summaries.map(person => `<option value="${escapeHtml(person.name)}"></option>`).join('');
+  const filtered = filterLoanPersons(summaries, { query: loanSearchQuery, direction: loanDirectionFilter });
+  const cards = $('#loanPersonCards');
+  if (cards) cards.innerHTML = filtered.map(person => {
+    const netLabel = person.net > 0 ? `${formatAmount(person.net)} to receive` : person.net < 0 ? `${formatAmount(-person.net)} to pay` : 'Settled';
+    const entriesHtml = person.entries.map(entry => `<div class="area-intel-metric"><span>${escapeHtml(entry.date || 'No date')} · ${entry.kind === 'repayment' ? 'Repayment' : 'Loan'} · ${entry.direction === 'dena' ? 'Dena hai' : 'Lena hai'}${entry.note ? ` · ${escapeHtml(entry.note)}` : ''}</span><strong>${escapeHtml(formatAmount(entry.amount))} <button type="button" class="secondary-button btn-sm" data-delete-loan-entry="${escapeHtml(entry.id)}" aria-label="Delete this loan entry">Delete</button></strong></div>`).join('');
+    const repayButtons = `${person.dena > 0 ? `<button type="button" class="secondary-button btn-sm" data-loan-repay-person="${escapeHtml(person.name)}" data-loan-repay-direction="dena">Repay dena</button>` : ''}${person.lena > 0 ? `<button type="button" class="secondary-button btn-sm" data-loan-repay-person="${escapeHtml(person.name)}" data-loan-repay-direction="lena">Collect lena</button>` : ''}`;
+    return `<article class="area-intel-card"><header class="area-intel-card-header"><h4>${escapeHtml(person.name)}</h4></header>${person.phone ? `<p class="area-intel-no-zone">${escapeHtml(person.phone)}</p>` : ''}<div class="area-intel-metrics"><div class="area-intel-metric"><span>Dena hai</span><strong>${escapeHtml(formatAmount(person.dena))}</strong></div><div class="area-intel-metric"><span>Lena hai</span><strong>${escapeHtml(formatAmount(person.lena))}</strong></div><div class="area-intel-metric"><span>Net</span><strong>${escapeHtml(netLabel)}</strong></div>${entriesHtml}</div>${repayButtons ? `<div class="area-intel-section"><div class="area-intel-header-actions">${repayButtons}</div></div>` : ''}</article>`;
+  }).join('');
+  const empty = $('#loanEmpty'); if (empty) empty.hidden = entries.length > 0;
+  const filterEmpty = $('#loanFilterEmpty'); if (filterEmpty) filterEmpty.hidden = !(entries.length > 0 && filtered.length === 0);
+  const count = $('#loanPersonCount'); if (count) count.textContent = `${filtered.length} of ${summaries.length} people`;
+  cards?.querySelectorAll('[data-delete-loan-entry]').forEach(button => button.addEventListener('click', async () => {
+    const current = loadLoans();
+    const entry = current.find(row => row.id === button.dataset.deleteLoanEntry);
+    if (!entry) return;
+    if (!await appConfirm({ tone: 'danger', title: 'Delete this loan entry?', subject: `${entry.person} · ${entry.direction === 'dena' ? 'Dena hai' : 'Lena hai'} · ${formatAmount(entry.amount)} · ${entry.date}`, message: 'This will change this person’s loan balances.', confirmLabel: 'Delete entry' })) return;
+    try { saveLoans(deleteLoanEntry(current, entry.id)); renderLoans(); toast('Loan entry deleted from this device.', { type: 'success', title: 'Deleted' }); } catch (error) { toast(error.message, { type: 'error' }); }
+  }));
+  cards?.querySelectorAll('[data-loan-repay-person]').forEach(button => button.addEventListener('click', () => {
+    const personInput = $('#loanPerson'); if (personInput) personInput.value = button.dataset.loanRepayPerson || '';
+    const directionInput = $('#loanDirection'); if (directionInput) directionInput.value = button.dataset.loanRepayDirection || '';
+    const kindInput = $('#loanKind'); if (kindInput) kindInput.value = 'repayment';
+    const form = $('#loanForm'); if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const amountInput = $('#loanAmount'); if (amountInput) amountInput.focus();
+  }));
+}
 function renderInventory() {
   const summary=inventorySummary(state),items=summary.items;
   const metric=(id,value)=>{const node=$(`#${id}`);if(node)node.textContent=value;};
@@ -5105,8 +5350,8 @@ let nasirShareMonth = '';
 let aqibShareMonth = '';
 
 function syncExpenseTabs() {
-  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib' };
-  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel' };
+  const tabs = { ledger: '#expenseTabLedger', nasir: '#expenseTabNasir', aqib: '#expenseTabAqib', settlement: '#expenseTabSettlement' };
+  const panels = { ledger: '#expensesLedgerPanel', nasir: '#nasirSharePanel', aqib: '#aqibSharePanel', settlement: '#partnerSettlementPanel' };
   for (const [key, sel] of Object.entries(tabs)) { const btn = $(sel); if (btn) btn.setAttribute('aria-selected', String(key === expenseActiveTab)); }
   for (const [key, sel] of Object.entries(panels)) { const panel = $(sel); if (panel) panel.hidden = key !== expenseActiveTab; }
 }
@@ -5151,7 +5396,267 @@ function renderPartnerShare(key) {
     + `<h4>Monthly history</h4><div class="partner-share-history">${history}</div>`;
 }
 
-function renderExpenses() {
+let partnerSettlementMonth = '';
+let partnerLedgerEditId = '';
+
+function partnerSettlementRow(label, value) { return `<div class="partner-settlement-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`; }
+
+// SISP-22: reconciliation tab. Profit/share come from buildPartnerShareReport
+// via buildPartnerSettlementReport; this function only renders and saves
+// ledger entries / slips, never bills, receipts or expenses.
+function renderPartnerSettlement() {
+  const monthSelect = $('#partnerSettlementMonth');
+  const host = $('#partnerSettlementContent');
+  if (!monthSelect || !host) return;
+  const entries = loadPartnerLedgerEntries();
+  const settlements = loadPartnerSettlements();
+  const report = buildPartnerSettlementReport(state, partnerSettlementMonth, entries, new Date());
+  partnerSettlementMonth = report.month;
+  const monthsKey = report.months.join(',');
+  if (monthSelect.dataset.months !== monthsKey) {
+    monthSelect.innerHTML = report.months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
+    monthSelect.dataset.months = monthsKey;
+  }
+  monthSelect.value = report.month;
+  const slip = settlementForMonth(settlements, report.month);
+  const cards = report.perPartner.map(row => {
+    const detail = row.isReceivable
+      ? `<div class="partner-settlement-row partner-settlement-receivable"><span>Receivable — ${escapeHtml(row.partner)} owes the business</span><strong>${escapeHtml(formatAmount(row.receivableAmount))}</strong></div>`
+      : `<div class="partner-settlement-row"><span>Net payout</span><strong>${escapeHtml(formatAmount(row.netPayout))}</strong></div>`;
+    return `<article class="partner-settlement-card"><h4>${escapeHtml(row.partner)}</h4>`
+      + partnerSettlementRow('Share (50% of profit)', formatAmount(row.share))
+      + partnerSettlementRow(`Out-of-pocket purchases (${row.capitalCount})`, formatAmount(row.capital))
+      + partnerSettlementRow(`Mid-month drawings (${row.drawingCount})`, formatAmount(row.drawings))
+      + detail + `</article>`;
+  }).join('');
+  const profitLabel = report.profit >= 0 ? 'Net profit' : 'Net loss';
+  host.innerHTML = `<div class="partner-share-grid">`
+    + `<article class="phase3-metric"><span>Total revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.revenue))}</strong><small>${report.receiptCount} bill collection receipt${report.receiptCount === 1 ? '' : 's'}</small></article>`
+    + `<article class="phase3-metric"><span>Total expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.expenses))}</strong><small>${report.expenseCount} recorded expense entr${report.expenseCount === 1 ? 'y' : 'ies'}</small></article>`
+    + `<article class="phase3-metric"><span>${profitLabel}</span><strong>${escapeHtml(formatAmount(report.profit))}</strong><small>Revenue − expenses</small></article>`
+    + `<article class="phase3-metric"><span>Each partner share (50%)</span><strong>${escapeHtml(formatAmount(report.share))}</strong><small>${report.profit > 0 ? '50% of this month’s profit' : 'No share on a loss / zero month'}</small></article></div>`
+    + `<div class="partner-settlement-cards">${cards}</div>`
+    + `<p class="phase3-note">${escapeHtml(report.basis)}</p>`;
+  const statusEl = $('#partnerSettlementStatus');
+  if (statusEl) {
+    statusEl.textContent = slip
+      ? (slip.status === 'reopened'
+        ? `Saved slip for ${monthName(report.month)} was re-opened — confirm again to lock the current figures.`
+        : `Saved slip for ${monthName(report.month)} is confirmed. Confirm again to replace it with the current figures.`)
+      : `No saved slip for ${monthName(report.month)} yet — confirm below to lock these figures.`;
+  }
+  const waLink = $('#partnerSettlementWhatsAppLink');
+  if (waLink) waLink.href = partnerSettlementWhatsAppUrl(generatePartnerSettlementWhatsAppText(report, slip));
+  const reopenBtn = $('#partnerSettlementReopenBtn');
+  if (reopenBtn) reopenBtn.disabled = !slip;
+  const table = $('#partnerLedgerTable');
+  const emptyEl = $('#partnerLedgerEmpty');
+  if (table) {
+    table.innerHTML = report.entries.map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.partner)}</td><td>${escapeHtml(row.type === 'drawing' ? 'Drawing — cash taken' : 'Capital — out-of-pocket')}</td><td>${escapeHtml(formatAmount(row.amount))}</td><td>${escapeHtml(row.note || '—')}</td><td><button class="text-button" type="button" data-edit-partner-ledger="${escapeHtml(row.id)}">Edit</button> <button class="text-button" type="button" data-delete-partner-ledger="${escapeHtml(row.id)}">Delete</button></td></tr>`).join('');
+    table.querySelectorAll('[data-edit-partner-ledger]').forEach(button => button.addEventListener('click', () => {
+      const entry = loadPartnerLedgerEntries().find(row => row.id === button.dataset.editPartnerLedger);
+      if (!entry) return;
+      partnerLedgerEditId = entry.id;
+      $('#partnerLedgerId').value = entry.id;
+      $('#partnerLedgerPartner').value = entry.partner;
+      $('#partnerLedgerType').value = entry.type;
+      $('#partnerLedgerAmount').value = entry.amount;
+      $('#partnerLedgerDate').value = entry.date;
+      $('#partnerLedgerNote').value = entry.note || '';
+      $('#partnerLedgerSubmit').textContent = 'Save movement changes';
+      $('#partnerLedgerCancel').hidden = false;
+      $('#partnerLedgerForm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+    table.querySelectorAll('[data-delete-partner-ledger]').forEach(button => button.addEventListener('click', async () => {
+      const entry = loadPartnerLedgerEntries().find(row => row.id === button.dataset.deletePartnerLedger);
+      if (!entry) return;
+      if (!await appConfirm({ tone: 'danger', title: 'Delete this partner movement?', subject: `${entry.partner} · ${entry.type} · ${formatAmount(entry.amount)} · ${entry.date}`, message: 'The month’s reconciliation will be recomputed without it. Bills, receipts and expenses are untouched.', confirmLabel: 'Delete' })) return;
+      savePartnerLedgerEntries(deletePartnerLedgerEntry(loadPartnerLedgerEntries(), entry.id));
+      toast('Partner movement deleted from this device.');
+      renderPartnerSettlement();
+    }));
+  }
+  if (emptyEl) emptyEl.hidden = report.entries.length > 0;
+  const dateInput = $('#partnerLedgerDate');
+  if (dateInput && !dateInput.value && !partnerLedgerEditId) dateInput.value = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
+}
+/* Home Budget — personal household ledger. Kept fully apart from the business
+   expense ledger: own storage key (sisp_home_budget_v1), own section, and no
+   business code ever reads it, so home spending cannot touch profit or
+   partner shares. */
+let homeBudgetMonthFilter = 'all';
+let homeBudgetCategoryFilter = 'all';
+let homeBudgetSearchQuery = '';
+function homeBudgetSelectedCategory() {
+  const select = $('#homeBudgetCategory');
+  if (!select) return '';
+  if (select.value === '__custom__') return $('#homeBudgetCustomCategory')?.value.trim() ?? '';
+  return select.value;
+}
+function clearHomeBudgetInlineErrors() {
+  for (const id of ['homeBudgetDateError', 'homeBudgetAmountError', 'homeBudgetCategoryError', 'homeBudgetCustomCategoryError', 'homeBudgetNotesError']) {
+    const el = $(`#${id}`);
+    if (el) el.hidden = true;
+  }
+}
+function showHomeBudgetInlineError(id, message) {
+  const el = $(`#${id}`);
+  if (el) { el.textContent = message; el.hidden = false; }
+}
+function resetHomeBudgetForm() {
+  const form = $('#homeBudgetForm');
+  if (form) form.reset();
+  const idInput = $('#homeBudgetId');
+  if (idInput) idInput.value = '';
+  const submit = $('#homeBudgetSubmit');
+  if (submit) submit.textContent = 'Record home expense';
+  const cancel = $('#homeBudgetCancel');
+  if (cancel) cancel.hidden = true;
+  const customLabel = $('#homeBudgetCustomCategoryLabel');
+  if (customLabel) customLabel.hidden = true;
+  clearHomeBudgetInlineErrors();
+}
+function renderHomeBudget() {
+  const entries = loadHomeBudgetExpenses();
+  const summary = summarizeHomeBudget(entries);
+  const allTimeEl = $('#homeBudgetAllTimeTotal');
+  if (allTimeEl) allTimeEl.textContent = formatAmount(summary.allTimeTotal);
+  const allTimeHelp = $('#homeBudgetAllTimeHelp');
+  if (allTimeHelp) allTimeHelp.textContent = summary.count ? `${summary.count} ${summary.count === 1 ? 'entry' : 'entries'} · all months` : 'No home entries recorded';
+  const monthRow = homeBudgetMonthFilter === 'all' ? null : summary.months.find(row => row.month === homeBudgetMonthFilter);
+  const monthTotalEl = $('#homeBudgetMonthTotal');
+  if (monthTotalEl) monthTotalEl.textContent = formatAmount(homeBudgetMonthFilter === 'all' ? summary.allTimeTotal : (monthRow?.total ?? 0));
+  const monthHelp = $('#homeBudgetMonthHelp');
+  if (monthHelp) monthHelp.textContent = homeBudgetMonthFilter === 'all' ? 'All months' : monthName(homeBudgetMonthFilter);
+  const countEl = $('#homeBudgetEntryCount');
+  if (countEl) countEl.textContent = String(summary.count);
+  const countHelp = $('#homeBudgetEntryHelp');
+  if (countHelp) countHelp.textContent = summary.count ? `${summary.count} ${summary.count === 1 ? 'entry' : 'entries'} recorded` : 'No home entries recorded';
+  const monthFilter = $('#homeBudgetMonthFilter');
+  if (monthFilter) {
+    const months = homeBudgetMonths(entries);
+    if (!months.includes(homeBudgetMonthFilter)) homeBudgetMonthFilter = 'all';
+    monthFilter.innerHTML = '<option value="all">All months</option>' + months.map(month => `<option value="${escapeHtml(month)}"${month === homeBudgetMonthFilter ? ' selected' : ''}>${escapeHtml(monthName(month))}</option>`).join('');
+    monthFilter.value = homeBudgetMonthFilter;
+  }
+  const categoryFilter = $('#homeBudgetCategoryFilter');
+  if (categoryFilter) {
+    const customs = homeBudgetCategories(entries).filter(category => !HOME_BUDGET_CATEGORIES.includes(category));
+    const options = [...HOME_BUDGET_CATEGORIES, ...customs];
+    if (homeBudgetCategoryFilter !== 'all' && !options.includes(homeBudgetCategoryFilter)) homeBudgetCategoryFilter = 'all';
+    categoryFilter.innerHTML = '<option value="all">All categories</option>' + options.map(category => `<option value="${escapeHtml(category)}"${category === homeBudgetCategoryFilter ? ' selected' : ''}>${escapeHtml(category)}</option>`).join('');
+    categoryFilter.value = homeBudgetCategoryFilter;
+  }
+  const monthTotalsEl = $('#homeBudgetMonthTotals');
+  if (monthTotalsEl) {
+    monthTotalsEl.innerHTML = summary.months.map(row => `<li class="home-budget-month-row"><span>${escapeHtml(monthName(row.month))} · ${row.count} ${row.count === 1 ? 'entry' : 'entries'}</span><strong>${escapeHtml(formatAmount(row.total))}</strong></li>`).join('');
+  }
+  const monthTotalsEmpty = $('#homeBudgetMonthTotalsEmpty');
+  if (monthTotalsEmpty) monthTotalsEmpty.hidden = summary.months.length > 0;
+  const filtered = filterHomeBudget(entries, { month: homeBudgetMonthFilter, category: homeBudgetCategoryFilter, query: homeBudgetSearchQuery });
+  const sorted = sortHomeBudgetEntries(filtered);
+  const listEl = $('#homeBudgetList');
+  if (listEl) {
+    listEl.innerHTML = sorted.map(entry => `<li class="home-budget-item"><div class="home-budget-item-head"><span class="home-budget-item-category">${escapeHtml(entry.category)}</span><strong class="home-budget-item-amount">${escapeHtml(formatAmount(entry.amount))}</strong></div><div class="home-budget-item-date">${escapeHtml(entry.date)}</div>${entry.notes ? `<p class="home-budget-item-notes">${escapeHtml(entry.notes)}</p>` : ''}<div class="home-budget-item-actions"><button class="secondary-button btn-sm" type="button" data-edit-home-budget="${escapeHtml(entry.id)}">Edit</button><button class="secondary-button btn-sm" type="button" data-delete-home-budget="${escapeHtml(entry.id)}">Delete</button></div></li>`).join('');
+    listEl.querySelectorAll('[data-edit-home-budget]').forEach(button => button.addEventListener('click', () => {
+      const row = entries.find(entry => entry.id === button.dataset.editHomeBudget);
+      if (!row) return;
+      const idInput = $('#homeBudgetId');
+      if (idInput) idInput.value = row.id;
+      const dateInput = $('#homeBudgetDate');
+      if (dateInput) dateInput.value = row.date;
+      const amountInput = $('#homeBudgetAmount');
+      if (amountInput) amountInput.value = String(row.amount);
+      const categorySelect = $('#homeBudgetCategory');
+      const customLabel = $('#homeBudgetCustomCategoryLabel');
+      const customInput = $('#homeBudgetCustomCategory');
+      if (HOME_BUDGET_CATEGORIES.includes(row.category)) {
+        if (categorySelect) categorySelect.value = row.category;
+        if (customLabel) customLabel.hidden = true;
+        if (customInput) customInput.value = '';
+      } else {
+        if (categorySelect) categorySelect.value = '__custom__';
+        if (customLabel) customLabel.hidden = false;
+        if (customInput) customInput.value = row.category;
+      }
+      const notesInput = $('#homeBudgetNotes');
+      if (notesInput) notesInput.value = row.notes ?? '';
+      const submit = $('#homeBudgetSubmit');
+      if (submit) submit.textContent = 'Save correction';
+      const cancel = $('#homeBudgetCancel');
+      if (cancel) cancel.hidden = false;
+      clearHomeBudgetInlineErrors();
+      $('#homeBudgetForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+    listEl.querySelectorAll('[data-delete-home-budget]').forEach(button => button.addEventListener('click', async () => {
+      const row = entries.find(entry => entry.id === button.dataset.deleteHomeBudget);
+      if (!row) return;
+      if (!await appConfirm({ tone: 'danger', title: 'Delete this home expense?', subject: `${formatAmount(row.amount)} · ${row.category} · ${row.date}`, message: 'It will be removed from this device\'s home budget only. Business records are never touched.', confirmLabel: 'Delete home expense' })) return;
+      try {
+        saveHomeBudgetExpenses(deleteHomeBudgetExpense(loadHomeBudgetExpenses(), row.id));
+        toast('Home expense entry deleted from this device.');
+        renderHomeBudget();
+      } catch (error) {
+        toast(error.message);
+      }
+    }));
+  }
+  const emptyEl = $('#homeBudgetEmpty');
+  if (emptyEl) emptyEl.hidden = entries.length > 0;
+  const filterEmptyEl = $('#homeBudgetFilterEmpty');
+  if (filterEmptyEl) filterEmptyEl.hidden = entries.length === 0 || sorted.length > 0;
+  const countEl2 = $('#homeBudgetCount');
+  if (countEl2) countEl2.textContent = entries.length ? `${sorted.length} of ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} shown` : '';
+  const dateInput = $('#homeBudgetDate');
+  const idInput = $('#homeBudgetId');
+  if (dateInput && !dateInput.value && !(idInput?.value)) dateInput.value = pakistanDateNow();
+}
+$('#homeBudgetCategory')?.addEventListener('change', event => {
+  const customLabel = $('#homeBudgetCustomCategoryLabel');
+  if (customLabel) customLabel.hidden = event.currentTarget.value !== '__custom__';
+});
+$('#homeBudgetForm')?.addEventListener('submit', event => {
+  event.preventDefault();
+  clearHomeBudgetInlineErrors();
+  const date = $('#homeBudgetDate')?.value.trim() ?? '';
+  const amountRaw = $('#homeBudgetAmount')?.value.trim() ?? '';
+  const amount = Number(amountRaw);
+  const category = homeBudgetSelectedCategory();
+  let valid = true;
+  if (!date) { showHomeBudgetInlineError('homeBudgetDateError', 'Pick a date for the home expense.'); valid = false; }
+  if (!amountRaw || !Number.isFinite(amount) || amount <= 0) { showHomeBudgetInlineError('homeBudgetAmountError', 'Enter an amount above zero.'); valid = false; }
+  if (!category) {
+    if ($('#homeBudgetCategory')?.value === '__custom__') showHomeBudgetInlineError('homeBudgetCustomCategoryError', 'Type a category for the home expense.');
+    else showHomeBudgetInlineError('homeBudgetCategoryError', 'Pick or type a category for the home expense.');
+    valid = false;
+  }
+  if (!valid) { toast('Please correct the highlighted form errors.'); return; }
+  const fields = { date, amount, category, notes: $('#homeBudgetNotes')?.value ?? '' };
+  try {
+    const id = $('#homeBudgetId')?.value;
+    const current = loadHomeBudgetExpenses();
+    saveHomeBudgetExpenses(id ? updateHomeBudgetExpense(current, id, fields) : addHomeBudgetExpense(current, fields));
+    resetHomeBudgetForm();
+    renderHomeBudget();
+    toast(id ? 'Home expense correction saved on this device.' : 'Home expense recorded on this device.');
+  } catch (error) {
+    toast(error.message);
+  }
+});
+$('#homeBudgetCancel')?.addEventListener('click', resetHomeBudgetForm);
+$('#homeBudgetMonthFilter')?.addEventListener('change', event => { homeBudgetMonthFilter = event.currentTarget.value; renderHomeBudget(); });
+$('#homeBudgetCategoryFilter')?.addEventListener('change', event => { homeBudgetCategoryFilter = event.currentTarget.value; renderHomeBudget(); });
+$('#homeBudgetSearchInput')?.addEventListener('input', event => { homeBudgetSearchQuery = event.currentTarget.value.trim(); renderHomeBudget(); });
+const resetHomeBudgetFiltersHandler = () => {
+  homeBudgetMonthFilter = 'all';
+  homeBudgetCategoryFilter = 'all';
+  homeBudgetSearchQuery = '';
+  const searchInput = $('#homeBudgetSearchInput');
+  if (searchInput) searchInput.value = '';
+  renderHomeBudget();
+};
+$('#homeBudgetClearFilters')?.addEventListener('click', resetHomeBudgetFiltersHandler);
+$('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFiltersHandler);function renderExpenses() {
   const payrollMonths=monthsForHistory();
   if(!payrollMonths.includes(selectedPayrollMonth))selectedPayrollMonth=payrollMonths[0];
   const payrollMonthSelect=$('#payrollMonth');
@@ -5270,8 +5775,9 @@ function renderExpenses() {
   updateNavigationBadges(state);
   syncExpenseTabs();
   if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
+  if (expenseActiveTab === 'settlement') renderPartnerSettlement();
 }
-function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
+function renderPhase3() { renderAnalytics();renderInventory();renderExpenses();renderHomeBudget(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
 
 function clearExpenseInlineErrors() {
@@ -5327,6 +5833,10 @@ function resetExpenseForm() {
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
+$('#loanForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={person:data.get('person'),phone:data.get('phone'),direction:data.get('direction'),kind:data.get('kind'),amount:data.get('amount'),date:data.get('date'),note:data.get('note')};try{saveLoans(addLoanEntry(loadLoans(),fields));event.currentTarget.reset();const loanDate=$('#loanDate');if(loanDate)loanDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);renderLoans();toast('Loan entry saved on this device.');}catch(error){toast(error.message);}});
+$('#loanSearchInput').addEventListener('input',event=>{loanSearchQuery=event.currentTarget.value;renderLoans();});
+$('#loanDirectionFilter').addEventListener('change',event=>{loanDirectionFilter=event.currentTarget.value;renderLoans();});
+$('#clearLoanFilters').addEventListener('click',()=>{loanSearchQuery='';loanDirectionFilter='all';const q=$('#loanSearchInput');if(q)q.value='';const d=$('#loanDirectionFilter');if(d)d.value='all';renderLoans();});
 $('#expenseForm').addEventListener('submit',async event=>{
   event.preventDefault();
   const data=new FormData(event.currentTarget);
@@ -5700,9 +6210,53 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key!=='ledger')renderPartnerShare(key);});});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
+$('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
+$('#partnerLedgerForm')?.addEventListener('submit',event=>{
+  event.preventDefault();
+  try {
+    const entry = cleanPartnerLedgerEntry({
+      partner: $('#partnerLedgerPartner').value,
+      type: $('#partnerLedgerType').value,
+      amount: $('#partnerLedgerAmount').value,
+      date: $('#partnerLedgerDate').value,
+      note: $('#partnerLedgerNote').value
+    }, partnerLedgerEditId || null);
+    savePartnerLedgerEntries(upsertPartnerLedgerEntry(loadPartnerLedgerEntries(), entry));
+    partnerLedgerEditId = '';
+    $('#partnerLedgerForm').reset();
+    $('#partnerLedgerId').value = '';
+    $('#partnerLedgerSubmit').textContent = 'Record movement';
+    $('#partnerLedgerCancel').hidden = true;
+    toast('Partner movement recorded on this device.');
+    renderPartnerSettlement();
+  } catch (error) { toast(error.message, { type: 'error' }); }
+});
+$('#partnerLedgerCancel')?.addEventListener('click',()=>{
+  partnerLedgerEditId = '';
+  $('#partnerLedgerForm').reset();
+  $('#partnerLedgerId').value = '';
+  $('#partnerLedgerSubmit').textContent = 'Record movement';
+  $('#partnerLedgerCancel').hidden = true;
+});
+$('#partnerSettlementConfirmBtn')?.addEventListener('click',()=>{
+  try {
+    const report = buildPartnerSettlementReport(state, partnerSettlementMonth, loadPartnerLedgerEntries(), new Date());
+    const slip = createPartnerSettlement(report);
+    savePartnerSettlements(upsertPartnerSettlement(loadPartnerSettlements(), slip));
+    toast(`Settlement slip confirmed for ${monthName(report.month)}. Bills, receipts and expenses were not changed.`);
+    renderPartnerSettlement();
+  } catch (error) { toast(error.message, { type: 'error' }); }
+});
+$('#partnerSettlementReopenBtn')?.addEventListener('click',()=>{
+  try {
+    savePartnerSettlements(reopenPartnerSettlement(loadPartnerSettlements(), partnerSettlementMonth));
+    toast('Saved settlement slip re-opened. Confirm again to lock new figures.');
+    renderPartnerSettlement();
+  } catch (error) { toast(error.message, { type: 'error' }); }
+});
 $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
 $('#areaIntelMonth').addEventListener('change',event=>{
   const month=event.currentTarget.value;if(!month){renderAnalytics();return;}
@@ -5777,8 +6331,10 @@ $('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
 });
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
+$('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget');renderHomeBudget();});
+$('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});
 renderPhase3();
-refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses}).refresh;
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans}).refresh;
 
 // Phase 12 · Form draft auto-save and restoration
 customerDraftController = wireFormDraftAutosave($('#addCustomerForm'), 'addCustomerForm', {
@@ -7667,6 +8223,9 @@ if (typeof document !== 'undefined') {
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
+  splitterMapModalController = setupSplitterMapModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
@@ -7684,14 +8243,160 @@ if (typeof document !== 'undefined') {
   saadVisitsModalController = setupSaadVisitsModal(() => state, {
     onVisitsChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
-    listTicketIds: () => loadTickets().map((t) => t.id)
+    listTicketIds: () => loadTickets().map((t) => t.id),
+    onConfirm: (opts) => appConfirm(opts)
   });
   installTrackerModalController = setupInstallTrackerModal(() => state, {
     onRequestsChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts)
+  });
+  pendingWorksModalController = setupPendingWorksModal(() => state, {
+    onWorksChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts)
+  });
+  // SISP-19: pending hardware recovery modal (derived list, no new store).
+  const hardwareRecoveryModal = $('#hardwareRecoveryModal');
+  const hardwareRecoveryList = $('#hardwareRecoveryList');
+  const renderHardwareRecoveryList = () => {
+    if (!hardwareRecoveryList) return;
+    const pending = pendingHardwareRecovery(state.customers);
+    if (pending.length === 0) {
+      hardwareRecoveryList.innerHTML = '<p class="hardware-recovery-empty">Nothing pending — no disconnected customer holds unrecovered ISP-owned hardware.</p>';
+      return;
+    }
+    hardwareRecoveryList.innerHTML = pending.map(({ customer, items }) => `<article class="hardware-recovery-entry"><div class="hardware-recovery-head"><strong>${escapeHtml(customer.name)} (#${escapeHtml(String(customer.customerNumber))})</strong><span>${escapeHtml(customer.mohalla || 'Area not set')}</span></div><ul>${items.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)} <button type="button" class="secondary-button" data-hardware-recover="${escapeHtml(customer.id)}:${escapeHtml(item.key)}">Mark recovered</button></li>`).join('')}</ul><div class="hardware-recovery-actions"><button type="button" class="secondary-button" data-hardware-recover-all="${escapeHtml(customer.id)}">Mark all recovered</button><button type="button" class="secondary-button" data-hardware-open-customer="${escapeHtml(customer.id)}">Open customer</button></div></article>`).join('');
+  };
+  const openHardwareRecoveryModal = () => {
+    renderHardwareRecoveryList();
+    if (hardwareRecoveryModal && typeof hardwareRecoveryModal.showModal === 'function') hardwareRecoveryModal.showModal();
+  };
+  $('#hardwareRecoveryCloseBtn')?.addEventListener('click', () => hardwareRecoveryModal?.close());
+  $('#openHardwareRecoveryModalBtn')?.addEventListener('click', openHardwareRecoveryModal);
+  hardwareRecoveryList?.addEventListener('click', (event) => {
+    const recoverBtn = event.target.closest('[data-hardware-recover]');
+    const recoverAllBtn = event.target.closest('[data-hardware-recover-all]');
+    const openBtn = event.target.closest('[data-hardware-open-customer]');
+    const applyRecovery = (beforeCustomer, updated, message) => {
+      const idx = state.customers.findIndex(c => c.id === updated.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      recordRecoveryStock(beforeCustomer, updated);
+      renderHardwareRecoveryList();
+      renderDashboard();
+      renderDetail();
+      toast(message);
+    };
+    if (recoverBtn) {
+      const [customerId, itemKey] = String(recoverBtn.getAttribute('data-hardware-recover')).split(':');
+      const customer = state.customers.find(c => c.id === customerId);
+      if (!customer) return;
+      try { applyRecovery(customer, markHardwareRecovered(customer, itemKey, getTodayDateString()), 'Hardware marked recovered.'); }
+      catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    } else if (recoverAllBtn) {
+      const customer = state.customers.find(c => c.id === recoverAllBtn.getAttribute('data-hardware-recover-all'));
+      if (!customer) return;
+      try { applyRecovery(customer, markAllHardwareRecovered(customer, getTodayDateString()), 'All hardware marked recovered.'); }
+      catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    } else if (openBtn) {
+      hardwareRecoveryModal?.close();
+      switchView('customers');
+      selectCustomer(openBtn.getAttribute('data-hardware-open-customer'));
+    }
+  });
+
+  ownerKhataModalController = setupOwnerKhataModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
-  worklistsModalController = setupWorklistsModal(() => state, {
-    onUpdateState: (newState) => {
+  // SISP-21: Digital Wallet Ledger modal (breakdown + verification toggles + duplicates).
+  walletLedgerModalController = (() => {
+    const dialog = document.getElementById('walletLedgerModal');
+    if (!dialog) return null;
+    const $ = (id) => dialog.querySelector(`#${id}`);
+    let month = pakistanMonthNow();
+    let methodFilter = 'All';
+    let verificationFilter = 'All';
+
+    function render() {
+      const report = buildWalletReconciliation(state.customers, month, loadShopSettlements());
+      const summaryEl = $('walletLedgerSummaryLine');
+      if (summaryEl) {
+        summaryEl.textContent = report.digitalCount === 0
+          ? `No digital wallet payments in ${month}.`
+          : `${report.digitalCount} digital payments · ${formatAmount(report.digitalTotal)} · ${report.pendingVerification.length} pending verification${report.duplicateGroups.length ? ` · ${report.duplicateGroups.length} duplicate TID group${report.duplicateGroups.length === 1 ? '' : 's'}` : ''}`;
+      }
+      const breakdownEl = $('walletLedgerBreakdown');
+      if (breakdownEl) {
+        const rows = DIGITAL_BREAKDOWN_METHODS.map((label) => {
+          const line = report.byWallet[label] || { amount: 0, count: 0, verifiedCount: 0, pendingCount: 0 };
+          return `<article class="wallet-ledger-line"><p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(line.amount))}</strong></p><p><span>Payments</span><strong>${line.count} · ${line.verifiedCount} verified · ${line.pendingCount} pending</strong></p></article>`;
+        }).join('');
+        breakdownEl.innerHTML = rows + `<article class="wallet-ledger-line"><p><span>Cash</span><strong>${escapeHtml(formatAmount(report.cash.amount))}</strong></p><p><span>Payments</span><strong>${report.cash.count}</strong></p></article><article class="wallet-ledger-line"><p><span>Shop handovers</span><strong>${escapeHtml(formatAmount(report.shopHandovers.amount))}</strong></p><p><span>Settlements</span><strong>${report.shopHandovers.count}</strong></p></article>`;
+      }
+      const dupEl = $('walletLedgerDuplicates');
+      if (dupEl) {
+        dupEl.innerHTML = report.duplicateGroups.length === 0
+          ? '<p class="wallet-ledger-empty">No duplicate TIDs in this month.</p>'
+          : report.duplicateGroups.map((group) => `<article class="wallet-ledger-dup"><p><strong>⚠️ Duplicate TID ${escapeHtml(group.displayTid)}</strong></p><ul>${group.payments.map((p) => `<li>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)} · ${escapeHtml(p.date)} · ${escapeHtml(formatAmount(p.amount))} · ${escapeHtml(p.method)}</li>`).join('')}</ul><p class="wallet-ledger-note">The same TID is logged more than once. Correct or delete the extra payment from the customer profile — do not log it again.</p></article>`).join('');
+      }
+      const listEl = $('walletLedgerPaymentList');
+      if (listEl) {
+        const rows = report.payments.filter((p) => (methodFilter === 'All' || p.method === methodFilter) && (verificationFilter === 'All' || (verificationFilter === 'Verified' ? p.walletVerified : !p.walletVerified)));
+        listEl.innerHTML = rows.length === 0
+          ? '<p class="wallet-ledger-empty">No digital payments match these filters.</p>'
+          : rows.map((p) => `<article class="wallet-ledger-payment"><p><span>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)}</span><strong>${escapeHtml(formatAmount(p.amount))}</strong></p><p><span>${escapeHtml(p.date)} · ${escapeHtml(p.method)}${p.transactionId ? ` · TID ${escapeHtml(p.transactionId)}` : ''}</span><span class="wallet-ledger-badge ${p.walletVerified ? 'verified' : 'pending'}">${escapeHtml(walletVerificationLabel(p))}</span></p><button type="button" class="secondary-button" data-wallet-toggle="${escapeHtml(p.customerId)}|${escapeHtml(p.billMonth)}|${escapeHtml(p.paymentId)}|${p.walletVerified ? 'pending' : 'verified'}">${p.walletVerified ? 'Mark pending' : 'Mark verified ✓'}</button></article>`).join('');
+      }
+    }
+
+    const monthInput = $('walletLedgerMonth');
+    if (monthInput) {
+      monthInput.value = month;
+      monthInput.addEventListener('change', () => { month = monthInput.value || pakistanMonthNow(); render(); });
+    }
+    const methodSelect = $('walletLedgerMethodFilter');
+    if (methodSelect) methodSelect.addEventListener('change', () => { methodFilter = methodSelect.value; render(); });
+    const verificationSelect = $('walletLedgerVerificationFilter');
+    if (verificationSelect) verificationSelect.addEventListener('change', () => { verificationFilter = verificationSelect.value; render(); });
+    const closeBtn = $('walletLedgerCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
+    const openBtn = document.getElementById('openWalletLedgerModalBtn');
+    if (openBtn) openBtn.addEventListener('click', () => {
+      month = pakistanMonthNow();
+      if (monthInput) monthInput.value = month;
+      render();
+      dialog.showModal();
+    });
+    const copyBtn = $('walletLedgerCopyBtn');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      const report = buildWalletReconciliation(state.customers, month, loadShopSettlements());
+      const text = walletReconciliationSummaryText(report);
+      try { await navigator.clipboard.writeText(text); toast('Wallet summary copied.'); }
+      catch { toast('Could not copy — select the summary text manually.'); }
+    });
+    const listEl = $('walletLedgerPaymentList');
+    if (listEl) listEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-wallet-toggle]');
+      if (!btn) return;
+      const [customerId, billMonth, paymentId, target] = btn.dataset.walletToggle.split('|');
+      try {
+        state = setPaymentWalletVerified(state, customerId, billMonth, paymentId, target === 'verified');
+        save();
+        renderDashboard();
+        render();
+        if (selectedCustomerId === customerId) renderDetail();
+        toast(target === 'verified' ? 'Marked verified in statement.' : 'Marked pending verification.');
+      } catch (error) { toast(error.message); }
+    });
+
+    return { open(prefilter = {}) {
+      if (/^\d{4}-\d{2}$/.test(String(prefilter.month || ''))) month = String(prefilter.month);
+      if (monthInput) monthInput.value = month;
+      render();
+      dialog.showModal();
+    }, refresh: render };
+  })();
+  worklistsModalController = setupWorklistsModal(() => state, {    onUpdateState: (newState) => {
       state = newState;
       save();
       renderDetail();
@@ -8929,7 +9634,7 @@ function handleRouteFromHash() {
   if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(raw)) {
     return;
   }
-  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'];
+  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'];
   if (validViews.includes(raw)) {
     switchView(raw, { pushHistory: false });
     if (raw === 'transactions') renderTransactions();
@@ -8937,6 +9642,8 @@ function handleRouteFromHash() {
     else if (raw === 'analytics') renderAnalytics();
     else if (raw === 'inventory') renderInventory();
     else if (raw === 'expenses') renderExpenses();
+    else if (raw === 'homeBudget') renderHomeBudget();
+    else if (raw === 'loans') renderLoans();
     else if (raw === 'customers') renderCustomers();
   }
 }

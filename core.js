@@ -1,27 +1,31 @@
-import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY } from './phase3.js';
+import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY, canonicalMohalla } from './phase3.js';
 import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
+import { normalizeTid } from './wallet-reconciliation.js';
 import { sanitizeComplaints } from './complaint-register.js';
+import { sanitizeHomeBudget } from './home-budget.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
+import { sanitizeLoanEntries } from './loan-ledger.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
-import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
+import { sanitizePendingWorks } from './pending-works.js';
+import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
-
+import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
-export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
+export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
 
 export function isDigitalPaymentMethod(method) {
   if (!method) return false;
   const m = String(method).trim().toLowerCase();
-  return m.includes('jazzcash') || m.includes('easypaisa') || m.includes('bank') || m.includes('raast') || m.includes('online');
+  return m.includes('jazzcash') || m.includes('easypaisa') || m.includes('nayapay') || m.includes('bank') || m.includes('raast') || m.includes('online');
 }
 
 export function isCashPaymentMethod(method) {
@@ -124,11 +128,25 @@ export function readState(storage, key = STORAGE_KEY) {
       routerModel:typeof customer.routerModel === 'string' ? customer.routerModel.trim().slice(0, 100) : '',
       routerPrice:normalizeMoneyOrNull(customer.routerPrice),
       fiberMeters:normalizeMetersOrNull(customer.fiberMeters),
+      // SISP-19: hardware custody fields — safe defaults for legacy records.
+      routerOwnership:['isp-owned','customer-owned'].includes(customer.routerOwnership) ? customer.routerOwnership : '',
+      mediaConverterOwnership:['isp-owned','customer-owned'].includes(customer.mediaConverterOwnership) ? customer.mediaConverterOwnership : '',
+      serialNumber:typeof customer.serialNumber === 'string' ? customer.serialNumber.trim().slice(0, 100) : '',
+      securityDeposit:normalizeMoneyOrNull(customer.securityDeposit),
+      hardwareRecovered:{
+        router:validDateOrNull(customer.hardwareRecovered?.router ?? null),
+        mediaConverter:validDateOrNull(customer.hardwareRecovered?.mediaConverter ?? null)
+      },
+      // SISP-24: optical splitter assignment + last RX reading — old saves
+      // without them load as empty / null, never as invented data.
+      splitterBoxId:typeof customer.splitterBoxId === 'string' ? customer.splitterBoxId.trim().slice(0, 100) : '',
+      splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
+      oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
+      lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
       // SISP-23: installation cost fields — optional, null when unrecorded.
       mediaConverterCost:normalizeMoneyOrNull(customer.mediaConverterCost),
       linemanInstallFee:normalizeMoneyOrNull(customer.linemanInstallFee),
-      fiberPerMeterRate:normalizeMoneyOrNull(customer.fiberPerMeterRate),
-      expiryDate:validDateOrNull(customer.expiryDate),
+      fiberPerMeterRate:normalizeMoneyOrNull(customer.fiberPerMeterRate),      expiryDate:validDateOrNull(customer.expiryDate),
       cancellationDate:validDateOrNull(customer.cancellationDate),
       packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
       archived:customer.archived === true,
@@ -246,16 +264,26 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const address = cleanText(options.address, 200, 'Address');
   const phone = cleanText(options.phone, 40, 'Phone number');
   const cnic = cleanText(options.cnic, 30, 'CNIC');
-  const mohalla = cleanText(options.mohalla, 100, 'Mohalla');
+  const mohallaRaw = cleanText(options.mohalla, 100, 'Mohalla');
+  const mohalla = canonicalMohalla(mohallaRaw)?.stored ?? mohallaRaw;
   const zone = cleanText(options.zone, 100, 'Zone');
   const connectionFee = checkCost(options.connectionFee);
   const routerModel = cleanText(options.routerModel, 100, 'Router model');
   const routerPrice = checkCost(options.routerPrice);
   const fiberMeters = checkFiberMeters(options.fiberMeters);
+  // SISP-19: custody fields — ownership enum validated, deposit is money.
+  const routerOwnership = checkCustodyOwnership(options.routerOwnership);
+  const mediaConverterOwnership = checkCustodyOwnership(options.mediaConverterOwnership);
+  const serialNumber = cleanText(options.serialNumber, 100, 'Serial / MAC number');
+  const securityDeposit = checkCost(options.securityDeposit);
+  // SISP-24: optical splitter assignment + last RX reading (all optional).
+  const splitterBoxId = cleanText(options.splitterBoxId, 100, 'Splitter box');
+  const splitterPort = checkSplitterPort(options.splitterPort);
+  const oltPonPort = cleanText(options.oltPonPort, 100, 'PON port');
+  const lastRxDbm = checkRxDbm(options.lastRxDbm);
   const mediaConverterCost = checkCost(options.mediaConverterCost);
   const linemanInstallFee = checkCost(options.linemanInstallFee);
-  const fiberPerMeterRate = checkCost(options.fiberPerMeterRate);
-  const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
+  const fiberPerMeterRate = checkCost(options.fiberPerMeterRate);  const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
   const pppoeUsername = cleanText(options.pppoeUsername, 100, 'PPPoE username');
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
   const staticIp = cleanText(options.staticIp, 45, 'Static IP');
@@ -263,8 +291,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
-}
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
 
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
@@ -406,8 +433,29 @@ function checkFiberMeters(value) {
   if (!Number.isFinite(number) || number < 0) throw new Error('Fiber wire used cannot be negative.');
   return Math.round(number * 10) / 10;
 }
+// SISP-24: splitter port is a 1-based PLC port (1:8 or 1:16 box).
+function checkSplitterPort(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1 || number > 16) throw new Error('Splitter port must be between 1 and 16.');
+  return number;
+}
+// SISP-24: optical RX power in dBm (negative; -26.0 dBm is the weak-signal line).
+function checkRxDbm(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < -60 || number > 10) throw new Error('Optical RX signal must be between -60 and 10 dBm.');
+  return Math.round(number * 10) / 10;
+}
 function checkServiceStatus(value) {
   if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
+  return value;
+}
+// SISP-19: custody ownership — '' (not recorded), ISP-owned returnable,
+// or customer-purchased. Anything else is a caller bug, not user data.
+function checkCustodyOwnership(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  if (value !== 'isp-owned' && value !== 'customer-owned') throw new Error('Choose ISP Owned — Returnable, Customer Purchased, or Not recorded for hardware ownership.');
   return value;
 }
 function checkOptionalDate(value, label = 'Due date') {
@@ -432,8 +480,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     if (cleaned.length > maxLength) throw new Error(`${label} must be ${maxLength} characters or fewer.`);
     return cleaned;
   };
+  const mohallaRaw = cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla');
   const fields = {
-    mohalla: cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla'),
+    mohalla: canonicalMohalla(mohallaRaw)?.stored ?? mohallaRaw,
     zone: cleanText(valueOrCurrent('zone') ?? '', 100, 'Zone'),
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
     notes: cleanText(valueOrCurrent('notes') ?? '', 1000, 'Customer notes'),
@@ -446,13 +495,25 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true),
     connectionDate: checkOptionalDate(valueOrCurrent('connectionDate'), 'Connection date'),
     connectionFee: checkCost(valueOrCurrent('connectionFee')),
+    // SISP-24: optical splitter assignment + last RX reading (optional;
+    // absent on pre-SISP-24 records, which read back as empty / null).
+    splitterBoxId: cleanText(valueOrCurrent('splitterBoxId') ?? '', 100, 'Splitter box'),
+    splitterPort: checkSplitterPort(valueOrCurrent('splitterPort')),
+    oltPonPort: cleanText(valueOrCurrent('oltPonPort') ?? '', 100, 'OLT PON port'),
+    lastRxDbm: checkRxDbm(valueOrCurrent('lastRxDbm')),
     routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
     routerPrice: checkCost(valueOrCurrent('routerPrice')),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
+    // SISP-19: custody fields edited on the profile form. Recovery dates
+    // are NOT edited here — they are set only by the mark-recovered action
+    // (hardware-custody.js), so a profile save can never fake a recovery.
+    routerOwnership: checkCustodyOwnership(valueOrCurrent('routerOwnership')),
+    mediaConverterOwnership: checkCustodyOwnership(valueOrCurrent('mediaConverterOwnership')),
+    serialNumber: cleanText(valueOrCurrent('serialNumber') ?? '', 100, 'Serial / MAC number'),
+    securityDeposit: checkCost(valueOrCurrent('securityDeposit')),
     mediaConverterCost: checkCost(valueOrCurrent('mediaConverterCost')),
     linemanInstallFee: checkCost(valueOrCurrent('linemanInstallFee')),
-    fiberPerMeterRate: checkCost(valueOrCurrent('fiberPerMeterRate')),
-    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
+    fiberPerMeterRate: checkCost(valueOrCurrent('fiberPerMeterRate')),    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
     pppoeUsername: cleanText(valueOrCurrent('pppoeUsername') ?? '', 100, 'PPPoE username'),
     pppoePassword: cleanText(valueOrCurrent('pppoePassword') ?? '', 100, 'PPPoE password'),
     staticIp: cleanText(valueOrCurrent('staticIp') ?? '', 45, 'Static IP'),
@@ -599,7 +660,7 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -634,20 +695,26 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanReason ? { discountReason: cleanReason } : {}),
     ...(ref ? { transactionId: ref, reference: ref } : {}),
     ...(overrideReason ? { referenceOverrideReason: overrideReason } : {}),
+    // SISP-21: wallet statement verification rides the payment record. Only
+    // an explicit true is kept; anything else reads as "Pending Screenshot
+    // Verification" and is never treated as verified.
+    ...(walletVerified === true ? { walletVerified: true } : {}),
     ...(screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/') ? { screenshot: screenshot.slice(0, 350000) } : {})
   };
 }
 
 export function findDuplicatePaymentReference(state, transactionId, excludePaymentId = null) {
   if (!state || !Array.isArray(state.customers)) return null;
-  const cleanRef = String(transactionId ?? '').trim().toLowerCase();
+  // SISP-21: one normalization rule, shared with wallet-reconciliation.js —
+  // whitespace and case are ignored, so a re-typed screenshot TID still matches.
+  const cleanRef = normalizeTid(transactionId);
   if (!cleanRef) return null;
 
   for (const customer of state.customers) {
     for (const bill of (customer.bills ?? [])) {
       for (const payment of (bill.payments ?? [])) {
         if (excludePaymentId && payment.id === excludePaymentId) continue;
-        const pRef = String(payment.transactionId ?? payment.reference ?? '').trim().toLowerCase();
+        const pRef = normalizeTid(payment.transactionId ?? payment.reference ?? '');
         if (pRef && pRef === cleanRef) {
           return {
             customerNumber: customer.customerNumber,
@@ -786,7 +853,10 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   const mergedFields = {
     ...fields,
     discount: fields.discount !== undefined ? fields.discount : existingPayment.discount,
-    discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason
+    discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason,
+    // SISP-21: a correction form carries no verification toggle, so a
+    // correction must never silently drop an existing verification.
+    walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified
   };
   const payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId);
@@ -800,6 +870,27 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
     ...c,
     bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.filter(payment => payment.id !== paymentId) })
+  }) };
+}
+
+/**
+ * SISP-21: 1-tap wallet verification toggle. Sets walletVerified true, or
+ * removes the field entirely when false (absent === pending, never verified).
+ * Pure state transform; the caller persists and re-renders.
+ */
+export function setPaymentWalletVerified(state, customerId, month, paymentId, verified) {
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill?.payments.some(payment => payment.id === paymentId)) throw new Error('Payment not found.');
+  return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
+    ...c,
+    bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(payment => {
+      if (payment.id !== paymentId) return payment;
+      if (verified === true) return { ...payment, walletVerified: true };
+      const next = { ...payment };
+      delete next.walletVerified;
+      return next;
+    }) })
   }) };
 }
 
@@ -1600,7 +1691,9 @@ function validateBackupState(source) {
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null, mediaConverterCost:customer.mediaConverterCost ?? null, linemanInstallFee:customer.linemanInstallFee ?? null, fiberPerMeterRate:customer.fiberPerMeterRate ?? null,
-      packageHistory, bills, incidents,
+      // SISP-19: custody fields travel with the customer in JSON backups.
+      routerOwnership:customer.routerOwnership ?? '', mediaConverterOwnership:customer.mediaConverterOwnership ?? '', serialNumber:customer.serialNumber ?? '', securityDeposit:customer.securityDeposit ?? null,
+      hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },      packageHistory, bills, incidents,
       // SISP-4: installment plans travel with the customer; old backups
       // without the field import as an empty plan list (backward compatible).
       installmentPlans: sanitizeInstallmentPlans(customer.installmentPlans)
@@ -1644,6 +1737,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeComplaints(options.complaints);
     if (cleaned.length) document.settings = { ...(document.settings || {}), complaints: cleaned };
   }
+  // Home Budget: personal household records live outside the ledger state
+  // (localStorage key sisp_home_budget_v1), so they travel in an optional
+  // `settings.homeBudget` section. Written only when at least one home
+  // entry exists; readers that predate it ignore the unknown field. Home
+  // money never enters the business ledger, even inside a backup.
+  if (options && typeof options === 'object' && Array.isArray(options.homeBudget) && options.homeBudget.length) {
+    const cleaned = sanitizeHomeBudget(options.homeBudget);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), homeBudget: cleaned };
+  }
   // SISP-11: roznamcha day records live outside the ledger state
   // (localStorage key sisp_roznamcha_v1), so they travel in an
   // optional `settings.roznamchaDays` section. Written only when at
@@ -1668,6 +1770,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeInventory(options.inventory);
     if (cleaned.length) document.settings = { ...(document.settings || {}), inventory: cleaned };
   }
+  // Loan ledger: personal loan entries live outside the ledger state
+  // (localStorage key loan_ledger_v1), so they travel in an optional
+  // `settings.loans` section. Written only when at least one entry exists;
+  // readers that predate it ignore the unknown field. Loan money never
+  // mixes with business ledgers, so this section is adopted on its own.
+  if (options && typeof options === 'object' && Array.isArray(options.loans) && options.loans.length) {
+    const cleaned = sanitizeLoanEntries(options.loans);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), loans: cleaned };
+  }
   // Saad visit log: visits + payments live outside the ledger state
   // (localStorage keys sisp_saad_visits_v1 / sisp_saad_payments_v1), so
   // they travel in optional `settings.saadVisits` / `settings.saadPayments`
@@ -1689,13 +1800,41 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeInstallRequests(options.installRequests);
     if (cleaned.length) document.settings = { ...(document.settings || {}), installRequests: cleaned };
   }
+  // Pending works: notes live outside the ledger state
+  // (localStorage key sisp_pending_works_v1), so they travel in an
+  // optional `settings.pendingWorks` section. Written only when at
+  // least one note exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.pendingWorks) && options.pendingWorks.length) {
+    const cleaned = sanitizePendingWorks(options.pendingWorks);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), pendingWorks: cleaned };
+  }
+  // SISP-20: monthly closing notes live outside the ledger state
+  // (localStorage key sisp_monthly_closing_notes_v1), so they travel in an
+  // optional `settings.monthlyClosingNotes` section. Written only when at
+  // least one note exists; readers that predate it ignore the unknown field.
+  if (options && typeof options === 'object' && options.monthlyClosingNotes && typeof options.monthlyClosingNotes === 'object' && !Array.isArray(options.monthlyClosingNotes)) {
+    const cleaned = sanitizeMonthlyClosingNotes(options.monthlyClosingNotes);
+    if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), monthlyClosingNotes: cleaned };
+  }
   // SISP-10: checksum-verified transfer. The stamp covers the canonical
   // (key-sorted) form of the document, so it survives re-formatting, and
   // readers that predate it ignore the unknown field — old backups and old
   // app versions keep working in both directions.
-  document.checksum = computeBackupChecksum(document);
-  return JSON.stringify(document, null, 2);
-}
+  // SISP-22: partner ledger entries + monthly settlement slips live outside
+  // the ledger state (localStorage keys sisp_partner_ledger_v1 /
+  // sisp_partner_settlements_v1), so they travel in optional
+  // `settings.partnerLedger` / `settings.partnerSettlements` sections.
+  // Written only when at least one record exists; readers that predate
+  // them ignore the unknown fields.
+  if (options && typeof options === 'object' && Array.isArray(options.partnerLedger) && options.partnerLedger.length) {
+    const cleaned = sanitizePartnerLedgerEntries(options.partnerLedger);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), partnerLedger: cleaned };
+  }
+  if (options && typeof options === 'object' && Array.isArray(options.partnerSettlements) && options.partnerSettlements.length) {
+    const cleaned = sanitizePartnerSettlements(options.partnerSettlements);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), partnerSettlements: cleaned };
+  }
+  document.checksum = computeBackupChecksum(document);  return JSON.stringify(document, null, 2);}
 
 /**
  * Validate a JSON backup and produce a preview-only, non-destructive merge. Existing
@@ -1723,10 +1862,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, changes:0 };
-  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
-  const nonempty = value => !(value === null || value === undefined || value === '');
-  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, homeBudgetRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -1753,14 +1889,24 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress']) mergeField(customer, backupCustomer, key, backupCustomer);
-    // SISP-8: skipped months merge by union (a skipped month only ever
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress']) mergeField(customer, backupCustomer, key, backupCustomer);    // SISP-8: skipped months merge by union (a skipped month only ever
     // means "never backfill this month") — never a conflict, never lost.
     {
       const localSkipped = Array.isArray(customer.pauseSkippedMonths) ? customer.pauseSkippedMonths : [];
       const incomingSkipped = Array.isArray(backupCustomer.pauseSkippedMonths) ? backupCustomer.pauseSkippedMonths : [];
       const merged = [...new Set([...localSkipped, ...incomingSkipped].filter((month) => validMonthString(month)))].sort();
       if (!sameJson(localSkipped, merged)) { customer.pauseSkippedMonths = merged; counts.changes++; }
+    }
+    // SISP-19: recovery dates merge per item, not as a plain field fill:
+    // a recovered item never becomes unrecovered, so when either side
+    // holds a recovery date, the dated copy wins (first date kept when
+    // both sides hold one — recovery history only moves forward).
+    if (backupCustomer.hardwareRecovered && typeof backupCustomer.hardwareRecovered === 'object') {
+      customer.hardwareRecovered = customer.hardwareRecovered && typeof customer.hardwareRecovered === 'object' ? customer.hardwareRecovered : { router:null, mediaConverter:null };
+      for (const itemKey of ['router','mediaConverter']) {
+        const incoming = backupCustomer.hardwareRecovered[itemKey];
+        if (incoming && !customer.hardwareRecovered[itemKey]) { customer.hardwareRecovered[itemKey] = incoming; counts.changes++; }
+      }
     }
     // SISP-4: installment plans merge by plan id (not a plain field fill):
     // a missing plan is adopted, and when both sides hold the same plan
@@ -1927,6 +2073,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Complaint register records differ from this device' });
     }
   }
+  // Home Budget: optional home expense records section (see createJsonBackup).
+  // Safe-merge rule, same as complaints: adopt the backup's records only
+  // when this device has none stored yet; when both sides hold different
+  // real records, keep existing + conflict.
+  let homeBudget = null;
+  const rawIncomingHomeBudget = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.homeBudget
+    : undefined;
+  if (Array.isArray(rawIncomingHomeBudget) && rawIncomingHomeBudget.length) {
+    const incomingHomeBudget = sanitizeHomeBudget(rawIncomingHomeBudget);
+    const currentHomeBudget = (options && typeof options === 'object' && Array.isArray(options.currentHomeBudget))
+      ? sanitizeHomeBudget(options.currentHomeBudget)
+      : [];
+    if (incomingHomeBudget.length && sameJson(incomingHomeBudget, currentHomeBudget)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingHomeBudget.length && (!options?.currentHomeBudgetStored || currentHomeBudget.length === 0)) {
+      homeBudget = incomingHomeBudget;
+      counts.homeBudgetRestored = 1;
+      counts.changes++;
+    } else if (incomingHomeBudget.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Home budget records differ from this device' });
+    }
+  }
   // SISP-11: optional roznamcha day records section (see createJsonBackup).
   // Safe-merge rule, same as shop settlements: adopt the backup's records
   // only when this device has none stored yet; when both sides hold
@@ -1996,6 +2165,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Stock book records differ from this device' });
     }
   }
+  // Loan ledger: optional loan entries section (see createJsonBackup).
+  // Safe-merge rule, same as the stock book: adopt the backup's records
+  // only when this device has none stored yet; when both sides hold
+  // different real records, keep existing + conflict.
+  let loans = null;
+  const rawIncomingLoans = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.loans
+    : undefined;
+  if (Array.isArray(rawIncomingLoans) && rawIncomingLoans.length) {
+    const incomingLoans = sanitizeLoanEntries(rawIncomingLoans);
+    const currentLoans = (options && typeof options === 'object' && Array.isArray(options.currentLoans))
+      ? sanitizeLoanEntries(options.currentLoans)
+      : [];
+    if (incomingLoans.length && sameJson(incomingLoans, currentLoans)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingLoans.length && (!options?.currentLoansStored || currentLoans.length === 0)) {
+      loans = incomingLoans;
+      counts.loansRestored = 1;
+      counts.changes++;
+    } else if (incomingLoans.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Loan ledger records differ from this device' });
+    }
+  }
   // Saad visit log: optional visit + payment sections (see createJsonBackup).
   // Safe-merge rule, same as the stock book: adopt the backup's records
   // only when this device has none stored yet; when both sides hold
@@ -2061,6 +2253,89 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Installation request records differ from this device' });
     }
   }
+  // Pending works: optional note section (see createJsonBackup).
+  // Safe-merge rule, same as the Saad visit log: adopt the backup's
+  // records only when this device has none stored yet; when both sides
+  // hold different real records, keep existing + conflict.
+  let pendingWorks = null;
+  const rawIncomingPendingWorks = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.pendingWorks
+    : undefined;
+  if (Array.isArray(rawIncomingPendingWorks) && rawIncomingPendingWorks.length) {
+    const incomingPendingWorks = sanitizePendingWorks(rawIncomingPendingWorks);
+    const currentPendingWorks = (options && typeof options === 'object' && Array.isArray(options.currentPendingWorks))
+      ? sanitizePendingWorks(options.currentPendingWorks)
+      : [];
+    if (incomingPendingWorks.length && sameJson(incomingPendingWorks, currentPendingWorks)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingPendingWorks.length && (!options?.currentPendingWorksStored || currentPendingWorks.length === 0)) {
+      pendingWorks = incomingPendingWorks;
+      counts.pendingWorksRestored = 1;
+      counts.changes++;
+    } else if (incomingPendingWorks.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Pending work records differ from this device' });
+    }
+  }
+  let monthlyClosingNotes = null;
+  const rawIncomingNotes = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.monthlyClosingNotes
+    : undefined;
+  if (rawIncomingNotes && typeof rawIncomingNotes === 'object' && !Array.isArray(rawIncomingNotes) && Object.keys(rawIncomingNotes).length) {
+    const incomingNotes = sanitizeMonthlyClosingNotes(rawIncomingNotes);
+    const currentNotes = (options && typeof options === 'object' && options.currentMonthlyClosingNotes && typeof options.currentMonthlyClosingNotes === 'object')
+      ? sanitizeMonthlyClosingNotes(options.currentMonthlyClosingNotes)
+      : {};
+    if (Object.keys(incomingNotes).length && sameJson(incomingNotes, currentNotes)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (Object.keys(incomingNotes).length && (!options?.currentMonthlyClosingNotesStored || Object.keys(currentNotes).length === 0)) {
+      monthlyClosingNotes = incomingNotes;
+      counts.monthlyClosingNotesRestored = 1;
+      counts.changes++;
+    } else if (Object.keys(incomingNotes).length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Monthly closing notes differ from this device' });
+    }
+  }
+  // SISP-22: optional partner ledger + settlement slip sections (see
+  // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
+  // the backup's records only when this device has none stored yet;
+  // when both sides hold different real records, keep existing + conflict.
+  let partnerLedger = null;
+  const rawIncomingLedger = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.partnerLedger
+    : undefined;
+  if (Array.isArray(rawIncomingLedger) && rawIncomingLedger.length) {
+    const incomingLedger = sanitizePartnerLedgerEntries(rawIncomingLedger);
+    const currentLedger = (options && typeof options === 'object' && Array.isArray(options.currentPartnerLedger))
+      ? sanitizePartnerLedgerEntries(options.currentPartnerLedger)
+      : [];
+    if (incomingLedger.length && sameJson(incomingLedger, currentLedger)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingLedger.length && (!options?.currentPartnerLedgerStored || currentLedger.length === 0)) {
+      partnerLedger = incomingLedger;
+      counts.partnerLedgerRestored = 1;
+      counts.changes++;
+    } else if (incomingLedger.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Partner ledger records differ from this device' });
+    }
+  }
+  let partnerSettlements = null;
+  const rawIncomingSettlements = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.partnerSettlements
+    : undefined;
+  if (Array.isArray(rawIncomingSettlements) && rawIncomingSettlements.length) {
+    const incomingSettlements = sanitizePartnerSettlements(rawIncomingSettlements);
+    const currentSettlements = (options && typeof options === 'object' && Array.isArray(options.currentPartnerSettlements))
+      ? sanitizePartnerSettlements(options.currentPartnerSettlements)
+      : [];
+    if (incomingSettlements.length && sameJson(incomingSettlements, currentSettlements)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSettlements.length && (!options?.currentPartnerSettlementsStored || currentSettlements.length === 0)) {
+      partnerSettlements = incomingSettlements;
+      counts.partnerSettlementsRestored = 1;
+      counts.changes++;
+    } else if (incomingSettlements.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Partner settlement records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, checksumStatus:checksum.status };
-}
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, checksumStatus:checksum.status };}

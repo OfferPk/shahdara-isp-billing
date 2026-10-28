@@ -89,6 +89,7 @@
           <li class="nav-drawer-item"><button type="button" data-nav-target="analytics"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>Area Analytics</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="inventory"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span><span>Inventory</span><span id="navBadgeInventory" class="nav-drawer-badge" data-nav-badge="inventory" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="expenses"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span>Expenses</span><span id="navBadgeExpenses" class="nav-drawer-badge" data-nav-badge="expenses" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="homeBudget"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home Budget</span></button></li>
         </ul>
       </div>
       <div>
@@ -415,6 +416,16 @@
           </div>
         </article>
 
+        <article class="summary-card summary-splitter-map">
+          <p class="summary-label">🔌 Splitter Port Map</p>
+          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
+          <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
+          <div id="splitterMapSummary" class="splitter-map-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔌 Splitter Port Map</button>
+          </div>
+        </article>
+
         <article class="summary-card summary-monthly-complaint-report">
           <p class="summary-label">📋 Monthly Complaint Report</p>
           <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
@@ -471,7 +482,41 @@
             <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button">📡 Installation Tracker</button>
           </div>
         </article>
-        <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
+        <article class="summary-card summary-pending-works">
+          <p class="summary-label">📌 Pending Works</p>
+          <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
+          <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
+          <div id="pendingWorksSummary" class="pending-works-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button">📌 Pending Works</button>
+          </div>
+        </article>
+        <article class="summary-card summary-hardware-recovery">
+          <p class="summary-label">📦 Pending Hardware Recovery</p>
+          <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
+          <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
+          <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button">📦 Pending Hardware Recovery</button>
+          </div>
+        </article>
+        <article class="summary-card summary-owner-khata">
+          <p class="summary-label">📕 Owner Khata Closing</p>
+          <strong id="dashboardOwnerKhataValue" class="summary-value">No activity</strong>
+          <p id="dashboardOwnerKhataPeriod" class="summary-period">Monthly income, expenses, shares &amp; outages</p>
+          <div id="ownerKhataSummary" class="owner-khata-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button">📕 Owner Khata Closing</button>          </div>
+        </article>
+        <article class="summary-card summary-wallet-ledger">
+          <p class="summary-label">💳 Digital Wallet Ledger</p>
+          <strong id="dashboardWalletValue" class="summary-value">No digital payments</strong>
+          <p id="dashboardWalletPeriod" class="summary-period">EasyPaisa · JazzCash · NayaPay · Bank Transfer</p>
+          <div id="walletLedgerSummary" class="wallet-ledger-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button">💳 Wallet Ledger</button>
+          </div>
+        </article>        <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
         <article class="summary-card summary-cash-profit"><p class="summary-label">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
@@ -6271,6 +6316,8 @@
       <button id="showAnalyticsButton" class="view-nav-button" type="button">Analytics</button>
       <button id="showInventoryButton" class="view-nav-button" type="button">Inventory</button>
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
+      <button id="showHomeBudgetButton" class="view-nav-button" type="button">Home Budget</button>
+      <button id="showLoansButton" class="view-nav-button" type="button">Loans</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button type="button" data-mobile-nav="collection" class="has-badge">Collection<span id="bottomNavBadgeCollection" class="bottom-nav-badge badge-alert" data-nav-badge="collection" data-nav-badge-alias="dues" hidden>0</span></button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
     <div id="mobileMoreMenu" class="mobile-more-menu" hidden>
@@ -6292,6 +6339,10 @@
       <button type="button" data-mobile-more="easypaisa" id="mobileMoreEasypaisaBtn">Payments Inbox<span class="more-menu-badge" data-nav-badge="easypaisa" hidden>0</span></button>
       <button type="button" data-mobile-more="daily-closing" id="mobileMoreDailyClosingBtn">Daily Closing</button>
 
+      <!-- Group: 🏠 Home -->
+      <div class="more-menu-section-label">🏠 Home</div>
+      <button type="button" data-mobile-more="homeBudget">Home Budget</button>
+
       <!-- Group 2: 👥 Operations & Follow-up -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_customers">👥 Operations &amp; Follow-up</div>
       <button id="mobileActionSheetToggle" class="mobile-action-toggle-btn" type="button" aria-label="Quick Actions Sheet" aria-haspopup="dialog" aria-expanded="false">⚡ Quick Actions Sheet</button>
@@ -6302,6 +6353,10 @@
       <button type="button" data-mobile-more="inventory">Inventory<span class="more-menu-badge" data-nav-badge="inventory" hidden>0</span></button>
       <button type="button" data-mobile-more="integrity" id="mobileMoreDataIntegrityBtn">Data Integrity</button>
       <button type="button" data-mobile-more="correctness" id="mobileMoreBillingCorrectnessBtn" data-open-billing-correctness>Billing Audit</button>
+
+      <!-- Group: 💰 Personal Money (personal ledgers, never business money) -->
+      <div class="more-menu-section-label">💰 Personal Money</div>
+      <button type="button" data-mobile-more="loans">Loan Ledger</button>
 
       <!-- Group 3: ⚙️ Settings & Tools -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
@@ -6684,7 +6739,7 @@
               <div id="customerProfileForm" class="customer-profile-form" hidden>
               <div class="profile-grid">
                 <label class="profile-field" for="profileNameInput"><span class="field-label">Customer name <span class="optional-label">Shown on bills, receipts &amp; lists</span></span><input id="profileNameInput" type="text" maxlength="100" autocomplete="off" required></label><label class="profile-field" for="nameUrduInput"><span class="field-label">Customer name in Urdu <span class="optional-label">Optional · shown instead of the auto-transliterated name when Urdu is selected</span></span><input id="nameUrduInput" type="text" maxlength="100" autocomplete="off" placeholder="مثال: راجہ فیصل"></label>
-                <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" list="mohallaOptions" maxlength="100" autocomplete="off" placeholder="Not set"><datalist id="mohallaOptions"><option value="MOHALLA CHARYAA"></option><option value="MOHALLA KISHTI"></option><option value="MOHALLA BARRIAN"></option><option value="MOHALLA MALLA"></option><option value="MOHALLA THALII"></option><option value="MOHALLA CHAMYAA"></option><option value="MOHALLA NAKAR"></option><option value="MOHALLA PALALIYAA"></option><option value="MOHALAA BANI"></option><option value="MOHALLA SODAA"></option><option value="MOHALLA HAVELI"></option><option value="MOHALLA CHUDRIYAA"></option><option value="MOHALLA PULL"></option><option value="MOHALLA SHAHDARA PARK"></option></datalist></label>
+                <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" list="mohallaOptions" maxlength="100" autocomplete="off" placeholder="Not set"><datalist id="mohallaOptions"><option value="CHARYAA"></option><option value="GANGALL"></option><option value="KISHTII"></option><option value="BARRIAN"></option><option value="THALII"></option><option value="CHAMYAAA"></option><option value="PALALIYAA"></option><option value="MALLA"></option><option value="NAKAR"></option><option value="BANII"></option><option value="SODAA"></option><option value="PULL SIDE"></option><option value="JABBIYAA"></option><option value="MOHALLA CHUDRIYAA"></option><option value="MOHALLA end side farm house"></option></datalist></label>
                 <label class="profile-field" for="zoneInput"><span class="field-label">Zone <span class="optional-label">Optional · nested under area</span></span><input id="zoneInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="upstreamCustomerInput"><span class="field-label">Fed by (upstream house) <span class="optional-label">Optional · whose media converter / switch feeds this house</span></span><select id="upstreamCustomerInput"><option value="">Direct feed — no upstream house</option></select></label>
                 <label class="profile-field" for="fiberZoneInput"><span class="field-label">Feeder zone <span class="optional-label">Optional · Side 1 to Side 4c</span></span><select id="fiberZoneInput"><option value="">Not set</option></select></label>
@@ -6705,13 +6760,20 @@
                 <label class="profile-field" for="routerModelInput"><span class="field-label">Router installed <span class="optional-label">Optional · model given to the customer</span></span><input id="routerModelInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="routerPriceInput"><span class="field-label">Router price (PKR) <span class="optional-label">Optional</span></span><input id="routerPriceInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="fiberMetersInput"><span class="field-label">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></span><input id="fiberMetersInput" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Not set"></label>
+                <label class="profile-field" for="splitterBoxIdInput"><span class="field-label">Splitter box <span class="optional-label">Optional · e.g. SPL-Barrian-02</span></span><input id="splitterBoxIdInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="splitterPortInput"><span class="field-label">Splitter port <span class="optional-label">Optional · 1–16</span></span><input id="splitterPortInput" type="number" min="1" max="16" step="1" inputmode="numeric" placeholder="Not set"></label>
+                <label class="profile-field" for="oltPonPortInput"><span class="field-label">PON port <span class="optional-label">Optional · e.g. PON 1/2/3</span></span><input id="oltPonPortInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="lastRxDbmInput"><span class="field-label">Last RX signal (dBm) <span class="optional-label">Optional · below −26.0 flags weak signal</span></span><input id="lastRxDbmInput" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="mediaConverterCostInput"><span class="field-label">Media converter cost (PKR) <span class="optional-label">Optional · only if a converter was installed</span></span><input id="mediaConverterCostInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="linemanInstallFeeInput"><span class="field-label">Lineman install fee (PKR) <span class="optional-label">Optional · paid to the installer</span></span><input id="linemanInstallFeeInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
-                <label class="profile-field" for="fiberPerMeterRateInput"><span class="field-label">Fiber rate per meter (PKR) <span class="optional-label">Optional · needed to price the fiber used</span></span><input id="fiberPerMeterRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
-                <label class="profile-field" for="pppoeUsernameInput"><span class="field-label">PPPoE username <span class="optional-label">Optional · for the MikroTik RouterOS script</span></span><input id="pppoeUsernameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="fiberPerMeterRateInput"><span class="field-label">Fiber rate per meter (PKR) <span class="optional-label">Optional · needed to price the fiber used</span></span><input id="fiberPerMeterRateInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>                <label class="profile-field" for="pppoeUsernameInput"><span class="field-label">PPPoE username <span class="optional-label">Optional · for the MikroTik RouterOS script</span></span><input id="pppoeUsernameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="pppoePasswordInput"><span class="field-label">PPPoE password <span class="optional-label">Optional · shown only inside the copyable RouterOS script</span></span><input id="pppoePasswordInput" type="password" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="staticIpInput"><span class="field-label">Static IP <span class="optional-label">Optional · queue target for the RouterOS script</span></span><input id="staticIpInput" type="text" maxlength="45" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="macAddressInput"><span class="field-label">MAC address <span class="optional-label">Optional · ARP binding for the RouterOS script</span></span><input id="macAddressInput" type="text" maxlength="20" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="routerOwnershipInput"><span class="field-label">Router ownership <span class="optional-label">Optional · ISP-owned routers come back on disconnection</span></span><select id="routerOwnershipInput"><option value="">Not recorded</option><option value="isp-owned">ISP Owned — Returnable</option><option value="customer-owned">Customer Purchased</option></select></label>
+                <label class="profile-field" for="mediaConverterOwnershipInput"><span class="field-label">Media converter / ONU ownership <span class="optional-label">Optional</span></span><select id="mediaConverterOwnershipInput"><option value="">Not recorded</option><option value="isp-owned">ISP Owned — Returnable</option><option value="customer-owned">Customer Purchased</option></select></label>
+                <label class="profile-field" for="serialNumberInput"><span class="field-label">Serial / MAC number <span class="optional-label">Optional · device serial or MAC</span></span><input id="serialNumberInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
+                <label class="profile-field" for="securityDepositInput"><span class="field-label">Security deposit (PKR) <span class="optional-label">Optional · held against returnable hardware</span></span><input id="securityDepositInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Not set"></label>
                 <label class="profile-field" for="expiryDateInput"><span class="field-label">Expiry / end date <span class="optional-label">Optional</span></span><input id="expiryDateInput" type="date"></label>
                 <label class="profile-field" for="cancellationDateInput"><span class="field-label">Explicit cancellation date <span class="optional-label">Optional · Offline is not churn</span></span><input id="cancellationDateInput" type="date"></label>
                 <label class="profile-field" for="packageChangeStaffNameInput"><span class="field-label">Package-change staff name <span class="optional-label">Optional · used only for next change</span></span><input id="packageChangeStaffNameInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
@@ -6971,6 +7033,7 @@
           <button id="expenseTabLedger" class="expense-tab-button" type="button" role="tab" aria-controls="expensesLedgerPanel" aria-selected="true">Expense ledger</button>
           <button id="expenseTabNasir" class="expense-tab-button" type="button" role="tab" aria-controls="nasirSharePanel" aria-selected="false">Nasir share</button>
           <button id="expenseTabAqib" class="expense-tab-button" type="button" role="tab" aria-controls="aqibSharePanel" aria-selected="false">Aqib share</button>
+          <button id="expenseTabSettlement" class="expense-tab-button" type="button" role="tab" aria-controls="partnerSettlementPanel" aria-selected="false">Partner settlement</button>
         </nav>
         <div id="expensesLedgerPanel" role="tabpanel" aria-labelledby="expenseTabLedger">
         <div class="phase3-metric-grid"><article class="phase3-metric"><span>Recorded expenses</span><strong id="expenseEntryCount">Not set</strong><small id="expenseEntryHelp">No expense entries recorded</small></article><article class="phase3-metric"><span>This month’s recorded expenses</span><strong id="expenseCurrentMonthTotal">Not set</strong><small>By actual payment date (PKT)</small></article><article class="phase3-metric"><span>Filtered expenses total</span><strong id="expenseFilteredTotal">PKR 0</strong><small id="expenseFilteredHelp">Matching current filters</small></article></div>
@@ -7025,6 +7088,71 @@
           <div class="table-heading"><div><p class="eyebrow">50% PARTNER · AUTO-COMPUTED · READ-ONLY</p><h3>Aqib share</h3></div><label class="payroll-month-label" for="aqibShareMonth">Selected month<select id="aqibShareMonth"></select></label></div>
           <p class="phase3-note">Aqib is a 50% partner. This report is computed from saved receipts and dated expenses the moment it opens — it records nothing and never writes a share entry into the expense ledger.</p>
           <div id="aqibShareContent" aria-live="polite"></div>
+        </section>
+        <section id="partnerSettlementPanel" class="table-card partner-settlement-panel" role="tabpanel" aria-labelledby="expenseTabSettlement" hidden>
+          <div class="table-heading"><div><p class="eyebrow">50/50 PARTNER · DRAWINGS &amp; CAPITAL · MONTHLY SLIP</p><h3>Partner settlement</h3></div><label class="payroll-month-label" for="partnerSettlementMonth">Selected month<select id="partnerSettlementMonth"></select></label></div>
+          <p class="phase3-note">Record cash Nasir or Aqib drew mid-month, and ISP purchases either paid from personal funds. The month-end payout is then share (50% of profit) + out-of-pocket − drawings. A negative payout is shown as a receivable — the partner owes the business — never hidden. Confirming a slip only saves the slip; it never changes any bill, receipt or expense.</p>
+          <div id="partnerSettlementContent" aria-live="polite"></div>
+          <p id="partnerSettlementStatus" class="phase3-note" role="status" aria-live="polite"></p>
+          <div class="partner-settlement-actions"><button id="partnerSettlementConfirmBtn" class="primary-button" type="button">Confirm monthly settlement slip</button><button id="partnerSettlementReopenBtn" class="secondary-button" type="button">Re-open saved slip</button><a id="partnerSettlementWhatsAppLink" class="secondary-button partner-settlement-whatsapp" href="https://wa.me/" target="_blank" rel="noopener">WhatsApp summary</a></div>
+          <section class="table-card" aria-labelledby="partnerLedgerHeading"><div class="table-heading"><div><p class="eyebrow">MID-MONTH MOVEMENTS ONLY</p><h3 id="partnerLedgerHeading">Add a drawing or capital outlay</h3></div></div>
+          <form id="partnerLedgerForm" class="phase3-form" novalidate><input id="partnerLedgerId" name="partnerLedgerId" type="hidden"><label>Partner<select id="partnerLedgerPartner" name="partner" required><option value="">Choose partner</option><option>Nasir</option><option>Aqib</option></select></label><label>Type<select id="partnerLedgerType" name="type" required><option value="">Choose type</option><option value="drawing">Drawing — cash taken</option><option value="capital">Capital — out-of-pocket purchase</option></select></label><label>Amount (PKR)<input id="partnerLedgerAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount"></label><label>Date (PKT)<input id="partnerLedgerDate" name="date" type="date" required></label><label class="form-wide">Note<textarea id="partnerLedgerNote" name="note" maxlength="500" rows="2" placeholder="Optional — e.g. ONU purchase, cash taken"></textarea></label><div class="form-actions form-wide"><button id="partnerLedgerSubmit" class="primary-button" type="submit">Record movement</button><button id="partnerLedgerCancel" class="secondary-button" type="button" hidden>Cancel edit</button></div></form>
+          <div class="table-scroll"><table><thead><tr><th scope="col">Date</th><th scope="col">Partner</th><th scope="col">Type</th><th scope="col">Amount</th><th scope="col">Note</th><th scope="col">Actions</th></tr></thead><tbody id="partnerLedgerTable"></tbody></table></div><p id="partnerLedgerEmpty" class="empty-state">No drawings or capital outlays recorded for this month.</p></section>
+        </section>
+      </div>
+    </section>
+    <section id="homeBudgetView" class="phase3-view" aria-labelledby="homeBudgetHeading" hidden>
+      <div class="phase3-pane">
+        <div class="phase3-heading"><div><p class="eyebrow">OWNER · PERSONAL MONEY · KEPT SEPARATE</p><h2 id="homeBudgetHeading">Home Budget</h2><p class="phase3-note">Personal household expenses only — ghar ka kharcha (shops, milk, electricity bill, plumber, electrician, wedding, funeral). These never enter the business expense ledger, profit, or Nasir/Aqib partner shares. Business money and home money stay fully apart.</p></div><p class="local-only-badge">PKR · local only</p></div>
+        <div class="phase3-metric-grid"><article class="phase3-metric"><span>All-time home total</span><strong id="homeBudgetAllTimeTotal">PKR 0</strong><small id="homeBudgetAllTimeHelp">All months — always visible</small></article><article class="phase3-metric"><span>Selected month total</span><strong id="homeBudgetMonthTotal">PKR 0</strong><small id="homeBudgetMonthHelp">All months</small></article><article class="phase3-metric"><span>Recorded entries</span><strong id="homeBudgetEntryCount">0</strong><small id="homeBudgetEntryHelp">No home entries recorded</small></article></div>
+        <section class="table-card" aria-labelledby="homeBudgetFormHeading"><div class="table-heading"><div><p class="eyebrow">PERSONAL EXPENSE ONLY</p><h3 id="homeBudgetFormHeading">Add or correct a home expense</h3></div></div>
+          <form id="homeBudgetForm" class="phase3-form" novalidate><input id="homeBudgetId" name="homeBudgetId" type="hidden"><label>Date (PKT)<input id="homeBudgetDate" name="date" type="date" required><span id="homeBudgetDateError" class="field-error" role="alert" hidden></span></label><label>Amount (PKR)<input id="homeBudgetAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount"><span id="homeBudgetAmountError" class="field-error" role="alert" hidden></span></label><label>Category<select id="homeBudgetCategory" name="category" required><option value="">Choose category</option><option>Balla shop</option><option>Waseem shop</option><option>Milk expense</option><option>Electricity bill</option><option>Plumber</option><option>Electrician maintenance</option><option>Wedding expense</option><option>Death expense</option><option value="__custom__">Custom category…</option></select><span id="homeBudgetCategoryError" class="field-error" role="alert" hidden></span></label><label id="homeBudgetCustomCategoryLabel" hidden>Custom category<input id="homeBudgetCustomCategory" name="customCategory" type="text" maxlength="100" autocomplete="off" placeholder="Type a new category"><span id="homeBudgetCustomCategoryError" class="field-error" role="alert" hidden></span></label><label class="form-wide">Notes<textarea id="homeBudgetNotes" name="notes" maxlength="1000" rows="2" placeholder="Optional"></textarea><span id="homeBudgetNotesError" class="field-error" role="alert" hidden></span></label><div class="form-actions form-wide"><button id="homeBudgetSubmit" class="primary-button" type="submit">Record home expense</button><button id="homeBudgetCancel" class="secondary-button" type="button" hidden>Cancel edit</button></div></form>
+        </section>
+        <section class="table-card" aria-labelledby="homeBudgetMonthsHeading"><div class="table-heading"><div><p class="eyebrow">EVERY MONTH · AT A GLANCE</p><h3 id="homeBudgetMonthsHeading">Monthly totals</h3></div></div><p class="phase3-note">Each recorded month with its own total. The all-time total above never changes when you filter by month.</p><ul id="homeBudgetMonthTotals" class="home-budget-month-list" aria-label="Home expense totals by month"></ul><p id="homeBudgetMonthTotalsEmpty" class="empty-state">No home entries recorded yet — monthly totals will appear here.</p></section>
+        <section class="table-card" aria-labelledby="homeBudgetListHeading"><div class="table-heading"><div><p class="eyebrow">PERSONAL LEDGER</p><h3 id="homeBudgetListHeading">Home expense entries</h3></div></div>
+          <div class="table-filter-toolbar" role="search" aria-label="Filter home expenses">
+            <div class="table-filter-group">
+              <label for="homeBudgetMonthFilter" class="sr-only">Filter by month</label>
+              <select id="homeBudgetMonthFilter" class="table-filter-select" aria-label="Filter by month">
+                <option value="all">All months</option>
+              </select>
+            </div>
+            <div class="table-filter-group">
+              <label for="homeBudgetCategoryFilter" class="sr-only">Filter by category</label>
+              <select id="homeBudgetCategoryFilter" class="table-filter-select" aria-label="Filter by home expense category">
+                <option value="all">All categories</option>
+              </select>
+            </div>
+            <div class="table-filter-group search-group">
+              <label for="homeBudgetSearchInput" class="sr-only">Search home expenses</label>
+              <input id="homeBudgetSearchInput" class="table-filter-input" type="search" placeholder="Search notes…" autocomplete="off">
+              <button id="homeBudgetClearFilters" class="secondary-button table-filter-clear" type="button">Clear</button>
+            </div>
+            <p id="homeBudgetCount" class="table-filter-count" role="status" aria-live="polite"></p>
+          </div>
+          <ul id="homeBudgetList" class="home-budget-list" aria-label="Home expense entries"></ul><p id="homeBudgetEmpty" class="empty-state">No home entries recorded yet — tap + Add Home Expense above to record one.</p><p id="homeBudgetFilterEmpty" class="empty-state" hidden>No home entries match the current filters. <button id="homeBudgetResetFiltersBtn" class="text-button" type="button" style="text-decoration: underline; margin-left: 6px; cursor: pointer;">Clear filters</button></p>
+        </section>
+      </div>
+    </section>
+    <section id="loanView" class="phase3-view" aria-labelledby="loanHeading" hidden>
+      <div class="phase3-pane">
+        <div class="phase3-heading"><div><p class="eyebrow">PERSONAL MONEY · SEPARATE FROM BUSINESS</p><h2 id="loanHeading">Loan ledger</h2><p class="phase3-note">Dena hai = you owe them. Lena hai = they owe you. Loan money never mixes with bills, business expenses, partner shares or profit.</p></div><p class="local-only-badge">No seeded loans</p></div>
+        <div class="phase3-metric-grid">
+          <article class="phase3-metric"><span>Total dena hai</span><strong id="loanTotalDena">No loans recorded</strong><small>You owe across everyone</small></article><article class="phase3-metric"><span>Total lena hai</span><strong id="loanTotalLena">No loans recorded</strong><small>Everyone owes you</small></article><article class="phase3-metric"><span>Net position</span><strong id="loanNetPosition">No loans recorded</strong><small>Lena minus dena</small></article><article class="phase3-metric"><span>People with open loans</span><strong id="loanOpenPeople">No loans recorded</strong><small>Out of total people</small></article>
+        </div>
+        <section class="table-card"><div class="table-heading"><div><p class="eyebrow">NEW ENTRY</p><h3>Add a loan or repayment</h3></div></div>
+          <form id="loanForm" class="phase3-form"><label>Person name<input id="loanPerson" name="person" maxlength="100" required placeholder="e.g. Ahmed" list="loanPersonOptions"><datalist id="loanPersonOptions"></datalist></label><label>Phone number<input id="loanPhone" name="phone" maxlength="40" autocomplete="off" placeholder="Optional"></label><label>Direction<select id="loanDirection" name="direction" required><option value="">Choose direction</option><option value="dena">Dena hai · I owe them</option><option value="lena">Lena hai · They owe me</option></select></label><label>Entry type<select id="loanKind" name="kind" required><option value="loan">New loan</option><option value="repayment">Repayment</option></select></label><label>Amount (PKR)<input id="loanAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="e.g. 5000"></label><label>Entry date<input id="loanDate" name="date" type="date" required></label><label class="form-wide">Note<textarea id="loanNote" name="note" maxlength="500" rows="2" placeholder="Optional"></textarea></label><div class="form-actions form-wide"><button class="primary-button" type="submit">Save loan entry</button></div></form>
+        </section>
+        <section class="table-card"><div class="table-heading"><div><p class="eyebrow">ACCOUNTS</p><h3>Per-person loan accounts</h3></div></div>
+          <div class="table-filter-toolbar" role="region" aria-label="Filter loan accounts">
+            <div class="table-filter-group search-group"><label for="loanSearchInput" class="sr-only">Search person or phone</label><input id="loanSearchInput" type="search" class="table-filter-input" placeholder="Search person or phone..." autocomplete="off"></div>
+            <div class="table-filter-group"><label for="loanDirectionFilter" class="sr-only">Filter by direction</label><select id="loanDirectionFilter" class="table-filter-select" aria-label="Filter by direction"><option value="all">All directions</option><option value="dena">Dena hai only</option><option value="lena">Lena hai only</option></select></div>
+            <button id="clearLoanFilters" type="button" class="secondary-button table-filter-clear">Clear filters</button>
+            <span id="loanPersonCount" class="table-filter-count" role="status" aria-live="polite"></span>
+          </div>
+          <div id="loanPersonCards" class="loan-person-cards" aria-live="polite"></div>
+          <p id="loanEmpty" class="empty-state">No loans recorded yet.</p>
+          <p id="loanFilterEmpty" class="empty-state" hidden>No loan accounts match this filter.</p>
         </section>
       </div>
     </section>
@@ -7164,7 +7292,7 @@
         <label class="field-label" for="newCustomerAddress">Address <span class="optional-label">Optional</span></label>
         <input id="newCustomerAddress" name="address" type="text" maxlength="200" autocomplete="street-address" placeholder="Enter the recorded address">
         <label class="field-label" for="newCustomerMohalla">Mohalla / area <span class="optional-label">Optional</span></label>
-        <input id="newCustomerMohalla" name="mohalla" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
+        <input id="newCustomerMohalla" name="mohalla" type="text" list="mohallaOptions" maxlength="100" autocomplete="off" placeholder="Pick a mohalla or type a new one">
         <label class="field-label" for="newCustomerZone">Zone <span class="optional-label">Optional</span></label>
         <input id="newCustomerZone" name="zone" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
         <label class="field-label" for="newCustomerConnectionFee">Connection fee (PKR) <span class="optional-label">Optional · one-time fee taken at install</span></label>
@@ -7175,13 +7303,20 @@
         <input id="newCustomerRouterPrice" name="routerPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter only if charged">
         <label class="field-label" for="newCustomerFiberMeters">Fiber wire used (meters) <span class="optional-label">Optional · drop length at install</span></label>
         <input id="newCustomerFiberMeters" name="fiberMeters" type="number" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 85">
+        <label class="field-label" for="newCustomerSplitterBox">Splitter box <span class="optional-label">Optional · e.g. SPL-Barrian-02</span></label>
+        <input id="newCustomerSplitterBox" name="splitterBoxId" type="text" maxlength="100" autocomplete="off" placeholder="e.g. SPL-Barrian-02">
+        <label class="field-label" for="newCustomerSplitterPort">Splitter port <span class="optional-label">Optional · 1–16</span></label>
+        <input id="newCustomerSplitterPort" name="splitterPort" type="number" min="1" max="16" step="1" inputmode="numeric" placeholder="e.g. 4">
+        <label class="field-label" for="newCustomerOltPonPort">PON port <span class="optional-label">Optional · e.g. PON 1/2/3</span></label>
+        <input id="newCustomerOltPonPort" name="oltPonPort" type="text" maxlength="100" autocomplete="off" placeholder="e.g. PON 1/2/3">
+        <label class="field-label" for="newCustomerLastRxDbm">Last RX signal (dBm) <span class="optional-label">Optional · below −26.0 flags weak signal</span></label>
+        <input id="newCustomerLastRxDbm" name="lastRxDbm" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="e.g. -19.4">
         <label class="field-label" for="newCustomerMediaConverterCost">Media converter cost (PKR) <span class="optional-label">Optional · only if a converter was installed</span></label>
         <input id="newCustomerMediaConverterCost" name="mediaConverterCost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter only if used">
         <label class="field-label" for="newCustomerLinemanInstallFee">Lineman install fee (PKR) <span class="optional-label">Optional · paid to the installer</span></label>
         <input id="newCustomerLinemanInstallFee" name="linemanInstallFee" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Enter only if paid">
         <label class="field-label" for="newCustomerFiberPerMeterRate">Fiber rate per meter (PKR) <span class="optional-label">Optional · needed to price the fiber used</span></label>
-        <input id="newCustomerFiberPerMeterRate" name="fiberPerMeterRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 12">
-        <label class="field-label" for="newCustomerServiceStatus">Service status <span class="optional-label">Manual · change it any time in the profile</span></label>
+        <input id="newCustomerFiberPerMeterRate" name="fiberPerMeterRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 12">        <label class="field-label" for="newCustomerServiceStatus">Service status <span class="optional-label">Manual · change it any time in the profile</span></label>
         <select id="newCustomerServiceStatus" name="serviceStatus"><option value="active" selected>Active · connected</option><option value="offline">Offline</option><option value="not-set">Not set</option></select>
         <div id="addCustomerError" class="form-error" role="alert" hidden></div>
         <div class="modal-actions add-customer-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button" type="submit">Check and add customer</button></div>
@@ -7992,7 +8127,7 @@
               </div>
               <div class="wizard-form-group flex-1">
                 <label for="wizardMohallaInput" class="wizard-label">Mohalla / Block</label>
-                <input id="wizardMohallaInput" class="wizard-input" type="text" placeholder="e.g. Mohalla Farooqia">
+                <input id="wizardMohallaInput" class="wizard-input" type="text" list="mohallaOptions" placeholder="Pick a mohalla or type a new one">
               </div>
             </div>
             <div class="wizard-form-group">
@@ -20547,6 +20682,25 @@
     </div>
   </dialog>
 
+  <dialog id="splitterMapModal" class="billing-modal splitter-map-modal" aria-labelledby="splitterMapModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="splitterMapModalTitle">🔌 Splitter Port Map</h2>
+        <button id="splitterMapCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="splitter-map-intro">Which street PLC splitter box and port feeds each customer, and whether their optical RX signal is healthy. Below −26.0 dBm flags a high-loss attenuation warning.</p>
+        <label for="splitterMapBoxSelect">Splitter box</label>
+        <select id="splitterMapBoxSelect" class="form-input" aria-label="Splitter box"></select>
+        <p id="splitterMapSummaryLine" class="splitter-map-summary-line"></p>
+        <h3>Port map</h3>
+        <div id="splitterMapGrid" class="splitter-map-grid-wrap"></div>
+        <h3>Weak signals — check attenuation</h3>
+        <div id="splitterMapWeakList" class="splitter-map-weak-list"></div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="monthlyComplaintReportModal" class="billing-modal monthly-complaint-report-modal" aria-labelledby="monthlyComplaintReportModalTitle">
     <div class="modal-card">
       <header class="modal-header">
@@ -20580,6 +20734,27 @@
           <button id="monthlyReportCsvBtn" class="action-btn-sm daily-slip-btn" type="button">📄 Export CSV</button>
           <button id="monthlyReportCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy WhatsApp summary</button>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="ownerKhataModal" class="billing-modal owner-khata-modal" aria-labelledby="ownerKhataModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="ownerKhataModalTitle">📕 Owner Khata Closing</h2>
+        <button id="ownerKhataCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="owner-khata-intro">One monthly archive card: income, expenses, partner shares, and network reliability side by side. This report only summarizes the ledger — it never changes bills, payments, expenses, or customers.</p>
+        <label for="ownerKhataMonth">Month</label>
+        <input id="ownerKhataMonth" class="form-input" type="month" aria-label="Closing month">
+        <p id="ownerKhataSummaryLine" class="owner-khata-summary-line"></p>
+        <div id="ownerKhataBody" class="owner-khata-body"></div>
+        <label for="ownerKhataNote">Monthly closing note (saved permanently)</label>
+        <textarea id="ownerKhataNote" class="form-input" rows="3" aria-label="Monthly closing note" placeholder="e.g. NayaPay bill paid, shop cash handed over…"></textarea>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+          <button id="ownerKhataSaveNoteBtn" class="action-btn-sm daily-slip-btn" type="button">💾 Save note</button>
+          <button id="ownerKhataPrintBtn" class="action-btn-sm daily-slip-btn" type="button">🖨️ Print / Save PDF</button>
+          <button id="ownerKhataCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy WhatsApp summary</button>        </div>
       </div>
     </div>
   </dialog>
@@ -20740,6 +20915,7 @@
           <label for="saadVisitNote">Note (optional)</label>
           <input id="saadVisitNote" class="form-input" type="text" maxlength="200" aria-label="Visit note">
           <button class="action-btn-sm daily-slip-btn" type="submit">➕ Visit darj karein</button>
+          <button id="saadVisitCancelEditBtn" class="secondary-button" type="button" hidden>Cancel edit</button>
         </form>
         <h3>Record a payment to Saad</h3>
         <form id="saadPaymentForm" class="saad-visits-form">
@@ -20755,6 +20931,7 @@
           <label for="saadPaymentNote">Note (optional)</label>
           <input id="saadPaymentNote" class="form-input" type="text" maxlength="200" aria-label="Payment note">
           <button class="action-btn-sm daily-slip-btn" type="submit">➕ Payment darj karein</button>
+          <button id="saadPaymentCancelEditBtn" class="secondary-button" type="button" hidden>Cancel edit</button>
         </form>
         <h3>Visit log</h3>
         <div id="saadVisitsList" class="saad-visits-list"></div>
@@ -20811,6 +20988,7 @@
           <label for="installRequestReasonCustom">Delay reason — custom text (wins over the quick pick; please note it whenever install is later than request)</label>
           <input id="installRequestReasonCustom" class="form-input" type="text" maxlength="200" aria-label="Custom delay reason">
           <button class="action-btn-sm daily-slip-btn" type="submit">➕ Request darj karein</button>
+          <button id="installRequestCancelEditBtn" class="secondary-button" type="button" hidden>Cancel edit</button>
         </form>
         <h3>Mark a pending request installed</h3>
         <form id="installMarkForm" class="install-tracker-form">
@@ -20836,8 +21014,90 @@
       </div>
     </div>
   </dialog>
-  <dialog id="dailyClosingModal" class="billing-modal daily-closing-modal" aria-labelledby="dailyClosingModalTitle">
-    <div class="billing-modal-content">
+  <dialog id="pendingWorksModal" class="billing-modal pending-works-modal" aria-labelledby="pendingWorksModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="pendingWorksModalTitle">📌 Pending Works</h2>
+        <button id="pendingWorksCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="pending-works-intro">Jo kaam abhi pending hai — kisi ne koi waada kiya ho ya koi note darj karna ho — yahan likh dein. Threshold wali notes customer count poora hote hi khud DUE ho jayengi; jab kaam ho jaye to Done mark kar dein ya pending rakhein.</p>
+        <p id="pendingWorksCountNote" class="pending-works-count-note"></p>
+        <h3>Summary</h3>
+        <div id="pendingWorksSummary" class="pending-works-month-summary"></div>
+        <h3>Add a note</h3>
+        <form id="pendingWorksForm" class="pending-works-form">
+          <input id="pendingWorksEditId" type="hidden" value="">
+          <label for="pendingWorksNote">Note</label>
+          <textarea id="pendingWorksNote" class="form-input" rows="2" maxlength="300" required aria-label="Pending work note" placeholder="e.g. Nasir se splicing machine mangwani hai"></textarea>
+          <label for="pendingWorksSource">Source (optional — who said it)</label>
+          <input id="pendingWorksSource" class="form-input" type="text" maxlength="100" aria-label="Note source" placeholder="e.g. Nasir">
+          <label for="pendingWorksThreshold">Customer threshold (optional — due when customers reach this)</label>
+          <input id="pendingWorksThreshold" class="form-input" type="number" min="1" step="1" inputmode="numeric" aria-label="Customer threshold" placeholder="e.g. 100 (blank = plain note, never auto-due)">
+          <button id="pendingWorksSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit">➕ Note darj karein</button>
+          <button id="pendingWorksCancelEditBtn" class="secondary-button" type="button" hidden>Cancel edit</button>
+        </form>
+        <label for="pendingWorksFilter">Show</label>
+        <select id="pendingWorksFilter" class="form-input" aria-label="Filter pending works">
+          <option value="all">All</option>
+          <option value="due">Due now</option>
+          <option value="pending">Pending</option>
+          <option value="done">Done</option>
+        </select>
+        <h3>Notes</h3>
+        <div id="pendingWorksList" class="pending-works-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="hardwareRecoveryModal" class="billing-modal hardware-recovery-modal" aria-labelledby="hardwareRecoveryModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="hardwareRecoveryModalTitle">📦 Pending Hardware Recovery</h2>
+        <button id="hardwareRecoveryCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="hardware-recovery-intro">Disconnected customers (archived) holding ISP-owned hardware that has not come back yet. Mark each item recovered as it is collected from the house — a recovered item leaves this list for good.</p>
+        <div id="hardwareRecoveryList" class="hardware-recovery-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="walletLedgerModal" class="billing-modal wallet-ledger-modal" aria-labelledby="walletLedgerModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="walletLedgerModalTitle">💳 Digital Wallet Ledger</h2>
+        <button id="walletLedgerCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="wallet-ledger-intro">Monthly totals per wallet, duplicate transaction IDs flagged, and 1-tap verification against the owner's wallet statement. A duplicate TID warns before a second payment is logged — it never silently creates one.</p>
+        <label for="walletLedgerMonth">Month</label>
+        <input id="walletLedgerMonth" class="form-input" type="month" aria-label="Wallet ledger month">
+        <label for="walletLedgerMethodFilter">Wallet</label>
+        <select id="walletLedgerMethodFilter" class="form-input" aria-label="Filter by wallet">
+          <option value="All">All wallets</option>
+          <option value="Easypaisa">Easypaisa</option>
+          <option value="JazzCash">JazzCash</option>
+          <option value="NayaPay">NayaPay</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="Raast">Raast</option>
+        </select>
+        <label for="walletLedgerVerificationFilter">Verification</label>
+        <select id="walletLedgerVerificationFilter" class="form-input" aria-label="Filter by verification status">
+          <option value="All">All statuses</option>
+          <option value="Verified">Verified in Statement</option>
+          <option value="Pending">Pending Screenshot Verification</option>
+        </select>
+        <p id="walletLedgerSummaryLine" class="wallet-ledger-summary-line"></p>
+        <h3>Monthly breakdown</h3>
+        <div id="walletLedgerBreakdown" class="wallet-ledger-breakdown"></div>
+        <h3>Duplicate transaction IDs</h3>
+        <div id="walletLedgerDuplicates" class="wallet-ledger-duplicates"></div>
+        <h3>Digital payments</h3>
+        <div id="walletLedgerPaymentList" class="wallet-ledger-payment-list"></div>
+        <button id="walletLedgerCopyBtn" class="secondary-button" type="button">📋 Copy wallet summary</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="dailyClosingModal" class="billing-modal daily-closing-modal" aria-labelledby="dailyClosingModalTitle">    <div class="billing-modal-content">
       <header class="billing-modal-header">
         <div class="billing-modal-title-group">
           <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">DAILY REGISTER CLOSING &amp; TILL AUDIT</div>

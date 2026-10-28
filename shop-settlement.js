@@ -1,7 +1,8 @@
 /**
  * shop-settlement.js — SISP-1: Shop Collector Cash Handover & Settlement Ledger.
  *
- * Problem: customers pay "Cash at Waseem Abbasi shop" or "Cash at Hassan shop".
+ * Problem: customers pay "Cash at Waseem Abbasi shop", "Cash at Hassan shop"
+ * or "Cash at Balla shop".
  * The bill is marked paid, but nothing tracked how much unsettled cash sat at
  * each shop waiting to be handed over to the owner. This module is the ledger:
  * it derives shop collectors from recorded payment methods, aggregates unsettled
@@ -85,7 +86,7 @@ function escapeHtml(str) {
 
 /**
  * Resolves the shop collector for a payment from its method / paidBy strings.
- * Known shops first (Waseem Abbasi, Hassan — the app's PAYMENT_METHODS values),
+ * Known shops first (Waseem Abbasi, Hassan, Balla — the app's PAYMENT_METHODS values),
  * then any custom shop collector derived from the data itself: a method like
  * "Cash at <Name> shop" yields "<Name> Shop". Returns null for non-shop
  * payments (plain Cash, digital wallets, bank transfers, ...).
@@ -103,6 +104,7 @@ export function resolveShopCollector(method, paidBy = '') {
   const p = String(paidBy || '').toLowerCase();
   if (m.includes('waseem') || p.includes('waseem')) return 'Waseem Abbasi Shop';
   if (m.includes('hassan') || p.includes('hassan')) return 'Hassan Shop';
+  if (m.includes('balla') || p.includes('balla')) return 'Balla Shop';
   const custom = String(method || '').match(/cash\s+at\s+(.+?)\s+shop/i);
   if (custom) {
     const name = custom[1].trim();

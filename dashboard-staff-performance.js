@@ -120,6 +120,7 @@ export function resolveCollectorName(method, paidBy = '') {
   const m = String(method || '').toLowerCase();
   if (m.includes('waseem')) return 'Waseem Abbasi';
   if (m.includes('hassan')) return 'Hassan';
+  if (m.includes('balla')) return 'Balla';
   if (isPhysicalCashMethod(method)) return 'Direct / Counter Till';
   return 'Online / Digital Settlement';
 }

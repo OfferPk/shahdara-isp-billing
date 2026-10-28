@@ -13,7 +13,7 @@
 // the card + copyable link without a QR in that case.
 
 export const KHATA_APP_URL = 'https://offerpk.github.io/shahdara-isp-billing/';
-export const KHATA_PAYMENT_SHOPS = ['Waseem Abbasi Shop', 'Hassan Shop'];
+export const KHATA_PAYMENT_SHOPS = ['Waseem Abbasi Shop', 'Hassan Shop', 'Balla Shop'];
 export const KHATA_ISP_NAME = 'Shahdara ISP';
 export const QR_EC_LEVEL = 'M';
 export const QR_MAX_VERSION = 6;

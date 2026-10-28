@@ -37,6 +37,7 @@ test('Collector & Staff Performance - resolveCollectorName handles shop attribut
   assert.equal(resolveCollectorName('Cash', 'Umair Collector'), 'Umair Collector');
   assert.equal(resolveCollectorName('Cash at Waseem Abbasi shop'), 'Waseem Abbasi');
   assert.equal(resolveCollectorName('Cash at Hassan shop'), 'Hassan');
+  assert.equal(resolveCollectorName('Cash at Balla shop'), 'Balla');
   assert.equal(resolveCollectorName('Cash'), 'Direct / Counter Till');
   assert.equal(resolveCollectorName('Easypaisa'), 'Online / Digital Settlement');
   assert.equal(resolveCollectorName('JazzCash'), 'Online / Digital Settlement');

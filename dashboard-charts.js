@@ -22,6 +22,7 @@ export const METHOD_COLORS = {
   'Bank Transfer': '#2563eb',
   'Cash at Waseem Abbasi shop': '#d97706',
   'Cash at Hassan shop': '#7c3aed',
+  'Cash at Balla shop': '#0891b2',
   'Other': '#64748b'
 };
 

@@ -59,6 +59,8 @@ function fixture() {
 test('shop collector detection: known shops, custom shops, non-shop methods', () => {
   assert.equal(resolveShopCollector('Cash at Waseem Abbasi shop'), 'Waseem Abbasi Shop');
   assert.equal(resolveShopCollector('Cash at Hassan shop'), 'Hassan Shop');
+  assert.equal(resolveShopCollector('Cash at Balla shop'), 'Balla Shop');
+  assert.equal(resolveShopCollector('Cash', 'Balla'), 'Balla Shop');
   assert.equal(resolveShopCollector('Cash at New Town shop'), 'New Town Shop');
   assert.equal(resolveShopCollector('Cash', 'Waseem'), 'Waseem Abbasi Shop');
   assert.equal(resolveShopCollector('Cash'), null);
@@ -222,4 +224,18 @@ test('JSON backup carries shop settlements and restores them under safe-merge ru
   assert.equal(kept.counts.shopSettlementsRestored, 0);
   assert.equal(kept.shopSettlements, null);
   assert.ok(kept.conflicts.some((c) => c.field === 'Shop settlement records differ from this device'));
+});
+
+test('Balla Shop: a Rs. 2,000 Cash at Balla shop payment raises Balla unsettled by Rs. 2,000', () => {
+  const state = { customers: [customer('c1', 11, 'CH BILAL', [
+    bill('2026-10', [payment('p1', { date: '2026-10-06', amount: 2000, method: 'Cash at Balla shop' })])
+  ])] };
+  const summaries = buildShopSummaries(state, [], new Date(Date.UTC(2026, 9, 27, 7)));
+  assert.equal(summaries.length, 1);
+  assert.equal(summaries[0].shop, 'Balla Shop');
+  assert.equal(summaries[0].unsettled, 2000);
+  assert.equal(summaries[0].totalCollected, 2000);
+  assert.equal(summaries[0].collectedThisMonth, 2000);
+  assert.equal(summaries[0].receiptsSinceLastSettlement, 1);
+  assert.equal(summaries[0].lastHandoverDate, null);
 });

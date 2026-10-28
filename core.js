@@ -9,6 +9,7 @@ import { sanitizeInventory } from './inventory-book.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
+import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
@@ -126,6 +127,12 @@ export function readState(storage, key = STORAGE_KEY) {
       packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
       archived:customer.archived === true,
       archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
+      // SISP-8: vacation hold — corrupt values fall back to "no hold",
+      // so old saves load exactly as before.
+      paused:customer.paused === true,
+      pauseStartDate:validDateOrNull(customer.pauseStartDate),
+      autoResumeDate:validDateOrNull(customer.autoResumeDate),
+      pauseSkippedMonths:Array.isArray(customer.pauseSkippedMonths) ? [...new Set(customer.pauseSkippedMonths.filter((month) => validMonthString(month)))].sort() : [],
       bills,
       incidents:Array.isArray(customer.incidents) ? customer.incidents.map(incident => ({ ...incident, restoredAt:incident.restoredAt || null, note:incident.note ?? '', corrections:Array.isArray(incident.corrections) ? incident.corrections : [] })) : []
     };
@@ -190,9 +197,21 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
     const existingMonths = new Set(bills.map(bill => bill.month));
     const schedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
     const generated = [];
+    let skippedMonths = null;
     for (const month of months) {
       if (validMonthString(customer.billingStartMonth) && month < customer.billingStartMonth) continue;
       if (existingMonths.has(month)) continue;
+      // SISP-8: a billing-paused month gets no bill, and the month is
+      // recorded as skipped so it is never backfilled after resume —
+      // a frozen customer is never double-billed when service resumes.
+      if (isBillingPaused(customer, month)) {
+        const current = sanitizePauseFields(customer).pauseSkippedMonths;
+        if (!current.includes(month)) {
+          skippedMonths = skippedMonths ?? [...current];
+          if (!skippedMonths.includes(month)) skippedMonths.push(month);
+        }
+        continue;
+      }
       const applicable = schedule.filter(entry => typeof entry.effectiveMonth === 'string' && entry.effectiveMonth <= month).sort((a,b) => a.effectiveMonth.localeCompare(b.effectiveMonth)).at(-1);
       const amount = applicable?.amount;
       if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) continue;
@@ -200,9 +219,11 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
       generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:`${month}-05`, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
       existingMonths.add(month);
     }
-    if (!generated.length) return customer;
+    if (!generated.length && !skippedMonths) return customer;
     changed = true;
-    return { ...customer, bills:[...bills, ...generated].sort((a,b) => b.month.localeCompare(a.month)) };
+    const next = { ...customer, bills:[...bills, ...generated].sort((a,b) => b.month.localeCompare(a.month)) };
+    if (skippedMonths) next.pauseSkippedMonths = [...skippedMonths].sort();
+    return next;
   });
   return changed ? { ...state, customers } : state;
 }
@@ -229,7 +250,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [], installmentPlans: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -422,12 +443,17 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // which feeder zone (Side 1 to Side 4c) the drop belongs to. An unknown
     // zone value coerces to '' rather than blocking an unrelated save.
     upstreamCustomerId: cleanText(valueOrCurrent('upstreamCustomerId') ?? '', 100, 'Upstream customer'),
-    fiberZone: normalizeFiberZone(valueOrCurrent('fiberZone') ?? '')
+    fiberZone: normalizeFiberZone(valueOrCurrent('fiberZone') ?? ''),
+    paused: valueOrCurrent('paused') === true,
+    pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date'),
+    autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date')
   };
   // SISP-7: a feeder link must point at a real customer, never at itself,
   // and never close a cycle back to this customer.
   const feederLinkError = validateUpstreamLink(state.customers, customerId, fields.upstreamCustomerId);
   if (feederLinkError) throw new Error(feederLinkError);
+  const pauseError = validatePauseFields(fields);
+  if (pauseError) throw new Error(pauseError);
   // Customer rename: only when the caller explicitly passes a name (the
   // profile header's Edit name editor and the profile form). The name is
   // the one field that may never be blanked — every list, bill and receipt
@@ -469,7 +495,14 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     const effectiveMonth = currentBillExists ? nextMonthKey(currentMonth) : currentMonth;
     monthlyPriceSchedule = [...monthlyPriceSchedule.filter(entry => entry.effectiveMonth !== effectiveMonth), { amount:nextPrice, effectiveMonth, recordedAt:localDateTimeValue(referenceDate) }];
   }
-  return { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, ...fields, monthlyPriceSchedule, packageHistory } : c) };
+  // SISP-8: manual resume finalizes the hold — months inside the hold
+  // that never got a bill are recorded as skipped, so the auto-generator
+  // never backfills them after resume.
+  let pauseSkippedMonths = Array.isArray(current.pauseSkippedMonths) ? [...current.pauseSkippedMonths] : [];
+  if (current.paused === true && fields.paused === false) {
+    pauseSkippedMonths = pauseSkippedMonthsOnResume(current, monthKey(referenceDate));
+  }
+  return { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, ...fields, monthlyPriceSchedule, packageHistory, pauseSkippedMonths } : c) };
 }
 
 function validateIncident(fields) {
@@ -1679,7 +1712,15 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate']) mergeField(customer, backupCustomer, key, backupCustomer);
+    // SISP-8: skipped months merge by union (a skipped month only ever
+    // means "never backfill this month") — never a conflict, never lost.
+    {
+      const localSkipped = Array.isArray(customer.pauseSkippedMonths) ? customer.pauseSkippedMonths : [];
+      const incomingSkipped = Array.isArray(backupCustomer.pauseSkippedMonths) ? backupCustomer.pauseSkippedMonths : [];
+      const merged = [...new Set([...localSkipped, ...incomingSkipped].filter((month) => validMonthString(month)))].sort();
+      if (!sameJson(localSkipped, merged)) { customer.pauseSkippedMonths = merged; counts.changes++; }
+    }
     // SISP-4: installment plans merge by plan id (not a plain field fill):
     // a missing plan is adopted, and when both sides hold the same plan
     // the further-billed copy wins — plan progress only ever moves

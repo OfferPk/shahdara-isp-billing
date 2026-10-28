@@ -16,6 +16,11 @@
  *    - pending: balance > 0 and no payment/credit applied
  *    - not-set: unpriced / unconfigured bill
  * 6. Archived customers: Never receive new bills during archive period.
+ * 7. Vacation hold (SISP-8): Billing-paused months generate no new
+ *    charges; a generated bill created after the hold started is flagged.
+ *    Skipped months are recorded and never backfilled after resume.
+ * 8. Pro-rata history (SISP-8): Saved pro-rata adjustments recompute
+ *    from their own date and rates via calculatePlanMigrationProration.
  */
 
 import {
@@ -25,6 +30,8 @@ import {
   monthsForHistory,
   PAYMENT_METHODS
 } from './core.js';
+import { calculatePlanMigrationProration } from './form-validation.js';
+import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 
 const monthKey = (date = new Date()) => {
   const d = new Date(date);
@@ -66,7 +73,9 @@ export const AUDIT_RULE_CODES = Object.freeze({
   UNKNOWN_PAYMENT_METHOD: 'UNKNOWN_PAYMENT_METHOD',
   STATUS_DERIVATION_MISMATCH: 'STATUS_DERIVATION_MISMATCH',
   NEGATIVE_BALANCE_DETECTED: 'NEGATIVE_BALANCE_DETECTED',
-  ACTIVE_PREPAID_CREDIT: 'ACTIVE_PREPAID_CREDIT'
+  ACTIVE_PREPAID_CREDIT: 'ACTIVE_PREPAID_CREDIT',
+  BILL_DURING_PAUSE: 'BILL_DURING_PAUSE',
+  PRORATA_HISTORY_MISMATCH: 'PRORATA_HISTORY_MISMATCH'
 });
 
 /**
@@ -204,6 +213,29 @@ export function auditBillingCorrectness(state, referenceDate = new Date()) {
           message: `Bill generated for ${month} which is after customer was archived (${archiveMonth}).`,
           suggestion: 'Archived accounts should not receive new automatic monthly bills.'
         });
+      }
+
+      // SISP-8: a bill created by an automatic path (generated) for a
+      // billing-paused month, created after the hold started, is a
+      // generator leak. Bills created BEFORE the hold are legitimate,
+      // and operator manual bills (generated: false) are never flagged.
+      {
+        const pauseStartDate = sanitizePauseFields(customer).pauseStartDate;
+        const createdDate = typeof bill.createdAt === 'string' ? bill.createdAt.slice(0, 10) : '';
+        if (bill.generated === true && pauseStartDate && createdDate && createdDate >= pauseStartDate && isBillingPaused(customer, month)) {
+          customerHasDiscrepancy = true;
+          discrepancies.push({
+            id: `disc-pause-${customerId}-${month}`,
+            ruleId: AUDIT_RULE_CODES.BILL_DURING_PAUSE,
+            severity: AUDIT_SEVERITY.WARNING,
+            customerId,
+            customerNumber,
+            customerName,
+            month,
+            message: `Automatic bill for ${month} was created during a vacation hold that started ${pauseStartDate}.`,
+            suggestion: 'Paused months must generate no new charges; delete the leaked bill or clear the hold if the pause was recorded by mistake.'
+          });
+        }
       }
 
       // Check Unpriced rule
@@ -402,6 +434,40 @@ export function auditBillingCorrectness(state, referenceDate = new Date()) {
         status: derivedStatus,
         paymentCount: payments.length
       });
+    }
+
+    // SISP-8: pro-rata history consistency — a package-history entry that
+    // carries a saved pro-rata adjustment must recompute to the same
+    // numbers from its own date and rates (Rs. 1 rounding tolerance).
+    // Entries without saved pro-rata fields (plain package changes) are
+    // not checked; the calculator charges by actual days-in-month, not
+    // the spec's /30 shorthand, and the check uses the same function.
+    for (const entry of (Array.isArray(customer.packageHistory) ? customer.packageHistory : [])) {
+      const savedAdjustment = entry?.proRataAdjustment;
+      const savedBill = entry?.proRatedBillAmount;
+      const oldRate = entry?.oldMonthlyRate;
+      const newRate = entry?.newMonthlyRate;
+      if (savedAdjustment === null || savedAdjustment === undefined || savedBill === null || savedBill === undefined) continue;
+      if (!Number.isFinite(Number(oldRate)) || !Number.isFinite(Number(newRate))) continue;
+      if (typeof entry?.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date)) continue;
+      let recomputed = null;
+      try { recomputed = calculatePlanMigrationProration(oldRate, newRate, entry.date); } catch { recomputed = null; }
+      if (!recomputed) continue;
+      const adjustmentDiff = Math.abs(Number(savedAdjustment) - Number(recomputed.netAdjustment));
+      const billDiff = Math.abs(Number(savedBill) - Number(recomputed.proRatedCurrentBill));
+      if (adjustmentDiff > 1 || billDiff > 1) {
+        discrepancies.push({
+          id: `disc-prorata-${customerId}-${entry.date}`,
+          ruleId: AUDIT_RULE_CODES.PRORATA_HISTORY_MISMATCH,
+          severity: AUDIT_SEVERITY.WARNING,
+          customerId,
+          customerNumber,
+          customerName,
+          month: entry.date.slice(0, 7),
+          message: `Pro-rata history entry for ${entry.date} (${entry.oldPackage || 'old'} → ${entry.newPackage || 'new'}) does not recompute: saved adjustment PKR ${Number(savedAdjustment).toLocaleString()} / bill PKR ${Number(savedBill).toLocaleString()}, recomputed PKR ${Number(recomputed.netAdjustment).toLocaleString()} / PKR ${Number(recomputed.proRatedCurrentBill).toLocaleString()}.`,
+          suggestion: 'The saved pro-rata adjustment no longer matches the package-change calculator; re-check the package change for that date.'
+        });
+      }
     }
 
     if (!customerHasDiscrepancy) {

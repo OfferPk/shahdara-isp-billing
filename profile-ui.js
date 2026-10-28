@@ -1,5 +1,6 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
 import { arrearsBreakdownTextLines } from './billing-cycle.js';
+import { pauseStatusLabel, sanitizePauseFields } from './pause-billing.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -194,4 +195,28 @@ export function resolveReceiptWhatsAppAction(customer, receipt) {
     customerNumber:customer.customerNumber
   });
   return draft ? { type:'draft', draft } : { type:'unavailable', reason:'invalid-receipt' };
+}
+
+// SISP-8: vacation-hold summary for the profile view (Service group row)
+// and the profile header badge. Reads only the stored hold fields — it
+// never decides billing; isBillingPaused in pause-billing.js does that.
+export function pauseBillingSummary(customer) {
+  const { paused, pauseStartDate, autoResumeDate, pauseSkippedMonths } = sanitizePauseFields(customer);
+  const active = paused === true && pauseStartDate !== null;
+  const skippedNote = pauseSkippedMonths.length > 0
+    ? ` · ${pauseSkippedMonths.length} skipped month${pauseSkippedMonths.length === 1 ? '' : 's'} never billed`
+    : '';
+  return {
+    active,
+    paused,
+    pauseStartDate,
+    autoResumeDate,
+    pauseSkippedMonths,
+    label: pauseStatusLabel(customer),
+    detail: active
+      ? `${pauseStatusLabel(customer)}. No new monthly charges are generated while paused; any unpaid balance stays due.${skippedNote}`
+      : (pauseSkippedMonths.length > 0
+        ? `Not paused.${skippedNote} — those months stay unbilled.`
+        : 'Not paused')
+  };
 }

@@ -250,7 +250,7 @@ export function findCandidateBillMonth(customer, dateStr, referenceDate = new Da
   const sortedBills = [...customer.bills].sort((a, b) => a.month.localeCompare(b.month));
   for (const b of sortedBills) {
     const due = Number(b.dueAmount || 0);
-    const paid = (b.payments ?? []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const paid = (b.payments ?? []).filter((p) => p?.voided !== true).reduce((sum, p) => sum + Number(p.amount || 0), 0);
     if (due > paid || b.status === 'pending') {
       return b.month;
     }

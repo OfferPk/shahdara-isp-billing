@@ -230,6 +230,8 @@ export function calculatePaymentMethodBreakdown(state, referenceDate = new Date(
   let digitalTotal = 0;
 
   for (const t of txs) {
+    // SISP-34: voided receipts are history, not collected cash.
+    if (t?.voided === true) continue;
     const rawMethod = t.method && String(t.method).trim() ? String(t.method).trim() : 'Unspecified';
     const amount = Number(t.amount) || 0;
     if (amount <= 0) continue;

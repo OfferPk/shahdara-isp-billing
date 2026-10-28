@@ -137,6 +137,9 @@ export function collectShopPayments(state) {
       if (!bill || typeof bill !== 'object') continue;
       for (const payment of (Array.isArray(bill.payments) ? bill.payments : [])) {
         if (!payment || typeof payment !== 'object') continue;
+        // SISP-34: voided receipts are history, not shop cash — a voided
+        // shop receipt drops out of unsettled cash entirely.
+        if (payment.voided === true) continue;
         const shop = resolveShopCollector(payment.method, payment.paidBy);
         if (!shop) continue;
         const amount = moneyValue(payment.amount);

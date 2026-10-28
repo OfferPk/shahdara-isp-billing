@@ -40,7 +40,7 @@ export function currentBillPresentation(customer, month, allocations) {
   const status = derivedBillStatus(customer, bill, allocations);
   const summary = allocations?.forMonth?.(customer?.id, month);
   const balanceDueCents = summary?.balanceDueCents ?? null;
-  const receivedAmount = bill ? (bill.payments ?? []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0) : 0;
+  const receivedAmount = bill ? (bill.payments ?? []).filter((payment) => payment?.voided !== true).reduce((sum, payment) => sum + Number(payment.amount || 0), 0) : 0;
   const statusPresentation = BILL_STATUS[status] ?? BILL_STATUS['not-set'];
 
   return {

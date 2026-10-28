@@ -8,7 +8,7 @@
  * sending. Rendering never leaves an "undefined" or a raw {placeholder} in
  * the outgoing text: unknown or missing values render as an empty string.
  */
-import { displayCustomerName } from './urdu-names.js';
+import { displayCustomerName, bilingualCustomerName } from './urdu-names.js';
 
 /* This module imports nothing from core.js on purpose: core.js imports
  * whatsapp-templates.js for the backup sanitizer (see createJsonBackup).
@@ -42,7 +42,7 @@ export const WA_TEMPLATE_DESCRIPTIONS = Object.freeze({
 });
 
 /** Placeholders every template may use. */
-export const WA_PLACEHOLDER_KEYS = Object.freeze(['name', 'urduName', 'connectionId', 'package', 'totalDue', 'waadaDate']);
+export const WA_PLACEHOLDER_KEYS = Object.freeze(['name', 'urduName', 'connectionId', 'package', 'totalDue', 'waadaDate', 'bilingualName']);
 
 const text = value => typeof value === 'string' ? value : '';
 
@@ -51,27 +51,27 @@ export const DEFAULT_WA_TEMPLATES = Object.freeze([
   {
     id: 'billGenerated',
     roman: 'Assalam-o-Alaikum {name}, aap ka {package} ka bill ban gaya hai. Total due: {totalDue}. Shukriya — Shahdara Fiber Net.',
-    urdu: 'السلام علیکم {urduName}، آپ کا {package} کا بل بن گیا ہے۔ کل واجب الادا: {totalDue}۔ شکریہ — شاہدرہ فائبر نیٹ۔'
+    urdu: 'السلام علیکم {bilingualName}، آپ کا {package} کا بل بن گیا ہے۔ کل واجب الادا: {totalDue}۔ شکریہ — شاہدرہ فائبر نیٹ۔'
   },
   {
     id: 'politeReminder',
     roman: 'Assalam-o-Alaikum {name}, yaad dehani: aap ke {package} ka bill {totalDue} baaqi hai. Baraye meherbani 5 tareekh tak ada farma dein. Shukriya!',
-    urdu: 'السلام علیکم {urduName}، یاد دہانی: آپ کے {package} کا بل {totalDue} باقی ہے۔ برائے مہربانی 5 تاریخ تک ادا فرما دیں۔ شکریہ!'
+    urdu: 'السلام علیکم {bilingualName}، یاد دہانی: آپ کے {package} کا بل {totalDue} باقی ہے۔ برائے مہربانی 5 تاریخ تک ادا فرما دیں۔ شکریہ!'
   },
   {
     id: 'brokenWaada',
     roman: 'Assalam-o-Alaikum {name}, aap ne {waadaDate} tak adaigi ka waada kiya tha jo poora na ho saka. Baqaya {totalDue} hai — baraye meherbani jald ada farma dein.',
-    urdu: 'السلام علیکم {urduName}، آپ نے {waadaDate} تک ادائیگی کا وعدہ کیا تھا جو پورا نہ ہو سکا۔ بقایا {totalDue} ہے — برائے مہربانی جلد ادا فرما دیں۔'
+    urdu: 'السلام علیکم {bilingualName}، آپ نے {waadaDate} تک ادائیگی کا وعدہ کیا تھا جو پورا نہ ہو سکا۔ بقایا {totalDue} ہے — برائے مہربانی جلد ادا فرما دیں۔'
   },
   {
     id: 'outageNotice',
     roman: 'Assalam-o-Alaikum {name}, {package} service mein khalal ki ittila hai. Hamari team kaam kar rahi hai, jald bahaal ho jayegi. Takleef ke liye mazrat.',
-    urdu: 'السلام علیکم {urduName}، {package} سروس میں خلل کی اطلاع ہے۔ ہماری ٹیم کام کر رہی ہے، جلد بحال ہو جائے گی۔ تکلیف کے لیے معذرت۔'
+    urdu: 'السلام علیکم {bilingualName}، {package} سروس میں خلل کی اطلاع ہے۔ ہماری ٹیم کام کر رہی ہے، جلد بحال ہو جائے گی۔ تکلیف کے لیے معذرت۔'
   },
   {
     id: 'paymentReceived',
     roman: 'Assalam-o-Alaikum {name}, aap ki adaigi {totalDue} moosool ho gayi hai. Shukriya!',
-    urdu: 'السلام علیکم {urduName}، آپ کی ادائیگی {totalDue} موصول ہو گئی ہے۔ شکریہ!'
+    urdu: 'السلام علیکم {bilingualName}، آپ کی ادائیگی {totalDue} موصول ہو گئی ہے۔ شکریہ!'
   }
 ]);
 
@@ -145,6 +145,10 @@ export function resolveWaTemplateValues(customer, extras = {}) {
   return {
     name: text(customer?.name).trim(),
     urduName: displayCustomerName(customer ?? {}, 'ur'),
+    // SISP-26: bilingual "Urdu (Roman)" name for Urdu-variant drafts. The
+    // plain {urduName} placeholder keeps its old meaning (Urdu display name
+    // only) so saved custom templates keep working unchanged.
+    bilingualName: bilingualCustomerName(customer ?? {}),
     connectionId: String(customer?.connectionId ?? customer?.customerNumber ?? '').trim(),
     package: text(customer?.packageSpeed).trim() || text(extras.package).trim(),
     totalDue,

@@ -2,6 +2,7 @@ import { calculatePaymentAllocations } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown } from './billing-cycle.js';
 import { kistLineLabel } from './installment-plan.js';
+import { urduNameFor } from './urdu-names.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -98,6 +99,9 @@ export function buildPaymentReceipt(customer, bill, payment) {
 
   return {
     customerName:text(customer.name),
+    // SISP-26: Urdu-script name for the bilingual receipt header ('' when
+    // no override/transliteration exists — the header then shows Roman only).
+    customerNameUrdu:urduNameFor(customer),
     customerId:Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
     paymentDate:validStoredDate(payment.date),
     transactionId,
@@ -166,6 +170,14 @@ export function generatePaymentReceiptHtml(receipt, {
 } = {}) {
   if (!receipt) return '';
 
+  // SISP-26 bilingual receipt name header: "Urdu name (Roman name)" when an
+  // Urdu rendering exists and differs from the Roman name, else Roman only.
+  // Receipts built before this field existed (no customerNameUrdu key) render
+  // Roman only — the header never drops the saved Roman name.
+  const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
+    ? `${receipt.customerNameUrdu} (${receipt.customerName})`
+    : receipt.customerName;
+
   const formatAmount = (val) => {
     if (val === null || val === undefined || val === '') return 'PKR 0';
     const num = Number(val);
@@ -189,7 +201,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <dl class="receipt-fields">
     <div class="receipt-field"><dt>Date / تاریخ:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
     <div class="receipt-field"><dt>Cust ID / کھاتہ:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
-    <div class="receipt-field"><dt>Name / صارف:</dt><dd>${escapeHtml(receipt.customerName)}</dd></div>
+    <div class="receipt-field"><dt>Name / صارف:</dt><dd>${escapeHtml(displayName)}</dd></div>
     <div class="receipt-field"><dt>Package / پیکیج:</dt><dd>${escapeHtml(receipt.package)}</dd></div>
     <div class="receipt-field"><dt>Month / بل ماہ:</dt><dd>${escapeHtml(receipt.servicePeriodStart ? receipt.servicePeriodStart.slice(0, 7) : '')}</dd></div>
     <div class="receipt-field"><dt>Method / طریقہ:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
@@ -223,7 +235,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <dl class="receipt-fields">
     <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
     <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
-    <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(receipt.customerName)}</dd></div>
+    <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
     <div class="receipt-field"><dt>Package / پیکیج پلان:</dt><dd>${escapeHtml(receipt.package)}${receipt.speedMbps ? ` (${receipt.speedMbps} Mbps)` : ''}</dd></div>
     <div class="receipt-field"><dt>Billing Month / بل کا مہینہ:</dt><dd>${escapeHtml(receipt.servicePeriodStart ? receipt.servicePeriodStart.slice(0, 7) : '')}</dd></div>
     <div class="receipt-field"><dt>Payment Method / طریقہ کار:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
@@ -252,7 +264,7 @@ export function generatePaymentReceiptHtml(receipt, {
   // Default: A4 Layout
   const fields = [
     ['Receipt Number / رسید نمبر', receipt.receiptNumber],
-    ['Customer Name / صارف کا نام', receipt.customerName],
+    ['Customer Name / صارف کا نام', displayName],
     ['Account / Customer ID', receipt.customerId ? `#${receipt.customerId}` : ''],
     ['Payment Date / تاریخ ادائیگی', receipt.paymentDate],
     ['Transaction ID', receipt.transactionId],

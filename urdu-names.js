@@ -105,6 +105,27 @@ export function displayCustomerName(customer, lang) {
   return transliterateRomanToUrdu(roman) || roman;
 }
 
+// The customer's Urdu-script name WITHOUT a Roman fallback: the manual
+// nameUrdu override wins, else the rule-based transliteration, else ''.
+// Callers that must always show a name use displayCustomerName instead;
+// callers that show both scripts (SISP-26 bilingual headers) use this plus
+// bilingualCustomerName below, so a missing Urdu rendering never invents one.
+export function urduNameFor(customer) {
+  const override = String(customer?.nameUrdu ?? '').trim();
+  if (override) return override;
+  return transliterateRomanToUrdu(customer?.name ?? '');
+}
+
+// SISP-26 bilingual header: "Urdu name (Roman name)" when an Urdu rendering
+// exists and differs from the saved Roman name, else the Roman name alone.
+// The Roman name is never dropped, so records always match the saved name.
+export function bilingualCustomerName(customer) {
+  const roman = String(customer?.name ?? '').trim();
+  const urdu = urduNameFor(customer);
+  if (urdu && urdu !== roman) return `${urdu} (${roman})`;
+  return roman;
+}
+
 // Reads the app's current language without depending on one accessor: the
 // language controller (getCurrentLanguage, else getLanguage), then the
 // document language. Safe to call in node (no window) — returns 'en'.

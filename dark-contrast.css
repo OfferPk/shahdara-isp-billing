@@ -161,3 +161,26 @@
 [data-theme="dark"] .business-health-factor p,
 [data-theme="dark"] .business-health-empty { color: var(--dk-muted) !important; }
 [data-theme="dark"] .business-health-next-step { color: var(--dk-accent) !important; }
+
+/* Customer 360 stats section: the section container kept its light gradient
+   background in dark mode while the stat cards inside had already switched
+   to the dark surfaces above — dark cards floating on a white page. The
+   receipt-month rows had the same leak (rgba white background, dark text).
+   Give the container and rows the dark surfaces. */
+[data-theme="dark"] .customer-receipt-summary {
+  background: var(--dk-surface) !important;
+  background-image: none !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .receipt-month-row {
+  background: var(--dk-surface-2) !important;
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .receipt-month-row > span,
+[data-theme="dark"] .receipt-month-row small,
+[data-theme="dark"] .receipt-month-empty {
+  color: var(--dk-muted) !important;
+}
+[data-theme="dark"] .receipt-month-row strong {
+  color: var(--dk-ink) !important;
+}

@@ -941,6 +941,20 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   border-radius: 16px;
   background: linear-gradient(145deg, #f2faf6 0%, #fff 82%);
 }
+.profile-summary-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.profile-summary-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+.profile-summary-edit-btn { flex: none; }
 .profile-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

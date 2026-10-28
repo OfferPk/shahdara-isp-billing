@@ -1466,6 +1466,15 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .area-intel-section .area-intel-section{margin-left:10px;padding-left:10px;border-left:2px solid var(--line,#dfe9e4);border-top:0;padding-top:0}
 .area-intel-no-zone{margin:8px 0 0;color:var(--muted,#60756c);font-size:11px}
 @media(max-width:700px){.area-intelligence-card .table-scroll{display:none}.area-intelligence-cards{display:grid;gap:12px}}
+/* Narrow-screen card layout for the Area & zone service summary table, same
+   pattern as the Area Intelligence cards above: the wide table is kept for
+   desktop; at <=700px the table hides and one card per area/mohalla/zone row
+   renders instead, so every column shows as a labeled line with its full
+   amount and no horizontal scroll is needed. Card internals reuse the
+   .area-intel-card classes, so the same --surface/--ink/--muted/--line theme
+   tokens keep both light and dark themes readable. */
+.area-summary-cards{display:none}
+@media(max-width:700px){.area-summary-card .table-scroll{display:none}.area-summary-cards{display:grid;gap:12px}}
 .chart-bar-negative{fill:#cf685b}.category-chart-svg{min-height:130px}
 @media(max-width:700px){.analytics-range-controls{grid-template-columns:1fr;gap:8px}.area-intel-chart-grid{grid-template-columns:1fr}.area-intel-chart-grid .chart-card:last-child{grid-column:auto}.area-intelligence-table{min-width:1060px}}
 @media(max-width:360px){.analytics-range-controls label{font-size:12px}.analytics-range-controls input,.analytics-range-controls select{font-size:16px;min-height:44px}}

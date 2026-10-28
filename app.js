@@ -13,7 +13,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards
 } from './phase3.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.10.0';
@@ -4660,6 +4660,9 @@ function renderAreaIntelligenceCardsHtml(areaRows) {
     return `<article class="area-intel-card"><header class="area-intel-card-header"><span class="area-intel-level">${phase3Cell(rootLevel)}</span><h4>${rootName}</h4></header>${rootBody}${areaIntelNoZoneNote(group.orphanWithoutZoneCustomers)}${group.children.map(areaIntelCardSection).join('')}</article>`;
   }).join('');
 }
+function renderAreaSummaryCardsHtml(cards) {
+  return (cards ?? []).map(card => `<article class="area-intel-card"><header class="area-intel-card-header"><span class="area-intel-level">${phase3Cell(card.level)}</span><h4>${phase3Cell(card.label)}</h4></header><p class="area-intel-no-zone">${phase3Cell(card.context)}</p><div class="area-intel-metrics">${card.metrics.map(metric => `<div class="area-intel-metric"><span>${phase3Cell(metric.label)}</span><strong>${phase3Cell(metric.value)}</strong></div>`).join('')}</div></article>`).join('');
+}
 function renderAreaIntelligence() {
   const from=$('#areaIntelFrom')?.value,to=$('#areaIntelTo')?.value,table=$('#areaIntelligenceTable');if(!table)return;
   const areaChart=$('#areaRevenueChart'),zoneChart=$('#areaZoneRevenueChart'),packageChart=$('#packageRevenueChart'),basis=$('#areaIntelBasis');
@@ -4826,6 +4829,7 @@ function renderAnalytics() {
     const context=row.parentArea?` within ${row.parentArea}`:' roll-up';
     return `<tr class="summary-row summary-row-${row.level}"><th scope="row" aria-label="${phase3Cell(`${row.area}${context}`)}">${location}<span class="sr-only">${phase3Cell(context)}</span></th><td>${row.customerCount}</td><td>${row.activeCustomers}</td><td>${row.hasBilledRevenue?phase3Cell(formatAmount(row.billedRevenue)):'No bill snapshots'}</td><td>${row.hasBillHistory?phase3Cell(formatAmount(row.outstanding)):'No bill entries'}</td><td>${row.excludedSubscriptions}</td><td>${row.onlinePercent===null?`Not set (${row.online}/${row.onlineDenominator})`:`${row.onlinePercent}% (${row.online}/${row.onlineDenominator})`}</td><td>${row.complaints}</td><td>${data.hasConnectionDates?row.newConnections:'Not set'}</td><td>${row.arpu===null?'Not set':`<strong class="summary-arpu">${phase3Cell(formatAmount(row.arpu))}</strong>`}</td></tr>`;
   }).join('');
+  const summaryCards=$('#areaSummaryCards'); if(summaryCards)summaryCards.innerHTML=renderAreaSummaryCardsHtml(buildAreaSummaryCards(data.areaRows,data.hasConnectionDates,formatAmount));
   const namedAreas=data.areaRows.some(row=>row.level==='area');
   $('#areaSummaryEmpty').hidden=namedAreas;
   const unassigned=data.unassignedArea;

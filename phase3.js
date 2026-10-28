@@ -546,6 +546,33 @@ export function groupAreaIntelligenceCards(rows) {
   return groups;
 }
 
+/** Area-summary phone cards: one card per area/mohalla/zone row, with every
+ *  summary-table column as a labeled line. The values reuse the table's exact
+ *  display strings (same fallbacks, same formatter passed in by the caller),
+ *  so a card can never disagree with its table row; only the layout changes.
+ *  The first column (area / mohalla / zone) becomes the card header, the other
+ *  nine columns become labeled metric lines, in table order. Input rows are
+ *  never mutated. */
+export function buildAreaSummaryCards(rows, hasConnectionDates, formatAmount) {
+  const format = typeof formatAmount === 'function' ? formatAmount : value => String(value ?? '');
+  return (rows ?? []).map(row => {
+    const level = row.level === 'mohalla' ? 'Mohalla' : row.level === 'zone' ? 'Zone' : 'Area';
+    const label = row.area === 'Zone not set' ? 'Not set' : String(row.area ?? '').replace(/^(?:Area|Mohalla|Zone):\s*/, '');
+    const context = row.parentArea ? `Within ${String(row.parentArea).replace(/^(?:Area|Mohalla|Zone):\s*/, '')}` : 'Area roll-up';
+    return { level, label, context, metrics: [
+      { label: 'Profiles', value: String(row.customerCount ?? 0) },
+      { label: 'Active configured subscriptions', value: String(row.activeCustomers ?? 0) },
+      { label: 'Service-month billed', value: row.hasBilledRevenue ? format(row.billedRevenue) : 'No bill snapshots' },
+      { label: 'Outstanding', value: row.hasBillHistory ? format(row.outstanding) : 'No bill entries' },
+      { label: 'Excluded from ARPU', value: String(row.excludedSubscriptions ?? 0) },
+      { label: 'Online % (n/N)', value: row.onlinePercent === null || row.onlinePercent === undefined ? `Not set (${row.online ?? 0}/${row.onlineDenominator ?? 0})` : `${row.onlinePercent}% (${row.online ?? 0}/${row.onlineDenominator ?? 0})` },
+      { label: 'Incidents', value: String(row.complaints ?? 0) },
+      { label: 'New connections', value: hasConnectionDates ? String(row.newConnections ?? 0) : 'Not set' },
+      { label: 'ARPU · billed / active', value: row.arpu === null || row.arpu === undefined ? 'Not set' : format(row.arpu) },
+    ] };
+  });
+}
+
 /** Group saved service-month bill snapshots by recorded package labels for a date range. */
 export function buildPackageRevenue(state,{startDate,endDate},referenceDate=new Date()) {
   const range=rangeMonths(startDate,endDate),today=pktDate(referenceDate);

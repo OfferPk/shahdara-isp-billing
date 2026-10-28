@@ -30,6 +30,18 @@
  * the WA Receipt link appears immediately. No confirmation dialog sits in
  * between: that is what "1-tap" means here.
  *
+ * SISP-31 (Field Collection Mode 2.0) adds, without touching the SISP-5
+ * collection path above: (1) bilingual instant search — the pending list
+ * is filtered locally by filterFieldModeEntries(), matching Roman fields
+ * plus customer.nameUrdu and the urdu-names.js transliteration, so an Urdu
+ * query and its Roman equivalent return the same card; (2) a 1-tap
+ * 58mm Slip button on the receipt card that calls the host's onPrint58mm
+ * callback (the app wires it to the EXISTING printPaymentReceipt
+ * format 'thermal-58' path — no second printer); (3) a live
+ * "Collected Today in <zone>" pill (houses + cash, derived from today's
+ * recorded payments) rendered under the zone target line on every render,
+ * so it updates immediately after a collection.
+ *
  * Pure helpers are DOM-free and unit-tested; setupFieldMode() is the DOM
  * controller (returns a no-op controller outside a browser, mirroring
  * setupQuickCollectModal's fallback).
@@ -43,6 +55,7 @@ import {
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR } from './core.js';
 import { canonicalLocation } from './phase3.js';
+import { transliterateRomanToUrdu } from './urdu-names.js';
 import {
   computeWaadaChipDate,
   getWaadaTodayString,
@@ -125,6 +138,117 @@ export function fieldModeZoneSummary(entries) {
     count: list.length,
     totalDues: Math.round(list.reduce((sum, e) => sum + Number(e.totalDues ?? 0), 0) * 100) / 100
   };
+}
+
+// ============================================================================
+// SISP-31: bilingual search + zone "Collected Today" counter
+// ============================================================================
+
+/**
+ * Normalizes Urdu-script text for substring matching: NFKC, then folds the
+ * Arabic-script variants a phone keyboard may produce into the forms the
+ * urdu-names.js transliterator emits (Arabic Yeh ي -> Urdu Yeh ی, Arabic
+ * Kaf ك -> Urdu Kaf ک), and strips harakat, tatweel and zero-width joiners
+ * so "راجہ" matches whether or not the user typed diacritics. Whitespace
+ * is collapsed but kept: multi-word names still match word by word.
+ */
+export function normalizeUrduText(value) {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .replace(/[\u064A\u06CC]/g, '\u06CC')
+    .replace(/[\u0643\u06A9]/g, '\u06A9')
+    .replace(/[\u064B-\u0652\u0670\u0640\u200C\u200D]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function hasUrduScript(text) {
+  return /[\u0600-\u06FF]/.test(String(text ?? ''));
+}
+
+/**
+ * SISP-31 bilingual match for one pending entry. The Roman path is EXACTLY
+ * the Quick Collect matcher's fields (name, customer number with/without
+ * '#', phone, area, mohalla, address) so no Roman search regresses. The
+ * Urdu path additionally matches:
+ *   - the customer's saved nameUrdu override, and
+ *   - the urdu-names.js transliteration of the Roman name, area and
+ *     mohalla — so typing راجہ finds RAJA FAISAL even when no nameUrdu
+ *     was ever saved, and typing بریاں finds a Barrian customer.
+ * A Roman query can never match Urdu-only text (there is no Urdu->Roman
+ * transliterator), but the Roman name field covers the same customer, so
+ * typing "Raja" and typing "راجہ" return the same card.
+ */
+export function fieldModeSearchMatches(entry, customer, query) {
+  const raw = String(query ?? '').trim();
+  if (!raw) return true;
+  const romanQuery = raw.normalize('NFKC').toLowerCase();
+  const record = customer ?? entry ?? {};
+  const romanFields = [
+    entry?.name, record?.name,
+    entry?.customerNumber, record?.customerNumber,
+    entry?.phone, record?.phone,
+    entry?.area, record?.area,
+    entry?.mohalla, record?.mohalla,
+    entry?.address, record?.address
+  ];
+  const numStr = String(entry?.customerNumber ?? record?.customerNumber ?? '');
+  if (numStr && (`#${numStr}`.toLowerCase().includes(romanQuery))) return true;
+  for (const field of romanFields) {
+    if (field != null && String(field).toLowerCase().includes(romanQuery)) return true;
+  }
+  if (!hasUrduScript(raw)) return false;
+  const urduQuery = normalizeUrduText(raw);
+  if (!urduQuery) return false;
+  const urduCandidates = [
+    record?.nameUrdu,
+    transliterateRomanToUrdu(record?.name ?? entry?.name),
+    transliterateRomanToUrdu(record?.area ?? entry?.area),
+    transliterateRomanToUrdu(record?.mohalla ?? entry?.mohalla)
+  ];
+  return urduCandidates.some(text => text && normalizeUrduText(text).includes(urduQuery));
+}
+
+/**
+ * Applies the SISP-31 bilingual filter to a pending-entries list. `customers`
+ * is the live customer array (or a Map keyed by id) used for nameUrdu and
+ * transliteration lookups. An empty query returns the list unchanged.
+ */
+export function filterFieldModeEntries(entries, customers, query) {
+  const list = Array.isArray(entries) ? entries : [];
+  if (!String(query ?? '').trim()) return [...list];
+  const byId = customers instanceof Map
+    ? customers
+    : new Map((Array.isArray(customers) ? customers : []).map(c => [c.id, c]));
+  return list.filter(entry => fieldModeSearchMatches(entry, byId.get(entry.id) ?? entry, query));
+}
+
+/**
+ * SISP-31 zone "Collected Today" counter, computed LIVE from recorded
+ * payments (never from a stored summary, so it can never go stale): for
+ * the given zone key ('all' = every zone), houses = distinct customers
+ * with at least one payment dated todayStr (Pakistan-local YYYY-MM-DD),
+ * cash = the sum of those payments in PKR. Archived customers are
+ * included: a payment recorded today is collected today even if the
+ * profile was archived afterwards.
+ */
+export function fieldModeCollectedToday(state, zoneKey, todayStr) {
+  const houses = new Set();
+  let cash = 0;
+  for (const customer of state?.customers ?? []) {
+    if (zoneKey !== FIELD_MODE_ALL_ZONES && fieldModeZoneOf(customer).key !== zoneKey) continue;
+    let paidToday = false;
+    for (const bill of customer?.bills ?? []) {
+      for (const payment of bill?.payments ?? []) {
+        if (payment?.date === todayStr) {
+          paidToday = true;
+          cash += Number(payment?.amount) || 0;
+        }
+      }
+    }
+    if (paidToday) houses.add(customer.id);
+  }
+  return { houses: houses.size, cash: Math.round(cash * 100) / 100 };
 }
 
 /**
@@ -215,9 +339,13 @@ function nullFieldModeController() {
  *   getState() -> live app state object
  *   onSaveState(nextState) -> host persists + refreshes its views
  *   onToast(msg) -> optional toast
+ *   onPrint58mm(receipt) -> optional: host prints the 58mm thermal slip for
+ *     a just-collected receipt via the EXISTING thermal path
+ *     (printPaymentReceipt with format 'thermal-58'). When absent, the
+ *     58mm Slip button is not rendered at all (never a dead button).
  * Returns { open, close, toggle, isOpen, refresh }.
  */
-export function setupFieldMode({ getState, onSaveState, onToast } = {}) {
+export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm } = {}) {
   if (typeof document === 'undefined') return nullFieldModeController();
   const view = document.getElementById('fieldModeView');
   const toggleBtn = document.getElementById('fieldModeToggleBtn');
@@ -245,7 +373,14 @@ export function setupFieldMode({ getState, onSaveState, onToast } = {}) {
   const pendingEntries = () => {
     const state = typeof getState === 'function' ? getState() : null;
     if (!state) return [];
-    return getPendingCollectionCustomers(state, query, 'all-dues');
+    // SISP-31: fetch unfiltered, then apply the bilingual filter locally so
+    // Urdu queries (nameUrdu + transliteration) work without changing the
+    // shared Quick Collect matcher used by other screens.
+    return filterFieldModeEntries(
+      getPendingCollectionCustomers(state, '', 'all-dues'),
+      state.customers ?? [],
+      query
+    );
   };
 
   const liveCustomer = (id) => {
@@ -265,14 +400,20 @@ export function setupFieldMode({ getState, onSaveState, onToast } = {}) {
     }
     zoneFiltersEl.innerHTML = chips.join('');
     if (zoneTargetEl) {
+      const state = typeof getState === 'function' ? getState() : null;
+      const collectedLabel = zoneKey !== FIELD_MODE_ALL_ZONES
+        ? (groups.find(g => g.key === zoneKey)?.label ?? 'This area')
+        : 'All areas';
+      const collected = fieldModeCollectedToday(state, zoneKey, todayStr());
+      const collectedLine = `<span class="field-mode-collected-pill">Collected Today in ${escapeHtml(collectedLabel)}: ${collected.houses} houses · ${escapeHtml(formatPKR(collected.cash))}</span>`;
       if (zoneKey !== FIELD_MODE_ALL_ZONES) {
         const group = groups.find(g => g.key === zoneKey);
         const summary = group ? fieldModeZoneSummary(group.entries) : { count: 0, totalDues: 0 };
-        zoneTargetEl.textContent = group
-          ? `${group.label}: ${summary.count} customers · ${formatPKR(summary.totalDues)} remaining to collect`
-          : 'No customers in this area.';
+        zoneTargetEl.innerHTML = group
+          ? `${escapeHtml(group.label)}: ${summary.count} customers · ${escapeHtml(formatPKR(summary.totalDues))} remaining to collect${collectedLine}`
+          : `No customers in this area.${collectedLine}`;
       } else {
-        zoneTargetEl.textContent = `All areas: ${allSummary.count} customers · ${formatPKR(allSummary.totalDues)} remaining to collect`;
+        zoneTargetEl.innerHTML = `All areas: ${allSummary.count} customers · ${escapeHtml(formatPKR(allSummary.totalDues))} remaining to collect${collectedLine}`;
       }
     }
     if (visibleCount === 0 && listEl) {
@@ -304,6 +445,9 @@ export function setupFieldMode({ getState, onSaveState, onToast } = {}) {
     if (lastReceipt) {
       const { receipt, whatsapp } = lastReceipt;
       const settled = Number(receipt.newTotalDues) <= 0;
+      const print58Button = typeof onPrint58mm === 'function'
+        ? `<button type="button" class="field-mode-action-btn" data-field-action="print58">🖨️ 58mm Slip</button>`
+        : '';
       panelEl.innerHTML = `<section class="field-mode-receipt" aria-label="Collection receipt">
         <h3>✅ Collected — ${escapeHtml(receipt.customerName)}</h3>
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
@@ -311,6 +455,7 @@ export function setupFieldMode({ getState, onSaveState, onToast } = {}) {
         ${whatsapp.url
           ? `<a class="field-mode-action-btn field-mode-whatsapp-btn" href="${escapeHtml(whatsapp.url)}" target="_blank" rel="noopener noreferrer">📲 WA Receipt</a>`
           : '<p class="field-mode-note">Save the customer\'s full phone number (with country code) to enable the WhatsApp receipt.</p>'}
+        ${print58Button}
         <button type="button" class="field-mode-action-btn" data-field-action="next">Next customer →</button>
       </section>`;
       return;
@@ -498,6 +643,18 @@ export function setupFieldMode({ getState, onSaveState, onToast } = {}) {
         const action = actionBtn.getAttribute('data-field-action');
         if (action === 'cash') collect('Cash');
         else if (action === 'shop') collect(actionBtn.getAttribute('data-field-method') || 'Cash');
+        else if (action === 'print58') {
+          // SISP-31: 1-tap 58mm slip through the host's EXISTING thermal
+          // path (same printPaymentReceipt format 'thermal-58' the profile
+          // history buttons use). No second printer is built here.
+          if (lastReceipt && typeof onPrint58mm === 'function') {
+            try {
+              onPrint58mm(lastReceipt.receipt);
+            } catch (err) {
+              toast(err?.message || 'Could not print the 58mm slip.');
+            }
+          }
+        }
         else if (action === 'next' || action === 'back') {
           selectedId = null;
           lastReceipt = null;

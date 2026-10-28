@@ -15,6 +15,7 @@ import { formatPKR, calculateDashboard } from './core.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { pkrNoteChipsMarkup } from './pkr-notes.js';
 import { calculateDailyClosingSummary } from './dashboard-daily-closing.js';
+import { t } from './nav-language.js';
 
 export const OWNER_WHATSAPP_PHONE_KEY = 'shahdara_owner_whatsapp_phone';
 
@@ -170,7 +171,7 @@ export function renderHomeTodaySummary(doc = document, summary) {
 
   const todayDateEl = doc.getElementById('homeTodayDateText');
   if (todayDateEl) {
-    todayDateEl.textContent = `${summary.todayStr} · Live closing register & collections`;
+    todayDateEl.textContent = `${summary.todayStr} · ${t('dash_today_live_suffix')}`;
   }
 
   const collectedEl = doc.getElementById('homeTodayCollected');
@@ -180,7 +181,7 @@ export function renderHomeTodaySummary(doc = document, summary) {
 
   const cashVsDigitalEl = doc.getElementById('homeTodayCashVsDigital');
   if (cashVsDigitalEl) {
-    cashVsDigitalEl.textContent = `Cash: ${formatPKR(summary.cashCollected)} · Digital: ${formatPKR(summary.digitalCollected)}`;
+    cashVsDigitalEl.textContent = t('dash_today_cash_digital', null, { cash: formatPKR(summary.cashCollected), digital: formatPKR(summary.digitalCollected) });
   }
 
   const targetPctEl = doc.getElementById('homeTodayTargetPct');
@@ -190,7 +191,7 @@ export function renderHomeTodaySummary(doc = document, summary) {
 
   const collectedVsBilledEl = doc.getElementById('homeTodayCollectedVsBilled');
   if (collectedVsBilledEl) {
-    collectedVsBilledEl.textContent = `${formatPKR(summary.monthCollected)} / ${formatPKR(summary.monthBilled)} billed`;
+    collectedVsBilledEl.textContent = t('dash_today_billed', null, { collected: formatPKR(summary.monthCollected), billed: formatPKR(summary.monthBilled) });
   }
 
   const totalDuesEl = doc.getElementById('homeTodayTotalDues');
@@ -200,7 +201,7 @@ export function renderHomeTodaySummary(doc = document, summary) {
 
   const duesCountEl = doc.getElementById('homeTodayDuesCount');
   if (duesCountEl) {
-    duesCountEl.textContent = `${summary.customersWithDuesCount} accounts with dues`;
+    duesCountEl.textContent = t('dash_today_dues_count', null, { count: summary.customersWithDuesCount });
   }
 
   const newCustEl = doc.getElementById('homeTodayNewCustomers');
@@ -212,7 +213,7 @@ export function renderHomeTodaySummary(doc = document, summary) {
   const overdueListEl = doc.getElementById('homeTopOverdueList');
   if (overdueListEl) {
     if (!summary.top5Overdue || summary.top5Overdue.length === 0) {
-      overdueListEl.innerHTML = `<li class="overdue-empty-item">✅ No overdue accounts — all active customers cleared!</li>`;
+      overdueListEl.innerHTML = `<li class="overdue-empty-item">${t('dash_today_no_overdue')}</li>`;
     } else {
       const overdueLang = currentAppLanguage();
       overdueListEl.innerHTML = summary.top5Overdue.map(c => {
@@ -237,8 +238,8 @@ export function renderHomeTodaySummary(doc = document, summary) {
                 ${pkrNoteChipsMarkup(c.balanceDue)}
               </div>
               <div class="overdue-item-actions">
-                ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="overdue-wa-link" title="Send WhatsApp reminder" aria-label="Send WhatsApp to ${c.name}">💬 WhatsApp</a>` : ''}
-                <a href="#quick-collect/${c.id}" class="overdue-collect-link" title="Collect payment" aria-label="Collect from ${c.name}">Collect</a>
+                ${waLink ? `<a href="${waLink}" target="_blank" rel="noopener noreferrer" class="overdue-wa-link" title="${t('dash_today_wa_title')}" aria-label="${t('dash_today_wa_link_aria', null, { name: c.name })}">💬 WhatsApp</a>` : ''}
+                <a href="#quick-collect/${c.id}" class="overdue-collect-link" title="${t('dash_today_collect_title')}" aria-label="${t('dash_today_collect_aria', null, { name: c.name })}">${t('dash_today_collect_text')}</a>
               </div>
             </div>
           </li>

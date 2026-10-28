@@ -18,6 +18,7 @@
 import {
   formatPKR
 } from './core.js';
+import { t } from './nav-language.js';
 
 export const DAILY_CASH_HANDOVERS_KEY = 'shahdara_daily_cash_handovers_v1';
 
@@ -1007,20 +1008,31 @@ export function setupDailyClosingCard(state, referenceDate = new Date(), options
 
   if (valueEl) {
     valueEl.textContent = summary.todayCount > 0
-      ? `${formatPKR(summary.todayCollected)} (${summary.todayCount} txs)`
-      : 'No payment entries';
+      ? t('dash_closing_value', null, { amount: formatPKR(summary.todayCollected), count: summary.todayCount })
+      : t('dash_no_payments');
   }
 
   if (periodEl) {
     if (summary.todayCount > 0 || summary.todayExpenses > 0) {
-      periodEl.textContent = `Target: ${formatPKR(summary.dailyTarget)}/day (${summary.targetAttainment}%) · Net Cash: ${formatPKR(summary.netCashInHand)}`;
+      periodEl.textContent = t('dash_closing_target', null, { target: formatPKR(summary.dailyTarget), pct: summary.targetAttainment, cash: formatPKR(summary.netCashInHand) });
     } else {
-      periodEl.textContent = `Target: ${formatPKR(summary.dailyTarget)} / day · ${summary.targetAttainment}% attainment`;
+      periodEl.textContent = t('dash_closing_target_alt', null, { target: formatPKR(summary.dailyTarget), pct: summary.targetAttainment });
     }
   }
 
+  // Card-local badge mapping: the shared statusLabel calc is also used by the
+  // modal / slip / CSV / WhatsApp outputs (out of scope), so the card maps the
+  // closingStatus key to its own dictionary label and falls back to the raw
+  // label for any unknown status.
+  const CLOSING_STATUS_LABELS = {
+    'no-activity': 'dash_closing_status_no',
+    'exceeded': 'dash_closing_status_met',
+    'on-track': 'dash_closing_status_track',
+    'below-target': 'dash_closing_status_below'
+  };
   if (badgeEl) {
-    badgeEl.textContent = summary.statusLabel;
+    const statusKey = CLOSING_STATUS_LABELS[summary.closingStatus];
+    badgeEl.textContent = statusKey ? t(statusKey) : summary.statusLabel;
     badgeEl.className = `closing-badge badge-${summary.closingStatus}`;
   }
 
@@ -1059,7 +1071,7 @@ export function setupDailyClosingCard(state, referenceDate = new Date(), options
           }
         }
         if (typeof onToast === 'function') {
-          onToast(copied ? 'Daily closing slip copied to clipboard!' : 'Daily closing summary ready.');
+          onToast(copied ? t('dash_closing_copied') : t('dash_closing_ready'));
         }
 
         // Open daily closing modal for interactive review with Copy, WhatsApp, and Print (#238)

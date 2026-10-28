@@ -537,7 +537,7 @@ function renderDashboard() {
     const dueStatus = bandwidthDueStatus(state, loadOverheads(), referenceDate);
     if (dueStatus.due) {
       overheadBannerEl.hidden = false;
-      overheadBannerEl.innerHTML = `<span>\u26a1 Upstream bandwidth bill not yet paid for ${escapeHtml(monthName(dueStatus.month))} — post it before the month closes so profit and partner shares stay true.</span><button id="overheadsDueBannerBtn" class="secondary-button" type="button">Post overhead</button>`;
+      overheadBannerEl.innerHTML = `<span>\u26a1 ${escapeHtml(t('dash_overhead_due', null, { month: displayMonthName(dueStatus.month) }))}</span><button id="overheadsDueBannerBtn" class="secondary-button" type="button">${t('dash_overhead_btn')}</button>`;
       $('#overheadsDueBannerBtn')?.addEventListener('click', () => { expenseActiveTab = 'overheads'; switchView('expenses'); syncExpenseTabs(); renderOverheads(); });
     } else {
       overheadBannerEl.hidden = true;
@@ -566,12 +566,12 @@ function renderDashboard() {
     const totalUnsettled = shopSummaries.reduce((sum, s) => sum + s.unsettled, 0);
     const pendingCount = shopSummaries.reduce((sum, s) => sum + s.unsettledReceiptCount, 0);
     const valueEl = $('#dashboardShopSettlementValue');
-    if (valueEl) valueEl.textContent = shopSummaries.length === 0 ? 'No shop collections' : formatAmount(totalUnsettled);
+    if (valueEl) valueEl.textContent = shopSummaries.length === 0 ? t('dash_shop_empty') : formatAmount(totalUnsettled);
     const periodEl = $('#dashboardShopSettlementPeriod');
-    if (periodEl) periodEl.textContent = shopSummaries.length === 0 ? 'Unsettled cash sitting at shops' : `${shopSummaries.length} shop${shopSummaries.length === 1 ? '' : 's'} · ${pendingCount} pending receipt${pendingCount === 1 ? '' : 's'}`;
+    if (periodEl) periodEl.textContent = shopSummaries.length === 0 ? t('dash_shop_empty_period') : `${t(shopSummaries.length === 1 ? 'dash_shop_sing' : 'dash_shop_plur', null, { count: shopSummaries.length })} · ${t(pendingCount === 1 ? 'dash_shop_receipt_sing' : 'dash_shop_receipt_plur', null, { count: pendingCount })}`;
     shopSummaryEl.innerHTML = shopSummaries.length === 0
       ? ''
-      : shopSummaries.map((s) => `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(formatAmount(s.collectedThisMonth))} this month · last handover ${escapeHtml(s.lastHandoverDate || 'never')}</small></p>`).join('');
+      : shopSummaries.map((s) => `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small></p>`).join('');
   }
   // SISP-2: monthly billing cycle card (last run + open the cycle modal).
   const cycleSummaryEl = $('#billingCycleSummary');
@@ -580,10 +580,10 @@ function renderDashboard() {
     const latest = cycles[0] || null;
     const valueEl = $('#dashboardBillingCycleValue');
     const periodEl = $('#dashboardBillingCyclePeriod');
-    if (valueEl) valueEl.textContent = latest ? `${monthName(latest.month)} cycled` : 'No cycle run yet';
-    if (periodEl) periodEl.textContent = latest ? `${latest.totals.billedCount} bills · ${formatAmount(latest.totals.netExpectedCollection)} net expected` : 'Run a monthly cycle with arrears & advance';
+    if (valueEl) valueEl.textContent = latest ? t('dash_cycle_cycled', null, { month: displayMonthName(latest.month) }) : t('dash_cycle_empty');
+    if (periodEl) periodEl.textContent = latest ? t('dash_cycle_bills', null, { count: latest.totals.billedCount, amount: formatAmount(latest.totals.netExpectedCollection) }) : t('dash_cycle_period_empty');
     cycleSummaryEl.innerHTML = latest
-      ? `<p><span>${escapeHtml(monthName(latest.month))}</span><strong>${escapeHtml(formatAmount(latest.totals.totalBilled))} billed</strong><small> · ${escapeHtml(formatAmount(latest.totals.totalArrears))} arrears carried · ${escapeHtml(latest.ranAt || '')}</small></p>`
+      ? `<p><span>${escapeHtml(displayMonthName(latest.month))}</span><strong>${escapeHtml(t('dash_cycle_billed', null, { amount: formatAmount(latest.totals.totalBilled) }))}</strong><small> · ${escapeHtml(t('dash_cycle_arrears', null, { amount: formatAmount(latest.totals.totalArrears) }))} · ${escapeHtml(latest.ranAt || '')}</small></p>`
       : '';
   }
   // SISP-15: complaint register card (open faults + this-month downtime).
@@ -592,11 +592,11 @@ function renderDashboard() {
     const summary = buildComplaintSummary(loadComplaints(), referenceDate);
     const valueEl = $('#dashboardComplaintValue');
     const periodEl = $('#dashboardComplaintPeriod');
-    if (valueEl) valueEl.textContent = summary.total === 0 ? 'No complaints' : `${summary.open} open · ${summary.inProgress} in progress`;
-    if (periodEl) periodEl.textContent = summary.total === 0 ? 'Open faults and resolution downtime' : `${summary.resolved} resolved · ${summary.thisMonthCount} this month · ${summary.thisMonthDowntime} h downtime`;
+    if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_complaint_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
+    if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_complaint_period_empty') : t('dash_complaint_period', null, { resolved: summary.resolved, count: summary.thisMonthCount, hours: summary.thisMonthDowntime });
     complaintSummaryEl.innerHTML = summary.total === 0
       ? ''
-      : `<p><span>Open now</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(String(summary.inProgress))} in progress · ${escapeHtml(String(summary.resolved))} resolved</small></p>`;
+      : `<p><span>${t('dash_detail_open_now')}</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(t('dash_detail_progress_resolved', null, { inProgress: summary.inProgress, resolved: summary.resolved }))}</small></p>`;
   }
   // SISP-12: field tickets card (open worklist + pending ticket charges).
   const ticketSummaryEl = $('#fieldTicketsSummary');
@@ -604,11 +604,11 @@ function renderDashboard() {
     const summary = buildTicketSummary(loadTickets());
     const valueEl = $('#dashboardFieldTicketsValue');
     const periodEl = $('#dashboardFieldTicketsPeriod');
-    if (valueEl) valueEl.textContent = summary.total === 0 ? 'No field tickets' : `${summary.open} open · ${summary.inProgress} in progress`;
-    if (periodEl) periodEl.textContent = summary.total === 0 ? 'Lineman worklist and material use' : `${summary.resolved} resolved · PKR ${summary.pendingCharges} pending ticket charges`;
+    if (valueEl) valueEl.textContent = summary.total === 0 ? t('dash_ticket_empty') : t('dash_complaint_open', null, { open: summary.open, inProgress: summary.inProgress });
+    if (periodEl) periodEl.textContent = summary.total === 0 ? t('dash_ticket_period_empty') : t('dash_ticket_period', null, { resolved: summary.resolved, charges: summary.pendingCharges });
     ticketSummaryEl.innerHTML = summary.total === 0
       ? ''
-      : `<p><span>Open now</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(String(summary.inProgress))} in progress · ${escapeHtml(String(summary.resolved))} resolved</small></p>`;
+      : `<p><span>${t('dash_detail_open_now')}</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(t('dash_detail_progress_resolved', null, { inProgress: summary.inProgress, resolved: summary.resolved }))}</small></p>`;
   }
   // SISP-16: downtime analytics card (this-month customer + network downtime).
   const downtimeSummaryEl = $('#downtimeAnalyticsSummary');
@@ -616,11 +616,11 @@ function renderDashboard() {
     const analytics = buildMonthlyDowntimeAnalytics(loadComplaints(), pakistanMonthNow(referenceDate));
     const valueEl = $('#dashboardDowntimeValue');
     const periodEl = $('#dashboardDowntimePeriod');
-    if (valueEl) valueEl.textContent = analytics.totalComplaints === 0 ? 'No downtime' : `${analytics.totalDowntime} h downtime`;
-    if (periodEl) periodEl.textContent = analytics.totalComplaints === 0 ? 'Per-customer and network outage hours' : `${analytics.totalComplaints} complaints · ${analytics.perCustomer.length} customers affected`;
+    if (valueEl) valueEl.textContent = analytics.totalComplaints === 0 ? t('dash_downtime_empty') : t('dash_downtime_value', null, { hours: analytics.totalDowntime });
+    if (periodEl) periodEl.textContent = analytics.totalComplaints === 0 ? t('dash_downtime_period_empty') : t('dash_downtime_period', null, { count: analytics.totalComplaints, customers: analytics.perCustomer.length });
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
-      : `<p><span>Top customer</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(String(analytics.areaOutageComplaints))} zone-wide faults · ${escapeHtml(String(analytics.areaOutageDowntime))} h</small></p>`;
+      : `<p><span>${t('dash_downtime_top')}</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(t('dash_downtime_detail', null, { count: analytics.areaOutageComplaints, hours: analytics.areaOutageDowntime }))}</small></p>`;
   }
   // SISP-24: splitter port map card (boxes mapped, ports used, weak signals).
   const splitterSummaryEl = $('#splitterMapSummary');
@@ -628,11 +628,11 @@ function renderDashboard() {
     const overview = buildSplitterOverview(state.customers);
     const splitterValueEl = $('#dashboardSplitterValue');
     const splitterPeriodEl = $('#dashboardSplitterPeriod');
-    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? 'No splitter boxes' : `${overview.boxCount} box${overview.boxCount === 1 ? '' : 'es'} · ${overview.occupiedPorts} ports used`;
-    if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? 'Splitter box port map and RX signal health' : `${overview.freePorts} spare port${overview.freePorts === 1 ? '' : 's'}${overview.weakCount ? ` · ${overview.weakCount} weak signal${overview.weakCount === 1 ? '' : 's'}` : ' · no weak signals'}`;
+    if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? t('dash_splitter_empty') : `${t(overview.boxCount === 1 ? 'dash_splitter_box_sing' : 'dash_splitter_box_plur', null, { count: overview.boxCount })} · ${t('dash_splitter_ports', null, { count: overview.occupiedPorts })}`;
+    if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? t('dash_splitter_period_empty') : `${t(overview.freePorts === 1 ? 'dash_splitter_spare_sing' : 'dash_splitter_spare_plur', null, { count: overview.freePorts })}${overview.weakCount ? ` · ${t(overview.weakCount === 1 ? 'dash_splitter_weak_sing' : 'dash_splitter_weak_plur', null, { count: overview.weakCount })}` : ` · ${t('dash_splitter_no_weak')}`}`;
     splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
       ? ''
-      : `<p><span>Weakest signal</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || 'Unnamed')} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} port ${escapeHtml(String(overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? ''))}</small></p>`;
+      : `<p><span>${t('dash_splitter_weakest')}</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || t('dash_fallback_unnamed'))} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} ${escapeHtml(t('dash_splitter_port', null, { port: overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? '' }))}</small></p>`;
   }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
   const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
@@ -640,11 +640,11 @@ function renderDashboard() {
     const report = buildMonthlyComplaintReport(loadComplaints(), pakistanMonthNow(referenceDate));
     const valueEl = $('#dashboardMonthlyReportValue');
     const periodEl = $('#dashboardMonthlyReportPeriod');
-    if (valueEl) valueEl.textContent = report.summary.totalComplaints === 0 ? 'No complaints' : `${report.summary.totalComplaints} complaints · ${report.summary.totalDowntime} h net off`;
-    if (periodEl) periodEl.textContent = report.summary.totalComplaints === 0 ? '4-part monthly report: summary, customers, causes, full log' : `${report.summary.resolvedCount} resolved · ${report.summary.pendingCount} pending · ${report.summary.fiberCutHours} h Fiber Cut`;
+    if (valueEl) valueEl.textContent = report.summary.totalComplaints === 0 ? t('dash_complaint_empty') : t('dash_report_value', null, { count: report.summary.totalComplaints, hours: report.summary.totalDowntime });
+    if (periodEl) periodEl.textContent = report.summary.totalComplaints === 0 ? t('dash_report_period_empty') : t('dash_report_period', null, { resolved: report.summary.resolvedCount, pending: report.summary.pendingCount, hours: report.summary.fiberCutHours });
     monthlyReportSummaryEl.innerHTML = report.summary.totalComplaints === 0
       ? ''
-      : `<p><span>Top customer</span><strong>${escapeHtml(report.perCustomer.length ? `${report.perCustomer[0].customerName} · ${report.perCustomer[0].complaintCount} complaints` : '—')}</strong></p>`;
+      : `<p><span>${t('dash_downtime_top')}</span><strong>${escapeHtml(report.perCustomer.length ? t('dash_report_complaints', null, { name: report.perCustomer[0].customerName, count: report.perCustomer[0].complaintCount }) : '—')}</strong></p>`;
   }
   // SISP-11: roznamcha card (today's cash drawer).
   const roznamchaSummaryEl = $('#roznamchaSummary');
@@ -653,9 +653,9 @@ function renderDashboard() {
     const day = buildRoznamchaDay(state, loadRoznamchaDays(), today, loadShopSettlements());
     const valueEl = $('#dashboardRoznamchaValue');
     const periodEl = $('#dashboardRoznamchaPeriod');
-    if (valueEl) valueEl.textContent = day.closed ? `Closed · ${formatAmount(day.closingBalance)}` : `${formatAmount(day.expectedClosing)} expected`;
-    if (periodEl) periodEl.textContent = day.closed ? `Farq ${formatAmount(day.discrepancy)}` : `Cash in ${formatAmount(day.totalIn)} · petty out ${formatAmount(day.outTotal)}`;
-    roznamchaSummaryEl.innerHTML = `<p><span>Opening</span><strong>${escapeHtml(formatAmount(day.openingBalance))}</strong><small> · ${escapeHtml(String(day.cashPayments.length))} cash payments · ${escapeHtml(String(day.handovers.length))} shop handovers</small></p>`;
+    if (valueEl) valueEl.textContent = day.closed ? t('dash_roz_closed', null, { amount: formatAmount(day.closingBalance) }) : t('dash_roz_expected', null, { amount: formatAmount(day.expectedClosing) });
+    if (periodEl) periodEl.textContent = day.closed ? t('dash_roz_farq', null, { amount: formatAmount(day.discrepancy) }) : t('dash_roz_cash', null, { amount: formatAmount(day.totalIn), out: formatAmount(day.outTotal) });
+    roznamchaSummaryEl.innerHTML = `<p><span>${t('dash_roz_opening')}</span><strong>${escapeHtml(formatAmount(day.openingBalance))}</strong><small> · ${escapeHtml(t('dash_roz_detail', null, { cash: day.cashPayments.length, handovers: day.handovers.length }))}</small></p>`;
   }
   // SISP-18: stock book card (live available stock + low-stock count).
   const inventorySummaryEl = $('#inventoryBookSummary');
@@ -665,12 +665,12 @@ function renderDashboard() {
     const lowItems = stock.filter((row) => row.isLow);
     const valueEl = $('#dashboardInventoryValue');
     const periodEl = $('#dashboardInventoryPeriod');
-    if (valueEl) valueEl.textContent = movements.length === 0 ? 'No stock recorded' : `${lowItems.length} low-stock item${lowItems.length === 1 ? '' : 's'}`;
-    if (periodEl) periodEl.textContent = movements.length === 0 ? 'Fiber, routers, converters & field stock' : `${movements.length} movement${movements.length === 1 ? '' : 's'} recorded`;
+    if (valueEl) valueEl.textContent = movements.length === 0 ? t('dash_inv_empty') : t(lowItems.length === 1 ? 'dash_inv_low_sing' : 'dash_inv_low_plur', null, { count: lowItems.length });
+    if (periodEl) periodEl.textContent = movements.length === 0 ? t('dash_inv_period_empty') : t(movements.length === 1 ? 'dash_inv_move_sing' : 'dash_inv_move_plur', null, { count: movements.length });
     const fiberRow = stock.find((row) => row.id === 'fiber-2core');
     inventorySummaryEl.innerHTML = movements.length === 0
       ? ''
-      : `<p><span>Fiber left</span><strong>${escapeHtml(String(fiberRow ? fiberRow.available : 0))} m</strong><small> · ${escapeHtml(String(lowItems.length))} low-stock item${lowItems.length === 1 ? '' : 's'}</small></p>`;
+      : `<p><span>${t('dash_inv_fiber_left')}</span><strong>${escapeHtml(String(fiberRow ? fiberRow.available : 0))} m</strong><small> · ${escapeHtml(t(lowItems.length === 1 ? 'dash_inv_low_sing' : 'dash_inv_low_plur', null, { count: lowItems.length }))}</small></p>`;
   }
   // SISP-7: feeder outage card (linked customers + longest downstream chain).
   const outageSummaryEl = $('#outageImpactSummary');
@@ -678,10 +678,10 @@ function renderDashboard() {
     const feeder = summarizeFeederNetwork(state.customers);
     const outageValueEl = $('#dashboardOutageValue');
     const outagePeriodEl = $('#dashboardOutagePeriod');
-    if (outageValueEl) outageValueEl.textContent = feeder.linkedCount === 0 ? 'No feeder links' : `${feeder.linkedCount} feeder-linked`;
-    if (outagePeriodEl) outagePeriodEl.textContent = feeder.maxDownstream === 0 ? 'Link customers to feeders to trace outages' : `Longest chain: ${feeder.maxDownstream} downstream at risk`;
+    if (outageValueEl) outageValueEl.textContent = feeder.linkedCount === 0 ? t('dash_outage_empty') : t('dash_outage_linked', null, { count: feeder.linkedCount });
+    if (outagePeriodEl) outagePeriodEl.textContent = feeder.maxDownstream === 0 ? t('dash_outage_period_empty') : t('dash_outage_chain', null, { count: feeder.maxDownstream });
     outageSummaryEl.innerHTML = feeder.maxSource
-      ? `<p><span>Longest chain</span><strong>${escapeHtml(feeder.maxSource.name || 'Unknown')} · ${feeder.maxDownstream} downstream</strong></p>`
+      ? `<p><span>${t('dash_outage_chain_label')}</span><strong>${escapeHtml(t('dash_outage_downstream', null, { name: feeder.maxSource.name || t('dash_fallback_unknown'), count: feeder.maxDownstream }))}</strong></p>`
       : '';
   }
   // Saad visit log: this-month visits, days present and hours worked.
@@ -690,11 +690,11 @@ function renderDashboard() {
     const summary = buildMonthlySaadSummary(loadSaadVisits(), loadSaadPayments(), pakistanMonthNow(referenceDate));
     const valueEl = $('#dashboardSaadVisitsValue');
     const periodEl = $('#dashboardSaadVisitsPeriod');
-    if (valueEl) valueEl.textContent = summary.visits.length === 0 ? 'No visits yet' : `${summary.visits.length} visit${summary.visits.length === 1 ? '' : 's'} · ${summary.dayCount} day${summary.dayCount === 1 ? '' : 's'}`;
-    if (periodEl) periodEl.textContent = summary.visits.length === 0 ? 'Saad field visits, hours & payments' : `${formatHours(summary.totalHours)} hours worked · ${summary.grandTotal} PKR paid`;
+    if (valueEl) valueEl.textContent = summary.visits.length === 0 ? t('dash_saad_empty') : `${t(summary.visits.length === 1 ? 'dash_saad_visit_sing' : 'dash_saad_visit_plur', null, { count: summary.visits.length })} · ${t(summary.dayCount === 1 ? 'dash_saad_day_sing' : 'dash_saad_day_plur', null, { count: summary.dayCount })}`;
+    if (periodEl) periodEl.textContent = summary.visits.length === 0 ? t('dash_saad_period_empty') : t('dash_saad_period', null, { hours: formatHours(summary.totalHours), amount: summary.grandTotal });
     saadSummaryEl.innerHTML = summary.visits.length === 0
       ? ''
-      : `<p><span>Latest</span><strong>${escapeHtml(summary.visits[summary.visits.length - 1].date)} · ${escapeHtml(visitWhereLabel(summary.visits[summary.visits.length - 1]))} · ${escapeHtml(formatHours(visitHours(summary.visits[summary.visits.length - 1])))} h</strong></p>`;
+      : `<p><span>${t('dash_detail_latest')}</span><strong>${escapeHtml(summary.visits[summary.visits.length - 1].date)} · ${escapeHtml(visitWhereLabel(summary.visits[summary.visits.length - 1]))} · ${escapeHtml(formatHours(visitHours(summary.visits[summary.visits.length - 1])))} h</strong></p>`;
   }
   // Installation tracker: this-month requests / installed / pending / total delay days.
   const installSummaryEl = $('#installTrackerSummary');
@@ -702,11 +702,11 @@ function renderDashboard() {
     const installSummary = buildMonthlyInstallSummary(loadInstallRequests(), pakistanMonthNow(referenceDate), installTrackerToday(referenceDate));
     const installValueEl = $('#dashboardInstallTrackerValue');
     const installPeriodEl = $('#dashboardInstallTrackerPeriod');
-    if (installValueEl) installValueEl.textContent = installSummary.requestCount === 0 ? 'No requests yet' : `${installSummary.requestCount} request${installSummary.requestCount === 1 ? '' : 's'} · ${installSummary.installedCount} installed`;
-    if (installPeriodEl) installPeriodEl.textContent = installSummary.requestCount === 0 ? 'New connection requests & install delays' : `${installSummary.pendingCount} pending · ${installSummary.totalDelayDays} total delay days`;
+    if (installValueEl) installValueEl.textContent = installSummary.requestCount === 0 ? t('dash_install_empty') : `${t(installSummary.requestCount === 1 ? 'dash_install_req_sing' : 'dash_install_req_plur', null, { count: installSummary.requestCount })} · ${t('dash_install_installed', null, { count: installSummary.installedCount })}`;
+    if (installPeriodEl) installPeriodEl.textContent = installSummary.requestCount === 0 ? t('dash_install_period_empty') : t('dash_install_period', null, { pending: installSummary.pendingCount, days: installSummary.totalDelayDays });
     installSummaryEl.innerHTML = installSummary.requestCount === 0
       ? ''
-      : `<p><span>Latest</span><strong>${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requestDate)} · ${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requesterName)} · ${escapeHtml(String(installSummary.requests[installSummary.requests.length - 1].amountPaid))} PKR</strong></p>`;
+      : `<p><span>${t('dash_detail_latest')}</span><strong>${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requestDate)} · ${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requesterName)} · ${escapeHtml(String(installSummary.requests[installSummary.requests.length - 1].amountPaid))} PKR</strong></p>`;
   }
   // Pending works: due reminders + nearest threshold progress.
   const pendingWorksSummaryEl = $('#pendingWorksSummary');
@@ -714,11 +714,11 @@ function renderDashboard() {
     const pendingSummary = pendingWorksSummary(loadPendingWorks(), countActiveCustomers(state.customers));
     const pendingValueEl = $('#dashboardPendingWorksValue');
     const pendingPeriodEl = $('#dashboardPendingWorksPeriod');
-    if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? 'Nothing pending' : pendingSummary.dueCount > 0 ? `${pendingSummary.dueCount} due now` : `${pendingSummary.pendingCount} pending`;
-    if (pendingPeriodEl) pendingPeriodEl.textContent = pendingSummary.nearestLabel ? `Nearest: ${pendingSummary.nearestLabel}` : 'Owner notes & reminders';
+    if (pendingValueEl) pendingValueEl.textContent = pendingSummary.pendingCount === 0 ? t('dash_pending_empty') : pendingSummary.dueCount > 0 ? t('dash_pending_due', null, { count: pendingSummary.dueCount }) : t('dash_pending_count', null, { count: pendingSummary.pendingCount });
+    if (pendingPeriodEl) pendingPeriodEl.textContent = pendingSummary.nearestLabel ? t('dash_pending_nearest', null, { label: pendingSummary.nearestLabel }) : t('dash_pending_period_empty');
     pendingWorksSummaryEl.innerHTML = pendingSummary.dueItems.length === 0
       ? ''
-      : `<p><span>⚠️ Due</span><strong>${escapeHtml(pendingSummary.dueItems.map((item) => item.note).join(' · '))}</strong></p>`;
+      : `<p><span>${t('dash_pending_due_label')}</span><strong>${escapeHtml(pendingSummary.dueItems.map((item) => item.note).join(' · '))}</strong></p>`;
   }
   // SISP-32: pole & landmark directory — poles mapped vs live customers.
   const poleSummaryEl = $('#poleLandmarkSummary');
@@ -726,11 +726,11 @@ function renderDashboard() {
     const poleSummary = poleDirectorySummary(state.customers);
     const poleValueEl = $('#dashboardPoleLandmarkValue');
     const polePeriodEl = $('#dashboardPoleLandmarkPeriod');
-    if (poleValueEl) poleValueEl.textContent = poleSummary.mappedCount === 0 ? 'No poles mapped' : `${poleSummary.mappedCount} pole${poleSummary.mappedCount === 1 ? '' : 's'} mapped`;
-    if (polePeriodEl) polePeriodEl.textContent = `${poleSummary.totalCustomers} customers · Street pole, landmark & drop-wire directory`;
+    if (poleValueEl) poleValueEl.textContent = poleSummary.mappedCount === 0 ? t('dash_pole_empty') : t(poleSummary.mappedCount === 1 ? 'dash_pole_map_sing' : 'dash_pole_map_plur', null, { count: poleSummary.mappedCount });
+    if (polePeriodEl) polePeriodEl.textContent = t('dash_pole_period', null, { total: poleSummary.totalCustomers });
     poleSummaryEl.innerHTML = poleSummary.mappedCount === 0
       ? ''
-      : `<p><span>Mapped</span><strong>${poleSummary.mappedCount} of ${poleSummary.totalCustomers} customers</strong></p>`;
+      : `<p><span>${t('dash_pole_label')}</span><strong>${escapeHtml(t('dash_pole_detail', null, { mapped: poleSummary.mappedCount, total: poleSummary.totalCustomers }))}</strong></p>`;
   }
   // SISP-35: group billing card — group count + live collectible total.
   const groupBillingSummaryEl = $('#groupBillingSummary');
@@ -738,11 +738,11 @@ function renderDashboard() {
     const groupSummary = billingGroupsSummary(loadBillingGroups(), state.customers, monthsForHistory(new Date())[0], calculatePaymentAllocations(state));
     const groupValueEl = $('#dashboardGroupBillingValue');
     const groupPeriodEl = $('#dashboardGroupBillingPeriod');
-    if (groupValueEl) groupValueEl.textContent = groupSummary.groupCount === 0 ? 'No groups yet' : formatAmount(groupSummary.totalDueCents / 100);
-    if (groupPeriodEl) groupPeriodEl.textContent = groupSummary.groupCount === 0 ? 'Family / landlord groups' : `${groupSummary.groupCount} group(s) · ${groupSummary.groupsWithDue} with dues`;
+    if (groupValueEl) groupValueEl.textContent = groupSummary.groupCount === 0 ? t('dash_group_empty') : formatAmount(groupSummary.totalDueCents / 100);
+    if (groupPeriodEl) groupPeriodEl.textContent = groupSummary.groupCount === 0 ? t('dash_group_period_empty') : `${t(groupSummary.groupCount === 1 ? 'dash_group_sing' : 'dash_group_plur', null, { count: groupSummary.groupCount })} · ${t('dash_group_dues', null, { count: groupSummary.groupsWithDue })}`;
     groupBillingSummaryEl.innerHTML = groupSummary.groupCount === 0
       ? ''
-      : `<p><span>Collectible total</span><strong>${escapeHtml(formatAmount(groupSummary.totalDueCents / 100))}</strong></p>`;
+      : `<p><span>${t('dash_group_collectible')}</span><strong>${escapeHtml(formatAmount(groupSummary.totalDueCents / 100))}</strong></p>`;
   }
   // SISP-19: pending hardware recovery card (disconnected customers
   // holding unrecovered ISP-owned hardware).
@@ -752,11 +752,11 @@ function renderDashboard() {
     const pendingItems = pending.reduce((sum, entry) => sum + entry.items.length, 0);
     const valueEl = $('#dashboardHardwareRecoveryValue');
     const periodEl = $('#dashboardHardwareRecoveryPeriod');
-    if (valueEl) valueEl.textContent = pending.length === 0 ? 'Nothing pending' : `${pending.length} customer${pending.length === 1 ? '' : 's'} · ${pendingItems} item${pendingItems === 1 ? '' : 's'}`;
-    if (periodEl) periodEl.textContent = pending.length === 0 ? 'ISP-owned hardware at disconnected houses' : 'Mark items recovered as they come back';
+    if (valueEl) valueEl.textContent = pending.length === 0 ? t('dash_pending_empty') : `${t(pending.length === 1 ? 'dash_recovery_cust_sing' : 'dash_recovery_cust_plur', null, { count: pending.length })} · ${t(pendingItems === 1 ? 'dash_recovery_item_sing' : 'dash_recovery_item_plur', null, { count: pendingItems })}`;
+    if (periodEl) periodEl.textContent = pending.length === 0 ? t('dash_recovery_period_empty') : t('dash_recovery_period');
     recoverySummaryEl.innerHTML = pending.length === 0
       ? ''
-      : `<p><span>First pending</span><strong>${escapeHtml(pending[0].customer.name)} (#${escapeHtml(String(pending[0].customer.customerNumber))})</strong><small> · ${escapeHtml(pending[0].items.map(item => item.label).join(', '))}</small></p>`;
+      : `<p><span>${t('dash_recovery_first')}</span><strong>${escapeHtml(pending[0].customer.name)} (#${escapeHtml(String(pending[0].customer.customerNumber))})</strong><small> · ${escapeHtml(pending[0].items.map(item => item.label).join(', '))}</small></p>`;
   }
   // SISP-20: owner khata closing card (current-month financials + network).
   const ownerKhataSummaryEl = $('#ownerKhataSummary');
@@ -772,11 +772,11 @@ function renderDashboard() {
     });
     const valueEl = $('#dashboardOwnerKhataValue');
     const periodEl = $('#dashboardOwnerKhataPeriod');
-    if (valueEl) valueEl.textContent = khata.receiptCount === 0 && khata.expenseCount === 0 ? 'No activity' : `${formatAmount(khata.profit)} net profit`;
-    if (periodEl) periodEl.textContent = `${monthName(khataMonth)} · collected ${formatAmount(khata.collected)} · arrears ${formatAmount(khata.pendingArrears)}`;
+    if (valueEl) valueEl.textContent = khata.receiptCount === 0 && khata.expenseCount === 0 ? t('dash_khata_empty') : t('dash_khata_profit', null, { amount: formatAmount(khata.profit) });
+    if (periodEl) periodEl.textContent = t('dash_khata_period', null, { month: displayMonthName(khataMonth), collected: formatAmount(khata.collected), arrears: formatAmount(khata.pendingArrears) });
     ownerKhataSummaryEl.innerHTML = khata.receiptCount === 0 && khata.expenseCount === 0 && khata.totalComplaints === 0
       ? ''
-      : `<p><span>Shares</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · Nasir / Aqib · ${escapeHtml(String(khata.totalComplaints))} complaints · ${escapeHtml(String(khata.totalDowntime))} h offline</small></p>`;
+      : `<p><span>${t('dash_khata_shares')}</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · ${t('dash_khata_partners')} · ${escapeHtml(t('dash_khata_detail', null, { complaints: khata.totalComplaints, hours: khata.totalDowntime }))}</small></p>`;
   }
   // SISP-21: digital wallet ledger card (this-month wallet totals + flags).
   const walletSummaryEl = $('#walletLedgerSummary');
@@ -784,88 +784,88 @@ function renderDashboard() {
     const wallet = buildWalletReconciliation(state.customers, totals.currentMonth, loadShopSettlements());
     const valueEl = $('#dashboardWalletValue');
     const periodEl = $('#dashboardWalletPeriod');
-    if (valueEl) valueEl.textContent = wallet.digitalCount === 0 ? 'No digital payments' : formatAmount(wallet.digitalTotal);
+    if (valueEl) valueEl.textContent = wallet.digitalCount === 0 ? t('dash_wallet_empty') : formatAmount(wallet.digitalTotal);
     if (periodEl) periodEl.textContent = wallet.digitalCount === 0
-      ? 'EasyPaisa · JazzCash · NayaPay · Bank Transfer'
-      : `${wallet.pendingVerification.length} pending verification${wallet.duplicateGroups.length ? ` · ${wallet.duplicateGroups.length} duplicate TID${wallet.duplicateGroups.length === 1 ? '' : 's'}` : ''}`;
+      ? t('dash_wallet_period_empty')
+      : `${t('dash_wallet_pending', null, { count: wallet.pendingVerification.length })}${wallet.duplicateGroups.length ? ` · ${t(wallet.duplicateGroups.length === 1 ? 'dash_wallet_dup_sing' : 'dash_wallet_dup_plur', null, { count: wallet.duplicateGroups.length })}` : ''}`;
     walletSummaryEl.innerHTML = wallet.digitalCount === 0
       ? ''
       : DIGITAL_BREAKDOWN_METHODS.filter((label) => (wallet.byWallet[label]?.count ?? 0) > 0)
-        .map((label) => `<p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(wallet.byWallet[label].amount))}</strong><small> · ${escapeHtml(String(wallet.byWallet[label].count))} payment${wallet.byWallet[label].count === 1 ? '' : 's'} · ${escapeHtml(String(wallet.byWallet[label].verifiedCount))} verified</small></p>`).join('');  }
+        .map((label) => `<p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(wallet.byWallet[label].amount))}</strong><small> · ${escapeHtml(t(wallet.byWallet[label].count === 1 ? 'dash_wallet_pay_sing' : 'dash_wallet_pay_plur', null, { count: wallet.byWallet[label].count }))} · ${escapeHtml(t('dash_wallet_verified', null, { count: wallet.byWallet[label].verifiedCount }))}</small></p>`).join('');  }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
   $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
-  document.querySelector('[data-customer-service-filter="active"]').setAttribute('aria-label',`Active ${totals.activeServiceCount} — Filter by manual service status (${totals.activeServiceCount} unarchived)`);
-  document.querySelector('[data-customer-service-filter="offline"]').setAttribute('aria-label',`Offline ${totals.offlineServiceCount} — Filter by manual service status (${totals.offlineServiceCount} unarchived)`);
-  document.querySelector('[data-customer-service-filter="not-set"]').setAttribute('aria-label',`Not set ${totals.unsetServiceCount} — Filter by manual service status (${totals.unsetServiceCount} unarchived)`);
-  $('#serviceStateCountsAnnouncement').textContent = `Manual service counts, excluding archived profiles: Active ${totals.activeServiceCount} · Offline ${totals.offlineServiceCount} · Not set ${totals.unsetServiceCount}`;
-  $('#dashboardTotalCollection').textContent = retainedPayments.length ? formatAmount(totals.totalCollection) : 'No payment entries';
-  $('#dashboardTotalDue').textContent = retainedBills.length === 0 ? 'No bill entries' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : 'Not set';
-  $('#dashboardTodayCollection').textContent = todayPayments ? formatAmount(totals.todayCollection) : 'No payment entries';
-  $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : 'No entries';
-  $('#dashboardCurrentExpensesPeriod').textContent = `Actual dated expenses · ${monthName(totals.currentMonth)}`;
-  $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : 'No recorded activity';
-  $('#dashboardCashProfitPeriod').textContent = `${formatAmount(currentCash.collection)} actual receipts − ${formatAmount(currentCash.expenses)} recorded expenses`;
-  $('#dashboardPreviousCollection').textContent = previousMonthPayments ? formatAmount(totals.previousMonthCollection) : 'No payment entries';
-  $('#dashboardCurrentMonthDue').textContent = currentBills.length === 0 ? 'No bill entries' : pricedCurrentBills.length ? formatAmount(totals.currentMonthDue) : 'Not set';
-  $('#dashboardPendingCredit').textContent = allPayments.length ? formatAmount(totals.pendingCredit) : 'No credit entries';
-  $('#dashboardExpectedProfit').textContent = profilesWithProfit ? formatAmount(totals.expectedMonthlyPackageProfit) : 'Not set';
-  $('#dashboardProviderCost').textContent = profilesWithCost ? formatAmount(totals.expectedMonthlyProviderCost) : 'Not set';
-  $('#dashboardCustomerPeriod').textContent = `${totals.archivedCustomers} archived · ${totals.totalCustomers} unarchived profiles; service state is manual`;
-  $('#dashboardProviderCostPeriod').textContent = profilesWithCost ? 'Expected recurring monthly cost · not cash paid' : 'No provider-cost entries · not cash paid';
-  $('#providerCostBreakdownList').innerHTML = totals.providerCostBreakdown.map(group => `<li><span class="provider-breakdown-name">${escapeHtml(group.provider)}</span><strong>${escapeHtml(formatAmount(group.expectedMonthlyCost))}</strong><span class="provider-breakdown-meta">${group.profilesWithCost} cost${group.profilesWithCost === 1 ? '' : 's'} entered · ${group.profilesMissingCost} missing</span></li>`).join('');
+  document.querySelector('[data-customer-service-filter="active"]').setAttribute('aria-label', t('dash_service_active_aria', null, { count: totals.activeServiceCount }));
+  document.querySelector('[data-customer-service-filter="offline"]').setAttribute('aria-label', t('dash_service_offline_aria', null, { count: totals.offlineServiceCount }));
+  document.querySelector('[data-customer-service-filter="not-set"]').setAttribute('aria-label', t('dash_service_notset_aria', null, { count: totals.unsetServiceCount }));
+  $('#serviceStateCountsAnnouncement').textContent = t('dash_service_announce', null, { active: totals.activeServiceCount, offline: totals.offlineServiceCount, notset: totals.unsetServiceCount });
+  $('#dashboardTotalCollection').textContent = retainedPayments.length ? formatAmount(totals.totalCollection) : t('dash_no_payments');
+  $('#dashboardTotalDue').textContent = retainedBills.length === 0 ? t('dash_no_bills') : pricedRetainedBills.length ? formatAmount(totals.totalDue) : t('dash_not_set');
+  $('#dashboardTodayCollection').textContent = todayPayments ? formatAmount(totals.todayCollection) : t('dash_no_payments');
+  $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
+  $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
+  $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');
+  $('#dashboardCashProfitPeriod').textContent = t('dash_profit_period', null, { collection: formatAmount(currentCash.collection), expenses: formatAmount(currentCash.expenses) });
+  $('#dashboardPreviousCollection').textContent = previousMonthPayments ? formatAmount(totals.previousMonthCollection) : t('dash_no_payments');
+  $('#dashboardCurrentMonthDue').textContent = currentBills.length === 0 ? t('dash_no_bills') : pricedCurrentBills.length ? formatAmount(totals.currentMonthDue) : t('dash_not_set');
+  $('#dashboardPendingCredit').textContent = allPayments.length ? formatAmount(totals.pendingCredit) : t('dash_no_credit');
+  $('#dashboardExpectedProfit').textContent = profilesWithProfit ? formatAmount(totals.expectedMonthlyPackageProfit) : t('dash_not_set');
+  $('#dashboardProviderCost').textContent = profilesWithCost ? formatAmount(totals.expectedMonthlyProviderCost) : t('dash_not_set');
+  $('#dashboardCustomerPeriod').textContent = t('dash_customer_period', null, { archived: totals.archivedCustomers, total: totals.totalCustomers });
+  $('#dashboardProviderCostPeriod').textContent = profilesWithCost ? t('dash_provcost_period') : t('dash_provcost_empty');
+  $('#providerCostBreakdownList').innerHTML = totals.providerCostBreakdown.map(group => `<li><span class="provider-breakdown-name">${escapeHtml(group.provider)}</span><strong>${escapeHtml(formatAmount(group.expectedMonthlyCost))}</strong><span class="provider-breakdown-meta">${t(group.profilesWithCost === 1 ? 'dash_provcost_cost_sing' : 'dash_provcost_cost_plur', null, { count: group.profilesWithCost })} · ${t('dash_provcost_missing', null, { count: group.profilesMissingCost })}</span></li>`).join('');
   $('#providerCostBreakdownEmpty').hidden = totals.providerCostBreakdown.length > 0;
-  $('#dashboardTotalCollectionPeriod').textContent = retainedPayments.length ? `Actual recorded payments · last ${MONTH_LIMIT} retained billing months` : 'No actual payment entries in the retained history';
-  $('#dashboardTotalDuePeriod').textContent = retainedBills.length ? `Known outstanding bills · retained ${MONTH_LIMIT}-month history` : 'No bills have been recorded in the retained history';
-  $('#dashboardTodayPeriod').textContent = `Actual payments dated today · ${totals.today}`;
-  $('#dashboardPreviousPeriod').textContent = `Actual payment dates in ${monthName(totals.previousMonth)}`;
-  $('#dashboardCurrentDuePeriod').textContent = `Current billing month · ${monthName(totals.currentMonth)}${currentBills.length ? '' : ' · no bill entries'}`;
-  $('#dashboardExpectedProfitPeriod').textContent = 'Selling amount − provider cost · expected margin, not collected cash profit';
+  $('#dashboardTotalCollectionPeriod').textContent = retainedPayments.length ? t('dash_coll_period', null, { months: MONTH_LIMIT }) : t('dash_coll_period_empty');
+  $('#dashboardTotalDuePeriod').textContent = retainedBills.length ? t('dash_due_period', null, { months: MONTH_LIMIT }) : t('dash_due_period_empty');
+  $('#dashboardTodayPeriod').textContent = t('dash_today_period', null, { date: totals.today });
+  $('#dashboardPreviousPeriod').textContent = t('dash_prev_period', null, { month: displayMonthName(totals.previousMonth) });
+  $('#dashboardCurrentDuePeriod').textContent = `${t('dash_current_due_period', null, { month: displayMonthName(totals.currentMonth) })}${currentBills.length ? '' : t('dash_current_due_suffix')}`;
+  $('#dashboardExpectedProfitPeriod').textContent = t('dash_margin_note');
   const notes = [];
-  if (totals.customersMissingSellingAmount) notes.push(`Selling amount unset for ${plural(totals.customersMissingSellingAmount, 'customer')}; no monthly bills are generated until a price is entered.`);
-  if (totals.unpricedBillCount) notes.push(`${plural(totals.unpricedBillCount, 'pending bill')} without a recorded amount are excluded from due totals.`);
-  if (totals.incompleteProfitProfiles) notes.push(`Profit not set for ${plural(totals.incompleteProfitProfiles, 'profile')} missing a selling amount or provider cost; excluded from expected package profit.`);
-  if (totals.customersMissingProviderCost) notes.push(`Provider cost not set for ${plural(totals.customersMissingProviderCost, 'active profile')}; excluded from expected monthly provider cost.`);
-  $('#dashboardExcludedAmounts').textContent = notes.length ? notes.join(' ') : 'Dues use each saved month’s bill snapshot after receipts and carry-forward credit; credits are not new cash.';
+  if (totals.customersMissingSellingAmount) notes.push(t(totals.customersMissingSellingAmount === 1 ? 'dash_note_selling_sing' : 'dash_note_selling_plur', null, { count: totals.customersMissingSellingAmount }));
+  if (totals.unpricedBillCount) notes.push(t(totals.unpricedBillCount === 1 ? 'dash_note_unpriced_sing' : 'dash_note_unpriced_plur', null, { count: totals.unpricedBillCount }));
+  if (totals.incompleteProfitProfiles) notes.push(t(totals.incompleteProfitProfiles === 1 ? 'dash_note_profit_sing' : 'dash_note_profit_plur', null, { count: totals.incompleteProfitProfiles }));
+  if (totals.customersMissingProviderCost) notes.push(t(totals.customersMissingProviderCost === 1 ? 'dash_note_provcost_sing' : 'dash_note_provcost_plur', null, { count: totals.customersMissingProviderCost }));
+  $('#dashboardExcludedAmounts').textContent = notes.length ? notes.join(' ') : t('dash_excluded_default');
 
   const kpis = calculateDashboardKpis(state, referenceDate);
   const activeSubscribersEl = $('#dashboardActiveCustomers');
   if (activeSubscribersEl) {
     activeSubscribersEl.textContent = `${kpis.activeSubscribers} (${kpis.activePercent}%)`;
-    $('#dashboardActiveCustomersPeriod').textContent = `${kpis.offlineSubscribers} offline · ${kpis.unsetSubscribers} not set`;
+    $('#dashboardActiveCustomersPeriod').textContent = t('dash_kpi_active_period', null, { offline: kpis.offlineSubscribers, notset: kpis.unsetSubscribers });
   }
   const billStatusEl = $('#dashboardMonthBillStatus');
   if (billStatusEl) {
     if (kpis.totalCurrentMonthBills === 0) {
-      billStatusEl.textContent = 'No bill entries';
-      $('#dashboardMonthBillStatusPeriod').textContent = 'No bills recorded for current month';
+      billStatusEl.textContent = t('dash_no_bills');
+      $('#dashboardMonthBillStatusPeriod').textContent = t('dash_billstatus_empty');
     } else {
-      billStatusEl.textContent = `${kpis.paidBillsCount} paid · ${kpis.unpaidBillsCount} unpaid`;
-      $('#dashboardMonthBillStatusPeriod').textContent = `${kpis.partialBillsCount} partial · ${kpis.totalCurrentMonthBills} total bills in ${monthName(totals.currentMonth)}`;
+      billStatusEl.textContent = t('dash_billstatus_value', null, { paid: kpis.paidBillsCount, unpaid: kpis.unpaidBillsCount });
+      $('#dashboardMonthBillStatusPeriod').textContent = t('dash_billstatus_period', null, { partial: kpis.partialBillsCount, total: kpis.totalCurrentMonthBills, month: displayMonthName(totals.currentMonth) });
     }
   }
   const billedRevenueEl = $('#dashboardCurrentMonthBilled');
   if (billedRevenueEl) {
-    billedRevenueEl.textContent = kpis.currentMonthBilled > 0 ? formatAmount(kpis.currentMonthBilled) : 'No bill entries';
-    $('#dashboardCurrentMonthBilledPeriod').textContent = kpis.collectionRate !== null ? `Collection rate ${kpis.collectionRate}% of billed amount` : `Priced snapshots · ${monthName(totals.currentMonth)}`;
+    billedRevenueEl.textContent = kpis.currentMonthBilled > 0 ? formatAmount(kpis.currentMonthBilled) : t('dash_no_bills');
+    $('#dashboardCurrentMonthBilledPeriod').textContent = kpis.collectionRate !== null ? t('dash_billed_rate', null, { rate: kpis.collectionRate }) : t('dash_billed_period', null, { month: displayMonthName(totals.currentMonth) });
   }
   const monthCollectionEl = $('#dashboardCurrentMonthCollection');
   if (monthCollectionEl) {
-    monthCollectionEl.textContent = currentCash.paymentCount ? formatAmount(kpis.currentMonthCollection) : 'No payment entries';
-    $('#dashboardCurrentMonthCollectionPeriod').textContent = `${currentCash.paymentCount} receipt${currentCash.paymentCount === 1 ? '' : 's'} dated in ${monthName(totals.currentMonth)}`;
+    monthCollectionEl.textContent = currentCash.paymentCount ? formatAmount(kpis.currentMonthCollection) : t('dash_no_payments');
+    $('#dashboardCurrentMonthCollectionPeriod').textContent = t(currentCash.paymentCount === 1 ? 'dash_monthcoll_sing' : 'dash_monthcoll_plur', null, { count: currentCash.paymentCount, month: displayMonthName(totals.currentMonth) });
   }
   const newConnEl = $('#dashboardNewConnections');
   if (newConnEl) {
     newConnEl.textContent = String(kpis.newConnectionsCount);
-    $('#dashboardNewConnectionsPeriod').textContent = `Recorded in ${monthName(totals.currentMonth)}`;
+    $('#dashboardNewConnectionsPeriod').textContent = t('dash_newconn_period', null, { month: displayMonthName(totals.currentMonth) });
   }
   const velocity = calculateCollectionVelocity(state, referenceDate);
   const velocityValEl = $('#dashboardCollectionVelocity');
   if (velocityValEl) {
-    velocityValEl.textContent = `${formatAmount(velocity.dailyRunRate)} / day`;
+    velocityValEl.textContent = t('dash_velocity_day', null, { amount: formatAmount(velocity.dailyRunRate) });
     $('#dashboardCollectionVelocityPeriod').textContent = velocity.projectedRate !== null
-      ? `Projected: ${formatAmount(velocity.projectedMonthEnd)} (${velocity.projectedRate}% of billed) · ${velocity.daysRemaining} days left`
-      : `Day ${velocity.currentDay} of ${velocity.daysInMonth} · ${velocity.daysRemaining} days remaining`;
+      ? t('dash_velocity_proj', null, { amount: formatAmount(velocity.projectedMonthEnd), rate: velocity.projectedRate, days: velocity.daysRemaining })
+      : t('dash_velocity_days', null, { day: velocity.currentDay, daysInMonth: velocity.daysInMonth, days: velocity.daysRemaining });
     const fillEl = $('#dashboardVelocityFill');
     if (fillEl) {
       const pct = Math.min(100, Math.max(0, velocity.currentRate ?? 0));
@@ -881,7 +881,7 @@ function renderDashboard() {
   if (discCountEl || recCountEl) {
     const wData = calculateDisconnectReconnectWorklists(state, { referenceDate });
     if (discCountEl) discCountEl.textContent = String(wData.kpis.toDisconnectCount);
-    if (discAmtEl) discAmtEl.textContent = `${formatAmount(wData.kpis.toDisconnectTotalAmount)} dues (> ${wData.rules.disconnectOverdueDays}d)`;
+    if (discAmtEl) discAmtEl.textContent = t('dash_worklist_dues', null, { amount: formatAmount(wData.kpis.toDisconnectTotalAmount), days: wData.rules.disconnectOverdueDays });
     if (recCountEl) recCountEl.textContent = String(wData.kpis.toReconnectCount);
   }
   worklistsModalController?.render?.();
@@ -898,12 +898,12 @@ function renderDashboard() {
     kpiMonthEl.textContent = `${collStr} / ${billStr}`;
     const kpiRateSub = $('#kpiMonthRateSub');
     if (kpiRateSub) {
-      kpiRateSub.textContent = kpis.collectionRate !== null ? `${kpis.collectionRate}% collected` : '0% collected';
+      kpiRateSub.textContent = kpis.collectionRate !== null ? t('dash_kpi_rate', null, { rate: kpis.collectionRate }) : t('dash_kpi_rate_zero');
     }
   }
   const kpiDuesEl = $('#kpiTotalDue');
   if (kpiDuesEl) {
-    kpiDuesEl.textContent = retainedBills.length === 0 ? 'PKR 0' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : 'Not set';
+    kpiDuesEl.textContent = retainedBills.length === 0 ? 'PKR 0' : pricedRetainedBills.length ? formatAmount(totals.totalDue) : t('dash_not_set');
   }
   const kpiDefaultersEl = $('#kpiCustomersWithDues');
   if (kpiDefaultersEl) {
@@ -918,7 +918,7 @@ function renderDashboard() {
       });
       if (hasDue) defaultersCount++;
     }
-    kpiDefaultersEl.textContent = `${defaultersCount} customer${defaultersCount === 1 ? '' : 's'}`;
+    kpiDefaultersEl.textContent = t(defaultersCount === 1 ? 'dash_defaulters_sing' : 'dash_defaulters_plur', null, { count: defaultersCount });
   }
 
   // Wire #homeActionDuesList
@@ -1121,9 +1121,9 @@ let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getI
 // onboarding totals over saved customers. Join months come from
 // buildNewCustomerReport; this function never rewrites any saved value.
 
-// Urdu auto-translation phase 1: month names on the Customers page only.
-// Other screens keep monthName() until their own phase; only the customers
-// renderers below call this helper.
+// Urdu auto-translation phases 1-2: month names on the Customers + Dashboard
+// screens. Other screens keep monthName() until their own phase; only the
+// customers + dashboard renderers call this helper.
 const CUST_MONTH_KEYS = { '01': 'cust_month_jan', '02': 'cust_month_feb', '03': 'cust_month_mar', '04': 'cust_month_apr', '05': 'cust_month_may', '06': 'cust_month_jun', '07': 'cust_month_jul', '08': 'cust_month_aug', '09': 'cust_month_sep', '10': 'cust_month_oct', '11': 'cust_month_nov', '12': 'cust_month_dec' };
 function displayMonthName(month) {
   const raw = String(month || '');
@@ -1131,7 +1131,7 @@ function displayMonthName(month) {
     const key = CUST_MONTH_KEYS[raw.slice(5, 7)];
     if (key) return `${t(key)} ${raw.slice(0, 4)}`;
   }
-  return monthName(month);
+  return displayMonthName(month);
 }
 
 // Urdu tenure lines for customer cards (phase 1). tenurePresentation() stays
@@ -4932,6 +4932,7 @@ window.languageController = setupLanguageToggle({
 window.addEventListener('shahdara:language-change', () => {
   renderDetail();
   renderCustomers();
+  renderDashboard();
 });
 
 // Setup Pending Actions Center & Collection Promises Suite (agent2 - shahdara-mobile-nav)

@@ -28,6 +28,10 @@ import {
   getWaadaTier,
   setupWaadaChipDialog
 } from './waada-queue.js';
+import {
+  buildDefaulterLockScript,
+  buildDefaulterRestoreScript
+} from './mikrotik-generator.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -991,6 +995,61 @@ export function setupTopDefaultersModal(state, {
         } catch {
           onToast?.('Failed to write to clipboard.');
         }
+      }
+    });
+  }
+
+  // SISP-13: MikroTik lock / restore scripts for the currently visible
+  // (filtered) defaulter list. Accounts map back to full customer records
+  // so stored PPPoE / package / Waada fields drive the scripts.
+  const mikrotikLockBtn = document.getElementById('topDefaultersMikrotikLockBtn');
+  const mikrotikRestoreBtn = document.getElementById('topDefaultersMikrotikRestoreBtn');
+  const mikrotikOutput = document.getElementById('topDefaultersMikrotikOutput');
+  const mikrotikScriptBox = document.getElementById('topDefaultersMikrotikScript');
+  const mikrotikNote = document.getElementById('topDefaultersMikrotikNote');
+  const mikrotikCopyBtn = document.getElementById('topDefaultersMikrotikCopyBtn');
+
+  const visibleCustomers = () => {
+    if (!currentData) currentData = calculateTopDefaulters(getState(), getFilterOptions());
+    const customers = getState().customers || [];
+    return (currentData.accounts || [])
+      .map((acc) => customers.find((c) => c.id === acc.id))
+      .filter(Boolean);
+  };
+  const showMikrotikScript = (script, note) => {
+    if (mikrotikScriptBox) mikrotikScriptBox.value = script;
+    if (mikrotikNote) mikrotikNote.textContent = note;
+    if (mikrotikOutput) mikrotikOutput.hidden = false;
+  };
+  if (mikrotikLockBtn) {
+    mikrotikLockBtn.addEventListener('click', () => {
+      const { script, locked, skippedWaada } = buildDefaulterLockScript(visibleCustomers(), { todayStr: formatDateYmd(new Date()) });
+      showMikrotikScript(script, `Lock script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada). Review before pasting into WinBox Terminal.`);
+      onToast?.('MikroTik lock script generated.');
+    });
+  }
+  if (mikrotikRestoreBtn) {
+    mikrotikRestoreBtn.addEventListener('click', () => {
+      const { script, restored } = buildDefaulterRestoreScript(visibleCustomers());
+      showMikrotikScript(script, `Restore script for ${restored.length} customer${restored.length === 1 ? '' : 's'}. Paste only after the customer has paid in full.`);
+      onToast?.('MikroTik restore script generated.');
+    });
+  }
+  if (mikrotikCopyBtn) {
+    mikrotikCopyBtn.addEventListener('click', async () => {
+      const text = mikrotikScriptBox ? mikrotikScriptBox.value : '';
+      if (!text) return;
+      const clip = clipboard || (typeof navigator !== 'undefined' ? navigator.clipboard : null);
+      try {
+        if (clip && typeof clip.writeText === 'function') {
+          await clip.writeText(text);
+        } else {
+          mikrotikScriptBox.select();
+          document.execCommand('copy');
+        }
+        onToast?.('MikroTik script copied to clipboard!');
+      } catch {
+        onToast?.('Failed to write to clipboard.');
       }
     });
   }

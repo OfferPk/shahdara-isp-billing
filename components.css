@@ -694,3 +694,26 @@ body.field-mode-open { overflow: hidden; }
   .install-tracker-list { grid-template-columns: 1fr; }
   .install-tracker-card p strong { text-align: left; }
 }
+/* SISP-13: MikroTik RouterOS script boxes — theme tokens only. */
+.mikrotik-script-box {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--modal-surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 10px;
+  white-space: pre;
+  overflow: auto;
+}
+.profile-mikrotik-note,
+.mikrotik-output-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+.mikrotik-output-block {
+  margin-top: 16px;
+}

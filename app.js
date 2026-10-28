@@ -125,6 +125,7 @@ import { INVENTORY_KEY, computeStock, loadInventory, saveInventory, setupInvento
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
+import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -1773,11 +1774,14 @@ function renderCustomerProfileView(customer) {
     ? '<p class="profile-kist-empty">No installments set up for this customer.</p>'
     : kistProgress.plans.map((plan) => `<article class="kist-plan"><div class="kist-plan-head"><strong>${escapeHtml(plan.itemTitle)}</strong><span>${escapeHtml(plan.statusLabel)}</span></div><div class="kist-progress-track" role="progressbar" aria-label="${escapeHtml(plan.itemTitle)} progress" aria-valuenow="${plan.percentPaid}" aria-valuemin="0" aria-valuemax="100"><div class="kist-progress-fill" style="width: ${plan.percentPaid}%"></div></div><p class="kist-plan-meta">Paid ${plan.monthsPaid}/${plan.totalMonths} Installments • ${escapeHtml(formatAmount(plan.remainingAmount))} Remaining</p><p class="kist-plan-detail">Monthly kist ${escapeHtml(formatAmount(plan.monthlyKist))} · Billed ${plan.monthsBilled}/${plan.totalMonths} · Total ${escapeHtml(formatAmount(plan.totalAmount))}${plan.downPayment > 0 ? ` · Down payment ${escapeHtml(formatAmount(plan.downPayment))}` : ''}${plan.startDate ? ` · From ${escapeHtml(plan.startDate)}` : ''}</p>${plan.monthsBilled === 0 ? `<button type="button" class="secondary-button text-button danger" data-profile-kist-remove="${escapeHtml(plan.id)}">Remove plan</button>` : ''}</article>`).join('');
   const kistSectionHtml = `<section class="profile-kist-section" aria-label="Installments (Kist)"><h4>💳 Kist / Installments — Hardware &amp; Wire</h4><p class="profile-kist-note">Installments are added to the monthly bill automatically when the billing cycle runs — never from here. Paid counts installments whose bill month is fully settled.</p>${kistPlansHtml}<form class="kist-add-form" novalidate><h5>Add installment plan</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">Item (router / ONU / fiber wire)</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="e.g. Tenda F3 Router + 120m Fiber" required><label class="field-label full" for="profileKistTotalAmount">Total amount (PKR)</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="e.g. 3000" required><label class="field-label full" for="profileKistDownPayment">Down payment (PKR) <span class="optional-label">Optional</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistTotalMonths">Months (2–6)</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">Monthly kist (PKR) <span class="optional-label">Optional · auto-split if blank</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Auto"><label class="field-label full" for="profileKistStartDate">Start date <span class="optional-label">Optional · first cycle on/after this date</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">Add installment plan</button></form></section>`;
-  // SISP-8: vacation hold — one row in the Service group (no new CSS;
-  // the detail text states the billing effect in plain words).
-  const pauseSummary = pauseBillingSummary(customer);
-  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}`;
+  // SISP-13: per-customer MikroTik script — read-only text the
+  // operator copies into WinBox Terminal; generating it never writes the
+  // ledger. The password itself is never shown in the profile view, only
+  // inside this copyable script (that is the point of the feature).
+  const mikrotikSnippet = buildCustomerMikrotikSnippet(customer);
+  const mikrotikSectionHtml = `<section class="profile-mikrotik-section" aria-label="MikroTik script"><h4>📡 MikroTik script</h4><p class="profile-mikrotik-note">Copy into WinBox Terminal. Read-only — this never changes bills or customer records. PPPoE username, password, static IP and MAC come from the profile edit form.</p><textarea id="profileMikrotikScript" class="mikrotik-script-box" readonly rows="10" aria-label="MikroTik script for this customer">${escapeHtml(mikrotikSnippet)}</textarea><button type="button" class="secondary-button" id="profileMikrotikCopyBtn">📋 Copy MikroTik script</button></section>`;
+  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Vacation hold', pauseSummary.detail], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['PPPoE username', customer.pppoeUsername || 'Not set'], ['Static IP', customer.staticIp || 'Not set'], ['MAC address', customer.macAddress || 'Not set'], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1836,6 +1840,23 @@ function renderCustomerProfileView(customer) {
   const profileOutageTraceBtn = $('#customerProfileView').querySelector('#profileOutageTraceBtn');
   if (profileOutageTraceBtn) profileOutageTraceBtn.addEventListener('click', () => {
     if (outageImpactModalController) outageImpactModalController.open({ sourceId: String(customer.id) });
+  });
+  // SISP-13: copy the per-customer MikroTik snippet (read-only text).
+  const profileMikrotikCopyBtn = $('#customerProfileView').querySelector('#profileMikrotikCopyBtn');
+  if (profileMikrotikCopyBtn) profileMikrotikCopyBtn.addEventListener('click', async () => {
+    const scriptBox = $('#customerProfileView').querySelector('#profileMikrotikScript');
+    const text = scriptBox ? scriptBox.value : mikrotikSnippet;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        scriptBox?.select();
+        document.execCommand('copy');
+      }
+      toast('MikroTik script copied.');
+    } catch {
+      toast('Could not copy the script — select it and copy manually.');
+    }
   });
   // SISP-4: wire the profile kist form (add plan + remove unbilled plan).
   // Adding a plan only records it — billing happens in the cycle, so this
@@ -1965,6 +1986,10 @@ function renderDetail() {
     fiberZoneSelect.innerHTML = '<option value="">Not set</option>' + FIBER_ZONES.map((z) => `<option value="${escapeHtml(z)}"${z === (feederSaved.fiberZone ?? '') ? ' selected' : ''}>${escapeHtml(z)}</option>`).join('');
     fiberZoneSelect.value = feederSaved.fiberZone ?? '';
   }
+  if ($('#pppoeUsernameInput')) $('#pppoeUsernameInput').value = customer.pppoeUsername ?? '';
+  if ($('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
+  if ($('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
+  if ($('#macAddressInput')) $('#macAddressInput').value = customer.macAddress ?? '';
   $('#expiryDateInput').value = customer.expiryDate ?? '';
   $('#cancellationDateInput').value = customer.cancellationDate ?? '';
   $('#packageChangeStaffNameInput').value = '';
@@ -3352,6 +3377,10 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       routerPrice:$('#routerPriceInput').value, fiberMeters:$('#fiberMetersInput').value,
       upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
       fiberZone:$('#fiberZoneInput') ? $('#fiberZoneInput').value : '',
+      ...($('#pppoeUsernameInput') ? { pppoeUsername: $('#pppoeUsernameInput').value } : {}),
+      ...($('#pppoePasswordInput') ? { pppoePassword: $('#pppoePasswordInput').value } : {}),
+      ...($('#staticIpInput') ? { staticIp: $('#staticIpInput').value } : {}),
+      ...($('#macAddressInput') ? { macAddress: $('#macAddressInput').value } : {}),
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
       // SISP-8: vacation hold (validation errors surface as a toast).
       paused: $('#pauseBillingCheckbox')?.checked === true,

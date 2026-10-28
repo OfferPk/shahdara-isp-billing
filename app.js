@@ -119,6 +119,7 @@ import {
   buildPayrollExpensePrefill,
   validateStaffAttendanceDate,
   filterExpenseRows,
+  buildExpenseCategoryTotals,
   sortExpenseRows,
   generateExpensesCsv
 } from './form-validation.js?v=1.11.0';
@@ -6256,6 +6257,15 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     } else {
       filteredHelpEl.textContent = allRows.length ? `${allRows.length} total entries` : 'No expense entries recorded';
     }
+  }
+
+  const categoryTotals = buildExpenseCategoryTotals(filteredRows);
+  const categoryTotalsBody = $('#expenseCategoryTotalsBody');
+  if (categoryTotalsBody) {
+    const totalRow = `<tr><th scope="row">Total</th><td>${filteredRows.length}</td><td>${phase3Cell(formatAmount(filteredTotal))}</td></tr>`;
+    categoryTotalsBody.innerHTML = categoryTotals.length
+      ? categoryTotals.map(entry => `<tr><th scope="row">${phase3Cell(entry.category)}</th><td>${entry.count}</td><td>${phase3Cell(formatAmount(entry.total))}</td></tr>`).join('') + totalRow
+      : `<tr><td colspan="3">No expenses match the current filters.</td></tr>`;
   }
 
   const sortedRows = sortExpenseRows(filteredRows, expenseSortKey, expenseSortAsc);

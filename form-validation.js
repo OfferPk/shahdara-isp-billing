@@ -13389,6 +13389,29 @@ export function filterExpenseRows(expenses = [], { month = 'all', category = 'al
 }
 
 /**
+ * Pure per-category totals helper for expense rows. Derived live from the
+ * given rows only — no stored totals, no schema change. Workday/attendance
+ * logs are never expense rows, so they can never appear here; the caller
+ * passes expense-ledger rows only.
+ *
+ * @param {Array<Object>} [expenses=[]] - List of expense objects
+ * @returns {Array<{category: string, count: number, total: number}>} One entry
+ * per category, sorted by total descending, then category name ascending.
+ */
+export function buildExpenseCategoryTotals(expenses = []) {
+  const byCategory = new Map();
+  for (const row of (expenses || [])) {
+    const category = String(row.category || '').trim() || 'Not recorded';
+    const entry = byCategory.get(category) || { category, count: 0, total: 0 };
+    entry.count += 1;
+    entry.total += Number(row.amount) || 0;
+    byCategory.set(category, entry);
+  }
+  return [...byCategory.values()].sort((a, b) =>
+    (b.total - a.total) || a.category.localeCompare(b.category));
+}
+
+/**
  * Pure sort helper for expense rows by date, category, amount, or area.
  *
  * @param {Array<Object>} [expenses=[]] - List of expense objects

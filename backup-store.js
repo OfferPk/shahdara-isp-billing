@@ -131,7 +131,7 @@ export function createLocalBackupStore({
       return record ?? { key:'status', lastSuccessfulAt:null, lastSizeBytes:null, lastBackupId:null, failureAt:null, failureMessage:'' };
     },
     async listBackups() {
-      return (await listBackups()).map(({ id, createdAt, kind, sizeBytes }) => ({ id, createdAt, kind, sizeBytes }));
+      return (await listBackups()).map(({ id, createdAt, kind, sizeBytes, customerCount, paymentCount }) => ({ id, createdAt, kind, sizeBytes, customerCount, paymentCount }));
     },
     async getBackup(id) {
       if (!id) throw new Error('Choose a saved backup first.');
@@ -144,9 +144,18 @@ export function createLocalBackupStore({
       if (!metadata || typeof payload?.backupText !== 'string') throw new Error('That saved backup is unavailable or incomplete. No local data has changed.');
       return { ...metadata, backupText:payload.backupText };
     },
-    async saveBackup(backupText, { kind = 'manual', createdAt = clock() } = {}) {
+    async deleteBackup(id) {
+      if (!id) throw new Error('Choose a saved backup first.');
+      const database = await openDatabase();
+      const transaction = database.transaction([BACKUP_STORE, PAYLOAD_STORE], 'readwrite');
+      const done = transactionResult(transaction);
+      transaction.objectStore(BACKUP_STORE).delete(id);
+      transaction.objectStore(PAYLOAD_STORE).delete(id);
+      await done;
+    },
+    async saveBackup(backupText, { kind = 'manual', createdAt = clock(), customerCount = undefined, paymentCount = undefined, updateStatus = true } = {}) {
       if (typeof backupText !== 'string' || backupText.length === 0 || backupText.length > MAX_BACKUP_CHARACTERS) throw new Error('Backup is too large or unreadable for local backup storage. No existing backup or ledger data was changed. Download a JSON backup to a user-selected location instead.');
-      if (!['manual','automatic'].includes(kind)) throw new Error('Backup type is invalid.');
+      if (!['manual','automatic','safety'].includes(kind)) throw new Error('Backup type is invalid.');
       const timestamp = createdAt instanceof Date ? createdAt : new Date(createdAt);
       if (!Number.isFinite(timestamp.getTime())) throw new Error('Backup date is invalid.');
       const sizeBytes = new TextEncoder().encode(backupText).byteLength;
@@ -164,23 +173,30 @@ export function createLocalBackupStore({
         try { await storage.persist(); } catch { /* Browser refusal does not block a safe local write. */ }
       }
       const id = uniqueId(timestamp, cryptoObject);
-      const record = { id, createdAt:timestamp.toISOString(), kind, sizeBytes };
+      const record = { id, createdAt:timestamp.toISOString(), kind, sizeBytes,
+        ...(Number.isFinite(customerCount) ? { customerCount } : {}),
+        ...(Number.isFinite(paymentCount) ? { paymentCount } : {}) };
       const database = await openDatabase();
       const transaction = database.transaction([BACKUP_STORE, PAYLOAD_STORE, META_STORE], 'readwrite');
       const done = transactionResult(transaction);
       // add() is intentional: a duplicate key aborts rather than replacing any prior snapshot.
       transaction.objectStore(BACKUP_STORE).add(record);
       transaction.objectStore(PAYLOAD_STORE).add({ id, backupText });
-      transaction.objectStore(META_STORE).put({
-        key:'status',
-        lastSuccessfulAt:record.createdAt,
-        lastSizeBytes:sizeBytes,
-        lastBackupId:id,
-        failureAt:null,
-        failureMessage:'',
-        lastAttemptAt:record.createdAt,
-        lastKind:kind
-      });
+      // Safety snapshots must not disturb the automatic-backup schedule or
+      // the "last successful backup" display: they are a separate safety
+      // net, so callers pass updateStatus:false for them.
+      if (updateStatus) {
+        transaction.objectStore(META_STORE).put({
+          key:'status',
+          lastSuccessfulAt:record.createdAt,
+          lastSizeBytes:sizeBytes,
+          lastBackupId:id,
+          failureAt:null,
+          failureMessage:'',
+          lastAttemptAt:record.createdAt,
+          lastKind:kind
+        });
+      }
       await done;
       return record;
     },

@@ -125,6 +125,15 @@ export function readState(storage, key = STORAGE_KEY) {
       routerModel:typeof customer.routerModel === 'string' ? customer.routerModel.trim().slice(0, 100) : '',
       routerPrice:normalizeMoneyOrNull(customer.routerPrice),
       fiberMeters:normalizeMetersOrNull(customer.fiberMeters),
+      // SISP-19: hardware custody fields — safe defaults for legacy records.
+      routerOwnership:['isp-owned','customer-owned'].includes(customer.routerOwnership) ? customer.routerOwnership : '',
+      mediaConverterOwnership:['isp-owned','customer-owned'].includes(customer.mediaConverterOwnership) ? customer.mediaConverterOwnership : '',
+      serialNumber:typeof customer.serialNumber === 'string' ? customer.serialNumber.trim().slice(0, 100) : '',
+      securityDeposit:normalizeMoneyOrNull(customer.securityDeposit),
+      hardwareRecovered:{
+        router:validDateOrNull(customer.hardwareRecovered?.router ?? null),
+        mediaConverter:validDateOrNull(customer.hardwareRecovered?.mediaConverter ?? null)
+      },
       expiryDate:validDateOrNull(customer.expiryDate),
       cancellationDate:validDateOrNull(customer.cancellationDate),
       packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
@@ -249,6 +258,11 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const routerModel = cleanText(options.routerModel, 100, 'Router model');
   const routerPrice = checkCost(options.routerPrice);
   const fiberMeters = checkFiberMeters(options.fiberMeters);
+  // SISP-19: custody fields — ownership enum validated, deposit is money.
+  const routerOwnership = checkCustodyOwnership(options.routerOwnership);
+  const mediaConverterOwnership = checkCustodyOwnership(options.mediaConverterOwnership);
+  const serialNumber = cleanText(options.serialNumber, 100, 'Serial / MAC number');
+  const securityDeposit = checkCost(options.securityDeposit);
   const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
   const pppoeUsername = cleanText(options.pppoeUsername, 100, 'PPPoE username');
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
@@ -257,7 +271,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };
 }
 
 function customerMatchesQuery(customer, query, allocations = null) {
@@ -404,6 +418,13 @@ function checkServiceStatus(value) {
   if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
   return value;
 }
+// SISP-19: custody ownership — '' (not recorded), ISP-owned returnable,
+// or customer-purchased. Anything else is a caller bug, not user data.
+function checkCustodyOwnership(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  if (value !== 'isp-owned' && value !== 'customer-owned') throw new Error('Choose ISP Owned — Returnable, Customer Purchased, or Not recorded for hardware ownership.');
+  return value;
+}
 function checkOptionalDate(value, label = 'Due date') {
   if (value === '' || value === null || value === undefined) return null;
   const date = String(value);
@@ -443,6 +464,13 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
     routerPrice: checkCost(valueOrCurrent('routerPrice')),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
+    // SISP-19: custody fields edited on the profile form. Recovery dates
+    // are NOT edited here — they are set only by the mark-recovered action
+    // (hardware-custody.js), so a profile save can never fake a recovery.
+    routerOwnership: checkCustodyOwnership(valueOrCurrent('routerOwnership')),
+    mediaConverterOwnership: checkCustodyOwnership(valueOrCurrent('mediaConverterOwnership')),
+    serialNumber: cleanText(valueOrCurrent('serialNumber') ?? '', 100, 'Serial / MAC number'),
+    securityDeposit: checkCost(valueOrCurrent('securityDeposit')),
     nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
     pppoeUsername: cleanText(valueOrCurrent('pppoeUsername') ?? '', 100, 'PPPoE username'),
     pppoePassword: cleanText(valueOrCurrent('pppoePassword') ?? '', 100, 'PPPoE password'),
@@ -1591,6 +1619,9 @@ function validateBackupState(source) {
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null,
+      // SISP-19: custody fields travel with the customer in JSON backups.
+      routerOwnership:customer.routerOwnership ?? '', mediaConverterOwnership:customer.mediaConverterOwnership ?? '', serialNumber:customer.serialNumber ?? '', securityDeposit:customer.securityDeposit ?? null,
+      hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
       packageHistory, bills, incidents,
       // SISP-4: installment plans travel with the customer; old backups
       // without the field import as an empty plan list (backward compatible).
@@ -1752,7 +1783,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-8: skipped months merge by union (a skipped month only ever
     // means "never backfill this month") — never a conflict, never lost.
     {
@@ -1760,6 +1791,17 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       const incomingSkipped = Array.isArray(backupCustomer.pauseSkippedMonths) ? backupCustomer.pauseSkippedMonths : [];
       const merged = [...new Set([...localSkipped, ...incomingSkipped].filter((month) => validMonthString(month)))].sort();
       if (!sameJson(localSkipped, merged)) { customer.pauseSkippedMonths = merged; counts.changes++; }
+    }
+    // SISP-19: recovery dates merge per item, not as a plain field fill:
+    // a recovered item never becomes unrecovered, so when either side
+    // holds a recovery date, the dated copy wins (first date kept when
+    // both sides hold one — recovery history only moves forward).
+    if (backupCustomer.hardwareRecovered && typeof backupCustomer.hardwareRecovered === 'object') {
+      customer.hardwareRecovered = customer.hardwareRecovered && typeof customer.hardwareRecovered === 'object' ? customer.hardwareRecovered : { router:null, mediaConverter:null };
+      for (const itemKey of ['router','mediaConverter']) {
+        const incoming = backupCustomer.hardwareRecovered[itemKey];
+        if (incoming && !customer.hardwareRecovered[itemKey]) { customer.hardwareRecovered[itemKey] = incoming; counts.changes++; }
+      }
     }
     // SISP-4: installment plans merge by plan id (not a plain field fill):
     // a missing plan is adopted, and when both sides hold the same plan

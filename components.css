@@ -754,3 +754,20 @@ body.field-mode-open { overflow: hidden; }
 .saad-visits-card-actions, .install-tracker-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 8px; }
 .saad-visits-card-actions .secondary-button, .install-tracker-card-actions .secondary-button, .saad-visits-payment-actions .secondary-button { min-height: 32px; padding: 0 10px; }
 .saad-visits-payment-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; }
+/* SISP-19: hardware custody — token-only, no new hex colors. */
+.profile-custody-section { margin-top: 16px; }
+.profile-custody-section h4 { margin: 0 0 8px; }
+.profile-custody-section p { margin: 4px 0; }
+.profile-custody-checklist ul { margin: 8px 0; padding-left: 20px; }
+.profile-custody-checklist li { margin: 6px 0; }
+.custody-recovered { color: var(--green); font-weight: 700; }
+.custody-pending { color: var(--color-overdue); font-weight: 700; }
+.hardware-recovery-list { display: grid; gap: 12px; }
+.hardware-recovery-entry { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.hardware-recovery-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.hardware-recovery-entry ul { margin: 8px 0; padding-left: 20px; }
+.hardware-recovery-entry li { margin: 6px 0; }
+.hardware-recovery-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 700px) {
+  .hardware-recovery-head { flex-direction: column; }
+}

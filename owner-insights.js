@@ -1,4 +1,5 @@
 import { calculatePaymentAllocations, monthsForHistory, summarizeCustomerReceipts, summarizeCustomerTenure } from './core.js';
+import { canonicalMohalla } from './phase3.js';
 
 const cents = value => Math.round(Number(value || 0) * 100);
 const amount = value => Number((value / 100).toFixed(2));
@@ -137,7 +138,7 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
   const current=monthFor(referenceDate),selected=/^\d{4}-(0[1-9]|1[0-2])$/.test(month)&&month<=current?month:current,rows=[];let excludedCount=0;
   for(const customer of state.customers){
     const areaValue=customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',packageValue=customer.packageSpeed?.trim()||'Package not set';
-    if(area!=='all'&&areaValue!==area)continue;if(packageName!=='all'&&packageValue!==packageName)continue;
+    if(area!=='all'){const targetKey=canonicalMohalla(area)?.key??area.trim().toLowerCase();const valueKey=canonicalMohalla(customer.mohalla?.trim()||'')?.key??(customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded').toLowerCase();if(valueKey!==targetKey)continue;}if(packageName!=='all'&&packageValue!==packageName)continue;
     if(status==='archived'?!customer.archived:status!=='all'&&(customer.archived||(customer.serviceStatus??'not-set')!==status))continue;
     const behavior=buildCustomerPaymentBehavior(state,customer,referenceDate,allocations),bill=(customer.bills??[]).find(row=>row.month===selected);
     const lifetime=type==='lifetime-value'?buildCustomerLifetimeValue(state,customer,referenceDate):null;
@@ -806,7 +807,7 @@ export function buildIspInsights(state,referenceDate=new Date(),allocations=calc
  * dated history). Customer counts are distinct customers with at least
  * one priced bill in the group, so package counts do not sum — one
  * customer can hold bills under several recorded packages over time. */
-const areaBreakdownLabel = customer => String(customer?.area ?? '').trim() || String(customer?.mohalla ?? '').trim() || 'Area not recorded';
+const areaBreakdownLabel = customer => { const raw = String(customer?.area ?? '').trim() || String(customer?.mohalla ?? '').trim(); const canon = raw ? canonicalMohalla(raw) : null; return canon ? canon.label : 'Area not recorded'; };
 const zoneBreakdownLabel = customer => {
   const zone = String(customer?.zone ?? '').trim();
   if (!zone) return 'Zone not recorded';

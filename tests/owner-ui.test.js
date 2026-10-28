@@ -65,6 +65,6 @@ test('Smart Alerts stay rule-based, local-only, accessible and directly reachabl
 });
 
 test('user-provided mohalla values are optional suggestions, not seeded customer assignments',()=>{
-  for(const name of ['MOHALLA CHARYAA','MOHALLA KISHTI','MOHALLA BARRIAN','MOHALLA MALLA','MOHALLA THALII','MOHALLA CHAMYAA','MOHALLA NAKAR','MOHALLA PALALIYAA','MOHALAA BANI','MOHALLA SODAA','MOHALLA HAVELI','MOHALLA CHUDRIYAA','MOHALLA PULL','MOHALLA SHAHDARA PARK'])assert.ok(index.includes(`value="${name}"`),`${name} is suggested`);
+  for(const name of ['CHARYAA','GANGALL','KISHTII','BARRIAN','THALII','CHAMYAAA','PALALIYAA','MALLA','NAKAR','BANII','SODAA','PULL SIDE','JABBIYAA','MOHALLA CHUDRIYAA','MOHALLA end side farm house'])assert.ok(index.includes(`value="${name}"`),`${name} is suggested`);
   assert.match(index,/id="mohallaInput"[^>]*list="mohallaOptions"/);
 });

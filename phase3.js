@@ -169,6 +169,29 @@ function readableLabel(value) {
 export function canonicalLocation(value) {
   const text=normalizedText(value); return text?{key:comparisonKey(text),label:readableLabel(text)}:null;
 }
+/** Default mohallas for Shahdara (owner-provided 2026-10-28), exactly as the
+ *  owner wrote them. These are the suggestions offered wherever a mohalla is
+ *  entered, and the standard spellings every variant folds into. */
+export const DEFAULT_MOHALLAS = Object.freeze(['CHARYAA','GANGALL','KISHTII','BARRIAN','THALII','CHAMYAAA','PALALIYAA','MALLA','NAKAR','BANII','SODAA','PULL SIDE','JABBIYAA','MOHALLA CHUDRIYAA','MOHALLA end side farm house']);
+/** Known spelling variants (stripped, lowercased) that fold into a default
+ *  mohalla. Only evidenced variants live here: the old suggestion list wrote
+ *  single-i KISHTI/CHAMYAA and "MOHALAA BANI", while the owner's list uses
+ *  double-i KISHTII/CHAMYAAA and BANII. Anything else keeps its own key. */
+const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA' });
+function stripMohallaPrefix(text) { const stripped=normalizedText(text).replace(/^(?:mohalla|mohalaa)\s+/iu,''); return stripped||normalizedText(text); }
+/** Canonical mohalla for grouping, filtering and saving: the leading generic
+ *  "Mohalla" word is not part of a mohalla's identity, so "MOHALLA BANI",
+ *  "Bani" and "BANII" all resolve to the same BANII entry, and every other
+ *  name keeps its own key. Returns {key,label,stored} or null when blank.
+ *  label is the readable form used on cards; stored is the owner's standard
+ *  spelling for saves (the input itself, trimmed, when it matches nothing). */
+export function canonicalMohalla(value) {
+  const text=normalizedText(value); if(!text)return null;
+  const stripped=stripMohallaPrefix(text),key=comparisonKey(stripped);
+  const canonical=DEFAULT_MOHALLAS.find(name=>comparisonKey(stripMohallaPrefix(name))===key)??MOHALLA_ALIASES[key];
+  if(canonical)return {key:comparisonKey(stripMohallaPrefix(canonical)),label:readableLabel(canonical),stored:canonical};
+  return {key,label:readableLabel(stripped),stored:text};
+}
 export function canonicalPackage(value) {
   const text=normalizedText(value); if(!text)return null;
   const speed=text.match(/^(5|10|15|30)\s*mbps$/iu);
@@ -255,7 +278,7 @@ function actualCashByMonth(state,month) { return paymentEntries(state).filter(({
 function validIncidentMonth(incident) { return typeof incident.reportedAt==='string'?incident.reportedAt.slice(0,7):''; }
 
 function locationPath(customer) {
-  const explicitArea=canonicalLocation(customer.area),mohalla=canonicalLocation(customer.mohalla),area=explicitArea??mohalla;
+  const explicitArea=canonicalMohalla(customer.area),mohalla=canonicalMohalla(customer.mohalla),area=explicitArea??mohalla;
   const separateMohalla=explicitArea&&mohalla&&explicitArea.key!==mohalla.key?mohalla:null;
   return {area,separateMohalla,zone:canonicalLocation(customer.zone)};
 }

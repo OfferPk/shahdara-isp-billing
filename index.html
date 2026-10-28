@@ -6710,7 +6710,7 @@
               <div id="customerProfileForm" class="customer-profile-form" hidden>
               <div class="profile-grid">
                 <label class="profile-field" for="profileNameInput"><span class="field-label">Customer name <span class="optional-label">Shown on bills, receipts &amp; lists</span></span><input id="profileNameInput" type="text" maxlength="100" autocomplete="off" required></label><label class="profile-field" for="nameUrduInput"><span class="field-label">Customer name in Urdu <span class="optional-label">Optional · shown instead of the auto-transliterated name when Urdu is selected</span></span><input id="nameUrduInput" type="text" maxlength="100" autocomplete="off" placeholder="مثال: راجہ فیصل"></label>
-                <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" list="mohallaOptions" maxlength="100" autocomplete="off" placeholder="Not set"><datalist id="mohallaOptions"><option value="MOHALLA CHARYAA"></option><option value="MOHALLA KISHTI"></option><option value="MOHALLA BARRIAN"></option><option value="MOHALLA MALLA"></option><option value="MOHALLA THALII"></option><option value="MOHALLA CHAMYAA"></option><option value="MOHALLA NAKAR"></option><option value="MOHALLA PALALIYAA"></option><option value="MOHALAA BANI"></option><option value="MOHALLA SODAA"></option><option value="MOHALLA HAVELI"></option><option value="MOHALLA CHUDRIYAA"></option><option value="MOHALLA PULL"></option><option value="MOHALLA SHAHDARA PARK"></option></datalist></label>
+                <label class="profile-field" for="mohallaInput"><span class="field-label">Area / mohalla <span class="optional-label">Optional · parent area in summaries</span></span><input id="mohallaInput" type="text" list="mohallaOptions" maxlength="100" autocomplete="off" placeholder="Not set"><datalist id="mohallaOptions"><option value="CHARYAA"></option><option value="GANGALL"></option><option value="KISHTII"></option><option value="BARRIAN"></option><option value="THALII"></option><option value="CHAMYAAA"></option><option value="PALALIYAA"></option><option value="MALLA"></option><option value="NAKAR"></option><option value="BANII"></option><option value="SODAA"></option><option value="PULL SIDE"></option><option value="JABBIYAA"></option><option value="MOHALLA CHUDRIYAA"></option><option value="MOHALLA end side farm house"></option></datalist></label>
                 <label class="profile-field" for="zoneInput"><span class="field-label">Zone <span class="optional-label">Optional · nested under area</span></span><input id="zoneInput" type="text" maxlength="100" autocomplete="off" placeholder="Not set"></label>
                 <label class="profile-field" for="upstreamCustomerInput"><span class="field-label">Fed by (upstream house) <span class="optional-label">Optional · whose media converter / switch feeds this house</span></span><select id="upstreamCustomerInput"><option value="">Direct feed — no upstream house</option></select></label>
                 <label class="profile-field" for="fiberZoneInput"><span class="field-label">Feeder zone <span class="optional-label">Optional · Side 1 to Side 4c</span></span><select id="fiberZoneInput"><option value="">Not set</option></select></label>
@@ -7191,7 +7191,7 @@
         <label class="field-label" for="newCustomerAddress">Address <span class="optional-label">Optional</span></label>
         <input id="newCustomerAddress" name="address" type="text" maxlength="200" autocomplete="street-address" placeholder="Enter the recorded address">
         <label class="field-label" for="newCustomerMohalla">Mohalla / area <span class="optional-label">Optional</span></label>
-        <input id="newCustomerMohalla" name="mohalla" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
+        <input id="newCustomerMohalla" name="mohalla" type="text" list="mohallaOptions" maxlength="100" autocomplete="off" placeholder="Pick a mohalla or type a new one">
         <label class="field-label" for="newCustomerZone">Zone <span class="optional-label">Optional</span></label>
         <input id="newCustomerZone" name="zone" type="text" maxlength="100" autocomplete="off" placeholder="Enter only if known">
         <label class="field-label" for="newCustomerConnectionFee">Connection fee (PKR) <span class="optional-label">Optional · one-time fee taken at install</span></label>
@@ -8013,7 +8013,7 @@
               </div>
               <div class="wizard-form-group flex-1">
                 <label for="wizardMohallaInput" class="wizard-label">Mohalla / Block</label>
-                <input id="wizardMohallaInput" class="wizard-input" type="text" placeholder="e.g. Mohalla Farooqia">
+                <input id="wizardMohallaInput" class="wizard-input" type="text" list="mohallaOptions" placeholder="Pick a mohalla or type a new one">
               </div>
             </div>
             <div class="wizard-form-group">

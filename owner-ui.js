@@ -1,4 +1,5 @@
 import { calculatePaymentAllocations } from './core.js';
+import { canonicalMohalla } from './phase3.js';
 import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
   buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
@@ -171,7 +172,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const type=$('#rankingType');
     if(type&&!type.options.length) type.innerHTML=CUSTOMER_RANKING_TYPES.map(row=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.label)}</option>`).join('');
     ensureMonthOptions('#rankingMonth',months()[0]);
-    const state=getState(),areas=[...new Set(state.customers.map(customer=>customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded'))].sort(),packages=[...new Set(state.customers.map(customer=>customer.packageSpeed?.trim()||'Package not set'))].sort();
+    const state=getState(),areasMap=new Map();for(const customer of state.customers){const raw=customer.mohalla?.trim();if(raw){const canon=canonicalMohalla(raw);areasMap.set(canon.key,canon.label);}else{const zone=customer.zone?.trim();areasMap.set(zone?zone.toLowerCase():'__area_not_recorded__',zone||'Area not recorded');}}const areas=[...areasMap.values()].sort(),packages=[...new Set(state.customers.map(customer=>customer.packageSpeed?.trim()||'Package not set'))].sort();
     for(const [selector,values,allLabel] of [['#rankingArea',areas,'All recorded areas'],['#rankingPackage',packages,'All recorded packages']]){
       const node=$(selector);if(!node)continue;const old=node.value;node.innerHTML=`<option value="all">${allLabel}</option>${values.map(value=>`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;node.value=values.includes(old)?old:'all';
     }

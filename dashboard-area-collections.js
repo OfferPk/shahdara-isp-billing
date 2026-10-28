@@ -22,6 +22,7 @@ import {
 } from './core.js';
 import {
   canonicalLocation,
+  canonicalMohalla,
   pktDate,
   pktMonth,
   monthEnd,
@@ -67,8 +68,8 @@ export function formatDateYmd(date = new Date()) {
  * @returns {Object} { area, separateMohalla, zone }
  */
 export function resolveCustomerLocation(customer) {
-  const explicitArea = canonicalLocation(customer.area);
-  const mohalla = canonicalLocation(customer.mohalla);
+  const explicitArea = canonicalMohalla(customer.area);
+  const mohalla = canonicalMohalla(customer.mohalla);
   const area = explicitArea ?? mohalla;
   const separateMohalla = explicitArea && mohalla && explicitArea.key !== mohalla.key ? mohalla : null;
   const zone = canonicalLocation(customer.zone);

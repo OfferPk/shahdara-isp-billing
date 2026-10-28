@@ -13,7 +13,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla
 } from './phase3.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.10.0';
@@ -1083,7 +1083,7 @@ function renderCustomers() {
   // Sync unique areas into dropdown
   const areaSelect = $('#customerFilterArea');
   if (areaSelect) {
-    const areas = getUniqueCustomerAreas(state.customers.filter(c => !c.archived));
+    const areas = [...new Map(getUniqueCustomerAreas(state.customers.filter(c => !c.archived)).map(a => { const canon = canonicalMohalla(a); return [canon ? canon.key : a.toLowerCase(), canon ? canon.label : a]; })).values()].sort((a, b) => a.localeCompare(b));
     const currentVal = customerAreaFilter;
     areaSelect.innerHTML = '<option value="all">All areas</option>' + areas.map(a => `<option value="${escapeHtml(a)}"${a === currentVal ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
     if (!areas.includes(currentVal) && currentVal !== 'all') {

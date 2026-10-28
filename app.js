@@ -18,9 +18,9 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, kistSettlementPresentation } from './profile-ui.js?v=1.11.0';
-import { buildKistProgress, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
-import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml } from './receipt.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.11.0';
+import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.11.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.11.0';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
@@ -1445,27 +1445,6 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
   });
 }
 
-// SISP-29: print the down-payment + kist schedule receipt into the same
-// print area the standard receipts use, then print it the same way.
-function printDownPaymentKistReceipt(customerForReceipt, plan, payment) {
-  try {
-    const receipt = buildDownPaymentKistReceipt(customerForReceipt, plan, payment);
-    const area = $('#receiptPrintArea');
-    if (!area) return;
-    area.innerHTML = buildDownPaymentKistReceiptHtml(receipt, {
-      businessName: state.settings?.businessName || 'Shahdara ISP',
-      businessPhone: state.settings?.businessPhone || '0300-1234567'
-    });
-    area.hidden = false;
-    document.body.classList.add('printing-receipt');
-    requestAnimationFrame(() => {
-      try { window.print(); }
-      catch { toast('Printing is not available in this browser.'); }
-      finally { clearReceiptPrint(); }
-    });
-  } catch (err) { toast(err?.message || 'Down-payment receipt could not be generated.'); }
-}
-
 // SISP-6: PNG image receipt — 1-tap share (WhatsApp target chooser on
 // mobile/Capacitor) with a 1-click download fallback. Reuses the existing
 // buildPaymentReceipt data path (SISP-2 arrears + SISP-4 kist included);
@@ -1964,8 +1943,8 @@ function renderCustomerProfileView(customer) {
   const kistProgress = buildKistProgress(customer, calculatePaymentAllocations(state));
   const kistPlansHtml = kistProgress.plans.length === 0
     ? '<p class="profile-kist-empty">No installments set up for this customer.</p>'
-    : kistProgress.plans.map((plan) => `<article class="kist-plan"><div class="kist-plan-head"><strong>${escapeHtml(plan.itemTitle)}</strong><span>${escapeHtml(plan.statusLabel)}</span></div><div class="kist-progress-track" role="progressbar" aria-label="${escapeHtml(plan.itemTitle)} progress" aria-valuenow="${plan.percentPaid}" aria-valuemin="0" aria-valuemax="100"><div class="kist-progress-fill" style="width: ${plan.percentPaid}%"></div></div><p class="kist-plan-meta">Paid ${plan.monthsPaid}/${plan.totalMonths} Installments • ${escapeHtml(formatAmount(plan.remainingAmount))} Remaining</p><p class="kist-plan-detail">Monthly kist ${escapeHtml(formatAmount(plan.monthlyKist))} · Billed ${plan.monthsBilled}/${plan.totalMonths} · Total ${escapeHtml(formatAmount(plan.totalAmount))}${plan.downPayment > 0 ? ` · Down payment ${escapeHtml(formatAmount(plan.downPayment))}` : ''}${plan.startDate ? ` · From ${escapeHtml(plan.startDate)}` : ''}${plan.payoffAmount !== null || plan.payoffDate ? ` · ${escapeHtml(kistSettlementPresentation(plan).settledLabel)}` : ''}</p>${plan.monthsBilled === 0 ? `<button type="button" class="secondary-button text-button danger" data-profile-kist-remove="${escapeHtml(plan.id)}">Remove plan</button>` : ''}${kistSettlementPresentation(plan).canPayoff ? `<button type="button" class="secondary-button" data-profile-kist-payoff="${escapeHtml(plan.id)}">${escapeHtml(kistSettlementPresentation(plan).payoffLabel)}</button>` : ''}</article>`).join('');
-  const kistSectionHtml = `<section class="profile-kist-section" aria-label="Installments (Kist)"><h4>💳 Kist / Installments — Hardware &amp; Wire</h4><p class="profile-kist-note">Installments are added to the monthly bill automatically when the billing cycle runs — never from here. Paid counts installments whose bill month is fully settled.</p>${kistPlansHtml}<form class="kist-add-form" novalidate><h5>Add installment plan</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">Item (router / ONU / fiber wire)</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="e.g. Tenda F3 Router + 120m Fiber" required><label class="field-label full" for="profileKistTotalAmount">Total amount (PKR)</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="e.g. 3000" required><label class="field-label full" for="profileKistDownPayment">Down payment (PKR) <span class="optional-label">Optional</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistRecordDownPayment"><input id="profileKistRecordDownPayment" type="checkbox"> Record down payment as collected payment now</label><label class="field-label full" for="profileKistDownPaymentMethod">Down payment method</label><select id="profileKistDownPaymentMethod" class="full">${['Cash', 'Cash at Waseem Abbasi shop', 'Cash at Hassan shop', 'Easypaisa'].filter((method) => PAYMENT_METHODS.includes(method)).map((method) => `<option value="${method}">${method}</option>`).join('')}</select><label class="field-label full" for="profileKistTotalMonths">Months (2–6)</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">Monthly kist (PKR) <span class="optional-label">Optional · auto-split if blank</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Auto"><label class="field-label full" for="profileKistStartDate">Start date <span class="optional-label">Optional · first cycle on/after this date</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">Add installment plan</button></form></section>`;
+    : kistProgress.plans.map((plan) => `<article class="kist-plan"><div class="kist-plan-head"><strong>${escapeHtml(plan.itemTitle)}</strong><span>${escapeHtml(plan.statusLabel)}</span></div><div class="kist-progress-track" role="progressbar" aria-label="${escapeHtml(plan.itemTitle)} progress" aria-valuenow="${plan.percentPaid}" aria-valuemin="0" aria-valuemax="100"><div class="kist-progress-fill" style="width: ${plan.percentPaid}%"></div></div><p class="kist-plan-meta">Paid ${plan.monthsPaid}/${plan.totalMonths} Installments • ${escapeHtml(formatAmount(plan.remainingAmount))} Remaining</p><p class="kist-plan-detail">Monthly kist ${escapeHtml(formatAmount(plan.monthlyKist))} · Billed ${plan.monthsBilled}/${plan.totalMonths} · Total ${escapeHtml(formatAmount(plan.totalAmount))}${plan.downPayment > 0 ? ` · Down payment ${escapeHtml(formatAmount(plan.downPayment))}` : ''}${plan.startDate ? ` · From ${escapeHtml(plan.startDate)}` : ''}</p>${plan.monthsBilled === 0 ? `<button type="button" class="secondary-button text-button danger" data-profile-kist-remove="${escapeHtml(plan.id)}">Remove plan</button>` : ''}</article>`).join('');
+  const kistSectionHtml = `<section class="profile-kist-section" aria-label="Installments (Kist)"><h4>💳 Kist / Installments — Hardware &amp; Wire</h4><p class="profile-kist-note">Installments are added to the monthly bill automatically when the billing cycle runs — never from here. Paid counts installments whose bill month is fully settled.</p>${kistPlansHtml}<form class="kist-add-form" novalidate><h5>Add installment plan</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">Item (router / ONU / fiber wire)</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="e.g. Tenda F3 Router + 120m Fiber" required><label class="field-label full" for="profileKistTotalAmount">Total amount (PKR)</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="e.g. 3000" required><label class="field-label full" for="profileKistDownPayment">Down payment (PKR) <span class="optional-label">Optional</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistTotalMonths">Months (2–6)</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">Monthly kist (PKR) <span class="optional-label">Optional · auto-split if blank</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Auto"><label class="field-label full" for="profileKistStartDate">Start date <span class="optional-label">Optional · first cycle on/after this date</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">Add installment plan</button></form></section>`;
   // SISP-13: per-customer MikroTik script — read-only text the
   // operator copies into WinBox Terminal; generating it never writes the
   // ledger. The password itself is never shown in the profile view, only
@@ -2070,11 +2049,9 @@ function renderCustomerProfileView(customer) {
       toast('Could not copy the script — select it and copy manually.');
     }
   });
-  // SISP-4 + SISP-29: wire the profile kist form (add plan + remove
-  // unbilled plan + optional down-payment record + early payoff).
-  // Adding a plan only records it — billing happens in the cycle. Only
-  // the optional down-payment checkbox records a payment, through the
-  // normal addPayment path; nothing else here touches bills or payments.
+  // SISP-4: wire the profile kist form (add plan + remove unbilled plan).
+  // Adding a plan only records it — billing happens in the cycle, so this
+  // handler never touches bills, amounts or payments.
   const kistSection = $('#customerProfileView').querySelector('.profile-kist-section');
   if (kistSection) {
     const applyProfileKist = (updated, message) => {
@@ -2095,34 +2072,7 @@ function renderCustomerProfileView(customer) {
           startDate: kistSection.querySelector('#profileKistStartDate')?.value ?? ''
         });
         const plans = [...(customer.installmentPlans ?? []), plan];
-        const customerWithPlan = { ...customer, installmentPlans: plans };
-        const recordDown = kistSection.querySelector('#profileKistRecordDownPayment')?.checked === true;
-        const downMethod = kistSection.querySelector('#profileKistDownPaymentMethod')?.value ?? 'Cash';
-        if (recordDown && plan.downPayment > 0 && PAYMENT_METHODS.includes(downMethod)) {
-          // SISP-29: put the plan in state first, then record the down
-          // payment on the current month's bill through the normal payment
-          // path (same as the payment form: addPayment + save + render).
-          // If recording fails, the plan itself still stays saved.
-          const idx = state.customers.findIndex((row) => row.id === customer.id);
-          if (idx >= 0) state.customers[idx] = customerWithPlan;
-          try {
-            const month = pakistanMonthNow();
-            const beforeIds = new Set(((state.customers[idx]?.bills ?? []).find((row) => row.month === month)?.payments ?? []).map((row) => row.id));
-            state = addPayment(state, customer.id, month, { date: pakistanToday(), amount: plan.downPayment, method: downMethod });
-            save();
-            renderDetail();
-            const paidCustomer = state.customers.find((row) => row.id === customer.id);
-            const added = paidCustomer?.bills.find((row) => row.month === month)?.payments.find((row) => !beforeIds.has(row.id));
-            if (added) printDownPaymentKistReceipt(paidCustomer, plan, added);
-            toast(`Installment plan added: ${plan.itemTitle} (${plan.totalMonths} × ${formatAmount(plan.monthlyKist)}). Down payment ${formatAmount(plan.downPayment)} recorded (${downMethod}) with receipt.`);
-          } catch (err) {
-            try { persistState(state, localStorage); } catch {}
-            renderDetail();
-            toast(`Installment plan added, but the down payment could not be recorded: ${err?.message || 'unknown error'}. Record it from the payment form.`);
-          }
-          return;
-        }
-        applyProfileKist(customerWithPlan, `Installment plan added: ${plan.itemTitle} (${plan.totalMonths} × ${formatAmount(plan.monthlyKist)}). It will bill with the next monthly cycle.`);
+        applyProfileKist({ ...customer, installmentPlans: plans }, `Installment plan added: ${plan.itemTitle} (${plan.totalMonths} × ${formatAmount(plan.monthlyKist)}). It will bill with the next monthly cycle.`);
       } catch (err) { toast(err?.message || 'Could not add installment plan.'); }
     });
     kistSection.querySelectorAll('[data-profile-kist-remove]').forEach(btn => {
@@ -2132,21 +2082,6 @@ function renderCustomerProfileView(customer) {
         // Only unbilled plans get a remove button, so this never deletes
         // a billed installment or its history.
         applyProfileKist({ ...customer, installmentPlans: plans }, 'Installment plan removed (nothing had been billed yet).');
-      });
-    });
-    // SISP-29: 1-click early payoff. Confirm shows the exact remaining
-    // balance; on confirm the plan is settled (monthsBilled = monthsPaid =
-    // totalMonths, status completed) so no future cycle bills it again.
-    kistSection.querySelectorAll('[data-profile-kist-payoff]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const planId = btn.getAttribute('data-profile-kist-payoff');
-        const plan = (customer.installmentPlans ?? []).find((row) => row.id === planId);
-        const presentation = kistSettlementPresentation(plan);
-        if (!presentation.canPayoff) return;
-        const confirmed = await appConfirm({ tone:'warning', title:'Settle remaining kist early?', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)} remaining`, message:'This closes the plan now. Future monthly cycles will not bill this plan again.', confirmLabel:'Settle now' });
-        if (!confirmed) return;
-        const plans = settlePlanEarly(customer.installmentPlans, planId, { date: pakistanToday() });
-        applyProfileKist({ ...customer, installmentPlans: plans }, `Kist settled early: ${plan.itemTitle} — remaining ${formatAmount(presentation.payoffAmount)} closed. No future cycle will bill it.`);
       });
     });
   }
@@ -9393,7 +9328,6 @@ if (typeof document !== 'undefined') {
 
   const spliceModal = $('#spliceMfdOffsetModal');
   const openSpliceMfdOffsetBtn = $('#openSpliceMfdOffsetBtn');
-  i
 
   if (openSpliceMfdOffsetBtn) {
     openSpliceMfdOffsetBtn.addEventListener('click', () => {
@@ -9409,7 +9343,6 @@ if (typeof document !== 'undefined') {
 
   const sleeveModal = $('#spliceSleeveCureModal');
   const openSpliceSleeveCureBtn = $('#openSpliceSleeveCureBtn');
-  i
 
   if (openSpliceSleeveCureBtn) {
     openSpliceSleeveCureBtn.addEventListener('click', () => {
@@ -9425,7 +9358,6 @@ if (typeof document !== 'undefined') {
 
   const cleaveModal = $('#fiberCleaveQualityModal');
   const openFiberCleaveQualityBtn = $('#openFiberCleaveQualityBtn');
-  i
 
   if (openFiberCleaveQualityBtn) {
     openFiberCleaveQualityBtn.addEventListener('click', () => {
@@ -9441,7 +9373,6 @@ if (typeof document !== 'undefined') {
 
   const ghostModal = $('#otdrGhostArtifactModal');
   const openOtdrGhostArtifactBtn = $('#openOtdrGhostArtifactBtn');
-  i
 
   if (openOtdrGhostArtifactBtn) {
     openOtdrGhostArtifactBtn.addEventListener('click', () => {
@@ -9457,7 +9388,6 @@ if (typeof document !== 'undefined') {
 
   const ribbonModal = $('#ribbonSpliceQaModal');
   const openRibbonSpliceQaBtn = $('#openRibbonSpliceQaBtn');
-  i
 
   if (openRibbonSpliceQaBtn) {
     openRibbonSpliceQaBtn.addEventListener('click', () => {
@@ -9476,7 +9406,6 @@ if (typeof document !== 'undefined') {
 
   const fastModal = $('#fastConnectorQaModal');
   const openFastConnectorQaBtn = $('#openFastConnectorQaBtn');
-  i
 
   if (openFastConnectorQaBtn) {
     openFastConnectorQaBtn.addEventListener('click', () => {
@@ -9497,7 +9426,6 @@ if (typeof document !== 'undefined') {
 
   const adssModal = $('#adssSagTensionModal');
   const openAdssSagTensionBtn = $('#openAdssSagTensionBtn');
-  i
 
   if (openAdssSagTensionBtn) {
     openAdssSagTensionBtn.addEventListener('click', () => {
@@ -9518,7 +9446,6 @@ if (typeof document !== 'undefined') {
 
   const armoredModal = $('#armoredCableCrushModal');
   const openArmoredCableCrushBtn = $('#openArmoredCableCrushBtn');
-  i
 
   if (openArmoredCableCrushBtn) {
     openArmoredCableCrushBtn.addEventListener('click', () => {
@@ -9539,7 +9466,6 @@ if (typeof document !== 'undefined') {
 
   const jettingModal = $('#cableJettingModal');
   const openCableJettingBtn = $('#openCableJettingBtn');
-  i
 
   if (openCableJettingBtn) {
     openCableJettingBtn.addEventListener('click', () => {
@@ -9558,7 +9484,6 @@ if (typeof document !== 'undefined') {
     });
   const tubeSlittingModal = $('#tubeSlittingAccessModal');
   const openTubeSlittingAccessBtn = $('#openTubeSlittingAccessBtn');
-  i
 
   if (openTubeSlittingAccessBtn) {
     openTubeSlittingAccessBtn.addEventListener('click', () => {
@@ -9579,7 +9504,6 @@ if (typeof document !== 'undefined') {
 
   const conduitPullingModal = $('#conduitPullingModal');
   const openConduitPullingBtn = $('#openConduitPullingBtn');
-  i
 
   if (openConduitPullingBtn) {
     openConduitPullingBtn.addEventListener('click', () => {
@@ -9600,7 +9524,6 @@ if (typeof document !== 'undefined') {
 
   const spectralAttenuationModal = $('#spectralAttenuationModal');
   const openSpectralAttenuationBtn = $('#openSpectralAttenuationBtn');
-  i
 
   if (openSpectralAttenuationBtn) {
     openSpectralAttenuationBtn.addEventListener('click', () => {
@@ -9621,7 +9544,6 @@ if (typeof document !== 'undefined') {
 
   const foscSealModal = $('#foscSealModal');
   const openFoscSealBtn = $('#openFoscSealBtn');
-  i
 
   if (openFoscSealBtn) {
     openFoscSealBtn.addEventListener('click', () => {
@@ -9642,7 +9564,6 @@ if (typeof document !== 'undefined') {
 
   const thermalCyclingModal = $('#thermalCyclingModal');
   const openThermalCyclingBtn = $('#openThermalCyclingBtn');
-  i
 
   if (openThermalCyclingBtn) {
     openThermalCyclingBtn.addEventListener('click', () => {
@@ -9662,7 +9583,6 @@ if (typeof document !== 'undefined') {
   }
 
   const billingCorrectnessModal = $('#billingCorrectnessModal');
-  i
 
   const dataIntegrityModal = $('#dataIntegrityModal');
   if (dataIntegrityModal && !dataIntegrityModalController) {
@@ -9807,7 +9727,6 @@ if (typeof document !== 'undefined') {
   }
 
   const lateFeeModal = $('#lateFeeManagerModal');
-  i
 
   const openCorrectnessBtn = $('#openBillingCorrectnessBtn');
   if (openCorrectnessBtn && !openCorrectnessBtn.dataset.wired) {

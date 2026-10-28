@@ -4,7 +4,7 @@ import {
   deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
-  summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill,
+  summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation,
   calculateMethodCollectionTotals, findDuplicatePaymentReference,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges
 } from './core.js?v=1.11.0';
@@ -153,6 +153,7 @@ import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpact
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
+import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
 import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -232,6 +233,7 @@ export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
 export let pendingWorksModalController = null;
+export let relocationModalController = null;
 export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -245,7 +247,7 @@ try {
   state = {
     version:1,
     nextCustomerNumber:INITIAL_NAMES.length + 1,
-    customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', zone:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills:[], incidents:[] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[]
+    customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', zone:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills:[], incidents:[] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[]
   };
 }
 state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
@@ -1957,13 +1959,22 @@ function renderCustomerProfileView(customer) {
   const custodyChecklist = disconnectionChecklist(customer);
   const custodyPending = custodyChecklist.filter(item => !item.recovered);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="Hardware custody"><h4>📦 Hardware Custody — Returnable Equipment</h4><p>Router ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.routerOwnership))}</strong> · Media converter / ONU ownership: <strong>${escapeHtml(custodyOwnershipLabel(custodyFields.mediaConverterOwnership))}</strong></p><p>Serial / MAC number: <strong>${escapeHtml(custodyFields.serialNumber || 'Not recorded')}</strong> · Security deposit: <strong>${escapeHtml(formatAmount(custodyFields.securityDeposit))}</strong> · Installed fiber drop length: <strong>${escapeHtml(customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`)}</strong></p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? '<p class="profile-custody-note">No ISP-owned hardware recorded. Set ownership in Edit — on disconnection (archive), ISP-owned items appear in Pending Hardware Recovery.</p>' : '<p class="profile-custody-note">ISP-owned hardware is installed. On disconnection (archive), unrecovered items appear in Pending Hardware Recovery.</p>') : (custodyChecklist.length === 0 ? '<p class="profile-custody-note">Disconnected — no ISP-owned hardware to recover.</p>' : `<div class="profile-custody-checklist" role="group" aria-label="Disconnection recovery checklist"><p><strong>Disconnection recovery checklist</strong> — ISP-owned hardware to recover from this house:</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(item.ownershipLabel)}${item.recovered ? ` · <span class="custody-recovered">✅ Recovered ${escapeHtml(item.recoveredAt)}</span>` : ` · <span class="custody-pending">⏳ Pending recovery</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">Mark recovered</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? '<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">Mark all recovered</button>' : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button><button id="profileQrCardButton" class="secondary-button" type="button">QR Khata Card</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;
     $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
   // SISP-14: QR Khata Card button on the profile.
   $('#customerProfileView').querySelector('#profileQrCardButton')?.addEventListener('click', () => openQrKhataCard(customer));
+  // SISP-28: house shift button on the profile timeline section.
+  $('#customerProfileView').querySelector('#profileRecordRelocationBtn')?.addEventListener('click', () => {
+    if (!relocationModalController) { toast('Relocation form is not ready.'); return; }
+    const currentMonth = monthsForHistory(new Date())[0];
+    relocationModalController.open(customer.id, customer, {
+      today: localDate(),
+      hasCurrentBill: (customer.bills ?? []).some(bill => bill.month === currentMonth)
+    });
+  });
   // SISP-3: wire the profile Waada chips (persist + re-render on every action).
   const waadaSection = $('#customerProfileView').querySelector('.profile-waada-section');
   if (waadaSection) {
@@ -8731,6 +8742,18 @@ if (typeof document !== 'undefined') {
     onWorksChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
     onConfirm: (opts) => appConfirm(opts)
+  });
+  // SISP-28: house shift / relocation modal (state op in core.js).
+  relocationModalController = setupRelocationModal({
+    onSubmit: (customerId, input) => {
+      const fresh = state.customers.find(c => c.id === customerId);
+      if (!fresh) throw new Error('That customer was not found.');
+      state = recordCustomerRelocation(state, customerId, input);
+      try { persistState(state, localStorage); } catch {}
+      renderDetail();
+      renderDashboard();
+    },
+    onToast: (msg, opts) => toast(msg, opts)
   });
   // SISP-19: pending hardware recovery modal (derived list, no new store).
   const hardwareRecoveryModal = $('#hardwareRecoveryModal');

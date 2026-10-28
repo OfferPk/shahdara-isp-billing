@@ -853,4 +853,25 @@ body.field-mode-open { overflow: hidden; }
   .overheads-template-row { flex-direction: column; align-items: stretch; }
   .overheads-template-row .primary-button { width: 100%; text-align: center; justify-content: center; }
   .overheads-due-banner .secondary-button { width: 100%; text-align: center; justify-content: center; }
+
+
 }
+
+/* SISP-28: relocation & package timeline + house-shift modal. Theme tokens only. */
+.profile-relocation-section { min-width: 0; }
+.profile-relocation-section h4 { margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+.relocation-timeline-note, .relocation-timeline-empty, .relocation-intro, .relocation-no-bill-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; overflow-wrap: anywhere; }
+.relocation-customer-name { color: var(--ink); font-size: 14px; margin: 0 0 12px; overflow-wrap: anywhere; }
+.relocation-timeline-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.relocation-timeline-row { display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; min-width: 0; }
+.relocation-timeline-date { flex: 0 0 auto; color: var(--muted); font-size: 12px; }
+.relocation-timeline-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.relocation-timeline-body strong { color: var(--ink); font-size: 14px; overflow-wrap: anywhere; }
+.relocation-timeline-body span { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.relocation-form { display: grid; gap: 4px; }
+.relocation-form label { color: var(--ink); font-size: 14px; }
+.relocation-form .relocation-check { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+.relocation-form .action-btn-sm { margin-top: 8px; }
+@media (max-width: 480px) {
+  .relocation-timeline-row { flex-direction: column; gap: 4px; }
+  .relocation-form .action-btn-sm { width: 100%; text-align: center; justify-content: center; }}

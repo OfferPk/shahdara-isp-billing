@@ -21083,6 +21083,37 @@
       </div>
     </div>
   </dialog>
+  <dialog id="relocationModal" class="billing-modal relocation-modal" aria-labelledby="relocationModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="relocationModalTitle">🏠 Record House Shift</h2>
+        <button id="relocationCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="relocation-intro">Jab koi customer ghar badle to yahan darj karein — pichla pata/zone, naya pata/zone, extra fiber aur shifting fee sab audit log me mehfooz ho jayega. Purane mahino ke bill kabhi nahi badlenge.</p>
+        <p id="relocationCustomerName" class="relocation-customer-name"></p>
+        <form id="relocationForm" class="relocation-form">
+          <label for="relocationFromAddress">Previous house address</label>
+          <input id="relocationFromAddress" class="form-input" type="text" maxlength="200" aria-label="Previous house address">
+          <label for="relocationToAddress">New house address</label>
+          <input id="relocationToAddress" class="form-input" type="text" maxlength="200" required aria-label="New house address" placeholder="e.g. Street 4, House 12">
+          <label for="relocationFromZone">Previous zone</label>
+          <input id="relocationFromZone" class="form-input" type="text" maxlength="100" aria-label="Previous zone">
+          <label for="relocationToZone">New zone</label>
+          <input id="relocationToZone" class="form-input" type="text" maxlength="100" required aria-label="New zone" placeholder="e.g. Barrian">
+          <label for="relocationExtraFiber">Extra fiber used (meters, optional)</label>
+          <input id="relocationExtraFiber" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Extra fiber meters" placeholder="e.g. 50">
+          <label for="relocationFee">Shifting fee (PKR, optional)</label>
+          <input id="relocationFee" class="form-input" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Shifting fee" placeholder="e.g. 1000">
+          <label class="relocation-check"><input id="relocationAddFee" type="checkbox" checked> Add fee to current month's bill</label>
+          <p id="relocationNoBillNote" class="relocation-no-bill-note" hidden>No current-month bill exists for this customer, so the fee will only be logged — it cannot be added to a bill yet.</p>
+          <label for="relocationDate">Shift date (PKT)</label>
+          <input id="relocationDate" class="form-input" type="date" aria-label="Shift date">
+          <button id="relocationSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit">🏠 Record shift</button>
+        </form>
+      </div>
+    </div>
+  </dialog>
   <dialog id="hardwareRecoveryModal" class="billing-modal hardware-recovery-modal" aria-labelledby="hardwareRecoveryModalTitle">
     <div class="modal-card">
       <header class="modal-header">

@@ -65,7 +65,7 @@ function parseLocalDateTime(value) {
 }
 
 export function createInitialState(names = INITIAL_NAMES) {
-  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[],inventoryMovements:[],expenses:[],saadAttendanceDays:[],umairWorkdays:[],monthlyClosings:[] };
+  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[],inventoryMovements:[],expenses:[],saadAttendanceDays:[],umairWorkdays:[],monthlyClosings:[] };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
@@ -293,7 +293,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
 
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
@@ -960,6 +960,96 @@ export function waiveLateFeeFromBill(state, customerId, month, { reason = 'Late 
   };
 }
 
+/**
+ * SISP-28: record a house shift / relocation on the customer record.
+ * Updates the customer's ACTIVE zone and address to the new values
+ * (mohalla untouched; installed fiberMeters untouched — extra meters
+ * are logged on the entry only). When addFeeToBill is true, a positive
+ * shifting fee is added to the CURRENT month's bill as a dedicated
+ * shiftingFee field (late-fee precedent — calculatePaymentAllocations
+ * includes it, so SISP-2 netDue picks it up with no billing-cycle.js
+ * change). When no current-month bill exists, the fee stays logged on
+ * the entry (feeAppliedToBill: false) and NO bill is invented.
+ * Historical bills are never modified. Returns the new state
+ * (input untouched). Throws on a blank new address/zone, an invalid
+ * shift date, or a negative fiber/fee value.
+ */
+export function recordCustomerRelocation(state, customerId, input = {}, referenceDate = new Date()) {
+  const customer = customerOrThrow(state, customerId);
+  const cleanText = (value, maxLength, label) => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (text.length > maxLength) throw new Error(`${label} is too long (max ${maxLength} characters).`);
+    return text;
+  };
+  const toAddress = cleanText(input.toAddress ?? '', 200, 'New house address');
+  if (!toAddress) throw new Error('Enter the new house address.');
+  const toZone = cleanText(input.toZone ?? '', 100, 'New zone');
+  if (!toZone) throw new Error('Enter the new zone.');
+  const fromAddress = cleanText(input.fromAddress ?? customer.address ?? '', 200, 'Previous house address');
+  const fromZone = cleanText(input.fromZone ?? customer.zone ?? '', 100, 'Previous zone');
+  const shiftedAt = /^\d{4}-\d{2}-\d{2}$/.test(String(input.shiftedAt ?? '')) ? String(input.shiftedAt) : dateKey(referenceDate);
+  let extraFiberMeters = null;
+  if (input.extraFiberMeters !== null && input.extraFiberMeters !== undefined && String(input.extraFiberMeters).trim() !== '') {
+    const n = Number(input.extraFiberMeters);
+    if (!Number.isFinite(n) || n < 0) throw new Error('Extra fiber meters must be zero or more.');
+    extraFiberMeters = n;
+  }
+  let shiftingFee = 0;
+  if (input.shiftingFee !== null && input.shiftingFee !== undefined && String(input.shiftingFee).trim() !== '') {
+    const n = Number(input.shiftingFee);
+    if (!Number.isFinite(n) || n < 0) throw new Error('Shifting fee must be zero or more.');
+    shiftingFee = Math.round(n * 100) / 100;
+  }
+  const log = Array.isArray(customer.relocationLog) ? [...customer.relocationLog] : [];
+  let maxId = 0;
+  for (const entry of log) {
+    const match = /^REL-(\d+)$/.exec(String(entry?.id || ''));
+    if (match) maxId = Math.max(maxId, Number(match[1]));
+  }
+  const entryId = `REL-${maxId + 1}`;
+  const currentMonth = monthKey(referenceDate);
+  const currentBill = (customer.bills ?? []).find(bill => bill.month === currentMonth);
+  let feeAppliedToBill = false;
+  let feeBillMonth = null;
+  let bills = customer.bills ?? [];
+  if (input.addFeeToBill === true && shiftingFee > 0 && currentBill) {
+    const previousFee = Number(currentBill.shiftingFee || 0);
+    const newFee = Math.round((previousFee + shiftingFee) * 100) / 100;
+    const amountHistory = [...(currentBill.amountHistory ?? [])];
+    amountHistory.push({
+      changedAt: localDateTimeValue(referenceDate),
+      type: 'shifting_fee_applied',
+      previousShiftingFee: previousFee,
+      shiftingFee: newFee,
+      note: `House shift ${fromZone || 'zone not recorded'} → ${toZone} (${entryId})`
+    });
+    bills = bills.map(bill => bill.month !== currentMonth ? bill : {
+      ...bill,
+      shiftingFee: newFee,
+      shiftingFeeAppliedAt: localDateTimeValue(referenceDate),
+      amountHistory
+    });
+    feeAppliedToBill = true;
+    feeBillMonth = currentMonth;
+  }
+  log.push({
+    id: entryId,
+    fromAddress, toAddress, fromZone, toZone,
+    extraFiberMeters, shiftingFee, feeAppliedToBill, feeBillMonth,
+    shiftedAt, recordedAt: localDateTimeValue(referenceDate)
+  });
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      zone: toZone,
+      address: toAddress,
+      relocationLog: log,
+      bills
+    })
+  };
+}
+
 export function recordedAmount(bill) {
   return (bill?.payments ?? []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 }
@@ -1126,7 +1216,7 @@ export function calculatePaymentAllocations(state) {
     const bills = [...(customer.bills ?? [])].sort((a,b) => a.month.localeCompare(b.month));
     for (const bill of bills) {
       const key = monthAllocationKey(customer.id, bill.month);
-      const summary = { customerId:customer.id, month:bill.month, billAmountCents:null, baseAmountCents:null, lateFeeCents:0, actualReceiptsCents:0, discountAppliedCents:0, sameMonthAppliedCents:0, creditAppliedCents:0, creditSources:[], balanceDueCents:null, excessGeneratedCents:0, creditForwardedCents:0, pendingCreditCents:0 };
+      const summary = { customerId:customer.id, month:bill.month, billAmountCents:null, baseAmountCents:null, lateFeeCents:0, shiftingFeeCents:0, actualReceiptsCents:0, discountAppliedCents:0, sameMonthAppliedCents:0, creditAppliedCents:0, creditSources:[], balanceDueCents:null, excessGeneratedCents:0, creditForwardedCents:0, pendingCreditCents:0 };
       byCustomerMonth.set(key, summary);
       const payments = [...(bill.payments ?? [])].sort((a,b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
       summary.actualReceiptsCents = payments.reduce((sum,payment) => sum + moneyCents(payment.amount), 0);
@@ -1151,10 +1241,12 @@ export function calculatePaymentAllocations(state) {
 
       const baseAmountCents = moneyCents(amount);
       const lateFeeCents = moneyCents(bill.lateFee || 0);
-      const billAmountCents = baseAmountCents + lateFeeCents;
+      const shiftingFeeCents = moneyCents(bill.shiftingFee || 0);
+      const billAmountCents = baseAmountCents + lateFeeCents + shiftingFeeCents;
       summary.billAmountCents = billAmountCents;
       summary.baseAmountCents = baseAmountCents;
       summary.lateFeeCents = lateFeeCents;
+      summary.shiftingFeeCents = shiftingFeeCents;
       let dueRemainingCents = billAmountCents;
       for (const credit of pendingCredits) {
         if (dueRemainingCents <= 0) break;
@@ -1629,6 +1721,18 @@ function validateBackupState(source) {
       if (change.proRataAdjustment !== null && change.proRataAdjustment !== undefined && !Number.isFinite(Number(change.proRataAdjustment))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid pro-rata adjustment.`);
       if (change.proRatedBillAmount !== null && change.proRatedBillAmount !== undefined && !Number.isFinite(Number(change.proRatedBillAmount))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid pro-rated bill amount.`);
     }
+    // SISP-28: relocation entries travel with the customer; old backups
+    // without the field import as an empty log (backward compatible).
+    const relocationLog = customer.relocationLog ?? [];
+    if (!Array.isArray(relocationLog)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid relocation log.`);
+    for (const entry of relocationLog) {
+      if (!entry || typeof entry !== 'object') throw new Error(`Backup customer #${customer.customerNumber} has an invalid relocation entry.`);
+      for (const field of ['fromAddress', 'toAddress', 'fromZone', 'toZone']) if (entry[field] !== undefined && (typeof entry[field] !== 'string' || entry[field].length > 200)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid relocation field.`);
+      checkOptionalDate(entry.shiftedAt ?? null, 'Relocation date');
+      validStoredDateTime(entry.recordedAt, 'relocation record date');
+      if (entry.extraFiberMeters !== null && entry.extraFiberMeters !== undefined && !Number.isFinite(Number(entry.extraFiberMeters))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid relocation fiber length.`);
+      validBackupAmount(entry.shiftingFee, 'relocation shifting fee', true);
+    }
     const scheduleMonths = new Set();
     for (const entry of schedule) {
       if (!entry || !validMonthString(entry.effectiveMonth) || scheduleMonths.has(entry.effectiveMonth)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate price-effective month.`);
@@ -1664,11 +1768,15 @@ function validateBackupState(source) {
       const lateFee = bill.lateFee !== undefined && bill.lateFee !== null ? (validBackupAmount(bill.lateFee, `late fee for ${bill.month}`), Number(bill.lateFee) || 0) : undefined;
       const lateFeeAppliedAt = bill.lateFeeAppliedAt ? String(bill.lateFeeAppliedAt) : undefined;
       const lateFeeReason = bill.lateFeeReason ? String(bill.lateFeeReason) : undefined;
+      // SISP-28: shifting fees ride the bill like late fees; sanitize them
+      // on backup import so a malformed fee can never corrupt the ledger.
+      const shiftingFee = bill.shiftingFee !== undefined && bill.shiftingFee !== null ? (validBackupAmount(bill.shiftingFee, `shifting fee for ${bill.month}`, true), Number(bill.shiftingFee) || 0) : undefined;
+      const shiftingFeeAppliedAt = bill.shiftingFeeAppliedAt ? String(bill.shiftingFeeAppliedAt) : undefined;
       // SISP-4: kist lines ride the bill; sanitize them on backup import so
       // a malformed line can never corrupt the ledger or the cycle.
       const kistLines = sanitizeBillKistLines(bill.kistLines);
       const kistTotal = kistLines.reduce((sum, line) => sum + line.amount, 0);
-      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}), kistLines, kistTotal: Math.round(kistTotal * 100) / 100 };
+      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}), ...(shiftingFee !== undefined ? { shiftingFee, shiftingFeeAppliedAt } : {}), kistLines, kistTotal: Math.round(kistTotal * 100) / 100 };
     });
     const incidents = sourceIncidents.map(incident => {
       if (!incident || typeof incident.id !== 'string' || !incident.id || incidentIds.has(incident.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate incident ID.`);
@@ -1695,7 +1803,7 @@ function validateBackupState(source) {
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null, mediaConverterCost:customer.mediaConverterCost ?? null, linemanInstallFee:customer.linemanInstallFee ?? null, fiberPerMeterRate:customer.fiberPerMeterRate ?? null,
       // SISP-19: custody fields travel with the customer in JSON backups.
       routerOwnership:customer.routerOwnership ?? '', mediaConverterOwnership:customer.mediaConverterOwnership ?? '', serialNumber:customer.serialNumber ?? '', securityDeposit:customer.securityDeposit ?? null,
-      hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },      packageHistory, bills, incidents,
+      hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },      packageHistory, relocationLog, bills, incidents,
       // SISP-4: installment plans travel with the customer; old backups
       // without the field import as an empty plan list (backward compatible).
       installmentPlans: sanitizeInstallmentPlans(customer.installmentPlans)
@@ -1950,6 +2058,13 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
+    // SISP-28: relocation entries merge by entry id (never duplicated, and
+    // a differing entry with an id already on this device keeps the local
+    // copy — relocation history only ever grows).
+    customer.relocationLog = customer.relocationLog ?? [];
+    for (const incomingEntry of backupCustomer.relocationLog ?? []) {
+      if (!customer.relocationLog.some(existing => String(existing.id) === String(incomingEntry.id))) { customer.relocationLog.push(deepCopy(incomingEntry)); counts.changes++; }
+    }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {
       const existingEntry = customer.monthlyPriceSchedule.find(entry => entry.effectiveMonth === incomingEntry.effectiveMonth);
       if (!existingEntry) { customer.monthlyPriceSchedule.push(deepCopy(incomingEntry)); counts.changes++; }

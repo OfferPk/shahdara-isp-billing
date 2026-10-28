@@ -17,7 +17,7 @@
 - Current manual Active/Offline status is not historical status. Historical comparisons may use a dated snapshot only when one actually exists; otherwise clearly mark the value unavailable or explicitly current-as-of date.
 - WhatsApp actions only prepare a user-reviewed `wa.me` draft after an owner tap. No message is sent automatically, no country code is guessed, and no contact is made in the background.
 - Voice commands are read-only. Speech recognition may run only with a verified on-device model and `processLocally=true`; never fall back to cloud speech recognition. If the browser or Urdu/Roman Urdu model is unavailable, keep text commands available and explain the limitation. Voice must never change customer or financial data.
-- Publish only after tests/build, offline asset checks, mobile/accessibility review, and a safe GitHub-token-based release. Do not enable the GitHub connector for this repository.
+- Publish only after tests/build, offline asset checks, mobile/accessibility review, and a safe GitHub-token-based release.
 
 ## Phased delivery
 

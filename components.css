@@ -823,3 +823,21 @@ body.field-mode-open { overflow: hidden; }
 .wallet-ledger-dup { border-color: var(--color-overdue); }
 .wallet-ledger-dup ul { margin: 6px 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
 .wallet-ledger-note, .wallet-ledger-empty, .wallet-ledger-summary-line { color: var(--muted); font-size: 13px; }
+
+/* SISP-22: partner drawings, capital outlay & monthly settlement ledger. Theme tokens only. */
+.partner-settlement-panel { min-width: 0; }
+.partner-settlement-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 16px; }
+.partner-settlement-whatsapp { text-decoration: none; display: inline-flex; align-items: center; }
+.partner-settlement-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; padding: 8px 0; border-top: 1px solid var(--line); min-width: 0; }
+.partner-settlement-row:first-of-type { border-top: 0; }
+.partner-settlement-row span:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
+.partner-settlement-row strong { color: var(--ink); font-variant-numeric: var(--numeric); text-align: right; overflow-wrap: anywhere; }
+.partner-settlement-receivable strong { color: var(--color-overdue); }
+.partner-settlement-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.partner-settlement-card h4 { margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
+.partner-settlement-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 12px; }
+@media (max-width: 480px) {
+  .partner-settlement-cards { grid-template-columns: 1fr; }
+  .partner-settlement-row strong { text-align: left; }
+  .partner-settlement-actions .primary-button, .partner-settlement-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
+}

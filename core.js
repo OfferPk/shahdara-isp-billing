@@ -13,6 +13,7 @@ import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
+import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
@@ -1779,6 +1780,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeLoanEntries(options.loans);
     if (cleaned.length) document.settings = { ...(document.settings || {}), loans: cleaned };
   }
+  // SISP-25: WhatsApp templates live outside the ledger state
+  // (localStorage key sisp_wa_templates_v1), so they travel in an
+  // optional `settings.waTemplates` section. Written only when at least
+  // one customized template exists; readers that predate it ignore the
+  // unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.waTemplates) && options.waTemplates.length) {
+    const cleaned = sanitizeWaTemplates(options.waTemplates);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), waTemplates: cleaned };
+  }
   // Saad visit log: visits + payments live outside the ledger state
   // (localStorage keys sisp_saad_visits_v1 / sisp_saad_payments_v1), so
   // they travel in optional `settings.saadVisits` / `settings.saadPayments`
@@ -1862,7 +1872,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, homeBudgetRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -2188,6 +2198,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Loan ledger records differ from this device' });
     }
   }
+  // SISP-25: optional WhatsApp template section (see createJsonBackup).
+  // Safe-merge rule, same as the stock book: adopt the backup's templates
+  // only when this device has none stored yet; when both sides hold
+  // different real templates, keep existing + conflict.
+  let waTemplates = null;
+  const rawIncomingWaTemplates = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.waTemplates
+    : undefined;
+  if (Array.isArray(rawIncomingWaTemplates) && rawIncomingWaTemplates.length) {
+    const incomingWaTemplates = sanitizeWaTemplates(rawIncomingWaTemplates);
+    const currentWaTemplates = (options && typeof options === 'object' && Array.isArray(options.currentWaTemplates))
+      ? sanitizeWaTemplates(options.currentWaTemplates)
+      : [];
+    if (incomingWaTemplates.length && sameJson(incomingWaTemplates, currentWaTemplates)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingWaTemplates.length && (!options?.currentWaTemplatesStored || currentWaTemplates.length === 0)) {
+      waTemplates = incomingWaTemplates;
+      counts.waTemplatesRestored = 1;
+      counts.changes++;
+    } else if (incomingWaTemplates.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'WhatsApp templates differ from this device' });
+    }
+  }
   // Saad visit log: optional visit + payment sections (see createJsonBackup).
   // Safe-merge rule, same as the stock book: adopt the backup's records
   // only when this device has none stored yet; when both sides hold
@@ -2338,4 +2371,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, checksumStatus:checksum.status };}
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, waTemplates, checksumStatus:checksum.status };
+}

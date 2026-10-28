@@ -753,6 +753,72 @@ export function getRemindersTodayQueue(state, options = {}) {
 }
 
 /**
+ * SISP-25 campaign queue: unpaid customers for a 1-tap Send & Next run.
+ * Filters by Zone and/or Waada tier; broken Waada promises sort first, then
+ * highest balance first (same order as the Reminders Today queue). Unlike
+ * that queue, stage rules do not apply here — every unpaid, non-archived
+ * customer in the filter is queued, so the operator picks the audience.
+ *
+ * @param {Object} state - The ISP billing application state.
+ * @param {Object} [options={}]
+ * @param {string} [options.zone='all'] - Zone name, or 'all'.
+ * @param {string} [options.waadaTier='all'] - 'broken' | 'active' | 'promised' | 'all'.
+ * @param {string} [options.todayString] - YYYY-MM-DD
+ * @returns {{ date: string, zone: string, waadaTier: string, items: Array<Object>, totalCount: number, totalDuesPkr: number }}
+ */
+export function buildCampaignQueue(state, options = {}) {
+  const todayStr = options.todayString || getTodayDateString();
+  const monthStr = todayStr.slice(0, 7);
+  const zoneFilter = String(options.zone ?? 'all').trim().toLowerCase();
+  const tierFilter = String(options.waadaTier ?? 'all').trim().toLowerCase();
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const items = [];
+  let totalDuesPkr = 0;
+
+  for (const c of customers) {
+    if (c.archived) continue;
+    const balance = getCustomerOutstandingDues(c, state, monthStr);
+    if (!(balance > 0)) continue;
+    const zone = String(c.zone ?? '').trim();
+    if (zoneFilter !== 'all' && zone.toLowerCase() !== zoneFilter) continue;
+    const waadaTier = getWaadaTier(c, balance, todayStr);
+    if (tierFilter !== 'all' && waadaTier !== tierFilter) continue;
+    totalDuesPkr += balance;
+    items.push({
+      customer: c,
+      customerId: c.id,
+      customerName: c.name || 'Subscriber',
+      phone: c.phone || '',
+      zone,
+      balance,
+      waadaTier,
+      promiseDate: typeof c.promiseDate === 'string' ? c.promiseDate : null,
+      lastRemindedAt: typeof c.lastRemindedAt === 'string' ? c.lastRemindedAt : null
+    });
+  }
+
+  const tierOrder = { broken: 0, active: 1, promised: 2 };
+  items.sort((a, b) => ((tierOrder[a.waadaTier] ?? 1) - (tierOrder[b.waadaTier] ?? 1)) || (b.balance - a.balance));
+
+  return { date: todayStr, zone: options.zone ?? 'all', waadaTier: options.waadaTier ?? 'all', items, totalCount: items.length, totalDuesPkr };
+}
+
+/**
+ * SISP-25: stamps one customer's lastRemindedAt (YYYY-MM-DD) after a
+ * campaign send. Pure: returns a new state, the input state is untouched,
+ * and an unknown customer id returns the input state unchanged.
+ */
+export function markCustomerLastReminded(state, customerId, dateStr = getTodayDateString()) {
+  if (!state || !customerId) return state;
+  const customers = Array.isArray(state.customers) ? state.customers : [];
+  if (!customers.some(c => String(c.id) === String(customerId))) return state;
+  return {
+    ...state,
+    customers: customers.map(c => String(c.id) === String(customerId) ? { ...c, lastRemindedAt: dateStr } : c)
+  };
+}
+
+/**
  * Updates the navigation badge for the Reminders Today Queue on More menu.
  *
  * @param {Object} state - Application state

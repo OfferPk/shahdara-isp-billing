@@ -14,11 +14,13 @@ import {
   formatServiceContractWhatsApp, generateServiceContractCsv, generateServiceContractHtml, setupServiceContractModal,
   PAKISTAN_CNIC_PROVINCES, parsePakistaniCnicDetails, calculateKycComplianceAudit, filterKycComplianceRecords,
   generateKycNoticeWhatsAppText, generateKycComplianceCsv, generateKycCompliancePrintHtml, setupKycComplianceModal,
+} from '../form-validation.js';
+import {
   LATE_FEE_CONFIG_KEY, DEFAULT_LATE_FEE_CONFIG, getLateFeeConfig, saveLateFeeConfig, validatePaymentDiscount,
   calculateNetBillSettlement, isBillOverdue, pakistanDateKey, evaluateBillLateFeeEligibility, findOverdueBillsWithLateFeeStatus,
   applyLateFeeToEligibleBills, waiveLateFeeFromBills, formatLateFeeNoticeWhatsApp, formatReceiptWithDiscountAndFeeWhatsApp,
   generateLateFeeDiscountsCsv, generateLateFeeAuditPrintHtml, renderLateFeeDiscountsSvg, setupLateFeeModal
-} from '../form-validation.js';
+} from '../qa-setups.js';
 import {
   applyLateFeeToBill, waiveLateFeeFromBill, calculatePaymentAllocations, addPayment, correctPayment, deletePayment, saveBillMonth
 } from '../core.js';
@@ -5497,7 +5499,7 @@ test('DOM and styling: index.html, styles.css, and app.js wire LAN Ethernet Cabl
 });
 
 test('calculateReflectanceFromOrl and calculateOrlFromReflectance convert correctly', async () => {
-  const { calculateReflectanceFromOrl, calculateOrlFromReflectance } = await import('../form-validation.js');
+  const { calculateReflectanceFromOrl, calculateOrlFromReflectance } = await import('../qa-setups.js');
 
   const r60 = calculateReflectanceFromOrl(60);
   assert.equal(r60.orlDb, 60);
@@ -5519,7 +5521,7 @@ test('calculateReflectanceFromOrl and calculateOrlFromReflectance convert correc
 });
 
 test('evaluateOrlReflectance evaluates SC/APC, SC/UPC, defects and DFB laser stability', async () => {
-  const { evaluateOrlReflectance } = await import('../form-validation.js');
+  const { evaluateOrlReflectance } = await import('../qa-setups.js');
 
   // Pristine SC/APC at 65 dB
   const evalApcPass = evaluateOrlReflectance({
@@ -5566,7 +5568,7 @@ test('evaluateOrlReflectance evaluates SC/APC, SC/UPC, defects and DFB laser sta
 });
 
 test('validateOrlCertInput validates input data bounds and required fields', async () => {
-  const { validateOrlCertInput } = await import('../form-validation.js');
+  const { validateOrlCertInput } = await import('../qa-setups.js');
 
   const validRes = validateOrlCertInput({
     customerName: 'Muhammad Tariq',
@@ -5591,7 +5593,7 @@ test('validateOrlCertInput validates input data bounds and required fields', asy
 });
 
 test('buildOrlCertRecord generates structured record with unique ID and evaluation', async () => {
-  const { buildOrlCertRecord, generateOrlCertId } = await import('../form-validation.js');
+  const { buildOrlCertRecord, generateOrlCertId } = await import('../qa-setups.js');
 
   const id = generateOrlCertId(42);
   assert.match(id, /^ORL-\d{6}-0043$/);
@@ -5629,7 +5631,7 @@ test('getSavedOrlCerts, saveOrlCert, updateOrlCertStatus, clearOrlCerts and calc
     clearOrlCerts,
     calculateOrlCertMetrics,
     buildOrlCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockStorage = {
     _data: {},
@@ -5694,7 +5696,7 @@ test('getSavedOrlCerts, saveOrlCert, updateOrlCertStatus, clearOrlCerts and calc
 });
 
 test('formatOrlCertWhatsApp formats bilingual notification for technician and customer', async () => {
-  const { buildOrlCertRecord, formatOrlCertWhatsApp } = await import('../form-validation.js');
+  const { buildOrlCertRecord, formatOrlCertWhatsApp } = await import('../qa-setups.js');
 
   const rec = buildOrlCertRecord({
     customerId: 'CUST-WA-01',
@@ -5718,7 +5720,7 @@ test('formatOrlCertWhatsApp formats bilingual notification for technician and cu
 });
 
 test('generateOrlCertHtml produces A4 ISO/IEC and 80mm thermal slip layouts', async () => {
-  const { buildOrlCertRecord, generateOrlCertHtml } = await import('../form-validation.js');
+  const { buildOrlCertRecord, generateOrlCertHtml } = await import('../qa-setups.js');
 
   const rec = buildOrlCertRecord({
     customerId: 'CUST-PRINT-01',
@@ -5749,7 +5751,7 @@ test('generateOrlCertHtml produces A4 ISO/IEC and 80mm thermal slip layouts', as
 });
 
 test('generateOrlCertsCsv outputs RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { buildOrlCertRecord, generateOrlCertsCsv } = await import('../form-validation.js');
+  const { buildOrlCertRecord, generateOrlCertsCsv } = await import('../qa-setups.js');
 
   const rec1 = buildOrlCertRecord({
     customerId: 'C-01',
@@ -5770,7 +5772,7 @@ test('generateOrlCertsCsv outputs RFC-4180 CSV with UTF-8 BOM', async () => {
 });
 
 test('renderFerruleEndfaceSvg renders 4 concentric IEC zones and angle indicator', async () => {
-  const { renderFerruleEndfaceSvg, evaluateOrlReflectance } = await import('../form-validation.js');
+  const { renderFerruleEndfaceSvg, evaluateOrlReflectance } = await import('../qa-setups.js');
 
   const evalRes = evaluateOrlReflectance({
     polish: 'SC_APC',
@@ -5786,7 +5788,7 @@ test('renderFerruleEndfaceSvg renders 4 concentric IEC zones and angle indicator
 });
 
 test('setupOrlCertModal controller initializes safely and handles events', async () => {
-  const { setupOrlCertModal } = await import('../form-validation.js');
+  const { setupOrlCertModal } = await import('../qa-setups.js');
 
   const mockStorage = {
     _data: {},
@@ -5866,7 +5868,7 @@ test('DOM and styling: index.html, styles.css, and app.js wire ORL & Reflectance
    ========================================================================== */
 
 test('DDMI catalogs: transceiver standards and severity levels are valid and complete', async () => {
-  const { DDMI_TRANSCEIVER_TYPES, DDMI_SEVERITY_LEVELS } = await import('../form-validation.js');
+  const { DDMI_TRANSCEIVER_TYPES, DDMI_SEVERITY_LEVELS } = await import('../qa-setups.js');
 
   assert.ok(DDMI_TRANSCEIVER_TYPES.GPON_CLASS_B_PLUS);
   assert.ok(DDMI_TRANSCEIVER_TYPES.GPON_CLASS_C_PLUS);
@@ -5889,7 +5891,7 @@ test('DDMI catalogs: transceiver standards and severity levels are valid and com
 });
 
 test('estimateLaserRulMonths Arrhenius model calculates physical life expectancy based on temperature and bias current', async () => {
-  const { estimateLaserRulMonths } = await import('../form-validation.js');
+  const { estimateLaserRulMonths } = await import('../qa-setups.js');
 
   // Baseline at room temperature 25°C and 15mA nominal bias
   const baselineLife = estimateLaserRulMonths(25, 15);
@@ -5911,7 +5913,7 @@ test('estimateLaserRulMonths Arrhenius model calculates physical life expectancy
 });
 
 test('evaluateDdmiTelemetry performs multi-channel threshold checks and health scoring', async () => {
-  const { evaluateDdmiTelemetry } = await import('../form-validation.js');
+  const { evaluateDdmiTelemetry } = await import('../qa-setups.js');
 
   // 1. Pristine nominal telemetry on GPON Class B+
   const pristine = evaluateDdmiTelemetry({
@@ -5962,7 +5964,7 @@ test('evaluateDdmiTelemetry performs multi-channel threshold checks and health s
 });
 
 test('buildDdmiCertRecord generates structured certification audit records', async () => {
-  const { buildDdmiCertRecord } = await import('../form-validation.js');
+  const { buildDdmiCertRecord } = await import('../qa-setups.js');
 
   const record = buildDdmiCertRecord({
     customerName: 'Muhammad Tariq',
@@ -5995,7 +5997,7 @@ test('buildDdmiCertRecord generates structured certification audit records', asy
 });
 
 test('formatDdmiCertWhatsApp outputs bilingual English and Urdu summary for technicians', async () => {
-  const { buildDdmiCertRecord, formatDdmiCertWhatsApp } = await import('../form-validation.js');
+  const { buildDdmiCertRecord, formatDdmiCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildDdmiCertRecord({
     customerName: 'Bashir Ahmed',
@@ -6026,7 +6028,7 @@ test('formatDdmiCertWhatsApp outputs bilingual English and Urdu summary for tech
 });
 
 test('generateDdmiCertHtml produces standard A4 certificate and thermal 80mm slip', async () => {
-  const { buildDdmiCertRecord, generateDdmiCertHtml } = await import('../form-validation.js');
+  const { buildDdmiCertRecord, generateDdmiCertHtml } = await import('../qa-setups.js');
 
   const record = buildDdmiCertRecord({
     customerName: 'Imran Khan',
@@ -6057,7 +6059,7 @@ test('generateDdmiCertHtml produces standard A4 certificate and thermal 80mm sli
 });
 
 test('generateDdmiCertsCsv produces RFC-4180 export with UTF-8 BOM', async () => {
-  const { buildDdmiCertRecord, generateDdmiCertsCsv } = await import('../form-validation.js');
+  const { buildDdmiCertRecord, generateDdmiCertsCsv } = await import('../qa-setups.js');
 
   const rec1 = buildDdmiCertRecord({
     customerName: 'Customer A, Shahdara',
@@ -6083,7 +6085,7 @@ test('generateDdmiCertsCsv produces RFC-4180 export with UTF-8 BOM', async () =>
 });
 
 test('renderDdmiTelemetrySvg renders pure vector 5-gauge dashboard with health readout', async () => {
-  const { buildDdmiCertRecord, renderDdmiTelemetrySvg } = await import('../form-validation.js');
+  const { buildDdmiCertRecord, renderDdmiTelemetrySvg } = await import('../qa-setups.js');
 
   const record = buildDdmiCertRecord({
     customerName: 'Naveed Akhtar',
@@ -6110,7 +6112,7 @@ test('renderDdmiTelemetrySvg renders pure vector 5-gauge dashboard with health r
 });
 
 test('storage operations: saveDdmiCert, getSavedDdmiCerts, and clearDdmiCerts', async () => {
-  const { buildDdmiCertRecord, saveDdmiCert, getSavedDdmiCerts, clearDdmiCerts } = await import('../form-validation.js');
+  const { buildDdmiCertRecord, saveDdmiCert, getSavedDdmiCerts, clearDdmiCerts } = await import('../qa-setups.js');
 
   const mockStorage = {
     _data: {},
@@ -6137,7 +6139,7 @@ test('storage operations: saveDdmiCert, getSavedDdmiCerts, and clearDdmiCerts', 
 });
 
 test('setupDdmiCertModal handles headless and mock environments safely', async () => {
-  const { setupDdmiCertModal } = await import('../form-validation.js');
+  const { setupDdmiCertModal } = await import('../qa-setups.js');
 
   const controller = setupDdmiCertModal({
     document: null,
@@ -6211,7 +6213,7 @@ test('DOM and styling: index.html, styles.css, and app.js wire Customer ONU DDMI
    ========================================================================== */
 
 test('Dispersion catalogs: fiber standards and bitrate profiles are complete and physically accurate', async () => {
-  const { FIBER_DISPERSION_PROFILES, BITRATE_DISPERSION_STANDARDS, DISPERSION_SEVERITY_LEVELS } = await import('../form-validation.js');
+  const { FIBER_DISPERSION_PROFILES, BITRATE_DISPERSION_STANDARDS, DISPERSION_SEVERITY_LEVELS } = await import('../qa-setups.js');
 
   assert.ok(FIBER_DISPERSION_PROFILES.G652D);
   assert.ok(FIBER_DISPERSION_PROFILES.G655);
@@ -6235,7 +6237,7 @@ test('Dispersion catalogs: fiber standards and bitrate profiles are complete and
 });
 
 test('calculateChromaticDispersionCoefficient computes physical dispersion curve D(lambda)', async () => {
-  const { FIBER_DISPERSION_PROFILES, calculateChromaticDispersionCoefficient } = await import('../form-validation.js');
+  const { FIBER_DISPERSION_PROFILES, calculateChromaticDispersionCoefficient } = await import('../qa-setups.js');
 
   const g652 = FIBER_DISPERSION_PROFILES.G652D;
 
@@ -6254,7 +6256,7 @@ test('calculateChromaticDispersionCoefficient computes physical dispersion curve
 });
 
 test('evaluateLinkDispersion evaluates CD, PMD DGD, and bit rate penalties', async () => {
-  const { evaluateLinkDispersion } = await import('../form-validation.js');
+  const { evaluateLinkDispersion } = await import('../qa-setups.js');
 
   // 1. Nominal 12.5 km link at 1550 nm for 10G XGS-PON
   const res10G = evaluateLinkDispersion({
@@ -6286,7 +6288,7 @@ test('evaluateLinkDispersion evaluates CD, PMD DGD, and bit rate penalties', asy
 });
 
 test('buildDispersionCertRecord creates sequential structured inspection records', async () => {
-  const { buildDispersionCertRecord } = await import('../form-validation.js');
+  const { buildDispersionCertRecord } = await import('../qa-setups.js');
 
   const record = buildDispersionCertRecord({
     feederRouteName: 'Saeed Park to Kot Mohibbu Sub-Ring',
@@ -6307,7 +6309,7 @@ test('buildDispersionCertRecord creates sequential structured inspection records
 });
 
 test('formatDispersionCertWhatsApp outputs bilingual NOC summary', async () => {
-  const { buildDispersionCertRecord, formatDispersionCertWhatsApp } = await import('../form-validation.js');
+  const { buildDispersionCertRecord, formatDispersionCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildDispersionCertRecord({
     feederRouteName: 'Shahdara to Farrukhabad Trunk',
@@ -6327,7 +6329,7 @@ test('formatDispersionCertWhatsApp outputs bilingual NOC summary', async () => {
 });
 
 test('generateDispersionCertHtml produces standard A4 certificate and thermal slip', async () => {
-  const { buildDispersionCertRecord, generateDispersionCertHtml } = await import('../form-validation.js');
+  const { buildDispersionCertRecord, generateDispersionCertHtml } = await import('../qa-setups.js');
 
   const record = buildDispersionCertRecord({
     feederRouteName: 'Jia Musa Overhead Feeder',
@@ -6346,7 +6348,7 @@ test('generateDispersionCertHtml produces standard A4 certificate and thermal sl
 });
 
 test('generateDispersionCertsCsv produces RFC-4180 CSV with BOM', async () => {
-  const { buildDispersionCertRecord, generateDispersionCertsCsv } = await import('../form-validation.js');
+  const { buildDispersionCertRecord, generateDispersionCertsCsv } = await import('../qa-setups.js');
 
   const r1 = buildDispersionCertRecord({ feederRouteName: 'Route 1, Shahdara' });
   const r2 = buildDispersionCertRecord({ feederRouteName: 'Route 2' });
@@ -6359,7 +6361,7 @@ test('generateDispersionCertsCsv produces RFC-4180 CSV with BOM', async () => {
 });
 
 test('renderDispersionAnalysisSvg renders pure vector spectral curve and KPI ribbon', async () => {
-  const { buildDispersionCertRecord, renderDispersionAnalysisSvg } = await import('../form-validation.js');
+  const { buildDispersionCertRecord, renderDispersionAnalysisSvg } = await import('../qa-setups.js');
 
   const record = buildDispersionCertRecord({
     feederRouteName: 'Baradari Road Trunk',
@@ -6377,7 +6379,7 @@ test('renderDispersionAnalysisSvg renders pure vector spectral curve and KPI rib
 });
 
 test('storage operations: saveDispersionCert, getSavedDispersionCerts, and clearDispersionCerts', async () => {
-  const { buildDispersionCertRecord, saveDispersionCert, getSavedDispersionCerts, clearDispersionCerts } = await import('../form-validation.js');
+  const { buildDispersionCertRecord, saveDispersionCert, getSavedDispersionCerts, clearDispersionCerts } = await import('../qa-setups.js');
 
   const mockStorage = {
     _data: {},
@@ -6404,7 +6406,7 @@ test('storage operations: saveDispersionCert, getSavedDispersionCerts, and clear
 });
 
 test('setupDispersionCertModal operates safely in headless and mock environments', async () => {
-  const { setupDispersionCertModal } = await import('../form-validation.js');
+  const { setupDispersionCertModal } = await import('../qa-setups.js');
 
   const controller = setupDispersionCertModal({
     document: null,
@@ -6479,7 +6481,7 @@ test('Bend loss catalogs: ITU-T fiber standards, wavelength multipliers, and ver
     WAVELENGTH_BEND_MULTIPLIERS,
     ROUTING_CHECKLIST_ITEMS,
     BEND_VERDICTS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   assert.ok(FIBER_BEND_STANDARDS.G652D);
   assert.ok(FIBER_BEND_STANDARDS.G657A1);
@@ -6505,7 +6507,7 @@ test('Bend loss catalogs: ITU-T fiber standards, wavelength multipliers, and ver
 });
 
 test('calculateMacroBendLoss models physics of bend-induced loss and wavelength differential', async () => {
-  const { calculateMacroBendLoss, BEND_VERDICTS } = await import('../form-validation.js');
+  const { calculateMacroBendLoss, BEND_VERDICTS } = await import('../qa-setups.js');
 
   // Compliant radius on G.657.A2 (R = 15mm, turns = 2, no stress, full checklist)
   const safeRes = calculateMacroBendLoss({
@@ -6556,7 +6558,7 @@ test('calculateMacroBendLoss models physics of bend-induced loss and wavelength 
 });
 
 test('validateBendLossCertInput handles valid and invalid parameter boundaries', async () => {
-  const { validateBendLossCertInput } = await import('../form-validation.js');
+  const { validateBendLossCertInput } = await import('../qa-setups.js');
 
   const v1 = validateBendLossCertInput({ customerName: 'Ahmad Khan', radiusMm: 15, turnsCount: 2, microBendStressIndex: 0, fiberType: 'G657A2' });
   assert.equal(v1.valid, true);
@@ -6579,7 +6581,7 @@ test('validateBendLossCertInput handles valid and invalid parameter boundaries',
 });
 
 test('buildBendLossCertRecord generates formatted audit record with unique ID', async () => {
-  const { calculateMacroBendLoss, buildBendLossCertRecord } = await import('../form-validation.js');
+  const { calculateMacroBendLoss, buildBendLossCertRecord } = await import('../qa-setups.js');
 
   const result = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 12.0, turnsCount: 1 });
   const existing = [{ id: 'BND-202610-0001' }, { id: 'BND-202610-0002' }];
@@ -6604,7 +6606,7 @@ test('buildBendLossCertRecord generates formatted audit record with unique ID', 
 });
 
 test('getSavedBendLossCerts and saveBendLossCert manage storage lifecycle and 100-item cap', async () => {
-  const { getSavedBendLossCerts, saveBendLossCert, clearBendLossCerts, BEND_LOSS_STORAGE_KEY } = await import('../form-validation.js');
+  const { getSavedBendLossCerts, saveBendLossCert, clearBendLossCerts, BEND_LOSS_STORAGE_KEY } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -6637,7 +6639,7 @@ test('getSavedBendLossCerts and saveBendLossCert manage storage lifecycle and 10
 });
 
 test('renderBendLossAnalysisSvg generates SVG markup with radius mandrel and spectral bars', async () => {
-  const { calculateMacroBendLoss, renderBendLossAnalysisSvg } = await import('../form-validation.js');
+  const { calculateMacroBendLoss, renderBendLossAnalysisSvg } = await import('../qa-setups.js');
 
   const result = calculateMacroBendLoss({ fiberType: 'G657A2', radiusMm: 15.0, turnsCount: 2 });
   const svg = renderBendLossAnalysisSvg(result);
@@ -6653,7 +6655,7 @@ test('renderBendLossAnalysisSvg generates SVG markup with radius mandrel and spe
 });
 
 test('formatBendLossCertWhatsApp generates rich field dispatch summary', async () => {
-  const { formatBendLossCertWhatsApp, BEND_VERDICTS } = await import('../form-validation.js');
+  const { formatBendLossCertWhatsApp, BEND_VERDICTS } = await import('../qa-setups.js');
 
   const text = formatBendLossCertWhatsApp({
     id: 'BND-0012',
@@ -6687,7 +6689,7 @@ test('formatBendLossCertWhatsApp generates rich field dispatch summary', async (
 });
 
 test('generateBendLossCertHtml renders dual printable A4 cert and 80mm POS thermal slip', async () => {
-  const { generateBendLossCertHtml, BEND_VERDICTS } = await import('../form-validation.js');
+  const { generateBendLossCertHtml, BEND_VERDICTS } = await import('../qa-setups.js');
 
   const cert = {
     id: 'BND-0044',
@@ -6722,7 +6724,7 @@ test('generateBendLossCertHtml renders dual printable A4 cert and 80mm POS therm
 });
 
 test('generateBendLossCertsCsv produces RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { generateBendLossCertsCsv, BEND_VERDICTS } = await import('../form-validation.js');
+  const { generateBendLossCertsCsv, BEND_VERDICTS } = await import('../qa-setups.js');
 
   const emptyCsv = generateBendLossCertsCsv([]);
   assert.ok(emptyCsv.startsWith('\uFEFFInspection_ID,Date,Customer_No,Customer_Name'));
@@ -6806,7 +6808,7 @@ test('UI wiring, index.html, styles.css, app.js and modal integration for bend l
 });
 
 test('calculateRecommendedSlackLoopDimensions computes safe rosette cassette clearance', async () => {
-  const { calculateRecommendedSlackLoopDimensions } = await import('../form-validation.js');
+  const { calculateRecommendedSlackLoopDimensions } = await import('../qa-setups.js');
 
   // G.657.A2 inside standard 86x86mm Pakistani faceplate rosette
   const rosetteA2 = calculateRecommendedSlackLoopDimensions({
@@ -6836,7 +6838,7 @@ test('calculateRecommendedSlackLoopDimensions computes safe rosette cassette cle
 });
 
 test('setupBendLossCertModal operates safely in headless and interactive mock DOM environments', async () => {
-  const { setupBendLossCertModal, BEND_LOSS_STORAGE_KEY } = await import('../form-validation.js');
+  const { setupBendLossCertModal, BEND_LOSS_STORAGE_KEY } = await import('../qa-setups.js');
 
   // 1. Headless test
   const headless = setupBendLossCertModal({ document: null, storage: null });
@@ -6961,7 +6963,7 @@ test('OTDR bidirectional constants and presets match ITU-T G.650.1 / G.652 stand
     OTDR_EVENT_TYPES,
     OTDR_ROUTE_PRESETS,
     BIDIRECTIONAL_QA_VERDICTS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   assert.equal(BIDIRECTIONAL_OTDR_STORAGE_KEY, 'shahdara_otdr_bidirectional_certs_v1');
 
@@ -6993,7 +6995,7 @@ test('OTDR bidirectional constants and presets match ITU-T G.650.1 / G.652 stand
 });
 
 test('calculateBidirectionalAveraging arithmetically cancels false gainers and computes true loss', async () => {
-  const { calculateBidirectionalAveraging } = await import('../form-validation.js');
+  const { calculateBidirectionalAveraging } = await import('../qa-setups.js');
 
   // Case with a clear gainer at splice 2: -0.15 dB A->B, +0.35 dB B->A => True = +0.10 dB
   const events = [
@@ -7031,7 +7033,7 @@ test('calculateBidirectionalAveraging arithmetically cancels false gainers and c
 });
 
 test('calculateBidirectionalAveraging flags excessive splice loss as RESPLICE_ADVISORY or CRITICAL_FAULT', async () => {
-  const { calculateBidirectionalAveraging } = await import('../form-validation.js');
+  const { calculateBidirectionalAveraging } = await import('../qa-setups.js');
 
   // Severe splice loss at 3.0km (0.24 dB true loss)
   const events = [
@@ -7060,7 +7062,7 @@ test('calculateBidirectionalAveraging flags excessive splice loss as RESPLICE_AD
 });
 
 test('renderBidirectionalOtdrSvg produces valid interactive SVG graphic markup', async () => {
-  const { renderBidirectionalOtdrSvg } = await import('../form-validation.js');
+  const { renderBidirectionalOtdrSvg } = await import('../qa-setups.js');
 
   const svg = renderBidirectionalOtdrSvg({
     events: [
@@ -7087,7 +7089,7 @@ test('renderBidirectionalOtdrSvg produces valid interactive SVG graphic markup',
 });
 
 test('buildBidirectionalOtdrCertRecord creates compliant record with unique ID and telemetries', async () => {
-  const { buildBidirectionalOtdrCertRecord } = await import('../form-validation.js');
+  const { buildBidirectionalOtdrCertRecord } = await import('../qa-setups.js');
 
   const existing = [{ id: 'OTDR-BI-202610-0001' }];
   const record = buildBidirectionalOtdrCertRecord({
@@ -7121,7 +7123,7 @@ test('storage functions persist, read, and clear bidirectional OTDR cert records
     getSavedBidirectionalOtdrCerts,
     clearBidirectionalOtdrCerts,
     BIDIRECTIONAL_OTDR_STORAGE_KEY
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockStorage = {
     _data: {},
@@ -7148,7 +7150,7 @@ test('storage functions persist, read, and clear bidirectional OTDR cert records
 });
 
 test('formatBidirectionalOtdrCertWhatsApp formats comprehensive notice text', async () => {
-  const { formatBidirectionalOtdrCertWhatsApp } = await import('../form-validation.js');
+  const { formatBidirectionalOtdrCertWhatsApp } = await import('../qa-setups.js');
 
   const record = {
     id: 'OTDR-BI-202610-0005',
@@ -7187,7 +7189,7 @@ test('formatBidirectionalOtdrCertWhatsApp formats comprehensive notice text', as
 });
 
 test('generateBidirectionalOtdrCertHtml outputs A4 sheet and thermal slip formats', async () => {
-  const { generateBidirectionalOtdrCertHtml } = await import('../form-validation.js');
+  const { generateBidirectionalOtdrCertHtml } = await import('../qa-setups.js');
 
   const record = {
     id: 'OTDR-BI-202610-0006',
@@ -7232,7 +7234,7 @@ test('generateBidirectionalOtdrCertHtml outputs A4 sheet and thermal slip format
 });
 
 test('generateBidirectionalOtdrCsv outputs valid CSV columns and formatted rows', async () => {
-  const { generateBidirectionalOtdrCsv } = await import('../form-validation.js');
+  const { generateBidirectionalOtdrCsv } = await import('../qa-setups.js');
 
   const records = [
     {
@@ -7267,7 +7269,7 @@ test('generateBidirectionalOtdrCsv outputs valid CSV columns and formatted rows'
 });
 
 test('setupBidirectionalOtdrModal wires event listeners and handles user interactions', async () => {
-  const { setupBidirectionalOtdrModal, BIDIRECTIONAL_OTDR_STORAGE_KEY } = await import('../form-validation.js');
+  const { setupBidirectionalOtdrModal, BIDIRECTIONAL_OTDR_STORAGE_KEY } = await import('../qa-setups.js');
 
   function createMockElement(id) {
     const listeners = {};
@@ -7406,7 +7408,7 @@ test('index.html and styles.css include bidirectional OTDR modal elements and st
 });
 
 test('calculatePulseWidthDeadZones computes spatial length and dead zones per IEC 61746-1', async () => {
-  const { calculatePulseWidthDeadZones, SPEED_OF_LIGHT_VACUUM_MPS } = await import('../form-validation.js');
+  const { calculatePulseWidthDeadZones, SPEED_OF_LIGHT_VACUUM_MPS } = await import('../qa-setups.js');
 
   const p3 = calculatePulseWidthDeadZones(3, 1550);
   assert.equal(p3.pulseWidthNs, 3);
@@ -7433,7 +7435,7 @@ test('calculatePulseWidthDeadZones computes spatial length and dead zones per IE
 });
 
 test('evaluateOtdrDeadzoneCalibration verifies launch box, tail box, and event resolution', async () => {
-  const { evaluateOtdrDeadzoneCalibration, OTDR_SPAN_PRESETS } = await import('../form-validation.js');
+  const { evaluateOtdrDeadzoneCalibration, OTDR_SPAN_PRESETS } = await import('../qa-setups.js');
 
   const preset = OTDR_SPAN_PRESETS[0];
   const result = evaluateOtdrDeadzoneCalibration({
@@ -7500,7 +7502,7 @@ test('evaluateOtdrDeadzoneCalibration verifies launch box, tail box, and event r
 });
 
 test('renderOtdrDeadzoneSvg produces vector SVG trace with zones and HUD ribbon', async () => {
-  const { evaluateOtdrDeadzoneCalibration, renderOtdrDeadzoneSvg } = await import('../form-validation.js');
+  const { evaluateOtdrDeadzoneCalibration, renderOtdrDeadzoneSvg } = await import('../qa-setups.js');
 
   const analysis = evaluateOtdrDeadzoneCalibration({
     spanLengthKm: 6.2,
@@ -7520,7 +7522,7 @@ test('renderOtdrDeadzoneSvg produces vector SVG trace with zones and HUD ribbon'
 });
 
 test('generateOtdrDeadzoneCertHtml outputs valid A4 and thermal printable layouts', async () => {
-  const { evaluateOtdrDeadzoneCalibration, generateOtdrDeadzoneCertHtml } = await import('../form-validation.js');
+  const { evaluateOtdrDeadzoneCalibration, generateOtdrDeadzoneCertHtml } = await import('../qa-setups.js');
 
   const analysis = evaluateOtdrDeadzoneCalibration({
     spanName: 'Baradari Central OLT to Jia Musa Ring FAT-04',
@@ -7543,7 +7545,7 @@ test('generateOtdrDeadzoneCertHtml outputs valid A4 and thermal printable layout
 });
 
 test('formatOtdrDeadzoneCertWhatsApp outputs bilingual Urdu and English dispatch text', async () => {
-  const { evaluateOtdrDeadzoneCalibration, formatOtdrDeadzoneCertWhatsApp } = await import('../form-validation.js');
+  const { evaluateOtdrDeadzoneCalibration, formatOtdrDeadzoneCertWhatsApp } = await import('../qa-setups.js');
 
   const analysis = evaluateOtdrDeadzoneCalibration({
     spanName: 'Baradari Central OLT to Jia Musa',
@@ -7561,7 +7563,7 @@ test('formatOtdrDeadzoneCertWhatsApp outputs bilingual Urdu and English dispatch
 });
 
 test('generateOtdrDeadzoneCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { evaluateOtdrDeadzoneCalibration, generateOtdrDeadzoneCertsCsv } = await import('../form-validation.js');
+  const { evaluateOtdrDeadzoneCalibration, generateOtdrDeadzoneCertsCsv } = await import('../qa-setups.js');
 
   const analysis1 = evaluateOtdrDeadzoneCalibration({ spanName: 'Span Alpha', spanLengthKm: 4.5 });
   const analysis2 = evaluateOtdrDeadzoneCalibration({ spanName: 'Span Beta', spanLengthKm: 8.2 });
@@ -7581,7 +7583,7 @@ test('localStorage helpers correctly save, retrieve, update, and calculate metri
     clearOtdrDeadzoneCerts,
     calculateOtdrDeadzoneMetrics,
     evaluateOtdrDeadzoneCalibration
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockStore = {};
   const mockStorage = {
@@ -7640,7 +7642,7 @@ test('index.html and styles.css include OTDR Dead Zone QA modal elements and sty
 });
 
 test('setupOtdrDeadzoneModal binds DOM elements, recalculates, and saves certificates', async () => {
-  const { setupOtdrDeadzoneModal, OTDR_DEADZONE_CERT_STORAGE_KEY } = await import('../form-validation.js');
+  const { setupOtdrDeadzoneModal, OTDR_DEADZONE_CERT_STORAGE_KEY } = await import('../qa-setups.js');
 
   function createMockEl(id) {
     const listeners = {};
@@ -7724,7 +7726,7 @@ test('setupOtdrDeadzoneModal binds DOM elements, recalculates, and saves certifi
 });
 
 test('calculateTheoreticalSplittingLoss computes 10*log10(N) dB accurately', async () => {
-  const { calculateTheoreticalSplittingLoss } = await import('../form-validation.js');
+  const { calculateTheoreticalSplittingLoss } = await import('../qa-setups.js');
   assert.equal(calculateTheoreticalSplittingLoss(1), 0.0);
   assert.equal(calculateTheoreticalSplittingLoss(2), 3.01);
   assert.equal(calculateTheoreticalSplittingLoss(4), 6.02);
@@ -7736,7 +7738,7 @@ test('calculateTheoreticalSplittingLoss computes 10*log10(N) dB accurately', asy
 });
 
 test('evaluateSplitterPorts evaluates 1:8 PLC splitter and handles exemplary inputs', async () => {
-  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const { evaluateSplitterPorts } = await import('../qa-setups.js');
   const res = evaluateSplitterPorts({
     splitterType: '1:8',
     inputPowerDbm: 3.5,
@@ -7756,7 +7758,7 @@ test('evaluateSplitterPorts evaluates 1:8 PLC splitter and handles exemplary inp
 });
 
 test('evaluateSplitterPorts flags high loss and pinched ports', async () => {
-  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const { evaluateSplitterPorts } = await import('../qa-setups.js');
   const res = evaluateSplitterPorts({
     splitterType: '1:8',
     inputPowerDbm: 3.0,
@@ -7770,7 +7772,7 @@ test('evaluateSplitterPorts flags high loss and pinched ports', async () => {
 });
 
 test('evaluateSplitterPorts flags unphysical low loss readings', async () => {
-  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const { evaluateSplitterPorts } = await import('../qa-setups.js');
   const res = evaluateSplitterPorts({
     splitterType: '1:8',
     inputPowerDbm: 3.0,
@@ -7784,7 +7786,7 @@ test('evaluateSplitterPorts flags unphysical low loss readings', async () => {
 });
 
 test('evaluateSplitterPorts handles asymmetrical tap couplers', async () => {
-  const { evaluateSplitterPorts } = await import('../form-validation.js');
+  const { evaluateSplitterPorts } = await import('../qa-setups.js');
   const res = evaluateSplitterPorts({
     splitterType: 'TAP_85_15',
     inputPowerDbm: 2.5,
@@ -7799,7 +7801,7 @@ test('evaluateSplitterPorts handles asymmetrical tap couplers', async () => {
 });
 
 test('validateSplitterQaInput validates required fields correctly', async () => {
-  const { validateSplitterQaInput } = await import('../form-validation.js');
+  const { validateSplitterQaInput } = await import('../qa-setups.js');
   const invalid = validateSplitterQaInput({});
   assert.equal(invalid.valid, false);
   assert.ok(invalid.errors.location);
@@ -7815,7 +7817,7 @@ test('validateSplitterQaInput validates required fields correctly', async () => 
 });
 
 test('buildSplitterQaRecord creates sequential cert IDs and preserves data', async () => {
-  const { buildSplitterQaRecord } = await import('../form-validation.js');
+  const { buildSplitterQaRecord } = await import('../qa-setups.js');
   const existing = [{ certId: 'SPL-202610-0001' }, { certId: 'SPL-202610-0002' }];
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
@@ -7832,7 +7834,7 @@ test('buildSplitterQaRecord creates sequential cert IDs and preserves data', asy
 });
 
 test('renderSplitterQaAnalysisSvg returns valid SVG markup with bars and enclosure', async () => {
-  const { evaluateSplitterPorts, renderSplitterQaAnalysisSvg } = await import('../form-validation.js');
+  const { evaluateSplitterPorts, renderSplitterQaAnalysisSvg } = await import('../qa-setups.js');
   const ev = evaluateSplitterPorts({
     splitterType: '1:8',
     inputPowerDbm: 3.5,
@@ -7849,7 +7851,7 @@ test('renderSplitterQaAnalysisSvg returns valid SVG markup with bars and enclosu
 });
 
 test('generateSplitterQaCertHtml generates both A4 and 80mm thermal formats', async () => {
-  const { buildSplitterQaRecord, generateSplitterQaCertHtml } = await import('../form-validation.js');
+  const { buildSplitterQaRecord, generateSplitterQaCertHtml } = await import('../qa-setups.js');
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
@@ -7871,7 +7873,7 @@ test('generateSplitterQaCertHtml generates both A4 and 80mm thermal formats', as
 });
 
 test('formatSplitterQaCertWhatsApp formats bilingual dispatch notice', async () => {
-  const { buildSplitterQaRecord, formatSplitterQaCertWhatsApp } = await import('../form-validation.js');
+  const { buildSplitterQaRecord, formatSplitterQaCertWhatsApp } = await import('../qa-setups.js');
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
@@ -7888,7 +7890,7 @@ test('formatSplitterQaCertWhatsApp formats bilingual dispatch notice', async () 
 });
 
 test('generateSplitterQaCertsCsv generates RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { buildSplitterQaRecord, generateSplitterQaCertsCsv } = await import('../form-validation.js');
+  const { buildSplitterQaRecord, generateSplitterQaCertsCsv } = await import('../qa-setups.js');
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
@@ -7913,7 +7915,7 @@ test('getSavedSplitterQaCerts, saveSplitterQaCert, updateSplitterQaCertStatus, a
     clearSplitterQaCerts,
     calculateSplitterQaMetrics,
     buildSplitterQaRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -7966,7 +7968,7 @@ test('index.html and styles.css include Splitter QA modal elements and styles', 
 });
 
 test('setupSplitterQaModal binds DOM elements, handles presets, recalculates, and saves certificates', async () => {
-  const { setupSplitterQaModal, SPLITTER_QA_STORAGE_KEY } = await import('../form-validation.js');
+  const { setupSplitterQaModal, SPLITTER_QA_STORAGE_KEY } = await import('../qa-setups.js');
 
   function createMockEl(id) {
     const listeners = {};
@@ -8056,7 +8058,7 @@ test('setupSplitterQaModal binds DOM elements, handles presets, recalculates, an
 // ============================================================================
 
 test('FERRULE_CONNECTOR_TYPES and FERRULE_GEOMETRY_PRESETS contain correct standards and specs', async () => {
-  const { FERRULE_CONNECTOR_TYPES, FERRULE_GEOMETRY_PRESETS } = await import('../form-validation.js');
+  const { FERRULE_CONNECTOR_TYPES, FERRULE_GEOMETRY_PRESETS } = await import('../qa-setups.js');
 
   assert.ok(FERRULE_CONNECTOR_TYPES['SC_APC']);
   assert.ok(FERRULE_CONNECTOR_TYPES['SC_UPC']);
@@ -8080,7 +8082,7 @@ test('FERRULE_CONNECTOR_TYPES and FERRULE_GEOMETRY_PRESETS contain correct stand
 });
 
 test('evaluateFerruleGeometry correctly evaluates Grade A master reference pass', async () => {
-  const { evaluateFerruleGeometry } = await import('../form-validation.js');
+  const { evaluateFerruleGeometry } = await import('../qa-setups.js');
 
   const res = evaluateFerruleGeometry({
     connectorType: 'SC_APC',
@@ -8105,7 +8107,7 @@ test('evaluateFerruleGeometry correctly evaluates Grade A master reference pass'
 });
 
 test('evaluateFerruleGeometry correctly flags local pigtail with excessive apex offset and air gap', async () => {
-  const { evaluateFerruleGeometry } = await import('../form-validation.js');
+  const { evaluateFerruleGeometry } = await import('../qa-setups.js');
 
   const res = evaluateFerruleGeometry({
     connectorType: 'SC_UPC',
@@ -8128,7 +8130,7 @@ test('evaluateFerruleGeometry correctly flags local pigtail with excessive apex 
 });
 
 test('evaluateFerruleGeometry correctly flags over-polished undercut and excessive flatness', async () => {
-  const { evaluateFerruleGeometry } = await import('../form-validation.js');
+  const { evaluateFerruleGeometry } = await import('../qa-setups.js');
 
   // Overpolished undercut
   const undercut = evaluateFerruleGeometry({
@@ -8158,7 +8160,7 @@ test('evaluateFerruleGeometry correctly flags over-polished undercut and excessi
 });
 
 test('renderFerruleGeometryAnalysisSvg outputs compliant SVG markup with cross section and fringes', async () => {
-  const { evaluateFerruleGeometry, renderFerruleGeometryAnalysisSvg } = await import('../form-validation.js');
+  const { evaluateFerruleGeometry, renderFerruleGeometryAnalysisSvg } = await import('../qa-setups.js');
 
   const calc = evaluateFerruleGeometry({
     connectorType: 'SC_APC',
@@ -8179,7 +8181,7 @@ test('renderFerruleGeometryAnalysisSvg outputs compliant SVG markup with cross s
 });
 
 test('buildFerruleGeometryRecord creates normalized record object', async () => {
-  const { buildFerruleGeometryRecord } = await import('../form-validation.js');
+  const { buildFerruleGeometryRecord } = await import('../qa-setups.js');
 
   const record = buildFerruleGeometryRecord({
     connectorType: 'SC_APC',
@@ -8203,7 +8205,7 @@ test('buildFerruleGeometryRecord creates normalized record object', async () => 
 });
 
 test('generateFerruleGeometryCertHtml generates A4 and thermal formats', async () => {
-  const { buildFerruleGeometryRecord, generateFerruleGeometryCertHtml } = await import('../form-validation.js');
+  const { buildFerruleGeometryRecord, generateFerruleGeometryCertHtml } = await import('../qa-setups.js');
 
   const record = buildFerruleGeometryRecord({
     connectorType: 'SC_APC',
@@ -8225,7 +8227,7 @@ test('generateFerruleGeometryCertHtml generates A4 and thermal formats', async (
 });
 
 test('formatFerruleGeometryCertWhatsApp formats dispatch message', async () => {
-  const { buildFerruleGeometryRecord, formatFerruleGeometryCertWhatsApp } = await import('../form-validation.js');
+  const { buildFerruleGeometryRecord, formatFerruleGeometryCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildFerruleGeometryRecord({
     connectorType: 'SC_APC',
@@ -8244,7 +8246,7 @@ test('formatFerruleGeometryCertWhatsApp formats dispatch message', async () => {
 });
 
 test('generateFerruleGeometryCertsCsv exports compliant CSV', async () => {
-  const { buildFerruleGeometryRecord, generateFerruleGeometryCertsCsv } = await import('../form-validation.js');
+  const { buildFerruleGeometryRecord, generateFerruleGeometryCertsCsv } = await import('../qa-setups.js');
 
   const record1 = buildFerruleGeometryRecord({
     connectorType: 'SC_APC',
@@ -8267,7 +8269,7 @@ test('LocalStorage methods save, retrieve, update, and clear ferrule geometry ce
     clearFerruleGeometryCerts,
     calculateFerruleGeometryMetrics,
     buildFerruleGeometryRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -8324,7 +8326,7 @@ test('index.html and styles.css include Ferrule Geometry QA modal elements and s
 });
 
 test('setupFerruleGeometryModal binds DOM elements, handles presets, recalculates, and saves certificates', async () => {
-  const { setupFerruleGeometryModal, FERRULE_GEOMETRY_CERT_STORAGE_KEY } = await import('../form-validation.js');
+  const { setupFerruleGeometryModal, FERRULE_GEOMETRY_CERT_STORAGE_KEY } = await import('../qa-setups.js');
 
   function createMockEl(id) {
     const listeners = {};
@@ -8421,7 +8423,7 @@ test('setupFerruleGeometryModal binds DOM elements, handles presets, recalculate
 // ============================================================================
 
 test('SPLICER_MODELS, FIBER_TYPES, PROOF_TEST_STATUSES, and FUSION_ARC_PRESETS contain accurate metrology parameters', async () => {
-  const { SPLICER_MODELS, FIBER_TYPES, PROOF_TEST_STATUSES, QA_VERDICTS, FUSION_ARC_PRESETS } = await import('../form-validation.js');
+  const { SPLICER_MODELS, FIBER_TYPES, PROOF_TEST_STATUSES, QA_VERDICTS, FUSION_ARC_PRESETS } = await import('../qa-setups.js');
 
   assert.ok(SPLICER_MODELS['FUJIKURA_90S']);
   assert.ok(SPLICER_MODELS['SUMITOMO_Z2C']);
@@ -8457,7 +8459,7 @@ test('SPLICER_MODELS, FIBER_TYPES, PROOF_TEST_STATUSES, and FUSION_ARC_PRESETS c
 });
 
 test('calculateElectrodeLife calculates wear odometer, status, and tip radius erosion accurately', async () => {
-  const { calculateElectrodeLife } = await import('../form-validation.js');
+  const { calculateElectrodeLife } = await import('../qa-setups.js');
 
   // Case 1: Brand new electrodes (500 / 5000)
   const life1 = calculateElectrodeLife(500, 5000);
@@ -8485,7 +8487,7 @@ test('calculateElectrodeLife calculates wear odometer, status, and tip radius er
 });
 
 test('calculateArcCompensation computes temperature, barometric pressure, and humidity drive deltas', async () => {
-  const { calculateArcCompensation } = await import('../form-validation.js');
+  const { calculateArcCompensation } = await import('../qa-setups.js');
 
   // Standard condition: 20°C, 1013.25 hPa, 50% RH
   const compStd = calculateArcCompensation(20, 1013.25, 50, 100);
@@ -8513,7 +8515,7 @@ test('calculateArcCompensation computes temperature, barometric pressure, and hu
 });
 
 test('calculateSpliceLoss computes Marcuse core eccentricity and cleave angle tilt losses', async () => {
-  const { calculateSpliceLoss } = await import('../form-validation.js');
+  const { calculateSpliceLoss } = await import('../qa-setups.js');
 
   // Pristine joint: G.652.D (MFD 9.2um, w = 4.6um), 0.10um X, 0.10um Y, 0.4° and 0.5° cleave
   const res = calculateSpliceLoss({
@@ -8549,7 +8551,7 @@ test('calculateSpliceLoss computes Marcuse core eccentricity and cleave angle ti
 });
 
 test('evaluateFusionSpliceQa correctly classifies Telcordia Grade A, Commercial Pass, and Re-Splice', async () => {
-  const { evaluateFusionSpliceQa } = await import('../form-validation.js');
+  const { evaluateFusionSpliceQa } = await import('../qa-setups.js');
 
   // Grade A Master Splice
   const evalGradeA = evaluateFusionSpliceQa({
@@ -8614,7 +8616,7 @@ test('evaluateFusionSpliceQa correctly classifies Telcordia Grade A, Commercial 
 });
 
 test('renderFusionArcQaAnalysisSvg renders clean SVG markup with PAS alignment elements', async () => {
-  const { evaluateFusionSpliceQa, renderFusionArcQaAnalysisSvg } = await import('../form-validation.js');
+  const { evaluateFusionSpliceQa, renderFusionArcQaAnalysisSvg } = await import('../qa-setups.js');
 
   const evaluation = evaluateFusionSpliceQa({
     splicerModelId: 'FUJIKURA_90S',
@@ -8645,7 +8647,7 @@ test('renderFusionArcQaAnalysisSvg renders clean SVG markup with PAS alignment e
 });
 
 test('buildFusionArcQaRecord and generateFusionArcQaCertId generate structured immutable records', async () => {
-  const { buildFusionArcQaRecord, generateFusionArcQaCertId } = await import('../form-validation.js');
+  const { buildFusionArcQaRecord, generateFusionArcQaCertId } = await import('../qa-setups.js');
 
   const id = generateFusionArcQaCertId('2026-10-17T04:00:00Z');
   assert.match(id, /^FUS-202610-\d{4}$/);
@@ -8669,7 +8671,7 @@ test('buildFusionArcQaRecord and generateFusionArcQaCertId generate structured i
 });
 
 test('generateFusionArcQaCertHtml produces formal A4 and 80mm thermal receipt slips', async () => {
-  const { buildFusionArcQaRecord, generateFusionArcQaCertHtml } = await import('../form-validation.js');
+  const { buildFusionArcQaRecord, generateFusionArcQaCertHtml } = await import('../qa-setups.js');
 
   const record = buildFusionArcQaRecord({
     customer: { id: 'cust-10', name: 'Mian Aslam', phone: '03009988776', mohalla: 'Baradari' },
@@ -8701,7 +8703,7 @@ test('generateFusionArcQaCertHtml produces formal A4 and 80mm thermal receipt sl
 });
 
 test('formatFusionArcQaCertWhatsApp formats bilingual Urdu/English technician dispatch text', async () => {
-  const { buildFusionArcQaRecord, formatFusionArcQaCertWhatsApp } = await import('../form-validation.js');
+  const { buildFusionArcQaRecord, formatFusionArcQaCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildFusionArcQaRecord({
     customer: { id: 'cust-20', name: 'Tariq Butt', phone: '03004455667', mohalla: 'Vandala Road' },
@@ -8727,7 +8729,7 @@ test('formatFusionArcQaCertWhatsApp formats bilingual Urdu/English technician di
 });
 
 test('generateFusionArcQaCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { buildFusionArcQaRecord, generateFusionArcQaCertsCsv } = await import('../form-validation.js');
+  const { buildFusionArcQaRecord, generateFusionArcQaCertsCsv } = await import('../qa-setups.js');
 
   const r1 = buildFusionArcQaRecord({
     customer: { id: 'c1', name: 'Bilal Ahmad', mohalla: 'Begum Kot' },
@@ -8764,7 +8766,7 @@ test('LocalStorage persistence methods and calculateFusionArcQaMetrics aggregate
     clearFusionArcQaCerts,
     calculateFusionArcQaMetrics,
     buildFusionArcQaRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -8817,7 +8819,7 @@ test('LocalStorage persistence methods and calculateFusionArcQaMetrics aggregate
 });
 
 test('setupFusionArcQaModal initializes controller and binds DOM mock elements', async () => {
-  const { setupFusionArcQaModal } = await import('../form-validation.js');
+  const { setupFusionArcQaModal } = await import('../qa-setups.js');
 
   function createMockEl(id) {
     return {
@@ -8939,7 +8941,7 @@ test('setupFusionArcQaModal initializes controller and binds DOM mock elements',
 // ============================================================================
 
 test('STRIPPER_TOOLS, FIBER_COATING_TYPES, STRIP_QA_VERDICTS, and STRIP_FORCE_PRESETS contain accurate metrology parameters', async () => {
-  const { STRIPPER_TOOLS, FIBER_COATING_TYPES, STRIP_QA_VERDICTS, STRIP_FORCE_PRESETS } = await import('../form-validation.js');
+  const { STRIPPER_TOOLS, FIBER_COATING_TYPES, STRIP_QA_VERDICTS, STRIP_FORCE_PRESETS } = await import('../qa-setups.js');
 
   assert.ok(STRIPPER_TOOLS['MILLER_CFS3']);
   assert.ok(STRIPPER_TOOLS['FUJIKURA_RS03']);
@@ -8971,7 +8973,7 @@ test('STRIPPER_TOOLS, FIBER_COATING_TYPES, STRIP_QA_VERDICTS, and STRIP_FORCE_PR
 });
 
 test('calculateGriffithFractureStrength evaluates breaking strength degradation from micro-scratches accurately', async () => {
-  const { calculateGriffithFractureStrength } = await import('../form-validation.js');
+  const { calculateGriffithFractureStrength } = await import('../qa-setups.js');
 
   // Case 1: Pristine surface (depth 0nm)
   const res0 = calculateGriffithFractureStrength(0);
@@ -8996,7 +8998,7 @@ test('calculateGriffithFractureStrength evaluates breaking strength degradation 
 });
 
 test('evaluateStripForceQa correctly classifies Grade A, Commercial Pass, and Failures', async () => {
-  const { evaluateStripForceQa } = await import('../form-validation.js');
+  const { evaluateStripForceQa } = await import('../qa-setups.js');
 
   // Grade A Pass
   const resA = evaluateStripForceQa({
@@ -9049,7 +9051,7 @@ test('evaluateStripForceQa correctly classifies Grade A, Commercial Pass, and Fa
 });
 
 test('evaluateStripForceQa detects narrow blade notch collision hazards and gouges', async () => {
-  const { evaluateStripForceQa } = await import('../form-validation.js');
+  const { evaluateStripForceQa } = await import('../qa-setups.js');
 
   const resCollision = evaluateStripForceQa({
     toolId: 'LOCAL_ECONOMY_TOOL',
@@ -9067,7 +9069,7 @@ test('evaluateStripForceQa detects narrow blade notch collision hazards and goug
 });
 
 test('renderStripForceAnalysisSvg renders clean vector SVG markup with force gauges and callouts', async () => {
-  const { evaluateStripForceQa, renderStripForceAnalysisSvg } = await import('../form-validation.js');
+  const { evaluateStripForceQa, renderStripForceAnalysisSvg } = await import('../qa-setups.js');
 
   const evaluation = evaluateStripForceQa({
     toolId: 'MILLER_CFS3',
@@ -9094,7 +9096,7 @@ test('renderStripForceAnalysisSvg renders clean vector SVG markup with force gau
 });
 
 test('buildStripForceRecord and generateStripForceCertId construct immutable structured records', async () => {
-  const { buildStripForceRecord, generateStripForceCertId } = await import('../form-validation.js');
+  const { buildStripForceRecord, generateStripForceCertId } = await import('../qa-setups.js');
 
   const id = generateStripForceCertId('2026-10-17T04:00:00Z');
   assert.match(id, /^STR-202610-\d{4}$/);
@@ -9117,7 +9119,7 @@ test('buildStripForceRecord and generateStripForceCertId construct immutable str
 });
 
 test('generateStripForceCertHtml produces formal A4 and 80mm thermal receipt slips', async () => {
-  const { buildStripForceRecord, generateStripForceCertHtml } = await import('../form-validation.js');
+  const { buildStripForceRecord, generateStripForceCertHtml } = await import('../qa-setups.js');
 
   const record = buildStripForceRecord({
     customer: { id: 'cust-15', name: 'Sheikh Tanveer', phone: '03001122334', mohalla: 'Jia Musa' },
@@ -9143,7 +9145,7 @@ test('generateStripForceCertHtml produces formal A4 and 80mm thermal receipt sli
 });
 
 test('formatStripForceCertWhatsApp formats bilingual Urdu/English technician dispatch text', async () => {
-  const { buildStripForceRecord, formatStripForceCertWhatsApp } = await import('../form-validation.js');
+  const { buildStripForceRecord, formatStripForceCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildStripForceRecord({
     customer: { id: 'cust-30', name: 'Haji Rafiq', phone: '03219988776', mohalla: 'Vandala Road' },
@@ -9167,7 +9169,7 @@ test('formatStripForceCertWhatsApp formats bilingual Urdu/English technician dis
 });
 
 test('generateStripForceCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { buildStripForceRecord, generateStripForceCertsCsv } = await import('../form-validation.js');
+  const { buildStripForceRecord, generateStripForceCertsCsv } = await import('../qa-setups.js');
 
   const r1 = buildStripForceRecord({
     customer: { id: 'c1', name: 'Zia Ul Haq', mohalla: 'Baradari' },
@@ -9205,7 +9207,7 @@ test('LocalStorage persistence methods and calculateStripForceMetrics aggregate 
     clearStripForceCerts,
     calculateStripForceMetrics,
     buildStripForceRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -9257,7 +9259,7 @@ test('LocalStorage persistence methods and calculateStripForceMetrics aggregate 
 });
 
 test('setupStripForceQaModal initializes controller and binds DOM mock elements', async () => {
-  const { setupStripForceQaModal } = await import('../form-validation.js');
+  const { setupStripForceQaModal } = await import('../qa-setups.js');
 
   function createMockEl(id) {
     return {
@@ -9374,7 +9376,7 @@ test('qa-splice-mfd-offset constants and lookup structures are well-formed', asy
     OPERATING_WAVELENGTHS,
     TELCORDIA_SPLICE_VERDICTS,
     SHAH_SPLICE_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   // Verify fiber profiles
   assert.ok(FIBER_PROFILES.ITU_G652D);
@@ -9416,7 +9418,7 @@ test('qa-splice-mfd-offset constants and lookup structures are well-formed', asy
 });
 
 test('calculateMfdMismatchLoss correctly applies Gaussian Marcuse formulation', async () => {
-  const { calculateMfdMismatchLoss } = await import('../form-validation.js');
+  const { calculateMfdMismatchLoss } = await import('../qa-setups.js');
 
   // Identical MFD -> 0 dB
   assert.equal(calculateMfdMismatchLoss(9.2, 9.2), 0);
@@ -9439,7 +9441,7 @@ test('calculateMfdMismatchLoss correctly applies Gaussian Marcuse formulation', 
 });
 
 test('calculateLateralOffsetLoss correctly computes quadratic radial displacement penalty', async () => {
-  const { calculateLateralOffsetLoss } = await import('../form-validation.js');
+  const { calculateLateralOffsetLoss } = await import('../qa-setups.js');
 
   // Zero offset -> 0 loss
   assert.equal(calculateLateralOffsetLoss(0, 9.2, 9.2), 0);
@@ -9460,7 +9462,7 @@ test('calculateLateralOffsetLoss correctly computes quadratic radial displacemen
 });
 
 test('calculateAngularTiltLoss computes cleave angle misalignment with wavelength scaling', async () => {
-  const { calculateAngularTiltLoss } = await import('../form-validation.js');
+  const { calculateAngularTiltLoss } = await import('../qa-setups.js');
 
   // Zero tilt -> 0 loss
   assert.equal(calculateAngularTiltLoss(0, 9.2, 9.2, 1310), 0);
@@ -9480,7 +9482,7 @@ test('calculateAngularTiltLoss computes cleave angle misalignment with wavelengt
 });
 
 test('calculateNetCoreOffset distinguishes Core PAS compensation from Fixed V-Groove', async () => {
-  const { calculateNetCoreOffset } = await import('../form-validation.js');
+  const { calculateNetCoreOffset } = await import('../qa-setups.js');
 
   // With Core PAS: 90% of eccentricity is compensated
   const pasOffset = calculateNetCoreOffset({
@@ -9506,7 +9508,7 @@ test('calculateNetCoreOffset distinguishes Core PAS compensation from Fixed V-Gr
 });
 
 test('determineSpliceQualityVerdict classifies Telcordia GR-765-CORE thresholds', async () => {
-  const { determineSpliceQualityVerdict } = await import('../form-validation.js');
+  const { determineSpliceQualityVerdict } = await import('../qa-setups.js');
 
   const gradeA = determineSpliceQualityVerdict(0.021);
   assert.equal(gradeA.code, 'GRADE_A');
@@ -9522,7 +9524,7 @@ test('determineSpliceQualityVerdict classifies Telcordia GR-765-CORE thresholds'
 });
 
 test('evaluateSpliceLoss performs full joint decomposition across presets', async () => {
-  const { evaluateSpliceLoss } = await import('../form-validation.js');
+  const { evaluateSpliceLoss } = await import('../qa-setups.js');
 
   // Baradari NOC Trunk (Grade A)
   const baradari = evaluateSpliceLoss({
@@ -9573,7 +9575,7 @@ test('evaluateSpliceLoss performs full joint decomposition across presets', asyn
 });
 
 test('validateSpliceMfdOffset enforces valid types, angles, and eccentricity boundaries', async () => {
-  const { validateSpliceMfdOffset } = await import('../form-validation.js');
+  const { validateSpliceMfdOffset } = await import('../qa-setups.js');
 
   const valid = validateSpliceMfdOffset({
     leftFiberType: 'ITU_G652D',
@@ -9606,7 +9608,7 @@ test('validateSpliceMfdOffset enforces valid types, angles, and eccentricity bou
 });
 
 test('buildSpliceMfdOffsetRecord constructs structured immutable record with SMFD prefix', async () => {
-  const { buildSpliceMfdOffsetRecord } = await import('../form-validation.js');
+  const { buildSpliceMfdOffsetRecord } = await import('../qa-setups.js');
 
   const record = buildSpliceMfdOffsetRecord({
     customer: {
@@ -9634,7 +9636,7 @@ test('buildSpliceMfdOffsetRecord constructs structured immutable record with SMF
 });
 
 test('renderSpliceMfdOffsetSvg outputs valid pure-vector SVG markup', async () => {
-  const { evaluateSpliceLoss, renderSpliceMfdOffsetSvg } = await import('../form-validation.js');
+  const { evaluateSpliceLoss, renderSpliceMfdOffsetSvg } = await import('../qa-setups.js');
 
   const analysis = evaluateSpliceLoss({
     leftFiberType: 'ITU_G652D',
@@ -9656,7 +9658,7 @@ test('renderSpliceMfdOffsetSvg outputs valid pure-vector SVG markup', async () =
 });
 
 test('generateSpliceMfdOffsetCertHtml produces formal A4 and 80mm thermal POS formats', async () => {
-  const { buildSpliceMfdOffsetRecord, generateSpliceMfdOffsetCertHtml } = await import('../form-validation.js');
+  const { buildSpliceMfdOffsetRecord, generateSpliceMfdOffsetCertHtml } = await import('../qa-setups.js');
 
   const record = buildSpliceMfdOffsetRecord({
     customer: { name: 'Chaudhry Akram', phone: '0321-4455667', zone: 'Jia Musa' },
@@ -9687,7 +9689,7 @@ test('generateSpliceMfdOffsetCertHtml produces formal A4 and 80mm thermal POS fo
 });
 
 test('formatSpliceMfdOffsetCertWhatsApp produces bilingual Urdu & English technician dispatch notice', async () => {
-  const { buildSpliceMfdOffsetRecord, formatSpliceMfdOffsetCertWhatsApp } = await import('../form-validation.js');
+  const { buildSpliceMfdOffsetRecord, formatSpliceMfdOffsetCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildSpliceMfdOffsetRecord({
     customer: { name: 'Dr. Zahid', zone: 'Baradari' },
@@ -9709,7 +9711,7 @@ test('formatSpliceMfdOffsetCertWhatsApp produces bilingual Urdu & English techni
 });
 
 test('generateSpliceMfdOffsetCertsCsv generates compliant RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { buildSpliceMfdOffsetRecord, generateSpliceMfdOffsetCertsCsv } = await import('../form-validation.js');
+  const { buildSpliceMfdOffsetRecord, generateSpliceMfdOffsetCertsCsv } = await import('../qa-setups.js');
 
   const r1 = buildSpliceMfdOffsetRecord({ location: 'Site Alpha', leftFiberType: 'ITU_G652D', rightFiberType: 'ITU_G652D' });
   const r2 = buildSpliceMfdOffsetRecord({ location: 'Site Beta, with comma', leftFiberType: 'ITU_G652D', rightFiberType: 'ITU_G657A2' });
@@ -9729,7 +9731,7 @@ test('localStorage CRUD operations and calculateSpliceMfdOffsetMetrics function 
     updateSpliceMfdOffsetCertStatus,
     clearSpliceMfdOffsetCerts,
     calculateSpliceMfdOffsetMetrics
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -9769,7 +9771,7 @@ test('localStorage CRUD operations and calculateSpliceMfdOffsetMetrics function 
 });
 
 test('setupSpliceMfdOffsetModal wires full interactive modal lifecycle', async () => {
-  const { setupSpliceMfdOffsetModal } = await import('../form-validation.js');
+  const { setupSpliceMfdOffsetModal } = await import('../qa-setups.js');
 
   function createMockEl(tag = 'div') {
     const el = {
@@ -9896,7 +9898,7 @@ test('qa-splice-sleeve-cure constants and schema structures are valid', async ()
     TUBE_CONDITIONS,
     SLEEVE_QA_VERDICTS,
     SHAH_SLEEVE_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   // Sleeve types
   assert.ok(SLEEVE_TYPES.SLEEVE_60MM_STANDARD);
@@ -9932,7 +9934,7 @@ test('qa-splice-sleeve-cure constants and schema structures are valid', async ()
 });
 
 test('calculateCureThermalEnergy evaluates oven thermodynamics and ambient loss compensation', async () => {
-  const { calculateCureThermalEnergy, SLEEVE_TYPES, HOT_MELT_ADHESIVES } = await import('../form-validation.js');
+  const { calculateCureThermalEnergy, SLEEVE_TYPES, HOT_MELT_ADHESIVES } = await import('../qa-setups.js');
 
   const sleeve = SLEEVE_TYPES.SLEEVE_60MM_STANDARD;
   const eva = HOT_MELT_ADHESIVES.EVA_STANDARD;
@@ -9956,7 +9958,7 @@ test('calculateCureThermalEnergy evaluates oven thermodynamics and ambient loss 
 });
 
 test('calculateVoidMicroBendPenalty models localized stress over the fusion core junction', async () => {
-  const { calculateVoidMicroBendPenalty } = await import('../form-validation.js');
+  const { calculateVoidMicroBendPenalty } = await import('../qa-setups.js');
 
   // Zero bubble -> 0 dB
   assert.equal(calculateVoidMicroBendPenalty(0, 0), 0);
@@ -9972,7 +9974,7 @@ test('calculateVoidMicroBendPenalty models localized stress over the fusion core
 });
 
 test('calculateAxialTensileRetention evaluates mechanical pull proof retention under IEC 61073-1', async () => {
-  const { calculateAxialTensileRetention, SLEEVE_TYPES } = await import('../form-validation.js');
+  const { calculateAxialTensileRetention, SLEEVE_TYPES } = await import('../qa-setups.js');
 
   const sleeve = SLEEVE_TYPES.SLEEVE_60MM_STANDARD;
 
@@ -9992,7 +9994,7 @@ test('calculateAxialTensileRetention evaluates mechanical pull proof retention u
 });
 
 test('evaluateSleeveCureQa performs comprehensive evaluation across field scenarios', async () => {
-  const { evaluateSleeveCureQa } = await import('../form-validation.js');
+  const { evaluateSleeveCureQa } = await import('../qa-setups.js');
 
   // Baradari Exchange Nominal
   const baradari = evaluateSleeveCureQa({
@@ -10033,7 +10035,7 @@ test('evaluateSleeveCureQa performs comprehensive evaluation across field scenar
 });
 
 test('validateSpliceSleeveCure validates temperature, duration, and bubble inputs', async () => {
-  const { validateSpliceSleeveCure } = await import('../form-validation.js');
+  const { validateSpliceSleeveCure } = await import('../qa-setups.js');
 
   const valid = validateSpliceSleeveCure({
     sleeveType: 'SLEEVE_60MM_STANDARD',
@@ -10062,7 +10064,7 @@ test('validateSpliceSleeveCure validates temperature, duration, and bubble input
 });
 
 test('buildSpliceSleeveCureRecord constructs structured immutable record with SCUR prefix', async () => {
-  const { buildSpliceSleeveCureRecord } = await import('../form-validation.js');
+  const { buildSpliceSleeveCureRecord } = await import('../qa-setups.js');
 
   const record = buildSpliceSleeveCureRecord({
     customer: { name: 'Mian Aslam', phone: '0300-1122334', zone: 'Begum Kot' },
@@ -10082,7 +10084,7 @@ test('buildSpliceSleeveCureRecord constructs structured immutable record with SC
 });
 
 test('renderSpliceSleeveCureSvg produces valid pure-vector SVG markup', async () => {
-  const { evaluateSleeveCureQa, renderSpliceSleeveCureSvg } = await import('../form-validation.js');
+  const { evaluateSleeveCureQa, renderSpliceSleeveCureSvg } = await import('../qa-setups.js');
 
   const analysis = evaluateSleeveCureQa({
     sleeveType: 'SLEEVE_60MM_STANDARD',
@@ -10102,7 +10104,7 @@ test('renderSpliceSleeveCureSvg produces valid pure-vector SVG markup', async ()
 });
 
 test('generateSpliceSleeveCureCertHtml produces formal A4 and 80mm thermal POS formats', async () => {
-  const { buildSpliceSleeveCureRecord, generateSpliceSleeveCureCertHtml } = await import('../form-validation.js');
+  const { buildSpliceSleeveCureRecord, generateSpliceSleeveCureCertHtml } = await import('../qa-setups.js');
 
   const record = buildSpliceSleeveCureRecord({
     customer: { name: 'Shahid Mehmood', phone: '0333-8899001', zone: 'Baradari' },
@@ -10132,7 +10134,7 @@ test('generateSpliceSleeveCureCertHtml produces formal A4 and 80mm thermal POS f
 });
 
 test('formatSpliceSleeveCureCertWhatsApp produces bilingual Urdu & English technician dispatch notice', async () => {
-  const { buildSpliceSleeveCureRecord, formatSpliceSleeveCureCertWhatsApp } = await import('../form-validation.js');
+  const { buildSpliceSleeveCureRecord, formatSpliceSleeveCureCertWhatsApp } = await import('../qa-setups.js');
 
   const record = buildSpliceSleeveCureRecord({
     customer: { name: 'Kashif Ali', zone: 'Vandala Road' },
@@ -10153,7 +10155,7 @@ test('formatSpliceSleeveCureCertWhatsApp produces bilingual Urdu & English techn
 });
 
 test('generateSpliceSleeveCureCertsCsv generates compliant RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { buildSpliceSleeveCureRecord, generateSpliceSleeveCureCertsCsv } = await import('../form-validation.js');
+  const { buildSpliceSleeveCureRecord, generateSpliceSleeveCureCertsCsv } = await import('../qa-setups.js');
 
   const r1 = buildSpliceSleeveCureRecord({ location: 'Exchange ODF', sleeveType: 'SLEEVE_60MM_STANDARD' });
   const r2 = buildSpliceSleeveCureRecord({ location: 'Pole 12, with comma', sleeveType: 'SLEEVE_40MM_SLIM' });
@@ -10173,7 +10175,7 @@ test('localStorage CRUD operations and calculateSpliceSleeveCureMetrics function
     updateSpliceSleeveCureCertStatus,
     clearSpliceSleeveCureCerts,
     calculateSpliceSleeveCureMetrics
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -10213,7 +10215,7 @@ test('localStorage CRUD operations and calculateSpliceSleeveCureMetrics function
 });
 
 test('setupSpliceSleeveCureModal wires full interactive modal lifecycle', async () => {
-  const { setupSpliceSleeveCureModal } = await import('../form-validation.js');
+  const { setupSpliceSleeveCureModal } = await import('../qa-setups.js');
 
   function createMockEl(tag = 'div') {
     const el = {
@@ -10337,7 +10339,7 @@ test('qa-cleave-quality constants and catalogs conform to ITU-T and Telcordia sp
     BLADE_HEIGHT_SETTINGS,
     CLEAVE_QA_VERDICTS,
     SHAH_CLEAVE_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   assert.ok(CLEAVER_MODELS['FUJIKURA_CT50']);
   assert.equal(CLEAVER_MODELS['FUJIKURA_CT50'].bladeChannels, 16);
@@ -10361,7 +10363,7 @@ test('qa-cleave-quality constants and catalogs conform to ITU-T and Telcordia sp
 });
 
 test('calculateCleaveAngleLoss calculates Marcuse tilt insertion loss across angular degrees', async () => {
-  const { calculateCleaveAngleLoss } = await import('../form-validation.js');
+  const { calculateCleaveAngleLoss } = await import('../qa-setups.js');
 
   assert.equal(calculateCleaveAngleLoss(0), 0);
   const loss05 = calculateCleaveAngleLoss(0.5);
@@ -10373,7 +10375,7 @@ test('calculateCleaveAngleLoss calculates Marcuse tilt insertion loss across ang
 });
 
 test('calculateBladeWearMetrics tracks channel wear and total lifetime wear index', async () => {
-  const { calculateBladeWearMetrics } = await import('../form-validation.js');
+  const { calculateBladeWearMetrics } = await import('../qa-setups.js');
 
   const fresh = calculateBladeWearMetrics('SUMITOMO_FC6S', 1, 200);
   assert.equal(fresh.channel, 1);
@@ -10389,7 +10391,7 @@ test('calculateBladeWearMetrics tracks channel wear and total lifetime wear inde
 });
 
 test('evaluateCleaveQuality assigns appropriate quality grades and fusion readiness', async () => {
-  const { evaluateCleaveQuality } = await import('../form-validation.js');
+  const { evaluateCleaveQuality } = await import('../qa-setups.js');
 
   // Grade A: Pristine 0.35°
   const gradeA = evaluateCleaveQuality({
@@ -10437,7 +10439,7 @@ test('evaluateCleaveQuality assigns appropriate quality grades and fusion readin
 });
 
 test('renderFiberCleaveQualitySvg outputs valid SVG graphic with telemetry ribbons', async () => {
-  const { evaluateCleaveQuality, renderFiberCleaveQualitySvg } = await import('../form-validation.js');
+  const { evaluateCleaveQuality, renderFiberCleaveQualitySvg } = await import('../qa-setups.js');
 
   const analysis = evaluateCleaveQuality({
     cleaverModelId: 'FUJIKURA_CT50',
@@ -10459,7 +10461,7 @@ test('renderFiberCleaveQualitySvg outputs valid SVG graphic with telemetry ribbo
 });
 
 test('validateFiberCleaveInput guards input bounds for angle, channel and count', async () => {
-  const { validateFiberCleaveInput } = await import('../form-validation.js');
+  const { validateFiberCleaveInput } = await import('../qa-setups.js');
 
   const valid = validateFiberCleaveInput({
     cleaveAngleDeg: 0.65,
@@ -10479,7 +10481,7 @@ test('validateFiberCleaveInput guards input bounds for angle, channel and count'
 });
 
 test('buildFiberCleaveRecord generates unique ID and complete certificate snapshot', async () => {
-  const { buildFiberCleaveRecord } = await import('../form-validation.js');
+  const { buildFiberCleaveRecord } = await import('../qa-setups.js');
 
   const customer = { id: 'cust_99', name: 'Naveed Akhtar', mohalla: 'Vandala Road', phone: '03001234567' };
   const record = buildFiberCleaveRecord({
@@ -10506,7 +10508,7 @@ test('fiber cleave certs localStorage persistence and calculateFiberCleaveMetric
     saveFiberCleaveCert,
     clearFiberCleaveCerts,
     calculateFiberCleaveMetrics
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -10538,7 +10540,7 @@ test('fiber cleave certs localStorage persistence and calculateFiberCleaveMetric
 });
 
 test('generateFiberCleaveQualityCertHtml creates formal A4 and 80mm thermal documents', async () => {
-  const { generateFiberCleaveQualityCertHtml } = await import('../form-validation.js');
+  const { generateFiberCleaveQualityCertHtml } = await import('../qa-setups.js');
 
   const record = {
     id: 'CLV-202610-1234',
@@ -10575,7 +10577,7 @@ test('generateFiberCleaveQualityCertHtml creates formal A4 and 80mm thermal docu
 });
 
 test('formatFiberCleaveQualityCertWhatsApp produces bilingual dispatch message', async () => {
-  const { formatFiberCleaveQualityCertWhatsApp } = await import('../form-validation.js');
+  const { formatFiberCleaveQualityCertWhatsApp } = await import('../qa-setups.js');
 
   const record = {
     id: 'CLV-202610-5678',
@@ -10605,7 +10607,7 @@ test('formatFiberCleaveQualityCertWhatsApp produces bilingual dispatch message',
 });
 
 test('generateFiberCleaveQualityCertsCsv exports RFC-4180 CSV with UTF-8 BOM', async () => {
-  const { generateFiberCleaveQualityCertsCsv } = await import('../form-validation.js');
+  const { generateFiberCleaveQualityCertsCsv } = await import('../qa-setups.js');
 
   const records = [
     {
@@ -10643,7 +10645,7 @@ test('generateFiberCleaveQualityCertsCsv exports RFC-4180 CSV with UTF-8 BOM', a
 });
 
 test('setupFiberCleaveQualityModal wires interactive controls, calculation and history', async () => {
-  const { setupFiberCleaveQualityModal } = await import('../form-validation.js');
+  const { setupFiberCleaveQualityModal } = await import('../qa-setups.js');
 
   function createMockEl(tagName = 'div') {
     const el = {
@@ -10765,7 +10767,7 @@ test('qa-otdr-ghost-artifact constants and presets conform to Telcordia GR-196-C
     ARTIFACT_CLASSIFICATIONS,
     GHOST_QA_VERDICTS,
     SHAH_OTDR_GHOST_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   assert.equal(OTDR_GHOST_ARTIFACT_STORAGE_KEY, 'shahdara_otdr_ghost_artifact_certs_v1');
   assert.ok(GHOST_OTDR_WAVELENGTHS['W1310']);
@@ -10784,7 +10786,7 @@ test('qa-otdr-ghost-artifact constants and presets conform to Telcordia GR-196-C
 });
 
 test('calculateGhostDistanceMatches detects double-bounce and triple-bounce cavity echos', async () => {
-  const { calculateGhostDistanceMatches } = await import('../form-validation.js');
+  const { calculateGhostDistanceMatches } = await import('../qa-setups.js');
 
   const match2x = calculateGhostDistanceMatches(2.10, 4.20);
   assert.equal(match2x.isDistanceCorrelated, true);
@@ -10802,7 +10804,7 @@ test('calculateGhostDistanceMatches detects double-bounce and triple-bounce cavi
 });
 
 test('evaluateOtdrGhostArtifact distinguishes genuine optical joints from false ghost echos', async () => {
-  const { evaluateOtdrGhostArtifact } = await import('../form-validation.js');
+  const { evaluateOtdrGhostArtifact } = await import('../qa-setups.js');
 
   // Verified Ghost Echo (double distance + zero step loss)
   const ghost = evaluateOtdrGhostArtifact({
@@ -10844,7 +10846,7 @@ test('evaluateOtdrGhostArtifact distinguishes genuine optical joints from false 
 });
 
 test('renderOtdrGhostArtifactSvg produces valid vector diagram with cavity ray arc', async () => {
-  const { evaluateOtdrGhostArtifact, renderOtdrGhostArtifactSvg } = await import('../form-validation.js');
+  const { evaluateOtdrGhostArtifact, renderOtdrGhostArtifactSvg } = await import('../qa-setups.js');
 
   const analysis = evaluateOtdrGhostArtifact({
     spanLengthKm: 12.0,
@@ -10866,7 +10868,7 @@ test('renderOtdrGhostArtifactSvg produces valid vector diagram with cavity ray a
 });
 
 test('validateOtdrGhostInput checks span length and distance bounds', async () => {
-  const { validateOtdrGhostInput } = await import('../form-validation.js');
+  const { validateOtdrGhostInput } = await import('../qa-setups.js');
 
   const valid = validateOtdrGhostInput({
     spanLengthKm: 15.0,
@@ -10888,7 +10890,7 @@ test('validateOtdrGhostInput checks span length and distance bounds', async () =
 });
 
 test('buildOtdrGhostRecord creates unique ID and complete metrology certificate record', async () => {
-  const { buildOtdrGhostRecord } = await import('../form-validation.js');
+  const { buildOtdrGhostRecord } = await import('../qa-setups.js');
 
   const customer = { id: 'cust_101', name: 'Baradari ODF Feeder', mohalla: 'Baradari', phone: '03001234567' };
   const record = buildOtdrGhostRecord({
@@ -10915,7 +10917,7 @@ test('otdr ghost certs localStorage persistence and calculateOtdrGhostMetrics', 
     saveOtdrGhostCert,
     clearOtdrGhostCerts,
     calculateOtdrGhostMetrics
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const store = {};
   const mockStorage = {
@@ -10947,7 +10949,7 @@ test('otdr ghost certs localStorage persistence and calculateOtdrGhostMetrics', 
 });
 
 test('generateOtdrGhostArtifactCertHtml creates A4 and 80mm printable slips', async () => {
-  const { generateOtdrGhostArtifactCertHtml } = await import('../form-validation.js');
+  const { generateOtdrGhostArtifactCertHtml } = await import('../qa-setups.js');
 
   const record = {
     id: 'GHO-202610-1234',
@@ -10983,7 +10985,7 @@ test('generateOtdrGhostArtifactCertHtml creates A4 and 80mm printable slips', as
 });
 
 test('formatOtdrGhostArtifactCertWhatsApp creates bilingual technician dispatch text', async () => {
-  const { formatOtdrGhostArtifactCertWhatsApp } = await import('../form-validation.js');
+  const { formatOtdrGhostArtifactCertWhatsApp } = await import('../qa-setups.js');
 
   const record = {
     id: 'GHO-202610-5678',
@@ -11012,7 +11014,7 @@ test('formatOtdrGhostArtifactCertWhatsApp creates bilingual technician dispatch 
 });
 
 test('generateOtdrGhostArtifactCertsCsv exports CSV with UTF-8 BOM', async () => {
-  const { generateOtdrGhostArtifactCertsCsv } = await import('../form-validation.js');
+  const { generateOtdrGhostArtifactCertsCsv } = await import('../qa-setups.js');
 
   const records = [
     {
@@ -11048,7 +11050,7 @@ test('generateOtdrGhostArtifactCertsCsv exports CSV with UTF-8 BOM', async () =>
 });
 
 test('setupOtdrGhostArtifactModal wires interactive controls, calculation and history', async () => {
-  const { setupOtdrGhostArtifactModal } = await import('../form-validation.js');
+  const { setupOtdrGhostArtifactModal } = await import('../qa-setups.js');
 
   function createMockEl(tagName = 'div') {
     const el = {
@@ -11776,7 +11778,7 @@ test('DOM & CSS integration for Fast Connector QA Suite', () => {
 });
 
 test('calculateWindPressure and calculateAerodynamicWindForce compute physical cross-wind loads', async () => {
-  const { calculateWindPressure, calculateAerodynamicWindForce } = await import('../form-validation.js');
+  const { calculateWindPressure, calculateAerodynamicWindForce } = await import('../qa-setups.js');
 
   // Calm condition (0 km/h) -> 0 Pa, 0 N/m
   assert.equal(calculateWindPressure(0), 0);
@@ -11796,7 +11798,7 @@ test('calculateWindPressure and calculateAerodynamicWindForce compute physical c
 });
 
 test('calculateResultantUnitLoad calculates vector sum of gravity weight and wind force', async () => {
-  const { calculateResultantUnitLoad } = await import('../form-validation.js');
+  const { calculateResultantUnitLoad } = await import('../qa-setups.js');
 
   // Cable 0.1 kg/m (weight ~0.98 N/m), zero wind
   const calm = calculateResultantUnitLoad(0.1, 0);
@@ -11812,7 +11814,7 @@ test('calculateResultantUnitLoad calculates vector sum of gravity weight and win
 });
 
 test('calculateMidspanSag computes parabolic catenary sag and geometric components', async () => {
-  const { calculateMidspanSag } = await import('../form-validation.js');
+  const { calculateMidspanSag } = await import('../qa-setups.js');
 
   // 100m span, W = 1.0 N/m, H = 1000 N: Sag = (1.0 * 10000) / (8 * 1000) = 10000 / 8000 = 1.25m
   const sag = calculateMidspanSag(1.0, 100.0, 1000.0, 0.0);
@@ -11829,7 +11831,7 @@ test('calculateMidspanSag computes parabolic catenary sag and geometric componen
 });
 
 test('calculateMaxCableTension and stress percentage evaluations evaluate limits', async () => {
-  const { calculateMaxCableTension, calculateEverydayStressPercent, calculateMaxWorkingTensionPercent } = await import('../form-validation.js');
+  const { calculateMaxCableTension, calculateEverydayStressPercent, calculateMaxWorkingTensionPercent } = await import('../qa-setups.js');
 
   // H = 1000 N, W = 1.5 N/m, S = 2.0 m -> T_max = 1000 + (1.5 * 2.0) = 1003 N
   const tMax = calculateMaxCableTension(1000.0, 1.5, 2.0);
@@ -11845,7 +11847,7 @@ test('calculateMaxCableTension and stress percentage evaluations evaluate limits
 });
 
 test('calculateAeolianFrequencyAndDampers determines vortex shedding and damper requirements', async () => {
-  const { calculateAeolianFrequencyAndDampers } = await import('../form-validation.js');
+  const { calculateAeolianFrequencyAndDampers } = await import('../qa-setups.js');
 
   // Short span (45m), low EDS (14%) -> no dampers required
   const shortSpan = calculateAeolianFrequencyAndDampers(45.0, 10.0, 14.0);
@@ -11866,7 +11868,7 @@ test('calculateAeolianFrequencyAndDampers determines vortex shedding and damper 
 });
 
 test('evaluateAdssSagTension evaluates field spans and generates appropriate verdicts', async () => {
-  const { evaluateAdssSagTension, SHAH_ADSS_PRESETS } = await import('../form-validation.js');
+  const { evaluateAdssSagTension, SHAH_ADSS_PRESETS } = await import('../qa-setups.js');
 
   // Evaluate Vandala Road Commercial preset (65m span, 8.5m pole, 48°C heat, Req ≥ 5.5m)
   const pVandala = SHAH_ADSS_PRESETS.PRESET_VANDALA_COMMERCIAL_ROAD;
@@ -11904,7 +11906,7 @@ test('evaluateAdssSagTension evaluates field spans and generates appropriate ver
 });
 
 test('validateAdssSagTensionInput validates mandatory form fields and engineering limits', async () => {
-  const { validateAdssSagTensionInput } = await import('../form-validation.js');
+  const { validateAdssSagTensionInput } = await import('../qa-setups.js');
 
   const valid = validateAdssSagTensionInput({
     customer: 'Muhammad Arshad',
@@ -11936,7 +11938,7 @@ test('buildAdssSagTensionRecord, LocalStorage persistence and metrics management
     clearAdssSagTensionCerts,
     calculateAdssSagTensionMetrics,
     SHAH_ADSS_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   clearAdssSagTensionCerts();
   assert.deepEqual(getSavedAdssSagTensionCerts(), []);
@@ -11964,7 +11966,7 @@ test('buildAdssSagTensionRecord, LocalStorage persistence and metrics management
 });
 
 test('renderAdssSagTensionSvg produces valid vector SVG markup with telemetry elements', async () => {
-  const { evaluateAdssSagTension, renderAdssSagTensionSvg, SHAH_ADSS_PRESETS } = await import('../form-validation.js');
+  const { evaluateAdssSagTension, renderAdssSagTensionSvg, SHAH_ADSS_PRESETS } = await import('../qa-setups.js');
 
   const analysis = evaluateAdssSagTension(SHAH_ADSS_PRESETS.PRESET_BARADARI_RAVI_CROSSING);
   const svg = renderAdssSagTensionSvg(analysis);
@@ -11988,7 +11990,7 @@ test('generateAdssSagTensionCertHtml, formatAdssSagTensionCertWhatsApp, and CSV 
     formatAdssSagTensionCertWhatsApp,
     generateAdssSagTensionCertsCsv,
     SHAH_ADSS_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const rec = buildAdssSagTensionRecord(SHAH_ADSS_PRESETS.PRESET_BEGUM_KOT_WAPDA_GRID);
 
@@ -12049,7 +12051,7 @@ test('DOM & CSS integration for Outside Plant Aerial ADSS Sag & Tension QA Suite
 });
 
 test('calculateImpactEnergyJoules calculates falling tup gravitational impact energy', async () => {
-  const { calculateImpactEnergyJoules } = await import('../form-validation.js');
+  const { calculateImpactEnergyJoules } = await import('../qa-setups.js');
 
   // 2.0 kg tup dropped from 0.5m: E = 2.0 * 9.80665 * 0.5 = 9.81 Joules
   const e1 = calculateImpactEnergyJoules(2.0, 0.5);
@@ -12065,7 +12067,7 @@ test('calculateImpactEnergyJoules calculates falling tup gravitational impact en
 });
 
 test('calculateRadialCrushDeflection computes deformation and remaining buffer clearance', async () => {
-  const { calculateRadialCrushDeflection } = await import('../form-validation.js');
+  const { calculateRadialCrushDeflection } = await import('../qa-setups.js');
 
   // 12mm cable, stiffness 1.0, 2000 N load -> deflection = (2000 / 2000) * 1.0 = 1.0mm
   const def = calculateRadialCrushDeflection(2000.0, 12.0, 1.0);
@@ -12079,7 +12081,7 @@ test('calculateRadialCrushDeflection computes deformation and remaining buffer c
 });
 
 test('calculateInducedCrushLossDb evaluates optical attenuation according to IEC Method E3', async () => {
-  const { calculateInducedCrushLossDb } = await import('../form-validation.js');
+  const { calculateInducedCrushLossDb } = await import('../qa-setups.js');
 
   // Low load (50% of rating) -> 0.01 dB baseline
   assert.equal(calculateInducedCrushLossDb(1500.0, 3000.0), 0.01);
@@ -12098,7 +12100,7 @@ test('calculateInducedCrushLossDb evaluates optical attenuation according to IEC
 });
 
 test('evaluateBurialDepthCompliance checks municipal depth safety factors', async () => {
-  const { evaluateBurialDepthCompliance } = await import('../form-validation.js');
+  const { evaluateBurialDepthCompliance } = await import('../qa-setups.js');
 
   // 1.3m depth vs 1.2m required -> compliant with positive margin
   const c1 = evaluateBurialDepthCompliance(1.3, 1.2);
@@ -12114,7 +12116,7 @@ test('evaluateBurialDepthCompliance checks municipal depth safety factors', asyn
 });
 
 test('evaluateArmoredCableCrush evaluates field spans and generates appropriate verdicts', async () => {
-  const { evaluateArmoredCableCrush, SHAH_ARMORED_PRESETS } = await import('../form-validation.js');
+  const { evaluateArmoredCableCrush, SHAH_ARMORED_PRESETS } = await import('../qa-setups.js');
 
   // GT Road heavy truck preset (CST, 2800 N < 3000 N, 1.3m depth, slab fitted) -> CERTIFIED_OPTIMAL
   const repGt = evaluateArmoredCableCrush(SHAH_ARMORED_PRESETS.PRESET_GT_ROAD_HEAVY_TRUCK);
@@ -12132,7 +12134,7 @@ test('evaluateArmoredCableCrush evaluates field spans and generates appropriate 
 });
 
 test('validateArmoredCableCrushInput validates form fields and physical boundaries', async () => {
-  const { validateArmoredCableCrushInput } = await import('../form-validation.js');
+  const { validateArmoredCableCrushInput } = await import('../qa-setups.js');
 
   const valid = validateArmoredCableCrushInput({
     customer: 'Shahdara Trunk Node',
@@ -12164,7 +12166,7 @@ test('buildArmoredCableCrushRecord, LocalStorage persistence and metrics managem
     clearArmoredCableCrushCerts,
     calculateArmoredCableCrushMetrics,
     SHAH_ARMORED_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   clearArmoredCableCrushCerts();
   assert.deepEqual(getSavedArmoredCableCrushCerts(), []);
@@ -12192,7 +12194,7 @@ test('buildArmoredCableCrushRecord, LocalStorage persistence and metrics managem
 });
 
 test('renderArmoredCableCrushSvg generates valid SVG markup with concentric layers and crush plates', async () => {
-  const { evaluateArmoredCableCrush, renderArmoredCableCrushSvg, SHAH_ARMORED_PRESETS } = await import('../form-validation.js');
+  const { evaluateArmoredCableCrush, renderArmoredCableCrushSvg, SHAH_ARMORED_PRESETS } = await import('../qa-setups.js');
 
   const analysis = evaluateArmoredCableCrush(SHAH_ARMORED_PRESETS.PRESET_GT_ROAD_HEAVY_TRUCK);
   const svg = renderArmoredCableCrushSvg(analysis);
@@ -12213,7 +12215,7 @@ test('generateArmoredCableCrushCertHtml, formatArmoredCableCrushCertWhatsApp, an
     formatArmoredCableCrushCertWhatsApp,
     generateArmoredCableCrushCertsCsv,
     SHAH_ARMORED_PRESETS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const rec = buildArmoredCableCrushRecord(SHAH_ARMORED_PRESETS.PRESET_RAVI_SIPHON_CANAL_CROSSING);
 
@@ -12238,7 +12240,7 @@ test('generateArmoredCableCrushCertHtml, formatArmoredCableCrushCertWhatsApp, an
 });
 
 test('SHAH_ARMORED_PRESETS catalog contains required field configurations', async () => {
-  const { SHAH_ARMORED_PRESETS, ARMOR_TYPES, BURIAL_ENVIRONMENTS } = await import('../form-validation.js');
+  const { SHAH_ARMORED_PRESETS, ARMOR_TYPES, BURIAL_ENVIRONMENTS } = await import('../qa-setups.js');
 
   const keys = Object.keys(SHAH_ARMORED_PRESETS);
   assert.equal(keys.length, 5);
@@ -12293,7 +12295,7 @@ test('DOM & CSS integration for Outside Plant Armored Cable Crush & Impact QA Su
 });
 
 test('calculateDuctFillRatio calculates diameter and area ratios and evaluates fill status', async () => {
-  const { calculateDuctFillRatio } = await import('../form-validation.js');
+  const { calculateDuctFillRatio } = await import('../qa-setups.js');
 
   // Optimal fill: 6.2mm cable in 10mm duct -> 62% diameter ratio
   const opt = calculateDuctFillRatio(6.2, 10.0);
@@ -12313,7 +12315,7 @@ test('calculateDuctFillRatio calculates diameter and area ratios and evaluates f
 });
 
 test('calculateCriticalBucklingPushForce computes Euler column crash-buckling limit', async () => {
-  const { calculateCriticalBucklingPushForce } = await import('../form-validation.js');
+  const { calculateCriticalBucklingPushForce } = await import('../qa-setups.js');
 
   // 48F micro-cable in 12/10mm duct (clearance = (10 - 6.2)/2 = 1.9mm)
   const res = calculateCriticalBucklingPushForce(9200, 73, 36, 10.0, 6.2);
@@ -12323,7 +12325,7 @@ test('calculateCriticalBucklingPushForce computes Euler column crash-buckling li
 });
 
 test('calculateViscousDragForce and calculateCapstanCurvatureFactor model airflow drag and bends', async () => {
-  const { calculateViscousDragForce, calculateCapstanCurvatureFactor } = await import('../form-validation.js');
+  const { calculateViscousDragForce, calculateCapstanCurvatureFactor } = await import('../qa-setups.js');
 
   const drag = calculateViscousDragForce(10.0, 6.2, 1450, 12.0);
   assert.ok(drag.totalViscousDragForceN > 50);
@@ -12338,7 +12340,7 @@ test('calculateViscousDragForce and calculateCapstanCurvatureFactor model airflo
 });
 
 test('evaluateCableJettingPhysics evaluates comprehensive outside plant pneumatic blowing scenarios', async () => {
-  const { evaluateCableJettingPhysics } = await import('../form-validation.js');
+  const { evaluateCableJettingPhysics } = await import('../qa-setups.js');
 
   // Scenario 1: Optimal Baradari backbone jetting
   const optimal = evaluateCableJettingPhysics({
@@ -12379,7 +12381,7 @@ test('evaluateCableJettingPhysics evaluates comprehensive outside plant pneumati
 });
 
 test('validateCableJettingInput validates field input constraints', async () => {
-  const { validateCableJettingInput } = await import('../form-validation.js');
+  const { validateCableJettingInput } = await import('../qa-setups.js');
 
   const valid = validateCableJettingInput({
     customer: 'Shahdara Backbone',
@@ -12405,7 +12407,7 @@ test('validateCableJettingInput validates field input constraints', async () => 
 });
 
 test('buildCableJettingCertRecord creates structured record with immutable properties', async () => {
-  const { buildCableJettingCertRecord } = await import('../form-validation.js');
+  const { buildCableJettingCertRecord } = await import('../qa-setups.js');
 
   const record = buildCableJettingCertRecord({
     customer: 'Shahdara North Feeder',
@@ -12431,7 +12433,7 @@ test('saveCableJettingCert, getSavedCableJettingCerts, and update status maintai
     getSavedCableJettingCerts,
     updateCableJettingCertStatus,
     clearCableJettingCerts
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockState = {};
   clearCableJettingCerts(mockState);
@@ -12456,7 +12458,7 @@ test('saveCableJettingCert, getSavedCableJettingCerts, and update status maintai
 });
 
 test('calculateCableJettingMetrics aggregates summary statistics', async () => {
-  const { calculateCableJettingMetrics } = await import('../form-validation.js');
+  const { calculateCableJettingMetrics } = await import('../qa-setups.js');
 
   const mockCerts = [
     { certId: 'JET-1', ductLengthM: 1200, airPressureBar: 12, analysis: { verdict: { id: 'CERTIFIED_OPTIMAL_JETTING' } } },
@@ -12476,7 +12478,7 @@ test('calculateCableJettingMetrics aggregates summary statistics', async () => {
 });
 
 test('renderCableJettingAnalysisSvg returns valid pure-vector SVG markup', async () => {
-  const { renderCableJettingAnalysisSvg, evaluateCableJettingPhysics } = await import('../form-validation.js');
+  const { renderCableJettingAnalysisSvg, evaluateCableJettingPhysics } = await import('../qa-setups.js');
 
   const analysis = evaluateCableJettingPhysics({
     cableTypeId: 'MICRO_CABLE_48F_6MM',
@@ -12496,7 +12498,7 @@ test('renderCableJettingAnalysisSvg returns valid pure-vector SVG markup', async
 });
 
 test('generateCableJettingCertHtml produces formal A4 certificate and thermal POS slip', async () => {
-  const { generateCableJettingCertHtml, evaluateCableJettingPhysics } = await import('../form-validation.js');
+  const { generateCableJettingCertHtml, evaluateCableJettingPhysics } = await import('../qa-setups.js');
 
   const record = {
     certId: 'JET-202610-7788',
@@ -12528,7 +12530,7 @@ test('formatCableJettingCertWhatsApp and generateCableJettingCertsCsv export dat
     formatCableJettingCertWhatsApp,
     generateCableJettingCertsCsv,
     evaluateCableJettingPhysics
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const record = {
     certId: 'JET-202610-9999',
@@ -12557,7 +12559,7 @@ test('formatCableJettingCertWhatsApp and generateCableJettingCertsCsv export dat
 });
 
 test('SHAH_JETTING_PRESETS catalog contains 5 valid field configurations', async () => {
-  const { SHAH_JETTING_PRESETS, JETTING_CABLE_TYPES, JETTING_DUCT_TYPES, JETTING_EQUIPMENT_TYPES } = await import('../form-validation.js');
+  const { SHAH_JETTING_PRESETS, JETTING_CABLE_TYPES, JETTING_DUCT_TYPES, JETTING_EQUIPMENT_TYPES } = await import('../qa-setups.js');
 
   const keys = Object.keys(SHAH_JETTING_PRESETS);
   assert.equal(keys.length, 5);
@@ -12616,7 +12618,7 @@ test('DOM & CSS integration for Outside Plant Cable Jetting & Air-Blowing QA Sui
 });
 
 test('calculateTubeSlitWallPenetration evaluates blade penetration % and remaining clearance', async () => {
-  const { calculateTubeSlitWallPenetration } = await import('../form-validation.js');
+  const { calculateTubeSlitWallPenetration } = await import('../qa-setups.js');
 
   // Optimal shave: blade 0.35mm on 0.40mm wall -> 87.5% penetration, 0.05mm clearance
   const opt = calculateTubeSlitWallPenetration(0.35, 0.40);
@@ -12637,7 +12639,7 @@ test('calculateTubeSlitWallPenetration evaluates blade penetration % and remaini
 });
 
 test('calculateInducedSlitLossDb models optical transmission loss and nick damage', async () => {
-  const { calculateInducedSlitLossDb } = await import('../form-validation.js');
+  const { calculateInducedSlitLossDb } = await import('../qa-setups.js');
 
   // Clean shave with micrometer tool
   const cleanLoss = calculateInducedSlitLossDb(88, 0.04, 'PRECISION_MICROMETER_SLITTER');
@@ -12649,7 +12651,7 @@ test('calculateInducedSlitLossDb models optical transmission loss and nick damag
 });
 
 test('evaluateTubeSlittingAccess evaluates complete mid-span buffer access scenarios', async () => {
-  const { evaluateTubeSlittingAccess } = await import('../form-validation.js');
+  const { evaluateTubeSlittingAccess } = await import('../qa-setups.js');
 
   // Scenario 1: Optimal Baradari express drop
   const optimal = evaluateTubeSlittingAccess({
@@ -12693,7 +12695,7 @@ test('evaluateTubeSlittingAccess evaluates complete mid-span buffer access scena
 });
 
 test('validateTubeSlittingInput checks boundary constraints', async () => {
-  const { validateTubeSlittingInput } = await import('../form-validation.js');
+  const { validateTubeSlittingInput } = await import('../qa-setups.js');
 
   const valid = validateTubeSlittingInput({
     customer: 'Shahdara Trunk Feeder',
@@ -12716,7 +12718,7 @@ test('validateTubeSlittingInput checks boundary constraints', async () => {
 });
 
 test('buildTubeSlittingCertRecord builds structured immutable record', async () => {
-  const { buildTubeSlittingCertRecord } = await import('../form-validation.js');
+  const { buildTubeSlittingCertRecord } = await import('../qa-setups.js');
 
   const rec = buildTubeSlittingCertRecord({
     customer: 'Shahdara Ring Feeder',
@@ -12739,7 +12741,7 @@ test('saveTubeSlittingCert, getSavedTubeSlittingCerts, and update status maintai
     getSavedTubeSlittingCerts,
     updateTubeSlittingCertStatus,
     clearTubeSlittingCerts
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockState = {};
   clearTubeSlittingCerts(mockState);
@@ -12764,7 +12766,7 @@ test('saveTubeSlittingCert, getSavedTubeSlittingCerts, and update status maintai
 });
 
 test('calculateTubeSlittingMetrics aggregates KPI summary counts', async () => {
-  const { calculateTubeSlittingMetrics } = await import('../form-validation.js');
+  const { calculateTubeSlittingMetrics } = await import('../qa-setups.js');
 
   const mockCerts = [
     { certId: 'SLT-1', isLiveTrafficOnTube: true, analysis: { inducedLossDb: 0.01, verdict: { id: 'CERTIFIED_OPTIMAL_ACCESS' } } },
@@ -12783,7 +12785,7 @@ test('calculateTubeSlittingMetrics aggregates KPI summary counts', async () => {
 });
 
 test('renderTubeSlittingAccessSvg produces valid vector SVG markup', async () => {
-  const { renderTubeSlittingAccessSvg, evaluateTubeSlittingAccess } = await import('../form-validation.js');
+  const { renderTubeSlittingAccessSvg, evaluateTubeSlittingAccess } = await import('../qa-setups.js');
 
   const analysis = evaluateTubeSlittingAccess({
     toolId: 'PRECISION_MICROMETER_SLITTER',
@@ -12800,7 +12802,7 @@ test('renderTubeSlittingAccessSvg produces valid vector SVG markup', async () =>
 });
 
 test('generateTubeSlittingCertHtml creates formal A4 certificate and thermal POS slip', async () => {
-  const { generateTubeSlittingCertHtml, evaluateTubeSlittingAccess } = await import('../form-validation.js');
+  const { generateTubeSlittingCertHtml, evaluateTubeSlittingAccess } = await import('../qa-setups.js');
 
   const record = {
     certId: 'SLT-202610-8899',
@@ -12831,7 +12833,7 @@ test('formatTubeSlittingCertWhatsApp and generateTubeSlittingCertsCsv export fie
     formatTubeSlittingCertWhatsApp,
     generateTubeSlittingCertsCsv,
     evaluateTubeSlittingAccess
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const record = {
     certId: 'SLT-202610-5544',
@@ -12860,7 +12862,7 @@ test('formatTubeSlittingCertWhatsApp and generateTubeSlittingCertsCsv export fie
 });
 
 test('SHAH_TUBE_SLITTING_PRESETS contains 5 valid field configurations', async () => {
-  const { SHAH_TUBE_SLITTING_PRESETS, TUBE_SLITTER_TOOL_TYPES, BUFFER_TUBE_TYPES } = await import('../form-validation.js');
+  const { SHAH_TUBE_SLITTING_PRESETS, TUBE_SLITTER_TOOL_TYPES, BUFFER_TUBE_TYPES } = await import('../qa-setups.js');
 
   const keys = Object.keys(SHAH_TUBE_SLITTING_PRESETS);
   assert.equal(keys.length, 5);
@@ -12924,7 +12926,7 @@ test('CONDUIT_PULL_CABLE_TYPES & CONDUIT_TYPES catalog schemas validate physical
     CONDUIT_TYPES,
     PULLING_LUBRICANT_MODES,
     CONDUIT_PULLING_VERDICTS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   assert.ok(CONDUIT_PULL_CABLE_TYPES['FTTH_DROP_FLAT_FRP_1F']);
   assert.equal(CONDUIT_PULL_CABLE_TYPES['FTTH_DROP_FLAT_FRP_1F'].maxPullingLoadN, 100);
@@ -12943,7 +12945,7 @@ test('CONDUIT_PULL_CABLE_TYPES & CONDUIT_TYPES catalog schemas validate physical
 });
 
 test('calculateConduitFillRatio evaluates NEC Chapter 9 Table 1 limits and jam ratio', async () => {
-  const { calculateConduitFillRatio } = await import('../form-validation.js');
+  const { calculateConduitFillRatio } = await import('../qa-setups.js');
 
   // Single cable in 21mm ID conduit (53% limit)
   const single = calculateConduitFillRatio(21.0, 3.0, 1);
@@ -12969,7 +12971,7 @@ test('calculateConduitFillRatio evaluates NEC Chapter 9 Table 1 limits and jam r
 });
 
 test('calculateWeightCorrectionFactor evaluates single vs multi-cable pulling drag', async () => {
-  const { calculateWeightCorrectionFactor } = await import('../form-validation.js');
+  const { calculateWeightCorrectionFactor } = await import('../qa-setups.js');
 
   // Single cable WCF is always 1.0
   assert.equal(calculateWeightCorrectionFactor(21.0, 3.0, 1), 1.0);
@@ -12981,7 +12983,7 @@ test('calculateWeightCorrectionFactor evaluates single vs multi-cable pulling dr
 });
 
 test('calculateConduitPullingTension calculates Capstan exponential tension buildup through bends', async () => {
-  const { calculateConduitPullingTension } = await import('../form-validation.js');
+  const { calculateConduitPullingTension } = await import('../qa-setups.js');
 
   // Baseline pull with 0 bends
   const straightPull = calculateConduitPullingTension({
@@ -13014,7 +13016,7 @@ test('calculateConduitPullingTension calculates Capstan exponential tension buil
 });
 
 test('calculateConduitPullingTension evaluates Sidewall Bearing Pressure (SWBP) and induced loss', async () => {
-  const { calculateConduitPullingTension } = await import('../form-validation.js');
+  const { calculateConduitPullingTension } = await import('../qa-setups.js');
 
   const res = calculateConduitPullingTension({
     cableTypeId: 'RISER_DISTRIBUTION_6F',
@@ -13034,7 +13036,7 @@ test('calculateConduitPullingTension evaluates Sidewall Bearing Pressure (SWBP) 
 });
 
 test('calculateConduitPullingTension detects overtension failure hazard', async () => {
-  const { calculateConduitPullingTension } = await import('../form-validation.js');
+  const { calculateConduitPullingTension } = await import('../qa-setups.js');
 
   // Highly stressed run with dry friction and multiple sharp bends exceeding 100 N MAPL
   const failRes = calculateConduitPullingTension({
@@ -13053,7 +13055,7 @@ test('calculateConduitPullingTension detects overtension failure hazard', async 
 });
 
 test('calculateConduitPullingTension accounts for directional pulling vectors', async () => {
-  const { calculateConduitPullingTension } = await import('../form-validation.js');
+  const { calculateConduitPullingTension } = await import('../qa-setups.js');
 
   const down = calculateConduitPullingTension({
     cableTypeId: 'RISER_DISTRIBUTION_6F',
@@ -13073,7 +13075,7 @@ test('calculateConduitPullingTension accounts for directional pulling vectors', 
 });
 
 test('validateConduitPullingInput verifies bounds and error messages', async () => {
-  const { validateConduitPullingInput } = await import('../form-validation.js');
+  const { validateConduitPullingInput } = await import('../qa-setups.js');
 
   const valid = validateConduitPullingInput({
     subscriberName: 'Mian Tariq Textiles',
@@ -13101,7 +13103,7 @@ test('validateConduitPullingInput verifies bounds and error messages', async () 
 });
 
 test('buildConduitPullingCertRecord constructs valid audit records with CND- prefix', async () => {
-  const { buildConduitPullingCertRecord } = await import('../form-validation.js');
+  const { buildConduitPullingCertRecord } = await import('../qa-setups.js');
 
   const record = buildConduitPullingCertRecord({
     subscriberName: 'Shahdara Diagnostics',
@@ -13130,7 +13132,7 @@ test('LocalStorage CRUD and KPI metrics aggregator for conduit pulling QA', asyn
     clearConduitPullingCerts,
     calculateConduitPullingMetrics,
     buildConduitPullingCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   clearConduitPullingCerts();
   assert.deepEqual(getSavedConduitPullingCerts(), []);
@@ -13169,7 +13171,7 @@ test('renderConduitPullingQaSvg, printable certificates, WhatsApp and CSV genera
     formatConduitPullingCertWhatsApp,
     generateConduitPullingCertsCsv,
     buildConduitPullingCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const analysis = calculateConduitPullingTension({
     cableTypeId: 'RISER_DISTRIBUTION_6F',
@@ -13256,7 +13258,7 @@ test('SPECTRAL_FIBER_TYPES & MOISTURE_INGRESS_LEVELS catalog schemas validate ph
     SPECTRAL_FIBER_TYPES,
     MOISTURE_INGRESS_LEVELS,
     SPECTRAL_QA_VERDICTS
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   assert.ok(SPECTRAL_FIBER_TYPES['G652D_LOW_WATER_PEAK']);
   assert.equal(SPECTRAL_FIBER_TYPES['G652D_LOW_WATER_PEAK'].baseWaterPeakDbKm, 0.04);
@@ -13277,7 +13279,7 @@ test('SPECTRAL_FIBER_TYPES & MOISTURE_INGRESS_LEVELS catalog schemas validate ph
 });
 
 test('calculateSpectralAttenuation computes baseline Rayleigh slope and transparent water peak for G.652.D', async () => {
-  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+  const { calculateSpectralAttenuation } = await import('../qa-setups.js');
 
   const res = calculateSpectralAttenuation({
     fiberTypeId: 'G652D_LOW_WATER_PEAK',
@@ -13296,7 +13298,7 @@ test('calculateSpectralAttenuation computes baseline Rayleigh slope and transpar
 });
 
 test('calculateSpectralAttenuation identifies legacy high water peak on G.652.A/B fibers', async () => {
-  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+  const { calculateSpectralAttenuation } = await import('../qa-setups.js');
 
   const res = calculateSpectralAttenuation({
     fiberTypeId: 'G652AB_LEGACY_HIGH_PEAK',
@@ -13310,7 +13312,7 @@ test('calculateSpectralAttenuation identifies legacy high water peak on G.652.A/
 });
 
 test('calculateSpectralAttenuation models moisture ingress attenuation spike', async () => {
-  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+  const { calculateSpectralAttenuation } = await import('../qa-setups.js');
 
   const dry = calculateSpectralAttenuation({
     fiberTypeId: 'G652D_LOW_WATER_PEAK',
@@ -13330,7 +13332,7 @@ test('calculateSpectralAttenuation models moisture ingress attenuation spike', a
 });
 
 test('calculateSpectralAttenuation evaluates discrete wavelengths and cumulative link loss', async () => {
-  const { calculateSpectralAttenuation } = await import('../form-validation.js');
+  const { calculateSpectralAttenuation } = await import('../qa-setups.js');
 
   const res = calculateSpectralAttenuation({
     fiberTypeId: 'G652D_LOW_WATER_PEAK',
@@ -13350,7 +13352,7 @@ test('calculateSpectralAttenuation evaluates discrete wavelengths and cumulative
 });
 
 test('validateSpectralAttenuationInput checks required fields and bounds', async () => {
-  const { validateSpectralAttenuationInput } = await import('../form-validation.js');
+  const { validateSpectralAttenuationInput } = await import('../qa-setups.js');
 
   const valid = validateSpectralAttenuationInput({
     subscriberName: 'Baradari Ring Trunk',
@@ -13374,7 +13376,7 @@ test('validateSpectralAttenuationInput checks required fields and bounds', async
 });
 
 test('buildSpectralAttenuationCertRecord generates valid record with SPT- identifier', async () => {
-  const { buildSpectralAttenuationCertRecord } = await import('../form-validation.js');
+  const { buildSpectralAttenuationCertRecord } = await import('../qa-setups.js');
 
   const record = buildSpectralAttenuationCertRecord({
     subscriberName: 'Ravi Siphon South Crossing',
@@ -13397,7 +13399,7 @@ test('LocalStorage persistence and calculateSpectralAttenuationMetrics aggregato
     clearSpectralAttenuationCerts,
     calculateSpectralAttenuationMetrics,
     buildSpectralAttenuationCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   clearSpectralAttenuationCerts();
   assert.deepEqual(getSavedSpectralAttenuationCerts(), []);
@@ -13435,7 +13437,7 @@ test('renderSpectralAttenuationQaSvg, printable certificates, WhatsApp and CSV g
     formatSpectralAttenuationCertWhatsApp,
     generateSpectralAttenuationCertsCsv,
     buildSpectralAttenuationCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const analysis = calculateSpectralAttenuation({
     fiberTypeId: 'G652D_LOW_WATER_PEAK',
@@ -13509,7 +13511,7 @@ test('DOM & CSS integration for Optical Fiber Spectral Attenuation QA Suite', ()
 });
 
 test('calculateFoscSealPhysics calculates temperature-compensated decay, leak rates, and hydrostatic ingress margins', async () => {
-  const { calculateFoscSealPhysics } = await import('../form-validation.js');
+  const { calculateFoscSealPhysics } = await import('../qa-setups.js');
 
   const analysis = calculateFoscSealPhysics({
     enclosureTypeId: 'DOME_FOSC_400_B4',
@@ -13540,7 +13542,7 @@ test('calculateFoscSealPhysics calculates temperature-compensated decay, leak ra
 });
 
 test('calculateFoscSealPhysics correctly identifies Conditional Pass and Failed Breach Hazards', async () => {
-  const { calculateFoscSealPhysics } = await import('../form-validation.js');
+  const { calculateFoscSealPhysics } = await import('../qa-setups.js');
 
   // Conditional Pass due to elevated leak rate (e.g. 0.15 kPa/hr)
   const cond = calculateFoscSealPhysics({
@@ -13576,7 +13578,7 @@ test('calculateFoscSealPhysics correctly identifies Conditional Pass and Failed 
 });
 
 test('validateFoscSealInput checks required fields and parameter boundaries', async () => {
-  const { validateFoscSealInput } = await import('../form-validation.js');
+  const { validateFoscSealInput } = await import('../qa-setups.js');
 
   const valid = validateFoscSealInput({
     subscriberName: 'Baradari Canal Culvert Feeder',
@@ -13602,7 +13604,7 @@ test('validateFoscSealInput checks required fields and parameter boundaries', as
 });
 
 test('buildFoscSealCertRecord produces valid record with FOSC- identifier', async () => {
-  const { buildFoscSealCertRecord } = await import('../form-validation.js');
+  const { buildFoscSealCertRecord } = await import('../qa-setups.js');
 
   const record = buildFoscSealCertRecord({
     subscriberName: 'Begum Kot GT Road Siphon Vault',
@@ -13625,7 +13627,7 @@ test('LocalStorage persistence and calculateFoscSealMetrics aggregator', async (
     clearFoscSealCerts,
     calculateFoscSealMetrics,
     buildFoscSealCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   clearFoscSealCerts();
   assert.deepEqual(getSavedFoscSealCerts(), []);
@@ -13662,7 +13664,7 @@ test('renderFoscSealAnalysisSvg, printable certificates, WhatsApp and CSV genera
     formatFoscSealCertWhatsApp,
     generateFoscSealCertsCsv,
     buildFoscSealCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const analysis = calculateFoscSealPhysics({
     enclosureTypeId: 'DOME_FOSC_400_B4',
@@ -13735,7 +13737,7 @@ test('DOM & CSS integration for Outside Plant Fiber Splice Enclosure (FOSC) QA S
 });
 
 test('calculateThermalCyclingPhysics calculates thermal strain, micro-bending loss shift, and gel stability', async () => {
-  const { calculateThermalCyclingPhysics } = await import('../form-validation.js');
+  const { calculateThermalCyclingPhysics } = await import('../qa-setups.js');
 
   const analysis = calculateThermalCyclingPhysics({
     profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
@@ -13762,7 +13764,7 @@ test('calculateThermalCyclingPhysics calculates thermal strain, micro-bending lo
 });
 
 test('calculateThermalCyclingPhysics correctly flags Conditional Pass and Failed Hazard states', async () => {
-  const { calculateThermalCyclingPhysics } = await import('../form-validation.js');
+  const { calculateThermalCyclingPhysics } = await import('../qa-setups.js');
 
   // Conditional Pass due to mild drift (e.g. 0.085 dB/km)
   const cond = calculateThermalCyclingPhysics({
@@ -13787,7 +13789,7 @@ test('calculateThermalCyclingPhysics correctly flags Conditional Pass and Failed
 });
 
 test('validateThermalCyclingInput checks required fields and boundaries', async () => {
-  const { validateThermalCyclingInput } = await import('../form-validation.js');
+  const { validateThermalCyclingInput } = await import('../qa-setups.js');
 
   const valid = validateThermalCyclingInput({
     subscriberName: 'Baradari Plaza Feeder',
@@ -13811,7 +13813,7 @@ test('validateThermalCyclingInput checks required fields and boundaries', async 
 });
 
 test('buildThermalCyclingCertRecord produces valid record with THM- identifier', async () => {
-  const { buildThermalCyclingCertRecord } = await import('../form-validation.js');
+  const { buildThermalCyclingCertRecord } = await import('../qa-setups.js');
 
   const record = buildThermalCyclingCertRecord({
     subscriberName: 'Vandala Road Aerial Drop',
@@ -13836,7 +13838,7 @@ test('LocalStorage persistence and calculateThermalCyclingMetrics aggregator', a
     clearThermalCyclingCerts,
     calculateThermalCyclingMetrics,
     buildThermalCyclingCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   clearThermalCyclingCerts();
   assert.deepEqual(getSavedThermalCyclingCerts(), []);
@@ -13874,7 +13876,7 @@ test('renderThermalCyclingQaSvg, printable certificates, WhatsApp and CSV genera
     formatThermalCyclingCertWhatsApp,
     generateThermalCyclingCertsCsv,
     buildThermalCyclingCertRecord
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const analysis = calculateThermalCyclingPhysics({
     profileId: 'SHAHDARA_ROOFTOP_DIURNAL',
@@ -14196,7 +14198,7 @@ test('auditBillingCorrectness audits full ISP state and correctly detects compli
     addPayment
   } = await import('../core.js');
 
-  const { auditBillingCorrectness, AUDIT_RULE_CODES, BILLING_STATUSES } = await import('../form-validation.js');
+  const { auditBillingCorrectness, AUDIT_RULE_CODES, BILLING_STATUSES } = await import('../qa-setups.js');
 
   const refDate = new Date(2026, 8, 15, 12); // September 15, 2026
   let state = createInitialState();
@@ -14277,7 +14279,7 @@ test('renderBillingCorrectnessSvg, HTML generators (A4, POS80), WhatsApp and CSV
     generateBillingAuditHtml,
     formatBillingAuditWhatsApp,
     generateBillingAuditCsv
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockAudit = {
     auditTimestamp: '2026-10-17T12:00:00Z',
@@ -14379,7 +14381,7 @@ test('LocalStorage audit history and setupBillingCorrectnessModal controller ini
     clearBillingAuditRecords,
     setupBillingCorrectnessModal,
     BILLING_CORRECTNESS_STORAGE_KEY
-  } = await import('../form-validation.js');
+  } = await import('../qa-setups.js');
 
   const mockStorage = {
     store: {},

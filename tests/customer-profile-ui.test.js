@@ -49,7 +49,7 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 test('customer profiles open in read-only mode and existing fields are revealed only by Edit', () => {
   assert.match(index, /id="customerProfileView"[^>]*class="customer-profile-view"/);
   assert.match(index, /id="customerProfileForm"[^>]*hidden/);
-  assert.match(app, /id="editProfileButton"[^>]*>Edit<\/button>/);
+  assert.match(app, /id="editProfileButton"[^>]*>\$\{t\('prof_view_edit'\)\}<\/button>/); // phase 3: Edit button renders via t()
   assert.match(index, /id="cancelProfileEditButton"/);
   assert.match(app, /profileEditMode = true;[\s\S]*?customerProfileView'\)\.hidden = true[\s\S]*?customerProfileForm'\)\.hidden = false/);
   assert.match(app, /cancelProfileEditButton'\)\.addEventListener\('click', \(\) => \{ profileEditMode = false; renderDetail\(\); \}\)/);
@@ -58,13 +58,14 @@ test('customer profiles open in read-only mode and existing fields are revealed 
 
 test('customer profiles show receipt-based CLV and clearly label future value as an estimate', () => {
   assert.match(app, /buildCustomerLifetimeValue\(state, customer, new Date\(\)\)/);
-  assert.match(app, /Customer lifetime value \(CLV\)/);
-  assert.match(app, /Historical revenue collected/);
-  assert.match(app, /Average monthly revenue/);
-  assert.match(app, /Average payment delay/);
-  assert.match(app, /Estimated future value · next 12 months/);
-  assert.match(app, /future value is an estimate, not collected cash or a guarantee/i);
-  assert.match(app, /Only the saved connection date is used/);
+  // phase 3: CLV strings render via t() (English values pinned in urdu-auto-phase3.test.js)
+  assert.match(app, /t\('prof_clv_heading'\)/);
+  assert.match(app, /t\('prof_clv_revenue'\)/);
+  assert.match(app, /t\('prof_clv_avg_revenue'\)/);
+  assert.match(app, /t\('prof_clv_delay'\)/);
+  assert.match(app, /t\('prof_clv_future_value'\)/);
+  assert.match(app, /t\('prof_clv_note'\)/);
+  assert.match(app, /t\('prof_clv_tenure_basis_none'\)/);
   assert.match(styles, /\.customer-lifetime-grid/);
 });
 
@@ -326,9 +327,9 @@ test('transaction receipt drafts retain saved partial status, balance, payer and
 });
 
 test('new-payment and correction forms expose an optional, non-autofilled payer field', () => {
-  assert.match(app, /for="date-\$\{month\}">Payment date \(Pakistan local date\)<\/label><input id="date-\$\{month\}"[^>]*name="date" type="date" max="\$\{localDate\(\)\}"/);
+  assert.match(app, /for="date-\$\{month\}">\$\{t\('prof_hist_pay_date_label'\)\}<\/label><input id="date-\$\{month\}"[^>]*name="date" type="date" max="\$\{localDate\(\)\}"/); // phase 3: payment date label renders via t()
   assert.match(app, /for="edit-date-\$\{escapeHtml\(payment\.id\)\}">Payment date<\/label><input id="edit-date-\$\{escapeHtml\(payment\.id\)\}"[^>]*name="date" type="date" max="\$\{localDate\(\)\}"/);
-  assert.match(app, /Paid by \(optional\)/);
+  assert.match(app, /t\('prof_paid_by_label'\)/); // phase 3: payer label renders via t()
   assert.match(app, /autocomplete="off"/);
   assert.match(app, /paidBy:data\.get\('paidBy'\)/);
   assert.match(app, /paidBy:payment\.paidBy/);
@@ -348,12 +349,12 @@ test('customer profile uses an identity-first card with separate manual service 
     assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
   }
   assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);
-  assert.match(index, /class="profile-action-group" role="group" aria-label="Customer quick actions"/);
+  assert.match(index, /class="profile-action-group" role="group" data-i18n-aria-label="prof_actions_aria" aria-label="Customer quick actions"/); // phase 3: group label keyed for Urdu
   assert.match(index, /id="profileServiceStatusBadge"[^>]*Manual service status: Not set; not monitored/);
   assert.ok(index.indexOf('id="customerCurrentBillSummary"') < index.indexOf('id="profileTabBilling"'), 'current-bill summary precedes the section tabs');
   assert.match(app, /profileAvatar'\)\.textContent = initials\(customer\.name\)/);
   assert.match(app, /profileServiceStatusBadge'[\s\S]*?profile-service-status-\$\{serviceStatus\}/);
-  assert.match(app, /Manual service status: \$\{serviceStatusLabel\}; not monitored/);
+  assert.match(app, /t\('prof_service_badge_aria'/); // phase 3: service badge aria renders via t()
   assert.match(styles, /\.profile-action-group>button\{min-height:44px/);
   assert.match(styles, /\.profile-action-group \.current-payment-shortcut\{min-height:48px/);
   assert.match(styles, /@media\(max-width:800px\)\{\.profile-action-group\{/);

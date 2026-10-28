@@ -32,10 +32,13 @@
  *   packageHistory, newest first. Both lists stay readable when either
  *   is empty.
  *
- * This module imports nothing: state mutation lives in core.js
- * (recordCustomerRelocation), so the pure helpers and the modal
- * controller stay testable without the app.
+ * Translation import only (phase 3): the timeline section renders on
+ * the customer profile, so its sentences go through t(). nav-language.js
+ * itself imports nothing, so no import cycle is possible. State mutation
+ * still lives in core.js (recordCustomerRelocation), so the pure helpers
+ * and the modal controller stay testable without the app.
  */
+import { t } from './nav-language.js';
 
 function cleanText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -125,30 +128,30 @@ export function buildRelocationTimeline(customer) {
   const rows = [];
   for (const entry of sanitizeRelocationLog(customer.relocationLog)) {
     const feePart = entry.shiftingFee > 0
-      ? ` · shifting fee ${pkr(entry.shiftingFee)}${entry.feeAppliedToBill ? ` (added to ${entry.feeBillMonth} bill)` : ' (logged only — no current bill to add it to)'}`
+      ? t('prof_reloc_fee', null, { amount: pkr(entry.shiftingFee) }) + (entry.feeAppliedToBill ? t('prof_reloc_fee_bill', null, { month: entry.feeBillMonth }) : t('prof_reloc_fee_logged'))
       : '';
     const fiberPart = entry.extraFiberMeters !== null && entry.extraFiberMeters !== undefined
-      ? ` · extra fiber ${entry.extraFiberMeters} m`
+      ? t('prof_reloc_fiber', null, { meters: entry.extraFiberMeters })
       : '';
     rows.push({
       kind: 'relocation',
       date: entry.shiftedAt,
       sortKey: `${entry.shiftedAt}|${entry.recordedAt || ''}`,
-      title: `🏠 House shift: ${entry.fromZone || 'zone not recorded'} → ${entry.toZone}`,
-      detail: `${entry.fromAddress || 'address not recorded'} → ${entry.toAddress}${fiberPart}${feePart}`
+      title: `🏠 ${t('prof_reloc_shift', null, { from: entry.fromZone || t('prof_reloc_zone_norec'), to: entry.toZone })}`,
+      detail: `${entry.fromAddress || t('prof_reloc_addr_norec')} → ${entry.toAddress}${fiberPart}${feePart}`
     });
   }
   for (const change of Array.isArray(customer.packageHistory) ? customer.packageHistory : []) {
     if (!change || typeof change !== 'object' || !/^\d{4}-\d{2}-\d{2}$/.test(String(change.date ?? ''))) continue;
     const ratePart = (change.oldMonthlyRate !== null && change.oldMonthlyRate !== undefined) || (change.newMonthlyRate !== null && change.newMonthlyRate !== undefined)
-      ? ` · rate ${change.oldMonthlyRate ?? 'not set'} → ${change.newMonthlyRate ?? 'not set'}`
+      ? t('prof_reloc_rate', null, { old: change.oldMonthlyRate ?? t('prof_reloc_not_set'), new: change.newMonthlyRate ?? t('prof_reloc_not_set') })
       : '';
     rows.push({
       kind: 'package',
       date: change.date,
       sortKey: `${change.date}|${change.recordedAt || ''}`,
-      title: `📦 Package: ${change.oldPackage || 'not set'} → ${change.newPackage || 'not set'}`,
-      detail: `Changed ${change.date}${ratePart}`
+      title: `📦 ${t('prof_reloc_pkg', null, { old: change.oldPackage || t('prof_reloc_not_set'), new: change.newPackage || t('prof_reloc_not_set') })}`,
+      detail: `${t('prof_reloc_changed', null, { date: change.date })}${ratePart}`
     });
   }
   return rows.sort((a, b) => {
@@ -162,13 +165,13 @@ export function buildRelocationTimeline(customer) {
 export function renderRelocationTimeline(customer) {
   const rows = buildRelocationTimeline(customer);
   const list = rows.length === 0
-    ? '<p class="relocation-timeline-empty">No house shifts or package changes recorded yet.</p>'
+    ? `<p class="relocation-timeline-empty">${t('prof_reloc_empty')}</p>`
     : `<ul class="relocation-timeline-list">${rows.map((row) => `
       <li class="relocation-timeline-row relocation-timeline-${escapeHtml(row.kind)}">
         <span class="relocation-timeline-date">${escapeHtml(row.date)}</span>
         <span class="relocation-timeline-body"><strong>${escapeHtml(row.title)}</strong><span>${escapeHtml(row.detail)}</span></span>
       </li>`).join('')}</ul>`;
-  return `<section class="profile-relocation-section" aria-label="Relocation and package timeline"><h4>🏠 Relocation &amp; Package Timeline</h4><p class="relocation-timeline-note">Every house shift and package change for this customer, newest first. Historical bills are never rewritten by a shift.</p>${list}<button type="button" class="secondary-button" id="profileRecordRelocationBtn">🏠 Record House Shift</button></section>`;
+  return `<section class="profile-relocation-section" aria-label="${t('prof_reloc_aria')}"><h4>${t('prof_reloc_heading')}</h4><p class="relocation-timeline-note">${t('prof_reloc_note')}</p>${list}<button type="button" class="secondary-button" id="profileRecordRelocationBtn">🏠 ${t('prof_reloc_record')}</button></section>`;
 }
 
 /**

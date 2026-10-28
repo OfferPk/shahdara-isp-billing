@@ -2,6 +2,7 @@ import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES
 import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
+import { normalizeTid } from './wallet-reconciliation.js';
 import { sanitizeComplaints } from './complaint-register.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
@@ -17,12 +18,12 @@ import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js'
 export const INITIAL_NAMES = Object.freeze([
   'NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'
 ]);
-export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
+export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
 
 export function isDigitalPaymentMethod(method) {
   if (!method) return false;
   const m = String(method).trim().toLowerCase();
-  return m.includes('jazzcash') || m.includes('easypaisa') || m.includes('bank') || m.includes('raast') || m.includes('online');
+  return m.includes('jazzcash') || m.includes('easypaisa') || m.includes('nayapay') || m.includes('bank') || m.includes('raast') || m.includes('online');
 }
 
 export function isCashPaymentMethod(method) {
@@ -618,7 +619,7 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -653,20 +654,26 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanReason ? { discountReason: cleanReason } : {}),
     ...(ref ? { transactionId: ref, reference: ref } : {}),
     ...(overrideReason ? { referenceOverrideReason: overrideReason } : {}),
+    // SISP-21: wallet statement verification rides the payment record. Only
+    // an explicit true is kept; anything else reads as "Pending Screenshot
+    // Verification" and is never treated as verified.
+    ...(walletVerified === true ? { walletVerified: true } : {}),
     ...(screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/') ? { screenshot: screenshot.slice(0, 350000) } : {})
   };
 }
 
 export function findDuplicatePaymentReference(state, transactionId, excludePaymentId = null) {
   if (!state || !Array.isArray(state.customers)) return null;
-  const cleanRef = String(transactionId ?? '').trim().toLowerCase();
+  // SISP-21: one normalization rule, shared with wallet-reconciliation.js —
+  // whitespace and case are ignored, so a re-typed screenshot TID still matches.
+  const cleanRef = normalizeTid(transactionId);
   if (!cleanRef) return null;
 
   for (const customer of state.customers) {
     for (const bill of (customer.bills ?? [])) {
       for (const payment of (bill.payments ?? [])) {
         if (excludePaymentId && payment.id === excludePaymentId) continue;
-        const pRef = String(payment.transactionId ?? payment.reference ?? '').trim().toLowerCase();
+        const pRef = normalizeTid(payment.transactionId ?? payment.reference ?? '');
         if (pRef && pRef === cleanRef) {
           return {
             customerNumber: customer.customerNumber,
@@ -805,7 +812,10 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   const mergedFields = {
     ...fields,
     discount: fields.discount !== undefined ? fields.discount : existingPayment.discount,
-    discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason
+    discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason,
+    // SISP-21: a correction form carries no verification toggle, so a
+    // correction must never silently drop an existing verification.
+    walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified
   };
   const payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId);
@@ -819,6 +829,27 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
     ...c,
     bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.filter(payment => payment.id !== paymentId) })
+  }) };
+}
+
+/**
+ * SISP-21: 1-tap wallet verification toggle. Sets walletVerified true, or
+ * removes the field entirely when false (absent === pending, never verified).
+ * Pure state transform; the caller persists and re-renders.
+ */
+export function setPaymentWalletVerified(state, customerId, month, paymentId, verified) {
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill?.payments.some(payment => payment.id === paymentId)) throw new Error('Payment not found.');
+  return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
+    ...c,
+    bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(payment => {
+      if (payment.id !== paymentId) return payment;
+      if (verified === true) return { ...payment, walletVerified: true };
+      const next = { ...payment };
+      delete next.walletVerified;
+      return next;
+    }) })
   }) };
 }
 

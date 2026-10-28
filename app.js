@@ -1,7 +1,7 @@
 import {
   INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
-  deletePayment, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
+  deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill,
@@ -131,7 +131,7 @@ import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
-import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
+import { buildWalletReconciliation, walletVerificationLabel, walletReconciliationSummaryText, DIGITAL_BREAKDOWN_METHODS } from './wallet-reconciliation.js';import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
 import {
   getTodayDateString,
@@ -205,8 +205,8 @@ export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
 export let pendingWorksModalController = null;
-export let ownerKhataModalController = null;export let lateFeeModalController = null;
-export let worklistsModalController = null;
+export let ownerKhataModalController = null;export let walletLedgerModalController = null;
+export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
 try {
@@ -695,6 +695,20 @@ function renderDashboard() {
       ? ''
       : `<p><span>Shares</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · Nasir / Aqib · ${escapeHtml(String(khata.totalComplaints))} complaints · ${escapeHtml(String(khata.totalDowntime))} h offline</small></p>`;
   }
+  // SISP-21: digital wallet ledger card (this-month wallet totals + flags).
+  const walletSummaryEl = $('#walletLedgerSummary');
+  if (walletSummaryEl) {
+    const wallet = buildWalletReconciliation(state.customers, totals.currentMonth, loadShopSettlements());
+    const valueEl = $('#dashboardWalletValue');
+    const periodEl = $('#dashboardWalletPeriod');
+    if (valueEl) valueEl.textContent = wallet.digitalCount === 0 ? 'No digital payments' : formatAmount(wallet.digitalTotal);
+    if (periodEl) periodEl.textContent = wallet.digitalCount === 0
+      ? 'EasyPaisa · JazzCash · NayaPay · Bank Transfer'
+      : `${wallet.pendingVerification.length} pending verification${wallet.duplicateGroups.length ? ` · ${wallet.duplicateGroups.length} duplicate TID${wallet.duplicateGroups.length === 1 ? '' : 's'}` : ''}`;
+    walletSummaryEl.innerHTML = wallet.digitalCount === 0
+      ? ''
+      : DIGITAL_BREAKDOWN_METHODS.filter((label) => (wallet.byWallet[label]?.count ?? 0) > 0)
+        .map((label) => `<p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(wallet.byWallet[label].amount))}</strong><small> · ${escapeHtml(String(wallet.byWallet[label].count))} payment${wallet.byWallet[label].count === 1 ? '' : 's'} · ${escapeHtml(String(wallet.byWallet[label].verifiedCount))} verified</small></p>`).join('');  }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
   $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
@@ -7855,8 +7869,95 @@ if (typeof document !== 'undefined') {
 
   ownerKhataModalController = setupOwnerKhataModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
-  });  worklistsModalController = setupWorklistsModal(() => state, {
-    onUpdateState: (newState) => {
+  });
+  // SISP-21: Digital Wallet Ledger modal (breakdown + verification toggles + duplicates).
+  walletLedgerModalController = (() => {
+    const dialog = document.getElementById('walletLedgerModal');
+    if (!dialog) return null;
+    const $ = (id) => dialog.querySelector(`#${id}`);
+    let month = pakistanMonthNow();
+    let methodFilter = 'All';
+    let verificationFilter = 'All';
+
+    function render() {
+      const report = buildWalletReconciliation(state.customers, month, loadShopSettlements());
+      const summaryEl = $('walletLedgerSummaryLine');
+      if (summaryEl) {
+        summaryEl.textContent = report.digitalCount === 0
+          ? `No digital wallet payments in ${month}.`
+          : `${report.digitalCount} digital payments · ${formatAmount(report.digitalTotal)} · ${report.pendingVerification.length} pending verification${report.duplicateGroups.length ? ` · ${report.duplicateGroups.length} duplicate TID group${report.duplicateGroups.length === 1 ? '' : 's'}` : ''}`;
+      }
+      const breakdownEl = $('walletLedgerBreakdown');
+      if (breakdownEl) {
+        const rows = DIGITAL_BREAKDOWN_METHODS.map((label) => {
+          const line = report.byWallet[label] || { amount: 0, count: 0, verifiedCount: 0, pendingCount: 0 };
+          return `<article class="wallet-ledger-line"><p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(line.amount))}</strong></p><p><span>Payments</span><strong>${line.count} · ${line.verifiedCount} verified · ${line.pendingCount} pending</strong></p></article>`;
+        }).join('');
+        breakdownEl.innerHTML = rows + `<article class="wallet-ledger-line"><p><span>Cash</span><strong>${escapeHtml(formatAmount(report.cash.amount))}</strong></p><p><span>Payments</span><strong>${report.cash.count}</strong></p></article><article class="wallet-ledger-line"><p><span>Shop handovers</span><strong>${escapeHtml(formatAmount(report.shopHandovers.amount))}</strong></p><p><span>Settlements</span><strong>${report.shopHandovers.count}</strong></p></article>`;
+      }
+      const dupEl = $('walletLedgerDuplicates');
+      if (dupEl) {
+        dupEl.innerHTML = report.duplicateGroups.length === 0
+          ? '<p class="wallet-ledger-empty">No duplicate TIDs in this month.</p>'
+          : report.duplicateGroups.map((group) => `<article class="wallet-ledger-dup"><p><strong>⚠️ Duplicate TID ${escapeHtml(group.displayTid)}</strong></p><ul>${group.payments.map((p) => `<li>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)} · ${escapeHtml(p.date)} · ${escapeHtml(formatAmount(p.amount))} · ${escapeHtml(p.method)}</li>`).join('')}</ul><p class="wallet-ledger-note">The same TID is logged more than once. Correct or delete the extra payment from the customer profile — do not log it again.</p></article>`).join('');
+      }
+      const listEl = $('walletLedgerPaymentList');
+      if (listEl) {
+        const rows = report.payments.filter((p) => (methodFilter === 'All' || p.method === methodFilter) && (verificationFilter === 'All' || (verificationFilter === 'Verified' ? p.walletVerified : !p.walletVerified)));
+        listEl.innerHTML = rows.length === 0
+          ? '<p class="wallet-ledger-empty">No digital payments match these filters.</p>'
+          : rows.map((p) => `<article class="wallet-ledger-payment"><p><span>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)}</span><strong>${escapeHtml(formatAmount(p.amount))}</strong></p><p><span>${escapeHtml(p.date)} · ${escapeHtml(p.method)}${p.transactionId ? ` · TID ${escapeHtml(p.transactionId)}` : ''}</span><span class="wallet-ledger-badge ${p.walletVerified ? 'verified' : 'pending'}">${escapeHtml(walletVerificationLabel(p))}</span></p><button type="button" class="secondary-button" data-wallet-toggle="${escapeHtml(p.customerId)}|${escapeHtml(p.billMonth)}|${escapeHtml(p.paymentId)}|${p.walletVerified ? 'pending' : 'verified'}">${p.walletVerified ? 'Mark pending' : 'Mark verified ✓'}</button></article>`).join('');
+      }
+    }
+
+    const monthInput = $('walletLedgerMonth');
+    if (monthInput) {
+      monthInput.value = month;
+      monthInput.addEventListener('change', () => { month = monthInput.value || pakistanMonthNow(); render(); });
+    }
+    const methodSelect = $('walletLedgerMethodFilter');
+    if (methodSelect) methodSelect.addEventListener('change', () => { methodFilter = methodSelect.value; render(); });
+    const verificationSelect = $('walletLedgerVerificationFilter');
+    if (verificationSelect) verificationSelect.addEventListener('change', () => { verificationFilter = verificationSelect.value; render(); });
+    const closeBtn = $('walletLedgerCloseBtn');
+    if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
+    const openBtn = document.getElementById('openWalletLedgerModalBtn');
+    if (openBtn) openBtn.addEventListener('click', () => {
+      month = pakistanMonthNow();
+      if (monthInput) monthInput.value = month;
+      render();
+      dialog.showModal();
+    });
+    const copyBtn = $('walletLedgerCopyBtn');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      const report = buildWalletReconciliation(state.customers, month, loadShopSettlements());
+      const text = walletReconciliationSummaryText(report);
+      try { await navigator.clipboard.writeText(text); toast('Wallet summary copied.'); }
+      catch { toast('Could not copy — select the summary text manually.'); }
+    });
+    const listEl = $('walletLedgerPaymentList');
+    if (listEl) listEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-wallet-toggle]');
+      if (!btn) return;
+      const [customerId, billMonth, paymentId, target] = btn.dataset.walletToggle.split('|');
+      try {
+        state = setPaymentWalletVerified(state, customerId, billMonth, paymentId, target === 'verified');
+        save();
+        renderDashboard();
+        render();
+        if (selectedCustomerId === customerId) renderDetail();
+        toast(target === 'verified' ? 'Marked verified in statement.' : 'Marked pending verification.');
+      } catch (error) { toast(error.message); }
+    });
+
+    return { open(prefilter = {}) {
+      if (/^\d{4}-\d{2}$/.test(String(prefilter.month || ''))) month = String(prefilter.month);
+      if (monthInput) monthInput.value = month;
+      render();
+      dialog.showModal();
+    }, refresh: render };
+  })();
+  worklistsModalController = setupWorklistsModal(() => state, {    onUpdateState: (newState) => {
       state = newState;
       save();
       renderDetail();

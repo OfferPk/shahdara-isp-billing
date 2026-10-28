@@ -158,7 +158,7 @@ test('history is limited to exactly 24 months and old months are rejected', () =
 
 test('accepts all existing payment methods and both added shop-cash choices', () => {
   const state = createInitialState(); const customerId = state.customers[0].id;
-  assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
+  assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop']);
   for (const [index, method] of PAYMENT_METHODS.entries()) {
     const next = addPayment(state, customerId, currentMonth, payment({ method, amount:String(index + 1) }), referenceDate);
     assert.equal(next.customers[0].bills[0].payments[0].method, method);

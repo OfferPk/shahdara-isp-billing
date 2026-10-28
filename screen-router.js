@@ -22,6 +22,8 @@
  * Bulk's × closes both and returns to the screen underneath.
  */
 
+import { t } from './nav.js?v=1.11.0';
+
 export const SCREENS = {
   customers: { view: 'customersView', tab: 'showCustomersButton', title: 'Customers', subtitle: 'Search, add and open customer ledgers', action: { label: '+ Add Customer', click: '#addCustomerButton' }, filters: { selector: '.customer-filter-panel', mobileOnly: false } },
   transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' }, filters: { selector: '.transaction-filters', mobileOnly: true } },
@@ -378,6 +380,13 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     } else {
       doc.title = 'Shahdara ISP Billing';
     }
+    // Urdu phase 4: the Bills screen header follows the app language.
+    if (screen === 'bills' && !isHome) {
+      titleEl.textContent = t('bill_screen_title');
+      subtitleEl.textContent = t('bill_screen_subtitle');
+      if (!actionBtn.hidden) actionBtn.textContent = t('bill_screen_action');
+      doc.title = `${t('bill_screen_title')} · Shahdara ISP Billing`;
+    }
     if (!scroll) return;
     win.requestAnimationFrame(() => {
       instantTop();
@@ -446,6 +455,15 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     nativeReplace({ ...(history.state || {}), screen: initial.screen }, '', routeHash(initial.screen));
   }
   apply(initial ? initial.screen : HOME, { scroll: Boolean(initial && initial.screen !== HOME && !initial.customer) });
+
+  // Urdu phase 4: re-apply the Bills screen header when the language changes.
+  win.addEventListener('shahdara:language-change', () => {
+    if (current !== 'bills') return;
+    titleEl.textContent = t('bill_screen_title');
+    subtitleEl.textContent = t('bill_screen_subtitle');
+    if (!actionBtn.hidden) actionBtn.textContent = t('bill_screen_action');
+    doc.title = `${t('bill_screen_title')} · Shahdara ISP Billing`;
+  });
 
   return {
     get current() { return current; },

@@ -1945,11 +1945,14 @@ function renderTransactions() {
   bindReceiptPhoneActions(transactionList);
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
+// Urdu phase 4: Billing-screen status labels via t(). reportStatusLabel is
+// left untouched: it also feeds the Transactions screen (a later phase).
+function billStatusLabel(status) { return ({ paid: t('bill_status_paid'), pending: t('bill_status_pending'), unpaid: t('bill_status_pending'), partial: t('bill_status_partial'), 'not-set': t('bill_status_notset') })[status] ?? t('bill_status_notset'); }
 function renderMonthlyReport() {
   const month = selectedBillingMonth;
   const query = reportSearchQuery.trim() || searchQuery();
   const rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:query });
-  $('#monthlyReportCount').textContent = `${rows.length} ${rows.length === 1 ? 'customer' : 'customers'} · ${monthName(month)}`;
+  $('#monthlyReportCount').textContent = t(rows.length === 1 ? 'bill_count_sing' : 'bill_count_plur', null, { count: rows.length, month: displayMonthName(month) });
   $('#monthlyReportEmpty').hidden = rows.length > 0;
 
   const totalBilled = rows.reduce((s, r) => s + (r.billAmount || 0), 0);
@@ -1966,14 +1969,14 @@ function renderMonthlyReport() {
   const methodBreakdownEl = $('#monthlyReportMethodBreakdown');
   if (methodBreakdownEl) {
     const chips = [];
-    if (methodTotals.Cash > 0) chips.push(`<span class="method-chip cash">Cash: ${formatAmount(methodTotals.Cash)}</span>`);
-    if (methodTotals.JazzCash > 0) chips.push(`<span class="method-chip jazzcash">JazzCash: ${formatAmount(methodTotals.JazzCash)}</span>`);
-    if (methodTotals.Easypaisa > 0) chips.push(`<span class="method-chip easypaisa">Easypaisa: ${formatAmount(methodTotals.Easypaisa)}</span>`);
-    if (methodTotals.Raast > 0) chips.push(`<span class="method-chip raast">⚡ Raast: ${formatAmount(methodTotals.Raast)}</span>`);
-    if (methodTotals.Bank > 0) chips.push(`<span class="method-chip bank">🏦 Bank: ${formatAmount(methodTotals.Bank)}</span>`);
-    if (methodTotals.other > 0) chips.push(`<span class="method-chip other">Other: ${formatAmount(methodTotals.other)}</span>`);
+    if (methodTotals.Cash > 0) chips.push(`<span class="method-chip cash">${t('bill_method_cash')}: ${formatAmount(methodTotals.Cash)}</span>`);
+    if (methodTotals.JazzCash > 0) chips.push(`<span class="method-chip jazzcash">${t('bill_method_jazzcash')}: ${formatAmount(methodTotals.JazzCash)}</span>`);
+    if (methodTotals.Easypaisa > 0) chips.push(`<span class="method-chip easypaisa">${t('bill_method_easypaisa')}: ${formatAmount(methodTotals.Easypaisa)}</span>`);
+    if (methodTotals.Raast > 0) chips.push(`<span class="method-chip raast">${t('bill_method_raast')}: ${formatAmount(methodTotals.Raast)}</span>`);
+    if (methodTotals.Bank > 0) chips.push(`<span class="method-chip bank">${t('bill_method_bank')}: ${formatAmount(methodTotals.Bank)}</span>`);
+    if (methodTotals.other > 0) chips.push(`<span class="method-chip other">${t('bill_method_other')}: ${formatAmount(methodTotals.other)}</span>`);
     methodBreakdownEl.innerHTML = chips.length > 0
-      ? `<span class="method-breakdown-title">By method:</span> ${chips.join(' ')}`
+      ? `<span class="method-breakdown-title">${t('bill_method_title')}</span> ${chips.join(' ')}`
       : '';
   }
 
@@ -1988,7 +1991,7 @@ function renderMonthlyReport() {
   if (pagNav) {
     pagNav.hidden = rows.length === 0;
     const pageInfo = $('#reportPageInfo');
-    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages} (${rows.length} total)`;
+    if (pageInfo) pageInfo.textContent = t('bill_page_info', null, { page: paged.page, totalPages: paged.totalPages, total: rows.length });
     const prevBtn = $('#reportPrevPage');
     if (prevBtn) prevBtn.disabled = paged.page <= 1;
     const nextBtn = $('#reportNextPage');
@@ -1996,25 +1999,26 @@ function renderMonthlyReport() {
   }
 
   reportList.innerHTML = paged.items.map(row => {
-    const monthlySale = row.monthlySellingAmount === null || row.monthlySellingAmount === undefined ? 'Not set' : formatAmount(row.monthlySellingAmount);
-    const billAmount = row.billAmount === null ? 'Not set' : formatAmount(row.billAmount);
-    const due = row.balanceDue === null ? 'Not set' : formatAmount(row.balanceDue);
-    const speed = row.packageSpeed || 'Not set';
-    const provider = row.ispProvider || 'Not set';
-    const dueDate = row.dueDate ? humanDate(row.dueDate) : 'Not set · no due-date rule or penalty';
-    const creditSources = row.creditSources.map(source => `${monthName(source.originMonth)} receipt ${humanDate(source.paymentDate)} (${source.method}, ${formatAmount(source.receiptAmount)}): ${formatAmount(source.amountCents / 100)} applied`).join('; ');
-    const pendingSources = row.pendingCreditSources.map(source => `${monthName(source.originMonth)} receipt ${humanDate(source.paymentDate)} (${source.method}, original ${formatAmount(source.receiptAmount)}): ${formatAmount(source.amountCents / 100)} still available`).join('; ');
-    const creditSummary = `Applied to bill ${formatAmount(row.creditApplied)} · forwarded from selected bill ${formatAmount(row.creditForwarded)} · customer-wide unused prepaid balance ${formatAmount(row.creditPending)} (not cash; valid indefinitely)${creditSources ? ` · Applied sources: ${creditSources}` : ''}${pendingSources ? ` · Waiting sources: ${pendingSources}` : ''}`;
-    const serviceLabel = ({ active:'Active', offline:'Offline', 'not-set':'Not set' })[row.serviceStatus] ?? 'Not set';
-    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ' · Archived' : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">Service (manual): ${serviceLabel} · Package / speed: ${escapeHtml(speed)} · ISP/provider: ${escapeHtml(provider)}</span></div><div class="report-cell"><span class="report-cell-label">Monthly sale (PKR)</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(monthName(row.month))} bill (PKR)</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">Optional due date (PKT)</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">Actual amount received (PKR)</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">Balance due (PKR)</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell report-credit-cell"><span class="report-cell-label">Auto-credit (PKR, not cash)</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell report-status-cell"><span class="report-cell-label">Billing status</span><span class="report-status report-status-${row.status}">${reportStatusLabel(row.status)}</span></div></li>`;
+    const monthlySale = row.monthlySellingAmount === null || row.monthlySellingAmount === undefined ? t('bill_not_set') : formatAmount(row.monthlySellingAmount);
+    const billAmount = row.billAmount === null ? t('bill_not_set') : formatAmount(row.billAmount);
+    const due = row.balanceDue === null ? t('bill_not_set') : formatAmount(row.balanceDue);
+    const speed = row.packageSpeed || t('bill_not_set');
+    const provider = row.ispProvider || t('bill_not_set');
+    const dueDate = row.dueDate ? humanDate(row.dueDate) : t('bill_due_notset');
+    const creditSources = row.creditSources.map(source => t('bill_credit_applied', null, { month: displayMonthName(source.originMonth), date: humanDate(source.paymentDate), method: source.method, receipt: formatAmount(source.receiptAmount), amount: formatAmount(source.amountCents / 100) })).join('; ');
+    const pendingSources = row.pendingCreditSources.map(source => t('bill_credit_waiting', null, { month: displayMonthName(source.originMonth), date: humanDate(source.paymentDate), method: source.method, receipt: formatAmount(source.receiptAmount), amount: formatAmount(source.amountCents / 100) })).join('; ');
+    const creditSummary = t('bill_credit_summary', null, { applied: formatAmount(row.creditApplied), forwarded: formatAmount(row.creditForwarded), pending: formatAmount(row.creditPending) }) + (creditSources ? ` · ${t('bill_credit_applied_label')} ${creditSources}` : '') + (pendingSources ? ` · ${t('bill_credit_waiting_label')} ${pendingSources}` : '');
+    const serviceLabel = ({ active: t('bill_service_active'), offline: t('bill_service_offline'), 'not-set': t('bill_not_set') })[row.serviceStatus] ?? t('bill_not_set');
+    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">${t('bill_row_service')}: ${serviceLabel} · ${t('bill_row_package')}: ${escapeHtml(speed)} · ${t('bill_row_provider')}: ${escapeHtml(provider)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_monthly_sale')}</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell report-credit-cell"><span class="report-cell-label">${t('bill_row_credit')}</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div></li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
 }
 function populateReportMonths() {
   const months = monthsForHistory();
-  const options = months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
-  $('#reportMonth').innerHTML = options;
-  $('#customerFilterMonth').innerHTML = options;
+  // Urdu phase 4: the Billing month select shows Urdu month names in Urdu
+  // mode; the Customers month filter keeps monthName (phase 1 surface).
+  $('#reportMonth').innerHTML = months.map(month => `<option value="${month}">${escapeHtml(displayMonthName(month))}</option>`).join('');
+  $('#customerFilterMonth').innerHTML = months.map(month => `<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
   $('#reportMonth').value = selectedBillingMonth;
   $('#customerFilterMonth').value = selectedBillingMonth;
 }
@@ -5237,6 +5241,7 @@ window.addEventListener('shahdara:language-change', () => {
   renderDetail();
   renderCustomers();
   renderDashboard();
+  renderMonthlyReport();
 });
 
 // Setup Pending Actions Center & Collection Promises Suite (agent2 - shahdara-mobile-nav)
@@ -7386,8 +7391,8 @@ $('#generateBillsBtn')?.addEventListener('click', () => {
   const month = monthsForHistory()[0];
   const count = state.customers.filter(customer => !customer.archived && (customer.bills ?? []).some(bill => bill.month === month)).length;
   const note = $('#billsActionsNote');
-  if (note) note.textContent = `Bills for ${monthName(month)} (${month}) are generated and up to date for ${count} customer(s). New bills use each customer's saved package price; nothing is guessed.`;
-  toast(`Bills for ${monthName(month)} are up to date (${count} customers).`);
+  if (note) note.textContent = t('bill_generate_note', null, { month: displayMonthName(month), key: month, count });
+  toast(t('bill_generate_toast', null, { month: displayMonthName(month), count }));
 });
 $('#billsInvoicesBtn')?.addEventListener('click', () => { $('#batchReceiptPrintBtn')?.click(); });
 $('#unbilledCustomersBtn')?.addEventListener('click', () => {
@@ -7478,7 +7483,7 @@ $('#bulkReminderDispatchBtn')?.addEventListener('click', () => {
   renderBatchReceipts();
   if (batchReceiptModal?.showModal) batchReceiptModal.showModal();
   else batchReceiptModal?.setAttribute('open', '');
-  toast('Displaying pending customer slips. Tap "WhatsApp Reminder" on each slip to dispatch.');
+  toast(t('bill_remind_toast'));
 });
 
 let currentStatementData = null;

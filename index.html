@@ -78,7 +78,7 @@
           <li class="nav-drawer-item"><button type="button" data-nav-target="customers"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span>Customers</span><span id="navBadgeCustomers" class="nav-drawer-badge" data-nav-badge="customers" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="transactions"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span><span>Transactions</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="easypaisa" id="drawerNavEasypaisaBtn"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span><span>Payments Inbox</span></button></li>
-          <li class="nav-drawer-item"><button type="button" data-nav-target="bills"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span>Monthly Bills</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="bills"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span data-i18n="bill_nav_monthly">Monthly Bills</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="reports"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><span>Monthly Report</span></button></li>
           <li class="nav-drawer-item"><button type="button" id="navPendingActionsBtn" data-open-pending-actions><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span data-i18n="drawer_pending_actions">Pending Actions</span><span id="navBadgePendingActions" class="nav-drawer-badge" data-nav-badge="pending-actions" hidden>0</span></button></li>
         </ul>
@@ -6350,7 +6350,7 @@
       <div class="more-menu-section-label" data-i18n="more_menu_group_reports">📊 Billing &amp; Business: Core Ledger</div>
       <button type="button" data-mobile-more="customers">Customer Profiles<span class="more-menu-badge" data-nav-badge="customers" hidden>0</span></button>
       <button type="button" data-mobile-more="collection">Collection</button>
-      <button type="button" data-mobile-more="bills">Bills</button>
+      <button type="button" data-mobile-more="bills" data-i18n="bill_nav_bills">Bills</button>
       <button type="button" data-mobile-more="expenses">Expenses<span class="more-menu-badge" data-nav-badge="expenses" hidden>0</span></button>
       <button type="button" data-mobile-more="reports">Reports</button>
       <button type="button" data-mobile-more="backup">Backup &amp; Restore</button>
@@ -6904,64 +6904,64 @@
     </section>
     <section id="billingReportsView" class="billing-reports-view" aria-labelledby="billingReportsHeading" hidden>
       <div class="report-pane">
-        <div class="report-heading"><div><p class="eyebrow">LOCAL CUSTOMER REPORT</p><h2 id="billingReportsHeading">Monthly payment status</h2><p class="transactions-subtitle">Amounts and receipts are based on saved records only.</p></div><label class="report-month-label" for="reportMonth">Billing month<select id="reportMonth"></select></label></div>
-        <div id="billsActionsBar" class="bills-actions-bar" role="group" aria-label="Monthly bills actions">
-          <button id="generateBillsBtn" class="primary-button" type="button">Generate this month's bills</button>
-          <button id="billsInvoicesBtn" class="secondary-button" type="button">Print / WhatsApp invoices</button>
-          <button id="unbilledCustomersBtn" class="secondary-button" type="button">Unbilled customers (Not set)</button>
+        <div class="report-heading"><div><p class="eyebrow" data-i18n="bill_heading_eyebrow">LOCAL CUSTOMER REPORT</p><h2 id="billingReportsHeading" data-i18n="bill_heading_title">Monthly payment status</h2><p class="transactions-subtitle" data-i18n="bill_heading_sub">Amounts and receipts are based on saved records only.</p></div><label class="report-month-label" for="reportMonth"><span data-i18n="bill_month_label">Billing month</span><select id="reportMonth"></select></label></div>
+        <div id="billsActionsBar" class="bills-actions-bar" role="group" aria-label="Monthly bills actions" data-i18n-aria-label="bill_actions_aria">
+          <button id="generateBillsBtn" class="primary-button" type="button" data-i18n="bill_generate">Generate this month's bills</button>
+          <button id="billsInvoicesBtn" class="secondary-button" type="button" data-i18n="bill_invoices">Print / WhatsApp invoices</button>
+          <button id="unbilledCustomersBtn" class="secondary-button" type="button" data-i18n="bill_unbilled">Unbilled customers (Not set)</button>
           <p id="billsActionsNote" class="chart-caption" role="status" aria-live="polite"></p>
         </div>
-        <div class="report-filters" role="group" aria-label="Filter customers by payment status">
-          <button class="report-filter-button" type="button" data-report-filter="all" aria-pressed="true">All (incl. Not set)</button>
-          <button class="report-filter-button" type="button" data-report-filter="paid" aria-pressed="false">Paid</button>
-          <button class="report-filter-button" type="button" data-report-filter="pending" aria-pressed="false">Pending</button>
-          <button class="report-filter-button" type="button" data-report-filter="partial" aria-pressed="false">Partial</button>
-          <button class="report-filter-button" type="button" data-report-filter="not-set" aria-pressed="false">Not set</button>
+        <div class="report-filters" role="group" aria-label="Filter customers by payment status" data-i18n-aria-label="bill_filter_aria">
+          <button class="report-filter-button" type="button" data-report-filter="all" aria-pressed="true" data-i18n="bill_filter_all">All (incl. Not set)</button>
+          <button class="report-filter-button" type="button" data-report-filter="paid" aria-pressed="false" data-i18n="bill_filter_paid">Paid</button>
+          <button class="report-filter-button" type="button" data-report-filter="pending" aria-pressed="false" data-i18n="bill_filter_pending">Pending</button>
+          <button class="report-filter-button" type="button" data-report-filter="partial" aria-pressed="false" data-i18n="bill_filter_partial">Partial</button>
+          <button class="report-filter-button" type="button" data-report-filter="not-set" aria-pressed="false" data-i18n="bill_filter_notset">Not set</button>
         </div>
         <div class="report-search-bar">
-          <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area...">
-          <label class="report-sort-label" for="reportSortSelect">Sort report
-            <select id="reportSortSelect" aria-label="Sort monthly report">
-              <option value="number-asc" selected>Customer # (1 → 99)</option>
-              <option value="number-desc">Customer # (99 → 1)</option>
-              <option value="name-asc">Name (A → Z)</option>
-              <option value="name-desc">Name (Z → A)</option>
-              <option value="balance-desc">Balance Due (High → Low)</option>
-              <option value="balance-asc">Balance Due (Low → High)</option>
-              <option value="collected-desc">Collected (High → Low)</option>
-              <option value="billed-desc">Billed (High → Low)</option>
-              <option value="status-asc">Status</option>
+          <input id="reportCustomerSearch" type="search" placeholder="Search customer in this month's report by name, # or area..." data-i18n-placeholder="bill_search_placeholder">
+          <label class="report-sort-label" for="reportSortSelect"><span data-i18n="bill_sort_label">Sort report</span>
+            <select id="reportSortSelect" aria-label="Sort monthly report" data-i18n-aria-label="bill_sort_aria">
+              <option value="number-asc" selected data-i18n="bill_sort_number_asc">Customer # (1 → 99)</option>
+              <option value="number-desc" data-i18n="bill_sort_number_desc">Customer # (99 → 1)</option>
+              <option value="name-asc" data-i18n="bill_sort_name_asc">Name (A → Z)</option>
+              <option value="name-desc" data-i18n="bill_sort_name_desc">Name (Z → A)</option>
+              <option value="balance-desc" data-i18n="bill_sort_balance_desc">Balance Due (High → Low)</option>
+              <option value="balance-asc" data-i18n="bill_sort_balance_asc">Balance Due (Low → High)</option>
+              <option value="collected-desc" data-i18n="bill_sort_collected_desc">Collected (High → Low)</option>
+              <option value="billed-desc" data-i18n="bill_sort_billed_desc">Billed (High → Low)</option>
+              <option value="status-asc" data-i18n="bill_sort_status">Status</option>
             </select>
           </label>
           <div class="report-search-actions">
-            <button id="exportMonthlyReportCsvBtn" class="secondary-button" type="button" title="Export monthly report to CSV">Export CSV</button>
-            <button id="batchReceiptPrintBtn" class="secondary-button" type="button" title="Print monthly billing slips">Print Slips</button>
-            <button id="bulkReminderDispatchBtn" class="secondary-button whatsapp-button" type="button" title="Send WhatsApp payment reminders to pending/overdue customers">💬 Remind Pending</button>
+            <button id="exportMonthlyReportCsvBtn" class="secondary-button" type="button" title="Export monthly report to CSV" data-i18n="bill_export_csv" data-i18n-title="bill_export_csv_title">Export CSV</button>
+            <button id="batchReceiptPrintBtn" class="secondary-button" type="button" title="Print monthly billing slips" data-i18n="bill_print_slips" data-i18n-title="bill_print_slips_title">Print Slips</button>
+            <button id="bulkReminderDispatchBtn" class="secondary-button whatsapp-button" type="button" title="Send WhatsApp payment reminders to pending/overdue customers" data-i18n="bill_remind_pending" data-i18n-title="bill_remind_pending_title">💬 Remind Pending</button>
           </div>
         </div>
         <div id="monthlyReportSummaryBar" class="monthly-report-summary-bar" aria-live="polite">
-          <span class="report-summary-item"><span class="report-summary-label">Billed:</span> <strong id="reportSummaryBilled">PKR 0</strong></span>
-          <span class="report-summary-item"><span class="report-summary-label">Collected:</span> <span id="reportSummaryCollected">PKR 0</span></span>
-          <span class="report-summary-item"><span class="report-summary-label">Balance:</span> <span id="reportSummaryBalance">PKR 0</span></span>
-          <div id="monthlyReportMethodBreakdown" class="monthly-report-method-breakdown" role="group" aria-label="Collection by payment method"></div>
+          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_billed">Billed:</span> <strong id="reportSummaryBilled">PKR 0</strong></span>
+          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_collected">Collected:</span> <span id="reportSummaryCollected">PKR 0</span></span>
+          <span class="report-summary-item"><span class="report-summary-label" data-i18n="bill_sum_balance">Balance:</span> <span id="reportSummaryBalance">PKR 0</span></span>
+          <div id="monthlyReportMethodBreakdown" class="monthly-report-method-breakdown" role="group" aria-label="Collection by payment method" data-i18n-aria-label="bill_method_aria"></div>
         </div>
         <p id="monthlyReportCount" class="transactions-count" role="status">0 customers</p>
-        <ul id="monthlyReportList" class="monthly-report-list" aria-label="Customer payment status report"></ul>
-        <nav id="monthlyReportPagination" class="table-pagination" aria-label="Monthly report pagination" hidden>
-          <button id="reportPrevPage" class="pagination-btn" type="button" aria-label="Previous report page">← Previous</button>
+        <ul id="monthlyReportList" class="monthly-report-list" aria-label="Customer payment status report" data-i18n-aria-label="bill_list_aria"></ul>
+        <nav id="monthlyReportPagination" class="table-pagination" aria-label="Monthly report pagination" data-i18n-aria-label="bill_pagination_aria" hidden>
+          <button id="reportPrevPage" class="pagination-btn" type="button" aria-label="Previous report page" data-i18n-aria-label="bill_page_prev_aria" data-i18n="bill_page_prev">← Previous</button>
           <span id="reportPageInfo" class="pagination-page-info" aria-live="polite">Page 1 of 1</span>
-          <button id="reportNextPage" class="pagination-btn" type="button" aria-label="Next report page">Next →</button>
-          <label class="pagination-size-label" for="reportPageSize">Per page
+          <button id="reportNextPage" class="pagination-btn" type="button" aria-label="Next report page" data-i18n-aria-label="bill_page_next_aria" data-i18n="bill_page_next">Next →</button>
+          <label class="pagination-size-label" for="reportPageSize"><span data-i18n="bill_per_page">Per page</span>
             <select id="reportPageSize">
               <option value="15" selected>15</option>
               <option value="30">30</option>
               <option value="60">60</option>
-              <option value="all">All</option>
+              <option value="all" data-i18n="bill_page_all">All</option>
             </select>
           </label>
         </nav>
-        <p id="monthlyReportEmpty" class="transactions-empty" hidden>No customers match this status and search.</p>
-        <p class="report-not-set-note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
+        <p id="monthlyReportEmpty" class="transactions-empty" hidden data-i18n="bill_empty">No customers match this status and search.</p>
+        <p class="report-not-set-note" data-i18n="bill_notset_note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
         <section class="owner-report-panel" aria-labelledby="monthlyClosingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL MONTH CLOSE</p><h3 id="monthlyClosingHeading">Saved monthly closings</h3></div><p class="chart-caption">Created once when the app first opens in the next PKT calendar month. Status counts are manual values captured at the saved time, not monitored month-end status.</p></div><div id="savedMonthlyClosings" class="saved-closing-list" aria-live="polite"></div></section>
         <section class="owner-report-panel" aria-labelledby="monthComparisonHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL BUSINESS COMPARISON</p><h3 id="monthComparisonHeading">Compare two months</h3></div></div><div class="owner-filter-grid"><label for="compareMonthA">Earlier / first month<select id="compareMonthA"></select></label><label for="compareMonthB">Later / second month<select id="compareMonthB"></select></label></div><p id="monthComparisonBasis" class="chart-caption" role="status" aria-live="polite"></p><div id="monthComparisonMetrics" class="comparison-metric-grid" aria-live="polite"></div><div id="monthComparisonChart" class="comparison-bars" aria-label="Mobile month comparison chart"></div><div class="comparison-package-wrap"><h4>Package distribution</h4><ul id="monthPackageComparison" class="comparison-package-list"></ul></div><form id="performanceExplainForm" class="performance-explain-form"><label for="performanceMetric">Explain change in<select id="performanceMetric"><option value="billedAmount">Billed revenue</option><option value="collection">Cash collection</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="profit">Cash profit</option></select></label><button class="secondary-button" type="submit">Explain this change</button></form><div id="performanceExplanation" class="performance-explanation" role="status" aria-live="polite"></div></section>
         <section class="owner-report-panel" aria-labelledby="customerRankingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL CUSTOMER RANKINGS</p><h3 id="customerRankingHeading">Customer rankings</h3></div></div><div class="owner-filter-grid"><label for="rankingType">Ranking<select id="rankingType"></select></label><label for="rankingMonth">Month<select id="rankingMonth"></select></label><label for="rankingArea">Area / mohalla<select id="rankingArea"><option value="all">All recorded areas</option></select></label><label for="rankingPackage">Package<select id="rankingPackage"><option value="all">All recorded packages</option></select></label><label for="rankingStatus">Manual status<select id="rankingStatus"><option value="all">All statuses</option><option value="active">Active</option><option value="offline">Offline</option><option value="not-set">Not set</option><option value="archived">Archived</option></select></label></div><div id="customerRankingResults" class="owner-result-list" aria-live="polite"></div></section>

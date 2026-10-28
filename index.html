@@ -6307,6 +6307,7 @@
       <button id="showInventoryButton" class="view-nav-button" type="button">Inventory</button>
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
       <button id="showHomeBudgetButton" class="view-nav-button" type="button">Home Budget</button>
+      <button id="showLoansButton" class="view-nav-button" type="button">Loans</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button type="button" data-mobile-nav="collection" class="has-badge">Collection<span id="bottomNavBadgeCollection" class="bottom-nav-badge badge-alert" data-nav-badge="collection" data-nav-badge-alias="dues" hidden>0</span></button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
     <div id="mobileMoreMenu" class="mobile-more-menu" hidden>
@@ -6342,6 +6343,10 @@
       <button type="button" data-mobile-more="inventory">Inventory<span class="more-menu-badge" data-nav-badge="inventory" hidden>0</span></button>
       <button type="button" data-mobile-more="integrity" id="mobileMoreDataIntegrityBtn">Data Integrity</button>
       <button type="button" data-mobile-more="correctness" id="mobileMoreBillingCorrectnessBtn" data-open-billing-correctness>Billing Audit</button>
+
+      <!-- Group: 💰 Personal Money (personal ledgers, never business money) -->
+      <div class="more-menu-section-label">💰 Personal Money</div>
+      <button type="button" data-mobile-more="loans">Loan Ledger</button>
 
       <!-- Group 3: ⚙️ Settings & Tools -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
@@ -7099,6 +7104,28 @@
             <p id="homeBudgetCount" class="table-filter-count" role="status" aria-live="polite"></p>
           </div>
           <ul id="homeBudgetList" class="home-budget-list" aria-label="Home expense entries"></ul><p id="homeBudgetEmpty" class="empty-state">No home entries recorded yet — tap + Add Home Expense above to record one.</p><p id="homeBudgetFilterEmpty" class="empty-state" hidden>No home entries match the current filters. <button id="homeBudgetResetFiltersBtn" class="text-button" type="button" style="text-decoration: underline; margin-left: 6px; cursor: pointer;">Clear filters</button></p>
+        </section>
+      </div>
+    </section>
+    <section id="loanView" class="phase3-view" aria-labelledby="loanHeading" hidden>
+      <div class="phase3-pane">
+        <div class="phase3-heading"><div><p class="eyebrow">PERSONAL MONEY · SEPARATE FROM BUSINESS</p><h2 id="loanHeading">Loan ledger</h2><p class="phase3-note">Dena hai = you owe them. Lena hai = they owe you. Loan money never mixes with bills, business expenses, partner shares or profit.</p></div><p class="local-only-badge">No seeded loans</p></div>
+        <div class="phase3-metric-grid">
+          <article class="phase3-metric"><span>Total dena hai</span><strong id="loanTotalDena">No loans recorded</strong><small>You owe across everyone</small></article><article class="phase3-metric"><span>Total lena hai</span><strong id="loanTotalLena">No loans recorded</strong><small>Everyone owes you</small></article><article class="phase3-metric"><span>Net position</span><strong id="loanNetPosition">No loans recorded</strong><small>Lena minus dena</small></article><article class="phase3-metric"><span>People with open loans</span><strong id="loanOpenPeople">No loans recorded</strong><small>Out of total people</small></article>
+        </div>
+        <section class="table-card"><div class="table-heading"><div><p class="eyebrow">NEW ENTRY</p><h3>Add a loan or repayment</h3></div></div>
+          <form id="loanForm" class="phase3-form"><label>Person name<input id="loanPerson" name="person" maxlength="100" required placeholder="e.g. Ahmed" list="loanPersonOptions"><datalist id="loanPersonOptions"></datalist></label><label>Phone number<input id="loanPhone" name="phone" maxlength="40" autocomplete="off" placeholder="Optional"></label><label>Direction<select id="loanDirection" name="direction" required><option value="">Choose direction</option><option value="dena">Dena hai · I owe them</option><option value="lena">Lena hai · They owe me</option></select></label><label>Entry type<select id="loanKind" name="kind" required><option value="loan">New loan</option><option value="repayment">Repayment</option></select></label><label>Amount (PKR)<input id="loanAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="e.g. 5000"></label><label>Entry date<input id="loanDate" name="date" type="date" required></label><label class="form-wide">Note<textarea id="loanNote" name="note" maxlength="500" rows="2" placeholder="Optional"></textarea></label><div class="form-actions form-wide"><button class="primary-button" type="submit">Save loan entry</button></div></form>
+        </section>
+        <section class="table-card"><div class="table-heading"><div><p class="eyebrow">ACCOUNTS</p><h3>Per-person loan accounts</h3></div></div>
+          <div class="table-filter-toolbar" role="region" aria-label="Filter loan accounts">
+            <div class="table-filter-group search-group"><label for="loanSearchInput" class="sr-only">Search person or phone</label><input id="loanSearchInput" type="search" class="table-filter-input" placeholder="Search person or phone..." autocomplete="off"></div>
+            <div class="table-filter-group"><label for="loanDirectionFilter" class="sr-only">Filter by direction</label><select id="loanDirectionFilter" class="table-filter-select" aria-label="Filter by direction"><option value="all">All directions</option><option value="dena">Dena hai only</option><option value="lena">Lena hai only</option></select></div>
+            <button id="clearLoanFilters" type="button" class="secondary-button table-filter-clear">Clear filters</button>
+            <span id="loanPersonCount" class="table-filter-count" role="status" aria-live="polite"></span>
+          </div>
+          <div id="loanPersonCards" class="loan-person-cards" aria-live="polite"></div>
+          <p id="loanEmpty" class="empty-state">No loans recorded yet.</p>
+          <p id="loanFilterEmpty" class="empty-state" hidden>No loan accounts match this filter.</p>
         </section>
       </div>
     </section>

@@ -9,7 +9,7 @@ import { createWhatsAppFollowupDraft } from './profile-ui.js';
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const $ = (selector, root=document) => root.querySelector(selector);
 
-export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses}) {
+export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans}) {
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
@@ -301,6 +301,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     else if(action==='analytics'){switchView('analytics');renderAnalytics();$('#analyticsView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='inventory'){switchView('inventory');renderInventory();$('#inventoryView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='expenses'){switchView('expenses');renderExpenses();$('#expensesView').scrollIntoView({behavior:'smooth',block:'start'});}
+    else if(action==='loans'){switchView('loans');renderLoans();$('#loanView').scrollIntoView({behavior:'smooth',block:'start'});}
     else if(action==='daily-closing'){const modal=$('#dailyClosingModal');if(modal?.showModal)modal.showModal();}
     else if(action==='field-tools'){const modal=$('#fieldToolsModal');if(modal?.showModal)modal.showModal();else try{window.location.hash='#/field-tools';}catch{}}
   }));

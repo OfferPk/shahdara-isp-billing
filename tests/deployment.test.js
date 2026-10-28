@@ -218,7 +218,7 @@ test('service-state counts are calculated from saved profiles and stay inside th
 });
 
 test('Phase 3 sections are local-only, unseeded, mobile-rendered and use explicit no-entry labels', () => {
-  for (const id of ['analyticsView','inventoryView','expensesView','inventoryItemForm','inventoryMovementForm','expenseForm','serviceCountActive','serviceCountOffline','serviceCountNotSet']) assert.ok(index.includes(`id="${id}"`), `${id} exists`);
+  for (const id of ['analyticsView','inventoryView','expensesView','loanView','inventoryItemForm','inventoryMovementForm','expenseForm','loanForm','serviceCountActive','serviceCountOffline','serviceCountNotSet']) assert.ok(index.includes(`id="${id}"`), `${id} exists`);
   assert.match(index, /No bill entries/);
   assert.match(index, /No payment entries/);
   assert.match(index, /Not set/);

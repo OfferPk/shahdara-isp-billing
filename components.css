@@ -204,6 +204,36 @@
 .profile-downtime-section h4 { margin: 0 0 8px; color: var(--ink); }
 .profile-downtime-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
 .profile-downtime-section p strong { color: var(--ink); }
+/* SISP-24: splitter port map — grid cells use theme tokens only, so the
+   dialog (billing-modal → var(--modal-surface)) and the grid both render
+   correctly in light and dark mode. Weak ports reuse .safety-badge danger. */
+.splitter-map-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.splitter-map-summary p strong { color: var(--ink); }
+.splitter-map-summary p small { color: var(--muted); }
+.splitter-map-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.splitter-map-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.splitter-map-empty { color: var(--muted); font-size: 13px; }
+.profile-splitter-section { margin-top: 16px; }
+.profile-splitter-section h4 { margin: 0 0 8px; color: var(--ink); }
+.profile-splitter-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.profile-splitter-section p strong { color: var(--ink); }
+.splitter-port-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 8px 0 16px; }
+.splitter-port { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.splitter-port-number { font-weight: 700; font-size: 13px; color: var(--ink); }
+.splitter-port-state { font-size: 12px; color: var(--muted); }
+.splitter-port-customer { font-size: 12px; color: var(--ink); overflow-wrap: anywhere; }
+.splitter-port-rx { font-size: 12px; color: var(--muted); }
+.splitter-port-weak { border-width: 2px; }
+.splitter-weak-badge { align-self: flex-start; }
+.splitter-map-weak-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.splitter-weak-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.splitter-weak-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.splitter-weak-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .splitter-port-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .splitter-map-weak-list { grid-template-columns: 1fr; }
+  .splitter-weak-card p strong { text-align: left; }
+}
 @media (max-width: 480px) {
   .downtime-analytics-cause-list { grid-template-columns: 1fr; }
   .downtime-analytics-customer-list { grid-template-columns: 1fr; }

@@ -4,6 +4,7 @@ import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } fr
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { sanitizeComplaints } from './complaint-register.js';
+import { sanitizeHomeBudget } from './home-budget.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
@@ -1699,6 +1700,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeComplaints(options.complaints);
     if (cleaned.length) document.settings = { ...(document.settings || {}), complaints: cleaned };
   }
+  // Home Budget: personal household records live outside the ledger state
+  // (localStorage key sisp_home_budget_v1), so they travel in an optional
+  // `settings.homeBudget` section. Written only when at least one home
+  // entry exists; readers that predate it ignore the unknown field. Home
+  // money never enters the business ledger, even inside a backup.
+  if (options && typeof options === 'object' && Array.isArray(options.homeBudget) && options.homeBudget.length) {
+    const cleaned = sanitizeHomeBudget(options.homeBudget);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), homeBudget: cleaned };
+  }
   // SISP-11: roznamcha day records live outside the ledger state
   // (localStorage key sisp_roznamcha_v1), so they travel in an
   // optional `settings.roznamchaDays` section. Written only when at
@@ -1793,7 +1803,8 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, homeBudgetRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, changes:0 };
+  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
@@ -2007,6 +2018,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Complaint register records differ from this device' });
     }
   }
+  // Home Budget: optional home expense records section (see createJsonBackup).
+  // Safe-merge rule, same as complaints: adopt the backup's records only
+  // when this device has none stored yet; when both sides hold different
+  // real records, keep existing + conflict.
+  let homeBudget = null;
+  const rawIncomingHomeBudget = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.homeBudget
+    : undefined;
+  if (Array.isArray(rawIncomingHomeBudget) && rawIncomingHomeBudget.length) {
+    const incomingHomeBudget = sanitizeHomeBudget(rawIncomingHomeBudget);
+    const currentHomeBudget = (options && typeof options === 'object' && Array.isArray(options.currentHomeBudget))
+      ? sanitizeHomeBudget(options.currentHomeBudget)
+      : [];
+    if (incomingHomeBudget.length && sameJson(incomingHomeBudget, currentHomeBudget)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingHomeBudget.length && (!options?.currentHomeBudgetStored || currentHomeBudget.length === 0)) {
+      homeBudget = incomingHomeBudget;
+      counts.homeBudgetRestored = 1;
+      counts.changes++;
+    } else if (incomingHomeBudget.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Home budget records differ from this device' });
+    }
+  }
   // SISP-11: optional roznamcha day records section (see createJsonBackup).
   // Safe-merge rule, same as shop settlements: adopt the backup's records
   // only when this device has none stored yet; when both sides hold
@@ -2184,4 +2218,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, checksumStatus:checksum.status };}
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, homeBudget, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, checksumStatus:checksum.status };
+}

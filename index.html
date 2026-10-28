@@ -89,6 +89,7 @@
           <li class="nav-drawer-item"><button type="button" data-nav-target="analytics"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>Area Analytics</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="inventory"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span><span>Inventory</span><span id="navBadgeInventory" class="nav-drawer-badge" data-nav-badge="inventory" hidden>0</span></button></li>
           <li class="nav-drawer-item"><button type="button" data-nav-target="expenses"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span>Expenses</span><span id="navBadgeExpenses" class="nav-drawer-badge" data-nav-badge="expenses" hidden>0</span></button></li>
+          <li class="nav-drawer-item"><button type="button" data-nav-target="homeBudget"><span class="nav-drawer-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span><span>Home Budget</span></button></li>
         </ul>
       </div>
       <div>
@@ -6305,6 +6306,7 @@
       <button id="showAnalyticsButton" class="view-nav-button" type="button">Analytics</button>
       <button id="showInventoryButton" class="view-nav-button" type="button">Inventory</button>
       <button id="showExpensesButton" class="view-nav-button" type="button">Expenses</button>
+      <button id="showHomeBudgetButton" class="view-nav-button" type="button">Home Budget</button>
     </nav>
     <nav class="mobile-bottom-nav" aria-label="Main mobile navigation"><button type="button" data-mobile-nav="home" aria-current="page">Home</button><button type="button" data-mobile-nav="customers" class="has-badge">Customers<span id="bottomNavBadgeCustomers" class="bottom-nav-badge" data-nav-badge="customers" hidden>0</span></button><button type="button" data-mobile-nav="collection" class="has-badge">Collection<span id="bottomNavBadgeCollection" class="bottom-nav-badge badge-alert" data-nav-badge="collection" data-nav-badge-alias="dues" hidden>0</span></button><button type="button" data-mobile-nav="reports">Reports</button><button id="mobileMoreButton" type="button" data-mobile-nav="more" aria-controls="mobileMoreMenu" aria-expanded="false">More</button></nav>
     <div id="mobileMoreMenu" class="mobile-more-menu" hidden>
@@ -6325,6 +6327,10 @@
       <button type="button" data-mobile-more="target" id="mobileMoreCollectionTargetBtn" data-open-collection-target>Monthly Target</button>
       <button type="button" data-mobile-more="easypaisa" id="mobileMoreEasypaisaBtn">Payments Inbox<span class="more-menu-badge" data-nav-badge="easypaisa" hidden>0</span></button>
       <button type="button" data-mobile-more="daily-closing" id="mobileMoreDailyClosingBtn">Daily Closing</button>
+
+      <!-- Group: 🏠 Home -->
+      <div class="more-menu-section-label">🏠 Home</div>
+      <button type="button" data-mobile-more="homeBudget">Home Budget</button>
 
       <!-- Group 2: 👥 Operations & Follow-up -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_customers">👥 Operations &amp; Follow-up</div>
@@ -7060,6 +7066,39 @@
           <div class="table-heading"><div><p class="eyebrow">50% PARTNER · AUTO-COMPUTED · READ-ONLY</p><h3>Aqib share</h3></div><label class="payroll-month-label" for="aqibShareMonth">Selected month<select id="aqibShareMonth"></select></label></div>
           <p class="phase3-note">Aqib is a 50% partner. This report is computed from saved receipts and dated expenses the moment it opens — it records nothing and never writes a share entry into the expense ledger.</p>
           <div id="aqibShareContent" aria-live="polite"></div>
+        </section>
+      </div>
+    </section>
+    <section id="homeBudgetView" class="phase3-view" aria-labelledby="homeBudgetHeading" hidden>
+      <div class="phase3-pane">
+        <div class="phase3-heading"><div><p class="eyebrow">OWNER · PERSONAL MONEY · KEPT SEPARATE</p><h2 id="homeBudgetHeading">Home Budget</h2><p class="phase3-note">Personal household expenses only — ghar ka kharcha (shops, milk, electricity bill, plumber, electrician, wedding, funeral). These never enter the business expense ledger, profit, or Nasir/Aqib partner shares. Business money and home money stay fully apart.</p></div><p class="local-only-badge">PKR · local only</p></div>
+        <div class="phase3-metric-grid"><article class="phase3-metric"><span>All-time home total</span><strong id="homeBudgetAllTimeTotal">PKR 0</strong><small id="homeBudgetAllTimeHelp">All months — always visible</small></article><article class="phase3-metric"><span>Selected month total</span><strong id="homeBudgetMonthTotal">PKR 0</strong><small id="homeBudgetMonthHelp">All months</small></article><article class="phase3-metric"><span>Recorded entries</span><strong id="homeBudgetEntryCount">0</strong><small id="homeBudgetEntryHelp">No home entries recorded</small></article></div>
+        <section class="table-card" aria-labelledby="homeBudgetFormHeading"><div class="table-heading"><div><p class="eyebrow">PERSONAL EXPENSE ONLY</p><h3 id="homeBudgetFormHeading">Add or correct a home expense</h3></div></div>
+          <form id="homeBudgetForm" class="phase3-form" novalidate><input id="homeBudgetId" name="homeBudgetId" type="hidden"><label>Date (PKT)<input id="homeBudgetDate" name="date" type="date" required><span id="homeBudgetDateError" class="field-error" role="alert" hidden></span></label><label>Amount (PKR)<input id="homeBudgetAmount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required placeholder="Enter actual amount"><span id="homeBudgetAmountError" class="field-error" role="alert" hidden></span></label><label>Category<select id="homeBudgetCategory" name="category" required><option value="">Choose category</option><option>Balla shop</option><option>Waseem shop</option><option>Milk expense</option><option>Electricity bill</option><option>Plumber</option><option>Electrician maintenance</option><option>Wedding expense</option><option>Death expense</option><option value="__custom__">Custom category…</option></select><span id="homeBudgetCategoryError" class="field-error" role="alert" hidden></span></label><label id="homeBudgetCustomCategoryLabel" hidden>Custom category<input id="homeBudgetCustomCategory" name="customCategory" type="text" maxlength="100" autocomplete="off" placeholder="Type a new category"><span id="homeBudgetCustomCategoryError" class="field-error" role="alert" hidden></span></label><label class="form-wide">Notes<textarea id="homeBudgetNotes" name="notes" maxlength="1000" rows="2" placeholder="Optional"></textarea><span id="homeBudgetNotesError" class="field-error" role="alert" hidden></span></label><div class="form-actions form-wide"><button id="homeBudgetSubmit" class="primary-button" type="submit">Record home expense</button><button id="homeBudgetCancel" class="secondary-button" type="button" hidden>Cancel edit</button></div></form>
+        </section>
+        <section class="table-card" aria-labelledby="homeBudgetMonthsHeading"><div class="table-heading"><div><p class="eyebrow">EVERY MONTH · AT A GLANCE</p><h3 id="homeBudgetMonthsHeading">Monthly totals</h3></div></div><p class="phase3-note">Each recorded month with its own total. The all-time total above never changes when you filter by month.</p><ul id="homeBudgetMonthTotals" class="home-budget-month-list" aria-label="Home expense totals by month"></ul><p id="homeBudgetMonthTotalsEmpty" class="empty-state">No home entries recorded yet — monthly totals will appear here.</p></section>
+        <section class="table-card" aria-labelledby="homeBudgetListHeading"><div class="table-heading"><div><p class="eyebrow">PERSONAL LEDGER</p><h3 id="homeBudgetListHeading">Home expense entries</h3></div></div>
+          <div class="table-filter-toolbar" role="search" aria-label="Filter home expenses">
+            <div class="table-filter-group">
+              <label for="homeBudgetMonthFilter" class="sr-only">Filter by month</label>
+              <select id="homeBudgetMonthFilter" class="table-filter-select" aria-label="Filter by month">
+                <option value="all">All months</option>
+              </select>
+            </div>
+            <div class="table-filter-group">
+              <label for="homeBudgetCategoryFilter" class="sr-only">Filter by category</label>
+              <select id="homeBudgetCategoryFilter" class="table-filter-select" aria-label="Filter by home expense category">
+                <option value="all">All categories</option>
+              </select>
+            </div>
+            <div class="table-filter-group search-group">
+              <label for="homeBudgetSearchInput" class="sr-only">Search home expenses</label>
+              <input id="homeBudgetSearchInput" class="table-filter-input" type="search" placeholder="Search notes…" autocomplete="off">
+              <button id="homeBudgetClearFilters" class="secondary-button table-filter-clear" type="button">Clear</button>
+            </div>
+            <p id="homeBudgetCount" class="table-filter-count" role="status" aria-live="polite"></p>
+          </div>
+          <ul id="homeBudgetList" class="home-budget-list" aria-label="Home expense entries"></ul><p id="homeBudgetEmpty" class="empty-state">No home entries recorded yet — tap + Add Home Expense above to record one.</p><p id="homeBudgetFilterEmpty" class="empty-state" hidden>No home entries match the current filters. <button id="homeBudgetResetFiltersBtn" class="text-button" type="button" style="text-decoration: underline; margin-left: 6px; cursor: pointer;">Clear filters</button></p>
         </section>
       </div>
     </section>

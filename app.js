@@ -123,6 +123,7 @@ import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDownt
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
 import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
+import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.10.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
@@ -1259,7 +1260,7 @@ function renderGlobalSearch() {
   }));
 }
 function switchView(view, { pushHistory = true } = {}) {
-  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'] };
+  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'], homeBudget:['homeBudgetView','showHomeBudgetButton'] };
   if (!views[view]) view = 'customers';
   for (const [name, [sectionId, buttonId]] of Object.entries(views)) {
     const active = name === view;
@@ -2204,7 +2205,8 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes() };}
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks(), monthlyClosingNotes: loadMonthlyClosingNotes() };
+}
 function backupRestoreOptions() {
   let stored = false;
   let shopStored = false;
@@ -2216,6 +2218,7 @@ function backupRestoreOptions() {
   let saadPaymentsStored = false;
   let installRequestsStored = false;
   let pendingWorksStored = false;
+  let homeBudgetStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
   try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
   try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
@@ -2227,18 +2230,10 @@ function backupRestoreOptions() {
   try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   let notesStored = false;
-  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
-  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
-  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
-  try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
-  try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
-  try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
-  try { saadVisitsStored = localStorage.getItem(SAAD_VISITS_KEY) !== null; } catch { saadVisitsStored = false; }
-  try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
-  try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
-  try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored };}
+  try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored };
+}
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
   warning.hidden = persistenceBlocked || storageAvailable;
@@ -2353,7 +2348,7 @@ function renderBackupPreview(preview) {
   if (plainSection) plainSection.hidden = false;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
-  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}`;
+  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}${counts.homeBudgetRestored ? ' Home budget records will also be restored.' : ''}`;
   // SISP-10: surface checksum verification in the preview. 'mismatch' can
   // never be applied (preview.canApply is false); 'unverified' means a
   // legacy backup without a checksum field.
@@ -2751,6 +2746,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.complaints) {
       saveComplaints(pendingBackupPreview.complaints);
+    }
+    if (pendingBackupPreview.homeBudget) {
+      saveHomeBudgetExpenses(pendingBackupPreview.homeBudget);
     }
     if (pendingBackupPreview.roznamchaDays) {
       saveRoznamchaDays(pendingBackupPreview.roznamchaDays);
@@ -3778,13 +3776,14 @@ navDrawer = setupNavigationDrawer({
       window.screenRouter?.go('alerts');
     } else if (target === 'recovery') {
       window.screenRouter?.go('recovery');
-    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
       else if (target === 'analytics') renderAnalytics();
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
+      else if (target === 'homeBudget') renderHomeBudget();
       else if (target === 'customers') renderCustomers();
     }
   },
@@ -3799,13 +3798,14 @@ updateNavigationBadges(state);
 setupNetworkStatusIndicator({ onToast: toast });
 setupKeyboardShortcuts({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
       else if (target === 'analytics') renderAnalytics();
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
+      else if (target === 'homeBudget') renderHomeBudget();
       else if (target === 'customers') renderCustomers();
     } else if (target === 'backup') {
       const toggle = $('#backupControlsToggle');
@@ -3915,13 +3915,14 @@ mobileActionSheetController = setupMobileActionSheet({
 
 const commandPalette = setupCommandPalette({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(target)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
       else if (target === 'analytics') renderAnalytics();
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
+      else if (target === 'homeBudget') renderHomeBudget();
       else if (target === 'customers') renderCustomers();
     } else if (target === 'dashboard') {
       switchView('customers');
@@ -3983,7 +3984,7 @@ setupPullToRefresh({
 
 setupSwipeNavigation({
   container: document.getElementById('main') || document.body,
-  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'],
+  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'],
   onNavigate: (target) => {
     switchView(target);
     if (target === 'transactions') renderTransactions();
@@ -3991,6 +3992,7 @@ setupSwipeNavigation({
     else if (target === 'analytics') renderAnalytics();
     else if (target === 'inventory') renderInventory();
     else if (target === 'expenses') renderExpenses();
+    else if (target === 'homeBudget') renderHomeBudget();
     else if (target === 'customers') renderCustomers();
   }
 });
@@ -4680,7 +4682,7 @@ setupMobileSpeedDial({
 // Setup Interactive Mobile Breadcrumbs Trail
 mobileBreadcrumbs = setupMobileBreadcrumbs({
   onNavigate: (viewId, data) => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'].includes(viewId)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(viewId)) {
       switchView(viewId);
       if (viewId === 'customers') renderCustomers();
       else if (viewId === 'transactions') renderTransactions();
@@ -4688,6 +4690,7 @@ mobileBreadcrumbs = setupMobileBreadcrumbs({
       else if (viewId === 'analytics') renderAnalytics();
       else if (viewId === 'inventory') renderInventory();
       else if (viewId === 'expenses') renderExpenses();
+      else if (viewId === 'homeBudget') renderHomeBudget();
     } else if (viewId === 'home') {
       if (typeof window !== 'undefined' && window.location) {
         window.location.hash = '#/home';
@@ -5271,6 +5274,183 @@ function renderPartnerShare(key) {
     + `<h4>Monthly history</h4><div class="partner-share-history">${history}</div>`;
 }
 
+/* Home Budget — personal household ledger. Kept fully apart from the business
+   expense ledger: own storage key (sisp_home_budget_v1), own section, and no
+   business code ever reads it, so home spending cannot touch profit or
+   partner shares. */
+let homeBudgetMonthFilter = 'all';
+let homeBudgetCategoryFilter = 'all';
+let homeBudgetSearchQuery = '';
+function homeBudgetSelectedCategory() {
+  const select = $('#homeBudgetCategory');
+  if (!select) return '';
+  if (select.value === '__custom__') return $('#homeBudgetCustomCategory')?.value.trim() ?? '';
+  return select.value;
+}
+function clearHomeBudgetInlineErrors() {
+  for (const id of ['homeBudgetDateError', 'homeBudgetAmountError', 'homeBudgetCategoryError', 'homeBudgetCustomCategoryError', 'homeBudgetNotesError']) {
+    const el = $(`#${id}`);
+    if (el) el.hidden = true;
+  }
+}
+function showHomeBudgetInlineError(id, message) {
+  const el = $(`#${id}`);
+  if (el) { el.textContent = message; el.hidden = false; }
+}
+function resetHomeBudgetForm() {
+  const form = $('#homeBudgetForm');
+  if (form) form.reset();
+  const idInput = $('#homeBudgetId');
+  if (idInput) idInput.value = '';
+  const submit = $('#homeBudgetSubmit');
+  if (submit) submit.textContent = 'Record home expense';
+  const cancel = $('#homeBudgetCancel');
+  if (cancel) cancel.hidden = true;
+  const customLabel = $('#homeBudgetCustomCategoryLabel');
+  if (customLabel) customLabel.hidden = true;
+  clearHomeBudgetInlineErrors();
+}
+function renderHomeBudget() {
+  const entries = loadHomeBudgetExpenses();
+  const summary = summarizeHomeBudget(entries);
+  const allTimeEl = $('#homeBudgetAllTimeTotal');
+  if (allTimeEl) allTimeEl.textContent = formatAmount(summary.allTimeTotal);
+  const allTimeHelp = $('#homeBudgetAllTimeHelp');
+  if (allTimeHelp) allTimeHelp.textContent = summary.count ? `${summary.count} ${summary.count === 1 ? 'entry' : 'entries'} · all months` : 'No home entries recorded';
+  const monthRow = homeBudgetMonthFilter === 'all' ? null : summary.months.find(row => row.month === homeBudgetMonthFilter);
+  const monthTotalEl = $('#homeBudgetMonthTotal');
+  if (monthTotalEl) monthTotalEl.textContent = formatAmount(homeBudgetMonthFilter === 'all' ? summary.allTimeTotal : (monthRow?.total ?? 0));
+  const monthHelp = $('#homeBudgetMonthHelp');
+  if (monthHelp) monthHelp.textContent = homeBudgetMonthFilter === 'all' ? 'All months' : monthName(homeBudgetMonthFilter);
+  const countEl = $('#homeBudgetEntryCount');
+  if (countEl) countEl.textContent = String(summary.count);
+  const countHelp = $('#homeBudgetEntryHelp');
+  if (countHelp) countHelp.textContent = summary.count ? `${summary.count} ${summary.count === 1 ? 'entry' : 'entries'} recorded` : 'No home entries recorded';
+  const monthFilter = $('#homeBudgetMonthFilter');
+  if (monthFilter) {
+    const months = homeBudgetMonths(entries);
+    if (!months.includes(homeBudgetMonthFilter)) homeBudgetMonthFilter = 'all';
+    monthFilter.innerHTML = '<option value="all">All months</option>' + months.map(month => `<option value="${escapeHtml(month)}"${month === homeBudgetMonthFilter ? ' selected' : ''}>${escapeHtml(monthName(month))}</option>`).join('');
+    monthFilter.value = homeBudgetMonthFilter;
+  }
+  const categoryFilter = $('#homeBudgetCategoryFilter');
+  if (categoryFilter) {
+    const customs = homeBudgetCategories(entries).filter(category => !HOME_BUDGET_CATEGORIES.includes(category));
+    const options = [...HOME_BUDGET_CATEGORIES, ...customs];
+    if (homeBudgetCategoryFilter !== 'all' && !options.includes(homeBudgetCategoryFilter)) homeBudgetCategoryFilter = 'all';
+    categoryFilter.innerHTML = '<option value="all">All categories</option>' + options.map(category => `<option value="${escapeHtml(category)}"${category === homeBudgetCategoryFilter ? ' selected' : ''}>${escapeHtml(category)}</option>`).join('');
+    categoryFilter.value = homeBudgetCategoryFilter;
+  }
+  const monthTotalsEl = $('#homeBudgetMonthTotals');
+  if (monthTotalsEl) {
+    monthTotalsEl.innerHTML = summary.months.map(row => `<li class="home-budget-month-row"><span>${escapeHtml(monthName(row.month))} · ${row.count} ${row.count === 1 ? 'entry' : 'entries'}</span><strong>${escapeHtml(formatAmount(row.total))}</strong></li>`).join('');
+  }
+  const monthTotalsEmpty = $('#homeBudgetMonthTotalsEmpty');
+  if (monthTotalsEmpty) monthTotalsEmpty.hidden = summary.months.length > 0;
+  const filtered = filterHomeBudget(entries, { month: homeBudgetMonthFilter, category: homeBudgetCategoryFilter, query: homeBudgetSearchQuery });
+  const sorted = sortHomeBudgetEntries(filtered);
+  const listEl = $('#homeBudgetList');
+  if (listEl) {
+    listEl.innerHTML = sorted.map(entry => `<li class="home-budget-item"><div class="home-budget-item-head"><span class="home-budget-item-category">${escapeHtml(entry.category)}</span><strong class="home-budget-item-amount">${escapeHtml(formatAmount(entry.amount))}</strong></div><div class="home-budget-item-date">${escapeHtml(entry.date)}</div>${entry.notes ? `<p class="home-budget-item-notes">${escapeHtml(entry.notes)}</p>` : ''}<div class="home-budget-item-actions"><button class="secondary-button btn-sm" type="button" data-edit-home-budget="${escapeHtml(entry.id)}">Edit</button><button class="secondary-button btn-sm" type="button" data-delete-home-budget="${escapeHtml(entry.id)}">Delete</button></div></li>`).join('');
+    listEl.querySelectorAll('[data-edit-home-budget]').forEach(button => button.addEventListener('click', () => {
+      const row = entries.find(entry => entry.id === button.dataset.editHomeBudget);
+      if (!row) return;
+      const idInput = $('#homeBudgetId');
+      if (idInput) idInput.value = row.id;
+      const dateInput = $('#homeBudgetDate');
+      if (dateInput) dateInput.value = row.date;
+      const amountInput = $('#homeBudgetAmount');
+      if (amountInput) amountInput.value = String(row.amount);
+      const categorySelect = $('#homeBudgetCategory');
+      const customLabel = $('#homeBudgetCustomCategoryLabel');
+      const customInput = $('#homeBudgetCustomCategory');
+      if (HOME_BUDGET_CATEGORIES.includes(row.category)) {
+        if (categorySelect) categorySelect.value = row.category;
+        if (customLabel) customLabel.hidden = true;
+        if (customInput) customInput.value = '';
+      } else {
+        if (categorySelect) categorySelect.value = '__custom__';
+        if (customLabel) customLabel.hidden = false;
+        if (customInput) customInput.value = row.category;
+      }
+      const notesInput = $('#homeBudgetNotes');
+      if (notesInput) notesInput.value = row.notes ?? '';
+      const submit = $('#homeBudgetSubmit');
+      if (submit) submit.textContent = 'Save correction';
+      const cancel = $('#homeBudgetCancel');
+      if (cancel) cancel.hidden = false;
+      clearHomeBudgetInlineErrors();
+      $('#homeBudgetForm')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }));
+    listEl.querySelectorAll('[data-delete-home-budget]').forEach(button => button.addEventListener('click', async () => {
+      const row = entries.find(entry => entry.id === button.dataset.deleteHomeBudget);
+      if (!row) return;
+      if (!await appConfirm({ tone: 'danger', title: 'Delete this home expense?', subject: `${formatAmount(row.amount)} · ${row.category} · ${row.date}`, message: 'It will be removed from this device\'s home budget only. Business records are never touched.', confirmLabel: 'Delete home expense' })) return;
+      try {
+        saveHomeBudgetExpenses(deleteHomeBudgetExpense(loadHomeBudgetExpenses(), row.id));
+        toast('Home expense entry deleted from this device.');
+        renderHomeBudget();
+      } catch (error) {
+        toast(error.message);
+      }
+    }));
+  }
+  const emptyEl = $('#homeBudgetEmpty');
+  if (emptyEl) emptyEl.hidden = entries.length > 0;
+  const filterEmptyEl = $('#homeBudgetFilterEmpty');
+  if (filterEmptyEl) filterEmptyEl.hidden = entries.length === 0 || sorted.length > 0;
+  const countEl2 = $('#homeBudgetCount');
+  if (countEl2) countEl2.textContent = entries.length ? `${sorted.length} of ${entries.length} ${entries.length === 1 ? 'entry' : 'entries'} shown` : '';
+  const dateInput = $('#homeBudgetDate');
+  const idInput = $('#homeBudgetId');
+  if (dateInput && !dateInput.value && !(idInput?.value)) dateInput.value = pakistanDateNow();
+}
+$('#homeBudgetCategory')?.addEventListener('change', event => {
+  const customLabel = $('#homeBudgetCustomCategoryLabel');
+  if (customLabel) customLabel.hidden = event.currentTarget.value !== '__custom__';
+});
+$('#homeBudgetForm')?.addEventListener('submit', event => {
+  event.preventDefault();
+  clearHomeBudgetInlineErrors();
+  const date = $('#homeBudgetDate')?.value.trim() ?? '';
+  const amountRaw = $('#homeBudgetAmount')?.value.trim() ?? '';
+  const amount = Number(amountRaw);
+  const category = homeBudgetSelectedCategory();
+  let valid = true;
+  if (!date) { showHomeBudgetInlineError('homeBudgetDateError', 'Pick a date for the home expense.'); valid = false; }
+  if (!amountRaw || !Number.isFinite(amount) || amount <= 0) { showHomeBudgetInlineError('homeBudgetAmountError', 'Enter an amount above zero.'); valid = false; }
+  if (!category) {
+    if ($('#homeBudgetCategory')?.value === '__custom__') showHomeBudgetInlineError('homeBudgetCustomCategoryError', 'Type a category for the home expense.');
+    else showHomeBudgetInlineError('homeBudgetCategoryError', 'Pick or type a category for the home expense.');
+    valid = false;
+  }
+  if (!valid) { toast('Please correct the highlighted form errors.'); return; }
+  const fields = { date, amount, category, notes: $('#homeBudgetNotes')?.value ?? '' };
+  try {
+    const id = $('#homeBudgetId')?.value;
+    const current = loadHomeBudgetExpenses();
+    saveHomeBudgetExpenses(id ? updateHomeBudgetExpense(current, id, fields) : addHomeBudgetExpense(current, fields));
+    resetHomeBudgetForm();
+    renderHomeBudget();
+    toast(id ? 'Home expense correction saved on this device.' : 'Home expense recorded on this device.');
+  } catch (error) {
+    toast(error.message);
+  }
+});
+$('#homeBudgetCancel')?.addEventListener('click', resetHomeBudgetForm);
+$('#homeBudgetMonthFilter')?.addEventListener('change', event => { homeBudgetMonthFilter = event.currentTarget.value; renderHomeBudget(); });
+$('#homeBudgetCategoryFilter')?.addEventListener('change', event => { homeBudgetCategoryFilter = event.currentTarget.value; renderHomeBudget(); });
+$('#homeBudgetSearchInput')?.addEventListener('input', event => { homeBudgetSearchQuery = event.currentTarget.value.trim(); renderHomeBudget(); });
+const resetHomeBudgetFiltersHandler = () => {
+  homeBudgetMonthFilter = 'all';
+  homeBudgetCategoryFilter = 'all';
+  homeBudgetSearchQuery = '';
+  const searchInput = $('#homeBudgetSearchInput');
+  if (searchInput) searchInput.value = '';
+  renderHomeBudget();
+};
+$('#homeBudgetClearFilters')?.addEventListener('click', resetHomeBudgetFiltersHandler);
+$('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFiltersHandler);
 function renderExpenses() {
   const payrollMonths=monthsForHistory();
   if(!payrollMonths.includes(selectedPayrollMonth))selectedPayrollMonth=payrollMonths[0];
@@ -5391,7 +5571,7 @@ function renderExpenses() {
   syncExpenseTabs();
   if (expenseActiveTab === 'nasir' || expenseActiveTab === 'aqib') renderPartnerShare(expenseActiveTab);
 }
-function renderPhase3() { renderAnalytics();renderInventory();renderExpenses(); }
+function renderPhase3() { renderAnalytics();renderInventory();renderExpenses();renderHomeBudget(); }
 function resetInventoryForm() { $('#inventoryItemForm').reset();$('#inventoryItemId').value='';$('#inventoryMinimum').value='0';$('#inventoryItemSubmit').textContent='Save item definition';$('#inventoryItemCancel').hidden=true; }
 
 function clearExpenseInlineErrors() {
@@ -5897,6 +6077,7 @@ $('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
 });
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
+$('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget');renderHomeBudget();});
 renderPhase3();
 refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses}).refresh;
 
@@ -9195,7 +9376,7 @@ function handleRouteFromHash() {
   if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(raw)) {
     return;
   }
-  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses'];
+  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'];
   if (validViews.includes(raw)) {
     switchView(raw, { pushHistory: false });
     if (raw === 'transactions') renderTransactions();
@@ -9203,6 +9384,7 @@ function handleRouteFromHash() {
     else if (raw === 'analytics') renderAnalytics();
     else if (raw === 'inventory') renderInventory();
     else if (raw === 'expenses') renderExpenses();
+    else if (raw === 'homeBudget') renderHomeBudget();
     else if (raw === 'customers') renderCustomers();
   }
 }

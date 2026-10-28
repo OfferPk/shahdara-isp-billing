@@ -237,16 +237,20 @@ export function resolveDelayReason(preset, custom) {
 }
 
 /**
- * Appends one installation request. Throws on a missing requester name,
- * a bad request date, a missing/negative amount, an unknown payment
- * method, an unknown linked customer id, or an install date before the
- * request date. An empty delay reason is ALLOWED (prompted, never
- * blocking). Returns the new request list (input untouched). Linking a
+ * Validates one request's form input and returns the stored fields (no
+ * id, no createdAt). Shared by create and edit so both enforce the SAME
+ * rules and messages: requester name + request date required, amount
+ * 0 or more, a known payment method, install date never before the
+ * request date, and a linked customer only from the live list. When
+ * `existing` is given (edit) and its customer id is unchanged but that
+ * customer left the list, the stored name/number snapshot is kept
+ * instead of throwing — the entry stays readable; changing to a
+ * different id still requires a live customer from the list. An empty
+ * delay reason is ALLOWED (prompted, never blocking). Linking a
  * customer only snapshots name/number — the customer record is never
  * mutated.
  */
-export function addInstallRequest(requests, input, { customers = [] } = {}) {
-  const clean = sanitizeInstallRequests(requests);
+export function buildRequestFields(input, { customers = [], existing = null } = {}) {
   const requesterName = cleanText(input.requesterName);
   if (!requesterName) throw new Error('Requester name is required — who asked for the connection?');
   const requestDate = DATE_RE.test(String(input.requestDate || '')) ? String(input.requestDate) : '';
@@ -267,14 +271,21 @@ export function addInstallRequest(requests, input, { customers = [] } = {}) {
   let customerNumber = null;
   if (customerId) {
     const customer = customers.find((c) => String(c.id) === customerId);
-    if (!customer) throw new Error('Pick a customer from the list — or leave it blank for a not-yet-customer.');
-    customerName = cleanText(customer.name);
-    customerNumber = customer.customerNumber === null || customer.customerNumber === undefined
-      ? null
-      : customer.customerNumber;
+    if (customer) {
+      customerName = cleanText(customer.name);
+      customerNumber = customer.customerNumber === null || customer.customerNumber === undefined
+        ? null
+        : customer.customerNumber;
+    } else if (existing && String(existing.customerId) === customerId) {
+      customerName = cleanText(existing.customerName);
+      customerNumber = existing.customerNumber === null || existing.customerNumber === undefined
+        ? null
+        : existing.customerNumber;
+    } else {
+      throw new Error('Pick a customer from the list — or leave it blank for a not-yet-customer.');
+    }
   }
-  const record = {
-    id: nextRequestId(clean),
+  return {
     requesterName,
     customerId,
     customerName,
@@ -285,10 +296,55 @@ export function addInstallRequest(requests, input, { customers = [] } = {}) {
     payMethod,
     payReference: cleanText(input.payReference),
     installDate,
-    delayReason: cleanText(input.delayReason),
+    delayReason: cleanText(input.delayReason)
+  };
+}
+
+/**
+ * Appends one request. Same validation as edit via buildRequestFields.
+ * Returns the new request list (input untouched).
+ */
+export function addInstallRequest(requests, input, { customers = [] } = {}) {
+  const clean = sanitizeInstallRequests(requests);
+  const fields = buildRequestFields(input, { customers });
+  const record = {
+    id: nextRequestId(clean),
+    ...fields,
     createdAt: new Date().toISOString()
   };
   return [...clean, record];
+}
+
+/**
+ * Edits one request IN PLACE (same id, same list position, same
+ * createdAt). Same validation as create via buildRequestFields; the
+ * stored record is merged, never replaced wholesale, so id/createdAt
+ * and any field the form does not show survive the edit. Throws on an
+ * unknown id. Returns the new request list (input untouched). Delay
+ * days and month totals are computed from the list, so they reflect
+ * the edit at once — clearing the install date returns the request to
+ * Pending and drops it from the delay total.
+ */
+export function updateInstallRequest(requests, id, input, { customers = [] } = {}) {
+  const clean = sanitizeInstallRequests(requests);
+  const index = clean.findIndex((r) => String(r.id) === String(id));
+  if (index === -1) throw new Error('That request was not found.');
+  const fields = buildRequestFields(input, { customers, existing: clean[index] });
+  const out = [...clean];
+  out[index] = { ...clean[index], ...fields };
+  return out;
+}
+
+/**
+ * Deletes one request. Throws on an unknown id. Returns the new request
+ * list (input untouched). Computed month summaries drop the request at
+ * once; a later backup export no longer contains it, so a fresh-state
+ * restore cannot resurrect it.
+ */
+export function deleteInstallRequest(requests, id) {
+  const clean = sanitizeInstallRequests(requests);
+  if (!clean.some((r) => String(r.id) === String(id))) throw new Error('That request was not found.');
+  return clean.filter((r) => String(r.id) !== String(id));
 }
 
 /**
@@ -398,10 +454,12 @@ export function buildMonthlyInstallSummary(requests, month, today) {
  * getState supplies the live customer list (injected so this module stays
  * import-free). The mark-installed section lists only pending requests.
  */
-export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast } = {}) {
+export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast, onConfirm } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('installTrackerModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
+  // Edit state: null while the form adds a new request; an id while it edits one.
+  let editingRequestId = null;
   const getCustomers = () => {
     try {
       const state = typeof getState === 'function' ? getState() : null;
@@ -410,6 +468,21 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast 
       return [];
     }
   };
+
+  // Delete confirmation via the app's own in-app dialog (injected as
+  // onConfirm by app.js); never a silent delete. Falls back to the
+  // browser confirm only where the app dialog is unavailable, and
+  // refuses when neither exists.
+  async function confirmDelete(title, subject) {
+    if (typeof onConfirm === 'function') {
+      return !!(await onConfirm({ tone: 'danger', title, subject, message: 'This cannot be undone from this device except by re-entering it.', confirmLabel: 'Delete' }));
+    }
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      return window.confirm(`${title}\n\n${subject}`);
+    }
+    if (typeof onToast === 'function') onToast('Delete needs confirmation — not available here.');
+    return false;
+  }
 
   function customerOptions(customers, query) {
     const q = (query || '').trim().toLowerCase();
@@ -430,7 +503,17 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast 
     if (!select) return;
     const prev = select.value;
     const placeholder = '<option value="">Not a customer yet — free-text name only</option>';
-    select.innerHTML = placeholder + customerOptions(getCustomers(), $('installRequestCustomerSearch')?.value);
+    let options = customerOptions(getCustomers(), $('installRequestCustomerSearch')?.value);
+    // While editing an entry whose customer left the list, keep its
+    // stored customer selectable so the edit does not silently unlink it.
+    if (editingRequestId) {
+      const editing = loadInstallRequests().find((r) => String(r.id) === String(editingRequestId));
+      if (editing && editing.customerId && !getCustomers().some((c) => String(c.id) === String(editing.customerId))) {
+        const label = `${editing.customerName || 'Unnamed'}${editing.customerNumber !== null && editing.customerNumber !== undefined ? ` (#${editing.customerNumber})` : ''} · not in list`;
+        options += `<option value="${escapeHtml(String(editing.customerId))}">${escapeHtml(label)}</option>`;
+      }
+    }
+    select.innerHTML = placeholder + options;
     if ([...select.options].some((o) => o.value === prev)) select.value = prev;
   }
 
@@ -500,8 +583,28 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast 
             ${r.phone ? `<p><span>Phone</span><strong>${escapeHtml(r.phone)}</strong></p>` : ''}
             ${r.customerName ? `<p><span>Linked customer</span><strong>${escapeHtml(r.customerName)}${r.customerNumber !== null ? ` (#${r.customerNumber})` : ''}</strong></p>` : ''}
             ${installed && (days || 0) > 0 ? `<p><span>Delay reason</span><strong>${escapeHtml(delayReasonLabel(r))}</strong></p>` : ''}
+            <div class="install-tracker-card-actions"><button type="button" class="secondary-button" data-edit-request="${escapeHtml(String(r.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-request="${escapeHtml(String(r.id))}">🗑 Delete</button></div>
           </article>`;
         }).join('');
+      listEl.querySelectorAll('[data-edit-request]').forEach((btn) => btn.addEventListener('click', () => {
+        const request = loadInstallRequests().find((r) => String(r.id) === btn.dataset.editRequest);
+        if (request) startRequestEdit(request);
+      }));
+      listEl.querySelectorAll('[data-delete-request]').forEach((btn) => btn.addEventListener('click', async () => {
+        const request = loadInstallRequests().find((r) => String(r.id) === btn.dataset.deleteRequest);
+        if (!request) return;
+        const confirmed = await confirmDelete('Delete this request?', `${requestNameLabel(request)} · ${request.requestDate}`);
+        if (!confirmed) return;
+        try {
+          saveInstallRequests(deleteInstallRequest(loadInstallRequests(), request.id));
+          if (editingRequestId === request.id) cancelRequestEdit();
+          render();
+          if (typeof onRequestsChanged === 'function') onRequestsChanged();
+          if (typeof onToast === 'function') onToast('Request deleted.');
+        } catch (error) {
+          if (typeof onToast === 'function') onToast(error.message || 'Could not delete request.');
+        }
+      }));
     }
     refreshCustomerSelect();
     refreshPendingSelect();
@@ -510,6 +613,51 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast 
     const markDateInput = $('installMarkDate');
     if (markDateInput && !markDateInput.value) markDateInput.value = installTrackerToday();
   }
+
+  // Edit helpers: pre-fill the SAME form, swap the submit label, and
+  // show a Cancel button that restores the add-new state. The stored
+  // record is never touched until the edited form saves successfully.
+  function setRequestSubmitMode() {
+    const submit = $('installRequestForm')?.querySelector('button[type="submit"]');
+    if (submit) submit.textContent = editingRequestId ? '💾 Changes save karein' : '➕ Request darj karein';
+    const cancel = $('installRequestCancelEditBtn');
+    if (cancel) cancel.hidden = !editingRequestId;
+  }
+  function startRequestEdit(request) {
+    editingRequestId = request.id;
+    const set = (id, value) => { const el = $(id); if (el) el.value = value ?? ''; };
+    set('installRequestName', request.requesterName);
+    refreshCustomerSelect();
+    set('installRequestCustomer', request.customerId);
+    set('installRequestPhone', request.phone);
+    set('installRequestDate', request.requestDate);
+    set('installRequestAmount', String(request.amountPaid));
+    set('installRequestPayMethod', request.payMethod);
+    set('installRequestPayReference', request.payReference);
+    set('installRequestInstallDate', request.installDate);
+    // Stored reason back into preset + custom: a preset stays a preset,
+    // custom text returns under "Other", empty stays "No reason yet".
+    const stored = request.delayReason || '';
+    const preset = DELAY_REASON_PRESETS.includes(stored) && stored !== 'Other' ? stored : (stored ? 'Other' : '');
+    set('installRequestReasonPreset', preset);
+    set('installRequestReasonCustom', preset === 'Other' ? stored : '');
+    setRequestSubmitMode();
+    try { $('installRequestForm')?.scrollIntoView({ block: 'start' }); } catch { /* scroll is a nicety, never a failure */ }
+  }
+  function cancelRequestEdit() {
+    editingRequestId = null;
+    const requestForm = $('installRequestForm');
+    if (requestForm) requestForm.reset();
+    const dateInput = $('installRequestDate');
+    if (dateInput) dateInput.value = installTrackerToday();
+    refreshCustomerSelect();
+    setRequestSubmitMode();
+  }
+  // Closing the modal abandons any in-progress edit, so reopening
+  // always starts from a clean add-new form.
+  dialog.addEventListener('close', () => {
+    if (editingRequestId) cancelRequestEdit();
+  });
 
   const searchInput = $('installRequestCustomerSearch');
   if (searchInput) searchInput.addEventListener('input', refreshCustomerSelect);
@@ -521,7 +669,7 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast 
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       try {
-        const updated = addInstallRequest(loadInstallRequests(), {
+        const input = {
           requesterName: $('installRequestName')?.value,
           customerId: $('installRequestCustomer')?.value,
           phone: $('installRequestPhone')?.value,
@@ -531,19 +679,29 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast 
           payReference: $('installRequestPayReference')?.value,
           installDate: $('installRequestInstallDate')?.value,
           delayReason: resolveDelayReason($('installRequestReasonPreset')?.value, $('installRequestReasonCustom')?.value)
-        }, { customers: getCustomers() });
+        };
+        const wasEditing = editingRequestId;
+        const updated = wasEditing
+          ? updateInstallRequest(loadInstallRequests(), wasEditing, input, { customers: getCustomers() })
+          : addInstallRequest(loadInstallRequests(), input, { customers: getCustomers() });
         saveInstallRequests(updated);
-        form.reset();
-        const dateInput = $('installRequestDate');
-        if (dateInput) dateInput.value = installTrackerToday();
+        if (wasEditing) {
+          cancelRequestEdit();
+        } else {
+          form.reset();
+          const dateInput = $('installRequestDate');
+          if (dateInput) dateInput.value = installTrackerToday();
+        }
         render();
         if (typeof onRequestsChanged === 'function') onRequestsChanged();
-        if (typeof onToast === 'function') onToast('Installation request recorded.');
+        if (typeof onToast === 'function') onToast(wasEditing ? 'Request updated.' : 'Installation request recorded.');
       } catch (error) {
         if (typeof onToast === 'function') onToast(error.message || 'Could not record request.');
       }
     });
   }
+  const requestCancelBtn = $('installRequestCancelEditBtn');
+  if (requestCancelBtn) requestCancelBtn.addEventListener('click', cancelRequestEdit);
   const markForm = $('installMarkForm');
   if (markForm) {
     markForm.addEventListener('submit', (event) => {

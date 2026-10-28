@@ -290,17 +290,20 @@ export function visitHours(visit) {
 }
 
 /**
- * Appends one visit. Throws on a bad date, unknown type, an unknown
- * customer id, an unknown ticket id, bad fiber meters, or missing hours.
- * Hours rule: start + end times together win (duration); otherwise the
- * entered hours number is used; at least one of the two is required, and
- * a lone start or end time without its pair is rejected. A visit must
- * identify the work: a real customer, an area, or both — never neither.
- * Returns the new visit list (input untouched). Fiber meters are recorded
- * only: this never touches stock.
+ * Validates one visit's form input and returns the stored fields (no id,
+ * no createdAt). Shared by create and edit so both enforce the SAME
+ * rules and messages. Hours rule: start + end times together win
+ * (duration); otherwise the entered hours number is used; at least one
+ * of the two is required, and a lone start or end time without its pair
+ * is rejected. A visit must identify the work: a real customer, an
+ * area, or both — never neither. When `existing` is given (edit) and
+ * its customer id is unchanged but that customer left the list, the
+ * stored name/number snapshot is kept instead of throwing — the entry
+ * stays readable; changing to a different id still requires a live
+ * customer from the list. Fiber meters are recorded only: this never
+ * touches stock.
  */
-export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } = {}) {
-  const clean = sanitizeSaadVisits(visits);
+export function buildVisitFields(input, { customers = [], ticketIds = [], existing = null } = {}) {
   const date = DATE_RE.test(String(input.date || '')) ? String(input.date) : '';
   if (!date) throw new Error('A valid visit date is required.');
   const type = VISIT_TYPE_IDS.includes(input.type) ? input.type : null;
@@ -311,12 +314,21 @@ export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } =
   let area = cleanText(input.area);
   if (customerId) {
     const customer = customers.find((c) => String(c.id) === customerId);
-    if (!customer) throw new Error('Pick a customer from the list — free-text names are not accepted.');
-    customerName = cleanText(customer.name);
-    customerNumber = customer.customerNumber === null || customer.customerNumber === undefined
-      ? null
-      : customer.customerNumber;
-    if (!area) area = cleanText(customer.mohalla) || cleanText(customer.zone);
+    if (customer) {
+      customerName = cleanText(customer.name);
+      customerNumber = customer.customerNumber === null || customer.customerNumber === undefined
+        ? null
+        : customer.customerNumber;
+      if (!area) area = cleanText(customer.mohalla) || cleanText(customer.zone);
+    } else if (existing && String(existing.customerId) === customerId) {
+      customerName = cleanText(existing.customerName);
+      customerNumber = existing.customerNumber === null || existing.customerNumber === undefined
+        ? null
+        : existing.customerNumber;
+      if (!area) area = cleanText(existing.area);
+    } else {
+      throw new Error('Pick a customer from the list — free-text names are not accepted.');
+    }
   }
   if (!customerId && !area) {
     throw new Error('Pick a customer or enter the area — every visit must say where Saad worked.');
@@ -346,8 +358,7 @@ export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } =
   if (ticketId && !ticketIds.map(String).includes(ticketId)) {
     throw new Error('That ticket id does not exist — link only a real field ticket, or leave it blank.');
   }
-  const record = {
-    id: nextVisitId(clean),
+  return {
     date,
     type,
     customerId,
@@ -359,10 +370,66 @@ export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } =
     endTime,
     hoursWorked,
     ticketId,
-    note: cleanText(input.note),
+    note: cleanText(input.note)
+  };
+}
+
+/**
+ * Appends one visit. Throws on a bad date, unknown type, an unknown
+ * customer id, an unknown ticket id, bad fiber meters, or missing hours.
+ * Returns the new visit list (input untouched).
+ */
+export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } = {}) {
+  const clean = sanitizeSaadVisits(visits);
+  const fields = buildVisitFields(input, { customers, ticketIds });
+  const record = {
+    id: nextVisitId(clean),
+    ...fields,
     createdAt: new Date().toISOString()
   };
   return [...clean, record];
+}
+
+/**
+ * Edits one visit IN PLACE (same id, same list position, same
+ * createdAt). Same validation as create via buildVisitFields; the
+ * stored record is merged, never replaced wholesale, so id/createdAt
+ * and any field the form does not show survive the edit. Throws on an
+ * unknown id. Returns the new visit list (input untouched). Monthly
+ * summaries are computed from the list, so they reflect the edit at
+ * once — no stored summary ever needs updating.
+ */
+export function updateSaadVisit(visits, id, input, { customers = [], ticketIds = [] } = {}) {
+  const clean = sanitizeSaadVisits(visits);
+  const index = clean.findIndex((v) => String(v.id) === String(id));
+  if (index === -1) throw new Error('That visit was not found.');
+  const fields = buildVisitFields(input, { customers, ticketIds, existing: clean[index] });
+  const out = [...clean];
+  out[index] = { ...clean[index], ...fields };
+  return out;
+}
+
+/**
+ * Deletes one visit. Throws on an unknown id. Returns the new visit
+ * list (input untouched). Computed month summaries drop the visit at
+ * once; a later backup export no longer contains it, so a fresh-state
+ * restore cannot resurrect it.
+ */
+export function deleteSaadVisit(visits, id) {
+  const clean = sanitizeSaadVisits(visits);
+  if (!clean.some((v) => String(v.id) === String(id))) throw new Error('That visit was not found.');
+  return clean.filter((v) => String(v.id) !== String(id));
+}
+
+/** Validates one payment's form input; shared by create and edit. */
+export function buildPaymentFields(input) {
+  const date = DATE_RE.test(String(input.date || '')) ? String(input.date) : '';
+  if (!date) throw new Error('A valid payment date is required.');
+  const type = PAYMENT_TYPE_IDS.includes(input.type) ? input.type : null;
+  if (!type) throw new Error('Payment type must be Salary or Commission.');
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Payment amount must be a positive PKR number.');
+  return { date, type, amount: Math.round(amount * 100) / 100, note: cleanText(input.note) };
 }
 
 /**
@@ -372,21 +439,41 @@ export function addSaadVisit(visits, input, { customers = [], ticketIds = [] } =
  */
 export function addSaadPayment(payments, input) {
   const clean = sanitizeSaadPayments(payments);
-  const date = DATE_RE.test(String(input.date || '')) ? String(input.date) : '';
-  if (!date) throw new Error('A valid payment date is required.');
-  const type = PAYMENT_TYPE_IDS.includes(input.type) ? input.type : null;
-  if (!type) throw new Error('Payment type must be Salary or Commission.');
-  const amount = Number(input.amount);
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Payment amount must be a positive PKR number.');
+  const fields = buildPaymentFields(input);
   const record = {
     id: nextPaymentId(clean),
-    date,
-    type,
-    amount: Math.round(amount * 100) / 100,
-    note: cleanText(input.note),
+    ...fields,
     createdAt: new Date().toISOString()
   };
   return [...clean, record];
+}
+
+/**
+ * Edits one payment IN PLACE (same id, same list position, same
+ * createdAt). Same validation as create; the stored record is merged,
+ * never replaced wholesale. Throws on an unknown id. Returns the new
+ * payment list (input untouched). The month summary split (Salary /
+ * Commission / total) is computed, so it reflects the edit at once.
+ */
+export function updateSaadPayment(payments, id, input) {
+  const clean = sanitizeSaadPayments(payments);
+  const index = clean.findIndex((p) => String(p.id) === String(id));
+  if (index === -1) throw new Error('That payment was not found.');
+  const fields = buildPaymentFields(input);
+  const out = [...clean];
+  out[index] = { ...clean[index], ...fields };
+  return out;
+}
+
+/**
+ * Deletes one payment. Throws on an unknown id. Returns the new payment
+ * list (input untouched). A later backup export no longer contains it,
+ * so a fresh-state restore cannot resurrect it.
+ */
+export function deleteSaadPayment(payments, id) {
+  const clean = sanitizeSaadPayments(payments);
+  if (!clean.some((p) => String(p.id) === String(id))) throw new Error('That payment was not found.');
+  return clean.filter((p) => String(p.id) !== String(id));
 }
 
 /** Visits in one YYYY-MM month, oldest first (for per-day breakdowns). */
@@ -471,10 +558,13 @@ export function buildMonthlySaadSummary(visits, payments, month) {
  * field-ticket ids for the optional ticket link (both injected so this
  * module stays import-free).
  */
-export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listTicketIds } = {}) {
+export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listTicketIds, onConfirm } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('saadVisitsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
+  // Edit state: null while the form adds a new entry; an id while it edits one.
+  let editingVisitId = null;
+  let editingPaymentId = null;
   const getCustomers = () => {
     try {
       const state = typeof getState === 'function' ? getState() : null;
@@ -483,6 +573,21 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
       return [];
     }
   };
+
+  // Delete confirmation via the app's own in-app dialog (injected as
+  // onConfirm by app.js); never a silent delete. Falls back to the
+  // browser confirm only where the app dialog is unavailable, and
+  // refuses when neither exists.
+  async function confirmDelete(title, subject) {
+    if (typeof onConfirm === 'function') {
+      return !!(await onConfirm({ tone: 'danger', title, subject, message: 'This cannot be undone from this device except by re-entering it.', confirmLabel: 'Delete' }));
+    }
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      return window.confirm(`${title}\n\n${subject}`);
+    }
+    if (typeof onToast === 'function') onToast('Delete needs confirmation — not available here.');
+    return false;
+  }
 
   function customerOptions(customers, query) {
     const q = (query || '').trim().toLowerCase();
@@ -503,7 +608,17 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
     if (!select) return;
     const prev = select.value;
     const placeholder = '<option value="">Area-level work — no single customer</option>';
-    select.innerHTML = placeholder + customerOptions(getCustomers(), $('saadVisitCustomerSearch')?.value);
+    let options = customerOptions(getCustomers(), $('saadVisitCustomerSearch')?.value);
+    // While editing an entry whose customer left the list, keep its
+    // stored customer selectable so the edit does not silently unlink it.
+    if (editingVisitId) {
+      const editing = loadSaadVisits().find((v) => String(v.id) === String(editingVisitId));
+      if (editing && editing.customerId && !getCustomers().some((c) => String(c.id) === String(editing.customerId))) {
+        const label = `${editing.customerName || 'Unnamed'}${editing.customerNumber !== null && editing.customerNumber !== undefined ? ` (#${editing.customerNumber})` : ''} · not in list`;
+        options += `<option value="${escapeHtml(String(editing.customerId))}">${escapeHtml(label)}</option>`;
+      }
+    }
+    select.innerHTML = placeholder + options;
     if ([...select.options].some((o) => o.value === prev)) select.value = prev;
   }
 
@@ -527,7 +642,7 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
       const paymentLines = summary.payments.length === 0
         ? '<p class="saad-visits-empty">Is mahine koi payment darj nahi hui (0 PKR).</p>'
         : summary.payments.map((p) => `
-          <p><span>${escapeHtml(p.date)} · ${escapeHtml(paymentTypeLabel(p.type))}</span><strong>${escapeHtml(String(p.amount))} PKR</strong></p>`).join('');
+          <p><span>${escapeHtml(p.date)} · ${escapeHtml(paymentTypeLabel(p.type))}</span><strong>${escapeHtml(String(p.amount))} PKR</strong><span class="saad-visits-payment-actions"><button type="button" class="secondary-button" data-edit-payment="${escapeHtml(String(p.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-payment="${escapeHtml(String(p.id))}">🗑 Delete</button></span></p>`).join('');
       summaryEl.innerHTML = `
         <div class="saad-visits-summary-cards">
           <p><span>Days present</span><strong>${summary.dayCount}</strong></p>
@@ -544,6 +659,25 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
         <div class="saad-visits-day-list">${dayLines}</div>
         <h3>Payments this month</h3>
         <div class="saad-visits-payment-list">${paymentLines}</div>`;
+      summaryEl.querySelectorAll('[data-edit-payment]').forEach((btn) => btn.addEventListener('click', () => {
+        const payment = loadSaadPayments().find((p) => String(p.id) === btn.dataset.editPayment);
+        if (payment) startPaymentEdit(payment);
+      }));
+      summaryEl.querySelectorAll('[data-delete-payment]').forEach((btn) => btn.addEventListener('click', async () => {
+        const payment = loadSaadPayments().find((p) => String(p.id) === btn.dataset.deletePayment);
+        if (!payment) return;
+        const confirmed = await confirmDelete('Delete this payment?', `${paymentTypeLabel(payment.type)} · ${payment.date} · ${payment.amount} PKR`);
+        if (!confirmed) return;
+        try {
+          saveSaadPayments(deleteSaadPayment(loadSaadPayments(), payment.id));
+          if (editingPaymentId === payment.id) cancelPaymentEdit();
+          render();
+          if (typeof onVisitsChanged === 'function') onVisitsChanged();
+          if (typeof onToast === 'function') onToast('Payment deleted.');
+        } catch (error) {
+          if (typeof onToast === 'function') onToast(error.message || 'Could not delete payment.');
+        }
+      }));
     }
     const listEl = $('saadVisitsList');
     if (listEl) {
@@ -559,7 +693,27 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
             ${v.startTime && v.endTime ? `<p><span>Time</span><strong>${escapeHtml(v.startTime)} – ${escapeHtml(v.endTime)}</strong></p>` : ''}
             ${v.ticketId ? `<p><span>Ticket</span><strong>${escapeHtml(v.ticketId)}</strong></p>` : ''}
             ${v.note ? `<p><span>Note</span><strong>${escapeHtml(v.note)}</strong></p>` : ''}
+            <div class="saad-visits-card-actions"><button type="button" class="secondary-button" data-edit-visit="${escapeHtml(String(v.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-visit="${escapeHtml(String(v.id))}">🗑 Delete</button></div>
           </article>`).join('');
+      listEl.querySelectorAll('[data-edit-visit]').forEach((btn) => btn.addEventListener('click', () => {
+        const visit = loadSaadVisits().find((v) => String(v.id) === btn.dataset.editVisit);
+        if (visit) startVisitEdit(visit);
+      }));
+      listEl.querySelectorAll('[data-delete-visit]').forEach((btn) => btn.addEventListener('click', async () => {
+        const visit = loadSaadVisits().find((v) => String(v.id) === btn.dataset.deleteVisit);
+        if (!visit) return;
+        const confirmed = await confirmDelete('Delete this visit?', `${visitTypeLabel(visit.type)} · ${visit.date} · ${visitWhereLabel(visit)}`);
+        if (!confirmed) return;
+        try {
+          saveSaadVisits(deleteSaadVisit(loadSaadVisits(), visit.id));
+          if (editingVisitId === visit.id) cancelVisitEdit();
+          render();
+          if (typeof onVisitsChanged === 'function') onVisitsChanged();
+          if (typeof onToast === 'function') onToast('Visit deleted.');
+        } catch (error) {
+          if (typeof onToast === 'function') onToast(error.message || 'Could not delete visit.');
+        }
+      }));
     }
     refreshCustomerSelect();
     const dateInput = $('saadVisitDate');
@@ -584,13 +738,79 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
   const typeFilter = $('saadVisitsTypeFilter');
   if (typeFilter) typeFilter.addEventListener('change', render);
 
+  // Edit helpers: pre-fill the SAME form, swap the submit label, and
+  // show a Cancel button that restores the add-new state. The stored
+  // record is never touched until the edited form saves successfully.
+  function setVisitSubmitMode() {
+    const submit = $('saadVisitForm')?.querySelector('button[type="submit"]');
+    if (submit) submit.textContent = editingVisitId ? '💾 Changes save karein' : '➕ Visit darj karein';
+    const cancel = $('saadVisitCancelEditBtn');
+    if (cancel) cancel.hidden = !editingVisitId;
+  }
+  function startVisitEdit(visit) {
+    editingVisitId = visit.id;
+    const set = (id, value) => { const el = $(id); if (el) el.value = value ?? ''; };
+    set('saadVisitDate', visit.date);
+    set('saadVisitType', visit.type);
+    refreshCustomerSelect();
+    set('saadVisitCustomer', visit.customerId);
+    set('saadVisitArea', visit.area);
+    set('saadVisitFiberMeters', visit.fiberMeters === null || visit.fiberMeters === undefined ? '' : String(visit.fiberMeters));
+    set('saadVisitStartTime', visit.startTime);
+    set('saadVisitEndTime', visit.endTime);
+    set('saadVisitHours', visit.hoursWorked === null || visit.hoursWorked === undefined ? '' : String(visit.hoursWorked));
+    set('saadVisitTicket', visit.ticketId);
+    set('saadVisitNote', visit.note);
+    setVisitSubmitMode();
+    try { $('saadVisitForm')?.scrollIntoView({ block: 'start' }); } catch { /* scroll is a nicety, never a failure */ }
+  }
+  function cancelVisitEdit() {
+    editingVisitId = null;
+    const visitForm = $('saadVisitForm');
+    if (visitForm) visitForm.reset();
+    const dateInput = $('saadVisitDate');
+    if (dateInput) dateInput.value = pakistanDateToday();
+    refreshCustomerSelect();
+    setVisitSubmitMode();
+  }
+  function setPaymentSubmitMode() {
+    const submit = $('saadPaymentForm')?.querySelector('button[type="submit"]');
+    if (submit) submit.textContent = editingPaymentId ? '💾 Changes save karein' : '➕ Payment darj karein';
+    const cancel = $('saadPaymentCancelEditBtn');
+    if (cancel) cancel.hidden = !editingPaymentId;
+  }
+  function startPaymentEdit(payment) {
+    editingPaymentId = payment.id;
+    const set = (id, value) => { const el = $(id); if (el) el.value = value ?? ''; };
+    set('saadPaymentDate', payment.date);
+    set('saadPaymentAmount', String(payment.amount));
+    set('saadPaymentType', payment.type);
+    set('saadPaymentNote', payment.note);
+    setPaymentSubmitMode();
+    try { $('saadPaymentForm')?.scrollIntoView({ block: 'start' }); } catch { /* scroll is a nicety, never a failure */ }
+  }
+  function cancelPaymentEdit() {
+    editingPaymentId = null;
+    const paymentForm = $('saadPaymentForm');
+    if (paymentForm) paymentForm.reset();
+    const payDateInput = $('saadPaymentDate');
+    if (payDateInput) payDateInput.value = pakistanDateToday();
+    setPaymentSubmitMode();
+  }
+  // Closing the modal abandons any in-progress edit, so reopening
+  // always starts from a clean add-new form.
+  dialog.addEventListener('close', () => {
+    if (editingVisitId) cancelVisitEdit();
+    if (editingPaymentId) cancelPaymentEdit();
+  });
+
   const form = $('saadVisitForm');
   if (form) {
     form.addEventListener('submit', (event) => {
       event.preventDefault();
       try {
         const ticketIds = typeof listTicketIds === 'function' ? listTicketIds() : [];
-        const updated = addSaadVisit(loadSaadVisits(), {
+        const input = {
           date: $('saadVisitDate')?.value,
           type: $('saadVisitType')?.value,
           customerId: $('saadVisitCustomer')?.value,
@@ -601,43 +821,63 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
           hoursWorked: $('saadVisitHours')?.value,
           ticketId: $('saadVisitTicket')?.value,
           note: $('saadVisitNote')?.value
-        }, { customers: getCustomers(), ticketIds });
+        };
+        const wasEditing = editingVisitId;
+        const updated = wasEditing
+          ? updateSaadVisit(loadSaadVisits(), wasEditing, input, { customers: getCustomers(), ticketIds })
+          : addSaadVisit(loadSaadVisits(), input, { customers: getCustomers(), ticketIds });
         saveSaadVisits(updated);
-        form.reset();
-        const dateInput = $('saadVisitDate');
-        if (dateInput) dateInput.value = pakistanDateToday();
-        refreshCustomerSelect();
+        if (wasEditing) {
+          cancelVisitEdit();
+        } else {
+          form.reset();
+          const dateInput = $('saadVisitDate');
+          if (dateInput) dateInput.value = pakistanDateToday();
+          refreshCustomerSelect();
+        }
         render();
         if (typeof onVisitsChanged === 'function') onVisitsChanged();
-        if (typeof onToast === 'function') onToast('Saad visit recorded.');
+        if (typeof onToast === 'function') onToast(wasEditing ? 'Visit updated.' : 'Saad visit recorded.');
       } catch (error) {
         if (typeof onToast === 'function') onToast(error.message || 'Could not record visit.');
       }
     });
   }
+  const visitCancelBtn = $('saadVisitCancelEditBtn');
+  if (visitCancelBtn) visitCancelBtn.addEventListener('click', cancelVisitEdit);
   const payForm = $('saadPaymentForm');
   if (payForm) {
     payForm.addEventListener('submit', (event) => {
       event.preventDefault();
       try {
-        const updated = addSaadPayment(loadSaadPayments(), {
+        const input = {
           date: $('saadPaymentDate')?.value,
           amount: $('saadPaymentAmount')?.value,
           type: $('saadPaymentType')?.value,
           note: $('saadPaymentNote')?.value
-        });
+        };
+        const wasEditing = editingPaymentId;
+        const updated = wasEditing
+          ? updateSaadPayment(loadSaadPayments(), wasEditing, input)
+          : addSaadPayment(loadSaadPayments(), input);
         saveSaadPayments(updated);
-        payForm.reset();
-        const payDateInput = $('saadPaymentDate');
-        if (payDateInput) payDateInput.value = pakistanDateToday();
+        if (wasEditing) {
+          cancelPaymentEdit();
+        } else {
+          payForm.reset();
+          const payDateInput = $('saadPaymentDate');
+          if (payDateInput) payDateInput.value = pakistanDateToday();
+        }
         render();
         if (typeof onVisitsChanged === 'function') onVisitsChanged();
-        if (typeof onToast === 'function') onToast('Saad payment recorded.');
+        if (typeof onToast === 'function') onToast(wasEditing ? 'Payment updated.' : 'Saad payment recorded.');
       } catch (error) {
         if (typeof onToast === 'function') onToast(error.message || 'Could not record payment.');
       }
     });
   }
+  const paymentCancelBtn = $('saadPaymentCancelEditBtn');
+  if (paymentCancelBtn) paymentCancelBtn.addEventListener('click', cancelPaymentEdit);
   const closeBtn = $('saadVisitsCloseBtn');
   if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
   const openBtn = typeof document !== 'undefined' ? document.getElementById('openSaadVisitsModalBtn') : null;

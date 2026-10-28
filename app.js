@@ -7,39 +7,39 @@ import {
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill,
   calculateMethodCollectionTotals, findDuplicatePaymentReference,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges
-} from './core.js?v=1.10.0';
-import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.10.0';
-import { setupHomeTodaySection } from './home-today.js?v=1.10.0';
+} from './core.js?v=1.11.0';
+import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
+import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla
-} from './phase3.js?v=1.10.0';
-import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.10.0';
-import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.10.0';
-import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.10.0';
-import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
-import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.10.0';
+} from './phase3.js?v=1.11.0';
+import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
+import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.11.0';
+import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.11.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.11.0';
+import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import { customerHasMonthlyFee } from './nav-quick-collect.js';
-import { setupFieldMode } from './field-mode.js?v=1.10.0';
-import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
-import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.10.0';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
-import { setupOwnerCenter } from './owner-ui.js?v=1.10.0';
+import { setupFieldMode } from './field-mode.js?v=1.11.0';
+import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
+import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.11.0';
+import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
 import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
   calculateBackupAge, checkStoragePersistence, requestStoragePersistence,
   getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY,
   encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload
-} from './backup-store.js?v=1.10.0';
-import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.10.0';
-import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.10.0';
-import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
-import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.10.0';
+} from './backup-store.js?v=1.11.0';
+import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
+import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.11.0';
+import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.11.0';
+import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.11.0';
 
 import {
   validatePakistanPhone,
@@ -120,7 +120,7 @@ import {
   filterExpenseRows,
   sortExpenseRows,
   generateExpensesCsv
-} from './form-validation.js?v=1.10.0';
+} from './form-validation.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
 // load lazily through qa-setups.js (see lazy-qa.js).
@@ -139,7 +139,7 @@ import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, buildPartnerSettlementRepo
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
-import { calculateInstallationCost } from './installation-cost.js?v=1.10.0';
+import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
@@ -147,7 +147,7 @@ import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalSta
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
 import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
-import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.10.0';
+import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
@@ -179,8 +179,8 @@ import {
   formatDisplayDate,
   buildCampaignQueue,
   markCustomerLastReminded
-} from './reminder-queue.js?v=1.10.0';
-import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor } from './whatsapp-templates.js?v=1.10.0';
+} from './reminder-queue.js?v=1.11.0';
+import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor } from './whatsapp-templates.js?v=1.11.0';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the

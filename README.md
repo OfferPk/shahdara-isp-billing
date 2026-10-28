@@ -1,8 +1,20 @@
 # Shahdara ISP Billing
 
-**Modern UI Redesign, Dark/Light Theme System, Interactive Dashboard Cards, Business Health Score & Mobile Analytics · web build 1.10.0**
+**Modern UI Redesign, Dark/Light Theme System, Interactive Dashboard Cards, Business Health Score & Mobile Analytics · web build 1.11.0**
 
 Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing/). This release does not publish a native APK: Android web assets sync, but native compilation cannot run on this computer without an Android SDK.
+
+## Web release 1.11.0 — Billing operations wave (SISP-1–SISP-25) + owner-ordered tools
+
+- **Monthly bill cycle engine (SISP-2)**: package + arrears − advance credit = net due, idempotent per month; pro-rata upgrades and billing freezes (SISP-8) skip paused months without backfill.
+- **Shop collector cash handover & settlement ledger (SISP-1)**; 1-thumb field collection mode (SISP-5); PNG image receipts with a PAID / partial stamp that never claims PAID on an unknown balance (SISP-6).
+- **Promise-to-pay (Waada) queue with reminder tiers (SISP-3)**; Kist/EMI installment auto-billing (SISP-4); TID duplicate guard and digital-wallet reconciliation with NayaPay (SISP-21).
+- **Complaint register (SISP-15)**, lineman complaint worklist (SISP-12), downtime analytics (SISP-16), monthly complaint/outage report (SISP-17), feeder outage impact tracing (SISP-7).
+- **Hardware + fiber stock inventory book (SISP-18)** with derived availability and refused over-draw; hardware custody log with recovery-to-stock recording (SISP-19).
+- **Monthly owner khata closing report (SISP-20)** built only from reused figures; partner settlement ledger for Nasir/Aqib 50/50 shares (SISP-22); new-connection installation cost & first-month profitability (SISP-23).
+- **Optical splitter box port map and customer RX signal (dBm) tracking (SISP-24)** with a high-loss warning below −26.0 dBm; 1-tap bulk WhatsApp collection campaign queue with an Urdu template studio (SISP-25).
+- **Owner-ordered tools**: Saad visit log with hours and salary/commission payment records; Installation Tracker with request-to-install delay days; Pending Works condition-linked reminders (thresholds counted live from non-archived customers); Edit + Delete on Saad visits, payments and installation requests; Home Budget (personal expenses, separate from the business ledger); Loan ledger; Top-customer lists; Mohalla dedup to 15 canonical mohallas; profile stats section with an Edit-customer action and a dark-mode container fix; mobile card layouts for wide tables; lazy loading of telecom modules (SISP-9) and a backup health badge with checksum sync (SISP-10).
+- **Build facts**: 19 bundled files, 210 source runtime files, offline cache v37 base with a build-appended content hash; full automated suite 2346/2346 on main head `178aa70` (2026-10-28). Data-safety guarantees unchanged: 74 starter names, local-only storage, JSON backup warning, no APK without an Android SDK, no cloud sync, WhatsApp drafts need internet.
 
 ## Web release 1.10.0 — Modern UI Redesign & Rich Theming System
 
@@ -73,7 +85,7 @@ npm run build
 python3 -m http.server 8080 --directory dist
 ```
 
-Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, fifth-of-month defaults at month/year boundaries, custom and historical due-date preservation, salary eligibility after full payment and status transitions, baseline exclusion, unique manual date logs, selected-month totals, no fabricated entries or cash double counting, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, validated backup/migration and merge safety, normalized duplicate detection and explicit owner match choices, daily/weekly backup scheduling, storage-quota headroom, Business Health Score weights, ratios, thresholds, zero denominators, incomplete dates, sparse snapshots, cash losses, churn/status separation and immutability, plus offline asset/build versions. The v1.9.0 web bundle uses offline cache v35 and contains no Android package; native Android compilation requires an Android SDK.
+Open `http://localhost:8080`. Service workers require localhost or HTTPS. The automated suite covers the 74-name order, profiles and stable numbers, PKR calculations, status/report and provider-cost behavior, monthly snapshots, credit chains and corrections, archive/resume gaps, fifth-of-month defaults at month/year boundaries, custom and historical due-date preservation, salary eligibility after full payment and status transitions, baseline exclusion, unique manual date logs, selected-month totals, no fabricated entries or cash double counting, complaints, Phase 3 inventory/expense movements, Unicode/case/space-normalized location and package grouping, distinct nested zones, unique snapshots, exact ARPU eligibility and Offline inclusion, forecasting, PKT month-end snapshots, validated backup/migration and merge safety, normalized duplicate detection and explicit owner match choices, daily/weekly backup scheduling, storage-quota headroom, Business Health Score weights, ratios, thresholds, zero denominators, incomplete dates, sparse snapshots, cash losses, churn/status separation and immutability, plus offline asset/build versions. The 1.11.0 web bundle uses offline cache v37 (base name; the build appends a content hash) and contains no Android package; native Android compilation requires an Android SDK.
 
 ## Android
 

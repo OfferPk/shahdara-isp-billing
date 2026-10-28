@@ -71,7 +71,7 @@ test('the QA chunk is lazy-only: no static import reaches qa-setups.js', () => {
     'app.js must not statically import qa-setups.js');
   const staticQaImports = [...app.matchAll(/from\s*'\.\/qa-[^']+'/g)].map(m => m[0]);
   assert.deepEqual(staticQaImports, [
-    "from './qa-backup-csv-import.js?v=1.10.0'",
+    "from './qa-backup-csv-import.js?v=1.11.0'",
     "from './qa-discounts-late-fee.js'",
     "from './qa-data-integrity.js'"
   ], 'the only static qa-* imports allowed in app.js are the pre-existing direct ' +

@@ -1000,7 +1000,7 @@ test('nav.css provides swipe indicator, syncing animation, and landscape compact
 });
 
 test('app.js imports and initializes setupSwipeNavigation', () => {
-  assert.match(app, /import\s*\{[^}]*setupSwipeNavigation[^}]*\}\s*from\s*'\.\/nav\.js\?v=1\.10\.0'/);
+  assert.match(app, /import\s*\{[^}]*setupSwipeNavigation[^}]*\}\s*from\s*'\.\/nav\.js\?v=1\.11\.0'/);
   assert.match(app, /setupSwipeNavigation\(\{/);
 });
 

@@ -37,10 +37,11 @@ test('profile tabs: month forms use form-cell wrappers, all fields kept', () => 
     'paid-by-', 'date-', 'txnid-', 'discount-', 'discount-reason-']) {
     assert.ok(appJs.includes(id), `month form lost id prefix ${id}`);
   }
-  for (const label of ['Update bill details', 'Record confirmed bill details',
-    'Record an actual payment', 'Save bill details', 'Record actual payment',
-    'Apply Late Fee (+PKR']) {
-    assert.ok(appJs.includes(label), `month form lost label/button ${label}`);
+  // phase 3: month-form labels render via t() (English values pinned in urdu-auto-phase3.test.js)
+  for (const key of ['prof_hist_bill_update', 'prof_hist_bill_record',
+    'prof_hist_pay_title', 'prof_hist_bill_save', 'prof_hist_pay_submit',
+    'prof_hist_apply_fee']) {
+    assert.ok(appJs.includes(`t('${key}'`), `month form lost label/button ${key}`);
   }
   assert.ok(appJs.includes('data-kind="bill"'), 'bill form data-kind kept');
   assert.ok(appJs.includes('data-kind="payment"'), 'payment form data-kind kept');

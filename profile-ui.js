@@ -1,6 +1,7 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
-import { pauseStatusLabel, sanitizePauseFields } from './pause-billing.js';
+import { sanitizePauseFields } from './pause-billing.js';
+import { t } from './nav-language.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 
 const BILL_STATUS = Object.freeze({
@@ -216,20 +217,25 @@ export function pauseBillingSummary(customer) {
   const { paused, pauseStartDate, autoResumeDate, pauseSkippedMonths } = sanitizePauseFields(customer);
   const active = paused === true && pauseStartDate !== null;
   const skippedNote = pauseSkippedMonths.length > 0
-    ? ` · ${pauseSkippedMonths.length} skipped month${pauseSkippedMonths.length === 1 ? '' : 's'} never billed`
+    ? (pauseSkippedMonths.length === 1 ? t('prof_pause_skipped_1') : t('prof_pause_skipped_n', null, { n: pauseSkippedMonths.length }))
     : '';
+  const label = (paused !== true || !pauseStartDate)
+    ? t('prof_pause_not_paused')
+    : (autoResumeDate
+      ? t('prof_pause_since_resume', null, { start: pauseStartDate, resume: autoResumeDate })
+      : t('prof_pause_since_until', null, { start: pauseStartDate }));
   return {
     active,
     paused,
     pauseStartDate,
     autoResumeDate,
     pauseSkippedMonths,
-    label: pauseStatusLabel(customer),
+    label,
     detail: active
-      ? `${pauseStatusLabel(customer)}. No new monthly charges are generated while paused; any unpaid balance stays due.${skippedNote}`
+      ? t('prof_pause_detail_active', null, { label, skipped: skippedNote })
       : (pauseSkippedMonths.length > 0
-        ? `Not paused.${skippedNote} — those months stay unbilled.`
-        : 'Not paused')
+        ? t('prof_pause_detail_inactive_skipped', null, { skipped: skippedNote })
+        : t('prof_pause_not_paused'))
   };
 }
 
@@ -245,10 +251,12 @@ export function kistSettlementPresentation(plan) {
   return {
     canPayoff: sane.status === 'active',
     payoffAmount,
-    payoffLabel: sane.status === 'active' ? `Early payoff · ${formatPKR(payoffAmount)}` : '',
+    payoffLabel: sane.status === 'active' ? t('prof_kist_payoff', null, { amount: formatPKR(payoffAmount) }) : '',
     settledEarly,
     settledLabel: settledEarly
-      ? `Settled early · ${formatPKR(sane.payoffAmount ?? 0)}${sane.payoffDate ? ` on ${sane.payoffDate}` : ''}`
+      ? (sane.payoffDate
+        ? t('prof_kist_settled', null, { amount: formatPKR(sane.payoffAmount ?? 0), date: sane.payoffDate })
+        : t('prof_kist_settled_nodate', null, { amount: formatPKR(sane.payoffAmount ?? 0) }))
       : ''
   };
 }

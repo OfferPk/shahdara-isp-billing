@@ -75,7 +75,7 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(profileUi, /Status: PARTIAL/);
   assert.match(core, /Cash at Waseem Abbasi shop/);
   assert.match(core, /Cash at Hassan shop/);
-  assert.match(app, /Paid by \(optional\)/);
+  assert.match(app, /t\('prof_paid_by_label'\)/); // phase 3: payer label renders via t()
   assert.doesNotMatch(index, /name=["']packageRenewalDate["']/i, 'admins are not prompted to enter a package date');
   assert.doesNotMatch(profileUi, /fetch\s*\(|\b(?:RouterOS|RADIUS|OLT)\b/i);
   assert.doesNotMatch(app, /\b(?:suspendService|restoreService|RouterOS|RADIUS|OLT)\b/i);
@@ -98,7 +98,7 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(styles, /@media print/);
   assert.match(receipt, /calculatePaymentAllocations/);
   assert.match(app, /name="packageId"/);
-  assert.match(app, /preset stores its exact label, speed, nominal price, type and applicable cap on this bill only/i);
+  assert.match(app, /t\('prof_hist_pkg_help'\)/); // phase 3: package selector help renders via t()
   assert.match(app, /Nominal package price/);
   assert.match(core, /packageSnapshot:selectedPackage/);
   assert.match(packages, /price:3000/);
@@ -151,7 +151,7 @@ test('money is formatted and labeled in PKR throughout the live billing UI and e
   assert.match(index, /All money shown in PKR · no conversion/);
   assert.match(index, /Monthly provider purchase cost \(PKR\)/);
   assert.match(index, /Monthly selling amount \(PKR\)/);
-  assert.match(app, /Bill amount \(PKR\)/);
+  assert.match(app, /t\('prof_hist_bill_amount_label'\)/); // phase 3: bill amount label renders via t()
   assert.match(app, /Amount received \(PKR\)/);
   assert.match(app, /Monthly sale \(PKR\)/);
   assert.match(index, /Not set — excluded from dues/);
@@ -231,7 +231,7 @@ test('Phase 3 sections are local-only, unseeded, mobile-rendered and use explici
 });
 
 test('location and package summaries expose the nested hierarchy, canonical grouping and snapshot-based ARPU definition', () => {
-  assert.match(app, /Area \/ mohalla is the parent location and an optional zone is summarized beneath it/);
+  assert.match(app, /t\('prof_view_help'\)/); // phase 3: profile help text renders via t()
   assert.match(index, /Area \/ mohalla rows are parent roll-ups/);
   assert.match(index, /Profiles with no area \/ mohalla are excluded from named-area rows and counted below/);
   assert.match(index, /ARPU = current PKT service-month bill snapshots ÷ active configured subscriptions/);
@@ -278,11 +278,11 @@ test('customer cards and profile summaries expose cumulative actual receipts and
   assert.match(core, /export function summarizeCustomerTenure/);
   assert.match(app, /summarizeCustomerReceipts/);
   assert.match(app, /summarizeCustomerTenure/);
-  assert.match(app, /Total actually received/);
+  assert.match(app, /t\('prof_receipts_total'\)/); // phase 3: receipts total label renders via t()
   assert.match(app, /const shellTop = appShell\.getBoundingClientRect\(\)\.top \+ window\.scrollY/);
   assert.match(app, /window\.scrollTo\(\{ top:Math\.max\(0, shellTop - topbarHeight - 8\), behavior:'smooth' \}\)/);
   assert.match(styles, /\.customer-list,\s*\.archived-customer-list\s*\{[^}]*grid-auto-rows:\s*max-content[^}]*align-content:\s*start/);
-  assert.match(app, /Receipts by payment month/);
+  assert.match(app, /t\('prof_receipts_by_month'\)/); // phase 3: receipts-by-month heading renders via t()
   assert.match(index, /id="customerReceiptSummary"/);
   assert.match(styles, /@media\s*\(max-width:\s*620px\)\s*\{\s*\.detail-title-row\s*\{\s*display:\s*grid/);
   assert.match(styles, /\.customer-card-stats/);

@@ -63,7 +63,7 @@ export function setupCustomerImport({ win = window, doc = document, getControlle
     <section class="ci-card">
       <div class="modal-heading">
         <div><p class="eyebrow">CUSTOMERS · BULK ADD</p><h2 id="customerImportTitle">Bulk add customers</h2></div>
-        <button id="closeCustomerImportBtn" class="close-button" type="button" aria-label="Close bulk add">×</button>
+        <button id="closeCustomerImportBtn" class="close-button" type="button" aria-label="Close bulk add">↩</button>
       </div>
 
       <div id="ciStepInput" class="ci-step">

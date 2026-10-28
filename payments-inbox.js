@@ -639,7 +639,7 @@ export class PaymentsInboxController {
       <dialog id="easypaisaSettingsModal" class="modal-dialog easypaisa-modal">
         <div class="modal-heading">
           <h2>Easypaisa Sheet Settings</h2>
-          <button type="button" class="close-btn" data-close-settings aria-label="Close">✕</button>
+          <button type="button" class="close-btn" data-close-settings aria-label="Close">↩</button>
         </div>
         <form id="easypaisaSettingsForm" class="easypaisa-form">
           <div class="form-group">
@@ -663,7 +663,7 @@ export class PaymentsInboxController {
       <dialog id="easypaisaImportModal" class="modal-dialog easypaisa-modal">
         <div class="modal-heading">
           <h2>Import Easypaisa Transactions</h2>
-          <button type="button" class="close-btn" data-close-import aria-label="Close">✕</button>
+          <button type="button" class="close-btn" data-close-import aria-label="Close">↩</button>
         </div>
         <div class="easypaisa-import-content">
           <div class="import-section">

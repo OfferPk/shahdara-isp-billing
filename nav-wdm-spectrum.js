@@ -558,7 +558,7 @@ export function setupMobileWdmSpectrumModal(state, { storage = typeof localStora
           <input type="number" step="0.1" class="fdt-input" style="width:75px;padding:3px" value="${row.powerDbm}" data-idx="${idx}" data-field="powerDbm">
         </td>
         <td>
-          <button type="button" class="close-button" style="font-size:14px;padding:2px 6px" data-remove-idx="${idx}" title="Remove Channel">×</button>
+          <button type="button" class="wdm-remove-btn" style="font-size:14px;padding:2px 6px" data-remove-idx="${idx}" title="Remove Channel">×</button>
         </td>
       `;
       channelsTbody.appendChild(tr);

@@ -329,7 +329,7 @@ export function createConfirmDialog(doc = document, win = window) {
       <div class="app-confirm-head">
         <span class="app-confirm-icon" aria-hidden="true"></span>
         <h2 id="appConfirmTitle" class="app-confirm-title"></h2>
-        <button id="appConfirmCloseBtn" class="close-button" type="button" aria-label="Close">×</button>
+        <button id="appConfirmCloseBtn" class="close-button" type="button" aria-label="Close">↩</button>
       </div>
       <p id="appConfirmSubject" class="app-confirm-subject" hidden></p>
       <p id="appConfirmMessage" class="app-confirm-message"></p>

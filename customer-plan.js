@@ -193,7 +193,7 @@ export function setupInlineBillEdit({ win = window, doc = document, getControlle
             <p class="eyebrow" id="inlineBillEditEyebrow">MONTHLY BILL</p>
             <h2 id="inlineBillEditTitle">Set monthly bill</h2>
           </div>
-          <button class="close-button" type="button" data-close-dialog aria-label="Close">×</button>
+          <button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button>
         </div>
         <form id="inlineBillEditForm" method="dialog" novalidate>
           <p id="inlineBillCustomerInfo" class="inline-bill-customer-info"></p>

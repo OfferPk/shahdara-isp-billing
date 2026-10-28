@@ -11700,12 +11700,12 @@ dialog::backdrop {
     margin: 0 !important;
   }
 
-  /* Universal 48px x 48px close touch target */
+  /* Universal 48px x 48px close touch target: red back-arrow button, the one
+     unmistakable way out of every modal (aria-label-only buttons keep their
+     own styles; chip dismiss buttons are not modal closes). */
   .close-button,
   .modal-close-btn,
-  .billing-modal-close,
-  button[aria-label*="close" i],
-  button[aria-label*="Close" i] {
+  .billing-modal-close {
     min-width: 48px !important;
     min-height: 48px !important;
     width: 48px !important;
@@ -11717,7 +11717,10 @@ dialog::backdrop {
     box-sizing: border-box !important;
     font-size: 24px !important;
     line-height: 1 !important;
-    border-radius: 12px !important;
+    border: none !important;
+    border-radius: 50% !important;
+    background: var(--color-overdue) !important;
+    color: var(--color-neutral-0) !important;
     touch-action: manipulation;
   }
 

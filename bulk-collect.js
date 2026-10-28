@@ -242,7 +242,7 @@ function buildDialogs(doc) {
           <p class="eyebrow">FIELD RECOVERY · BATCH</p>
           <h2 id="bulkCollectTitle">Bulk Collect Cash</h2>
         </div>
-        <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">×</button>
+        <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">↩</button>
       </div>
 
       <div class="bc-settings" role="group" aria-label="Batch settings (apply to every payment)">
@@ -289,7 +289,7 @@ function buildDialogs(doc) {
     <section class="bulk-duplicate-card">
       <div class="modal-heading" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <h2 id="bulkDuplicateTitle" style="margin:0;">⚠ Already added</h2>
-        <button id="closeBulkDuplicateModalBtn" class="close-button" type="button" aria-label="Close duplicate alert">×</button>
+        <button id="closeBulkDuplicateModalBtn" class="close-button" type="button" aria-label="Close duplicate alert">↩</button>
       </div>
       <div id="bulkDuplicateBody" class="bc-dup-body"></div>
       <div class="bc-dup-actions">

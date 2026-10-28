@@ -1,5 +1,5 @@
 import {
-  INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
+  INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, STORAGE_KEY, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
   addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
   deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
@@ -38,6 +38,7 @@ import {
 } from './backup-store.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
 import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.11.0';
+import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.11.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
@@ -216,6 +217,8 @@ const reportList = $('#monthlyReportList');
 let storageAvailable = true;
 let persistenceBlocked = false;
 let readFailureMessage = '';
+let quotaWarningShown = false;
+let pendingFallbackRecord = null;
 export let collectionTargetController = null;
 export let duesAgingController = null;
 export let topDefaultersModalController = null;
@@ -280,6 +283,7 @@ let refreshOwnerCenter = () => {};
 let customerDraftController = null;
 let expenseDraftController = null;
 const localBackupStore = createLocalBackupStore();
+const saveFallbackStore = createSaveFallbackStore();
 let automaticBackupInFlight = null;
 let lastAutomaticBackupCheckAt = 0;
 let backupOperationBusy = false;
@@ -510,8 +514,30 @@ function save() {
     renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); refreshOwnerCenter(); renderPhase3();
     return false;
   }
+  // Layer B — Quota guard: measure the serialized ledger before writing.
+  // One warning per session; the save itself always proceeds. The estimate
+  // signal reuses the already-cached storage estimate from the backup UI
+  // (no new async work on the save path).
+  let serialized = null;
+  try { serialized = JSON.stringify(state); } catch { serialized = null; }
+  if (serialized !== null && !quotaWarningShown) {
+    const assessment = assessSaveSize(new TextEncoder().encode(serialized).byteLength, storageEstimateInfo?.supported ? { quota: storageEstimateInfo.quotaBytes, usage: storageEstimateInfo.usageBytes } : null);
+    if (assessment.warn) {
+      quotaWarningShown = true;
+      toast('Ledger is getting large for browser storage — download a JSON backup now so nothing is lost.', { type: 'warning', title: 'Storage getting full', duration: 8000, actionLabel: 'Download JSON backup', onAction: () => { $('#downloadJsonBackupButton')?.click(); } });
+    }
+  }
   try { persistState(state, localStorage); storageAvailable = true; }
-  catch { storageAvailable = false; toast('Could not save. Check browser storage is available.'); }
+  catch (error) {
+    storageAvailable = false;
+    // A failed save must NEVER look like a success. Quota failures get the
+    // emergency fallback attempt; anything else gets an explicit failure.
+    if (isQuotaError(error) && serialized !== null) {
+      void saveFallbackAndWarn(serialized);
+    } else {
+      toast('Could not save — your latest changes were NOT saved. Check browser storage is available, then retry.', { type: 'error', title: 'Save failed', duration: 8000 });
+    }
+  }
   renderDashboard();
   renderGlobalSearch();
   renderCustomers();
@@ -2584,12 +2610,15 @@ function renderBackupManager({ settings, status, backups }) {
   const selectedId = select.value;
   select.replaceChildren(new Option('Choose a saved backup', ''));
   for (const backup of backups ?? []) {
-    const option = new Option(`${formatBackupDateTime(backup.createdAt)} · ${formatBackupSize(backup.sizeBytes)} · ${backup.kind === 'automatic' ? 'Automatic' : 'Manual'}`, backup.id);
+    const option = new Option(`${formatBackupDateTime(backup.createdAt)} · ${formatBackupSize(backup.sizeBytes)} · ${backup.kind === 'automatic' ? 'Automatic' : backup.kind === SAFETY_SNAPSHOT_KIND ? 'Safety' : 'Manual'}`, backup.id);
     select.add(option);
   }
   if ([...(backups ?? [])].some(backup => backup.id === selectedId)) select.value = selectedId;
   $('#restoreLocalBackupButton').disabled = !select.value;
   $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
+  renderSafetySnapshotList(backups ?? []);
+  const recoveryBtn = $('#showStorageRecoveryButton');
+  if (recoveryBtn) recoveryBtn.hidden = !persistenceBlocked;
 }
 async function refreshBackupManager() {
   try {
@@ -2598,12 +2627,16 @@ async function refreshBackupManager() {
     ]);
     renderBackupManager({ settings, status, backups });
     updateDataSafetyUi(status);
+    void renderSaveFallbackNotice();
     return { settings, status, backups };
   } catch (error) {
     $('#backupStatus').textContent = `Unavailable: ${error.message || 'app-private backup storage could not be opened'}`;
     $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
     $('#restoreLocalBackupButton').disabled = true;
+    const recoveryBtn = $('#showStorageRecoveryButton');
+    if (recoveryBtn) recoveryBtn.hidden = !persistenceBlocked;
     updateDataSafetyUi(null);
+    void renderSaveFallbackNotice();
     return null;
   }
 }
@@ -2620,6 +2653,186 @@ async function saveLocalSnapshot(kind) {
   try { localStorage.setItem(LAST_BACKUP_TIME_KEY, createdAt.toISOString()); } catch { /* ignore */ }
   updateDataSafetyUi();
   return record;
+}
+// Layer A — Pre-destructive-action safety snapshot. Same backup document as
+// the existing local backups (so the existing checksum-gated restore review
+// can read it), but kind 'safety' and updateStatus:false: a safety net must
+// never disturb the automatic-backup schedule, the "last successful backup"
+// display, or the off-device health record. Returns the record, or null
+// when no valid ledger can be snapshotted. Rotation keeps the newest 5.
+async function createSafetySnapshot() {
+  if (persistenceBlocked || !storageAvailable) return null;
+  try {
+    const createdAt = new Date();
+    const backupText = createJsonBackup(state, createdAt, backupExtras());
+    const counts = countLedgerRecords(state);
+    const record = await localBackupStore.saveBackup(backupText, { kind: SAFETY_SNAPSHOT_KIND, createdAt, customerCount: counts.customerCount, paymentCount: counts.paymentCount, updateStatus: false });
+    try {
+      const backups = await localBackupStore.listBackups();
+      const stale = selectSafetySnapshotsToRotate(backups, MAX_SAFETY_SNAPSHOTS);
+      for (const id of stale) { try { await localBackupStore.deleteBackup(id); } catch { /* Rotation is best-effort; a stale snapshot never blocks the new one. */ } }
+    } catch { /* Rotation failure never invalidates the snapshot just saved. */ }
+    return record;
+  } catch { return null; }
+}
+// Best-effort wrapper for the three destructive hooks. A failed snapshot
+// warns but NEVER blocks the operator's explicit action — the action itself
+// was confirmed, and the JSON backup remains the surest copy. When the
+// ledger is unreadable (recovery flow) there is nothing valid to snapshot,
+// so it skips silently.
+async function snapshotBeforeDestructiveAction() {
+  try {
+    if (persistenceBlocked || !storageAvailable) return null;
+    const record = await createSafetySnapshot();
+    if (!record) toast('Safety snapshot could not be saved — download a JSON backup first if this action must be reversible.', { type: 'warning', title: 'Snapshot failed' });
+    return record;
+  } catch { return null; }
+}
+// Layer A — Safety snapshots list inside the existing backup controls.
+// Renders into #safetySnapshotList (index.html backup-manager section);
+// Restore routes through the existing checksum-gated restore review by
+// selecting the snapshot in #savedLocalBackupSelect and clicking the
+// existing Review & Restore button. Never a silent overwrite.
+function renderSafetySnapshotList(backups) {
+  const list = $('#safetySnapshotList');
+  if (!list) return;
+  const safety = (backups ?? []).filter(backup => backup.kind === SAFETY_SNAPSHOT_KIND);
+  list.replaceChildren();
+  if (!safety.length) {
+    const empty = document.createElement('li');
+    empty.textContent = 'No safety snapshots yet — one is saved automatically before a customer delete, a payment void, or a backup restore.';
+    list.append(empty);
+    return;
+  }
+  for (const backup of safety) {
+    const item = document.createElement('li');
+    const counts = Number.isFinite(backup.customerCount) ? ` · ${backup.customerCount} customers · ${backup.paymentCount ?? 0} payments` : '';
+    const label = document.createElement('span');
+    label.textContent = `${formatBackupDateTime(backup.createdAt)} · ${formatBackupSize(backup.sizeBytes)}${counts}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary-button';
+    button.textContent = 'Restore';
+    button.addEventListener('click', () => {
+      const select = $('#savedLocalBackupSelect');
+      if (select) select.value = backup.id;
+      const restoreBtn = $('#restoreLocalBackupButton');
+      if (restoreBtn) { restoreBtn.disabled = false; restoreBtn.click(); }
+    });
+    item.append(label, button);
+    list.append(item);
+  }
+}
+// Layer B — Emergency-copy notice. The fallback store is read ONLY here
+// (backup manager refresh), never on normal load, so it can never become
+// a second ledger. The operator downloads it as a file and the record is
+// cleared, so the notice cannot linger after recovery.
+async function renderSaveFallbackNotice() {
+  const notice = $('#saveFallbackNotice');
+  if (!notice) return;
+  try { pendingFallbackRecord = await saveFallbackStore.getFallback(); }
+  catch { pendingFallbackRecord = null; }
+  notice.hidden = !pendingFallbackRecord;
+  const text = $('#saveFallbackNoticeText');
+  if (text && pendingFallbackRecord) {
+    text.textContent = `Emergency copy kept from a failed save (${formatBackupDateTime(pendingFallbackRecord.savedAt)}). Download it now — it is the only copy of those changes.`;
+  }
+}
+// Layer C — Recovery screen for an unreadable saved ledger. Offered only
+// when the startup load already failed (persistenceBlocked): the app never
+// overwrites the unreadable data on its own and never starts from a blank
+// ledger silently. Candidates are the newest local backups, checksum-ranked
+// (verified first, legacy unverified with a warning, mismatches and
+// unparseable texts never offered); Restore routes through the existing
+// checksum-gated preview. Start fresh needs an explicit confirmation and
+// only then lets a later save write a new ledger over the unreadable one.
+async function showStorageRecoveryDialog() {
+  const dialog = $('#storageRecoveryDialog');
+  if (!dialog) return;
+  const reason = (() => {
+    try {
+      const verdict = verifyLiveLedger(localStorage.getItem(STORAGE_KEY));
+      if (verdict.status === 'empty') return 'No saved ledger was found on this device.';
+      if (verdict.reason === 'malformed') return 'The saved ledger text is malformed and could not be parsed.';
+      if (verdict.reason === 'structure') return 'The saved ledger has an unsupported version or structure.';
+      if (verdict.reason === 'customer') return 'The saved ledger contains an invalid customer record.';
+      return readFailureMessage || 'Saved data could not be read.';
+    } catch { return readFailureMessage || 'Saved data could not be read.'; }
+  })();
+  const reasonEl = $('#storageRecoveryReason');
+  if (reasonEl) reasonEl.textContent = `${reason} Nothing was overwritten. Choose a snapshot below, review a JSON backup file, or start fresh.`;
+  const list = $('#storageRecoverySnapshotList');
+  if (list) {
+    list.replaceChildren();
+    const loading = document.createElement('li');
+    loading.textContent = 'Checking saved snapshots…';
+    list.append(loading);
+  }
+  if (dialog.showModal) dialog.showModal(); else dialog.hidden = false;
+  let candidates = [];
+  try {
+    const backups = await localBackupStore.listBackups();
+    const withText = [];
+    for (const meta of backups.slice(0, 10)) {
+      try { const full = await localBackupStore.getBackup(meta.id); withText.push({ ...meta, backupText: full.backupText }); }
+      catch { /* A snapshot that cannot be read is simply not offered. */ }
+    }
+    candidates = rankRecoveryCandidates(withText);
+  } catch { candidates = []; }
+  if (!list) return;
+  list.replaceChildren();
+  if (!candidates.length) {
+    const empty = document.createElement('li');
+    empty.textContent = 'No valid local snapshot was found. Use "Review a JSON backup file" if you have a copy from another device.';
+    list.append(empty);
+    return;
+  }
+  for (const candidate of candidates) {
+    const item = document.createElement('li');
+    const counts = Number.isFinite(candidate.customerCount) ? ` · ${candidate.customerCount} customers · ${candidate.paymentCount ?? 0} payments` : '';
+    const label = document.createElement('span');
+    label.textContent = `${formatBackupDateTime(candidate.createdAt)} · ${candidate.kind === SAFETY_SNAPSHOT_KIND ? 'Safety snapshot' : candidate.kind === 'automatic' ? 'Automatic' : 'Manual'}${counts} · ${candidate.checksumStatus === 'verified' ? '✓ Checksum verified' : '⚠️ No checksum — older backup, review carefully'}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary-button';
+    button.textContent = 'Restore';
+    button.addEventListener('click', () => {
+      if (dialog.close) dialog.close(); else dialog.hidden = true;
+      const select = $('#savedLocalBackupSelect');
+      if (select) select.value = candidate.id;
+      const restoreBtn = $('#restoreLocalBackupButton');
+      if (restoreBtn) { restoreBtn.disabled = false; restoreBtn.click(); }
+    });
+    item.append(label, button);
+    list.append(item);
+  }
+}
+async function startFreshAfterRecovery() {
+  const choice = await appConfirm({ tone:'danger', title:'Start fresh?', subject:'Unreadable saved data will be abandoned', message:'The saved ledger on this device could not be read, so starting fresh keeps the empty ledger and the next save will overwrite it. If you have a JSON backup from another device, use "Review a JSON backup file" instead — that is the safe way back. Only start fresh when you are sure no usable backup exists.', confirmLabel:'Start fresh anyway', cancelLabel:'Go back' });
+  if (choice !== 'confirm') return;
+  const dialog = $('#storageRecoveryDialog');
+  if (dialog?.close) dialog.close(); else if (dialog) dialog.hidden = true;
+  persistenceBlocked = false; storageAvailable = true; readFailureMessage = '';
+  save();
+  toast('Started fresh. The unreadable saved data was abandoned; the next save writes a new ledger.', { type:'warning', title:'Fresh start' });
+}
+// Layer B — Emergency fallback after a quota save failure. Stores a proper
+// backup document (restorable through the existing review flow), falling
+// back to the raw ledger text only if the backup build itself throws.
+// Never blocks collections or billing: it only runs after a save failed.
+async function saveFallbackAndWarn(serialized) {
+  let backupText = null;
+  let format = 'backup';
+  try { backupText = createJsonBackup(state, new Date(), backupExtras()); }
+  catch { backupText = serialized; format = 'ledger'; }
+  try {
+    await saveFallbackStore.saveFallback(backupText, { format, savedAt: new Date() });
+    pendingFallbackRecord = await saveFallbackStore.getFallback().catch(() => null);
+    toast('Storage is full — the latest changes were NOT saved to the ledger. An emergency copy was kept; export a JSON backup immediately.', { type: 'error', title: 'Save failed — storage full', duration: 12000, actionLabel: 'Download JSON backup', onAction: () => { $('#downloadJsonBackupButton')?.click(); } });
+  } catch {
+    toast('Storage is full — the latest changes were NOT saved, and the emergency copy also failed. Export a JSON backup immediately.', { type: 'error', title: 'Save failed — storage full', duration: 12000, actionLabel: 'Download JSON backup', onAction: () => { $('#downloadJsonBackupButton')?.click(); } });
+  }
+  void refreshBackupManager();
 }
 async function checkAutomaticBackup() {
   if (persistenceBlocked || !storageAvailable) return;
@@ -2818,6 +3031,32 @@ $('#restoreLocalBackupButton').addEventListener('click', async () => {
     const backup = await localBackupStore.getBackup(id);
     renderBackupPreview(previewJsonBackupMerge(state, backup.backupText, backupRestoreOptions()));
   } catch (error) { toast(`${error.message} No local data was changed.`); }
+});
+// Storage safety (Layers A/B/C): recovery dialog controls, the backup
+// manager's "Recovery options" button, and the emergency-copy download.
+$('#showStorageRecoveryButton')?.addEventListener('click', () => { void showStorageRecoveryDialog(); });
+$('#storageRecoveryCloseBtn')?.addEventListener('click', () => {
+  const dialog = $('#storageRecoveryDialog');
+  if (dialog?.close) dialog.close(); else if (dialog) dialog.hidden = true;
+});
+$('#storageRecoveryCloseBtn2')?.addEventListener('click', () => {
+  const dialog = $('#storageRecoveryDialog');
+  if (dialog?.close) dialog.close(); else if (dialog) dialog.hidden = true;
+});
+$('#storageRecoveryJsonBtn')?.addEventListener('click', () => { $('#jsonBackupFileInput')?.click(); });
+$('#storageRecoveryFreshBtn')?.addEventListener('click', () => { void startFreshAfterRecovery(); });
+$('#saveFallbackDownloadBtn')?.addEventListener('click', async () => {
+  const record = pendingFallbackRecord ?? await saveFallbackStore.getFallback().catch(() => null);
+  if (!record) { toast('No emergency copy is available.'); return; }
+  const stamp = localDateTime().replace(/[^0-9T]/g, '-');
+  const name = record.format === 'ledger' ? `shahdara-isp-billing-emergency-ledger-${stamp}.json` : `shahdara-isp-billing-emergency-backup-${stamp}.json`;
+  downloadJson(name, record.backupText);
+  try { await saveFallbackStore.clearFallback(); } catch { /* Keep the record if clearing fails; the notice stays until it clears. */ }
+  pendingFallbackRecord = null;
+  void renderSaveFallbackNotice();
+  toast(record.format === 'ledger'
+    ? 'Emergency ledger copy downloaded — it is raw ledger text, not a backup file. Keep it safe and ask for help restoring it.'
+    : 'Emergency backup downloaded — review it in the backup controls before applying.');
 });
 $('#backupControlsToggle').addEventListener('click', event => {
   const button = event.currentTarget;
@@ -3040,8 +3279,9 @@ $('#toggleRestorePassphraseBtn')?.addEventListener('click', () => {
   input.type = isPass ? 'text' : 'password';
   $('#toggleRestorePassphraseBtn').textContent = isPass ? '🙈' : '👁️';
 });
-$('#applyJsonBackupButton').addEventListener('click', () => {
+$('#applyJsonBackupButton').addEventListener('click', async () => {
   if (!pendingBackupPreview?.canApply) return;
+  await snapshotBeforeDestructiveAction();
   try {
     const restored = generateMonthlyBillsThroughCurrentMonth(pendingBackupPreview.state, new Date());
     persistState(restored, localStorage);
@@ -3401,7 +3641,7 @@ function setupVoidPaymentDialog() {
   if (closeBtn) closeBtn.addEventListener('click', close);
   dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
   const confirmBtn = document.getElementById('voidPaymentConfirmBtn');
-  if (confirmBtn) confirmBtn.addEventListener('click', () => {
+  if (confirmBtn) confirmBtn.addEventListener('click', async () => {
     const target = pendingVoidTarget;
     if (!target) return;
     const reasonInput = document.getElementById('voidPaymentReasonInput');
@@ -3411,6 +3651,7 @@ function setupVoidPaymentDialog() {
       if (reasonInput) reasonInput.focus();
       return;
     }
+    await snapshotBeforeDestructiveAction();
     try {
       const { state: next, voidRecord } = voidPayment(state, target.customerId, target.month, target.paymentId, { voidReason: reason });
       const previousState = state;
@@ -4108,9 +4349,10 @@ $('#saveCustomerNameBtn')?.addEventListener('click', () => {
 $('#deleteCustomerButton').addEventListener('click', async () => {
   const customer = selectedCustomer();
   if (!customer) return;
-  const choice = await appConfirm({ tone:'danger', title:'Delete this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'All bills, receipts, unused prepaid credit, contact/package data and complaint history are removed from this device. You can undo for a few seconds; after that only a JSON backup can bring it back. Archive keeps the history instead.', confirmLabel:'Delete customer', altLabel: customer.archived ? '' : 'Archive instead' });
+  const choice = await appConfirm({ tone:'danger', title:'Delete this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'All bills, receipts, unused prepaid credit, contact/package data and complaint history are removed from this device. You can undo for a few seconds; after that, restore the safety snapshot saved just before deleting (in the backup controls), or a JSON backup. Archive keeps the history instead.', confirmLabel:'Delete customer', altLabel: customer.archived ? '' : 'Archive instead' });
   if (choice === 'alt') { archiveSelectedCustomer(customer); return; }
   if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
+  await snapshotBeforeDestructiveAction();
   // Soft delete for the undo window: keep the exact record and its position so Undo restores it as it was.
   const index = state.customers.findIndex(item => item.id === customer.id);
   const removed = state.customers[index];
@@ -10302,3 +10544,9 @@ if (typeof window !== 'undefined' && window.location?.hash) {
 // SISP-14: shop-counter QR deep link (?customer=[id]&action=pay) on app load.
 handleCustomerDeepLink();
 }
+
+// Storage safety Layer C: if the startup load already failed, the recovery
+// screen opens on top of the seed-state screen (nothing was overwritten).
+// Healthy loads are untouched: persistenceBlocked is false, so this is a
+// no-op with no prompt and no delay.
+if (persistenceBlocked && typeof document !== 'undefined') { void showStorageRecoveryDialog(); }

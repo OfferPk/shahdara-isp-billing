@@ -20,6 +20,7 @@
 // fabricated here.
 import { calculatePaymentAllocations, formatPKR } from './core.js';
 import { advancePlansForBilledLines, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines } from './installment-plan.js';
+import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 
 export const BILLING_CYCLES_KEY = 'sisp_billing_cycles_v1';
 
@@ -144,6 +145,11 @@ export function arrearsAndAdvance(customer, month) {
 export function planCustomerCycleLine(customer, month) {
   const base = { customerId: customer?.id ?? null, customerNumber: customer?.customerNumber ?? null, name: customer?.name ?? '' };
   if (!customer || customer.archived) return { ...base, skipped: true, reason: 'archived' };
+  // SISP-8: a billing-paused month generates no new charge at all — not
+  // even kist — and an existing bill for that month is left untouched.
+  // The cycle preview lists the customer as skipped, and apply records
+  // the month as skipped so a later resume never backfills it.
+  if (isBillingPaused(customer, month)) return { ...base, skipped: true, reason: 'paused' };
   if (isBillingCycleMonth(customer.billingStartMonth) && customer.billingStartMonth > month) return { ...base, skipped: true, reason: 'billing-not-started' };
   const bills = Array.isArray(customer.bills) ? customer.bills : [];
   const existing = bills.find((bill) => bill?.month === month);
@@ -280,7 +286,19 @@ export function applyBillingCycle(state, month, referenceDate = new Date()) {
       installmentPlans: advancePlansForBilledLines(customer.installmentPlans, line.kistLines)
     };
   });
-  return { state: changed ? { ...state, customers } : state, plan, createdBillIds };
+  // SISP-8: a cycle-skipped paused month is recorded as skipped (same
+  // rule as the auto-generator) so a later resume never backfills it.
+  // Months that already have a bill are never recorded as skipped.
+  const pausedSkippedIds = new Set(plan.skipped.filter((line) => line.reason === 'paused').map((line) => line.customerId));
+  const withSkipped = customers.map((customer) => {
+    if (!pausedSkippedIds.has(customer.id)) return customer;
+    if ((customer.bills ?? []).some((bill) => bill?.month === month)) return customer;
+    const current = sanitizePauseFields(customer).pauseSkippedMonths;
+    if (current.includes(month)) return customer;
+    changed = true;
+    return { ...customer, pauseSkippedMonths: [...current, month].sort() };
+  });
+  return { state: changed ? { ...state, customers: withSkipped } : state, plan, createdBillIds };
 }
 
 /**
@@ -377,7 +395,8 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
     archived: 'Archived',
     'billing-not-started': 'Billing starts later',
     'no-price': 'No price for this month',
-    'unpriced-bill': 'Bill has no price'
+    'unpriced-bill': 'Bill has no price',
+    paused: 'Paused (vacation hold)'
   }[reason] || reason);
 
   function renderLastRun() {

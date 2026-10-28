@@ -13,6 +13,7 @@ import {
   daysSoFar,
   delayDays,
   delayReasonLabel,
+  deleteInstallRequest,
   filterInstallRequests,
   loadInstallRequests,
   markInstallRequestInstalled,
@@ -21,7 +22,8 @@ import {
   resolveDelayReason,
   sanitizeInstallRequests,
   saveInstallRequests,
-  sortedRequestLog
+  sortedRequestLog,
+  updateInstallRequest
 } from '../install-tracker.js';
 
 const CUSTOMERS = [
@@ -213,4 +215,73 @@ test('backup: requests travel in settings and restore under safe-merge rules', (
   const clash = previewJsonBackupMerge(createInitialState(), backupText, { currentInstallRequests: other, currentInstallRequestsStored: true });
   assert.equal(clash.installRequests, null);
   assert.ok(clash.conflicts.some((c) => /Installation request records differ/.test(c.field)));
+});
+
+// ---- Edit + delete (user-ordered): same validation as create, in-place
+// updates, computed delay totals follow at once, deleted stays deleted. ----
+
+test('edit request: dates change updates delay days and the month total, order + createdAt kept', () => {
+  let requests = installed({ installDate: '2026-10-03' }); // 2 days
+  const edited = updateInstallRequest(requests, requests[0].id, request({ installDate: '2026-10-06' }), { customers: CUSTOMERS });
+  assert.equal(edited[0].id, 'IR-1');
+  assert.equal(delayDays(edited[0]), 5);
+  assert.equal(buildMonthlyInstallSummary(edited, '2026-10', '2026-10-31').totalDelayDays, 5);
+  const second = addInstallRequest(edited, request({ requesterName: 'Second', requestDate: '2026-10-02' }), { customers: CUSTOMERS });
+  assert.deepEqual(second.map((r) => r.id), ['IR-1', 'IR-2']);
+  assert.equal(second[0].createdAt, requests[0].createdAt);
+});
+
+test('edit request: clearing the install date returns it to pending, out of the total', () => {
+  let requests = installed({ installDate: '2026-10-03' });
+  const edited = updateInstallRequest(requests, requests[0].id, request({ installDate: '' }), { customers: CUSTOMERS });
+  assert.equal(edited[0].installDate, '');
+  assert.equal(delayDays(edited[0]), null);
+  const summary = buildMonthlyInstallSummary(edited, '2026-10', '2026-10-31');
+  assert.equal(summary.totalDelayDays, 0);
+  assert.equal(summary.pendingCount, 1);
+  assert.equal(summary.installedCount, 0);
+});
+
+test('edit request: same validation as create; unchanged customer kept when it left the list', () => {
+  let requests = [];
+  requests = addInstallRequest(requests, request({ customerId: 'c1' }), { customers: CUSTOMERS });
+  assert.throws(() => updateInstallRequest(requests, 'IR-999', request(), { customers: CUSTOMERS }), /not found/);
+  assert.throws(() => updateInstallRequest(requests, requests[0].id, request({ installDate: '2026-09-30' }), { customers: CUSTOMERS }), /before the request date/);
+  assert.throws(() => updateInstallRequest(requests, requests[0].id, request({ amountPaid: '-5' }), { customers: CUSTOMERS }), /0 or more/);
+  assert.throws(() => updateInstallRequest(requests, requests[0].id, request({ requesterName: '  ' }), { customers: CUSTOMERS }), /Requester name is required/);
+  // Unchanged customer is NOT rejected when the customer left the list.
+  const kept = updateInstallRequest(requests, requests[0].id, request({ customerId: 'c1', amountPaid: '12000' }), { customers: [] });
+  assert.equal(kept[0].customerName, 'Master Zaheer');
+  assert.equal(kept[0].amountPaid, 12000);
+  // But switching to a different unknown customer still throws.
+  assert.throws(() => updateInstallRequest(requests, requests[0].id, request({ customerId: 'c2' }), { customers: [] }), /from the list/);
+});
+
+test('delete request: removed from list and from summary totals', () => {
+  let requests = [];
+  requests = addInstallRequest(requests, request({ requesterName: 'A', requestDate: '2026-10-01', installDate: '2026-10-03' }), { customers: CUSTOMERS });
+  requests = addInstallRequest(requests, request({ requesterName: 'B', requestDate: '2026-10-01', installDate: '2026-10-06' }), { customers: CUSTOMERS });
+  assert.equal(buildMonthlyInstallSummary(requests, '2026-10', '2026-10-31').totalDelayDays, 7);
+  const after = deleteInstallRequest(requests, requests[0].id);
+  assert.deepEqual(after.map((r) => r.id), ['IR-2']);
+  assert.equal(buildMonthlyInstallSummary(after, '2026-10', '2026-10-31').totalDelayDays, 5);
+  assert.throws(() => deleteInstallRequest(requests, 'IR-999'), /not found/);
+});
+
+test('backup: edited requests travel, deleted requests stay deleted after restore', () => {
+  let requests = [];
+  requests = addInstallRequest(requests, request({ requesterName: 'A', installDate: '2026-10-03', delayReason: 'Saad did not come' }), { customers: CUSTOMERS });
+  requests = addInstallRequest(requests, request({ requesterName: 'B', requestDate: '2026-10-07' }), { customers: CUSTOMERS });
+  requests = updateInstallRequest(requests, requests[0].id, request({ requesterName: 'A', installDate: '2026-10-06', delayReason: 'Saad did not come' }), { customers: CUSTOMERS });
+  requests = deleteInstallRequest(requests, requests[1].id);
+  const backupText = createJsonBackup(createInitialState(), new Date('2026-10-31T12:00:00+05:00'), { installRequests: requests });
+  const backup = JSON.parse(backupText);
+  assert.equal(backup.settings.installRequests.length, 1);
+  assert.equal(backup.settings.installRequests[0].id, 'IR-1');
+  assert.equal(delayDays(backup.settings.installRequests[0]), 5);
+  assert.ok(!backup.settings.installRequests.some((r) => r.requesterName === 'B'));
+  const preview = previewJsonBackupMerge(createInitialState(), backupText);
+  assert.equal(preview.canApply, true);
+  assert.deepEqual(preview.installRequests.map((r) => r.id), ['IR-1']);
+  assert.equal(preview.counts.installRequestsRestored, 1);
 });

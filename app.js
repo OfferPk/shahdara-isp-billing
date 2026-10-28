@@ -7670,11 +7670,13 @@ if (typeof document !== 'undefined') {
   saadVisitsModalController = setupSaadVisitsModal(() => state, {
     onVisitsChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
-    listTicketIds: () => loadTickets().map((t) => t.id)
+    listTicketIds: () => loadTickets().map((t) => t.id),
+    onConfirm: (opts) => appConfirm(opts)
   });
   installTrackerModalController = setupInstallTrackerModal(() => state, {
     onRequestsChanged: () => renderDashboard(),
-    onToast: (msg, opts) => toast(msg, opts)
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts)
   });
   pendingWorksModalController = setupPendingWorksModal(() => state, {
     onWorksChanged: () => renderDashboard(),

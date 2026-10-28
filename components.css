@@ -749,3 +749,8 @@ body.field-mode-open { overflow: hidden; }
   .pending-works-list { grid-template-columns: 1fr; }
   .pending-works-card p strong { text-align: left; }
 }
+/* Edit + delete actions on Saad visit/payment rows and Installation Tracker
+   request cards. Layout only — no colours, theme tokens for spacing. */
+.saad-visits-card-actions, .install-tracker-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: 8px; }
+.saad-visits-card-actions .secondary-button, .install-tracker-card-actions .secondary-button, .saad-visits-payment-actions .secondary-button { min-height: 32px; padding: 0 10px; }
+.saad-visits-payment-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 8px; }

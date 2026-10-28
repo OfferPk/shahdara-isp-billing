@@ -11,6 +11,8 @@ import {
   addSaadPayment,
   addSaadVisit,
   buildMonthlySaadSummary,
+  deleteSaadPayment,
+  deleteSaadVisit,
   filterSaadVisits,
   formatHours,
   hoursFromTimes,
@@ -22,6 +24,8 @@ import {
   saveSaadPayments,
   saveSaadVisits,
   sortedVisitLog,
+  updateSaadPayment,
+  updateSaadVisit,
   visitHours,
   visitWhereLabel,
   visitsForMonth
@@ -277,4 +281,103 @@ test('filters: by month and by type; log newest first', () => {
   assert.equal(log[0].date, '2026-10-05');
   assert.equal(log[1].date, '2026-09-05');
   assert.equal(monthOf('2026-10-05'), '2026-10');
+});
+
+// ---- Edit + delete (user-ordered): same validation as create, in-place
+// updates, computed summaries follow at once, deleted stays deleted. ----
+
+test('edit visit: hours change updates month summary, keeps id + position + createdAt', () => {
+  let visits = [];
+  visits = addSaadVisit(visits, visit(), { customers: CUSTOMERS });
+  visits = addSaadVisit(visits, visit({ date: '2026-10-06' }), { customers: CUSTOMERS });
+  const before = visits[0];
+  const edited = updateSaadVisit(visits, visits[0].id, visit({ startTime: '09:00', endTime: '13:00' }), { customers: CUSTOMERS });
+  assert.equal(edited.length, 2);
+  assert.equal(edited[0].id, 'SV-1');
+  assert.equal(edited[0].createdAt, before.createdAt);
+  assert.equal(edited[0].hoursWorked, 4);
+  assert.equal(edited[1].id, 'SV-2');
+  const summary = buildMonthlySaadSummary(edited, [], '2026-10');
+  assert.equal(summary.totalHours, 7.5); // 4 + 3.5
+  assert.equal(summary.dayCount, 2);
+  assert.equal(summary.visits.length, 2);
+});
+
+test('edit visit: date change moves it between month summaries', () => {
+  let visits = [];
+  visits = addSaadVisit(visits, visit(), { customers: CUSTOMERS });
+  const edited = updateSaadVisit(visits, visits[0].id, visit({ date: '2026-11-02' }), { customers: CUSTOMERS });
+  assert.equal(buildMonthlySaadSummary(edited, [], '2026-10').visits.length, 0);
+  assert.equal(buildMonthlySaadSummary(edited, [], '2026-11').visits.length, 1);
+  assert.equal(buildMonthlySaadSummary(edited, [], '2026-11').dayCount, 1);
+});
+
+test('edit visit: same validation as create; unchanged customer kept when it left the list', () => {
+  let visits = [];
+  visits = addSaadVisit(visits, visit(), { customers: CUSTOMERS });
+  assert.throws(() => updateSaadVisit(visits, 'SV-999', visit(), { customers: CUSTOMERS }), /not found/);
+  assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ endTime: '08:00' }), { customers: CUSTOMERS }), /after start time/);
+  assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ startTime: '09:00', endTime: '' }), { customers: CUSTOMERS }), /both start and end time/);
+  assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ startTime: '', endTime: '' }), { customers: CUSTOMERS }), /start \+ end time, or hours worked/);
+  assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ customerId: 'c-9' }), { customers: CUSTOMERS }), /from the list/);
+  // Unchanged customer is NOT rejected when the customer left the list.
+  const kept = updateSaadVisit(visits, visits[0].id, visit({ startTime: '09:00', endTime: '10:00' }), { customers: [] });
+  assert.equal(kept[0].customerName, 'RAJA FAISAL');
+  assert.equal(kept[0].hoursWorked, 1);
+  // But switching to a different unknown customer still throws.
+  assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ customerId: 'c-9' }), { customers: [] }), /from the list/);
+});
+
+test('edit payment: amount + type change updates the salary/commission split', () => {
+  let payments = [];
+  payments = addSaadPayment(payments, { date: '2026-10-03', amount: 5000, type: 'salary' });
+  payments = addSaadPayment(payments, { date: '2026-10-20', amount: 2000, type: 'commission' });
+  const edited = updateSaadPayment(payments, payments[0].id, { date: '2026-10-03', amount: 8000, type: 'commission' });
+  assert.equal(edited[0].id, 'SP-1');
+  assert.equal(edited[1].id, 'SP-2');
+  const summary = buildMonthlySaadSummary([], edited, '2026-10');
+  assert.equal(summary.salaryTotal, 0);
+  assert.equal(summary.commissionTotal, 10000);
+  assert.equal(summary.grandTotal, 10000);
+  assert.throws(() => updateSaadPayment(payments, 'SP-999', { date: '2026-10-03', amount: 1, type: 'salary' }), /not found/);
+  assert.throws(() => updateSaadPayment(payments, payments[0].id, { date: '2026-10-03', amount: 0, type: 'salary' }), /positive/);
+});
+
+test('delete visit and payment: removed from lists and from summary totals', () => {
+  let visits = [];
+  visits = addSaadVisit(visits, visit(), { customers: CUSTOMERS });
+  visits = addSaadVisit(visits, visit({ date: '2026-10-06' }), { customers: CUSTOMERS });
+  let payments = [];
+  payments = addSaadPayment(payments, { date: '2026-10-03', amount: 5000, type: 'salary' });
+  const afterVisitDelete = deleteSaadVisit(visits, visits[0].id);
+  assert.equal(afterVisitDelete.length, 1);
+  assert.equal(afterVisitDelete[0].id, 'SV-2');
+  assert.equal(buildMonthlySaadSummary(afterVisitDelete, [], '2026-10').visits.length, 1);
+  assert.equal(buildMonthlySaadSummary(afterVisitDelete, [], '2026-10').totalHours, 3.5);
+  const afterPaymentDelete = deleteSaadPayment(payments, payments[0].id);
+  assert.equal(afterPaymentDelete.length, 0);
+  assert.equal(buildMonthlySaadSummary([], afterPaymentDelete, '2026-10').grandTotal, 0);
+  assert.throws(() => deleteSaadVisit(visits, 'SV-999'), /not found/);
+  assert.throws(() => deleteSaadPayment(payments, 'SP-999'), /not found/);
+});
+
+test('backup: edited entries travel, deleted entries stay deleted after restore', () => {
+  let visits = [];
+  visits = addSaadVisit(visits, visit(), { customers: CUSTOMERS });
+  visits = addSaadVisit(visits, visit({ date: '2026-10-06' }), { customers: CUSTOMERS });
+  visits = updateSaadVisit(visits, visits[0].id, visit({ startTime: '09:00', endTime: '13:00' }), { customers: CUSTOMERS });
+  visits = deleteSaadVisit(visits, visits[1].id);
+  let payments = [];
+  payments = addSaadPayment(payments, { date: '2026-10-03', amount: 5000, type: 'salary' });
+  const backupText = createJsonBackup(createInitialState(), new Date('2026-10-31T12:00:00+05:00'), { saadVisits: visits, saadPayments: payments });
+  const backup = JSON.parse(backupText);
+  assert.equal(backup.settings.saadVisits.length, 1);
+  assert.equal(backup.settings.saadVisits[0].id, 'SV-1');
+  assert.equal(backup.settings.saadVisits[0].hoursWorked, 4);
+  assert.ok(!backup.settings.saadVisits.some((v) => v.id === 'SV-2'));
+  const preview = previewJsonBackupMerge(createInitialState(), backupText);
+  assert.equal(preview.canApply, true);
+  assert.deepEqual(preview.saadVisits.map((v) => v.id), ['SV-1']);
+  assert.equal(preview.counts.saadVisitsRestored, 1);
+  assert.equal(preview.saadPayments.length, 1);
 });

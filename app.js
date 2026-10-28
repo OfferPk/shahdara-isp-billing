@@ -45,7 +45,7 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 
 import {
   validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
-  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
+  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, groupAreasWithCounts, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
   generateCustomerRosterCsv, renderCustomerTableEmptyMarkup,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths, statementFilterMethods, sortStatementEvents, statementMonthSubtotals, statementAging, statementTrendSvg, statementDaysOverdue,
@@ -1112,10 +1112,10 @@ function renderCustomers() {
   // Sync unique areas into dropdown
   const areaSelect = $('#customerFilterArea');
   if (areaSelect) {
-    const areas = [...new Map(getUniqueCustomerAreas(state.customers.filter(c => !c.archived)).map(a => { const canon = canonicalMohalla(a); return [canon ? canon.key : a.toLowerCase(), canon ? canon.label : a]; })).values()].sort((a, b) => a.localeCompare(b));
+    const areaOptions = groupAreasWithCounts(state.customers.filter(c => !c.archived), c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
     const currentVal = customerAreaFilter;
-    areaSelect.innerHTML = '<option value="all">All areas</option>' + areas.map(a => `<option value="${escapeHtml(a)}"${a === currentVal ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
-    if (!areas.includes(currentVal) && currentVal !== 'all') {
+    areaSelect.innerHTML = '<option value="all">All areas</option>' + areaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+    if (!areaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
       customerAreaFilter = 'all';
       areaSelect.value = 'all';
     } else {

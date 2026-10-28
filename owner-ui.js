@@ -2,12 +2,15 @@ import { calculatePaymentAllocations } from './core.js';
 import { canonicalMohalla } from './phase3.js';
 import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
-  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES
+  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE
 } from './owner-insights.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
+import { loadComplaints } from './complaint-register.js';
+import { groupAreasWithCounts } from './form-validation.js';
 
 const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const $ = (selector, root=document) => root.querySelector(selector);
+const nameInitials = name => String(name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 
 export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses}) {
   let lastQuery = '';
@@ -172,26 +175,31 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const type=$('#rankingType');
     if(type&&!type.options.length) type.innerHTML=CUSTOMER_RANKING_TYPES.map(row=>`<option value="${escapeHtml(row.id)}">${escapeHtml(row.label)}</option>`).join('');
     ensureMonthOptions('#rankingMonth',months()[0]);
-    const state=getState(),areasMap=new Map();for(const customer of state.customers){const raw=customer.mohalla?.trim();if(raw){const canon=canonicalMohalla(raw);areasMap.set(canon.key,canon.label);}else{const zone=customer.zone?.trim();areasMap.set(zone?zone.toLowerCase():'__area_not_recorded__',zone||'Area not recorded');}}const areas=[...areasMap.values()].sort(),packages=[...new Set(state.customers.map(customer=>customer.packageSpeed?.trim()||'Package not set'))].sort();
-    for(const [selector,values,allLabel] of [['#rankingArea',areas,'All recorded areas'],['#rankingPackage',packages,'All recorded packages']]){
-      const node=$(selector);if(!node)continue;const old=node.value;node.innerHTML=`<option value="all">${allLabel}</option>${values.map(value=>`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`).join('')}`;node.value=values.includes(old)?old:'all';
+    const state=getState(),areas=groupAreasWithCounts(state.customers,customer=>customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',raw=>canonicalMohalla(raw)?.key??raw.toLowerCase(),raw=>raw==='Area not recorded'?raw:(canonicalMohalla(raw)?.label??raw)),packages=[...new Set(state.customers.map(customer=>customer.packageSpeed?.trim()||'Package not set'))].sort();
+    for(const [selector,options,allLabel] of [['#rankingArea',areas,'All recorded areas'],['#rankingPackage',packages.map(value=>({value,label:value})),'All recorded packages']]){
+      const node=$(selector);if(!node)continue;const old=node.value;node.innerHTML=`<option value="all">${allLabel}</option>${options.map(option=>`<option value="${escapeHtml(option.value)}">${escapeHtml(option.label)}</option>`).join('')}`;node.value=options.some(option=>option.value===old)?old:'all';
     }
-    const monthFilter=$('#rankingMonth')?.closest('label');if(monthFilter)monthFilter.hidden=type?.value==='lifetime-value';
+    const monthFilter=$('#rankingMonth')?.closest('label');if(monthFilter)monthFilter.hidden=['lifetime-value','early-payers','late-payers','troublesome'].includes(type?.value);
   }
   let rankingsShowAll=false;
   function renderRankings() {
     renderRankingOptions();
     const host=$('#customerRankingResults');if(!host)return;
-    const args={type:$('#rankingType').value,month:$('#rankingMonth').value,area:$('#rankingArea').value,packageName:$('#rankingPackage').value,status:$('#rankingStatus').value};
+    const args={type:$('#rankingType').value,month:$('#rankingMonth').value,area:$('#rankingArea').value,packageName:$('#rankingPackage').value,status:$('#rankingStatus').value,complaints:loadComplaints()};
     const result=buildCustomerRankings(getState(),args,new Date());
     let basis=$('#customerRankingBasis');if(!basis){basis=document.createElement('p');basis.id='customerRankingBasis';basis.className='chart-caption';basis.setAttribute('role','status');basis.setAttribute('aria-live','polite');host.before(basis);}
-    basis.textContent=args.type==='lifetime-value'?'Ranked highest to lowest by actual historical receipts saved on this device (duplicate receipt IDs count once). Future value is a separate 12-month estimate and does not affect the ranking.':'';
+    basis.textContent={ 'lifetime-value':'Ranked highest to lowest by actual historical receipts saved on this device (duplicate receipt IDs count once). Future value is a separate 12-month estimate and does not affect the ranking.',
+      'early-payers':'Top 10 · ranked by how many saved receipts arrived on the 1st, 2nd or 3rd of a month, across all saved history. Each top customer wears a 👑 on their avatar.',
+      'late-payers':'Top 10 · ranked by how many saved receipts arrived after the 5th of a month, across all saved history.',
+      'troublesome':TROUBLESOME_RULE }[args.type]??'';
     // #287: rankings used to render every customer (the tallest block on the
     // reports page). Show the top 10 by default with a Show all toggle.
     const visibleRows=rankingsShowAll?result.rows:result.rows.slice(0,10);
     host.innerHTML=result.rows.length?visibleRows.map((row,index)=>{
       const estimate=args.type==='lifetime-value'?`<span class="owner-result-estimate">Estimated future value · next 12 months: ${row.estimatedFutureValue===null?'Insufficient history':escapeHtml(formatAmount(row.estimatedFutureValue))}. ${escapeHtml(row.estimatedFutureValueBasis)}</span>`:'';
-      return `<article class="owner-result-card"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>#${row.customerNumber} ${escapeHtml(row.name)}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span>${estimate}</div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><button class="secondary-button" type="button" data-open-ranking-customer="${escapeHtml(row.customerId)}">Open ledger</button></article>`;
+      const crownAvatar=args.type==='early-payers'?`<span class="owner-crown-avatar" aria-hidden="true"><span class="owner-crown-avatar-crown">👑</span>${escapeHtml(nameInitials(row.name))}</span>`:'';
+      const nameLine=crownAvatar?`<span class="owner-crown-name">${crownAvatar}#${row.customerNumber} ${escapeHtml(row.name)}</span>`:`#${row.customerNumber} ${escapeHtml(row.name)}`;
+      return `<article class="owner-result-card"><span class="owner-rank">${index+1}</span><div class="owner-result-main"><strong>${nameLine}</strong><span>${escapeHtml(row.area)} · ${escapeHtml(row.package)} · ${escapeHtml(row.serviceStatus)}</span>${estimate}</div><strong class="owner-result-value">${escapeHtml(row.displayValue)}</strong><button class="secondary-button" type="button" data-open-ranking-customer="${escapeHtml(row.customerId)}">Open ledger</button></article>`;
     }).join(''):`<p class="empty-state">No customers have enough saved data for this ranking and filter. ${result.excludedCount?`${result.excludedCount} profile(s) were excluded because the ranked value is unavailable.`:''}</p>`;
     host.querySelectorAll('[data-open-ranking-customer]').forEach(button=>button.addEventListener('click',()=>openCustomer(button.dataset.openRankingCustomer)));
     let toggle=$('#rankingShowAllBtn');

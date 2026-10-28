@@ -86,8 +86,20 @@ export const CUSTOMER_RANKING_TYPES=Object.freeze([
   {id:'highest-paying',label:'Highest-paying customers'},{id:'most-consistent',label:'Most consistent customers'},
   {id:'longest-standing',label:'Longest-standing customers'},{id:'highest-package',label:'Highest-value package'},
   {id:'highest-outstanding',label:'Highest outstanding'},{id:'longest-overdue',label:'Longest overdue'},{id:'repeat-late',label:'Repeat late payers'},
-  {id:'lifetime-value',label:'Lifetime value · actual receipts'}
+  {id:'lifetime-value',label:'Lifetime value · actual receipts'},
+  {id:'early-payers',label:'Top customers · paid 1st–3rd 👑'},{id:'late-payers',label:'Often late · paid after 5th'},
+  {id:'troublesome',label:'Tang karne wale customers'}
 ]);
+/** Rankings that count receipts across all saved history (not one month) and
+ *  are capped at 10 rows: the early/late lists only admit customers with at
+ *  least one matching receipt, and the troublesome list only admits customers
+ *  meeting at least one of its signals. */
+const TOP_TEN_RANKING_TYPES=Object.freeze(['early-payers','late-payers','troublesome']);
+/** "Tang karne wale" rule, stated once and shown verbatim in the UI: a
+ *  customer qualifies by meeting at least one of these signals — 2 or more
+ *  receipts dated after the 5th of a month, a bill 30 or more days overdue,
+ *  or 2 or more recorded complaints. Ranked by signal count, then late count. */
+export const TROUBLESOME_RULE='Tang karne wale = at least one of: 2 or more payments after the 5th, a bill 30 or more days overdue, or 2 or more recorded complaints. Ranked by how many of these apply, then by late payments.';
 /** Derive local-only lifetime revenue and a clearly qualified 12-month estimate. */
 export function buildCustomerLifetimeValue(state,customerOrId,referenceDate=new Date()) {
   const customer=typeof customerOrId==='string'?state.customers.find(item=>item.id===customerOrId):customerOrId;
@@ -133,9 +145,11 @@ function packagePriceForMonth(customer,bill,month,referenceDate) {
   if(month===monthFor(referenceDate)&&validPrice(customer.monthlySellingAmount))return Number(customer.monthlySellingAmount);
   return null;
 }
-export function buildCustomerRankings(state,{type='highest-paying',month=monthFor(new Date()),area='all',packageName='all',status='all',startDate='',endDate=''}={},referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
+export function buildCustomerRankings(state,{type='highest-paying',month=monthFor(new Date()),area='all',packageName='all',status='all',startDate='',endDate='',complaints=[]}={},referenceDate=new Date(),allocations=calculatePaymentAllocations(state)) {
   if(!CUSTOMER_RANKING_TYPES.some(item=>item.id===type))throw new Error('Choose a supported customer ranking.');
   const current=monthFor(referenceDate),selected=/^\d{4}-(0[1-9]|1[0-2])$/.test(month)&&month<=current?month:current,rows=[];let excludedCount=0;
+  const complaintCounts=new Map();
+  for(const complaint of Array.isArray(complaints)?complaints:[]){const id=String(complaint?.customerId??'');if(id)complaintCounts.set(id,(complaintCounts.get(id)??0)+1);}
   for(const customer of state.customers){
     const areaValue=customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',packageValue=customer.packageSpeed?.trim()||'Package not set';
     if(area!=='all'){const targetKey=canonicalMohalla(area)?.key??area.trim().toLowerCase();const valueKey=canonicalMohalla(customer.mohalla?.trim()||'')?.key??(customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded').toLowerCase();if(valueKey!==targetKey)continue;}if(packageName!=='all'&&packageValue!==packageName)continue;
@@ -145,7 +159,13 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
     const balance=bill&&validPrice(bill.dueAmount)?allocations.forMonth(customer.id,selected)?.balanceDueCents??cents(bill.dueAmount):null;
     const selectedReceipts=behavior.receipts.filter(payment=>payment.date.slice(0,7)===selected&&(!startDate||payment.date>=startDate)&&(!endDate||payment.date<=endDate));
     const overdueDays=balance>0&&/^\d{4}-\d{2}-\d{2}$/.test(bill?.dueDate??'')?Math.max(0,daysBetween(dateFor(referenceDate),bill.dueDate)??0):null;
-    let value=null,displayValue='';
+    // Early/late lists rank on the receipt's own day-of-month across all saved
+    // history: 1st–3rd counts as early, after the 5th counts as late; the 4th
+    // and 5th are neither. Complaints arrive separately (their own ledger key).
+    const datedReceipts=behavior.receipts.filter(payment=>/^\d{4}-\d{2}-\d{2}$/.test(payment.date??''));
+    const earlyCount=datedReceipts.filter(payment=>Number(payment.date.slice(8,10))<=3).length;
+    const lateCount=datedReceipts.filter(payment=>Number(payment.date.slice(8,10))>5).length;
+    let value=null,displayValue='',troubleLate=0;
     switch(type){
       case'highest-paying':value=selectedReceipts.reduce((sum,row)=>sum+cents(row.amount),0);displayValue=pkr(value);break;
       case'most-consistent':value=behavior.paymentConsistency;displayValue=value===null?'':`${value}% · ${behavior.consistencySettledMonths}/${behavior.consistencyBillMonths} settled`;break;
@@ -155,13 +175,18 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
       case'longest-overdue':value=overdueDays;displayValue=value===null?'':`${value} day${value===1?'':'s'}`;break;
       case'repeat-late':value=selectedReceipts.filter(payment=>payment.dueDate&&payment.date>payment.dueDate).length;displayValue=`${value} late receipt${value===1?'':'s'}`;break;
       case'lifetime-value':value=cents(lifetime.totalHistoricalRevenue);displayValue=pkr(value);break;
+      case'early-payers':value=earlyCount;displayValue=`${value} early payment${value===1?'':'s'} · 1st–3rd`;break;
+      case'late-payers':value=lateCount;displayValue=`${value} late payment${value===1?'':'s'} · after 5th`;break;
+      case'troublesome':{const signals=[];if(lateCount>=2)signals.push(`${lateCount} payments after the 5th`);if(behavior.longestOverdueDays>=30)signals.push(`${behavior.longestOverdueDays} days overdue`);const complaintCount=complaintCounts.get(customer.id)??0;if(complaintCount>=2)signals.push(`${complaintCount} complaints`);value=signals.length;displayValue=signals.join(' · ');troubleLate=lateCount;break;}
     }
     if(value===null||!Number.isFinite(value)){excludedCount++;continue;}
+    if(TOP_TEN_RANKING_TYPES.includes(type)&&value===0){excludedCount++;continue;}
     rows.push({customerId:customer.id,customerNumber:customer.customerNumber,name:customer.name,area:areaValue,package:packageValue,serviceStatus:customer.archived?'Archived':({active:'Active',offline:'Offline','not-set':'Not set'})[customer.serviceStatus??'not-set'],value,displayValue,health:behavior.health,connectionDate:customer.connectionDate??null,
-      ...(lifetime?{estimatedFutureValue:lifetime.estimatedFutureValue,estimatedFutureValueBasis:lifetime.estimatedFutureValueBasis}:{} )});
+      ...(lifetime?{estimatedFutureValue:lifetime.estimatedFutureValue,estimatedFutureValueBasis:lifetime.estimatedFutureValueBasis}:{} ),
+      ...(type==='troublesome'?{troubleLate}:{})});
   }
-  rows.sort((a,b)=>type==='longest-standing'?a.value-b.value:b.value-a.value||a.name.localeCompare(b.name));
-  return{type,month:selected,rows:rows.slice(0,100),excludedCount,area,packageName,status};
+  rows.sort((a,b)=>type==='longest-standing'?a.value-b.value:type==='troublesome'?(b.value-a.value||(b.troubleLate??0)-(a.troubleLate??0)||a.name.localeCompare(b.name)):b.value-a.value||a.name.localeCompare(b.name));
+  return{type,month:selected,rows:rows.slice(0,TOP_TEN_RANKING_TYPES.includes(type)?10:100),excludedCount,area,packageName,status};
 }
 
 // ============================================================================

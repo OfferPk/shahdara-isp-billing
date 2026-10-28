@@ -4700,7 +4700,10 @@ window.fieldModeController = setupFieldMode({
     renderMonthlyReport();
     updateNavigationBadges(state);
   },
-  onToast: (msg, opts) => toast(msg, opts)
+  onToast: (msg, opts) => toast(msg, opts),
+  // SISP-31: 1-tap 58mm slip on field-mode receipt cards, reusing the
+  // existing thermal receipt path (same format the profile history buttons use).
+  onPrint58mm: (receipt) => printPaymentReceipt(receipt.customerId, receipt.month, receipt.paymentId, { format: 'thermal-58' })
 });
 // Setup Mobile Customer Quick Profile Sheet & WhatsApp Delivery (agent2 - shahdara-mobile-nav)
 window.mobileQuickProfileController = setupMobileQuickProfileModal({

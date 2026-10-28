@@ -875,3 +875,17 @@ body.field-mode-open { overflow: hidden; }
 @media (max-width: 480px) {
   .relocation-timeline-row { flex-direction: column; gap: 4px; }
   .relocation-form .action-btn-sm { width: 100%; text-align: center; justify-content: center; }}
+/* SISP-31: Field Mode 2.0 "Collected Today" pill. Theme tokens only, so the
+   pill follows light/dark mode exactly like the zone chips above it. */
+.field-mode-collected-pill {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}

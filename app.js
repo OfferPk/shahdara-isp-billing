@@ -9428,7 +9428,6 @@ if (typeof document !== 'undefined') {
 
   const spliceModal = $('#spliceMfdOffsetModal');
   const openSpliceMfdOffsetBtn = $('#openSpliceMfdOffsetBtn');
-  i
 
   if (openSpliceMfdOffsetBtn) {
     openSpliceMfdOffsetBtn.addEventListener('click', () => {
@@ -9444,7 +9443,6 @@ if (typeof document !== 'undefined') {
 
   const sleeveModal = $('#spliceSleeveCureModal');
   const openSpliceSleeveCureBtn = $('#openSpliceSleeveCureBtn');
-  i
 
   if (openSpliceSleeveCureBtn) {
     openSpliceSleeveCureBtn.addEventListener('click', () => {
@@ -9460,7 +9458,6 @@ if (typeof document !== 'undefined') {
 
   const cleaveModal = $('#fiberCleaveQualityModal');
   const openFiberCleaveQualityBtn = $('#openFiberCleaveQualityBtn');
-  i
 
   if (openFiberCleaveQualityBtn) {
     openFiberCleaveQualityBtn.addEventListener('click', () => {
@@ -9476,7 +9473,6 @@ if (typeof document !== 'undefined') {
 
   const ghostModal = $('#otdrGhostArtifactModal');
   const openOtdrGhostArtifactBtn = $('#openOtdrGhostArtifactBtn');
-  i
 
   if (openOtdrGhostArtifactBtn) {
     openOtdrGhostArtifactBtn.addEventListener('click', () => {
@@ -9492,7 +9488,6 @@ if (typeof document !== 'undefined') {
 
   const ribbonModal = $('#ribbonSpliceQaModal');
   const openRibbonSpliceQaBtn = $('#openRibbonSpliceQaBtn');
-  i
 
   if (openRibbonSpliceQaBtn) {
     openRibbonSpliceQaBtn.addEventListener('click', () => {
@@ -9511,7 +9506,6 @@ if (typeof document !== 'undefined') {
 
   const fastModal = $('#fastConnectorQaModal');
   const openFastConnectorQaBtn = $('#openFastConnectorQaBtn');
-  i
 
   if (openFastConnectorQaBtn) {
     openFastConnectorQaBtn.addEventListener('click', () => {
@@ -9532,7 +9526,6 @@ if (typeof document !== 'undefined') {
 
   const adssModal = $('#adssSagTensionModal');
   const openAdssSagTensionBtn = $('#openAdssSagTensionBtn');
-  i
 
   if (openAdssSagTensionBtn) {
     openAdssSagTensionBtn.addEventListener('click', () => {
@@ -9553,7 +9546,6 @@ if (typeof document !== 'undefined') {
 
   const armoredModal = $('#armoredCableCrushModal');
   const openArmoredCableCrushBtn = $('#openArmoredCableCrushBtn');
-  i
 
   if (openArmoredCableCrushBtn) {
     openArmoredCableCrushBtn.addEventListener('click', () => {
@@ -9574,7 +9566,6 @@ if (typeof document !== 'undefined') {
 
   const jettingModal = $('#cableJettingModal');
   const openCableJettingBtn = $('#openCableJettingBtn');
-  i
 
   if (openCableJettingBtn) {
     openCableJettingBtn.addEventListener('click', () => {
@@ -9593,7 +9584,6 @@ if (typeof document !== 'undefined') {
     });
   const tubeSlittingModal = $('#tubeSlittingAccessModal');
   const openTubeSlittingAccessBtn = $('#openTubeSlittingAccessBtn');
-  i
 
   if (openTubeSlittingAccessBtn) {
     openTubeSlittingAccessBtn.addEventListener('click', () => {
@@ -9614,7 +9604,6 @@ if (typeof document !== 'undefined') {
 
   const conduitPullingModal = $('#conduitPullingModal');
   const openConduitPullingBtn = $('#openConduitPullingBtn');
-  i
 
   if (openConduitPullingBtn) {
     openConduitPullingBtn.addEventListener('click', () => {
@@ -9635,7 +9624,6 @@ if (typeof document !== 'undefined') {
 
   const spectralAttenuationModal = $('#spectralAttenuationModal');
   const openSpectralAttenuationBtn = $('#openSpectralAttenuationBtn');
-  i
 
   if (openSpectralAttenuationBtn) {
     openSpectralAttenuationBtn.addEventListener('click', () => {
@@ -9656,7 +9644,6 @@ if (typeof document !== 'undefined') {
 
   const foscSealModal = $('#foscSealModal');
   const openFoscSealBtn = $('#openFoscSealBtn');
-  i
 
   if (openFoscSealBtn) {
     openFoscSealBtn.addEventListener('click', () => {
@@ -9677,7 +9664,6 @@ if (typeof document !== 'undefined') {
 
   const thermalCyclingModal = $('#thermalCyclingModal');
   const openThermalCyclingBtn = $('#openThermalCyclingBtn');
-  i
 
   if (openThermalCyclingBtn) {
     openThermalCyclingBtn.addEventListener('click', () => {
@@ -9697,7 +9683,6 @@ if (typeof document !== 'undefined') {
   }
 
   const billingCorrectnessModal = $('#billingCorrectnessModal');
-  i
 
   const dataIntegrityModal = $('#dataIntegrityModal');
   if (dataIntegrityModal && !dataIntegrityModalController) {
@@ -9842,7 +9827,6 @@ if (typeof document !== 'undefined') {
   }
 
   const lateFeeModal = $('#lateFeeManagerModal');
-  i
 
   const openCorrectnessBtn = $('#openBillingCorrectnessBtn');
   if (openCorrectnessBtn && !openCorrectnessBtn.dataset.wired) {

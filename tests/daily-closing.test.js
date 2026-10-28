@@ -30,11 +30,14 @@ test('isPhysicalCashMethod, resolveShopLocation, and resolveCollectorName classi
   assert.equal(resolveShopLocation('Cash', 'Waseem Abbasi'), 'Waseem Abbasi Shop');
   assert.equal(resolveShopLocation('Cash at Hassan shop'), 'Hassan Shop');
   assert.equal(resolveShopLocation('Cash', 'Hassan Counter'), 'Hassan Shop');
+  assert.equal(resolveShopLocation('Cash at Balla shop'), 'Balla Shop');
+  assert.equal(resolveShopLocation('Cash', 'Balla'), 'Balla Shop');
   assert.equal(resolveShopLocation('Cash'), 'Direct Field / Doorstep Cash');
   assert.equal(resolveShopLocation('JazzCash'), 'Digital & Online Wallets');
 
   assert.equal(resolveCollectorName('Cash at Waseem Abbasi shop'), 'Waseem Abbasi');
   assert.equal(resolveCollectorName('Cash at Hassan shop'), 'Hassan');
+  assert.equal(resolveCollectorName('Cash at Balla shop'), 'Balla');
   assert.equal(resolveCollectorName('Cash', 'Saad Collector'), 'Saad Collector');
   assert.equal(resolveCollectorName('Cash'), 'Direct / Counter Till');
   assert.equal(resolveCollectorName('Easypaisa'), 'Online / Digital Settlement');

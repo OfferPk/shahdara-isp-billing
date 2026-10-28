@@ -95,6 +95,9 @@ export function resolveShopLocation(method, paidBy = '') {
   if (m.includes('hassan') || p.includes('hassan')) {
     return 'Hassan Shop';
   }
+  if (m.includes('balla') || p.includes('balla')) {
+    return 'Balla Shop';
+  }
   if (isPhysicalCashMethod(method)) {
     return 'Direct Field / Doorstep Cash';
   }
@@ -114,6 +117,7 @@ export function resolveCollectorName(method, paidBy = '') {
   const m = String(method || '').toLowerCase();
   if (m.includes('waseem')) return 'Waseem Abbasi';
   if (m.includes('hassan')) return 'Hassan';
+  if (m.includes('balla')) return 'Balla';
   if (isPhysicalCashMethod(method)) return 'Direct / Counter Till';
   return 'Online / Digital Settlement';
 }

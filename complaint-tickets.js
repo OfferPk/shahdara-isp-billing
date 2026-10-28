@@ -1,0 +1,793 @@
+/**
+ * complaint-tickets.js — SISP-12: Lineman Complaint Worklist and Material
+ * Consumed Tracker (Field Ticket System).
+ *
+ * Problem: common field faults (charger unplugged at an upstream house,
+ * fiber splice breaks, bad CAT6 connectors, router resets) were logged only
+ * as free-text notes — nobody tracked which lineman fixed what, how long it
+ * took, or how much wire/hardware left the store.
+ *
+ * This module is that worklist: structured fault tickets linked to a
+ * customer (and optionally to a SISP-15 register complaint), with a
+ * technician, a priority, a resolution timestamp, materials consumed, and a
+ * Free-Maintenance vs Billed-to-Customer charge.
+ *
+ * Storage: ticket records live in localStorage under TICKETS_KEY
+ * (sisp_tickets_v1). Records additionally travel inside JSON backups via
+ * the `settings.tickets` section (see core.js createJsonBackup), under the
+ * same safe-merge rules as the SISP-15 complaint register.
+ *
+ * DESIGN DECISIONS (read before changing billing behavior):
+ * - Billed charges are recorded ON THE TICKET and surfaced on the customer
+ *   record (profile ticket section + pending ticket charges). They are
+ *   NEVER injected into bills and NEVER touch the billing-cycle engine:
+ *   the cycle stays the only writer of bill amounts. A ticket charge is
+ *   "pending dues" in the sense that the profile shows it alongside the
+ *   bill balance as money the customer still owes for field work, and it
+ *   clears only when marked paid on the ticket.
+ * - Stock deduction is staged, not duplicated: resolving a ticket records
+ *   SISP-18-shaped stock-out movements on the ticket (see
+ *   ticketStockDeductions) with stockDeducted=false. SISP-18's inventory
+ *   book is not in this tree yet, so this module imports nothing from it
+ *   and invents no stock math. At merge time the app wires
+ *   consumeTicketStockDeductions with the inventory module's addMovement,
+ *   which enforces SISP-18's over-draw refusal; until then the deductions
+ *   sit pending on the ticket, visible in the worklist.
+ * - This module imports nothing: it is self-contained so the backup merge
+ *   in core.js can sanitize tickets without a module cycle.
+ *
+ * All helpers are pure except load/saveTickets and the modal setup.
+ * Tests use synthetic data only. Amounts are PKR rupees (not cents).
+ */
+
+export const TICKETS_KEY = 'sisp_tickets_v1';
+
+/** 1-tap fault presets (spec verbatim). */
+export const TICKET_PRESETS = [
+  'Media Converter Power/Charger',
+  'Fiber Cut / Splice Loss',
+  'Router / IP Conflict',
+  'Slow Speed / High Attenuation',
+  'CAT6 / RJ45 Fault'
+];
+
+export const TICKET_STATUSES = ['Open', 'In Progress', 'Resolved'];
+export const TICKET_PRIORITIES = ['Urgent', 'Normal'];
+
+/**
+ * Materials a ticket can consume (spec list). inventoryItemId is the
+ * SISP-18 catalog id the deduction maps to at merge time; unit items need
+ * whole numbers, meter items allow decimals.
+ */
+export const TICKET_MATERIALS = [
+  { key: 'fiber', name: '2-Core Fiber', unit: 'meters', inventoryItemId: 'fiber-2core', allowDecimal: true },
+  { key: 'patch-cord', name: 'Patch Cord', unit: 'units', inventoryItemId: 'patch-cord', allowDecimal: false },
+  { key: 'media-converter', name: 'Media Converter', unit: 'units', inventoryItemId: 'media-converter', allowDecimal: false },
+  { key: 'router', name: 'Tenda Router', unit: 'units', inventoryItemId: 'router', allowDecimal: false },
+  { key: 'rj45', name: 'RJ45 Connectors', unit: 'units', inventoryItemId: 'rj45', allowDecimal: false }
+];
+
+export const TICKET_MATERIAL_BY_KEY = Object.fromEntries(
+  TICKET_MATERIALS.map((m) => [m.key, m])
+);
+
+/** SISP-15 register category -> closest ticket preset (for linked tickets). */
+export const COMPLAINT_CATEGORY_TO_PRESET = {
+  'Fiber Cut': 'Fiber Cut / Splice Loss',
+  'Fiber Splice Loss': 'Fiber Cut / Splice Loss',
+  'Media Converter / Charger Off': 'Media Converter Power/Charger',
+  'Router / Wi-Fi Config': 'Router / IP Conflict',
+  'CAT6 / Connector Fault': 'CAT6 / RJ45 Fault'
+};
+
+/** Recurring-fault warning: this many tickets for one customer in the window. */
+export const RECURRING_TICKET_THRESHOLD = 3;
+export const RECURRING_TICKET_WINDOW_DAYS = 60;
+
+const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
+const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+const ID_RE = /^TKT-(\d+)$/;
+const COMPLAINT_ID_RE = /^CMP-\d+$/;
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function cleanText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function zonedParts(date) {
+  const fmt = new Intl.DateTimeFormat('en-PK', {
+    timeZone: PAKISTAN_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const parts = {};
+  for (const part of fmt.formatToParts(date)) parts[part.type] = part.value;
+  if (parts.hour === '24') parts.hour = '00';
+  return parts;
+}
+
+/** YYYY-MM-DDTHH:mm in Pakistan time. */
+export function pakistanTicketDateTimeNow(referenceDate = new Date()) {
+  const date = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+    ? referenceDate
+    : new Date();
+  const parts = zonedParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+/** Next ticket id: one above the highest existing TKT-N, starting at TKT-101. */
+export function nextTicketId(existing) {
+  let max = 100;
+  for (const entry of (Array.isArray(existing) ? existing : [])) {
+    if (!entry || typeof entry !== 'object') continue;
+    const match = String(entry.id || '').match(ID_RE);
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+  return `TKT-${max + 1}`;
+}
+
+function round2(n) {
+  return Math.round(n * 100) / 100;
+}
+
+/**
+ * Sanitize one material line. Amount is PKR rupees charged for the line
+ * (0 when free or unpriced); qty is meters (decimals ok) or whole units.
+ */
+export function sanitizeTicketMaterial(value) {
+  if (!value || typeof value !== 'object') return null;
+  const material = TICKET_MATERIAL_BY_KEY[cleanText(value.key)];
+  if (!material) return null;
+  const qty = Number(value.qty);
+  if (!Number.isFinite(qty) || qty <= 0) return null;
+  if (!material.allowDecimal && !Number.isInteger(qty)) return null;
+  const amount = Number(value.amount);
+  return {
+    key: material.key,
+    qty: round2(qty),
+    amount: Number.isFinite(amount) && amount >= 0 ? round2(amount) : 0
+  };
+}
+
+export function sanitizeTicketMaterials(value) {
+  if (!Array.isArray(value)) return [];
+  const lines = [];
+  for (const entry of value) {
+    const line = sanitizeTicketMaterial(entry);
+    if (line) lines.push(line);
+  }
+  return lines;
+}
+
+/**
+ * Drops malformed ticket entries; keeps only known fields with safe
+ * defaults so old records (missing new fields) never break the worklist.
+ */
+export function sanitizeTickets(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    const id = cleanText(entry.id);
+    if (!ID_RE.test(id)) continue;
+    const customerId = cleanText(entry.customerId);
+    if (!customerId) continue;
+    const preset = cleanText(entry.faultPreset);
+    const status = TICKET_STATUSES.includes(entry.status) ? entry.status : 'Open';
+    const resolvedAt = status === 'Resolved' && DATE_TIME_RE.test(String(entry.resolvedAt || ''))
+      ? String(entry.resolvedAt)
+      : '';
+    const materialsUsed = sanitizeTicketMaterials(entry.materialsUsed);
+    const billingType = entry.billingType === 'billed' ? 'billed' : 'free';
+    out.push({
+      id,
+      customerId,
+      customerName: cleanText(entry.customerName),
+      complaintId: COMPLAINT_ID_RE.test(String(entry.complaintId || '')) ? String(entry.complaintId) : '',
+      faultPreset: TICKET_PRESETS.includes(preset) ? preset : '',
+      customFault: cleanText(entry.customFault),
+      technician: cleanText(entry.technician),
+      priority: TICKET_PRIORITIES.includes(entry.priority) ? entry.priority : 'Normal',
+      status,
+      createdAt: DATE_TIME_RE.test(String(entry.createdAt || '')) ? String(entry.createdAt) : '',
+      resolvedAt,
+      note: cleanText(entry.note),
+      materialsUsed,
+      billingType,
+      billedAmount: billingType === 'billed'
+        ? round2(materialsUsed.reduce((sum, line) => sum + line.amount, 0))
+        : 0,
+      chargePaid: entry.chargePaid === true,
+      chargePaidAt: entry.chargePaid === true && DATE_TIME_RE.test(String(entry.chargePaidAt || ''))
+        ? String(entry.chargePaidAt)
+        : '',
+      stockDeductions: Array.isArray(entry.stockDeductions) ? clone(entry.stockDeductions) : [],
+      stockDeducted: entry.stockDeducted === true
+    });
+  }
+  return out;
+}
+
+export function loadTickets(storage) {
+  try {
+    const raw = (storage || (typeof localStorage !== 'undefined' ? localStorage : null))?.getItem(TICKETS_KEY);
+    if (!raw) return [];
+    return sanitizeTickets(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+export function saveTickets(tickets, storage) {
+  const target = storage || (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!target) return;
+  target.setItem(TICKETS_KEY, JSON.stringify(sanitizeTickets(tickets)));
+}
+
+/** Human label for a ticket's customer (stored name, else the id). */
+export function ticketCustomerLabel(ticket) {
+  return (ticket && ticket.customerName) ? ticket.customerName : (ticket ? String(ticket.customerId || '') : '');
+}
+
+/** Create a ticket. Technician is required; preset or a custom fault is required. */
+export function createTicket(input, existing, referenceDate = new Date()) {
+  const list = Array.isArray(existing) ? existing : [];
+  const customerId = cleanText(input?.customerId);
+  if (!customerId) throw new Error('Select a customer first.');
+  const technician = cleanText(input?.technician);
+  if (!technician) throw new Error('Assign a lineman / technician first.');
+  const preset = cleanText(input?.faultPreset);
+  const customFault = cleanText(input?.customFault);
+  if (!TICKET_PRESETS.includes(preset) && !customFault) {
+    throw new Error('Pick a fault preset or describe the fault.');
+  }
+  const complaintId = cleanText(input?.complaintId);
+  if (complaintId && !COMPLAINT_ID_RE.test(complaintId)) {
+    throw new Error('Linked complaint id must look like CMP-101.');
+  }
+  return {
+    id: nextTicketId(list),
+    customerId,
+    customerName: cleanText(input?.customerName),
+    complaintId,
+    faultPreset: TICKET_PRESETS.includes(preset) ? preset : '',
+    customFault: TICKET_PRESETS.includes(preset) ? '' : customFault,
+    technician,
+    priority: TICKET_PRIORITIES.includes(input?.priority) ? input.priority : 'Normal',
+    status: 'Open',
+    createdAt: pakistanTicketDateTimeNow(referenceDate),
+    resolvedAt: '',
+    note: cleanText(input?.note),
+    materialsUsed: [],
+    billingType: 'free',
+    billedAmount: 0,
+    chargePaid: false,
+    chargePaidAt: '',
+    stockDeductions: [],
+    stockDeducted: false
+  };
+}
+
+/** Start / reopen a ticket. Resolving goes through resolveTicket (materials). */
+export function setTicketStatus(list, id, status) {
+  const clean = sanitizeTickets(list);
+  const idx = clean.findIndex((t) => t.id === id);
+  if (idx < 0) throw new Error('Ticket not found.');
+  if (status === 'Resolved') {
+    throw new Error('Resolve a ticket with materials via resolveTicket.');
+  }
+  if (!['Open', 'In Progress'].includes(status)) throw new Error('Unknown ticket status.');
+  const ticket = clean[idx];
+  clean[idx] = {
+    ...ticket,
+    status,
+    // Reopening clears the resolution stamp; materials + charges stay on
+    // the record so nothing about the field visit is silently lost.
+    resolvedAt: status === 'Open' ? '' : ticket.resolvedAt
+  };
+  return clean;
+}
+
+/**
+ * Resolve a ticket with its consumed materials. Free maintenance bills
+ * nothing; Billed to Customer sums the material amounts into billedAmount
+ * (the customer's pending ticket charges) and stamps resolvedAt.
+ * Stock deductions are staged on the ticket for SISP-18 (see header).
+ */
+export function resolveTicket(list, id, options = {}) {
+  const clean = sanitizeTickets(list);
+  const idx = clean.findIndex((t) => t.id === id);
+  if (idx < 0) throw new Error('Ticket not found.');
+  const ticket = clean[idx];
+  if (ticket.status === 'Resolved') throw new Error('Ticket is already resolved.');
+  const materialsUsed = sanitizeTicketMaterials(options.materialsUsed);
+  const billingType = options.billingType === 'billed' ? 'billed' : 'free';
+  const resolved = {
+    ...ticket,
+    status: 'Resolved',
+    resolvedAt: pakistanTicketDateTimeNow(options.referenceDate),
+    materialsUsed,
+    billingType,
+    billedAmount: billingType === 'billed'
+      ? round2(materialsUsed.reduce((sum, line) => sum + line.amount, 0))
+      : 0,
+    chargePaid: false,
+    chargePaidAt: ''
+  };
+  resolved.stockDeductions = ticketStockDeductions(resolved);
+  resolved.stockDeducted = false;
+  clean[idx] = resolved;
+  return clean;
+}
+
+/** Edit note / technician / priority only — never status or materials. */
+export function updateTicket(list, id, patch) {
+  const clean = sanitizeTickets(list);
+  const idx = clean.findIndex((t) => t.id === id);
+  if (idx < 0) throw new Error('Ticket not found.');
+  const ticket = clean[idx];
+  const technician = patch?.technician === undefined ? ticket.technician : cleanText(patch.technician);
+  if (!technician) throw new Error('Assign a lineman / technician first.');
+  clean[idx] = {
+    ...ticket,
+    technician,
+    priority: TICKET_PRIORITIES.includes(patch?.priority) ? patch.priority : ticket.priority,
+    note: patch?.note === undefined ? ticket.note : cleanText(patch.note)
+  };
+  return clean;
+}
+
+/** Mark a billed ticket's charge paid (or unpaid again). Only billed tickets. */
+export function markTicketChargePaid(list, id, paid, referenceDate = new Date()) {
+  const clean = sanitizeTickets(list);
+  const idx = clean.findIndex((t) => t.id === id);
+  if (idx < 0) throw new Error('Ticket not found.');
+  const ticket = clean[idx];
+  if (ticket.billingType !== 'billed' || ticket.status !== 'Resolved') {
+    throw new Error('Only a resolved billed ticket has a charge to settle.');
+  }
+  clean[idx] = {
+    ...ticket,
+    chargePaid: paid === true,
+    chargePaidAt: paid === true ? pakistanTicketDateTimeNow(referenceDate) : ''
+  };
+  return clean;
+}
+
+/** Tickets for one customer, newest first. */
+export function ticketsForCustomer(list, customerId) {
+  return sanitizeTickets(list)
+    .filter((t) => String(t.customerId) === String(customerId))
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
+/** Unpaid billed ticket charges for one customer (PKR rupees). */
+export function billedTicketChargesPending(list, customerId) {
+  return round2(sanitizeTickets(list)
+    .filter((t) => String(t.customerId) === String(customerId)
+      && t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid)
+    .reduce((sum, t) => sum + t.billedAmount, 0));
+}
+
+/** How many tickets this customer has inside the recurring-fault window. */
+export function recurringTicketCount(list, customerId, referenceDate = new Date()) {
+  const ref = referenceDate instanceof Date && !Number.isNaN(referenceDate.getTime())
+    ? referenceDate.getTime()
+    : Date.now();
+  const windowStart = ref - RECURRING_TICKET_WINDOW_DAYS * 24 * 3600 * 1000;
+  let count = 0;
+  for (const ticket of sanitizeTickets(list)) {
+    if (String(ticket.customerId) !== String(customerId)) continue;
+    const created = Date.parse(ticket.createdAt || '');
+    if (Number.isFinite(created) && created <= ref && created >= windowStart) count++;
+  }
+  return count;
+}
+
+/** True when the customer hits the recurring-fault warning (3+ in 60 days). */
+export function hasRecurringFaultWarning(list, customerId, referenceDate = new Date()) {
+  return recurringTicketCount(list, customerId, referenceDate) >= RECURRING_TICKET_THRESHOLD;
+}
+
+export function filterTickets(list, filters = {}) {
+  return sanitizeTickets(list).filter((t) => {
+    if (filters.status && t.status !== filters.status) return false;
+    if (filters.customer && String(t.customerId) !== String(filters.customer)) return false;
+    if (filters.technician && t.technician !== filters.technician) return false;
+    if (filters.priority && t.priority !== filters.priority) return false;
+    return true;
+  });
+}
+
+export function buildTicketSummary(list) {
+  const clean = sanitizeTickets(list);
+  return {
+    total: clean.length,
+    open: clean.filter((t) => t.status === 'Open').length,
+    inProgress: clean.filter((t) => t.status === 'In Progress').length,
+    resolved: clean.filter((t) => t.status === 'Resolved').length,
+    pendingCharges: round2(clean
+      .filter((t) => t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid)
+      .reduce((sum, t) => sum + t.billedAmount, 0))
+  };
+}
+
+/**
+ * SISP-18 stock-out movements for a resolved ticket, in exactly the shape
+ * SISP-18's addMovement accepts: { itemId, kind:'out', qty, date,
+ * customerName, note }. Empty for unresolved tickets and for tickets with
+ * no materials. The date is the resolution date (YYYY-MM-DD).
+ */
+export function ticketStockDeductions(ticket) {
+  if (!ticket || ticket.status !== 'Resolved') return [];
+  const date = String(ticket.resolvedAt || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
+  const out = [];
+  for (const line of sanitizeTicketMaterials(ticket.materialsUsed)) {
+    const material = TICKET_MATERIAL_BY_KEY[line.key];
+    if (!material) continue;
+    out.push({
+      itemId: material.inventoryItemId,
+      kind: 'out',
+      qty: line.qty,
+      date,
+      customerName: cleanText(ticket.customerName),
+      note: `Ticket ${ticket.id} — ${ticket.faultPreset || ticket.customFault || 'field work'}`
+    });
+  }
+  return out;
+}
+
+/**
+ * MERGE-TIME WIRING CONTRACT (SISP-18): apply a ticket's staged deductions
+ * to an inventory movement list using the inventory module's addMovement
+ * function (passed in — this module never imports the inventory book).
+ * Returns { movements, ticket } with the ticket marked stockDeducted.
+ * Throws (leaving the ticket pending) when any deduction is refused, e.g.
+ * SISP-18's over-draw refusal — the caller surfaces the message and the
+ * deductions stay on the ticket for a later retry.
+ */
+export function consumeTicketStockDeductions(ticket, movements, addMovementFn) {
+  if (typeof addMovementFn !== 'function') throw new Error('Inventory addMovement is not available.');
+  const clean = sanitizeTickets([ticket]);
+  if (!clean.length) throw new Error('Ticket not found.');
+  const entry = clean[0];
+  if (entry.status !== 'Resolved') throw new Error('Only a resolved ticket deducts stock.');
+  if (entry.stockDeducted) return { movements, ticket: entry };
+  let next = Array.isArray(movements) ? movements : [];
+  for (const deduction of ticketStockDeductions(entry)) {
+    next = addMovementFn(next, deduction);
+  }
+  return { movements: next, ticket: { ...entry, stockDeducted: true } };
+}
+
+/** Fault label: preset, else the custom fault text. */
+export function ticketFaultLabel(ticket) {
+  if (!ticket) return '';
+  return ticket.faultPreset || ticket.customFault || 'Field fault';
+}
+
+function materialLineLabel(line) {
+  const material = TICKET_MATERIAL_BY_KEY[line.key];
+  if (!material) return '';
+  const qty = material.unit === 'meters' ? `${line.qty} m` : `${line.qty}`;
+  return `${material.name} · ${qty}${line.amount > 0 ? ` · PKR ${line.amount}` : ''}`;
+}
+
+/**
+ * Dashboard + modal controller, following the SISP-15 register pattern:
+ * open() / refresh(), dashboard open button wired by id, close button,
+ * add form with 1-tap preset buttons, inline resolve form per ticket card.
+ * getState is the app state accessor (customers list); tickets live in
+ * their own localStorage ledger, like the complaint register.
+ */
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } = {}) {
+  const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
+  if (!dialog) return null;
+  const $ = (id) => dialog.querySelector(`#${id}`);
+  const filters = { status: '', customer: '', technician: '', priority: '' };
+  let addPreset = '';
+
+  function customerOptions() {
+    const state = getState() || { customers: [] };
+    return (Array.isArray(state.customers) ? state.customers : [])
+      .filter((c) => c && !c.archived)
+      .map((c) => ({ id: c.id, label: `#${c.customerNumber ?? ''} ${c.name || ''}`.trim() }));
+  }
+
+  function refreshFilterSelects() {
+    const state = getState() || { customers: [] };
+    const customerFilter = $('ticketFilterCustomer');
+    if (customerFilter) {
+      const prev = filters.customer;
+      customerFilter.innerHTML = '<option value="">All customers</option>' + customerOptions().map((c) => `<option value="${escapeHtml(String(c.id))}">${escapeHtml(c.label)}</option>`).join('');
+      customerFilter.value = prev;
+      filters.customer = customerFilter.value;
+    }
+    const technicianFilter = $('ticketFilterTechnician');
+    if (technicianFilter) {
+      const technicians = [...new Set(loadTickets().map((t) => t.technician).filter(Boolean))].sort();
+      const prev = filters.technician;
+      technicianFilter.innerHTML = '<option value="">All linemen</option>' + technicians.map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
+      technicianFilter.value = technicians.includes(prev) ? prev : '';
+      filters.technician = technicianFilter.value;
+    }
+    const addCustomer = $('ticketAddCustomer');
+    if (addCustomer) {
+      const prev = addCustomer.value;
+      addCustomer.innerHTML = '<option value="">Select customer…</option>' + customerOptions().map((c) => `<option value="${escapeHtml(String(c.id))}">${escapeHtml(c.label)}</option>`).join('');
+      if ([...addCustomer.options].some((o) => o.value === prev)) addCustomer.value = prev;
+    }
+  }
+
+  function setAddPreset(preset) {
+    addPreset = preset;
+    dialog.querySelectorAll('.ticket-preset-btn').forEach((btn) => {
+      btn.classList.toggle('ticket-preset-active', btn.dataset.ticketPreset === preset);
+    });
+    const customInput = $('ticketAddCustomFault');
+    if (customInput) customInput.value = '';
+  }
+
+  function resolveFormHtml(ticket) {
+    const rows = TICKET_MATERIALS.map((m) => `
+      <label class="field-label" for="ticketResolve_${ticket.id}_${m.key}">${escapeHtml(m.name)} (${escapeHtml(m.unit)})</label>
+      <div class="ticket-resolve-line">
+        <input id="ticketResolve_${ticket.id}_${m.key}" class="form-input" type="number" min="0" step="${m.allowDecimal ? '0.01' : '1'}" inputmode="decimal" placeholder="Qty" data-resolve-material="${m.key}" data-resolve-field="qty">
+        <input class="form-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount PKR" data-resolve-material="${m.key}" data-resolve-field="amount">
+      </div>`).join('');
+    return `<form class="ticket-resolve-form" data-resolve-form="${escapeHtml(ticket.id)}">
+      <p class="ticket-resolve-hint">Log what left the store. Billed to Customer adds the amounts to this customer's pending ticket charges; Free Maintenance bills nothing.</p>
+      ${rows}
+      <div class="ticket-resolve-billing">
+        <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="free" checked> Free Maintenance</label>
+        <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="billed"> Billed to Customer</label>
+      </div>
+      <button class="primary-button" type="submit">Mark resolved</button>
+    </form>`;
+  }
+
+  function statusButtons(ticket) {
+    if (ticket.status === 'Open') {
+      return `<button type="button" class="secondary-button ticket-status-btn" data-ticket-action="start" data-ticket-id="${escapeHtml(ticket.id)}">Start work</button><button type="button" class="primary-button ticket-status-btn" data-ticket-action="show-resolve" data-ticket-id="${escapeHtml(ticket.id)}">Resolve…</button>`;
+    }
+    if (ticket.status === 'In Progress') {
+      return `<button type="button" class="primary-button ticket-status-btn" data-ticket-action="show-resolve" data-ticket-id="${escapeHtml(ticket.id)}">Resolve…</button><button type="button" class="secondary-button ticket-status-btn" data-ticket-action="reopen" data-ticket-id="${escapeHtml(ticket.id)}">Reopen</button>`;
+    }
+    return '';
+  }
+
+  function renderList() {
+    const listEl = $('fieldTicketsList');
+    if (!listEl) return;
+    const rows = filterTickets(loadTickets(), filters);
+    const summaryEl = $('fieldTicketsSummaryLine');
+    const summary = buildTicketSummary(loadTickets());
+    if (summaryEl) {
+      summaryEl.textContent = rows.length === 0
+        ? 'No tickets match these filters.'
+        : `${rows.length} ticket${rows.length === 1 ? '' : 's'} · ${summary.open} open · ${summary.inProgress} in progress · ${summary.resolved} resolved · PKR ${summary.pendingCharges} pending ticket charges`;
+    }
+    if (rows.length === 0) {
+      listEl.innerHTML = '<p class="ticket-empty">No field tickets recorded yet. Add the first one above.</p>';
+      return;
+    }
+    const sorted = [...rows].sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'Open' ? -1 : b.status === 'Open' ? 1 : 0;
+      return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+    });
+    listEl.innerHTML = sorted.map((t) => {
+      const warning = hasRecurringFaultWarning(loadTickets(), t.customerId)
+        ? '<span class="ticket-warning-badge">⚠️ Recurring fault</span>'
+        : '';
+      const materials = t.materialsUsed.length
+        ? `<p><span>Materials</span><span>${t.materialsUsed.map(materialLineLabel).map(escapeHtml).join('<br>')}</span></p>`
+        : '';
+      const charge = t.status === 'Resolved'
+        ? `<p><span>Charge</span><strong>${t.billingType === 'billed' ? `Billed · PKR ${t.billedAmount}${t.chargePaid ? ' · Paid' : ' · Unpaid'}` : 'Free Maintenance'}</strong></p>`
+        : '';
+      const stock = t.status === 'Resolved' && t.stockDeductions.length
+        ? `<p><span>Stock</span><span>${t.stockDeducted ? 'Deducted from stock book' : 'Deduction pending stock book'}</span></p>`
+        : '';
+      const chargeBtn = t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid
+        ? `<button type="button" class="secondary-button ticket-status-btn" data-ticket-action="charge-paid" data-ticket-id="${escapeHtml(t.id)}">Mark charge paid</button>`
+        : '';
+      return `<article class="ticket-card" data-ticket-id="${escapeHtml(t.id)}">
+        <header class="ticket-card-head">
+          <strong>${escapeHtml(t.id)}</strong>
+          <span class="ticket-status-badge ticket-status-${t.status === 'Resolved' ? 'resolved' : t.status === 'In Progress' ? 'progress' : 'open'}">${escapeHtml(t.status)}</span>
+          <span class="ticket-priority-badge ticket-priority-${t.priority === 'Urgent' ? 'urgent' : 'normal'}">${escapeHtml(t.priority)}</span>
+          ${warning}
+        </header>
+        <p><span>Customer</span><strong>${escapeHtml(ticketCustomerLabel(t))}</strong></p>
+        <p><span>Fault</span><strong>${escapeHtml(ticketFaultLabel(t))}</strong></p>
+        ${t.complaintId ? `<p><span>Complaint</span><strong>${escapeHtml(t.complaintId)}</strong></p>` : ''}
+        <p><span>Lineman</span><strong>${escapeHtml(t.technician || 'Not set')}</strong></p>
+        <p><span>Created</span><span>${escapeHtml(t.createdAt || 'not recorded')}</span></p>
+        ${t.resolvedAt ? `<p><span>Resolved</span><span>${escapeHtml(t.resolvedAt)}</span></p>` : ''}
+        ${t.note ? `<p><span>Note</span><span>${escapeHtml(t.note)}</span></p>` : ''}
+        ${materials}${charge}${stock}
+        <div class="ticket-card-actions">${statusButtons(t)}${chargeBtn}</div>
+        <div class="ticket-resolve-slot" data-resolve-slot="${escapeHtml(t.id)}"></div>
+      </article>`;
+    }).join('');
+  }
+
+  function persist(next) {
+    saveTickets(next);
+    if (onTicketsChanged) onTicketsChanged(next);
+  }
+
+  function renderAll() {
+    refreshFilterSelects();
+    renderList();
+  }
+
+  const filterIds = {
+    status: 'ticketFilterStatus',
+    customer: 'ticketFilterCustomer',
+    technician: 'ticketFilterTechnician',
+    priority: 'ticketFilterPriority'
+  };
+  for (const [key, id] of Object.entries(filterIds)) {
+    const el = $(id);
+    if (el) el.addEventListener('change', () => { filters[key] = el.value || ''; renderList(); });
+  }
+  const clearBtn = $('ticketFilterClearBtn');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    Object.assign(filters, { status: '', customer: '', technician: '', priority: '' });
+    for (const [key, id] of Object.entries(filterIds)) {
+      const el = $(id);
+      if (el) el.value = '';
+    }
+    renderList();
+  });
+
+  dialog.querySelectorAll('.ticket-preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => setAddPreset(btn.dataset.ticketPreset || ''));
+  });
+
+  const addForm = $('ticketAddForm');
+  if (addForm) addForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const state = getState() || { customers: [] };
+    const customerId = $('ticketAddCustomer')?.value || '';
+    if (!customerId) { onToast && onToast('Select a customer first.'); return; }
+    const customer = (Array.isArray(state.customers) ? state.customers : []).find((c) => String(c.id) === String(customerId));
+    const customFault = $('ticketAddCustomFault')?.value || '';
+    try {
+      const ticket = createTicket({
+        customerId,
+        customerName: customer ? customer.name : '',
+        complaintId: $('ticketAddComplaint')?.value || '',
+        faultPreset: addPreset,
+        customFault,
+        technician: $('ticketAddTechnician')?.value || '',
+        priority: $('ticketAddPriority')?.value || 'Normal',
+        note: $('ticketAddNote')?.value || ''
+      }, loadTickets());
+      const next = [...loadTickets(), ticket];
+      persist(next);
+      onToast && onToast(`Ticket ${ticket.id} recorded.`);
+      addForm.reset();
+      setAddPreset('');
+      renderAll();
+    } catch (error) {
+      onToast && onToast(error && error.message ? error.message : 'Ticket could not be recorded.');
+    }
+  });
+
+  const listEl = $('fieldTicketsList');
+  if (listEl) {
+    listEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('.ticket-status-btn');
+      if (!btn) return;
+      const id = btn.dataset.ticketId;
+      const action = btn.dataset.ticketAction;
+      try {
+        let next;
+        if (action === 'start') {
+          next = setTicketStatus(loadTickets(), id, 'In Progress');
+          persist(next);
+          onToast && onToast(`Ticket ${id} in progress.`);
+        } else if (action === 'reopen') {
+          next = setTicketStatus(loadTickets(), id, 'Open');
+          persist(next);
+          onToast && onToast(`Ticket ${id} reopened.`);
+        } else if (action === 'charge-paid') {
+          next = markTicketChargePaid(loadTickets(), id, true);
+          persist(next);
+          onToast && onToast(`Ticket ${id} charge marked paid.`);
+        } else if (action === 'show-resolve') {
+          const slot = listEl.querySelector(`[data-resolve-slot="${CSS.escape(id)}"]`);
+          const ticket = loadTickets().find((t) => t.id === id);
+          if (slot && ticket) {
+            slot.innerHTML = slot.innerHTML ? '' : resolveFormHtml(ticket);
+          }
+          return;
+        } else {
+          return;
+        }
+        renderList();
+      } catch (error) {
+        onToast && onToast(error && error.message ? error.message : 'Ticket could not be updated.');
+      }
+    });
+    listEl.addEventListener('submit', (event) => {
+      const form = event.target.closest('[data-resolve-form]');
+      if (!form) return;
+      event.preventDefault();
+      const id = form.dataset.resolveForm;
+      const materialsUsed = [];
+      for (const material of TICKET_MATERIALS) {
+        const qtyInput = form.querySelector(`[data-resolve-material="${material.key}"][data-resolve-field="qty"]`);
+        const amountInput = form.querySelector(`[data-resolve-material="${material.key}"][data-resolve-field="amount"]`);
+        const qty = qtyInput ? Number(qtyInput.value) : 0;
+        if (Number.isFinite(qty) && qty > 0) {
+          materialsUsed.push({
+            key: material.key,
+            qty,
+            amount: amountInput ? Number(amountInput.value) || 0 : 0
+          });
+        }
+      }
+      const billingInput = form.querySelector(`input[name="ticketResolveBilling_${CSS.escape(id)}"]:checked`);
+      const billingType = billingInput ? billingInput.value : 'free';
+      try {
+        const next = resolveTicket(loadTickets(), id, { materialsUsed, billingType });
+        persist(next);
+        const entry = next.find((t) => t.id === id);
+        onToast && onToast(entry && entry.billingType === 'billed'
+          ? `Ticket ${id} resolved — PKR ${entry.billedAmount} added to pending ticket charges.`
+          : `Ticket ${id} resolved.`);
+        renderList();
+      } catch (error) {
+        onToast && onToast(error && error.message ? error.message : 'Ticket could not be resolved.');
+      }
+    });
+  }
+
+  const closeBtn = $('fieldTicketsCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
+  const openBtn = typeof document !== 'undefined' ? document.getElementById('openFieldTicketsModalBtn') : null;
+  if (openBtn) openBtn.addEventListener('click', () => {
+    Object.assign(filters, { status: '', customer: '', technician: '', priority: '' });
+    for (const [key, id] of Object.entries(filterIds)) {
+      const el = $(id);
+      if (el) el.value = '';
+    }
+    renderAll();
+    dialog.showModal();
+  });
+
+  return {
+    open(prefilter = {}) {
+      Object.assign(filters, { status: '', customer: '', technician: '', priority: '' }, prefilter);
+      renderAll();
+      for (const [key, id] of Object.entries(filterIds)) {
+        const el = $(id);
+        if (el && filters[key] !== undefined) el.value = filters[key];
+      }
+      renderList();
+      dialog.showModal();
+    },
+    refresh: renderAll
+  };
+}

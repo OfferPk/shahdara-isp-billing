@@ -395,6 +395,15 @@
             <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button">🛠️ Complaint Register</button>
           </div>
         </article>
+        <article class="summary-card summary-field-tickets">
+          <p class="summary-label">🔧 Field Tickets</p>
+          <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
+          <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
+          <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔧 Field Tickets</button>
+          </div>
+        </article>
         <article class="summary-card summary-downtime-analytics">
           <p class="summary-label">📉 Downtime Analytics</p>
           <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
@@ -20390,6 +20399,66 @@
         </div>
         <p id="complaintRegisterSummaryLine" class="complaint-register-summary-line"></p>
         <div id="complaintRegisterList" class="complaint-register-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="fieldTicketsModal" class="billing-modal field-tickets-modal" aria-labelledby="fieldTicketsModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="fieldTicketsModalTitle">🔧 Field Tickets — Lineman Worklist</h2>
+        <button id="fieldTicketsCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="field-tickets-intro">Structured field faults: who fixed what, with which lineman, and how much material left the store. Resolving a ticket logs its materials; Billed to Customer adds the amounts to that customer's pending ticket charges (never to bills).</p>
+        <form id="ticketAddForm" class="field-tickets-form">
+          <label for="ticketAddCustomer">Customer</label>
+          <select id="ticketAddCustomer" class="form-input" required></select>
+          <label>Fault (tap one)</label>
+          <div class="ticket-preset-row" role="group" aria-label="Fault presets">
+            <button type="button" class="secondary-button ticket-preset-btn" data-ticket-preset="Media Converter Power/Charger">Media Converter Power/Charger</button>
+            <button type="button" class="secondary-button ticket-preset-btn" data-ticket-preset="Fiber Cut / Splice Loss">Fiber Cut / Splice Loss</button>
+            <button type="button" class="secondary-button ticket-preset-btn" data-ticket-preset="Router / IP Conflict">Router / IP Conflict</button>
+            <button type="button" class="secondary-button ticket-preset-btn" data-ticket-preset="Slow Speed / High Attenuation">Slow Speed / High Attenuation</button>
+            <button type="button" class="secondary-button ticket-preset-btn" data-ticket-preset="CAT6 / RJ45 Fault">CAT6 / RJ45 Fault</button>
+          </div>
+          <label for="ticketAddCustomFault">Custom fault (if no preset fits)</label>
+          <input id="ticketAddCustomFault" class="form-input" type="text" placeholder="e.g. ONT keeps rebooting">
+          <label for="ticketAddComplaint">Linked complaint (optional, e.g. CMP-101)</label>
+          <input id="ticketAddComplaint" class="form-input" type="text" placeholder="CMP-101">
+          <label for="ticketAddTechnician">Lineman / technician</label>
+          <input id="ticketAddTechnician" class="form-input" type="text" placeholder="e.g. Saad" required>
+          <label for="ticketAddPriority">Priority</label>
+          <select id="ticketAddPriority" class="form-input">
+            <option value="Normal">Normal</option>
+            <option value="Urgent">Urgent</option>
+          </select>
+          <label for="ticketAddNote">Note (optional)</label>
+          <input id="ticketAddNote" class="form-input" type="text" placeholder="e.g. Charger unplugged at upstream house">
+          <button id="ticketAddSubmitBtn" class="primary-button" type="submit">Record ticket</button>
+        </form>
+        <h3>Filters</h3>
+        <div class="field-tickets-filters">
+          <label for="ticketFilterStatus">Status</label>
+          <select id="ticketFilterStatus" class="form-input" aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+          <label for="ticketFilterCustomer">Customer</label>
+          <select id="ticketFilterCustomer" class="form-input" aria-label="Filter by customer"></select>
+          <label for="ticketFilterTechnician">Lineman</label>
+          <select id="ticketFilterTechnician" class="form-input" aria-label="Filter by lineman"></select>
+          <label for="ticketFilterPriority">Priority</label>
+          <select id="ticketFilterPriority" class="form-input" aria-label="Filter by priority">
+            <option value="">All priorities</option>
+            <option value="Urgent">Urgent</option>
+            <option value="Normal">Normal</option>
+          </select>
+          <button id="ticketFilterClearBtn" class="secondary-button" type="button">Clear filters</button>
+        </div>
+        <p id="fieldTicketsSummaryLine" class="field-tickets-summary-line"></p>
+        <div id="fieldTicketsList" class="field-tickets-list"></div>
       </div>
     </div>
   </dialog>

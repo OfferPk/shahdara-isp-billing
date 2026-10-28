@@ -116,6 +116,7 @@ import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeL
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
+import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
@@ -166,6 +167,7 @@ export let dailyClosingModalController = null;
 export let shopSettlementModalController = null;
 export let billingCycleModalController = null;
 export let complaintRegisterModalController = null;
+export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
 export let monthlyComplaintReportModalController = null;
 export let roznamchaModalController = null;
@@ -457,6 +459,18 @@ function renderDashboard() {
     if (valueEl) valueEl.textContent = summary.total === 0 ? 'No complaints' : `${summary.open} open · ${summary.inProgress} in progress`;
     if (periodEl) periodEl.textContent = summary.total === 0 ? 'Open faults and resolution downtime' : `${summary.resolved} resolved · ${summary.thisMonthCount} this month · ${summary.thisMonthDowntime} h downtime`;
     complaintSummaryEl.innerHTML = summary.total === 0
+      ? ''
+      : `<p><span>Open now</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(String(summary.inProgress))} in progress · ${escapeHtml(String(summary.resolved))} resolved</small></p>`;
+  }
+  // SISP-12: field tickets card (open worklist + pending ticket charges).
+  const ticketSummaryEl = $('#fieldTicketsSummary');
+  if (ticketSummaryEl) {
+    const summary = buildTicketSummary(loadTickets());
+    const valueEl = $('#dashboardFieldTicketsValue');
+    const periodEl = $('#dashboardFieldTicketsPeriod');
+    if (valueEl) valueEl.textContent = summary.total === 0 ? 'No field tickets' : `${summary.open} open · ${summary.inProgress} in progress`;
+    if (periodEl) periodEl.textContent = summary.total === 0 ? 'Lineman worklist and material use' : `${summary.resolved} resolved · PKR ${summary.pendingCharges} pending ticket charges`;
+    ticketSummaryEl.innerHTML = summary.total === 0
       ? ''
       : `<p><span>Open now</span><strong>${escapeHtml(String(summary.open))}</strong><small> · ${escapeHtml(String(summary.inProgress))} in progress · ${escapeHtml(String(summary.resolved))} resolved</small></p>`;
   }
@@ -1616,6 +1630,13 @@ function renderCustomerProfileView(customer) {
   // SISP-15: profile complaint history — this customer's register entries only.
   const customerComplaints = loadComplaints().filter((c) => String(c.customerId) === String(customer.id)).sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
   const complaintsSectionHtml = `<section class="profile-complaints-section" aria-label="Complaint history"><h4>🛠️ Complaint history</h4>${customerComplaints.length === 0 ? '<p class="profile-complaints-empty">No complaints recorded for this customer.</p>' : `<ul class="profile-complaints-list">${customerComplaints.map((c) => `<li><span><strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.issueCategory)} · ${escapeHtml(c.status)}</span><span>Reported ${escapeHtml(c.reportedAt || 'not recorded')} · downtime ${escapeHtml(formatDowntimeHours(c.downtimeHours))}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenComplaintRegisterBtn">Open complaint register</button></section>`;
+  // SISP-12: profile field tickets — this customer's worklist only, plus
+  // pending ticket charges and the recurring-fault warning badge. Charges
+  // live on the tickets, never inside bills or the billing cycle.
+  const customerTickets = ticketsForCustomer(loadTickets(), customer.id);
+  const ticketPending = billedTicketChargesPending(loadTickets(), customer.id);
+  const recurringWarning = hasRecurringFaultWarning(loadTickets(), customer.id);
+  const ticketsSectionHtml = `<section class="profile-tickets-section" aria-label="Field tickets"><h4>🔧 Field tickets — Lineman worklist</h4>${recurringWarning ? '<p class="profile-tickets-warning">⚠️ Recurring fault: 3 or more tickets in the last 60 days for this customer.</p>' : ''}<p class="profile-tickets-charges">Pending ticket charges: <strong>${escapeHtml(formatAmount(ticketPending))}</strong>${ticketPending > 0 ? ' · billed field work not yet marked paid' : ''}</p>${customerTickets.length === 0 ? '<p class="profile-tickets-empty">No field tickets recorded for this customer.</p>' : `<ul class="profile-tickets-list">${customerTickets.map((t) => `<li><span><strong>${escapeHtml(t.id)}</strong> · ${escapeHtml(ticketFaultLabel(t))} · ${escapeHtml(t.status)}</span><span>Lineman ${escapeHtml(t.technician || 'not set')} · ${escapeHtml(t.priority)}${t.billingType === 'billed' ? ` · Billed PKR ${t.billedAmount}${t.chargePaid ? ' · Paid' : ' · Unpaid'}` : ' · Free'}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenFieldTicketsBtn">Open field tickets</button></section>`;
   // SISP-16: profile downtime summary — this month + all time for this customer.
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
@@ -1631,7 +1652,7 @@ function renderCustomerProfileView(customer) {
     : kistProgress.plans.map((plan) => `<article class="kist-plan"><div class="kist-plan-head"><strong>${escapeHtml(plan.itemTitle)}</strong><span>${escapeHtml(plan.statusLabel)}</span></div><div class="kist-progress-track" role="progressbar" aria-label="${escapeHtml(plan.itemTitle)} progress" aria-valuenow="${plan.percentPaid}" aria-valuemin="0" aria-valuemax="100"><div class="kist-progress-fill" style="width: ${plan.percentPaid}%"></div></div><p class="kist-plan-meta">Paid ${plan.monthsPaid}/${plan.totalMonths} Installments • ${escapeHtml(formatAmount(plan.remainingAmount))} Remaining</p><p class="kist-plan-detail">Monthly kist ${escapeHtml(formatAmount(plan.monthlyKist))} · Billed ${plan.monthsBilled}/${plan.totalMonths} · Total ${escapeHtml(formatAmount(plan.totalAmount))}${plan.downPayment > 0 ? ` · Down payment ${escapeHtml(formatAmount(plan.downPayment))}` : ''}${plan.startDate ? ` · From ${escapeHtml(plan.startDate)}` : ''}</p>${plan.monthsBilled === 0 ? `<button type="button" class="secondary-button text-button danger" data-profile-kist-remove="${escapeHtml(plan.id)}">Remove plan</button>` : ''}</article>`).join('');
   const kistSectionHtml = `<section class="profile-kist-section" aria-label="Installments (Kist)"><h4>💳 Kist / Installments — Hardware &amp; Wire</h4><p class="profile-kist-note">Installments are added to the monthly bill automatically when the billing cycle runs — never from here. Paid counts installments whose bill month is fully settled.</p>${kistPlansHtml}<form class="kist-add-form" novalidate><h5>Add installment plan</h5><div class="kist-add-grid"><label class="field-label full" for="profileKistItemTitle">Item (router / ONU / fiber wire)</label><input id="profileKistItemTitle" type="text" maxlength="100" placeholder="e.g. Tenda F3 Router + 120m Fiber" required><label class="field-label full" for="profileKistTotalAmount">Total amount (PKR)</label><input id="profileKistTotalAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="e.g. 3000" required><label class="field-label full" for="profileKistDownPayment">Down payment (PKR) <span class="optional-label">Optional</span></label><input id="profileKistDownPayment" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"><label class="field-label full" for="profileKistTotalMonths">Months (2–6)</label><input id="profileKistTotalMonths" type="number" min="2" max="6" step="1" inputmode="numeric" placeholder="3" required><label class="field-label full" for="profileKistMonthlyKist">Monthly kist (PKR) <span class="optional-label">Optional · auto-split if blank</span></label><input id="profileKistMonthlyKist" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Auto"><label class="field-label full" for="profileKistStartDate">Start date <span class="optional-label">Optional · first cycle on/after this date</span></label><input id="profileKistStartDate" type="date"></div><button type="button" class="primary-button" id="profileKistAddBtn">Add installment plan</button></form></section>`;
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup('Contact', [['Phone / WhatsApp number', phone || 'Not set'], ['CNIC (National ID)', cnic ? formatCnicDisplay(cnic) : 'Not set']])}${profileInfoGroupMarkup('Location', [['Area / mohalla', customer.mohalla || 'Not set'], ['Zone', customer.zone || 'Not set'], ['Address', customer.address || 'Not set', true], ['Notes', customer.notes?.trim() || 'Not set', true]])}${profileInfoGroupMarkup('Service', [['ISP / provider', customer.ispProvider || 'Not set'], ['Service status', manualServiceStatusLabel(customer.serviceStatus)], ['Package / speed', customer.packageSpeed || 'Not set'], ['Monthly provider purchase cost', formatAmount(customer.monthlyPurchaseCost)], ['Monthly selling amount', formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup('Connection', [['Connection / subscription start', customer.connectionDate ? humanDate(customer.connectionDate) : 'Not recorded'], ['Connection fee', formatAmount(customer.connectionFee)], ['Router installed', customer.routerModel || 'Not recorded'], ['Router price', formatAmount(customer.routerPrice)], ['Fiber wire used', customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? 'Not recorded' : `${customer.fiberMeters} m`], ['Expiry / end date', customer.expiryDate ? humanDate(customer.expiryDate) : 'Not recorded'], ['Cancellation date', customer.cancellationDate ? humanDate(customer.cancellationDate) : 'Not recorded']])}</div>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${downtimeSectionHtml}${kistSectionHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>Customer information</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="Customer information guidance" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">Area / mohalla is the parent location and an optional zone is summarized beneath it. Service status is manually set and separate from billing; it is not monitored. Phone shortcuts open only the device dialer or WhatsApp composer, and never send a message. Receipt drafts contain only this customer’s saved receipt details. All profile values shown here come from saved fields.</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">Edit</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">Expected monthly package profit: <strong>${escapeHtml(profit === null ? 'Not set' : formatAmount(profit))}</strong></p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${kistSectionHtml}`;
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {
     profileEditMode = true;
@@ -1675,6 +1696,11 @@ function renderCustomerProfileView(customer) {
   const profileComplaintBtn = $('#customerProfileView').querySelector('#profileOpenComplaintRegisterBtn');
   if (profileComplaintBtn) profileComplaintBtn.addEventListener('click', () => {
     if (complaintRegisterModalController) complaintRegisterModalController.open({ customer: String(customer.id) });
+  });
+  // SISP-12: profile button opens the field tickets modal pre-filtered to this customer.
+  const profileTicketsBtn = $('#customerProfileView').querySelector('#profileOpenFieldTicketsBtn');
+  if (profileTicketsBtn) profileTicketsBtn.addEventListener('click', () => {
+    if (fieldTicketsModalController) fieldTicketsModalController.open({ customer: String(customer.id) });
   });
   // SISP-16: profile button opens the downtime analytics modal (current month).
   const profileDowntimeBtn = $('#customerProfileView').querySelector('#profileOpenDowntimeAnalyticsBtn');
@@ -1865,18 +1891,20 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets() };
 }
 function backupRestoreOptions() {
   let stored = false;
   let shopStored = false;
   let complaintsStored = false;
   let roznamchaStored = false;
+  let ticketsStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
   try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
   try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored };
+  try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -2346,6 +2374,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.roznamchaDays) {
       saveRoznamchaDays(pendingBackupPreview.roznamchaDays);
+    }
+    if (pendingBackupPreview.tickets) {
+      saveTickets(pendingBackupPreview.tickets);
     }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
@@ -7321,6 +7352,13 @@ if (typeof document !== 'undefined') {
       renderDetail();
       if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
       if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
+    },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  fieldTicketsModalController = setupFieldTicketsModal(() => state, {
+    onTicketsChanged: () => {
+      renderDashboard();
+      renderDetail();
     },
     onToast: (msg, opts) => toast(msg, opts)
   });

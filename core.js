@@ -8,6 +8,7 @@ import { sanitizeHomeBudget } from './home-budget.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
+import { sanitizeLoanEntries } from './loan-ledger.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
@@ -1764,6 +1765,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeInventory(options.inventory);
     if (cleaned.length) document.settings = { ...(document.settings || {}), inventory: cleaned };
   }
+  // Loan ledger: personal loan entries live outside the ledger state
+  // (localStorage key loan_ledger_v1), so they travel in an optional
+  // `settings.loans` section. Written only when at least one entry exists;
+  // readers that predate it ignore the unknown field. Loan money never
+  // mixes with business ledgers, so this section is adopted on its own.
+  if (options && typeof options === 'object' && Array.isArray(options.loans) && options.loans.length) {
+    const cleaned = sanitizeLoanEntries(options.loans);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), loans: cleaned };
+  }
   // Saad visit log: visits + payments live outside the ledger state
   // (localStorage keys sisp_saad_visits_v1 / sisp_saad_payments_v1), so
   // they travel in optional `settings.saadVisits` / `settings.saadPayments`
@@ -2151,6 +2161,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Stock book records differ from this device' });
     }
   }
+  // Loan ledger: optional loan entries section (see createJsonBackup).
+  // Safe-merge rule, same as the stock book: adopt the backup's records
+  // only when this device has none stored yet; when both sides hold
+  // different real records, keep existing + conflict.
+  let loans = null;
+  const rawIncomingLoans = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.loans
+    : undefined;
+  if (Array.isArray(rawIncomingLoans) && rawIncomingLoans.length) {
+    const incomingLoans = sanitizeLoanEntries(rawIncomingLoans);
+    const currentLoans = (options && typeof options === 'object' && Array.isArray(options.currentLoans))
+      ? sanitizeLoanEntries(options.currentLoans)
+      : [];
+    if (incomingLoans.length && sameJson(incomingLoans, currentLoans)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingLoans.length && (!options?.currentLoansStored || currentLoans.length === 0)) {
+      loans = incomingLoans;
+      counts.loansRestored = 1;
+      counts.changes++;
+    } else if (incomingLoans.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Loan ledger records differ from this device' });
+    }
+  }
   // Saad visit log: optional visit + payment sections (see createJsonBackup).
   // Safe-merge rule, same as the stock book: adopt the backup's records
   // only when this device has none stored yet; when both sides hold
@@ -2301,4 +2334,4 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, checksumStatus:checksum.status };}
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, monthlyClosingNotes, partnerLedger, partnerSettlements, homeBudget, checksumStatus:checksum.status };}

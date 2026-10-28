@@ -15,6 +15,7 @@ import {
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
   addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla
 } from './phase3.js?v=1.10.0';
+import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.10.0';
 import { manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.10.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary } from './profile-ui.js?v=1.10.0';
 import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?v=1.10.0';
@@ -45,7 +46,7 @@ import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, 
 
 import {
   validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
-  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
+  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, groupAreasWithCounts, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
   generateCustomerRosterCsv, renderCustomerTableEmptyMarkup,
   saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
   maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths, statementFilterMethods, sortStatementEvents, statementMonthSubtotals, statementAging, statementTrendSvg, statementDaysOverdue,
@@ -1113,10 +1114,10 @@ function renderCustomers() {
   // Sync unique areas into dropdown
   const areaSelect = $('#customerFilterArea');
   if (areaSelect) {
-    const areas = [...new Map(getUniqueCustomerAreas(state.customers.filter(c => !c.archived)).map(a => { const canon = canonicalMohalla(a); return [canon ? canon.key : a.toLowerCase(), canon ? canon.label : a]; })).values()].sort((a, b) => a.localeCompare(b));
+    const areaOptions = groupAreasWithCounts(state.customers.filter(c => !c.archived), c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
     const currentVal = customerAreaFilter;
-    areaSelect.innerHTML = '<option value="all">All areas</option>' + areas.map(a => `<option value="${escapeHtml(a)}"${a === currentVal ? ' selected' : ''}>${escapeHtml(a)}</option>`).join('');
-    if (!areas.includes(currentVal) && currentVal !== 'all') {
+    areaSelect.innerHTML = '<option value="all">All areas</option>' + areaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+    if (!areaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
       customerAreaFilter = 'all';
       areaSelect.value = 'all';
     } else {
@@ -1275,7 +1276,7 @@ function renderGlobalSearch() {
   }));
 }
 function switchView(view, { pushHistory = true } = {}) {
-  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'], homeBudget:['homeBudgetView','showHomeBudgetButton'] };
+  const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'], homeBudget:['homeBudgetView','showHomeBudgetButton'], loans:['loanView','showLoansButton'] };
   if (!views[view]) view = 'customers';
   for (const [name, [sectionId, buttonId]] of Object.entries(views)) {
     const active = name === view;
@@ -2239,8 +2240,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements() };}function backupRestoreOptions() {  let stored = false;
-  let shopStored = false;
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements() };}function backupRestoreOptions() {  let stored = false;  let shopStored = false;
   let complaintsStored = false;
   let roznamchaStored = false;
   let ticketsStored = false;
@@ -2252,8 +2252,8 @@ function backupExtras() {
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
   let homeBudgetStored = false;
-  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
-  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
+  let loansStored = false;
+  try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
   try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
@@ -2266,8 +2266,8 @@ function backupExtras() {
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
   try { partnerSettlementsStored = localStorage.getItem(PARTNER_SETTLEMENTS_KEY) !== null; } catch { partnerSettlementsStored = false; }
   try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored };}function renderStorageWarning() {  const warning = $('#storageRecoveryWarning');
-  warning.hidden = persistenceBlocked || storageAvailable;
+  try { loansStored = localStorage.getItem(LOAN_KEY) !== null; } catch { loansStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored };}function renderStorageWarning() {  const warning = $('#storageRecoveryWarning');  warning.hidden = persistenceBlocked || storageAvailable;
   warning.textContent = persistenceBlocked ? `Saved billing data could not be read (${readFailureMessage || 'storage error'}). The app has not overwritten it. Use a valid JSON backup and review the merge before restoring.` : !storageAvailable ? 'Browser storage is unavailable; recent edits may not survive closing this page. Download a JSON backup after storage becomes available.' : '';
   $('#downloadJsonBackupButton').disabled = persistenceBlocked;
   $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
@@ -2789,6 +2789,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.inventory) {
       saveInventory(pendingBackupPreview.inventory);
+    }
+    if (pendingBackupPreview.loans) {
+      saveLoans(pendingBackupPreview.loans);
     }
     if (pendingBackupPreview.saadVisits) {
       saveSaadVisits(pendingBackupPreview.saadVisits);
@@ -3821,7 +3824,7 @@ navDrawer = setupNavigationDrawer({
       window.screenRouter?.go('alerts');
     } else if (target === 'recovery') {
       window.screenRouter?.go('recovery');
-    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(target)) {
+    } else if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
@@ -3829,6 +3832,7 @@ navDrawer = setupNavigationDrawer({
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
       else if (target === 'homeBudget') renderHomeBudget();
+      else if (target === 'loans') renderLoans();
       else if (target === 'customers') renderCustomers();
     }
   },
@@ -3843,7 +3847,7 @@ updateNavigationBadges(state);
 setupNetworkStatusIndicator({ onToast: toast });
 setupKeyboardShortcuts({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(target)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
@@ -3851,6 +3855,7 @@ setupKeyboardShortcuts({
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
       else if (target === 'homeBudget') renderHomeBudget();
+      else if (target === 'loans') renderLoans();
       else if (target === 'customers') renderCustomers();
     } else if (target === 'backup') {
       const toggle = $('#backupControlsToggle');
@@ -3960,7 +3965,7 @@ mobileActionSheetController = setupMobileActionSheet({
 
 const commandPalette = setupCommandPalette({
   onNavigate: target => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(target)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(target)) {
       switchView(target);
       if (target === 'transactions') renderTransactions();
       else if (target === 'reports') renderMonthlyReport();
@@ -3968,6 +3973,7 @@ const commandPalette = setupCommandPalette({
       else if (target === 'inventory') renderInventory();
       else if (target === 'expenses') renderExpenses();
       else if (target === 'homeBudget') renderHomeBudget();
+      else if (target === 'loans') renderLoans();
       else if (target === 'customers') renderCustomers();
     } else if (target === 'dashboard') {
       switchView('customers');
@@ -4029,7 +4035,7 @@ setupPullToRefresh({
 
 setupSwipeNavigation({
   container: document.getElementById('main') || document.body,
-  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'],
+  views: ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'],
   onNavigate: (target) => {
     switchView(target);
     if (target === 'transactions') renderTransactions();
@@ -4038,6 +4044,7 @@ setupSwipeNavigation({
     else if (target === 'inventory') renderInventory();
     else if (target === 'expenses') renderExpenses();
     else if (target === 'homeBudget') renderHomeBudget();
+    else if (target === 'loans') renderLoans();
     else if (target === 'customers') renderCustomers();
   }
 });
@@ -4727,7 +4734,7 @@ setupMobileSpeedDial({
 // Setup Interactive Mobile Breadcrumbs Trail
 mobileBreadcrumbs = setupMobileBreadcrumbs({
   onNavigate: (viewId, data) => {
-    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'].includes(viewId)) {
+    if (['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'].includes(viewId)) {
       switchView(viewId);
       if (viewId === 'customers') renderCustomers();
       else if (viewId === 'transactions') renderTransactions();
@@ -4736,6 +4743,7 @@ mobileBreadcrumbs = setupMobileBreadcrumbs({
       else if (viewId === 'inventory') renderInventory();
       else if (viewId === 'expenses') renderExpenses();
       else if (viewId === 'homeBudget') renderHomeBudget();
+      else if (viewId === 'loans') renderLoans();
     } else if (viewId === 'home') {
       if (typeof window !== 'undefined' && window.location) {
         window.location.hash = '#/home';
@@ -5156,6 +5164,43 @@ let inventoryCategoryFilter = 'all';
 let inventoryStockFilter = 'all';
 let inventorySearchQuery = '';
 
+let loanSearchQuery = '', loanDirectionFilter = 'all';
+function renderLoans() {
+  const entries = loadLoans();
+  const totals = loanGrandTotals(entries);
+  const summaries = loanPersonSummaries(entries);
+  const metric = (id, value) => { const node = $(`#${id}`); if (node) node.textContent = value; };
+  metric('loanTotalDena', totals.entryCount ? formatAmount(totals.dena) : 'No loans recorded');
+  metric('loanTotalLena', totals.entryCount ? formatAmount(totals.lena) : 'No loans recorded');
+  metric('loanNetPosition', totals.entryCount ? (totals.net > 0 ? `${formatAmount(totals.net)} to receive` : totals.net < 0 ? `${formatAmount(-totals.net)} to pay` : 'Settled') : 'No loans recorded');
+  metric('loanOpenPeople', totals.entryCount ? `${totals.outstandingPersonCount} of ${totals.personCount}` : 'No loans recorded');
+  const options = $('#loanPersonOptions'); if (options) options.innerHTML = summaries.map(person => `<option value="${escapeHtml(person.name)}"></option>`).join('');
+  const filtered = filterLoanPersons(summaries, { query: loanSearchQuery, direction: loanDirectionFilter });
+  const cards = $('#loanPersonCards');
+  if (cards) cards.innerHTML = filtered.map(person => {
+    const netLabel = person.net > 0 ? `${formatAmount(person.net)} to receive` : person.net < 0 ? `${formatAmount(-person.net)} to pay` : 'Settled';
+    const entriesHtml = person.entries.map(entry => `<div class="area-intel-metric"><span>${escapeHtml(entry.date || 'No date')} · ${entry.kind === 'repayment' ? 'Repayment' : 'Loan'} · ${entry.direction === 'dena' ? 'Dena hai' : 'Lena hai'}${entry.note ? ` · ${escapeHtml(entry.note)}` : ''}</span><strong>${escapeHtml(formatAmount(entry.amount))} <button type="button" class="secondary-button btn-sm" data-delete-loan-entry="${escapeHtml(entry.id)}" aria-label="Delete this loan entry">Delete</button></strong></div>`).join('');
+    const repayButtons = `${person.dena > 0 ? `<button type="button" class="secondary-button btn-sm" data-loan-repay-person="${escapeHtml(person.name)}" data-loan-repay-direction="dena">Repay dena</button>` : ''}${person.lena > 0 ? `<button type="button" class="secondary-button btn-sm" data-loan-repay-person="${escapeHtml(person.name)}" data-loan-repay-direction="lena">Collect lena</button>` : ''}`;
+    return `<article class="area-intel-card"><header class="area-intel-card-header"><h4>${escapeHtml(person.name)}</h4></header>${person.phone ? `<p class="area-intel-no-zone">${escapeHtml(person.phone)}</p>` : ''}<div class="area-intel-metrics"><div class="area-intel-metric"><span>Dena hai</span><strong>${escapeHtml(formatAmount(person.dena))}</strong></div><div class="area-intel-metric"><span>Lena hai</span><strong>${escapeHtml(formatAmount(person.lena))}</strong></div><div class="area-intel-metric"><span>Net</span><strong>${escapeHtml(netLabel)}</strong></div>${entriesHtml}</div>${repayButtons ? `<div class="area-intel-section"><div class="area-intel-header-actions">${repayButtons}</div></div>` : ''}</article>`;
+  }).join('');
+  const empty = $('#loanEmpty'); if (empty) empty.hidden = entries.length > 0;
+  const filterEmpty = $('#loanFilterEmpty'); if (filterEmpty) filterEmpty.hidden = !(entries.length > 0 && filtered.length === 0);
+  const count = $('#loanPersonCount'); if (count) count.textContent = `${filtered.length} of ${summaries.length} people`;
+  cards?.querySelectorAll('[data-delete-loan-entry]').forEach(button => button.addEventListener('click', async () => {
+    const current = loadLoans();
+    const entry = current.find(row => row.id === button.dataset.deleteLoanEntry);
+    if (!entry) return;
+    if (!await appConfirm({ tone: 'danger', title: 'Delete this loan entry?', subject: `${entry.person} · ${entry.direction === 'dena' ? 'Dena hai' : 'Lena hai'} · ${formatAmount(entry.amount)} · ${entry.date}`, message: 'This will change this person’s loan balances.', confirmLabel: 'Delete entry' })) return;
+    try { saveLoans(deleteLoanEntry(current, entry.id)); renderLoans(); toast('Loan entry deleted from this device.', { type: 'success', title: 'Deleted' }); } catch (error) { toast(error.message, { type: 'error' }); }
+  }));
+  cards?.querySelectorAll('[data-loan-repay-person]').forEach(button => button.addEventListener('click', () => {
+    const personInput = $('#loanPerson'); if (personInput) personInput.value = button.dataset.loanRepayPerson || '';
+    const directionInput = $('#loanDirection'); if (directionInput) directionInput.value = button.dataset.loanRepayDirection || '';
+    const kindInput = $('#loanKind'); if (kindInput) kindInput.value = 'repayment';
+    const form = $('#loanForm'); if (form) form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const amountInput = $('#loanAmount'); if (amountInput) amountInput.focus();
+  }));
+}
 function renderInventory() {
   const summary=inventorySummary(state),items=summary.items;
   const metric=(id,value)=>{const node=$(`#${id}`);if(node)node.textContent=value;};
@@ -5756,6 +5801,10 @@ function resetExpenseForm() {
 $('#inventoryItemForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={name:data.get('name'),category:data.get('category'),unit:data.get('unit'),minimumStock:data.get('minimumStock'),unitCost:data.get('unitCost')||null,createdDate:data.get('createdDate')||null,notes:data.get('notes')};try{const id=data.get('itemId');state=id?updateInventoryItem(state,id,fields):addInventoryItem(state,fields);save();resetInventoryForm();toast(id?'Inventory item updated on this device.':'Item definition saved; no stock was added.');}catch(error){toast(error.message);}});
 $('#inventoryItemCancel').addEventListener('click',resetInventoryForm);
 $('#inventoryMovementForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={itemId:data.get('itemId'),type:data.get('type'),quantity:data.get('quantity'),date:data.get('date'),fromState:data.get('fromState'),toState:data.get('toState'),customerId:data.get('customerId'),notes:data.get('notes')};try{state=addStockMovement(state,fields);save();event.currentTarget.reset();const movDate=$('#movementDate');if(movDate)movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);toast('Actual stock movement recorded on this device.');}catch(error){toast(error.message);}});
+$('#loanForm').addEventListener('submit',event=>{event.preventDefault();const data=new FormData(event.currentTarget),fields={person:data.get('person'),phone:data.get('phone'),direction:data.get('direction'),kind:data.get('kind'),amount:data.get('amount'),date:data.get('date'),note:data.get('note')};try{saveLoans(addLoanEntry(loadLoans(),fields));event.currentTarget.reset();const loanDate=$('#loanDate');if(loanDate)loanDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);renderLoans();toast('Loan entry saved on this device.');}catch(error){toast(error.message);}});
+$('#loanSearchInput').addEventListener('input',event=>{loanSearchQuery=event.currentTarget.value;renderLoans();});
+$('#loanDirectionFilter').addEventListener('change',event=>{loanDirectionFilter=event.currentTarget.value;renderLoans();});
+$('#clearLoanFilters').addEventListener('click',()=>{loanSearchQuery='';loanDirectionFilter='all';const q=$('#loanSearchInput');if(q)q.value='';const d=$('#loanDirectionFilter');if(d)d.value='all';renderLoans();});
 $('#expenseForm').addEventListener('submit',async event=>{
   event.preventDefault();
   const data=new FormData(event.currentTarget);
@@ -6251,8 +6300,9 @@ $('#exportAreaSummaryCsvBtn')?.addEventListener('click', () => {
 $('#showInventoryButton').addEventListener('click',()=>{switchView('inventory');renderInventory();});
 $('#showExpensesButton').addEventListener('click',()=>{expenseActiveTab='ledger';switchView('expenses');renderExpenses();});
 $('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget');renderHomeBudget();});
+$('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});
 renderPhase3();
-refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses}).refresh;
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans}).refresh;
 
 // Phase 12 · Form draft auto-save and restoration
 customerDraftController = wireFormDraftAutosave($('#addCustomerForm'), 'addCustomerForm', {
@@ -9552,7 +9602,7 @@ function handleRouteFromHash() {
   if (['quick-collect', 'add-customer', 'today-dues', 'dues', 'collection-rounds', 'pending-actions', 'fast-search', 'pwa-status'].includes(raw)) {
     return;
   }
-  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget'];
+  const validViews = ['customers', 'transactions', 'reports', 'analytics', 'inventory', 'expenses', 'homeBudget', 'loans'];
   if (validViews.includes(raw)) {
     switchView(raw, { pushHistory: false });
     if (raw === 'transactions') renderTransactions();
@@ -9561,6 +9611,7 @@ function handleRouteFromHash() {
     else if (raw === 'inventory') renderInventory();
     else if (raw === 'expenses') renderExpenses();
     else if (raw === 'homeBudget') renderHomeBudget();
+    else if (raw === 'loans') renderLoans();
     else if (raw === 'customers') renderCustomers();
   }
 }

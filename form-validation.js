@@ -311,6 +311,30 @@ export function getUniqueCustomerAreas(customers) {
 }
 
 /**
+ * Groups customers by area with a headcount per area, for filter dropdowns
+ * that show "Mohalla (N)" next to each name. By default grouping is by
+ * normalized spelling (trimmed, collapsed spaces, lowercased) so "Bani"
+ * and "bani" count together, and the option value is the first recorded
+ * spelling. Callers may pass keyOf/displayOf to group by canonical identity
+ * instead (the mohalla canonicalizer), in which case the option value is
+ * the canonical label. Customers without an area value are skipped.
+ * Returns [{value,label,count}] sorted by label, where label is "Name (N)".
+ */
+export function groupAreasWithCounts(customers, areaOf = c => (c.mohalla || c.area || '').trim(), keyOf = value => value.replace(/\s+/g, ' ').toLowerCase(), displayOf = value => value) {
+  const list = Array.isArray(customers) ? customers : [];
+  const groups = new Map();
+  for (const customer of list) {
+    const raw = String(areaOf(customer) ?? '').trim();
+    if (!raw) continue;
+    const key = keyOf(raw);
+    const group = groups.get(key);
+    if (group) group.count += 1;
+    else groups.set(key, { value: displayOf(raw), count: 1 });
+  }
+  return [...groups.values()].map(group => ({ ...group, label: `${group.value} (${group.count})` })).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+/**
  * Sorts monthly payment report rows by specified key.
  * @param {Array<Object>} rows
  * @param {string} [sortBy='number-asc']

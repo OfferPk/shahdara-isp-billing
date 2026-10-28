@@ -452,6 +452,15 @@
             <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button">⚡ Trace Outage Impact</button>
           </div>
         </article>
+        <article class="summary-card summary-saad-visits">
+          <p class="summary-label">🔧 Saad Visit Log</p>
+          <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
+          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
+          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button">🔧 Saad Visits</button>
+          </div>
+        </article>
         <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -20641,6 +20650,77 @@
         </fieldset>
         <div id="outageImpactResultList" class="outage-impact-result-list"></div>
         <button id="outageImpactCopyAllBtn" class="secondary-button" type="button" disabled>Copy full message list</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="saadVisitsModal" class="billing-modal saad-visits-modal" aria-labelledby="saadVisitsModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="saadVisitsModalTitle">🔧 Saad Visit Log</h2>
+        <button id="saadVisitsCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="saad-visits-intro">Saad jab bhi kaam par aaye — zyada tar splicing ke liye — us ka har visit yahan darj karein: kis customer ka kaam, kis area ki fiber, kitne ghantay, aur us mahine kya payment hui. Sab kuch operator haath se likhta hai; koi automatic hazri ya GPS nahi.</p>
+        <label for="saadVisitsMonth">Month</label>
+        <input id="saadVisitsMonth" class="form-input" type="month" aria-label="Summary month">
+        <label for="saadVisitsTypeFilter">Work type filter</label>
+        <select id="saadVisitsTypeFilter" class="form-input" aria-label="Filter visits by work type">
+          <option value="">All work types</option>
+          <option value="splicing">Splicing</option>
+          <option value="fiber-fix">Fiber fix</option>
+          <option value="install">New connection install</option>
+          <option value="other">Other work</option>
+        </select>
+        <h3>Month-end summary</h3>
+        <div id="saadVisitsMonthSummary" class="saad-visits-month-summary"></div>
+        <h3>Log a visit</h3>
+        <form id="saadVisitForm" class="saad-visits-form">
+          <label for="saadVisitDate">Visit date</label>
+          <input id="saadVisitDate" class="form-input" type="date" required aria-label="Visit date">
+          <label for="saadVisitType">Work type</label>
+          <select id="saadVisitType" class="form-input" aria-label="Work type">
+            <option value="splicing">Splicing</option>
+            <option value="fiber-fix">Fiber fix</option>
+            <option value="install">New connection install</option>
+            <option value="other">Other work</option>
+          </select>
+          <label for="saadVisitCustomerSearch">Find customer (name / number / area)</label>
+          <input id="saadVisitCustomerSearch" class="form-input" type="text" maxlength="100" placeholder="e.g. Faisal" aria-label="Search customers">
+          <label for="saadVisitCustomer">Customer (from the list; blank = area-level work)</label>
+          <select id="saadVisitCustomer" class="form-input" aria-label="Customer"></select>
+          <label for="saadVisitArea">Area / mohalla (defaults from the picked customer, editable)</label>
+          <input id="saadVisitArea" class="form-input" type="text" maxlength="200" aria-label="Area or mohalla">
+          <label for="saadVisitFiberMeters">Fiber meters used (optional, recorded only — no stock deduction)</label>
+          <input id="saadVisitFiberMeters" class="form-input" type="number" min="0" step="any" inputmode="decimal" aria-label="Fiber meters used">
+          <label for="saadVisitStartTime">Start time (optional if hours entered below)</label>
+          <input id="saadVisitStartTime" class="form-input" type="time" aria-label="Start time">
+          <label for="saadVisitEndTime">End time (must be after start time)</label>
+          <input id="saadVisitEndTime" class="form-input" type="time" aria-label="End time">
+          <label for="saadVisitHours">Hours worked (optional if start + end entered — times win)</label>
+          <input id="saadVisitHours" class="form-input" type="number" min="0" step="any" inputmode="decimal" aria-label="Hours worked">
+          <label for="saadVisitTicket">Field ticket (optional, e.g. TKT-101 — must exist)</label>
+          <input id="saadVisitTicket" class="form-input" type="text" maxlength="20" placeholder="TKT-101" aria-label="Field ticket id">
+          <label for="saadVisitNote">Note (optional)</label>
+          <input id="saadVisitNote" class="form-input" type="text" maxlength="200" aria-label="Visit note">
+          <button class="action-btn-sm daily-slip-btn" type="submit">➕ Visit darj karein</button>
+        </form>
+        <h3>Record a payment to Saad</h3>
+        <form id="saadPaymentForm" class="saad-visits-form">
+          <label for="saadPaymentDate">Payment date</label>
+          <input id="saadPaymentDate" class="form-input" type="date" required aria-label="Payment date">
+          <label for="saadPaymentAmount">Amount (PKR)</label>
+          <input id="saadPaymentAmount" class="form-input" type="number" min="0" step="any" inputmode="decimal" required aria-label="Payment amount">
+          <label for="saadPaymentType">Payment type</label>
+          <select id="saadPaymentType" class="form-input" aria-label="Payment type">
+            <option value="salary">Salary</option>
+            <option value="commission">Commission</option>
+          </select>
+          <label for="saadPaymentNote">Note (optional)</label>
+          <input id="saadPaymentNote" class="form-input" type="text" maxlength="200" aria-label="Payment note">
+          <button class="action-btn-sm daily-slip-btn" type="submit">➕ Payment darj karein</button>
+        </form>
+        <h3>Visit log</h3>
+        <div id="saadVisitsList" class="saad-visits-list"></div>
       </div>
     </div>
   </dialog>

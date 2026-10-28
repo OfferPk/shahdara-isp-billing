@@ -35,6 +35,7 @@ export const SCREENS = {
   inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', focus: '#inventoryItemForm' } },
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
+  loans: { view: 'loanView', tab: 'showLoansButton', title: 'Loan Ledger', subtitle: 'Personal loans: dena hai and lena hai, kept apart from business money', action: { label: '+ Add Loan', focus: '#loanForm' } },
   easypaisa: { view: 'easypaisaView', title: 'Payments Inbox', subtitle: 'Easypaisa transaction emails & statements', action: { label: 'Sync Sheet', click: '#easypaisaSyncBtn' } }
 };
 
@@ -252,7 +253,8 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     ['billingReportsView', 'showReportsButton'],
     ['analyticsView', 'showAnalyticsButton'],
     ['inventoryView', 'showInventoryButton'],
-    ['expensesView', 'showExpensesButton']
+    ['expensesView', 'showExpensesButton'],
+    ['loanView', 'showLoansButton']
   ];
   const SCREEN_VIEW = {
     customers: 'customersView',
@@ -263,7 +265,8 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     alerts: 'billingReportsView',
     analytics: 'analyticsView',
     inventory: 'inventoryView',
-    expenses: 'expensesView'
+    expenses: 'expensesView',
+    loans: 'loanView'
   };
   function syncViewState(screen) {
     const activeView = SCREEN_VIEW[screen] || null;

@@ -21,6 +21,7 @@ import { buildKistProgress, createInstallmentPlan } from './installment-plan.js?
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml } from './receipt.js?v=1.10.0';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import { customerHasMonthlyFee } from './nav-quick-collect.js';
+import { setupFieldMode } from './field-mode.js?v=1.10.0';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.10.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.10.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.10.0';
@@ -3927,6 +3928,19 @@ window.quickCollectModalController = setupQuickCollectModal({
   },
   // #297 "Add phone": open this customer's profile in edit mode with the phone field focused.
   onEditCustomer: (customerId, { focus } = {}) => editCustomerProfile(customerId, { focus })
+});
+// Setup SISP-5 1-Thumb Field Collection Mode (header toggle + full-screen overlay).
+window.fieldModeController = setupFieldMode({
+  getState: () => state,
+  onSaveState: (nextState) => {
+    state = nextState;
+    save();
+    renderDetail();
+    renderTransactions();
+    renderMonthlyReport();
+    updateNavigationBadges(state);
+  },
+  onToast: (msg, opts) => toast(msg, opts)
 });
 // Setup Mobile Customer Quick Profile Sheet & WhatsApp Delivery (agent2 - shahdara-mobile-nav)
 window.mobileQuickProfileController = setupMobileQuickProfileModal({

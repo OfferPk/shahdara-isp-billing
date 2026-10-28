@@ -187,8 +187,29 @@
         <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="12" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
+      <button id="fieldModeToggleBtn" class="field-mode-toggle-btn" type="button" aria-label="Field Mode — 1-thumb collection" title="Field Mode" aria-pressed="false">🏍️</button>
     </div>
   </header>
+  <!-- SISP-5: 1-thumb field collection mode overlay (hidden until the header toggle opens it). -->
+  <section id="fieldModeView" class="field-mode-view" hidden aria-label="Field collection mode">
+    <div class="field-mode-inner">
+      <div class="field-mode-head">
+        <div>
+          <h2>🏍️ Field Mode</h2>
+          <p class="field-mode-sub">1-thumb collection — search, tap, collect.</p>
+        </div>
+        <button id="fieldModeCloseBtn" class="close-button" type="button" aria-label="Close field mode">×</button>
+      </div>
+      <div class="field-mode-search-row">
+        <input id="fieldModeSearchInput" type="search" class="field-mode-search" placeholder="Search name, #ID, phone, area…" aria-label="Search customers for field collection" autocomplete="off">
+        <button id="fieldModeSearchClearBtn" class="secondary-button" type="button">Clear</button>
+      </div>
+      <div id="fieldModeZoneFilters" class="field-mode-zone-filters" role="group" aria-label="Filter by area or zone"></div>
+      <p id="fieldModeZoneTarget" class="field-mode-target" aria-live="polite"></p>
+      <div id="fieldModeCustomerList" class="field-mode-list"></div>
+      <div id="fieldModeActionPanel" class="field-mode-panel"></div>
+    </div>
+  </section>
   <!-- The storage-recovery alert stays at the top level on purpose: renderStorageWarning()
        unhides it only when saved data could not be read or browser storage is unavailable,
        and that alert must be immediately visible on every screen. The informational

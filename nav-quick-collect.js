@@ -10,6 +10,7 @@
 
 import {
   addPayment,
+  applyConcessionToBill,
   deletePayment,
   calculatePaymentAllocations,
   derivedBillStatus,
@@ -18,8 +19,11 @@ import {
   PAYMENT_METHODS,
   isDigitalPaymentMethod,
   isCashPaymentMethod,
-  findDuplicatePaymentReference
+  findDuplicatePaymentReference,
+  removeConcessionFromBill
 } from './core.js';
+import { loadComplaints } from './complaint-register.js';
+import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -820,6 +824,9 @@ export function setupQuickCollectModal({
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
+  // SISP-30: outage concession badge host (null when the host page predates it).
+  const concessionBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConcessionBox') : null;
+
   // Digital Payment Elements
   const digitalFieldsContainer = document.getElementById('quickCollectDigitalFields');
   const transactionIdInput = document.getElementById('quickCollectTransactionIdInput');
@@ -945,6 +952,11 @@ export function setupQuickCollectModal({
     updateDigitalVisibility(methodSelect.value);
   });
 
+  // SISP-30: refresh the concession badge when the operator picks another month.
+  monthSelect?.addEventListener('change', () => {
+    if (activeCustomerId) renderConcessionBox(activeCustomerId, monthSelect.value);
+  });
+
   // Populate payment methods select once
   if (methodSelect && methodSelect.options.length <= 1) {
     methodSelect.innerHTML = PAYMENT_METHODS.map(m =>
@@ -984,6 +996,67 @@ export function setupQuickCollectModal({
     if (stepPick) stepPick.hidden = (stepName !== 'pick');
     if (stepForm) stepForm.hidden = (stepName !== 'form');
     if (stepSuccess) stepSuccess.hidden = (stepName !== 'success');
+  }
+
+  // SISP-30: outage concession badge + 1-click apply/remove for one bill
+  // month. The suggested amount is recomputed at click time from fresh
+  // complaints, never trusted from markup. After an apply, the amount field
+  // is pointed at the net due so the collector collects the conceded amount.
+  function renderConcessionBox(customerId, month) {
+    if (!concessionBox) return;
+    concessionBox.innerHTML = '';
+    try {
+      const state = getState();
+      if (!state || !customerId || !month) return;
+      const customer = state.customers.find(c => c.id === customerId);
+      const bill = customer?.bills?.find(b => b.month === month);
+      if (!customer || !bill) return;
+      const suggestion = buildConcessionSuggestion(customer, bill, loadComplaints());
+      const allocations = calculatePaymentAllocations(state);
+      const balanceCents = allocations.forMonth(customerId, month)?.balanceDueCents;
+      const balance = typeof balanceCents === 'number' ? balanceCents / 100 : null;
+      if (suggestion.alreadyApplied) {
+        const net = balance !== null ? netDueAfterConcession(balance, suggestion.existingAmount) : null;
+        concessionBox.innerHTML = `<span class="discount-badge-applied">Outage concession (Reaayat): −PKR ${suggestion.existingAmount}</span> <small>(${escapeHtml(suggestion.existingReason || 'Outage Reaayat')})</small>${net !== null ? ` <span>Net due: PKR ${net}</span>` : ''} <button type="button" class="waive-late-fee-btn" data-qc-remove-concession>Remove</button>`;
+      } else if (suggestion.eligible) {
+        concessionBox.innerHTML = `<span class="discount-badge-applied">${escapeHtml(concessionBadgeText(suggestion))}</span>${balance !== null && balance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-qc-apply-concession>Apply Rs. ${suggestion.suggestedAmount} Outage Concession</button>` : ''}`;
+      } else {
+        return;
+      }
+      concessionBox.querySelector('[data-qc-apply-concession]')?.addEventListener('click', () => {
+        try {
+          const freshState = getState();
+          const freshCustomer = freshState.customers.find(c => c.id === customerId);
+          const freshBill = freshCustomer?.bills?.find(b => b.month === month);
+          if (!freshCustomer || !freshBill) throw new Error('Bill not found for this concession.');
+          const fresh = buildConcessionSuggestion(freshCustomer, freshBill, loadComplaints());
+          if (!fresh.eligible) throw new Error('No outage concession is due for this bill month.');
+          const next = applyConcessionToBill(freshState, customerId, month, { amount: fresh.suggestedAmount, reason: fresh.reason });
+          if (typeof onSaveState === 'function') onSaveState(next);
+          openCustomerCollectionForm(customerId);
+          const netAllocations = calculatePaymentAllocations(getState());
+          const netBalanceCents = netAllocations.forMonth(customerId, month)?.balanceDueCents;
+          if (amountInput && typeof netBalanceCents === 'number') {
+            amountInput.value = netDueAfterConcession(netBalanceCents / 100, fresh.suggestedAmount).toFixed(2);
+          }
+          if (typeof onToast === 'function') onToast(`Outage concession of PKR ${fresh.suggestedAmount} applied to bill ${month}.`);
+        } catch (err) {
+          if (typeof onToast === 'function') onToast(err.message);
+        }
+      });
+      concessionBox.querySelector('[data-qc-remove-concession]')?.addEventListener('click', () => {
+        try {
+          const next = removeConcessionFromBill(getState(), customerId, month, { reason: 'Outage concession removed by owner' });
+          if (typeof onSaveState === 'function') onSaveState(next);
+          openCustomerCollectionForm(customerId);
+          if (typeof onToast === 'function') onToast(`Outage concession removed from bill ${month}.`);
+        } catch (err) {
+          if (typeof onToast === 'function') onToast(err.message);
+        }
+      });
+    } catch {
+      concessionBox.innerHTML = '';
+    }
   }
 
   function openCustomerCollectionForm(customerId) {
@@ -1038,6 +1111,9 @@ export function setupQuickCollectModal({
           `<option value="${m}" ${m === activeDefaults.targetMonth ? 'selected' : ''}>${m}</option>`
         ).join('');
       }
+
+      // SISP-30: concession badge for the target month (refreshes on month change).
+      renderConcessionBox(customerId, activeDefaults.targetMonth);
 
       // Reset digital fields
       if (transactionIdInput) transactionIdInput.value = '';

@@ -4,7 +4,7 @@ import {
   deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
-  summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation,
+  summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill,
   calculateMethodCollectionTotals, findDuplicatePaymentReference,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges
 } from './core.js?v=1.11.0';
@@ -144,6 +144,7 @@ import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
+import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
@@ -1601,6 +1602,7 @@ function renderHistory(customer) {
   const monthList = monthsForHistory();
   const byMonth = new Map(customer.bills.map(bill => [bill.month, bill]));
   const allocations = calculatePaymentAllocations(state);
+  const allComplaints = loadComplaints();
   const openMonths = new Set(
     Array.from(historyContainer.querySelectorAll('details.month-card[open]'))
       .map(el => el.getAttribute('data-month-card'))
@@ -1635,7 +1637,16 @@ function renderHistory(customer) {
     const lateFeeMarkup = bill?.lateFee ? `<span class="month-summary-wide">Late fee surcharge (PKR): <strong class="late-fee-badge-applied">+${formatAmount(bill.lateFee)}</strong> <small>(${escapeHtml(bill.lateFeeReason || 'Owner surcharge')})</small> <button type="button" class="waive-late-fee-btn" data-waive-late-fee data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Waive late fee">Waive</button></span>` : '';
     const overdueEligible = bill && bill.dueDate && isBillOverdue(bill).isOverdue && (monthAllocation?.balanceDueCents ?? 0) > 0 && !bill.lateFee;
     const applyFeeBtnMarkup = overdueEligible ? `<span class="month-summary-wide"><button type="button" class="apply-late-fee-btn" data-apply-late-fee data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Apply owner configured late fee">Apply Late Fee (+PKR ${getLateFeeConfig().defaultAmount})</button></span>` : '';
-    const summaryMarkup = !bill ? '<p class="empty-month">No billing details recorded for this month.</p>' : `<div class="month-summary"><span class="month-summary-stat">Status: <strong>${status.label}</strong></span><span class="month-summary-stat">Optional due date (PKT): <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : 'Not set · no due-date rule or penalty applied'}</strong></span><span class="month-summary-stat">Actual receipts (PKR cash): <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">Carry-in credit (PKR, not new cash): <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">Bill amount (PKR): <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}<span class="month-summary-stat">Balance due (PKR): <strong>${escapeHtml(balanceDue)}</strong></span>${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">Credit from this month’s receipts (PKR): <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">Credit applied to later bills (PKR): <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">Credit waiting for the next generated bill (PKR): <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? '<span class="month-status status-pending month-summary-wide">Partial payment / credit</span>' : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
+    // SISP-30: outage concession badge + 1-click apply/remove. The gross
+    // allocation balance stays as the audit trail; the net-due line shows
+    // what the customer actually owes after the concession.
+    const concessionSuggestion = bill ? buildConcessionSuggestion(customer, bill, allComplaints) : null;
+    const concessionBalance = typeof monthAllocation?.balanceDueCents === 'number' ? monthAllocation.balanceDueCents / 100 : null;
+    const concessionNetDue = concessionSuggestion?.alreadyApplied && concessionBalance !== null ? netDueAfterConcession(concessionBalance, concessionSuggestion.existingAmount) : null;
+    const concessionAppliedMarkup = concessionSuggestion?.alreadyApplied ? `<span class="month-summary-wide">Outage concession (Reaayat): <strong class="discount-badge-applied">−${formatAmount(concessionSuggestion.existingAmount)}</strong> <small>(${escapeHtml(concessionSuggestion.existingReason || 'Outage Reaayat')})</small> <button type="button" class="waive-late-fee-btn" data-remove-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Remove outage concession">Remove</button></span>` : '';
+    const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(concessionBadgeText(concessionSuggestion))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="Apply outage concession">Apply Rs. ${concessionSuggestion.suggestedAmount} Outage Concession</button>` : ''}</span>` : '';
+    const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">Net due after concession (PKR): <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
+    const summaryMarkup = !bill ? '<p class="empty-month">No billing details recorded for this month.</p>' : `<div class="month-summary"><span class="month-summary-stat">Status: <strong>${status.label}</strong></span><span class="month-summary-stat">Optional due date (PKT): <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : 'Not set · no due-date rule or penalty applied'}</strong></span><span class="month-summary-stat">Actual receipts (PKR cash): <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">Carry-in credit (PKR, not new cash): <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">Bill amount (PKR): <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">Balance due (PKR): <strong>${escapeHtml(balanceDue)}</strong></span>${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">Credit from this month’s receipts (PKR): <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">Credit applied to later bills (PKR): <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">Credit waiting for the next generated bill (PKR): <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? '<span class="month-status status-pending month-summary-wide">Partial payment / credit</span>' : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? 'Optional' : 'Required to create a bill';
     const amountPlaceholder = bill ? 'Leave blank only if not known' : 'Enter confirmed amount in PKR';
@@ -1681,6 +1692,30 @@ function renderHistory(customer) {
     try {
       state = waiveLateFeeFromBill(state, custId, month, { reason: 'Waived by owner' });
       save(); renderDetail(); toast(`Late fee waived on bill ${month}.`);
+    } catch (err) { toast(err.message); }
+  }));
+  // SISP-30: 1-click outage concession apply/remove. The suggested amount is
+  // recomputed at click time from fresh complaints, never trusted from markup.
+  historyContainer.querySelectorAll('[data-apply-concession]').forEach(button => button.addEventListener('click', () => {
+    const custId = button.dataset.customerId;
+    const month = button.dataset.month;
+    try {
+      const target = state.customers.find(c => c.id === custId);
+      const targetBill = target?.bills?.find(b => b.month === month);
+      if (!target || !targetBill) throw new Error('Bill not found for this concession.');
+      const suggestion = buildConcessionSuggestion(target, targetBill, loadComplaints());
+      if (!suggestion.eligible) throw new Error('No outage concession is due for this bill month.');
+      state = applyConcessionToBill(state, custId, month, { amount: suggestion.suggestedAmount, reason: suggestion.reason });
+      save(); renderDetail(); toast(`Outage concession of PKR ${suggestion.suggestedAmount} applied to bill ${month}.`);
+    } catch (err) { toast(err.message); }
+  }));
+  historyContainer.querySelectorAll('[data-remove-concession]').forEach(button => button.addEventListener('click', async () => {
+    const custId = button.dataset.customerId;
+    const month = button.dataset.month;
+    if (!(await appConfirm({ tone:'warning', title:'Remove outage concession?', message:`Remove the outage concession on bill ${month}? The bill goes back to its full amount.`, confirmLabel:'Remove concession' }))) return;
+    try {
+      state = removeConcessionFromBill(state, custId, month, { reason: 'Outage concession removed by owner' });
+      save(); renderDetail(); toast(`Outage concession removed from bill ${month}.`);
     } catch (err) { toast(err.message); }
   }));
   bindReceiptPhoneActions(historyContainer);

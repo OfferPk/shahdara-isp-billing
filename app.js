@@ -124,6 +124,7 @@ import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, sav
 import { INVENTORY_KEY, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
+import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -178,6 +179,7 @@ export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
 export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
+export let installTrackerModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -609,6 +611,18 @@ function renderDashboard() {
     saadSummaryEl.innerHTML = summary.visits.length === 0
       ? ''
       : `<p><span>Latest</span><strong>${escapeHtml(summary.visits[summary.visits.length - 1].date)} · ${escapeHtml(visitWhereLabel(summary.visits[summary.visits.length - 1]))} · ${escapeHtml(formatHours(visitHours(summary.visits[summary.visits.length - 1])))} h</strong></p>`;
+  }
+  // Installation tracker: this-month requests / installed / pending / total delay days.
+  const installSummaryEl = $('#installTrackerSummary');
+  if (installSummaryEl) {
+    const installSummary = buildMonthlyInstallSummary(loadInstallRequests(), pakistanMonthNow(referenceDate), installTrackerToday(referenceDate));
+    const installValueEl = $('#dashboardInstallTrackerValue');
+    const installPeriodEl = $('#dashboardInstallTrackerPeriod');
+    if (installValueEl) installValueEl.textContent = installSummary.requestCount === 0 ? 'No requests yet' : `${installSummary.requestCount} request${installSummary.requestCount === 1 ? '' : 's'} · ${installSummary.installedCount} installed`;
+    if (installPeriodEl) installPeriodEl.textContent = installSummary.requestCount === 0 ? 'New connection requests & install delays' : `${installSummary.pendingCount} pending · ${installSummary.totalDelayDays} total delay days`;
+    installSummaryEl.innerHTML = installSummary.requestCount === 0
+      ? ''
+      : `<p><span>Latest</span><strong>${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requestDate)} · ${escapeHtml(installSummary.requests[installSummary.requests.length - 1].requesterName)} · ${escapeHtml(String(installSummary.requests[installSummary.requests.length - 1].amountPaid))} PKR</strong></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -2037,7 +2051,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -2048,6 +2062,7 @@ function backupRestoreOptions() {
   let inventoryStored = false;
   let saadVisitsStored = false;
   let saadPaymentsStored = false;
+  let installRequestsStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
   try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
   try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
@@ -2056,7 +2071,8 @@ function backupRestoreOptions() {
   try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
   try { saadVisitsStored = localStorage.getItem(SAAD_VISITS_KEY) !== null; } catch { saadVisitsStored = false; }
   try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored };
+  try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -2585,6 +2601,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.saadPayments) {
       saveSaadPayments(pendingBackupPreview.saadPayments);
+    }
+    if (pendingBackupPreview.installRequests) {
+      saveInstallRequests(pendingBackupPreview.installRequests);
     }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
@@ -7601,6 +7620,10 @@ if (typeof document !== 'undefined') {
     onVisitsChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
     listTicketIds: () => loadTickets().map((t) => t.id)
+  });
+  installTrackerModalController = setupInstallTrackerModal(() => state, {
+    onRequestsChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts)
   });
   worklistsModalController = setupWorklistsModal(() => state, {
     onUpdateState: (newState) => {

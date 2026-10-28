@@ -94,7 +94,7 @@ test('real builder output groups into cards with no Zone not set section', () =>
   const groups = groupAreaIntelligenceCards(result.rows);
   assert.equal(JSON.stringify(result.rows), beforeRows, 'grouping never mutates its input rows');
   walkSections(groups, section => assert.notEqual(section.label, 'Zone not set'));
-  const charyaa = groups.find(group => group.rootArea === 'Area: Mohalla Charyaa');
+  const charyaa = groups.find(group => group.rootArea === 'Area: Charyaa');
   assert.ok(charyaa, 'area card exists');
   assert.equal(charyaa.root.withoutZoneCustomers, 1, 'the zoneless customer folds into the area card');
 });

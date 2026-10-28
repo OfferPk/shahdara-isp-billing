@@ -21,9 +21,9 @@ function fixture() {
 test('area dashboard groups saved billing and receipt dates by the current mohalla/zone structure without double counting child rows',()=>{
   const state=fixture(),before=JSON.stringify(state);
   const result=buildAreaIntelligence(state,{startDate:'2026-09-01',endDate:'2026-09-30'},referenceDate);
-  const charyaa=result.rows.find(row=>row.level==='area'&&row.area==='Area: Mohalla Charyaa');
+  const charyaa=result.rows.find(row=>row.level==='area'&&row.area==='Area: Charyaa');
   const east=result.rows.find(row=>row.level==='zone'&&row.area==='Zone: East');
-  const kishti=result.rows.find(row=>row.level==='area'&&row.area==='Area: Mohalla Kishti');
+  const kishti=result.rows.find(row=>row.level==='area'&&row.area==='Area: Kishtii');
   assert.equal(charyaa.totalCustomers,1);assert.equal(charyaa.billedAmount,1000);assert.equal(charyaa.collectedAmount,600);
   assert.equal(charyaa.outstanding,900,'outstanding includes the older unpaid August balance as well as September');assert.equal(charyaa.collectionRate,60);assert.equal(charyaa.averageCustomerValue,1000);
   assert.equal(charyaa.expenses,100);assert.equal(charyaa.estimatedProfit,500);
@@ -36,7 +36,7 @@ test('area dashboard groups saved billing and receipt dates by the current mohal
 
 test('custom ranges use actual payment dates and full touched service-month snapshots, while expenses obey the date cutoff',()=>{
   const state=fixture(),result=buildAreaIntelligence(state,{startDate:'2026-09-15',endDate:'2026-10-07'},referenceDate);
-  const charyaa=result.rows.find(row=>row.level==='area'&&row.area==='Area: Mohalla Charyaa');
+  const charyaa=result.rows.find(row=>row.level==='area'&&row.area==='Area: Charyaa');
   assert.equal(charyaa.billedAmount,2000,'September and October bill snapshots are both counted in full');
   assert.equal(charyaa.collectedAmount,800,'only September 15–October 7 receipt dates count');
   assert.equal(charyaa.outstanding,1700,'all priced bill balances due through the selected end date are included');
@@ -47,7 +47,7 @@ test('custom ranges use actual payment dates and full touched service-month snap
 test('an area without explicit expense attribution shows expense and estimated profit as unavailable, never allocates whole-business expenses',()=>{
   const state=fixture();state.expenses=state.expenses.map(({area,zone,...expense})=>expense);
   const result=buildAreaIntelligence(state,{startDate:'2026-09-01',endDate:'2026-09-30'},referenceDate);
-  const charyaa=result.rows.find(row=>row.level==='area'&&row.area==='Area: Mohalla Charyaa');
+  const charyaa=result.rows.find(row=>row.level==='area'&&row.area==='Area: Charyaa');
   assert.equal(result.hasAreaExpenseAttribution,false);assert.equal(result.unallocatedExpenseCount,1);assert.equal(charyaa.expenses,null);assert.equal(charyaa.estimatedProfit,null);
   assert.match(charyaa.expensesSource,/not allocated/);assert.match(charyaa.estimatedProfitBasis,/Not estimated/);
 });
@@ -66,7 +66,7 @@ test('current manual Active count is labeled as-of today and dated package histo
     packageHistory:[{date:'2026-08-10',newPackage:'5 Mbps'}],
     bills:customer.bills.map(row=>row.id==='sep-a'?{...row,packageSnapshot:undefined}:row)
   }:customer.id==='seed-002'?{...customer,bills:customer.bills.map(row=>({...row,packageSnapshot:undefined}))}:customer);
-  const area=buildAreaIntelligence(state,{startDate:'2026-10-01',endDate:'2026-10-07'},referenceDate).rows.find(row=>row.level==='area'&&row.area==='Area: Mohalla Charyaa');
+  const area=buildAreaIntelligence(state,{startDate:'2026-10-01',endDate:'2026-10-07'},referenceDate).rows.find(row=>row.level==='area'&&row.area==='Area: Charyaa');
   assert.equal(area.activeCustomers,1);assert.match(area.activeCustomerSource,/as of 2026-10-07/);
   const packages=buildPackageRevenue(state,{startDate:'2026-09-01',endDate:'2026-09-30'},referenceDate);
   assert.ok(packages.rows.some(row=>row.package==='5 Mbps'&&row.revenue===1000));

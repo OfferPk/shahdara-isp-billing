@@ -3,7 +3,7 @@
  * Local-only, accessible, no external dependencies.
  */
 import { buildPayrollSummary } from './core.js';
-import { EXPENSE_CATEGORIES } from './phase3.js';
+import { EXPENSE_CATEGORIES, canonicalMohalla } from './phase3.js';
 
 /**
  * Validates a Pakistani or international phone number.
@@ -290,8 +290,9 @@ export function sortCustomerRoster(customers, { sortBy = 'number-asc', billingMo
 export function filterCustomersByArea(customers, selectedArea = 'all') {
   const list = Array.isArray(customers) ? customers : [];
   if (!selectedArea || selectedArea === 'all') return list;
-  const target = selectedArea.trim().toLowerCase();
-  return list.filter(c => String(c.mohalla || c.area || '').trim().toLowerCase() === target);
+  const target = canonicalMohalla(selectedArea)?.key;
+  if (target === undefined) return [];
+  return list.filter(c => canonicalMohalla(c.mohalla || c.area || '')?.key === target);
 }
 
 /**

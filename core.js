@@ -1,4 +1,4 @@
-import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY } from './phase3.js';
+import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY, canonicalMohalla } from './phase3.js';
 import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
@@ -253,7 +253,8 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const address = cleanText(options.address, 200, 'Address');
   const phone = cleanText(options.phone, 40, 'Phone number');
   const cnic = cleanText(options.cnic, 30, 'CNIC');
-  const mohalla = cleanText(options.mohalla, 100, 'Mohalla');
+  const mohallaRaw = cleanText(options.mohalla, 100, 'Mohalla');
+  const mohalla = canonicalMohalla(mohallaRaw)?.stored ?? mohallaRaw;
   const zone = cleanText(options.zone, 100, 'Zone');
   const connectionFee = checkCost(options.connectionFee);
   const routerModel = cleanText(options.routerModel, 100, 'Router model');
@@ -448,8 +449,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     if (cleaned.length > maxLength) throw new Error(`${label} must be ${maxLength} characters or fewer.`);
     return cleaned;
   };
+  const mohallaRaw = cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla');
   const fields = {
-    mohalla: cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla'),
+    mohalla: canonicalMohalla(mohallaRaw)?.stored ?? mohallaRaw,
     zone: cleanText(valueOrCurrent('zone') ?? '', 100, 'Zone'),
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
     notes: cleanText(valueOrCurrent('notes') ?? '', 1000, 'Customer notes'),

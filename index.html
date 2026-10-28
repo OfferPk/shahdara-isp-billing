@@ -497,7 +497,15 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button">📕 Owner Khata Closing</button>          </div>
         </article>
-        <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
+        <article class="summary-card summary-wallet-ledger">
+          <p class="summary-label">💳 Digital Wallet Ledger</p>
+          <strong id="dashboardWalletValue" class="summary-value">No digital payments</strong>
+          <p id="dashboardWalletPeriod" class="summary-period">EasyPaisa · JazzCash · NayaPay · Bank Transfer</p>
+          <div id="walletLedgerSummary" class="wallet-ledger-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button">💳 Wallet Ledger</button>
+          </div>
+        </article>        <article class="summary-card summary-month-collection"><p class="summary-label">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
         <article class="summary-card summary-cash-profit"><p class="summary-label">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
@@ -20927,8 +20935,44 @@
         <div id="hardwareRecoveryList" class="hardware-recovery-list"></div>
       </div>
     </div>
-  </dialog>  <dialog id="dailyClosingModal" class="billing-modal daily-closing-modal" aria-labelledby="dailyClosingModalTitle">
-    <div class="billing-modal-content">
+  </dialog>
+  <dialog id="walletLedgerModal" class="billing-modal wallet-ledger-modal" aria-labelledby="walletLedgerModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="walletLedgerModalTitle">💳 Digital Wallet Ledger</h2>
+        <button id="walletLedgerCloseBtn" class="modal-close" type="button" aria-label="Close">×</button>
+      </header>
+      <div class="modal-body">
+        <p class="wallet-ledger-intro">Monthly totals per wallet, duplicate transaction IDs flagged, and 1-tap verification against the owner's wallet statement. A duplicate TID warns before a second payment is logged — it never silently creates one.</p>
+        <label for="walletLedgerMonth">Month</label>
+        <input id="walletLedgerMonth" class="form-input" type="month" aria-label="Wallet ledger month">
+        <label for="walletLedgerMethodFilter">Wallet</label>
+        <select id="walletLedgerMethodFilter" class="form-input" aria-label="Filter by wallet">
+          <option value="All">All wallets</option>
+          <option value="Easypaisa">Easypaisa</option>
+          <option value="JazzCash">JazzCash</option>
+          <option value="NayaPay">NayaPay</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+          <option value="Raast">Raast</option>
+        </select>
+        <label for="walletLedgerVerificationFilter">Verification</label>
+        <select id="walletLedgerVerificationFilter" class="form-input" aria-label="Filter by verification status">
+          <option value="All">All statuses</option>
+          <option value="Verified">Verified in Statement</option>
+          <option value="Pending">Pending Screenshot Verification</option>
+        </select>
+        <p id="walletLedgerSummaryLine" class="wallet-ledger-summary-line"></p>
+        <h3>Monthly breakdown</h3>
+        <div id="walletLedgerBreakdown" class="wallet-ledger-breakdown"></div>
+        <h3>Duplicate transaction IDs</h3>
+        <div id="walletLedgerDuplicates" class="wallet-ledger-duplicates"></div>
+        <h3>Digital payments</h3>
+        <div id="walletLedgerPaymentList" class="wallet-ledger-payment-list"></div>
+        <button id="walletLedgerCopyBtn" class="secondary-button" type="button">📋 Copy wallet summary</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="dailyClosingModal" class="billing-modal daily-closing-modal" aria-labelledby="dailyClosingModalTitle">    <div class="billing-modal-content">
       <header class="billing-modal-header">
         <div class="billing-modal-title-group">
           <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">DAILY REGISTER CLOSING &amp; TILL AUDIT</div>

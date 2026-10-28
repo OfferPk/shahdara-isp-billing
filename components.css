@@ -782,3 +782,14 @@ body.field-mode-open { overflow: hidden; }
 @media (max-width: 700px) {
   .owner-khata-body .owner-khata-section p strong { text-align: left; }
 }
+/* SISP-21: Digital Wallet Ledger modal (token-only, no new hex). */
+.wallet-ledger-breakdown, .wallet-ledger-duplicates, .wallet-ledger-payment-list { display: grid; gap: 12px; margin: 8px 0 16px; }
+.wallet-ledger-line, .wallet-ledger-dup, .wallet-ledger-payment { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.wallet-ledger-line p, .wallet-ledger-payment p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.wallet-ledger-line p strong, .wallet-ledger-payment p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.wallet-ledger-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; }
+.wallet-ledger-badge.verified { background: var(--green); color: var(--color-neutral-0); }
+.wallet-ledger-badge.pending { background: var(--color-overdue); color: var(--color-neutral-0); }
+.wallet-ledger-dup { border-color: var(--color-overdue); }
+.wallet-ledger-dup ul { margin: 6px 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.wallet-ledger-note, .wallet-ledger-empty, .wallet-ledger-summary-line { color: var(--muted); font-size: 13px; }

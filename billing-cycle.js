@@ -19,7 +19,7 @@
 // Tests use synthetic data only; no customer, bill or payment data is ever
 // fabricated here.
 import { calculatePaymentAllocations, formatPKR } from './core.js';
-import { advancePlansForBilledLines, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines } from './installment-plan.js';
+import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 
 export const BILLING_CYCLES_KEY = 'sisp_billing_cycles_v1';
@@ -374,6 +374,264 @@ export function arrearsBreakdownTextLines(breakdown) {
     `Wusool Paya (Paid): ${formatPKR(breakdown.paidAmount)}`,
     `Baqi Rehta (Balance): ${formatPKR(breakdown.balanceDue)}`
   ];
+}
+
+// ---------------------------------------------------------------- SISP-33
+// Partial Payment FIFO Allocation Across Arrears, Package Bill & Hardware
+// Kist. This is an ATTRIBUTION view, not new billing math, and it changes
+// nothing in the engine: SISP-2 net-due, core payment allocations and
+// SISP-4 plan math are untouched. A partial payment on one month's bill is
+// attributed, in order, to previousArrears first, then the current month's
+// package bill, then that month's kist — or, with the operator's
+// "Prioritize Kist First" toggle, to arrears, then kist, then package.
+// The total remaining always reconciles with the outstanding total
+// (buckets minus actual receipts on the bill); only the SPLIT differs
+// from the engine's month-by-month balances.
+//
+// Idempotency rule: allocation is a PURE derivation from stored data
+// (bill totals + the bill's payments in recording order + each payment's
+// stored toggle flag). Re-rendering therefore never re-allocates: the
+// inputs change only on a payment event (add/edit/delete). The payment
+// event itself stores exactly two things (see
+// applyFifoPaymentEventToState): the operator's toggle choice on the
+// payment record, and a stored monthsPaid bump when the payment fully
+// covers the month's kist. Everything else is derived at display time,
+// so an edited payment's split follows the edited ledger instead of
+// going stale. Effective payment amount is amount + discount (a discount
+// waives balance exactly like cash in the existing receipt math).
+// Advance/credit applied by the engine is NOT attributed here — it is
+// shown separately by the existing "Unused advance credit" figures.
+
+/**
+ * Pure FIFO split of one payment amount across the three buckets.
+ * All amounts are rupees (2dp); negatives and non-numbers count as 0.
+ * An amount above the bucket total attributes only up to the total —
+ * the excess stays engine credit, never negative remaining.
+ */
+export function allocateFifoPayment({ previousArrears = 0, currentMonthBill = 0, monthlyKist = 0, amount = 0, prioritizeKistFirst = false } = {}) {
+  // Buckets and the payment are clamped at zero: a negative stored value
+  // must never manufacture allocation room for another bucket.
+  let arrears = Math.max(0, cents(previousArrears));
+  let pkg = Math.max(0, cents(currentMonthBill));
+  let kist = Math.max(0, cents(monthlyKist));
+  let left = Math.max(0, cents(amount));
+  const take = (bucket) => {
+    const used = Math.min(bucket, Math.max(0, left));
+    left -= used;
+    return used;
+  };
+  let toArrears = 0;
+  let toPackage = 0;
+  let toKist = 0;
+  // Arrears always clear first; the toggle only swaps package and kist.
+  toArrears = take(arrears);
+  if (prioritizeKistFirst === true) {
+    toKist = take(kist);
+    toPackage = take(pkg);
+  } else {
+    toPackage = take(pkg);
+    toKist = take(kist);
+  }
+  return {
+    toArrears: rupees(toArrears),
+    toPackage: rupees(toPackage),
+    toKist: rupees(toKist),
+    remainingArrears: rupees(arrears - toArrears),
+    remainingPackage: rupees(pkg - toPackage),
+    remainingKist: rupees(kist - toKist),
+    allocatedTotal: rupees(toArrears + toPackage + toKist),
+    remainingTotal: rupees((arrears - toArrears) + (pkg - toPackage) + (kist - toKist))
+  };
+}
+
+/**
+ * The FIFO bucket totals for one bill month: previous arrears before the
+ * month (already net of older bills' payments, from the SISP-2 engine),
+ * the package part of this bill (dueAmount minus its kist), and this
+ * bill's kist total. Null when the bill is unpriced or the month is
+ * invalid — an unpriced bill carries no split.
+ */
+export function fifoBillContext(customer, bill) {
+  if (!customer || !bill || !isBillingCycleMonth(bill.month)) return null;
+  const due = Number(bill.dueAmount);
+  if (!Number.isFinite(due) || due <= 0) return null;
+  const kistTotal = billKistTotal(bill);
+  const packageTotal = Math.max(0, rupees(cents(due) - cents(kistTotal)));
+  const { previousArrears } = arrearsAndAdvance(customer, bill.month);
+  return {
+    month: bill.month,
+    previousArrears,
+    packageTotal,
+    kistTotal,
+    kistLines: sanitizeBillKistLines(bill.kistLines),
+    totalDue: rupees(cents(previousArrears) + cents(packageTotal) + cents(kistTotal))
+  };
+}
+
+/**
+ * Derive the FIFO attribution for every payment on one bill, in
+ * recording (array) order. Each entry carries its own split plus the
+ * remaining split before and after it, so a receipt can show both what
+ * this payment covered and what was left right after it. Returns null
+ * when the bill has no FIFO context.
+ */
+export function allocateFifoForBill(customer, bill) {
+  const context = fifoBillContext(customer, bill);
+  if (!context) return null;
+  let remArrears = cents(context.previousArrears);
+  let remPkg = cents(context.packageTotal);
+  let remKist = cents(context.kistTotal);
+  const payments = [];
+  for (const payment of (bill?.payments ?? [])) {
+    if (!payment || typeof payment !== 'object') continue;
+    const remainingBefore = { arrears: rupees(remArrears), package: rupees(remPkg), kist: rupees(remKist) };
+    const effective = (Number(payment.amount) || 0) + (Number(payment.discount) || 0);
+    const alloc = allocateFifoPayment({
+      previousArrears: remainingBefore.arrears,
+      currentMonthBill: remainingBefore.package,
+      monthlyKist: remainingBefore.kist,
+      amount: effective,
+      prioritizeKistFirst: payment.fifoPrioritizeKistFirst === true
+    });
+    remArrears = cents(alloc.remainingArrears);
+    remPkg = cents(alloc.remainingPackage);
+    remKist = cents(alloc.remainingKist);
+    payments.push({
+      paymentId: payment.id ?? null,
+      prioritizeKistFirst: payment.fifoPrioritizeKistFirst === true,
+      toArrears: alloc.toArrears,
+      toPackage: alloc.toPackage,
+      toKist: alloc.toKist,
+      remainingBefore,
+      remainingAfter: { arrears: alloc.remainingArrears, package: alloc.remainingPackage, kist: alloc.remainingKist }
+    });
+  }
+  return {
+    context,
+    payments,
+    remaining: {
+      arrears: rupees(remArrears),
+      package: rupees(remPkg),
+      kist: rupees(remKist),
+      total: rupees(remArrears + remPkg + remKist)
+    }
+  };
+}
+
+/**
+ * One payment's FIFO split plus the remaining split right after it.
+ * Null when the bill has no FIFO context or the payment is not on it.
+ * `show` is false for a plain package-only bill (no arrears, no kist),
+ * where the split would be trivial — callers hide the block then.
+ */
+export function fifoAllocationForPayment(customer, bill, paymentId) {
+  const derived = allocateFifoForBill(customer, bill);
+  if (!derived) return null;
+  const entry = derived.payments.find((row) => row.paymentId === paymentId) ?? null;
+  if (!entry) return null;
+  return {
+    allocation: {
+      toArrears: entry.toArrears,
+      toPackage: entry.toPackage,
+      toKist: entry.toKist,
+      prioritizeKistFirst: entry.prioritizeKistFirst
+    },
+    remaining: entry.remainingAfter,
+    show: derived.context.previousArrears > 0 || derived.context.kistTotal > 0,
+    context: derived.context
+  };
+}
+
+/** Remaining FIFO split for a bill after all its payments (profile view). */
+export function fifoRemainingForBill(customer, bill) {
+  const derived = allocateFifoForBill(customer, bill);
+  if (!derived) return null;
+  return {
+    previousArrears: derived.context.previousArrears,
+    packageTotal: derived.context.packageTotal,
+    kistTotal: derived.context.kistTotal,
+    remainingArrears: derived.remaining.arrears,
+    remainingPackage: derived.remaining.package,
+    remainingKist: derived.remaining.kist,
+    remainingTotal: derived.remaining.total,
+    show: derived.context.previousArrears > 0 || derived.context.kistTotal > 0
+  };
+}
+
+/** Receipt / WhatsApp lines for one payment's split and its remaining. */
+export function fifoTextLines(allocation, remaining) {
+  if (!allocation || !remaining) return [];
+  return [
+    `FIFO taqseem: Sabiqa Baqaya ${formatPKR(allocation.toArrears)} · Mahana Bill ${formatPKR(allocation.toPackage)} · Kist ${formatPKR(allocation.toKist)}`,
+    `Baqi Sabiqa Baqaya: ${formatPKR(remaining.arrears)} · Baqi Mahana Bill: ${formatPKR(remaining.package)} · Baqi Kist: ${formatPKR(remaining.kist)}`
+  ];
+}
+
+/**
+ * Payment-event effects for SISP-33, applied once per recorded payment
+ * (the profile payment form calls this right after addPayment, before
+ * save). Pure state transform; returns the input state unchanged when:
+ * the customer/bill/payment is missing, the bill is unpriced, or this
+ * payment already carries the fifoEventApplied marker (so calling it
+ * twice never double-applies). Effects: (1) records the operator's
+ * toggle choice on the payment, but only when the bill actually carries
+ * kist — otherwise the default order already applies and no flag is
+ * stored; (2) when this payment fully covers the month's outstanding
+ * kist, advances stored monthsPaid by one per kist line on the bill
+ * (capped by monthsBilled via sanitize). The allocation itself is NOT
+ * stored — it is derived at display time, so edits never leave it stale.
+ */
+export function applyFifoPaymentEventToState(state, customerId, month, paymentId, { prioritizeKistFirst = false } = {}) {
+  const customers = state?.customers ?? [];
+  const customer = customers.find((row) => row?.id === customerId);
+  if (!customer) return state;
+  const bill = (customer.bills ?? []).find((row) => row?.month === month);
+  if (!bill) return state;
+  const payment = (bill.payments ?? []).find((row) => row?.id === paymentId);
+  if (!payment || payment.fifoEventApplied === true) return state;
+  const context = fifoBillContext(customer, bill);
+  if (!context) return state;
+  const wantFlag = prioritizeKistFirst === true && context.kistTotal > 0;
+  // Derive with the incoming toggle choice applied, so the kist-covered
+  // check below sees the split the operator actually chose.
+  const workingCustomer = {
+    ...customer,
+    bills: customer.bills.map((row) => (row?.month !== month ? row : {
+      ...row,
+      payments: (row.payments ?? []).map((rowPayment) => (rowPayment?.id !== paymentId ? rowPayment : {
+        ...rowPayment,
+        ...(wantFlag ? { fifoPrioritizeKistFirst: true } : {})
+      }))
+    }))
+  };
+  const workingBill = workingCustomer.bills.find((row) => row?.month === month);
+  const derived = allocateFifoForBill(workingCustomer, workingBill);
+  const entry = derived?.payments.find((row) => row.paymentId === paymentId);
+  if (!entry) return state;
+  const kistCovered = entry.remainingBefore.kist > 0 && entry.remainingAfter.kist === 0 && entry.toKist > 0;
+  let nextPlans = customer.installmentPlans;
+  let bumpApplied = false;
+  if (kistCovered) {
+    const coveredIds = new Set(context.kistLines.map((line) => line.planId));
+    const beforePaid = (sanitizeInstallmentPlans(customer.installmentPlans) ?? []).reduce((sum, plan) => sum + plan.monthsPaid, 0);
+    nextPlans = advancePlansForCoveredKist(customer.installmentPlans, coveredIds);
+    const afterPaid = (nextPlans ?? []).reduce((sum, plan) => sum + plan.monthsPaid, 0);
+    bumpApplied = afterPaid > beforePaid;
+  }
+  const nextCustomer = {
+    ...customer,
+    bills: customer.bills.map((row) => (row?.month !== month ? row : {
+      ...row,
+      payments: (row.payments ?? []).map((rowPayment) => (rowPayment?.id !== paymentId ? rowPayment : {
+        ...rowPayment,
+        ...(wantFlag ? { fifoPrioritizeKistFirst: true } : {}),
+        fifoEventApplied: true,
+        ...(bumpApplied ? { fifoKistBumpApplied: true } : {})
+      }))
+    })),
+    ...(bumpApplied ? { installmentPlans: nextPlans } : {})
+  };
+  return { ...state, customers: customers.map((row) => (row?.id !== customerId ? row : nextCustomer)) };
 }
 
 // ---------------------------------------------------------------- modal

@@ -1,6 +1,6 @@
 import { calculatePaymentAllocations } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
-import { buildArrearsBreakdown } from './billing-cycle.js';
+import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 
@@ -136,7 +136,17 @@ export function buildPaymentReceipt(customer, bill, payment) {
     // SISP-2: itemized arrears breakdown for this bill month (package,
     // previous arrears, total due, paid applied, balance). Null when the
     // bill has no price — the breakdown needs a priced bill month.
-    arrearsBreakdown: buildArrearsBreakdown(customer, bill)
+    arrearsBreakdown: buildArrearsBreakdown(customer, bill),
+    // SISP-33: FIFO split of this payment (arrears / package / kist) and
+    // the remaining split right after it, derived from the bill's saved
+    // payments — never stored on the receipt, so re-printing a receipt
+    // always shows the split for the ledger as saved. fifoShow is false
+    // for a plain package-only bill, where the split would be trivial.
+    ...(() => {
+      const fifo = fifoAllocationForPayment(customer, matchingBill, payment.id);
+      if (!fifo) return { fifoAllocation: null, fifoRemaining: null, fifoShow: false };
+      return { fifoAllocation: fifo.allocation, fifoRemaining: fifo.remaining, fifoShow: fifo.show };
+    })()
   };
 }
 
@@ -147,6 +157,19 @@ const kistBreakdownRows = (breakdown, formatAmount, label) => {
   const detail = (Array.isArray(breakdown.kistLines) ? breakdown.kistLines : [])
     .map((line) => `<div class="receipt-field"><dt>${escapeHtml(kistLineLabel(line))}:</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
   return `<div class="receipt-field"><dt>${label}:</dt><dd>${formatAmount(breakdown.kistAmount)}</dd></div>${detail}`;
+};
+
+// SISP-33: FIFO split rows for the HTML receipt layouts. Empty when the
+// bill is package-only (fifoShow false) or the receipt carries no split,
+// so non-FIFO receipts render exactly as before.
+const fifoReceiptRows = (receipt, formatAmount) => {
+  if (!receipt?.fifoShow || !receipt.fifoAllocation || !receipt.fifoRemaining) return '';
+  const a = receipt.fifoAllocation;
+  const r = receipt.fifoRemaining;
+  return `<div class="receipt-field"><dt>FIFO taqseem / payment split:</dt><dd>Sabiqa Baqaya ${formatAmount(a.toArrears)} · Mahana Bill ${formatAmount(a.toPackage)} · Kist ${formatAmount(a.toKist)}</dd></div>`
+    + `<div class="receipt-field"><dt>Baqi Sabiqa Baqaya:</dt><dd>${formatAmount(r.arrears)}</dd></div>`
+    + `<div class="receipt-field"><dt>Baqi Mahana Bill:</dt><dd>${formatAmount(r.package)}</dd></div>`
+    + `<div class="receipt-field"><dt>Baqi Kist:</dt><dd>${formatAmount(r.kist)}</dd></div>`;
 };
 
 function escapeHtml(str) {
@@ -219,6 +242,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
+    ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>
@@ -255,6 +279,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
+    ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>
@@ -297,6 +322,12 @@ export function generatePaymentReceiptHtml(receipt, {
       ['Kul Qabil-e-Ada / کل قابل ادا', formatAmount(receipt.arrearsBreakdown.totalDue)],
       ['Wusool Paya / وصول پایا', formatAmount(receipt.arrearsBreakdown.paidAmount)],
       ['Baqi Rehta / باقی رہتا', formatAmount(receipt.arrearsBreakdown.balanceDue)]
+    ] : []),
+    ...(receipt.fifoShow && receipt.fifoAllocation && receipt.fifoRemaining ? [
+      ['FIFO taqseem / payment split', `Sabiqa Baqaya ${formatAmount(receipt.fifoAllocation.toArrears)} · Mahana Bill ${formatAmount(receipt.fifoAllocation.toPackage)} · Kist ${formatAmount(receipt.fifoAllocation.toKist)}`],
+      ['Baqi Sabiqa Baqaya', formatAmount(receipt.fifoRemaining.arrears)],
+      ['Baqi Mahana Bill', formatAmount(receipt.fifoRemaining.package)],
+      ['Baqi Kist', formatAmount(receipt.fifoRemaining.kist)]
     ] : []),
     ['Package Date', receipt.packageDate],
     ['Amount Received / رقم موصول', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount), 'receipt-amount'],

@@ -41,20 +41,63 @@ import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.10.
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.10.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit } from './nav.js?v=1.10.0';
 
-
-
-
 import {
-  validatePakistanPhone, validateCustomerCnic, formatCnicDisplay, validatePositiveAmount, validateCustomerName, validateTransactionDate, paginateRows, calculateTransactionSummary,
-  sortCustomerRoster, filterCustomersByArea, getUniqueCustomerAreas, groupAreasWithCounts, sortMonthlyReportRows, sortTransactionsList, renderCustomerTableRowMarkup,
-  generateCustomerRosterCsv, renderCustomerTableEmptyMarkup,
-  saveFormDraft, loadFormDraft, clearFormDraft, wireFormDraftAutosave, generateCsvContent, downloadCsvFile, generateBatchReceiptHtml,
-  maskPakistanPhone, wirePhoneInputMask, formatCustomerStatement, formatCustomerStatementWhatsApp, generateCustomerStatementHtml, downloadCustomerStatementCsv, filterStatementEvents, statementFilterMonths, statementFilterMethods, sortStatementEvents, statementMonthSubtotals, statementAging, statementTrendSvg, statementDaysOverdue,
-  formatWhatsAppUrl, buildPaymentReminderMessage, generatePaymentReminderSlipHtml,
-  buildCustomerBillInvoiceData, generateBillInvoiceHtml, buildWhatsAppBillInvoiceText,
-  generateStandaloneInvoiceDocument, downloadHtmlFile,
-  reconcileCustomerLedger, generateLedgerAuditReport, generateLedgerAuditCsv, generateLedgerAuditPrintHtml,
-  calculateDenominationTotal, buildDailyRegisterData, formatDailyRegisterWhatsAppText, generateDailyRegisterCsv, generateDailyRegisterPrintHtml, setupDailyRegisterModal,
+  validatePakistanPhone,
+  validateCustomerCnic,
+  formatCnicDisplay,
+  validatePositiveAmount,
+  validateCustomerName,
+  validateTransactionDate,
+  paginateRows,
+  calculateTransactionSummary,
+  sortCustomerRoster,
+  filterCustomersByArea,
+  getUniqueCustomerAreas,
+  groupAreasWithCounts,
+  sortMonthlyReportRows,
+  sortTransactionsList,
+  renderCustomerTableRowMarkup,
+  generateCustomerRosterCsv,
+  renderCustomerTableEmptyMarkup,
+  saveFormDraft,
+  loadFormDraft,
+  clearFormDraft,
+  wireFormDraftAutosave,
+  generateCsvContent,
+  downloadCsvFile,
+  generateBatchReceiptHtml,
+  maskPakistanPhone,
+  wirePhoneInputMask,
+  formatCustomerStatement,
+  formatCustomerStatementWhatsApp,
+  generateCustomerStatementHtml,
+  downloadCustomerStatementCsv,
+  filterStatementEvents,
+  statementFilterMonths,
+  statementFilterMethods,
+  sortStatementEvents,
+  statementMonthSubtotals,
+  statementAging,
+  statementTrendSvg,
+  statementDaysOverdue,
+  formatWhatsAppUrl,
+  buildPaymentReminderMessage,
+  generatePaymentReminderSlipHtml,
+  buildCustomerBillInvoiceData,
+  generateBillInvoiceHtml,
+  buildWhatsAppBillInvoiceText,
+  generateStandaloneInvoiceDocument,
+  downloadHtmlFile,
+  reconcileCustomerLedger,
+  generateLedgerAuditReport,
+  generateLedgerAuditCsv,
+  generateLedgerAuditPrintHtml,
+  calculateDenominationTotal,
+  buildDailyRegisterData,
+  formatDailyRegisterWhatsAppText,
+  generateDailyRegisterCsv,
+  generateDailyRegisterPrintHtml,
+  setupDailyRegisterModal,
   setupAdjustmentVoucherModal,
   setupServiceContractModal,
   setupDisputeClaimModal,
@@ -65,37 +108,9 @@ import {
   setupOpticalAcceptanceModal,
   setupDropSafetyInspectionModal,
   setupEthernetCertModal,
-  setupOrlCertModal,
-  setupDdmiCertModal,
-  setupDispersionCertModal,
-  setupBendLossCertModal,
-  setupBidirectionalOtdrModal,
-  setupOtdrDeadzoneModal,
-  setupSplitterQaModal,
-  setupFerruleGeometryModal,
-  setupFusionArcQaModal,
-  setupStripForceQaModal,
-  setupSpliceMfdOffsetModal,
-  setupSpliceSleeveCureModal,
-  setupFiberCleaveQualityModal,
-  setupOtdrGhostArtifactModal,
-  setupRibbonSpliceQaModal,
-  setupFastConnectorQaModal,
-  setupAdssSagTensionModal,
-  setupArmoredCableCrushModal,
-  setupCableJettingModal,
-  setupTubeSlittingAccessModal,
-  setupConduitPullingModal,
-  setupSpectralAttenuationModal,
-  setupFoscSealModal,
-  setupThermalCyclingModal,
-  setupBillingCorrectnessModal,
   calculatePlanMigrationProration,
   buildAdjustmentVoucherData,
   saveAdjustmentVoucher,
-  setupLateFeeModal,
-  getLateFeeConfig,
-  isBillOverdue,
   generateAreaIntelligenceCsv,
   generatePackageSummaryCsv,
   generateAreaSummaryCsv,
@@ -106,6 +121,11 @@ import {
   sortExpenseRows,
   generateExpensesCsv
 } from './form-validation.js?v=1.10.0';
+// FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
+// (synchronous), so they stay static via a direct import; all other QA names
+// load lazily through qa-setups.js (see lazy-qa.js).
+import { getLateFeeConfig, isBillOverdue } from './qa-discounts-late-fee.js';
+import { loadQaSetups } from './lazy-qa.js';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
@@ -161,9 +181,6 @@ import {
   markCustomerLastReminded
 } from './reminder-queue.js?v=1.10.0';
 import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor } from './whatsapp-templates.js?v=1.10.0';
-
-
-
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -2080,6 +2097,8 @@ function renderCurrentBillSummary(customer) {
   $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>Current billing · ${escapeHtml(monthName(month))}</h3><details class="help-tip"><summary class="help-icon" aria-label="Current bill and balance guidance" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">Bill amount is the saved bill for this month. Paid, Partial, Pending, or Not set is derived from saved receipts and carried credit. Net due is the existing calculated balance; no bill or amount is invented.</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>Monthly bill</span><strong>${escapeHtml(summary.billAmountLabel)}</strong></article><article class="current-bill-stat"><span>Actual cash received on bill</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):'No receipts'}</strong></article><article class="current-bill-stat"><span>Billing status</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>Net due balance</span><strong>${escapeHtml(summary.balanceDueLabel)}</strong></article><article class="current-bill-stat"><span>Unused advance credit</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):'None recorded'}</strong></article></div>`;
 }
 function renderDetail() {
+  // FIRST-LOAD SPLIT: start the lazy QA chunk load on first profile open.
+  ensureQaModals().catch(() => {});
   const customer = selectedCustomer();
   $('#welcomeState').hidden = !!customer;
   $('#customerDetail').hidden = !customer;
@@ -4872,7 +4891,6 @@ document.addEventListener('keydown', event => {
     }
   }
 });
-
 
 function phase3Cell(value) { return escapeHtml(value ?? ''); }
 function phase3Money(value) { return value === null || value === undefined ? 'Not set' : formatAmount(value); }
@@ -7901,8 +7919,6 @@ if (saveReminderStagesBtn && reminderStagesTableBody) {
   });
 }
 
-
-
 // ==========================================================================
 // CUSTOMER MONTHLY BILL INVOICE MODAL & ACTIONS
 // ==========================================================================
@@ -8215,7 +8231,233 @@ if (exportLedgerAuditCsvBtn) {
 
 // Setup Daily Cash Register & Day-End Closing (Roshnamcha)
 export let dailyRegisterController;
+// FIRST-LOAD SPLIT (2026-10-28): QA-certification modal setups used to run in
+// the boot block, which pulled ~1.09 MB of qa-* code into the static
+// first-load graph. They now run here, once, on first profile open (see the
+// renderDetail hook) or first interaction (see the boot-block listeners) —
+// whichever comes first — via the lazy chunk in lazy-qa.js. Every call below
+// is verbatim from the old boot block (same args, same guards), plus a
+// !controller guard so a retried load never double-wires a modal. QA open
+// buttons keep working during the load window: thermal-pattern buttons call
+// dialog.showModal() directly (setup wires the internals in place), and
+// controller?.open() buttons no-op until setup lands, then work on the next
+// tap. The two window.* exposures move here too (they were boot-time before).
+let qaModalsPromise = null;
+function ensureQaModals() {
+  if (!qaModalsPromise) {
+    qaModalsPromise = loadQaSetups().then((qa) => {
+  const adssModal = $('#adssSagTensionModal');
+  const openAdssSagTensionBtn = $('#openAdssSagTensionBtn');
+  if (adssModal && !customerAdssSagTensionModalController) { customerAdssSagTensionModalController = qa.setupAdssSagTensionModal({
+      state,
+      dialogElement: adssModal,
+      triggerButton: openAdssSagTensionBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const armoredModal = $('#armoredCableCrushModal');
+  const openArmoredCableCrushBtn = $('#openArmoredCableCrushBtn');
+  if (armoredModal && !customerArmoredCableCrushModalController) { customerArmoredCableCrushModalController = qa.setupArmoredCableCrushModal({
+      state,
+      dialogElement: armoredModal,
+      triggerButton: openArmoredCableCrushBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  if (!customerBendLossModalController) { customerBendLossModalController = qa.setupBendLossCertModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts),
+    getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
+  }); }
+
+  if (!customerBidirectionalOtdrModalController) { customerBidirectionalOtdrModalController = qa.setupBidirectionalOtdrModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts),
+    getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
+  }); }
+
+  if (!billingCorrectnessModalController) { billingCorrectnessModalController = qa.setupBillingCorrectnessModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  const jettingModal = $('#cableJettingModal');
+  const openCableJettingBtn = $('#openCableJettingBtn');
+  if (jettingModal && !customerCableJettingModalController) { customerCableJettingModalController = qa.setupCableJettingModal({
+      state,
+      dialogElement: jettingModal,
+      triggerButton: openCableJettingBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const conduitPullingModal = $('#conduitPullingModal');
+  const openConduitPullingBtn = $('#openConduitPullingBtn');
+  if (conduitPullingModal && !customerConduitPullingModalController) { customerConduitPullingModalController = qa.setupConduitPullingModal({
+      state,
+      dialogElement: conduitPullingModal,
+      triggerButton: openConduitPullingBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  if (!customerDdmiCertModalController) { customerDdmiCertModalController = qa.setupDdmiCertModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  if (!customerDispersionModalController) { customerDispersionModalController = qa.setupDispersionCertModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  const fastModal = $('#fastConnectorQaModal');
+  const openFastConnectorQaBtn = $('#openFastConnectorQaBtn');
+  if (fastModal && !customerFastConnectorQaModalController) { customerFastConnectorQaModalController = qa.setupFastConnectorQaModal({
+      state,
+      dialogElement: fastModal,
+      triggerButton: openFastConnectorQaBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  if (!customerFerruleGeometryModalController) { customerFerruleGeometryModalController = qa.setupFerruleGeometryModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  const cleaveModal = $('#fiberCleaveQualityModal');
+  const openFiberCleaveQualityBtn = $('#openFiberCleaveQualityBtn');
+  if (cleaveModal && !customerFiberCleaveQualityModalController) { customerFiberCleaveQualityModalController = qa.setupFiberCleaveQualityModal({
+      dialogElement: cleaveModal,
+      triggerButton: openFiberCleaveQualityBtn,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const foscSealModal = $('#foscSealModal');
+  const openFoscSealBtn = $('#openFoscSealBtn');
+  if (foscSealModal && !customerFoscSealModalController) { customerFoscSealModalController = qa.setupFoscSealModal({
+      state,
+      dialogElement: foscSealModal,
+      triggerButton: openFoscSealBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  if (!customerFusionArcQaModalController) { customerFusionArcQaModalController = qa.setupFusionArcQaModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  if (!lateFeeModalController) { lateFeeModalController = qa.setupLateFeeModal({
+    getState: () => state,
+    updateState: (newState) => {
+      state = newState;
+      save();
+      renderDetail();
+      renderCustomers();
+      renderDashboard();
+    },
+    toast: (msg) => toast(msg)
+  }); }
+
+  if (!customerOrlCertModalController) { customerOrlCertModalController = qa.setupOrlCertModal({
+    getState: () => state,
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  if (!customerOtdrDeadzoneModalController) { customerOtdrDeadzoneModalController = qa.setupOtdrDeadzoneModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  const ghostModal = $('#otdrGhostArtifactModal');
+  const openOtdrGhostArtifactBtn = $('#openOtdrGhostArtifactBtn');
+  if (ghostModal && !customerOtdrGhostArtifactModalController) { customerOtdrGhostArtifactModalController = qa.setupOtdrGhostArtifactModal({
+      dialogElement: ghostModal,
+      triggerButton: openOtdrGhostArtifactBtn,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const ribbonModal = $('#ribbonSpliceQaModal');
+  const openRibbonSpliceQaBtn = $('#openRibbonSpliceQaBtn');
+  if (ribbonModal && !customerRibbonSpliceQaModalController) { customerRibbonSpliceQaModalController = qa.setupRibbonSpliceQaModal({
+      state,
+      dialogElement: ribbonModal,
+      triggerButton: openRibbonSpliceQaBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const spectralAttenuationModal = $('#spectralAttenuationModal');
+  const openSpectralAttenuationBtn = $('#openSpectralAttenuationBtn');
+  if (spectralAttenuationModal && !customerSpectralAttenuationModalController) { customerSpectralAttenuationModalController = qa.setupSpectralAttenuationModal({
+      state,
+      dialogElement: spectralAttenuationModal,
+      triggerButton: openSpectralAttenuationBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const spliceModal = $('#spliceMfdOffsetModal');
+  const openSpliceMfdOffsetBtn = $('#openSpliceMfdOffsetBtn');
+  if (spliceModal && !customerSpliceMfdOffsetModalController) { customerSpliceMfdOffsetModalController = qa.setupSpliceMfdOffsetModal({
+      dialogElement: spliceModal,
+      triggerButton: openSpliceMfdOffsetBtn,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const sleeveModal = $('#spliceSleeveCureModal');
+  const openSpliceSleeveCureBtn = $('#openSpliceSleeveCureBtn');
+  if (sleeveModal && !customerSpliceSleeveCureModalController) { customerSpliceSleeveCureModalController = qa.setupSpliceSleeveCureModal({
+      dialogElement: sleeveModal,
+      triggerButton: openSpliceSleeveCureBtn,
+      storage: typeof localStorage !== 'undefined' ? localStorage : null,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  if (!customerSplitterQaModalController) { customerSplitterQaModalController = qa.setupSplitterQaModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  if (!customerStripForceQaModalController) { customerStripForceQaModalController = qa.setupStripForceQaModal({
+    storage: typeof localStorage !== 'undefined' ? localStorage : null,
+    onToast: (msg, opts) => toast(msg, opts)
+  }); }
+
+  const thermalCyclingModal = $('#thermalCyclingModal');
+  const openThermalCyclingBtn = $('#openThermalCyclingBtn');
+  if (thermalCyclingModal && !customerThermalCyclingModalController) { customerThermalCyclingModalController = qa.setupThermalCyclingModal({
+      state,
+      dialogElement: thermalCyclingModal,
+      triggerButton: openThermalCyclingBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+
+  const tubeSlittingModal = $('#tubeSlittingAccessModal');
+  const openTubeSlittingAccessBtn = $('#openTubeSlittingAccessBtn');
+  if (tubeSlittingModal && !customerTubeSlittingModalController) { customerTubeSlittingModalController = qa.setupTubeSlittingAccessModal({
+      state,
+      dialogElement: tubeSlittingModal,
+      triggerButton: openTubeSlittingAccessBtn,
+      onToast: (msg, opts) => toast(msg, opts)
+    }); }
+          return true;
+    }).catch((err) => {
+      qaModalsPromise = null;
+      toast('QA certificates could not be loaded — try opening the profile again.');
+      throw err;
+    });
+  }
+  return qaModalsPromise;
+}
+
 if (typeof document !== 'undefined') {
+  // FIRST-LOAD SPLIT: also start the QA chunk load on first interaction, so it
+  // is usually ready by the time any QA feature is opened. Never before paint.
+  const startQaLoad = () => { ensureQaModals().catch(() => {}); };
+  document.addEventListener('pointerdown', startQaLoad, { once: true, passive: true });
+  document.addEventListener('keydown', startQaLoad, { once: true, passive: true });
   dailyRegisterController = setupDailyRegisterModal({
     getState: () => state,
     storage: typeof localStorage !== 'undefined' ? localStorage : null,
@@ -8540,22 +8782,8 @@ if (typeof document !== 'undefined') {
   staffPerformanceModalController = setupStaffPerformanceModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
-  billingCorrectnessModalController = setupBillingCorrectnessModal({
-    getState: () => state,
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
-  lateFeeModalController = setupLateFeeModal({
-    getState: () => state,
-    updateState: (newState) => {
-      state = newState;
-      save();
-      renderDetail();
-      renderCustomers();
-      renderDashboard();
-    },
-    toast: (msg) => toast(msg)
-  });
+  
+  
   dataIntegrityModalController = setupDataIntegrityModal({
     getState: () => state,
     updateState: (newState) => {
@@ -8799,11 +9027,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerOrlCertModalController = setupOrlCertModal({
-    getState: () => state,
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openOrlCertBtn = $('#openOrlCertBtn');
   if (openOrlCertBtn) {
@@ -8813,10 +9037,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerDdmiCertModalController = setupDdmiCertModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openDdmiCertBtn = $('#openDdmiCertBtn');
   if (openDdmiCertBtn) {
@@ -8833,10 +9054,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerDispersionModalController = setupDispersionCertModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openDispersionCertBtn = $('#openDispersionCertBtn');
   if (openDispersionCertBtn) {
@@ -8852,11 +9070,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerBendLossModalController = setupBendLossCertModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts),
-    getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
-  });
+  
 
   const openBendLossCertBtn = $('#openBendLossCertBtn');
   if (openBendLossCertBtn) {
@@ -8873,11 +9087,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerBidirectionalOtdrModalController = setupBidirectionalOtdrModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts),
-    getCustomerData: () => (selectedCustomerId ? state.customers.find(c => c.id === selectedCustomerId) : null)
-  });
+  
 
   const openBidirectionalOtdrBtn = $('#openBidirectionalOtdrBtn');
   if (openBidirectionalOtdrBtn) {
@@ -8893,10 +9103,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerOtdrDeadzoneModalController = setupOtdrDeadzoneModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openOtdrDeadzoneBtn = $('#openOtdrDeadzoneBtn');
   if (openOtdrDeadzoneBtn) {
@@ -8914,10 +9121,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerSplitterQaModalController = setupSplitterQaModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openSplitterQaBtn = $('#openSplitterQaBtn');
   if (openSplitterQaBtn) {
@@ -8934,10 +9138,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerFerruleGeometryModalController = setupFerruleGeometryModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openFerruleGeometryBtn = $('#openFerruleGeometryBtn');
   if (openFerruleGeometryBtn) {
@@ -8954,10 +9155,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerFusionArcQaModalController = setupFusionArcQaModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openFusionArcQaBtn = $('#openFusionArcQaBtn');
   if (openFusionArcQaBtn) {
@@ -8978,10 +9176,7 @@ if (typeof document !== 'undefined') {
     });
   }
 
-  customerStripForceQaModalController = setupStripForceQaModal({
-    storage: typeof localStorage !== 'undefined' ? localStorage : null,
-    onToast: (msg, opts) => toast(msg, opts)
-  });
+  
 
   const openStripForceQaBtn = $('#openStripForceQaBtn');
   if (openStripForceQaBtn) {
@@ -9004,14 +9199,7 @@ if (typeof document !== 'undefined') {
 
   const spliceModal = $('#spliceMfdOffsetModal');
   const openSpliceMfdOffsetBtn = $('#openSpliceMfdOffsetBtn');
-  if (spliceModal) {
-    customerSpliceMfdOffsetModalController = setupSpliceMfdOffsetModal({
-      dialogElement: spliceModal,
-      triggerButton: openSpliceMfdOffsetBtn,
-      storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openSpliceMfdOffsetBtn) {
     openSpliceMfdOffsetBtn.addEventListener('click', () => {
@@ -9027,14 +9215,7 @@ if (typeof document !== 'undefined') {
 
   const sleeveModal = $('#spliceSleeveCureModal');
   const openSpliceSleeveCureBtn = $('#openSpliceSleeveCureBtn');
-  if (sleeveModal) {
-    customerSpliceSleeveCureModalController = setupSpliceSleeveCureModal({
-      dialogElement: sleeveModal,
-      triggerButton: openSpliceSleeveCureBtn,
-      storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openSpliceSleeveCureBtn) {
     openSpliceSleeveCureBtn.addEventListener('click', () => {
@@ -9050,14 +9231,7 @@ if (typeof document !== 'undefined') {
 
   const cleaveModal = $('#fiberCleaveQualityModal');
   const openFiberCleaveQualityBtn = $('#openFiberCleaveQualityBtn');
-  if (cleaveModal) {
-    customerFiberCleaveQualityModalController = setupFiberCleaveQualityModal({
-      dialogElement: cleaveModal,
-      triggerButton: openFiberCleaveQualityBtn,
-      storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openFiberCleaveQualityBtn) {
     openFiberCleaveQualityBtn.addEventListener('click', () => {
@@ -9073,14 +9247,7 @@ if (typeof document !== 'undefined') {
 
   const ghostModal = $('#otdrGhostArtifactModal');
   const openOtdrGhostArtifactBtn = $('#openOtdrGhostArtifactBtn');
-  if (ghostModal) {
-    customerOtdrGhostArtifactModalController = setupOtdrGhostArtifactModal({
-      dialogElement: ghostModal,
-      triggerButton: openOtdrGhostArtifactBtn,
-      storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openOtdrGhostArtifactBtn) {
     openOtdrGhostArtifactBtn.addEventListener('click', () => {
@@ -9096,14 +9263,7 @@ if (typeof document !== 'undefined') {
 
   const ribbonModal = $('#ribbonSpliceQaModal');
   const openRibbonSpliceQaBtn = $('#openRibbonSpliceQaBtn');
-  if (ribbonModal) {
-    customerRibbonSpliceQaModalController = setupRibbonSpliceQaModal({
-      state,
-      dialogElement: ribbonModal,
-      triggerButton: openRibbonSpliceQaBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openRibbonSpliceQaBtn) {
     openRibbonSpliceQaBtn.addEventListener('click', () => {
@@ -9122,14 +9282,7 @@ if (typeof document !== 'undefined') {
 
   const fastModal = $('#fastConnectorQaModal');
   const openFastConnectorQaBtn = $('#openFastConnectorQaBtn');
-  if (fastModal) {
-    customerFastConnectorQaModalController = setupFastConnectorQaModal({
-      state,
-      dialogElement: fastModal,
-      triggerButton: openFastConnectorQaBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openFastConnectorQaBtn) {
     openFastConnectorQaBtn.addEventListener('click', () => {
@@ -9150,14 +9303,7 @@ if (typeof document !== 'undefined') {
 
   const adssModal = $('#adssSagTensionModal');
   const openAdssSagTensionBtn = $('#openAdssSagTensionBtn');
-  if (adssModal) {
-    customerAdssSagTensionModalController = setupAdssSagTensionModal({
-      state,
-      dialogElement: adssModal,
-      triggerButton: openAdssSagTensionBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openAdssSagTensionBtn) {
     openAdssSagTensionBtn.addEventListener('click', () => {
@@ -9178,14 +9324,7 @@ if (typeof document !== 'undefined') {
 
   const armoredModal = $('#armoredCableCrushModal');
   const openArmoredCableCrushBtn = $('#openArmoredCableCrushBtn');
-  if (armoredModal) {
-    customerArmoredCableCrushModalController = setupArmoredCableCrushModal({
-      state,
-      dialogElement: armoredModal,
-      triggerButton: openArmoredCableCrushBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openArmoredCableCrushBtn) {
     openArmoredCableCrushBtn.addEventListener('click', () => {
@@ -9206,14 +9345,7 @@ if (typeof document !== 'undefined') {
 
   const jettingModal = $('#cableJettingModal');
   const openCableJettingBtn = $('#openCableJettingBtn');
-  if (jettingModal) {
-    customerCableJettingModalController = setupCableJettingModal({
-      state,
-      dialogElement: jettingModal,
-      triggerButton: openCableJettingBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openCableJettingBtn) {
     openCableJettingBtn.addEventListener('click', () => {
@@ -9232,14 +9364,7 @@ if (typeof document !== 'undefined') {
     });
   const tubeSlittingModal = $('#tubeSlittingAccessModal');
   const openTubeSlittingAccessBtn = $('#openTubeSlittingAccessBtn');
-  if (tubeSlittingModal) {
-    customerTubeSlittingModalController = setupTubeSlittingAccessModal({
-      state,
-      dialogElement: tubeSlittingModal,
-      triggerButton: openTubeSlittingAccessBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openTubeSlittingAccessBtn) {
     openTubeSlittingAccessBtn.addEventListener('click', () => {
@@ -9260,14 +9385,7 @@ if (typeof document !== 'undefined') {
 
   const conduitPullingModal = $('#conduitPullingModal');
   const openConduitPullingBtn = $('#openConduitPullingBtn');
-  if (conduitPullingModal) {
-    customerConduitPullingModalController = setupConduitPullingModal({
-      state,
-      dialogElement: conduitPullingModal,
-      triggerButton: openConduitPullingBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openConduitPullingBtn) {
     openConduitPullingBtn.addEventListener('click', () => {
@@ -9288,14 +9406,7 @@ if (typeof document !== 'undefined') {
 
   const spectralAttenuationModal = $('#spectralAttenuationModal');
   const openSpectralAttenuationBtn = $('#openSpectralAttenuationBtn');
-  if (spectralAttenuationModal) {
-    customerSpectralAttenuationModalController = setupSpectralAttenuationModal({
-      state,
-      dialogElement: spectralAttenuationModal,
-      triggerButton: openSpectralAttenuationBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openSpectralAttenuationBtn) {
     openSpectralAttenuationBtn.addEventListener('click', () => {
@@ -9316,14 +9427,7 @@ if (typeof document !== 'undefined') {
 
   const foscSealModal = $('#foscSealModal');
   const openFoscSealBtn = $('#openFoscSealBtn');
-  if (foscSealModal) {
-    customerFoscSealModalController = setupFoscSealModal({
-      state,
-      dialogElement: foscSealModal,
-      triggerButton: openFoscSealBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openFoscSealBtn) {
     openFoscSealBtn.addEventListener('click', () => {
@@ -9344,14 +9448,7 @@ if (typeof document !== 'undefined') {
 
   const thermalCyclingModal = $('#thermalCyclingModal');
   const openThermalCyclingBtn = $('#openThermalCyclingBtn');
-  if (thermalCyclingModal) {
-    customerThermalCyclingModalController = setupThermalCyclingModal({
-      state,
-      dialogElement: thermalCyclingModal,
-      triggerButton: openThermalCyclingBtn,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   if (openThermalCyclingBtn) {
     openThermalCyclingBtn.addEventListener('click', () => {
@@ -9371,13 +9468,7 @@ if (typeof document !== 'undefined') {
   }
 
   const billingCorrectnessModal = $('#billingCorrectnessModal');
-  if (billingCorrectnessModal && !billingCorrectnessModalController) {
-    billingCorrectnessModalController = setupBillingCorrectnessModal({
-      getState: () => state,
-      storage: typeof localStorage !== 'undefined' ? localStorage : null,
-      onToast: (msg, opts) => toast(msg, opts)
-    });
-  }
+  i
 
   const dataIntegrityModal = $('#dataIntegrityModal');
   if (dataIntegrityModal && !dataIntegrityModalController) {
@@ -9522,25 +9613,13 @@ if (typeof document !== 'undefined') {
   }
 
   const lateFeeModal = $('#lateFeeManagerModal');
-  if (lateFeeModal && !lateFeeModalController) {
-    lateFeeModalController = setupLateFeeModal({
-      getState: () => state,
-      updateState: (newState) => {
-        state = newState;
-        save();
-        renderDetail();
-        renderCustomers();
-        renderDashboard();
-      },
-      toast: (msg) => toast(msg)
-    });
-  }
+  i
 
   const openCorrectnessBtn = $('#openBillingCorrectnessBtn');
   if (openCorrectnessBtn && !openCorrectnessBtn.dataset.wired) {
     openCorrectnessBtn.dataset.wired = 'true';
     openCorrectnessBtn.addEventListener('click', () => {
-      billingCorrectnessModalController?.open();
+      ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => {});
     });
   }
   const mobileMoreCorrectnessBtn = $('#mobileMoreBillingCorrectnessBtn');
@@ -9549,7 +9628,7 @@ if (typeof document !== 'undefined') {
     mobileMoreCorrectnessBtn.addEventListener('click', () => {
       const moreMenu = $('#mobileMoreMenu');
       if (moreMenu) moreMenu.hidden = true;
-      billingCorrectnessModalController?.open();
+      ensureQaModals().then(() => { billingCorrectnessModalController?.open(); }).catch(() => {});
     });
   }
   const mobileMoreTargetBtn = $('#mobileMoreCollectionTargetBtn');
@@ -9598,7 +9677,6 @@ if (typeof document !== 'undefined') {
     updateRemindersQueueNavBadge(state);
   } catch {}
 
-
   // Wada / Promise-to-Pay Follow-up List Button from Mobile More Menu
   const mobileMoreWadaListBtn = $('#mobileMoreWadaListBtn');
   if (mobileMoreWadaListBtn && !mobileMoreWadaListBtn.dataset.wired) {
@@ -9642,8 +9720,6 @@ if (typeof document !== 'undefined') {
   }
   void refreshStorageSafetyInfo();
 }
-
-
 
 // SISP-14: QR Khata Card modal — printable wallet card + scannable deep link.
 // The QR encodes only the deep link (id + route), never financial data.

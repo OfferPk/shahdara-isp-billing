@@ -120,6 +120,7 @@ import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurri
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
+import { INVENTORY_KEY, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -171,6 +172,7 @@ export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
 export let monthlyComplaintReportModalController = null;
 export let roznamchaModalController = null;
+export let inventoryBookModalController = null;
 export let lateFeeModalController = null;
 export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -508,6 +510,21 @@ function renderDashboard() {
     if (valueEl) valueEl.textContent = day.closed ? `Closed · ${formatAmount(day.closingBalance)}` : `${formatAmount(day.expectedClosing)} expected`;
     if (periodEl) periodEl.textContent = day.closed ? `Farq ${formatAmount(day.discrepancy)}` : `Cash in ${formatAmount(day.totalIn)} · petty out ${formatAmount(day.outTotal)}`;
     roznamchaSummaryEl.innerHTML = `<p><span>Opening</span><strong>${escapeHtml(formatAmount(day.openingBalance))}</strong><small> · ${escapeHtml(String(day.cashPayments.length))} cash payments · ${escapeHtml(String(day.handovers.length))} shop handovers</small></p>`;
+  }
+  // SISP-18: stock book card (live available stock + low-stock count).
+  const inventorySummaryEl = $('#inventoryBookSummary');
+  if (inventorySummaryEl) {
+    const movements = loadInventory();
+    const stock = computeStock(movements);
+    const lowItems = stock.filter((row) => row.isLow);
+    const valueEl = $('#dashboardInventoryValue');
+    const periodEl = $('#dashboardInventoryPeriod');
+    if (valueEl) valueEl.textContent = movements.length === 0 ? 'No stock recorded' : `${lowItems.length} low-stock item${lowItems.length === 1 ? '' : 's'}`;
+    if (periodEl) periodEl.textContent = movements.length === 0 ? 'Fiber, routers, converters & field stock' : `${movements.length} movement${movements.length === 1 ? '' : 's'} recorded`;
+    const fiberRow = stock.find((row) => row.id === 'fiber-2core');
+    inventorySummaryEl.innerHTML = movements.length === 0
+      ? ''
+      : `<p><span>Fiber left</span><strong>${escapeHtml(String(fiberRow ? fiberRow.available : 0))} m</strong><small> · ${escapeHtml(String(lowItems.length))} low-stock item${lowItems.length === 1 ? '' : 's'}</small></p>`;
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -1891,7 +1908,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -1899,12 +1916,14 @@ function backupRestoreOptions() {
   let complaintsStored = false;
   let roznamchaStored = false;
   let ticketsStored = false;
+  let inventoryStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }
   try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }
   try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored };
+  try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -2377,6 +2396,9 @@ $('#applyJsonBackupButton').addEventListener('click', () => {
     }
     if (pendingBackupPreview.tickets) {
       saveTickets(pendingBackupPreview.tickets);
+    }
+    if (pendingBackupPreview.inventory) {
+      saveInventory(pendingBackupPreview.inventory);
     }
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
@@ -7370,6 +7392,10 @@ if (typeof document !== 'undefined') {
   });
   roznamchaModalController = setupRoznamchaModal(() => state, {
     onChanged: () => { renderDashboard(); },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  inventoryBookModalController = setupInventoryBookModal(() => state, {
+    onInventoryChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts)
   });
   worklistsModalController = setupWorklistsModal(() => state, {

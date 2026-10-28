@@ -582,3 +582,22 @@ body.field-mode-open { overflow: hidden; }
   .profile-tickets-list li { flex-direction: column; gap: 0; }
 
 }
+/* SISP-18: Stock Book — token-only, mirrors the downtime-analytics cards. */
+.inventory-book-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.inventory-book-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.inventory-book-stock-list, .inventory-book-log-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.inventory-stock-card, .inventory-log-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.inventory-stock-card p, .inventory-log-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.inventory-stock-card p strong, .inventory-log-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.inventory-stock-card.inventory-low { border-color: var(--color-overdue); }
+.inventory-stock-card.inventory-low p strong { color: var(--color-overdue); }
+.inventory-low-note span { color: var(--color-overdue); font-weight: 700; }
+.inventory-book-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.inventory-book-form .form-input { width: 100%; }
+.inventory-book-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 480px) {
+  .inventory-book-stock-list { grid-template-columns: 1fr; }
+  .inventory-book-log-list { grid-template-columns: 1fr; }
+  .inventory-stock-card p strong { text-align: left; }
+  .inventory-log-card p strong { text-align: left; }
+}

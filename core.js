@@ -5,6 +5,7 @@ import { sanitizeShopSettlements } from './shop-settlement.js';
 import { sanitizeComplaints } from './complaint-register.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
+import { sanitizeInventory } from './inventory-book.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 
 export const INITIAL_NAMES = Object.freeze([
@@ -1595,6 +1596,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeTickets(options.tickets);
     if (cleaned.length) document.settings = { ...(document.settings || {}), tickets: cleaned };
   }
+  // SISP-18: stock book movements live outside the ledger state
+  // (localStorage key sisp_inventory_v1), so they travel in an
+  // optional `settings.inventory` section. Written only when at least one
+  // movement exists; readers that predate it ignore the unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.inventory) && options.inventory.length) {
+    const cleaned = sanitizeInventory(options.inventory);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), inventory: cleaned };
+  }
   return JSON.stringify(document, null, 2);
 }
 
@@ -1858,6 +1867,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Field ticket records differ from this device' });
     }
   }
+  // SISP-18: optional stock book movements section (see createJsonBackup).
+  // Safe-merge rule, same as shop settlements and complaints: adopt the
+  // backup's records only when this device has none stored yet; when both
+  // sides hold different real records, keep existing + conflict.
+  let inventory = null;
+  const rawIncomingInventory = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.inventory
+    : undefined;
+  if (Array.isArray(rawIncomingInventory) && rawIncomingInventory.length) {
+    const incomingInventory = sanitizeInventory(rawIncomingInventory);
+    const currentInventory = (options && typeof options === 'object' && Array.isArray(options.currentInventory))
+      ? sanitizeInventory(options.currentInventory)
+      : [];
+    if (incomingInventory.length && sameJson(incomingInventory, currentInventory)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingInventory.length && (!options?.currentInventoryStored || currentInventory.length === 0)) {
+      inventory = incomingInventory;
+      counts.inventoryRestored = 1;
+      counts.changes++;
+    } else if (incomingInventory.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Stock book records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets };
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory };
 }

@@ -4,6 +4,7 @@ import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } fr
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { sanitizeComplaints } from './complaint-register.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
+import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 
 export const INITIAL_NAMES = Object.freeze([
@@ -1586,6 +1587,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeRoznamchaDays(options.roznamchaDays);
     if (cleaned.length) document.settings = { ...(document.settings || {}), roznamchaDays: cleaned };
   }
+  // SISP-12: field ticket records live outside the ledger state
+  // (localStorage key sisp_tickets_v1), so they travel in an optional
+  // `settings.tickets` section. Written only when at least one ticket
+  // exists; readers that predate it ignore the unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.tickets) && options.tickets.length) {
+    const cleaned = sanitizeTickets(options.tickets);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), tickets: cleaned };
+  }
   return JSON.stringify(document, null, 2);
 }
 
@@ -1607,7 +1616,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, changes:0 };
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, changes:0 };
   const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });
   const nonempty = value => !(value === null || value === undefined || value === '');
   const mergeField = (target, source, key, customer) => {
@@ -1826,6 +1835,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Roznamcha day records differ from this device' });
     }
   }
+  // SISP-12: optional field ticket records section (see createJsonBackup).
+  // Safe-merge rule, same as the complaint register: adopt the backup's
+  // records only when this device has none stored yet; when both sides
+  // hold different real records, keep existing + conflict.
+  let tickets = null;
+  const rawIncomingTickets = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.tickets
+    : undefined;
+  if (Array.isArray(rawIncomingTickets) && rawIncomingTickets.length) {
+    const incomingTickets = sanitizeTickets(rawIncomingTickets);
+    const currentTickets = (options && typeof options === 'object' && Array.isArray(options.currentTickets))
+      ? sanitizeTickets(options.currentTickets)
+      : [];
+    if (incomingTickets.length && sameJson(incomingTickets, currentTickets)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingTickets.length && (!options?.currentTicketsStored || currentTickets.length === 0)) {
+      tickets = incomingTickets;
+      counts.ticketsRestored = 1;
+      counts.changes++;
+    } else if (incomingTickets.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Field ticket records differ from this device' });
+    }
+  }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays };
+  return { state, counts, conflicts, canApply:counts.changes>0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets };
 }

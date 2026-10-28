@@ -213,6 +213,7 @@
 
 
 
+
 /* SISP-5: 1-thumb field collection mode. Theme tokens only — no hardcoded
    surfaces, so dark mode stays correct. Single-column layout with
    border-box sizing throughout: zero horizontal scroll at 360px. */
@@ -546,5 +547,38 @@ body.field-mode-open { overflow: hidden; }
 .roznamcha-close-block { display: flex; flex-direction: column; gap: 6px; margin: 8px 0 12px; }
 @media (max-width: 700px) {
   .roznamcha-inflows p, .roznamcha-outflows p { flex-direction: column; }
+
+
+}
+/* SISP-12: field ticket cards, badges and resolve form. Token-only: no
+ * hard-coded hex (design-tokens ratchet). The dialog itself reuses the
+ * shared .billing-modal / .modal-card rules, so its container already
+ * uses var(--modal-surface) in both themes. */
+.ticket-preset-row { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ticket-preset-btn.ticket-preset-active { border-color: var(--green); background: var(--color-paid-bg); color: var(--color-paid); }
+.field-tickets-list { display: grid; gap: var(--space-3); }
+.ticket-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-4); display: grid; gap: var(--space-2); }
+.ticket-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.ticket-card p { display: flex; justify-content: space-between; gap: var(--space-3); margin: 0; font-size: var(--text-sm); color: var(--ink); }
+.ticket-card p span:first-child { color: var(--muted); }
+.ticket-card p strong { text-align: right; }
+.ticket-status-badge, .ticket-priority-badge, .ticket-warning-badge { font-size: var(--text-xs); font-weight: 700; border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); }
+.ticket-status-open { background: var(--color-pending-bg); color: var(--color-pending); }
+.ticket-status-progress { background: var(--color-brand-soft); color: var(--color-info); }
+.ticket-status-resolved { background: var(--color-paid-bg); color: var(--color-paid); }
+.ticket-priority-urgent { background: var(--surface-soft); color: var(--color-overdue); border: 1px solid var(--color-overdue); }
+.ticket-priority-normal { background: var(--surface-soft); color: var(--muted); }
+.ticket-warning-badge { background: var(--amber-bg); color: var(--amber); }
+.ticket-card-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.ticket-resolve-form { display: grid; gap: var(--space-2); border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.ticket-resolve-line { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.ticket-resolve-billing { display: flex; flex-wrap: wrap; gap: var(--space-3); font-size: var(--text-sm); color: var(--ink); }
+.profile-tickets-warning { color: var(--amber); font-weight: 700; }
+.profile-tickets-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+.profile-tickets-list li { display: flex; justify-content: space-between; gap: var(--space-3); font-size: var(--text-sm); }
+@media (max-width: 700px) {
+  .ticket-resolve-line { grid-template-columns: 1fr; }
+  .ticket-card p strong { text-align: left; }
+  .profile-tickets-list li { flex-direction: column; gap: 0; }
 
 }

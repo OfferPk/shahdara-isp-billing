@@ -1,5 +1,5 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
-import { arrearsBreakdownTextLines } from './billing-cycle.js';
+import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
 import { pauseStatusLabel, sanitizePauseFields } from './pause-billing.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 
@@ -54,7 +54,12 @@ export function currentBillPresentation(customer, month, allocations) {
     receivedAmountLabel: bill?.payments?.length ? formatPKR(receivedAmount) : 'No receipts',
     receiptCount: bill?.payments?.length ?? 0,
     balanceDueCents,
-    balanceDueLabel: balanceDueCents === null ? 'Not set' : formatPKR(balanceDueCents / 100)
+    balanceDueLabel: balanceDueCents === null ? 'Not set' : formatPKR(balanceDueCents / 100),
+    // SISP-33: remaining FIFO split (arrears / package / kist) for this
+    // bill month, derived from saved payments. Null when the bill is
+    // unpriced. The profile renderer shows the strip only when the split
+    // is meaningful (arrears or kist present).
+    fifo: fifoRemainingForBill(customer, bill)
   };
 }
 
@@ -154,6 +159,12 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   // caller attached one (app.js computes it per bill month).
   if (receipt?.arrearsBreakdown) {
     lines.push('', '📋 Bill breakdown:', ...arrearsBreakdownTextLines(receipt.arrearsBreakdown));
+  }
+
+  // SISP-33: FIFO split of this payment plus the remaining split, when
+  // the caller attached them (app.js passes them from buildPaymentReceipt).
+  if (receipt?.fifoAllocation && receipt?.fifoRemaining && receipt?.fifoShow) {
+    lines.push('', '💠 FIFO taqseem:', ...fifoTextLines(receipt.fifoAllocation, receipt.fifoRemaining));
   }
 
   if (billStatus === 'paid') {

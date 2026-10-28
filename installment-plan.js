@@ -337,6 +337,22 @@ export function kistSchedule(plan) {
   }
   return rows;
 }
+/**
+ * Advance plans whose installment was fully covered by a SISP-33 FIFO
+ * payment: monthsPaid +1 per covered plan. sanitize() caps monthsPaid at
+ * monthsBilled, so a covered installment never counts before it was
+ * billed. Plans not in the covered set are returned unchanged (sanitized).
+ * This is the stored fallback field only — buildKistProgress still derives
+ * monthsPaid from settled bill months whenever allocations are supplied.
+ */
+export function advancePlansForCoveredKist(plans, coveredPlanIds) {
+  const covered = coveredPlanIds instanceof Set ? coveredPlanIds : new Set(Array.isArray(coveredPlanIds) ? coveredPlanIds : []);
+  const sanitized = sanitizeInstallmentPlans(plans);
+  if (covered.size === 0) return sanitized;
+  return sanitized.map((plan) => (covered.has(plan.id)
+    ? sanitizeInstallmentPlan({ ...plan, monthsPaid: plan.monthsPaid + 1 })
+    : plan));
+}
 
 /**
  * Progress for every plan on a customer, for the profile progress bar.

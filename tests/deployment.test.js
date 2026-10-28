@@ -10,6 +10,7 @@ const core = read('core.js');
 const phase3 = read('phase3.js');
 const profileUi = read('profile-ui.js');
 const receipt = read('receipt.js');
+const navLanguage = read('nav-language.js');
 const packages = read('package-catalog.js');
 const styles = read('styles.css');
 const worker = read('sw.js');
@@ -153,7 +154,8 @@ test('money is formatted and labeled in PKR throughout the live billing UI and e
   assert.match(index, /Monthly selling amount \(PKR\)/);
   assert.match(app, /t\('prof_hist_bill_amount_label'\)/); // phase 3: bill amount label renders via t()
   assert.match(app, /Amount received \(PKR\)/);
-  assert.match(app, /Monthly sale \(PKR\)/);
+  assert.match(app, /t\('bill_row_monthly_sale'\)/); // phase 4: monthly sale label renders via t()
+  assert.match(navLanguage, /bill_row_monthly_sale: 'Monthly sale \(PKR\)'/); // phase 4: PKR label lives in the dictionary
   assert.match(index, /Not set — excluded from dues/);
 });
 

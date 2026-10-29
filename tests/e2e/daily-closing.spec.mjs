@@ -36,7 +36,7 @@ test.describe('Daily Cash Closing, Till Reconciliation & Register Audit Suite E2
     await expect(nextBtn).toBeVisible();
     await nextBtn.click();
 
-    // Verify footer actions exist
+    // Verify the action cards exist (redesign: 2-column grid at the top of the dialog, no footer bar)
     await expect(page.locator('#dcCopySlipBtn')).toBeVisible();
     await expect(page.locator('#dcShareWhatsAppBtn')).toBeVisible();
     await expect(page.locator('#dcPrintA4Btn')).toBeVisible();
@@ -110,8 +110,8 @@ test.describe('Daily Cash Closing, Till Reconciliation & Register Audit Suite E2
     });
     expect(hasHorizontalOverflow).toBe(false);
 
-    // Check touch target heights on mobile (buttons should be >= 40px)
-    const buttons = page.locator('#dailyClosingModal .billing-modal-footer button');
+    // Check touch target heights on mobile (action cards should be >= 40px)
+    const buttons = page.locator('#dailyClosingModal .daily-closing-actions button');
     const count = await buttons.count();
     for (let i = 0; i < count; i++) {
       const box = await buttons.nth(i).boundingBox();

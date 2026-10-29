@@ -21471,7 +21471,7 @@
   <dialog id="dailyClosingModal" class="billing-modal daily-closing-modal" aria-labelledby="dailyClosingModalTitle">    <div class="billing-modal-content">
       <header class="billing-modal-header">
         <div class="billing-modal-title-group">
-          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 11px; letter-spacing: 0.05em;">DAILY REGISTER CLOSING &amp; TILL AUDIT</div>
+          <div class="eyebrow" style="color: var(--accent, #0e5b4d); font-weight: 700; font-size: 10px; letter-spacing: 0.05em;">DAILY REGISTER CLOSING &amp; TILL AUDIT</div>
           <h2 id="dailyClosingModalTitle">Daily Cash Closing &amp; Register Reconciliation</h2>
           <span class="urdu-subtitle">یومیہ روزنامچہ کلوزنگ، دکانوں کی ریکوری، اخراجات اور کیش دراز کا تصدیق شدہ حساب</span>
         </div>
@@ -21479,18 +21479,46 @@
       </header>
 
       <div class="billing-modal-body">
-        <!-- Date Selector Toolbar -->
-        <div class="daily-closing-toolbar" style="display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 12px; background: var(--bg-surface, #f8fafc); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color, #e2e8f0);">
-          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-            <label for="dailyClosingDateInput" style="font-weight: 600; font-size: 12px;">Register Date:</label>
-            <input type="date" id="dailyClosingDateInput" class="form-input" style="padding: 4px 8px; font-size: 12px; border: 1px solid var(--border-color, #cbd5e1); border-radius: 4px;">
-            <button id="dailyClosingPrevDateBtn" class="secondary-button" type="button" style="padding: 4px 8px; font-size: 11px;">◀ Prev Day</button>
-            <button id="dailyClosingTodayDateBtn" class="secondary-button" type="button" style="padding: 4px 8px; font-size: 11px;">Today</button>
-            <button id="dailyClosingNextDateBtn" class="secondary-button" type="button" style="padding: 4px 8px; font-size: 11px;">Next Day ▶</button>
+        <!-- Date Selector Toolbar: one compact row (Prev · date · Next · Today) with the target chip inline -->
+        <div class="daily-closing-toolbar">
+          <div class="daily-closing-date-nav">
+            <button id="dailyClosingPrevDateBtn" class="secondary-button dc-nav-btn" type="button" aria-label="Previous day">◀ Prev</button>
+            <label class="dc-date-label" for="dailyClosingDateInput">Register Date:</label>
+            <input type="date" id="dailyClosingDateInput" class="form-input dc-date-input" aria-label="Register date">
+            <button id="dailyClosingNextDateBtn" class="secondary-button dc-nav-btn" type="button" aria-label="Next day">Next ▶</button>
+            <button id="dailyClosingTodayDateBtn" class="secondary-button dc-nav-btn" type="button">Today</button>
           </div>
-          <div id="dailyClosingAttainmentBadgeWrap" style="font-size: 12px; font-weight: 700;">
-            <span id="dcKpiAttainment" class="closing-badge" style="padding: 3px 8px; border-radius: 4px; font-size: 11px; background: #e2e8f0; color: #334155;">100% Target Met</span>
+          <div id="dailyClosingAttainmentBadgeWrap" class="dc-attainment-wrap">
+            <span id="dcKpiAttainment" class="closing-badge dc-attainment-badge">100% Target Met</span>
           </div>
+        </div>
+
+        <!-- Quick Actions: compact 2-column icon+label card grid (same handlers as the old footer bar) -->
+        <div class="daily-closing-actions" role="group" aria-label="Daily closing actions">
+          <button id="dcCopySlipBtn" class="dc-action-btn" type="button">
+            <span class="dc-action-icon dc-action-icon--brand" aria-hidden="true">📋</span>
+            <span class="dc-action-label">Copy Daily Slip</span>
+          </button>
+          <button id="dcShareWhatsAppBtn" class="dc-action-btn" type="button">
+            <span class="dc-action-icon dc-action-icon--whatsapp" aria-hidden="true">📱</span>
+            <span class="dc-action-label">WhatsApp Briefing</span>
+          </button>
+          <button id="dcPrintA4Btn" class="dc-action-btn" type="button">
+            <span class="dc-action-icon dc-action-icon--info" aria-hidden="true">📄</span>
+            <span class="dc-action-label">Print A4 Statement</span>
+          </button>
+          <button id="dcPrintPosBtn" class="dc-action-btn" type="button">
+            <span class="dc-action-icon dc-action-icon--pending" aria-hidden="true">🧾</span>
+            <span class="dc-action-label">Thermal 80mm Slip</span>
+          </button>
+          <button id="dcExportCsvBtn" class="dc-action-btn" type="button">
+            <span class="dc-action-icon dc-action-icon--paid" aria-hidden="true">📥</span>
+            <span class="dc-action-label">Export CSV (RFC-4180)</span>
+          </button>
+          <button id="openStaffPerfFromClosingBtn" class="dc-action-btn" type="button">
+            <span class="dc-action-icon dc-action-icon--soft" aria-hidden="true">👥</span>
+            <span class="dc-action-label">Staff Performance</span>
+          </button>
         </div>
 
         <!-- KPI Grid -->
@@ -21674,19 +21702,12 @@
             </p>
           </div>
         </div>
-      </div>
 
-      <footer class="billing-modal-footer">
-        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button id="dcCopySlipBtn" class="secondary-button" type="button">📋 Copy Daily Slip</button>
-          <button id="dcShareWhatsAppBtn" class="secondary-button" type="button">📱 WhatsApp Briefing</button>
-          <button id="dcPrintA4Btn" class="secondary-button" type="button">📄 Print A4 Statement</button>
-          <button id="dcPrintPosBtn" class="secondary-button" type="button">🧾 Thermal 80mm Slip</button>
-          <button id="dcExportCsvBtn" class="secondary-button" type="button">📥 Export CSV (RFC-4180)</button>
-          <button id="openStaffPerfFromClosingBtn" class="secondary-button" type="button">👥 Staff Performance</button>
+        <!-- Slim non-sticky close at the natural end of the dialog (the ↩ in the header is the primary close) -->
+        <div class="daily-closing-close-row">
+          <button id="closeDailyClosingSecondaryBtn" class="daily-closing-close-btn" type="button">Close</button>
         </div>
-        <button id="closeDailyClosingSecondaryBtn" class="primary-button" type="button">Close</button>
-      </footer>
+      </div>
     </div>
   </dialog>
 

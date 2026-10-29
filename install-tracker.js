@@ -42,11 +42,33 @@
  * under the same safe-merge rule as the SISP-15 register and the Saad
  * visit log: adopted only when this device has none stored yet.
  *
- * This module imports nothing: customers are passed in by callers, so
- * the pure helpers stay testable without the app. Tests use synthetic
- * data only. This tracker records NOTHING about stock and never touches
- * billing-cycle.js or any billing engine.
+ * This module originally imported nothing: customers are passed in by
+ * callers, so the pure helpers stay testable without the app. Tests use
+ * synthetic data only.
+ *
+ * SISP-57 — completion pipeline: marking a request installed now runs a
+ * 1-click completion (see buildInstallCompletionPlan /
+ * applyInstallCompletion below). The plan either LINKs the request's
+ * already-linked customer or CREATEs a new active customer from the
+ * request (name + phone), records the operator-entered connection
+ * fields (connectionFee, routerModel, routerPrice, fiberMeters) on that
+ * customer, and stages Stock Out deductions for the SISP-18 inventory
+ * book (router / media converter / 2-core fiber meters actually used).
+ * The customer write and the stock write themselves are performed by
+ * the app.js handler injected into the modal (this module never imports
+ * core.js or inventory-book.js — the inventory book's addMovement stays
+ * the ONLY stock write path, and available quantities are computed with
+ * the book's own computeStock semantics passed in as movements).
+ * Durable guard: a completed request carries completedCustomerId +
+ * completion.stockDeductedAt; completing it again is a no-op for both
+ * the customer record and the stock book, so a re-mark, an edit that
+ * cleared the install date, or a backup restore can never deduct the
+ * same stock twice. Insufficient or missing stock never blocks the
+ * completion (the field work already happened): that line is skipped
+ * and surfaced as a visible warning, mirroring the SISP-42 bridge,
+ * where a refused deduction never undoes the underlying work.
  */
+import { t } from './nav-language.js';
 
 export const INSTALL_REQUESTS_KEY = 'sisp_install_requests_v1';
 
@@ -156,6 +178,70 @@ export function delayReasonLabel(request) {
   return reason || REASON_NOT_RECORDED;
 }
 
+/**
+ * SISP-57: the stock lines a completion can deduct, keyed by the
+ * operator-facing quantity field. itemId values are the SISP-18
+ * inventory book's OWN catalog ids (inventory-book.js INVENTORY_ITEMS)
+ * — the pipeline never invents an item; a line whose id is absent from
+ * the live catalog is skipped with a warning instead of deducted.
+ */
+export const INSTALL_COMPLETION_STOCK = [
+  { key: 'router', itemId: 'router', label: 'Router' },
+  { key: 'mediaConverter', itemId: 'media-converter', label: 'Media Converter Pair' },
+  { key: 'fiber', itemId: 'fiber-2core', label: '2-Core Fiber Cable' }
+];
+
+const INSTALL_STOCK_ITEM_IDS = INSTALL_COMPLETION_STOCK.map((line) => line.itemId);
+
+function moneyOrNull(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+}
+
+function qtyOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : 0;
+}
+
+/**
+ * SISP-57 completion stamp, sanitized: the connection fields the
+ * operator recorded, the quantities used, exactly which stock lines
+ * were deducted, which were skipped (with the stock available at the
+ * time), and when the deduction happened. Returns null when the stored
+ * value carries no completion (a legacy / plain mark-installed record).
+ */
+export function sanitizeInstallCompletion(value) {
+  if (!value || typeof value !== 'object') return null;
+  const stockDeductedAt = typeof value.stockDeductedAt === 'string' ? value.stockDeductedAt : '';
+  if (!stockDeductedAt) return null;
+  const lines = (list) => (Array.isArray(list) ? list : [])
+    .filter((line) => line && typeof line === 'object' && INSTALL_STOCK_ITEM_IDS.includes(cleanText(line.itemId)))
+    .map((line) => ({ itemId: cleanText(line.itemId), qty: Number(line.qty) }))
+    .filter((line) => Number.isFinite(line.qty) && line.qty > 0);
+  return {
+    connectionFee: moneyOrNull(value.connectionFee),
+    routerModel: cleanText(value.routerModel).slice(0, 100),
+    routerPrice: moneyOrNull(value.routerPrice),
+    fiberMeters: (() => {
+      const n = Number(value.fiberMeters);
+      return value.fiberMeters === '' || value.fiberMeters === null || value.fiberMeters === undefined || !Number.isFinite(n) || n < 0
+        ? null
+        : Math.round(n * 10) / 10;
+    })(),
+    routerQty: qtyOrZero(value.routerQty),
+    mediaConverterQty: qtyOrZero(value.mediaConverterQty),
+    stockDeductions: lines(value.stockDeductions),
+    stockWarnings: lines(value.stockWarnings).map((line) => {
+      const raw = (Array.isArray(value.stockWarnings) ? value.stockWarnings : [])
+        .find((w) => w && cleanText(w.itemId) === line.itemId);
+      const available = Number(raw?.available);
+      return { ...line, available: Number.isFinite(available) && available >= 0 ? available : 0, reason: cleanText(raw?.reason) || 'insufficient' };
+    }),
+    stockDeductedAt
+  };
+}
+
 /** Drops malformed rows; keeps clean requests in stored order. */
 export function sanitizeInstallRequests(value) {
   if (!Array.isArray(value)) return [];
@@ -187,6 +273,11 @@ export function sanitizeInstallRequests(value) {
       payReference: cleanText(entry.payReference),
       installDate,
       delayReason: cleanText(entry.delayReason),
+      // SISP-57 completion stamp (null until the pipeline completes the
+      // request): survives sanitize + backup round-trips so the stock
+      // deduction can never run twice for one request.
+      completedCustomerId: cleanText(entry.completedCustomerId),
+      completion: sanitizeInstallCompletion(entry.completion),
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
     });
   }
@@ -372,6 +463,221 @@ export function markInstallRequestInstalled(requests, id, { installDate, delayRe
   return out;
 }
 
+function completionMoney(value, label) {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) throw new Error(`${label} must be a PKR number of 0 or more.`);
+  return Math.round(n * 100) / 100;
+}
+
+function completionQty(value, label) {
+  if (value === '' || value === null || value === undefined) return 0;
+  const n = Number(value);
+  if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) throw new Error(`${label} must be a whole number of 0 or more.`);
+  return n;
+}
+
+/** Available qty for one item from a movement list (inventory-book semantics: in − out). */
+function completionAvailable(movements, itemId) {
+  let available = 0;
+  for (const m of Array.isArray(movements) ? movements : []) {
+    if (!m || m.itemId !== itemId) continue;
+    const qty = Number(m.qty);
+    if (!Number.isFinite(qty)) continue;
+    if (m.kind === 'in') available += qty;
+    else if (m.kind === 'out') available -= qty;
+  }
+  return Math.round(available * 100) / 100;
+}
+
+/**
+ * SISP-57: builds the completion plan for marking one request installed
+ * — PURE, performs no writes. The caller (app.js) executes the plan:
+ * create-or-link the customer, then log the plan's Stock Out movements
+ * through inventory-book addMovement, then stamp the request via
+ * applyInstallCompletion.
+ *
+ * Create-vs-link: a request that already carries a customerId LINKS to
+ * that customer (it must still exist in `customers` — a vanished link
+ * throws so the operator can fix it, never silently duplicates); any
+ * other request CREATEs a new active customer from requesterName +
+ * phone. On a link, only the connection fields the operator actually
+ * entered are returned in customerFields (blanks never overwrite the
+ * existing record); on a create, all four fields travel in newCustomer.
+ *
+ * Stock: quantities come ONLY from the operator's completion input
+ * (routerQty, mediaConverterQty, and fiberMeters doubling as the fiber
+ * drop length). A line is staged as a deduction only when its catalog
+ * item exists in `inventoryItemIds` (when given) AND the available
+ * stock in `movements` covers it; otherwise the line lands in warnings
+ * ({ itemId, qty, available, reason: 'unavailable' | 'insufficient' })
+ * and the completion still proceeds — warn-and-allow, per SISP-42.
+ * When `movements` is not supplied, availability is unchecked and every
+ * line is staged (the executing addMovement still refuses an
+ * over-draw, which the caller surfaces).
+ *
+ * Double completion: a request already carrying completedCustomerId
+ * returns { alreadyCompleted: true } with NO customer fields and NO
+ * deductions — re-completing is a no-op for customer and stock alike.
+ * A request already marked installed WITHOUT a completion stamp throws,
+ * exactly like markInstallRequestInstalled.
+ */
+export function buildInstallCompletionPlan(request, input = {}, { customers = [], movements = null, inventoryItemIds = null } = {}) {
+  if (!request || typeof request !== 'object') throw new Error('That installation request was not found.');
+  const installDate = DATE_RE.test(String(input.installDate || '')) ? String(input.installDate) : '';
+  if (!installDate) throw new Error('A valid install date is required.');
+  if (wholeDaysBetween(request.requestDate, installDate) < 0) {
+    throw new Error('Install date cannot be before the request date.');
+  }
+  const delayReason = input.delayReason === undefined || input.delayReason === null ? undefined : cleanText(input.delayReason);
+  if (cleanText(request.completedCustomerId)) {
+    return {
+      requestId: cleanText(request.id),
+      alreadyCompleted: true,
+      installDate,
+      delayReason,
+      mode: 'link',
+      customerId: cleanText(request.completedCustomerId),
+      customerName: cleanText(request.customerName) || cleanText(request.requesterName),
+      customerFields: {},
+      newCustomer: null,
+      completion: sanitizeInstallCompletion(request.completion),
+      deductions: [],
+      warnings: []
+    };
+  }
+  if (DATE_RE.test(String(request.installDate || ''))) throw new Error('This connection is already marked installed.');
+
+  const connectionFee = completionMoney(input.connectionFee, 'Connection fee');
+  const routerPrice = completionMoney(input.routerPrice, 'Router price');
+  const routerModel = cleanText(input.routerModel).slice(0, 100);
+  let fiberMeters = null;
+  if (input.fiberMeters !== '' && input.fiberMeters !== null && input.fiberMeters !== undefined) {
+    const n = Number(input.fiberMeters);
+    if (!Number.isFinite(n) || n < 0) throw new Error('Fiber meters must be a number of 0 or more.');
+    fiberMeters = Math.round(n * 10) / 10;
+  }
+  const routerQty = completionQty(input.routerQty, 'Routers used');
+  const mediaConverterQty = completionQty(input.mediaConverterQty, 'Media converters used');
+
+  const linkedId = cleanText(request.customerId);
+  let mode;
+  let customerId = '';
+  let customerName = '';
+  let customerFields = {};
+  let newCustomer = null;
+  if (linkedId) {
+    const customer = (Array.isArray(customers) ? customers : []).find((c) => String(c.id) === linkedId);
+    if (!customer) throw new Error('The linked customer is no longer in the list — edit the request to fix the link before completing it.');
+    mode = 'link';
+    customerId = String(customer.id);
+    customerName = cleanText(customer.name);
+    if (connectionFee !== null) customerFields.connectionFee = connectionFee;
+    if (routerModel) customerFields.routerModel = routerModel;
+    if (routerPrice !== null) customerFields.routerPrice = routerPrice;
+    if (fiberMeters !== null) customerFields.fiberMeters = fiberMeters;
+  } else {
+    mode = 'create';
+    customerName = cleanText(request.requesterName) || cleanText(request.customerName);
+    newCustomer = {
+      name: customerName,
+      phone: cleanText(request.phone),
+      connectionFee,
+      routerModel,
+      routerPrice,
+      fiberMeters
+    };
+  }
+
+  const wanted = [
+    { itemId: 'router', qty: routerQty },
+    { itemId: 'media-converter', qty: mediaConverterQty },
+    { itemId: 'fiber-2core', qty: fiberMeters || 0 }
+  ];
+  const deductions = [];
+  const warnings = [];
+  for (const line of wanted) {
+    if (!(line.qty > 0)) continue;
+    if (Array.isArray(inventoryItemIds) && !inventoryItemIds.includes(line.itemId)) {
+      warnings.push({ itemId: line.itemId, qty: line.qty, available: 0, reason: 'unavailable' });
+      continue;
+    }
+    if (movements !== null && movements !== undefined) {
+      const available = completionAvailable(movements, line.itemId);
+      if (line.qty > available) {
+        warnings.push({ itemId: line.itemId, qty: line.qty, available, reason: 'insufficient' });
+        continue;
+      }
+    }
+    deductions.push({
+      itemId: line.itemId,
+      kind: 'out',
+      qty: line.qty,
+      date: installDate,
+      customerName,
+      note: `Installation ${cleanText(request.id)} — ${INSTALL_COMPLETION_STOCK.find((s) => s.itemId === line.itemId)?.label || line.itemId}`
+    });
+  }
+
+  return {
+    requestId: cleanText(request.id),
+    alreadyCompleted: false,
+    installDate,
+    delayReason,
+    mode,
+    customerId,
+    customerName,
+    customerFields,
+    newCustomer,
+    completion: {
+      connectionFee,
+      routerModel,
+      routerPrice,
+      fiberMeters,
+      routerQty,
+      mediaConverterQty,
+      stockDeductions: deductions.map((d) => ({ itemId: d.itemId, qty: d.qty })),
+      stockWarnings: warnings
+    },
+    deductions,
+    warnings
+  };
+}
+
+/**
+ * SISP-57: stamps a completed request — install date, the (possibly
+ * newly created) customer link, completedCustomerId, and the completion
+ * record with its stockDeductedAt timestamp. Pure: returns the new
+ * request list. Throws on an unknown id. Stamping an already-completed
+ * request only refreshes its install date / delay reason — the stored
+ * completion record and customer link are kept, never re-stamped, so
+ * the stock deduction stays exactly-once.
+ */
+export function applyInstallCompletion(requests, plan, customer, stockDeductedAt) {
+  const clean = sanitizeInstallRequests(requests);
+  const index = clean.findIndex((r) => String(r.id) === String(plan?.requestId));
+  if (index === -1) throw new Error('That installation request was not found.');
+  const request = clean[index];
+  const updated = { ...request, installDate: plan.installDate };
+  if (plan.delayReason !== undefined) updated.delayReason = plan.delayReason;
+  if (!cleanText(request.completedCustomerId)) {
+    const done = customer && typeof customer === 'object' ? customer : {};
+    updated.customerId = cleanText(done.id) || updated.customerId;
+    updated.customerName = cleanText(done.name) || updated.customerName;
+    updated.customerNumber = done.customerNumber === null || done.customerNumber === undefined || done.customerNumber === ''
+      ? updated.customerNumber
+      : done.customerNumber;
+    updated.completedCustomerId = cleanText(done.id);
+    updated.completion = sanitizeInstallCompletion({
+      ...(plan.completion || {}),
+      stockDeductedAt: typeof stockDeductedAt === 'string' && stockDeductedAt ? stockDeductedAt : new Date().toISOString()
+    });
+  }
+  const out = [...clean];
+  out[index] = updated;
+  return out;
+}
+
 /** Requests in one YYYY-MM month (by REQUEST month), oldest first. */
 export function requestsForMonth(requests, month) {
   return sanitizeInstallRequests(requests)
@@ -454,7 +760,7 @@ export function buildMonthlyInstallSummary(requests, month, today) {
  * getState supplies the live customer list (injected so this module stays
  * import-free). The mark-installed section lists only pending requests.
  */
-export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast, onConfirm } = {}) {
+export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast, onConfirm, onCompleteInstall, getInstallStockContext } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('installTrackerModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -496,6 +802,16 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast,
       const label = `${c.name || 'Unnamed'} (#${c.customerNumber ?? '—'})${c.mohalla ? ` · ${c.mohalla}` : ''}`;
       return `<option value="${escapeHtml(String(c.id))}">${escapeHtml(label)}</option>`;
     }).join('');
+  }
+
+  // SISP-57: "Router ×1 · 2-Core Fiber Cable 120 m" style summary of a
+  // completion's stock lines (deducted or skipped-with-warning alike).
+  function stockSummaryText(lines) {
+    return (Array.isArray(lines) ? lines : []).map((line) => {
+      const meta = INSTALL_COMPLETION_STOCK.find((s) => s.itemId === line.itemId);
+      const label = meta ? meta.label : line.itemId;
+      return line.itemId === 'fiber-2core' ? `${label} ${line.qty} m` : `${label} ×${line.qty}`;
+    }).join(' · ');
   }
 
   function refreshCustomerSelect() {
@@ -582,6 +898,8 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast,
             <p><span>Paid</span><strong>${escapeHtml(String(r.amountPaid))} PKR · ${escapeHtml(payMethodLabel(r.payMethod))}${r.payReference ? ` · ${escapeHtml(r.payReference)}` : ''}</strong></p>
             ${r.phone ? `<p><span>Phone</span><strong>${escapeHtml(r.phone)}</strong></p>` : ''}
             ${r.customerName ? `<p><span>Linked customer</span><strong>${escapeHtml(r.customerName)}${r.customerNumber !== null ? ` (#${r.customerNumber})` : ''}</strong></p>` : ''}
+            ${r.completion ? `<p><span>${escapeHtml(t('instpipe_card_stock'))}</span><strong>${r.completion.stockDeductions.length ? escapeHtml(stockSummaryText(r.completion.stockDeductions)) : escapeHtml(t('instpipe_card_stock_none'))}</strong></p>` : ''}
+            ${r.completion && r.completion.stockWarnings.length ? `<p><span>${escapeHtml(t('instpipe_card_warn'))}</span><strong>${escapeHtml(stockSummaryText(r.completion.stockWarnings))}</strong></p>` : ''}
             ${installed && (days || 0) > 0 ? `<p><span>Delay reason</span><strong>${escapeHtml(delayReasonLabel(r))}</strong></p>` : ''}
             <div class="install-tracker-card-actions"><button type="button" class="secondary-button" data-edit-request="${escapeHtml(String(r.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-request="${escapeHtml(String(r.id))}">🗑 Delete</button></div>
           </article>`;
@@ -704,21 +1022,65 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast,
   if (requestCancelBtn) requestCancelBtn.addEventListener('click', cancelRequestEdit);
   const markForm = $('installMarkForm');
   if (markForm) {
-    markForm.addEventListener('submit', (event) => {
+    markForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       try {
         const reason = resolveDelayReason($('installMarkReasonPreset')?.value, $('installMarkReasonCustom')?.value);
-        const updated = markInstallRequestInstalled(loadInstallRequests(), $('installMarkRequest')?.value, {
-          installDate: $('installMarkDate')?.value,
-          ...(reason ? { delayReason: reason } : {})
-        });
+        const requests = loadInstallRequests();
+        const request = requests.find((r) => String(r.id) === String($('installMarkRequest')?.value));
+        if (!request) throw new Error('That installation request was not found.');
+        // SISP-57: the mark-installed action IS the completion pipeline.
+        // The plan is built against the LIVE customer list plus the
+        // stock context (movements + catalog ids) the app injects via
+        // getInstallStockContext, then executed by onCompleteInstall
+        // (customer create/link + stock-out through addMovement). The
+        // request is stamped only after the handler succeeds, so a
+        // failed completion leaves the request pending. Without the
+        // handler the modal falls back to the plain mark-installed
+        // behaviour (no customer, no stock writes).
+        let updated;
+        let toastMessage = 'Connection marked installed.';
+        if (typeof onCompleteInstall === 'function') {
+          const stockContext = typeof getInstallStockContext === 'function'
+            ? (getInstallStockContext() || {})
+            : {};
+          const plan = buildInstallCompletionPlan(request, {
+            installDate: $('installMarkDate')?.value,
+            ...(reason ? { delayReason: reason } : {}),
+            connectionFee: $('installMarkConnectionFee')?.value,
+            routerModel: $('installMarkRouterModel')?.value,
+            routerPrice: $('installMarkRouterPrice')?.value,
+            fiberMeters: $('installMarkFiberMeters')?.value,
+            routerQty: $('installMarkRouterQty')?.value,
+            mediaConverterQty: $('installMarkMediaQty')?.value
+          }, {
+            customers: getCustomers(),
+            movements: stockContext.movements ?? null,
+            inventoryItemIds: stockContext.inventoryItemIds ?? null
+          });
+          const result = await onCompleteInstall(plan);
+          const customer = result && typeof result === 'object' ? result.customer : null;
+          if (!customer || !cleanText(customer.id)) throw new Error('Completion did not return a customer.');
+          updated = applyInstallCompletion(requests, plan, customer);
+          toastMessage = plan.alreadyCompleted
+            ? t('instpipe_already_toast')
+            : t('instpipe_done_toast', null, { name: customer.name || plan.customerName });
+          if (!plan.alreadyCompleted && plan.warnings.length) {
+            toastMessage += ` ⚠ ${t('instpipe_stock_warn_toast', null, { items: stockSummaryText(plan.warnings) })}`;
+          }
+        } else {
+          updated = markInstallRequestInstalled(requests, request.id, {
+            installDate: $('installMarkDate')?.value,
+            ...(reason ? { delayReason: reason } : {})
+          });
+        }
         saveInstallRequests(updated);
         markForm.reset();
         const markDateInput = $('installMarkDate');
         if (markDateInput) markDateInput.value = installTrackerToday();
         render();
         if (typeof onRequestsChanged === 'function') onRequestsChanged();
-        if (typeof onToast === 'function') onToast('Connection marked installed.');
+        if (typeof onToast === 'function') onToast(toastMessage);
       } catch (error) {
         if (typeof onToast === 'function') onToast(error.message || 'Could not mark installed.');
       }

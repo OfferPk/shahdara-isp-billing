@@ -160,7 +160,7 @@ import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, s
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
-import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
+import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, syncSaadPaymentLedgers, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
@@ -258,6 +258,59 @@ function recordTicketStockBridge() {
   } else if (!saved) {
     toast(t('ticket_stock_save_failed_toast'));
   }
+}
+
+// SISP-57 wiring: execute an installation completion plan built by
+// install-tracker.js (buildInstallCompletionPlan). LINK mode updates the
+// request's already-linked customer with only the connection fields the
+// operator entered (plus connectionDate when unset and an Active status
+// — the connection is now live); CREATE mode adds a new active customer
+// from the request via core addCustomer (its duplicate-name guard is
+// the operator's cue to link instead). Stock Out movements go through
+// inventory-book addMovement ONLY, after the customer state is saved —
+// the plan was built against the live stock, so a deduction the book
+// would refuse was already diverted to the plan's warnings; if
+// addMovement still throws, the whole completion fails and the request
+// stays pending (the modal stamps it only on success). An
+// already-completed plan returns its customer untouched: no second
+// customer, no second deduction.
+function completeInstallRequest(plan) {
+  if (plan.alreadyCompleted) {
+    const existing = state.customers.find((c) => c.id === plan.customerId);
+    if (!existing) throw new Error('The completed customer is no longer in the list.');
+    return { customer: { id: existing.id, name: existing.name, customerNumber: existing.customerNumber } };
+  }
+  const referenceDate = new Date(`${plan.installDate}T12:00:00+05:00`);
+  let customer;
+  if (plan.mode === 'link') {
+    const existing = state.customers.find((c) => c.id === plan.customerId);
+    if (!existing) throw new Error('The linked customer is no longer in the list — edit the request to fix the link before completing it.');
+    const fields = { ...plan.customerFields };
+    if (!existing.connectionDate) fields.connectionDate = plan.installDate;
+    if (existing.serviceStatus !== 'active') fields.serviceStatus = 'active';
+    state = updateCustomerProfile(state, existing.id, fields, referenceDate);
+    customer = state.customers.find((c) => c.id === existing.id);
+  } else {
+    const nc = plan.newCustomer || {};
+    const beforeIds = new Set(state.customers.map((c) => c.id));
+    state = addCustomer(state, nc.name, referenceDate, {
+      phone: nc.phone || '',
+      connectionFee: nc.connectionFee,
+      routerModel: nc.routerModel || '',
+      routerPrice: nc.routerPrice,
+      fiberMeters: nc.fiberMeters,
+      serviceStatus: 'active'
+    });
+    customer = state.customers.find((c) => !beforeIds.has(c.id));
+    if (!customer) throw new Error('Customer could not be created.');
+    state = updateCustomerProfile(state, customer.id, { connectionDate: plan.installDate }, referenceDate);
+    customer = state.customers.find((c) => c.id === customer.id);
+  }
+  let movements = loadInventory();
+  for (const deduction of plan.deductions) movements = addMovement(movements, deduction);
+  save();
+  if (plan.deductions.length) saveInventory(movements);
+  return { customer: { id: customer.id, name: customer.name, customerNumber: customer.customerNumber } };
 }
 
 // SISP-44 wiring: one complaint↔ticket reconcile pass after every
@@ -10396,7 +10449,11 @@ if (typeof document !== 'undefined') {
   installTrackerModalController = setupInstallTrackerModal(() => state, {
     onRequestsChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
-    onConfirm: (opts) => appConfirm(opts)
+    onConfirm: (opts) => appConfirm(opts),
+    // SISP-57: completion pipeline — live stock context for the plan,
+    // and the executor that creates/links the customer + deducts stock.
+    getInstallStockContext: () => ({ movements: loadInventory(), inventoryItemIds: INVENTORY_ITEM_IDS }),
+    onCompleteInstall: (plan) => completeInstallRequest(plan)
   });
   pendingWorksModalController = setupPendingWorksModal(() => state, {
     onWorksChanged: () => renderDashboard(),

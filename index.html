@@ -21338,6 +21338,20 @@
           </select>
           <label for="installMarkReasonCustom">Delay reason — custom text (wins over the quick pick)</label>
           <input id="installMarkReasonCustom" class="form-input" type="text" maxlength="200" aria-label="Custom delay reason">
+          <h4 data-i18n="instpipe_section_title">Complete the installation — customer + stock</h4>
+          <p class="install-tracker-note" data-i18n="instpipe_section_hint">On marking installed, the customer record is created (or the linked one updated) and the stock used below is deducted from the Stock Book. Leave a quantity 0 when that item was not used.</p>
+          <label for="installMarkConnectionFee" data-i18n="instpipe_connection_fee">Connection fee (PKR — optional)</label>
+          <input id="installMarkConnectionFee" class="form-input" type="number" min="0" step="any" inputmode="decimal" aria-label="Connection fee">
+          <label for="installMarkRouterModel" data-i18n="instpipe_router_model">Router model (optional)</label>
+          <input id="installMarkRouterModel" class="form-input" type="text" maxlength="100" aria-label="Router model">
+          <label for="installMarkRouterPrice" data-i18n="instpipe_router_price">Router price (PKR — optional)</label>
+          <input id="installMarkRouterPrice" class="form-input" type="number" min="0" step="any" inputmode="decimal" aria-label="Router price">
+          <label for="installMarkFiberMeters" data-i18n="instpipe_fiber_meters">Fiber drop used (meters — also deducted from stock)</label>
+          <input id="installMarkFiberMeters" class="form-input" type="number" min="0" step="any" inputmode="decimal" aria-label="Fiber meters used">
+          <label for="installMarkRouterQty" data-i18n="instpipe_router_qty">Routers used (stock out)</label>
+          <input id="installMarkRouterQty" class="form-input" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="Routers used">
+          <label for="installMarkMediaQty" data-i18n="instpipe_media_qty">Media converters used (stock out)</label>
+          <input id="installMarkMediaQty" class="form-input" type="number" min="0" step="1" inputmode="numeric" value="0" aria-label="Media converters used">
           <button class="action-btn-sm daily-slip-btn" type="submit">✅ Installed mark karein</button>
         </form>
         <h3>Request log</h3>

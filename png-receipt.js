@@ -98,6 +98,10 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (receipt.concessionAmount > 0) financial.push({ label: 'Outage Concession / رعایت', value: `-${money(receipt.concessionAmount)}` });
   // SISP-40: the hamsaya referral credit line, next to the concession.
   if (receipt.referralCreditAmount > 0) financial.push({ label: 'Referral Credit / ہمسایہ ریفرل', value: `-${money(receipt.referralCreditAmount)}` });
+  // SISP-43: billed ticket charges this payment settled, one line each.
+  for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
+    financial.push({ label: `Murammat / Material Charge (${line.ticketId})`, value: money(line.amount) });
+  }
   financial.push({ label: 'Amount Paid / Wusool Paya', value: money(receipt.paidAmount), strong: true });
   financial.push({ label: 'Payment Method / طریقہ', value: method || '—' });
   const grossRemaining = breakdown

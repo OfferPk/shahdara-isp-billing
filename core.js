@@ -689,8 +689,44 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
 
+// SISP-43: a payment can settle billed field-ticket charges (SISP-12) as
+// part of the same cash receipt. The settled lines ride the payment as
+// data — `ticketCharges: [{ ticketId, amount }]` — like the SISP-34
+// clearedWaada stamp: the ledger records WHAT the cash settled, while
+// the ticket side (complaint-tickets.js) owns the charge flags. The
+// ticket portion of a payment is NOT bill money: the allocation engine
+// never applies it to a bill and never turns it into advance credit, so
+// one combined payment can neither clear a bill twice nor manufacture
+// prepaid credit out of a repair charge.
+const TICKET_CHARGE_ID_RE = /^TKT-\d+$/;
+export function sanitizeTicketChargeLines(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error('Ticket charge lines must be a list.');
+  if (value.length > 20) throw new Error('Too many ticket charge lines on one payment.');
+  const seen = new Set();
+  const lines = [];
+  for (const entry of value) {
+    const ticketId = typeof entry?.ticketId === 'string' ? entry.ticketId.trim() : '';
+    if (!TICKET_CHARGE_ID_RE.test(ticketId)) throw new Error('A ticket charge line needs a ticket id like TKT-101.');
+    if (seen.has(ticketId)) throw new Error(`Ticket charge ${ticketId} is listed twice on one payment.`);
+    seen.add(ticketId);
+    const amount = Number(entry?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('A ticket charge amount must be greater than zero.');
+    lines.push({ ticketId, amount: Math.round(amount * 100) / 100 });
+  }
+  return lines;
+}
+/** Stored stamp lines of a payment ([] when absent or unreadable). */
+export function ticketChargeLinesOf(payment) {
+  try { return sanitizeTicketChargeLines(payment?.ticketCharges); } catch { return []; }
+}
+/** The ticket-charge portion of a payment, in cents. */
+export function paymentTicketChargeCents(payment) {
+  return ticketChargeLinesOf(payment).reduce((sum, line) => sum + moneyCents(line.amount), 0);
+}
+
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -716,10 +752,16 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   }
   const cleanReason = String(discountReason ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (cleanReason.length > 100) throw new Error('Discount reason must be 100 characters or fewer.');
+  // SISP-43: settled ticket-charge lines ride the payment (see above).
+  // The settled total can never exceed the cash actually collected.
+  const ticketChargeLines = sanitizeTicketChargeLines(ticketCharges);
+  const ticketChargeTotalCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+  if (ticketChargeTotalCents > Math.round(cents * 100)) throw new Error('Ticket charges on a payment cannot exceed the amount collected.');
   return {
     date,
     amount: cents,
     method,
+    ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
     ...(payer ? { paidBy:payer } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -906,17 +948,35 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // correction must never silently drop an existing verification.
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified
   };
-  const payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  // SISP-43: a correction restates the receipt, never its ticket-charge
+  // settlement — the stamp is carried over verbatim, and the corrected
+  // amount must still cover the settled charges. Anything else has to
+  // void and re-record, so the ticket side can reopen cleanly.
+  const settledTicketCharges = ticketChargeLinesOf(existingPayment);
+  if (settledTicketCharges.length > 0) {
+    if (moneyCents(payment.amount) <= settledTicketCharges.reduce((sum, line) => sum + moneyCents(line.amount), 0)) {
+      throw new Error('This payment settled ticket charges. Void it and record a fresh payment to change the amount.');
+    }
+    payment = { ...payment, ticketCharges: settledTicketCharges };
+  }
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId);
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }
 
-export function deletePayment(state, customerId, month, paymentId, referenceDate = new Date()) {
+export function deletePayment(state, customerId, month, paymentId, referenceDate = new Date(), options = {}) {
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
   if (!bill?.payments.some(payment => payment.id === paymentId)) throw new Error('Payment not found.');
   // SISP-34: deleting a voided row would erase the void audit trail.
   if (bill.payments.find(payment => payment.id === paymentId)?.voided === true) throw new Error('Cannot delete a voided payment. Voided receipts are kept as history.');
+  // SISP-43: deleting a payment that settled ticket charges would leave
+  // the tickets marked paid with no cash behind them. The quick-collect
+  // undo reopens the charges first and passes ticketChargesReverted;
+  // every other caller must void instead (voiding reopens them too).
+  if (ticketChargeLinesOf(bill.payments.find(payment => payment.id === paymentId)).length > 0 && options?.ticketChargesReverted !== true) {
+    throw new Error('This payment settled a ticket charge. Void it instead so the ticket charge reopens.');
+  }
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
     ...c,
     bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.filter(payment => payment.id !== paymentId) })
@@ -1354,11 +1414,15 @@ export function calculatePaymentAllocations(state) {
         // report and the dashboard pending-credit total.
         for (const payment of payments) {
           const amountCents = moneyCents(payment.amount);
-          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:amountCents, unappliedCreditCents:0, billUnpriced:true };
+          // SISP-43: the ticket-charge portion of the receipt is consumed
+          // by the tickets — only the rest is unused credit here.
+          const ticketChargeCents = paymentTicketChargeCents(payment);
+          const creditCents = Math.max(0, amountCents - ticketChargeCents);
+          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents };
           byPaymentId.set(payment.id, paymentLedger);
-          if (amountCents > 0) {
-            summary.excessGeneratedCents += amountCents;
-            pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:amountCents });
+          if (creditCents > 0) {
+            summary.excessGeneratedCents += creditCents;
+            pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:creditCents });
           }
         }
         continue;
@@ -1389,8 +1453,13 @@ export function calculatePaymentAllocations(state) {
       let sameMonthReceiptCapacityCents = dueRemainingCents;
       for (const payment of payments) {
         const amountCents = moneyCents(payment.amount);
+        // SISP-43: only the bill portion of the receipt can settle this
+        // bill or become credit — the ticket-charge portion is already
+        // spent on the tickets named in the payment's stamp.
+        const ticketChargeCents = paymentTicketChargeCents(payment);
+        const billPortionCents = Math.max(0, amountCents - ticketChargeCents);
         const discountCents = moneyCents(payment.discount || 0);
-        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false };
+        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents };
         byPaymentId.set(payment.id, paymentLedger);
 
         const appliedDiscountCents = Math.min(discountCents, sameMonthReceiptCapacityCents);
@@ -1401,14 +1470,14 @@ export function calculatePaymentAllocations(state) {
           dueRemainingCents -= appliedDiscountCents;
         }
 
-        const appliedCents = Math.min(amountCents, sameMonthReceiptCapacityCents);
+        const appliedCents = Math.min(billPortionCents, sameMonthReceiptCapacityCents);
         if (appliedCents > 0) {
           paymentLedger.allocations.push({ month:bill.month, amountCents:appliedCents, kind:'same-month' });
           summary.sameMonthAppliedCents += appliedCents;
           sameMonthReceiptCapacityCents -= appliedCents;
           dueRemainingCents -= appliedCents;
         }
-        const excessCents = amountCents - appliedCents;
+        const excessCents = billPortionCents - appliedCents;
         if (excessCents > 0) {
           paymentLedger.excessCents = excessCents;
           summary.excessGeneratedCents += excessCents;

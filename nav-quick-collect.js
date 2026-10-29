@@ -58,6 +58,109 @@ import {
 export const QUICK_COLLECT_STORAGE_KEY = 'shahdara_quick_collect_last_used_v1';
 export const QUICK_COLLECT_AUDIT_KEY = 'shahdara_quick_collect_audits_v1';
 
+// ------------------------------------------------------ Payment proof image --
+// Owner feature (2026-10-29): a payment can carry ONE proof screenshot —
+// the wallet receipt image the customer sent, attached by the operator at
+// save time and kept on the payment record (payment.screenshot). The
+// ledger lives in localStorage under the storage-safety quota guard
+// (SAVE_SIZE_WARN_BYTES = 4 MB), so a raw 1-4 MB phone screenshot must
+// NEVER be stored as picked: every proof is downscaled + recompressed
+// here first, and the stored data URL is capped at
+// PAYMENT_PROOF_MAX_DATA_URL_LENGTH characters (~200 KB — small enough
+// that many proofs fit before the guard warns, and comfortably inside
+// the 350,000-char outer sanitize ceiling validatePayment applies to
+// records that arrived by any path). The ladder tries the full 1024 px
+// size first, steps JPEG quality down, then the dimension down, until
+// the data URL fits; if nothing fits it refuses with a 'proof-too-large'
+// coded error and nothing is stored. Receipt PNGs are generated, never
+// stored — this is the only image the ledger keeps.
+export const PAYMENT_PROOF_MAX_DIMENSION = 1024;
+export const PAYMENT_PROOF_MAX_DATA_URL_LENGTH = 200_000;
+export const PAYMENT_PROOF_DIMENSION_STEPS = [1024, 832, 640, 512];
+export const PAYMENT_PROOF_QUALITY_STEPS = [0.82, 0.7, 0.58, 0.46, 0.34];
+
+/** Pure: fit (width, height) inside maxDimension on the longest side; never upscales. */
+export function planPaymentProofSize(width, height, maxDimension = PAYMENT_PROOF_MAX_DIMENSION) {
+  const w = Number(width);
+  const h = Number(height);
+  const max = Number(maxDimension);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0 || !Number.isFinite(max) || max <= 0) return null;
+  const scale = Math.min(1, max / Math.max(w, h));
+  return { width: Math.max(1, Math.round(w * scale)), height: Math.max(1, Math.round(h * scale)) };
+}
+
+/** Pure: the stored-proof shape rule — an image data URL within the storage cap. */
+export function isPaymentProofDataUrl(value, maxLength = PAYMENT_PROOF_MAX_DATA_URL_LENGTH) {
+  return typeof value === 'string' && value.startsWith('data:image/') && value.length <= maxLength;
+}
+
+function proofTooLargeError() {
+  const error = new Error('Payment proof image could not be shrunk enough to store safely.');
+  error.code = 'proof-too-large';
+  return error;
+}
+
+// Browser defaults for the compression pipeline, behind injectable deps
+// so the ladder itself is unit-testable in Node with fakes (no DOM).
+async function decodeProofImageDefault(source) {
+  if (typeof createImageBitmap === 'function') {
+    try { return await createImageBitmap(source); } catch { /* fall through to <img> decode */ }
+  }
+  const url = URL.createObjectURL(source);
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+    return img;
+  } finally { URL.revokeObjectURL(url); }
+}
+function drawProofCanvasDefault(image, width, height) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(image, 0, 0, width, height);
+  return canvas;
+}
+function encodeProofJpegDefault(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) { reject(new Error('Could not encode payment proof image.')); return; }
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Could not read payment proof image.'));
+      reader.readAsDataURL(blob);
+    }, 'image/jpeg', quality);
+  });
+}
+
+/**
+ * Downscale + recompress a picked image into a storable proof data URL
+ * (the cap ladder above). Resolves with a string accepted by
+ * isPaymentProofDataUrl; rejects with a 'proof-too-large' coded error
+ * when even the smallest ladder step cannot fit the cap.
+ */
+export async function compressPaymentProofImage(source, deps = {}) {
+  const decodeImage = deps.decodeImage ?? decodeProofImageDefault;
+  const drawCanvas = deps.drawCanvas ?? drawProofCanvasDefault;
+  const encodeJpeg = deps.encodeJpeg ?? encodeProofJpegDefault;
+  const image = await decodeImage(source);
+  const srcWidth = Number(image?.width ?? image?.naturalWidth);
+  const srcHeight = Number(image?.height ?? image?.naturalHeight);
+  try {
+    for (const maxDimension of PAYMENT_PROOF_DIMENSION_STEPS) {
+      const plan = planPaymentProofSize(srcWidth, srcHeight, maxDimension);
+      if (!plan) break;
+      const canvas = drawCanvas(image, plan.width, plan.height);
+      for (const quality of PAYMENT_PROOF_QUALITY_STEPS) {
+        const dataUrl = await encodeJpeg(canvas, quality);
+        if (isPaymentProofDataUrl(dataUrl)) return dataUrl;
+      }
+    }
+  } finally {
+    if (typeof image?.close === 'function') { try { image.close(); } catch { /* already released */ } }
+  }
+  throw proofTooLargeError();
+}
+
 /**
  * Returns current date formatted as YYYY-MM-DD in Pakistan Standard Time (PKT).
  * @param {Date} [date=new Date()]
@@ -1022,22 +1125,26 @@ export function setupQuickCollectModal({
     }
   }
 
-  // Handle screenshot upload & preview
-  screenshotInput?.addEventListener('change', (e) => {
+  // Handle screenshot upload & preview: the picked image is downscaled +
+  // recompressed to the storable proof cap BEFORE it is kept — a raw
+  // phone screenshot would blow the ledger's storage quota. A pick that
+  // cannot be shrunk enough is refused with a message and nothing is
+  // stored (the old flat 1 MB pick rejection is gone: big originals
+  // are welcome, only the stored copy is small).
+  screenshotInput?.addEventListener('change', async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1024 * 1024) {
-      if (typeof onToast === 'function') onToast('Screenshot image must be under 1 MB.');
-      screenshotInput.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      currentScreenshotDataUrl = ev.target?.result || '';
+    try {
+      currentScreenshotDataUrl = await compressPaymentProofImage(file);
       if (screenshotPreview) screenshotPreview.src = currentScreenshotDataUrl;
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = false;
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      currentScreenshotDataUrl = '';
+      screenshotInput.value = '';
+      if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
+      if (screenshotPreview) screenshotPreview.src = '';
+      if (typeof onToast === 'function') onToast(t('proof_too_large'));
+    }
   });
 
   removeScreenshotBtn?.addEventListener('click', () => {

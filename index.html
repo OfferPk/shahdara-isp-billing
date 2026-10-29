@@ -20338,6 +20338,24 @@
     </div>
   </dialog>
 
+  <!-- Owner feature 2026-10-29: Payment proof viewer — opened from a
+       payment row (profile history / Transactions) whose payment carries
+       an attached proof screenshot (payment.screenshot, stored compressed
+       at save time). Read-only: proofs are audit evidence, like voided
+       receipts, so there is no edit/remove path here. -->
+  <dialog id="paymentProofDialog" class="billing-modal payment-proof-dialog" aria-labelledby="paymentProofDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="paymentProofDialogTitle" data-i18n="proof_dialog_title">Payment proof</h2>
+        <button id="paymentProofCloseBtn" class="secondary-button" type="button" aria-label="Close payment proof dialog">✕</button>
+      </header>
+      <div class="billing-modal-body">
+        <p id="paymentProofMeta" class="field-help"></p>
+        <img id="paymentProofImage" class="payment-proof-full" alt="">
+      </div>
+    </div>
+  </dialog>
+
   <!-- Area-Wise Collections & Recovery Performance Modal Dialog -->
   <!-- Owner feature 2026-10-29: Advance holders dialog — opened from the
        Home "Advance Held" KPI card; lists every customer whose advance

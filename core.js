@@ -1184,7 +1184,13 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     targetMonth: fields.targetMonth !== undefined ? fields.targetMonth : existingPayment.targetMonth,
     // SISP-21: a correction form carries no verification toggle, so a
     // correction must never silently drop an existing verification.
-    walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified
+    walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
+    // Payment proof screenshot: the correction form carries no proof
+    // picker either, so a correction must never silently drop an
+    // attached proof (same rule as walletVerified above). Proofs are
+    // attached at save time; there is deliberately no replace/remove
+    // path short of voiding and re-recording the payment.
+    screenshot: fields.screenshot !== undefined ? fields.screenshot : existingPayment.screenshot
   };
   let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   // SISP-43: a correction restates the receipt, never its ticket-charge
@@ -2215,7 +2221,16 @@ function validateBackupState(source) {
       const payments = bill.payments.map(payment => {
         if (!payment || typeof payment.id !== 'string' || !payment.id || paymentIds.has(payment.id)) throw new Error(`Backup has a missing or duplicate payment ID for ${bill.month}.`);
         paymentIds.add(payment.id);
-        return { ...payment, ...validatePayment(payment) };
+        const validatedPayment = validatePayment(payment);
+        const mergedPayment = { ...payment, ...validatedPayment };
+        // The raw spread resurrects any field validatePayment chose to
+        // OMIT as invalid. For the proof screenshot that must not
+        // happen: a wrong-typed proof in a backup is dropped here, not
+        // carried into the ledger. (Other omitted fields keep the
+        // historical spread behaviour — void stamps and later fields
+        // ride this spread on purpose.)
+        if (!('screenshot' in validatedPayment)) delete mergedPayment.screenshot;
+        return mergedPayment;
       });
       for (const correction of bill.amountHistory ?? []) {
         if (!correction || typeof correction !== 'object') throw new Error(`Backup bill ${bill.month} has an invalid amount correction.`);

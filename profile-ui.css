@@ -82,3 +82,34 @@
   border-color: var(--green);
 }
 .profile-name-editor .form-error { flex-basis: 100%; margin: 0; }
+
+/* Payment proof (owner feature 2026-10-29): the thumbnail button on a
+   payment row and the full-size image inside the proof viewer dialog
+   (the dialog shell itself is .billing-modal → var(--modal-surface),
+   so both themes stay correct; only theme tokens are used here). */
+.proof-thumb-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  line-height: 0;
+}
+.payment-proof-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: calc(var(--radius-sm) - 2px);
+  display: block;
+}
+.payment-proof-full {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+}

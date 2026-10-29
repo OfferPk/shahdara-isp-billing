@@ -26,15 +26,16 @@ test('profile tabs: month summary renders as stat cells, not bare rows', () => {
 test('profile tabs: month forms use form-cell wrappers, all fields kept', () => {
   const cells = appJs.match(/<div class="form-cell">/g) || [];
   // Bill form: amount + due date = 2; payment form: amount, method,
-  // paid-by, date, txn id, discount = 6.
-  assert.equal(cells.length, 8, `expected 8 form-cell wrappers, found ${cells.length}`);
+  // paid-by, date, txn id, discount = 6 — plus the payment-proof file
+  // field added by the 2026-10-29 proof-screenshot feature = 7.
+  assert.equal(cells.length, 9, `expected 9 form-cell wrappers, found ${cells.length}`);
   for (const name of ['name="dueAmount"', 'name="dueDate"', 'name="packageId"',
     'name="amount"', 'name="method"', 'name="paidBy"', 'name="date"',
-    'name="transactionId"', 'name="discount"', 'name="discountReason"']) {
+    'name="transactionId"', 'name="proofScreenshot"', 'name="discount"', 'name="discountReason"']) {
     assert.ok(appJs.includes(name), `month form lost field ${name}`);
   }
   for (const id of ['due-', 'due-date-', 'package-', 'amount-', 'method-',
-    'paid-by-', 'date-', 'txnid-', 'discount-', 'discount-reason-']) {
+    'paid-by-', 'date-', 'txnid-', 'proof-', 'discount-', 'discount-reason-']) {
     assert.ok(appJs.includes(id), `month form lost id prefix ${id}`);
   }
   // phase 3: month-form labels render via t() (English values pinned in urdu-auto-phase3.test.js)

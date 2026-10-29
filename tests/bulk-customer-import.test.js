@@ -1,0 +1,143 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createInitialState, addCustomer } from '../core.js';
+import {
+  normalizePhonePlus92, phoneNationalKey, parseBulkImportText,
+  computeBulkStatuses, summarizeBulkRows, importBulkCustomers
+} from '../bulk-customer-import.js';
+
+const URDU_RE = /[\u0600-\u06FF]/;
+
+test('SISP-53: +92 phone normalization collapses every local form to one value', () => {
+  assert.equal(normalizePhonePlus92('03001234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92('0300 1234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92('0300-1234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92('+923001234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92('+92 300 1234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92('00923001234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92('923001234567'), '+923001234567');
+  assert.equal(normalizePhonePlus92(''), '');
+  assert.equal(normalizePhonePlus92('12345'), '');
+  assert.equal(normalizePhonePlus92('02134567890'), '');
+  assert.equal(phoneNationalKey('03001234567'), '3001234567');
+  assert.equal(phoneNationalKey('+923001234567'), '3001234567');
+});
+
+test('SISP-53: Excel TSV paste with a header row maps columns in any order', () => {
+  const text = 'Name\tConnection ID\tFee\tPhone\tPackage\tArea\n' +
+    'ALI KHAN\t101\t3000\t03001234567\t15Mbps Unlimited\tBARRIAN\n' +
+    'SAIM RAZA\t102\t1500\t+923214567890\t5Mbps / 150GB\tPALALIYAA';
+  const { rows, header, delimiter } = parseBulkImportText(text);
+  assert.equal(header, true);
+  assert.equal(delimiter, '\t');
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].connectionId, 101);
+  assert.equal(rows[0].name, 'ALI KHAN');
+  assert.equal(rows[0].phone, '+923001234567');
+  assert.equal(rows[0].packageId, '15mbps-unlimited');
+  assert.equal(rows[0].fee, 3000);
+  assert.equal(rows[0].area, 'BARRIAN');
+  assert.match(rows[0].urduName, URDU_RE);
+  assert.equal(rows[1].packageId, '5mbps-150gb');
+});
+
+test('SISP-53: CSV header row, quoted cells, and Rs-formatted fees parse', () => {
+  const text = 'Connection ID,Name,Phone,Package,Fee,Area\n' +
+    '201,"Raza, Ali",03001112233,15Mbps Unlimited,"Rs 3,000",Shahdara\n' +
+    '202,Usman,03215550001,5mbps,1500,';
+  const { rows, header } = parseBulkImportText(text);
+  assert.equal(header, true);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].name, 'Raza, Ali');
+  assert.equal(rows[0].fee, 3000);
+  assert.equal(rows[0].phone, '+923001112233');
+  assert.equal(rows[1].fee, 1500);
+});
+
+test('SISP-53: headerless register paste takes Connection ID first when numeric', () => {
+  const { rows, header } = parseBulkImportText('301\tBILAL\t03001234567\t5Mbps / 150GB\t1500\tBARRIAN');
+  assert.equal(header, false);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].connectionId, 301);
+  assert.equal(rows[0].name, 'BILAL');
+  assert.equal(rows[0].phone, '+923001234567');
+});
+
+test('SISP-53: duplicate Connection ID and duplicate phone (any format) are flagged, never importable', () => {
+  let state = createInitialState([]);
+  state = addCustomer(state, 'EXISTING ONE', new Date(), { phone: '03001234567' });
+  const existingNo = state.customers[0].customerNumber;
+  const text = 'Connection ID,Name,Phone,Package,Fee,Area\n' +
+    `${existingNo},COPY ID,03215550001,5mbps,1500,\n` +
+    '999,COPY PHONE,+923001234567,5mbps,1500,\n' +
+    '998,OK ROW,03009998877,5mbps,1500,';
+  const { rows } = parseBulkImportText(text);
+  const statuses = computeBulkStatuses(rows, state.customers);
+  assert.equal(statuses[0].status, 'duplicate-connection');
+  assert.equal(statuses[0].included, false);
+  assert.match(statuses[0].detail, /already belongs/);
+  assert.equal(statuses[1].status, 'duplicate-phone');
+  assert.equal(statuses[1].included, false);
+  assert.equal(statuses[2].status, 'ok');
+  assert.equal(statuses[2].included, true);
+});
+
+test('SISP-53: same Connection ID twice in one paste flags the second row', () => {
+  const { rows } = parseBulkImportText('Connection ID,Name,Phone,Package,Fee\n555,ONE,03001111111,5mbps,1500\n555,TWO,03002222222,5mbps,1500');
+  const statuses = computeBulkStatuses(rows, []);
+  assert.equal(statuses[0].status, 'ok');
+  assert.equal(statuses[1].status, 'duplicate-connection');
+  assert.match(statuses[1].detail, /line 2|Same Connection ID as line/);
+});
+
+test('SISP-53: invalid phone and missing name are errors, missing fee is tickable', () => {
+  const { rows } = parseBulkImportText('Connection ID,Name,Phone,Package,Fee\n1,BAD PHONE,12345,5mbps,1500\n2,,03001111111,5mbps,1500\n3,NOFEE,03002222222,5mbps,');
+  const statuses = computeBulkStatuses(rows, []);
+  assert.equal(statuses[0].status, 'error');
+  assert.equal(statuses[0].included, false);
+  assert.equal(statuses[1].status, 'error');
+  assert.equal(statuses[2].status, 'missing-fee');
+  assert.equal(statuses[2].included, false);
+  const ticked = computeBulkStatuses(rows.map(r => (r.line === 4 ? { ...r, include: true } : r)), []);
+  assert.equal(ticked[2].included, true);
+  assert.deepEqual(summarizeBulkRows(statuses), { total: 3, ready: 0, skipped: 3, attention: 3, duplicates: 0 });
+});
+
+test('SISP-53 spec criterion: 5 valid CSV rows + 1 duplicate Connection ID row imports 5 with Urdu names and flags the 1 duplicate, without crashing', () => {
+  let state = createInitialState([]);
+  state = addCustomer(state, 'REGISTER OWNER', new Date(), { phone: '03000000000' });
+  const taken = state.customers[0].customerNumber;
+  const csv = 'Connection ID,Name,Phone,Package,Fee,Area\n' +
+    '101,ALI KHAN,03001234567,15Mbps Unlimited,3000,BARRIAN\n' +
+    '102,SAIM RAZA,03214567890,5Mbps / 150GB,1500,PALALIYAA\n' +
+    '103,BILAL AHMED,03331234567,5Mbps / 200GB,2000,CHARYAA\n' +
+    '104,USMAN GHANI,03451234567,3Mbps / 100GB,1000,GANGALL\n' +
+    '105,HAMZA TARIQ,03019876543,5Mbps / 500GB,2500,MALLA\n' +
+    `${taken},DUPLICATE ID,03001112233,5Mbps / 150GB,1500,BARRIAN`;
+  const { rows } = parseBulkImportText(csv);
+  assert.equal(rows.length, 6);
+  const statuses = computeBulkStatuses(rows, state.customers);
+  assert.equal(statuses.filter(s => s.status === 'ok').length, 5);
+  assert.equal(statuses[5].status, 'duplicate-connection');
+  assert.equal(statuses[5].included, false);
+  const res = importBulkCustomers(state, statuses, { referenceDate: new Date('2026-10-29T12:00:00') });
+  assert.equal(res.added, 5);
+  assert.equal(res.skipped, 1);
+  const added = res.nextState.customers.filter(c => res.addedIds.includes(c.id));
+  assert.deepEqual(added.map(c => c.customerNumber), [101, 102, 103, 104, 105]);
+  for (const c of added) assert.match(c.nameUrdu, URDU_RE, `${c.name} should carry an Urdu name`);
+  assert.ok(added.every(c => c.phone.startsWith('+92')));
+  assert.equal(res.nextState.customers.some(c => c.name === 'DUPLICATE ID'), false);
+});
+
+test('SISP-53: requested Connection ID in core is honoured when free, rejected when taken, and never rewinds nextCustomerNumber', () => {
+  let state = createInitialState([]);
+  state = addCustomer(state, 'FIRST', new Date(), {});
+  assert.equal(state.customers[0].customerNumber, 1);
+  state = addCustomer(state, 'GAP FILL', new Date(), { requestedCustomerNumber: 7 });
+  assert.equal(state.customers[1].customerNumber, 7);
+  assert.ok(state.nextCustomerNumber > 7);
+  assert.throws(() => addCustomer(state, 'CLASH', new Date(), { requestedCustomerNumber: 7 }), /already in use/);
+  state = addCustomer(state, 'NEXT', new Date(), {});
+  assert.equal(state.customers[2].customerNumber, 8);
+});

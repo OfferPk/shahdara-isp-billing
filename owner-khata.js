@@ -32,12 +32,41 @@
  * as such wherever shown; no category list is hardcoded into the totals.
  * The full category breakdown is always shown alongside it, so nothing is
  * hidden behind the keyword match.
+ *
+ * SISP-51 (Closing 2.0) extends the same report — SISP-20 records and
+ * snapshots are untouched — with two additions, both reused, never
+ * recomputed in a parallel path:
+ *
+ * - Collection channel split (collectionChannels): every payment in the
+ *   partner report's own enumeration (phase3.js paymentEntries — the
+ *   same set whose amounts sum to `collected`) is classified into
+ *   exactly one channel: a shop channel when SISP-1's
+ *   resolveShopCollector recognises the method/paidBy (Waseem Abbasi
+ *   Shop, Hassan Shop, Balla Shop, or any data-derived "Cash at X shop"
+ *   collector), a wallet channel for SISP-21 digital wallet methods
+ *   (canonical labels from wallet-reconciliation.js), and Direct Cash
+ *   for everything else (plain Cash and any legacy/custom method), so
+ *   the split always sums to the collected total. The partner basis
+ *   counts receipts by payment date with no void exclusion, so the
+ *   split follows the same basis to stay consistent with `collected`.
+ * - Closing cash-in-hand (closingCashInHand): the month-end cash
+ *   drawer balance from SISP-11's roznamcha — buildMonthEndCashInHand
+ *   (roznamcha.js) over the day records passed in as
+ *   inputs.roznamchaDays, anchored on the latest closed day with the
+ *   still-open days rolled forward.
  */
 
-import { buildPartnerShareReport, outstandingAtMonthEnd } from './phase3.js';
+import { buildPartnerShareReport, outstandingAtMonthEnd, paymentEntries } from './phase3.js';
 import { buildMonthlyDowntimeAnalytics } from './downtime-analytics.js';
 import { loadComplaints, pakistanMonthNow } from './complaint-register.js';
-import { loadShopSettlements } from './shop-settlement.js';
+import { loadShopSettlements, resolveShopCollector } from './shop-settlement.js';
+import {
+  DIGITAL_BREAKDOWN_METHODS,
+  canonicalWalletLabel,
+  isDigitalWalletMethod
+} from './wallet-reconciliation.js';
+import { buildMonthEndCashInHand, loadRoznamchaDays } from './roznamcha.js';
+import { t } from './nav-language.js';
 import {
   getMonthlyClosingNote,
   loadMonthlyClosingNotes,
@@ -47,6 +76,68 @@ import {
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const BANDWIDTH_FIELD_RE = /nayapay|bandwidth|upstream|field/i;
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** SISP-51: channel label for money the owner collected directly. */
+export const DIRECT_CASH_CHANNEL = 'Direct Cash';
+
+/** Same month basis as phase3.js revenue: the payment DATE's YYYY-MM. */
+function monthOfPaymentDate(value) {
+  return typeof value === 'string' && DATE_KEY_RE.test(value) ? value.slice(0, 7) : '';
+}
+
+/**
+ * SISP-51: the one collection channel a payment belongs to. Shop first
+ * (SISP-1's resolver reads method + paidBy, so "Cash at Waseem shop" and
+ * a plain-Cash receipt paid by Hassan both land at their shop), then
+ * SISP-21 digital wallets, then Direct Cash for plain Cash and any
+ * legacy/custom method — every payment lands somewhere, so the split
+ * always sums to the partner report's collected total.
+ */
+export function classifyPaymentChannel(payment) {
+  const shop = resolveShopCollector(payment?.method, payment?.paidBy);
+  if (shop) return { channel: shop, kind: 'shop' };
+  if (isDigitalWalletMethod(payment?.method)) {
+    return { channel: canonicalWalletLabel(payment?.method), kind: 'wallet' };
+  }
+  return { channel: DIRECT_CASH_CHANNEL, kind: 'cash' };
+}
+
+/**
+ * SISP-51: the month's collections split by channel, over the partner
+ * report's own payment enumeration. Order: Direct Cash, shops by amount
+ * (highest first), then wallets in SISP-21 breakdown order.
+ */
+function buildCollectionChannels(state, month) {
+  const byKey = new Map();
+  for (const { payment } of paymentEntries(state)) {
+    if (!payment || typeof payment !== 'object') continue;
+    if (monthOfPaymentDate(payment.date) !== month) continue;
+    const { channel, kind } = classifyPaymentChannel(payment);
+    const key = `${kind}:${channel}`;
+    const entry = byKey.get(key) ?? { channel, kind, amount: 0, count: 0 };
+    entry.amount += Number(payment.amount || 0);
+    entry.count += 1;
+    byKey.set(key, entry);
+  }
+  const lines = [...byKey.values()];
+  const cash = lines.filter((line) => line.kind === 'cash');
+  const shops = lines
+    .filter((line) => line.kind === 'shop')
+    .sort((a, b) => b.amount - a.amount || a.channel.localeCompare(b.channel));
+  const wallets = DIGITAL_BREAKDOWN_METHODS
+    .map((label) => byKey.get(`wallet:${label}`))
+    .filter(Boolean);
+  const ordered = [...cash, ...shops, ...wallets];
+  // Defensive: a future channel kind must never be silently dropped.
+  for (const line of lines) if (!ordered.includes(line)) ordered.push(line);
+  return ordered.map((line) => ({
+    channel: line.channel,
+    kind: line.kind,
+    amount: wholeRupees(line.amount),
+    count: line.count
+  }));
+}
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -88,6 +179,7 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   const validMonth = MONTH_RE.test(String(month || '')) ? String(month) : '';
   const complaints = Array.isArray(inputs.complaints) ? inputs.complaints : [];
   const settlements = Array.isArray(inputs.settlements) ? inputs.settlements : [];
+  const roznamchaDays = Array.isArray(inputs.roznamchaDays) ? inputs.roznamchaDays : [];
   const notes = inputs.notes && typeof inputs.notes === 'object' ? inputs.notes : {};
   const savedSnapshot = inputs.savedSnapshot && typeof inputs.savedSnapshot === 'object'
     ? inputs.savedSnapshot
@@ -99,6 +191,7 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
       month: '', validMonth: false, collected: 0, receiptCount: 0,
       pendingArrears: 0, arrearsBillCount: 0, arrearsCutoff: '', arrearsPartial: false,
       shopSettled: 0, shopSettledCount: 0, shopSettledByShop: [],
+      collectionChannels: [], closingCashInHand: null,
       expenses: 0, expenseCount: 0, expenseCategories: [], bandwidthFieldExpenses: 0,
       profit: 0, isLoss: false, nasirShare: 0, aqibShare: 0,
       totalComplaints: 0, totalDowntime: 0, areaOutageComplaints: 0, areaOutageDowntime: 0,
@@ -132,6 +225,22 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   }
   const shopSettledByShop = [...shopMap.values()].sort((a, b) => b.amount - a.amount);
 
+  // SISP-51: collection channel split — the partner enumeration above,
+  // classified per payment, so the lines sum to `collected`.
+  const collectionChannels = buildCollectionChannels(state, validMonth);
+
+  // SISP-51: month-end closing cash-in-hand — the SISP-11 roznamcha
+  // drawer, anchored on its latest closed day (see roznamcha.js).
+  const drawer = buildMonthEndCashInHand(state, roznamchaDays, validMonth, settlements);
+  const closingCashInHand = drawer
+    ? {
+        balance: wholeRupees(drawer.balance),
+        monthEndDate: drawer.monthEndDate,
+        lastClosedDate: drawer.lastClosedDate,
+        monthEndClosed: drawer.monthEndClosed === true
+      }
+    : null;
+
   // Network reliability — reused verbatim from the downtime analytics.
   const network = buildMonthlyDowntimeAnalytics(complaints, validMonth);
 
@@ -147,6 +256,8 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     shopSettled: monthSettlements.reduce((sum, record) => sum + wholeRupees(record.amount), 0),
     shopSettledCount: monthSettlements.length,
     shopSettledByShop,
+    collectionChannels,
+    closingCashInHand,
     expenses: wholeRupees(summary.expenses),
     expenseCount: Number(summary.expenseCount || 0),
     expenseCategories,
@@ -188,6 +299,16 @@ export function buildOwnerKhataWhatsAppText(report) {
     `Nasir share (50%): ${formatPKR(report.nasirShare)} · Aqib share (50%): ${formatPKR(report.aqibShare)}`,
     `Complaints: ${report.totalComplaints} · Network Offline: ${report.totalDowntime} h (zone-wide: ${report.areaOutageComplaints} faults, ${report.areaOutageDowntime} h)`,
   ];
+  // SISP-51: channel split + closing cash-in-hand, right under the
+  // collected line (these two builders use fixed report language, like
+  // the rest of this summary — the modal UI carries the t() strings).
+  if (report.closingCashInHand) {
+    const cash = report.closingCashInHand;
+    lines.splice(2, 0, `Closing Cash-in-Hand (Roznamcha): ${formatPKR(cash.balance)}${cash.monthEndClosed ? ` · drawer band ${cash.monthEndDate}` : ' · expected (mahina abhi band nahi hua)'}`);
+  }
+  if (Array.isArray(report.collectionChannels) && report.collectionChannels.length) {
+    lines.splice(2, 0, `Channel Split: ${report.collectionChannels.map((c) => `${c.channel} ${formatPKR(c.amount)}`).join(' · ')}`);
+  }
   if (report.note) lines.push(`Owner note: ${report.note}`);
   lines.push('Ye report sirf khulasa hai — is se koi bill, payment ya khata tabdeel nahi hota.');
   return lines.join('\n');
@@ -202,6 +323,8 @@ export function buildOwnerKhataPrintHtml(report) {
     `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(String(row.count))}</td><td>${escapeHtml(formatPKR(row.amount))}</td></tr>`).join('');
   const shopRows = report.shopSettledByShop.map((row) =>
     `<tr><td>${escapeHtml(row.shop)}</td><td>${escapeHtml(String(row.count))}</td><td>${escapeHtml(formatPKR(row.amount))}</td></tr>`).join('');
+  const channelRows = (Array.isArray(report.collectionChannels) ? report.collectionChannels : []).map((row) =>
+    `<tr><td>${escapeHtml(row.channel)}</td><td>${escapeHtml(String(row.count))}</td><td>${escapeHtml(formatPKR(row.amount))}</td></tr>`).join('');
   const causeRows = report.topCauses.map((row) =>
     `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(String(row.incidents))}</td><td>${escapeHtml(String(row.totalDowntime))} h</td></tr>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Owner Khata Closing — ${escapeHtml(monthLabel(report.month))}</title><style>
@@ -223,6 +346,8 @@ export function buildOwnerKhataPrintHtml(report) {
   <div class="pair"><span>Nasir share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.nasirShare))}</strong></div>
   <div class="pair"><span>Aqib share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></div>
   ${shopRows ? `<h2>Shop cash settled by shop</h2><table><tr><th>Shop</th><th>Handovers</th><th>Amount</th></tr>${shopRows}</table>` : ''}
+  ${channelRows ? `<h2>Collections by channel</h2><table><tr><th>Channel</th><th>Receipts</th><th>Amount</th></tr>${channelRows}</table>` : ''}
+  ${report.closingCashInHand ? `<div class="pair"><span>Closing Cash-in-Hand (Roznamcha) — ${report.closingCashInHand.monthEndClosed ? `drawer closed ${escapeHtml(report.closingCashInHand.monthEndDate)}` : 'expected, month-end day not closed'}</span><strong>${escapeHtml(formatPKR(report.closingCashInHand.balance))}</strong></div>` : ''}
   ${categoryRows ? `<h2>Expenses by category</h2><table><tr><th>Category</th><th>Entries</th><th>Amount</th></tr>${categoryRows}</table>` : ''}
   <h2>Network reliability</h2>
   <div class="pair"><span>Total Complaints</span><strong>${escapeHtml(String(report.totalComplaints))}</strong></div>
@@ -253,6 +378,7 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
       complaints: loadComplaints(),
       settlements: loadShopSettlements(),
       notes: loadMonthlyClosingNotes(),
+      roznamchaDays: loadRoznamchaDays(),
       savedSnapshot
     });
   }
@@ -273,18 +399,28 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
         `<p><span>${escapeHtml(row.category)}</span><strong>${escapeHtml(formatPKR(row.amount))}</strong><small> · ${escapeHtml(String(row.count))} entries</small></p>`).join('');
       const causeLines = report.topCauses.map((row) =>
         `<p><span>${escapeHtml(row.category)}</span><strong>${escapeHtml(String(row.incidents))} faults · ${escapeHtml(String(row.totalDowntime))} h</strong></p>`).join('');
+      // SISP-51: channel split lines (shop names + wallet brands are
+      // ledger data and stay verbatim; only the Direct Cash label and
+      // the framing strings are translated) + closing cash-in-hand.
+      const channelLines = report.collectionChannels.map((row) =>
+        `<p><span>${escapeHtml(row.kind === 'cash' ? t('khata2_channel_direct_cash') : row.channel)}</span><strong>${escapeHtml(formatPKR(row.amount))}</strong><small> · ${escapeHtml(t(row.count === 1 ? 'khata2_receipt_sing' : 'khata2_receipt_plur', null, { count: row.count }))}</small></p>`).join('');
+      const cashInHandLine = report.closingCashInHand
+        ? `<p><span>${escapeHtml(t('khata2_cash_in_hand'))}</span><strong>${escapeHtml(formatPKR(report.closingCashInHand.balance))}</strong><small> · ${escapeHtml(report.closingCashInHand.monthEndClosed ? t('khata2_cash_closed_through', null, { date: report.closingCashInHand.monthEndDate }) : t('khata2_cash_expected'))}</small></p>`
+        : '';
       bodyEl.innerHTML = `
         <article class="owner-khata-section"><h3>Financials</h3>
           <p><span>Total Bills Collected</span><strong>${escapeHtml(formatPKR(report.collected))}</strong><small> · ${escapeHtml(String(report.receiptCount))} receipts</small></p>
           <p><span>Pending Arrears</span><strong>${escapeHtml(formatPKR(report.pendingArrears))}</strong><small> · ${escapeHtml(String(report.arrearsBillCount))} bills · through ${escapeHtml(report.arrearsCutoff || 'month end')}${report.arrearsPartial ? ' (month still open)' : ''}</small></p>
           <p><span>Shop Cash Settled</span><strong>${escapeHtml(formatPKR(report.shopSettled))}</strong><small> · ${escapeHtml(String(report.shopSettledCount))} handovers</small></p>
           ${shopLines}
+          ${channelLines ? `<p><span>${escapeHtml(t('khata2_channels_title'))}</span></p>${channelLines}` : ''}
           <p><span>Expenses</span><strong>${escapeHtml(formatPKR(report.expenses))}</strong><small> · ${escapeHtml(String(report.expenseCount))} entries</small></p>
           <p><span>NayaPay Bandwidth + Field Expenses</span><strong>${escapeHtml(formatPKR(report.bandwidthFieldExpenses))}</strong><small> · keyword-matched categories</small></p>
           ${categoryLines}
           <p><span>Net Profit${report.isLoss ? ' (loss)' : ''}</span><strong>${escapeHtml(formatPKR(report.profit))}</strong></p>
           <p><span>Nasir share (50%)</span><strong>${escapeHtml(formatPKR(report.nasirShare))}</strong></p>
           <p><span>Aqib share (50%)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></p>
+          ${cashInHandLine}
         </article>
         <article class="owner-khata-section"><h3>Network reliability</h3>
           <p><span>Total Complaints</span><strong>${escapeHtml(String(report.totalComplaints))}</strong></p>

@@ -236,7 +236,9 @@ function uniqueBillsForCustomer(customer) {
   }
   return [...byMonth.values()].map(entry=>entry.bill);
 }
-function paymentEntries(state) { return allBills(state).flatMap(({customer,bill})=>(bill.payments??[]).map(payment=>({customer,bill,payment}))); }
+// Exported for SISP-51: the Owner Khata channel split enumerates the exact
+// same payment set as partner revenue, so the split always sums to it.
+export function paymentEntries(state) { return allBills(state).flatMap(({customer,bill})=>(bill.payments??[]).map(payment=>({customer,bill,payment}))); }
 function allBills(state) { return uniqueCustomerRows(state.customers??[]).flatMap(customer=>uniqueBillsForCustomer(customer).map(bill=>({customer,bill}))); }
 function dateThrough(referenceDate,month) { const end=monthEnd(month); const today=pktDate(referenceDate); return end>today?today:end; }
 export function outstandingAtMonthEnd(state,month,referenceDate=new Date()) {

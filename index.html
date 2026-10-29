@@ -244,25 +244,37 @@
       </div>
       <div id="overheadsDueBanner" class="overheads-due-banner" role="alert" hidden></div>
       <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators" data-i18n-aria-label="dash_kpi_region_aria">
-        <div class="home-kpi-card kpi-card-today" id="kpiCardToday">
+        <div class="home-kpi-card kpi-card-today ds-stat ds-stat--paid" id="kpiCardToday">
+          <span class="ds-stat__icon" aria-hidden="true">💰</span>
+          <span class="ds-stat__body">
           <span class="home-kpi-label" data-i18n="dash_kpi_today">Today Collected</span>
           <strong id="kpiTodayCollection" class="home-kpi-val">PKR 0</strong>
           <span class="home-kpi-sub" data-i18n="dash_kpi_today_sub">Today's cash</span>
+          </span>
         </div>
-        <div class="home-kpi-card kpi-card-month" id="kpiCardMonth">
+        <div class="home-kpi-card kpi-card-month ds-stat ds-stat--info" id="kpiCardMonth">
+          <span class="ds-stat__icon" aria-hidden="true">📊</span>
+          <span class="ds-stat__body">
           <span class="home-kpi-label" data-i18n="dash_kpi_month">Month Collected / Billed</span>
           <strong id="kpiMonthCollectionBilled" class="home-kpi-val">PKR 0 / 0</strong>
           <span class="home-kpi-sub" id="kpiMonthRateSub">Current month</span>
+          </span>
         </div>
-        <div class="home-kpi-card kpi-card-dues" id="kpiCardDues">
+        <div class="home-kpi-card kpi-card-dues ds-stat ds-stat--overdue" id="kpiCardDues">
+          <span class="ds-stat__icon" aria-hidden="true">⚠️</span>
+          <span class="ds-stat__body">
           <span class="home-kpi-label" data-i18n="dash_kpi_dues">Total Dues</span>
           <strong id="kpiTotalDue" class="home-kpi-val">PKR 0</strong>
           <span class="home-kpi-sub" data-i18n="dash_kpi_dues_sub">Outstanding balance</span>
+          </span>
         </div>
-        <div class="home-kpi-card kpi-card-defaulters" id="kpiCardDefaulters">
+        <div class="home-kpi-card kpi-card-defaulters ds-stat ds-stat--pending" id="kpiCardDefaulters">
+          <span class="ds-stat__icon" aria-hidden="true">👥</span>
+          <span class="ds-stat__body">
           <span class="home-kpi-label" data-i18n="dash_kpi_defaulters">Customers with Dues</span>
           <strong id="kpiCustomersWithDues" class="home-kpi-val">0</strong>
           <span class="home-kpi-sub" data-i18n="dash_kpi_defaulters_sub">Pending accounts</span>
+          </span>
         </div>
       </div>
       <div class="home-primary-actions" id="homePrimaryActions" role="region" aria-label="Primary billing actions" data-i18n-aria-label="dash_actions_region_aria">
@@ -355,10 +367,10 @@
         </div>
       </section>
       <div class="summary-grid" aria-live="polite" aria-label="Live billing totals" data-i18n-aria-label="dash_summary_grid_aria">
-        <article class="summary-card summary-current-due"><p class="summary-label" data-i18n="dash_card_month_due">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
-        <article class="summary-card summary-total-due"><p class="summary-label" data-i18n="dash_card_total_due">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
-        <article class="summary-card summary-today-collection"><p class="summary-label" data-i18n="dash_card_today_coll">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
-        <article class="summary-card summary-daily-closing">
+        <article class="summary-card summary-current-due ds-stat ds-stat--pending"><span class="ds-stat__icon" aria-hidden="true">🧾</span><p class="summary-label" data-i18n="dash_card_month_due">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
+        <article class="summary-card summary-total-due ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">📋</span><p class="summary-label" data-i18n="dash_card_total_due">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
+        <article class="summary-card summary-today-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💰</span><p class="summary-label" data-i18n="dash_card_today_coll">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
+        <article class="summary-card summary-daily-closing ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">🧮</span>
           <div class="daily-closing-header">
             <p class="summary-label" data-i18n="dash_card_closing">Daily Register &amp; Closing</p>
             <span id="dashboardClosingStatusBadge" class="closing-badge badge-no-activity">No Activity</span>
@@ -372,7 +384,7 @@
             <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog" data-i18n="dash_btn_staff_perf">👥 Staff Performance</button>
           </div>
         </article>
-        <article class="summary-card summary-shop-settlement">
+        <article class="summary-card summary-shop-settlement ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_shop">🏪 Shop Cash Collection &amp; Handover</p>
           <strong id="dashboardShopSettlementValue" class="summary-value">No shop collections</strong>
           <p id="dashboardShopSettlementPeriod" class="summary-period">Unsettled cash sitting at shops</p>
@@ -381,7 +393,7 @@
             <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_shop_settlement">🏪 Shop Settlement</button>
           </div>
         </article>
-        <article class="summary-card summary-billing-cycle">
+        <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
           <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
           <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
@@ -390,7 +402,7 @@
             <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
           </div>
         </article>
-        <article class="summary-card summary-complaint-register">
+        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
           <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
           <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
           <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
@@ -399,7 +411,7 @@
             <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
           </div>
         </article>
-        <article class="summary-card summary-field-tickets">
+        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
           <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
           <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
           <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
@@ -408,7 +420,7 @@
             <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
           </div>
         </article>
-        <article class="summary-card summary-downtime-analytics">
+        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
           <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
           <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
@@ -418,7 +430,7 @@
           </div>
         </article>
 
-        <article class="summary-card summary-splitter-map">
+        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
           <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
           <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
@@ -428,7 +440,7 @@
           </div>
         </article>
 
-        <article class="summary-card summary-monthly-complaint-report">
+        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
           <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
           <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
@@ -438,7 +450,7 @@
           </div>
         </article>
 
-        <article class="summary-card summary-roznamcha">
+        <article class="summary-card summary-roznamcha ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_roznamcha">📒 Daily Roznamcha</p>
           <strong id="dashboardRoznamchaValue" class="summary-value">No drawer yet</strong>
           <p id="dashboardRoznamchaPeriod" class="summary-period">Cash drawer, shop handovers and petty expenses</p>
@@ -448,7 +460,7 @@
 
           </div>
         </article>
-        <article class="summary-card summary-inventory-book">
+        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
           <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
           <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
           <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
@@ -457,7 +469,7 @@
             <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
           </div>
         </article>
-        <article class="summary-card summary-outage-impact">
+        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
           <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
           <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
           <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
@@ -466,7 +478,7 @@
             <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
           </div>
         </article>
-        <article class="summary-card summary-saad-visits">
+        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
           <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
           <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
           <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
@@ -475,7 +487,7 @@
             <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
           </div>
         </article>
-        <article class="summary-card summary-install-tracker">
+        <article class="summary-card summary-install-tracker ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_install">📡 Installation Tracker</p>
           <strong id="dashboardInstallTrackerValue" class="summary-value">No requests yet</strong>
           <p id="dashboardInstallTrackerPeriod" class="summary-period">New connection requests &amp; install delays</p>
@@ -484,7 +496,7 @@
             <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_install">📡 Installation Tracker</button>
           </div>
         </article>
-        <article class="summary-card summary-pending-works">
+        <article class="summary-card summary-pending-works ds-stat ds-stat--pending">
           <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
           <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
           <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
@@ -493,7 +505,7 @@
             <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
           </div>
         </article>
-        <article class="summary-card summary-pole-landmark">
+        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
           <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
           <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
@@ -502,7 +514,7 @@
             <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
           </div>
         </article>
-        <article class="summary-card summary-group-billing">
+        <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
           <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
           <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
@@ -511,7 +523,7 @@
             <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
           </div>
         </article>
-        <article class="summary-card summary-hardware-recovery">
+        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending">
           <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
           <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
           <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
@@ -520,7 +532,7 @@
             <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
           </div>
         </article>
-        <article class="summary-card summary-owner-khata">
+        <article class="summary-card summary-owner-khata ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_khata">📕 Owner Khata Closing</p>
           <strong id="dashboardOwnerKhataValue" class="summary-value">No activity</strong>
           <p id="dashboardOwnerKhataPeriod" class="summary-period">Monthly income, expenses, shares &amp; outages</p>
@@ -528,7 +540,7 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_khata">📕 Owner Khata Closing</button>          </div>
         </article>
-        <article class="summary-card summary-wallet-ledger">
+        <article class="summary-card summary-wallet-ledger ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_wallet">💳 Digital Wallet Ledger</p>
           <strong id="dashboardWalletValue" class="summary-value">No digital payments</strong>
           <p id="dashboardWalletPeriod" class="summary-period">EasyPaisa · JazzCash · NayaPay · Bank Transfer</p>
@@ -536,15 +548,15 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_wallet">💳 Wallet Ledger</button>
           </div>
-        </article>        <article class="summary-card summary-month-collection"><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
-        <article class="summary-card summary-month-revenue"><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
-        <article class="summary-card summary-expenses"><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
-        <article class="summary-card summary-cash-profit"><p class="summary-label" data-i18n="dash_card_profit">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
-        <article class="summary-card summary-customer-count"><p class="summary-label" data-i18n="dash_card_profiles">Customer profiles</p><strong id="dashboardCustomerCount" class="summary-value">74</strong><p id="dashboardCustomerPeriod" class="summary-period">Roster profiles; subscription state is listed separately</p></article>
-        <article class="summary-card summary-active-customers"><p class="summary-label" data-i18n="dash_card_active">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
-        <article class="summary-card summary-bill-status"><p class="summary-label" data-i18n="dash_card_bill_status">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
-        <article class="summary-card summary-new-connections"><p class="summary-label" data-i18n="dash_card_new_conn">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
-        <article class="summary-card summary-velocity">
+        </article>        <article class="summary-card summary-month-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💵</span><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
+        <article class="summary-card summary-month-revenue ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📊</span><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
+        <article class="summary-card summary-expenses ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">💸</span><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
+        <article class="summary-card summary-cash-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">📈</span><p class="summary-label" data-i18n="dash_card_profit">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
+        <article class="summary-card summary-customer-count ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">👥</span><p class="summary-label" data-i18n="dash_card_profiles">Customer profiles</p><strong id="dashboardCustomerCount" class="summary-value">74</strong><p id="dashboardCustomerPeriod" class="summary-period">Roster profiles; subscription state is listed separately</p></article>
+        <article class="summary-card summary-active-customers ds-stat ds-stat--whatsapp"><span class="ds-stat__icon" aria-hidden="true">✅</span><p class="summary-label" data-i18n="dash_card_active">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
+        <article class="summary-card summary-bill-status ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📑</span><p class="summary-label" data-i18n="dash_card_bill_status">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
+        <article class="summary-card summary-new-connections ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">🔌</span><p class="summary-label" data-i18n="dash_card_new_conn">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
+        <article class="summary-card summary-velocity ds-stat ds-stat--pending"><span class="ds-stat__icon" aria-hidden="true">⏱️</span>
           <p class="summary-label" data-i18n="dash_card_velocity">Collection velocity &amp; projection</p>
           <strong id="dashboardCollectionVelocity" class="summary-value">PKR 0 / day</strong>
           <p id="dashboardCollectionVelocityPeriod" class="summary-period">Projected month-end closing</p>
@@ -552,11 +564,11 @@
             <div id="dashboardVelocityFill" class="velocity-fill" style="width: 0%"></div>
           </div>
         </article>
-        <article class="summary-card summary-total-collection"><p class="summary-label" data-i18n="dash_card_total_coll">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
-        <article class="summary-card summary-credit"><p class="summary-label" data-i18n="dash_card_credit">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
-        <article class="summary-card summary-previous-collection"><p class="summary-label" data-i18n="dash_card_prev_coll">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
-        <article class="summary-card summary-profit"><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
-        <article class="summary-card summary-provider-cost"><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
+        <article class="summary-card summary-total-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">🏦</span><p class="summary-label" data-i18n="dash_card_total_coll">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
+        <article class="summary-card summary-credit ds-stat ds-stat--pending"><span class="ds-stat__icon" aria-hidden="true">💳</span><p class="summary-label" data-i18n="dash_card_credit">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
+        <article class="summary-card summary-previous-collection ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">🗓️</span><p class="summary-label" data-i18n="dash_card_prev_coll">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
+        <article class="summary-card summary-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">💹</span><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
+        <article class="summary-card summary-provider-cost ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">🛰️</span><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
       <div class="dashboard-target-section" id="dashboardTargetSection" style="margin: 14px 0;">
         <article class="dashboard-chart-card chart-card-target">

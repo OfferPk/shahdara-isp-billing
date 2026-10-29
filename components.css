@@ -957,3 +957,108 @@ body.field-mode-open { overflow: hidden; }
   .group-billing-collect-bar { grid-template-columns: 1fr; }
   .group-billing-actions .primary-button, .group-billing-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
 }
+
+/* Dashboard stat cards (owner request 2026-10-29): ONE shared clean card
+ * for the dashboard stat/KPI cards, composed on top of the existing
+ * .home-kpi-card and .summary-card classes (nothing renamed or removed).
+ * Look: theme surface, generous radius, soft token shadow, a coloured
+ * rounded-square icon tile, a small muted label and a big bold value.
+ * Surfaces, borders and text come only from tokens.css variables, so dark
+ * mode flips automatically; the accent modifiers colour only the tile.
+ * Values are never clipped: labels and values wrap instead of truncating. */
+.ds-stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+}
+.ds-stat__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 19px;
+  line-height: 1;
+  flex: none;
+  background: var(--color-brand-soft);
+}
+.ds-stat--brand .ds-stat__icon { background: var(--color-brand-500); }
+.ds-stat--paid .ds-stat__icon { background: var(--color-paid); }
+.ds-stat--info .ds-stat__icon { background: var(--color-info); }
+.ds-stat--pending .ds-stat__icon { background: var(--color-pending); }
+.ds-stat--overdue .ds-stat__icon { background: var(--color-overdue); }
+.ds-stat--whatsapp .ds-stat__icon { background: var(--color-whatsapp); }
+.ds-stat__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+/* Home KPI strip: tile on the left, label / value / sub stacked beside it. */
+.home-kpi-card.ds-stat {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+}
+.ds-stat .home-kpi-label,
+.ds-stat .home-kpi-sub {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.ds-stat .home-kpi-val {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  font-size: 19px;
+  font-variant-numeric: var(--numeric);
+}
+
+/* Summary grid: same chrome, tile sits above the label in the column flow. */
+.summary-card.ds-stat {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+}
+.summary-card.ds-stat .ds-stat__icon {
+  align-self: flex-start;
+  margin-bottom: 2px;
+}
+
+/* The Today's Summary card keeps the exact radius + shadow of the summary
+ * cards (their shared geometry is pinned by the home summary style spec),
+ * now sourced from the same tokens. */
+.home-today-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+}
+[data-theme="dark"] .home-today-card {
+  box-shadow: var(--elevation-1);
+}
+[data-theme="dark"] .ds-stat {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+@media (max-width: 620px) {
+  .home-kpi-card.ds-stat {
+    padding: 10px;
+    gap: var(--space-2);
+  }
+  .ds-stat__icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 16px;
+  }
+  .ds-stat .home-kpi-val {
+    font-size: 17px;
+  }
+  .summary-card.ds-stat {
+    padding: 13px 11px;
+  }
+}

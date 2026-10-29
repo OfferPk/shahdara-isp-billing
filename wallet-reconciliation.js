@@ -55,7 +55,9 @@ function emptyMethodLine() {
   return { amount: 0, count: 0, verifiedAmount: 0, verifiedCount: 0, pendingAmount: 0, pendingCount: 0 };
 }
 
-function canonicalWalletLabel(method) {
+/** Canonical display label for a wallet method (SISP-51 reuses these labels
+ * for the Owner Khata collection-channel split). */
+export function canonicalWalletLabel(method) {
   const m = methodKey(method);
   if (m === 'easypaisa') return 'Easypaisa';
   if (m === 'jazzcash') return 'JazzCash';

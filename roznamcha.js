@@ -309,6 +309,80 @@ export function buildRoznamchaDay(state, days, date, settlements) {
   };
 }
 
+const MONTH_KEY_RE = /^\d{4}-\d{2}$/;
+
+/**
+ * SISP-51: month-end closing cash-in-hand for the Owner Khata Closing
+ * Report 2.0. Pure — reads the drawer exactly the way this module's own
+ * day views do, and never writes anything.
+ *
+ * The drawer chain advances through CLOSED days: a closed day's
+ * closingBalance is counted physical cash, i.e. the truth. So the
+ * month-end balance anchors on the latest closed day on or before the
+ * month's last day and rolls forward the drawer flows of the still-open
+ * days after it (direct Cash payments in, shop handovers in, petty-cash
+ * outflows out — each derived with this module's own collectors). When
+ * the month-end day itself is closed, the frozen closingBalance is
+ * returned untouched (monthEndClosed: true). When no day was ever closed
+ * on or before month-end, the drawer is assumed to have started empty
+ * and every recorded drawer flow through month-end counts.
+ *
+ * @returns {null|{ monthEndDate: string, balance: number,
+ *   lastClosedDate: string, monthEndClosed: boolean }}
+ *   null for an invalid month key.
+ */
+export function buildMonthEndCashInHand(state, days, month, settlements = []) {
+  if (typeof month !== 'string' || !MONTH_KEY_RE.test(month)) return null;
+  const monthNumber = Number(month.slice(5, 7));
+  if (monthNumber < 1 || monthNumber > 12) return null;
+  const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), monthNumber, 0)).getUTCDate();
+  const monthEndDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+  const list = sanitizeRoznamchaDays(days);
+  const closed = list.filter((d) => d.closed && d.date <= monthEndDate);
+  const anchor = closed.length ? closed[closed.length - 1] : null;
+  let balance = anchor ? moneyValue(anchor.closingBalance) : 0;
+  if (!anchor || anchor.date < monthEndDate) {
+    const from = anchor ? anchor.date : '';
+    const inRange = (date) => typeof date === 'string' && DATE_RE.test(date) && date > from && date <= monthEndDate;
+    // Candidate flow dates after the anchor: cash-payment dates, handover
+    // dates and open-day records holding outflows. Each date's flows are
+    // then derived with the module's own collectors, so the roll-forward
+    // can never drift from what the day views show.
+    const dates = new Set();
+    const customers = Array.isArray(state?.customers) ? state.customers : [];
+    for (const customer of customers) {
+      const bills = Array.isArray(customer?.bills) ? customer.bills : [];
+      for (const bill of bills) {
+        const payments = Array.isArray(bill?.payments) ? bill.payments : [];
+        for (const payment of payments) {
+          if (payment?.voided === true) continue;
+          if (payment?.method === 'Cash' && inRange(payment?.date)) dates.add(payment.date);
+        }
+      }
+    }
+    for (const settlement of Array.isArray(settlements) ? settlements : []) {
+      if (inRange(settlement?.date)) dates.add(settlement.date);
+    }
+    for (const day of list) {
+      if (!day.closed && inRange(day.date) && day.outflows.length) dates.add(day.date);
+    }
+    for (const date of dates) {
+      balance += collectDirectCashPayments(state, date).reduce((sum, p) => sum + p.amount, 0);
+      balance += collectShopHandovers(settlements, date).reduce((sum, h) => sum + h.amount, 0);
+      const stored = findDay(list, date);
+      if (stored && !stored.closed) {
+        balance -= stored.outflows.reduce((sum, o) => sum + o.amount, 0);
+      }
+    }
+  }
+  return {
+    monthEndDate,
+    balance: round2(balance),
+    lastClosedDate: anchor ? anchor.date : '',
+    monthEndClosed: Boolean(anchor) && anchor.date === monthEndDate
+  };
+}
+
 /** Append a petty-cash outflow to an open day. Throws when closed/invalid. */
 export function addRoznamchaOutflow(days, date, outflow) {
   const list = sanitizeRoznamchaDays(days);

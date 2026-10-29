@@ -24,6 +24,7 @@ import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js'
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
 import { sanitizeVoidPayments } from './payment-void-audit.js';
+import { sanitizeDepositSettlement } from './hardware-custody.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -164,6 +165,9 @@ export function readState(storage, key = STORAGE_KEY) {
       mediaConverterOwnership:['isp-owned','customer-owned'].includes(customer.mediaConverterOwnership) ? customer.mediaConverterOwnership : '',
       serialNumber:typeof customer.serialNumber === 'string' ? customer.serialNumber.trim().slice(0, 100) : '',
       securityDeposit:normalizeMoneyOrNull(customer.securityDeposit),
+      // SISP-50: a stamped deposit settlement survives reloads; a
+      // malformed record sanitizes to null instead of posing as settled.
+      depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
       hardwareRecovered:{
         router:validDateOrNull(customer.hardwareRecovered?.router ?? null),
         mediaConverter:validDateOrNull(customer.hardwareRecovered?.mediaConverter ?? null)
@@ -347,7 +351,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // an offline span can accrue from day one.
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
@@ -1479,6 +1483,13 @@ export function calculatePaymentAllocations(state) {
       summary.lateFeeCents = lateFeeCents;
       summary.shiftingFeeCents = shiftingFeeCents;
       let dueRemainingCents = billAmountCents;
+      // SISP-50: a disconnection security-deposit offset already waived
+      // part of this bill (audited bill fields stamped by
+      // hardware-custody.js applyDepositSettlement). It reduces the due
+      // before advance credit and receipts apply — the same treatment
+      // the Khata Doctor formula gives it. The field is absent on every
+      // legacy bill, so all existing allocations are unchanged.
+      dueRemainingCents -= Math.min(moneyCents(bill.depositOffsetAmount || 0), billAmountCents);
       for (const credit of pendingCredits) {
         if (dueRemainingCents <= 0) break;
         const appliedCents = Math.min(credit.remainingCents, dueRemainingCents);
@@ -2041,6 +2052,8 @@ function validateBackupState(source) {
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null, mediaConverterCost:customer.mediaConverterCost ?? null, linemanInstallFee:customer.linemanInstallFee ?? null, fiberPerMeterRate:customer.fiberPerMeterRate ?? null,
       // SISP-19: custody fields travel with the customer in JSON backups.
       routerOwnership:customer.routerOwnership ?? '', mediaConverterOwnership:customer.mediaConverterOwnership ?? '', serialNumber:customer.serialNumber ?? '', securityDeposit:customer.securityDeposit ?? null,
+      // SISP-50: the deposit settlement stamp travels in JSON backups.
+      depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
       hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
@@ -2322,7 +2335,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);    // SISP-8: skipped months merge by union (a skipped month only ever
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);    // SISP-8: skipped months merge by union (a skipped month only ever
     // means "never backfill this month") — never a conflict, never lost.
     {
       const localSkipped = Array.isArray(customer.pauseSkippedMonths) ? customer.pauseSkippedMonths : [];
@@ -2388,7 +2401,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }

@@ -195,7 +195,7 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     arrearsPrevious: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.previousArrears) : '',
     arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
     arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',
-    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0))) : '',
+    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0) - (receipt.depositOffsetAmount || 0))) : '',
     footerNote: 'Thank you! Please keep this receipt.'
   };
 }

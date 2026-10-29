@@ -810,6 +810,8 @@ body.field-mode-open { overflow: hidden; }
 .profile-custody-checklist li { margin: 6px 0; }
 .custody-recovered { color: var(--green); font-weight: 700; }
 .custody-pending { color: var(--color-overdue); font-weight: 700; }
+.profile-deposit-settlement { border-top: 1px solid var(--line); padding-top: 12px; }
+.profile-deposit-settlement p { margin: 4px 0; color: var(--ink); }
 .hardware-recovery-list { display: grid; gap: 12px; }
 .hardware-recovery-entry { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .hardware-recovery-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

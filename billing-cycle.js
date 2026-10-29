@@ -418,6 +418,14 @@ export function buildArrearsBreakdown(customer, bill) {
   const referralCreditAmount = Number.isFinite(Number(bill.referralCreditAmount)) && Number(bill.referralCreditAmount) > 0
     ? rupees(cents(bill.referralCreditAmount))
     : 0;
+  // SISP-50: a disconnection deposit offset waived part of this bill —
+  // exposed for receipt renderers, which subtract it for display
+  // exactly like the referral credit above (the breakdown balance
+  // itself stays gross of bill-field waivers, by house convention;
+  // the allocation engine is what nets it for dues).
+  const depositOffsetAmount = Number.isFinite(Number(bill.depositOffsetAmount)) && Number(bill.depositOffsetAmount) > 0
+    ? rupees(cents(bill.depositOffsetAmount))
+    : 0;
   return {
     month: bill.month,
     packageAmount: Math.max(0, rupees(cents(amount) - cents(kistAmount))),
@@ -428,6 +436,7 @@ export function buildArrearsBreakdown(customer, bill) {
     paidAmount,
     discountApplied,
     referralCreditAmount,
+    depositOffsetAmount,
     balanceDue: Math.max(0, totalDue - paidAmount - discountApplied)
   };
 }
@@ -442,6 +451,7 @@ export function arrearsBreakdownTextLines(breakdown) {
     ] : []),
     `Sabiqa Baqaya (Previous Arrears): ${formatPKR(breakdown.previousArrears)}`,
     ...(breakdown.referralCreditAmount > 0 ? [`Hamsaya Referral Credit: -${formatPKR(breakdown.referralCreditAmount)}`] : []),
+    ...(breakdown.depositOffsetAmount > 0 ? [`Security Deposit Offset: -${formatPKR(breakdown.depositOffsetAmount)}`] : []),
     `Kul Qabil-e-Ada (Total Due): ${formatPKR(breakdown.totalDue)}`,
     `Wusool Paya (Paid): ${formatPKR(breakdown.paidAmount)}`,
     `Baqi Rehta (Balance): ${formatPKR(breakdown.balanceDue)}`

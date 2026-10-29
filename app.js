@@ -163,6 +163,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { buildRecentPayments } from './recent-payments.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -614,6 +615,23 @@ function renderDashboard() {
     shopSummaryEl.innerHTML = shopSummaries.length === 0
       ? ''
       : shopSummaries.map((s) => `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small></p>`).join('');
+  }
+  // Owner feature 2026-10-29: Recent Payments card (last 5 payments
+  // across all customers; voided SISP-34 payments excluded by the
+  // builder). Read-only — rows open the customer profile, "All" opens
+  // the Transactions view.
+  const recentPaymentsListEl = $('#recentPaymentsList');
+  if (recentPaymentsListEl) {
+    const recentRows = buildRecentPayments(state);
+    recentPaymentsListEl.innerHTML = recentRows.length === 0
+      ? `<li class="recent-payments-empty">${escapeHtml(t('dash_recent_empty'))}</li>`
+      : recentRows.map((row) => `<li class="recent-payment-item"><button type="button" class="recent-payment-row" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button></li>`).join('');
+    recentPaymentsListEl.querySelectorAll('[data-recent-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.recentCustomerId)));
+    const recentAllBtn = $('#recentPaymentsAllBtn');
+    if (recentAllBtn && !recentAllBtn.dataset.wired) {
+      recentAllBtn.dataset.wired = 'true';
+      recentAllBtn.addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
+    }
   }
   // SISP-2: monthly billing cycle card (last run + open the cycle modal).
   const cycleSummaryEl = $('#billingCycleSummary');

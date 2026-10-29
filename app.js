@@ -168,6 +168,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { setupQrScannerModal } from './qr-scanner.js';
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';
@@ -334,6 +335,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let qrScannerModalController = null;
 export let linemanScorecardModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -9931,6 +9933,21 @@ if (typeof document !== 'undefined') {
   // SISP-39: lineman monthly scorecard — read-only aggregation over
   // tickets, the complaint register, roznamcha and the payment ledger.
   linemanScorecardModalController = setupLinemanScorecardModal(() => state);
+  // SISP-48: QR Khata camera scanner — a scanned/pasted payload is routed
+  // exactly like the SISP-14 load-time deep link (select the customer,
+  // then Quick Collect for action=pay). Invalid or unknown codes never
+  // reach this callback: the scanner shows a safe toast instead.
+  qrScannerModalController = setupQrScannerModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    onOpenCustomer: (customer, action) => {
+      selectCustomer(customer.id, { pushHistory: false });
+      if (action === 'pay' && window.quickCollectModalController?.selectAndOpen) {
+        window.quickCollectModalController.selectAndOpen(customer.id);
+      }
+    }
+  });
+  $('#qrScanTopbarBtn')?.addEventListener('click', () => qrScannerModalController?.open());
+  $('#fieldModeScanQrBtn')?.addEventListener('click', () => qrScannerModalController?.open());
   // SISP-37: suspense (unidentified) wallet payment register — claim
   // reuses quick collection, then persists exactly like a single quick
   // collection; the register entry is marked claimed, never deleted.

@@ -19421,6 +19421,10 @@
                 <span data-i18n="adv_qc_label">Advance payment (next bill credit)</span>
               </label>
             </div>
+            <div class="qc-field-group" style="margin-top:8px;">
+              <label for="quickCollectAdvanceTargetMonth" class="qc-label" data-i18n="adv_target_label">Advance for month</label>
+              <select id="quickCollectAdvanceTargetMonth" class="qc-input"></select>
+            </div>
           </details>
 
           <!-- Digital Payment Fields (JazzCash / Easypaisa / Raast / Bank) -->
@@ -20289,6 +20293,7 @@
             <div class="form-cell"><label class="field-label full" for="advancePaymentAmount" data-i18n="adv_amount_label">Advance amount (PKR)</label><input id="advancePaymentAmount" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" required></div>
             <div class="form-cell"><label class="field-label full" for="advancePaymentDate" data-i18n="adv_date_label">Payment date (Pakistan local date)</label><input id="advancePaymentDate" class="full" name="date" type="date" required></div>
             <div class="form-cell"><label class="field-label full" for="advancePaymentMethod" data-i18n="adv_method_label">Payment method</label><select id="advancePaymentMethod" class="full" name="method" required></select></div>
+            <div class="form-cell"><label class="field-label full" for="advancePaymentTargetMonth" data-i18n="adv_target_label">Advance for month</label><select id="advancePaymentTargetMonth" class="full" name="targetMonth" required></select></div>
             <div class="form-cell"><label class="field-label full" for="advancePaymentPaidBy" data-i18n="adv_paidby_label">Paid by (optional)</label><input id="advancePaymentPaidBy" class="full" name="paidBy" type="text" maxlength="100" data-i18n-placeholder="adv_paidby_ph" placeholder="Leave blank if not specified"></div>
             <div class="form-cell"><label class="field-label full" for="advancePaymentNote" data-i18n="adv_note_label">Note (optional)</label><input id="advancePaymentNote" class="full" name="note" type="text" maxlength="200" data-i18n-placeholder="adv_note_ph" placeholder="e.g. November paid early"></div>
           </div>

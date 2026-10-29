@@ -21,11 +21,52 @@
 // actual receipts; SISP-43 settles charges after a bill is paid), so the
 // guard lives at the entry points, never inside addPayment.
 //
+// Month targeting (2026-10-29, the SISP-61 core): the operator also
+// marks WHICH month the advance is for (targetMonth on the record).
+// The engine reserves a targeted credit for its month — it adjusts
+// automatically the moment that month's bill exists (bills are
+// generated on the 5th in the owner's routine, and allocations are
+// computed live, so there is nothing extra to run or click). This is
+// an offline PWA: no code runs while the app is closed, so the
+// "auto-adjust on the 5th" is exactly this derived-allocation truth,
+// never a scheduler.
+//
 // Tests use synthetic data only; no customer, bill or payment data is
 // ever fabricated here.
-import { addPayment, calculatePaymentAllocations, monthsForHistory, ADVANCE_PAYMENT_KIND, isAdvancePayment } from './core.js';
+import { addPayment, calculatePaymentAllocations, monthsForHistory, ADVANCE_PAYMENT_KIND, isAdvancePayment, advancePaymentTargetMonth } from './core.js';
 
-export { ADVANCE_PAYMENT_KIND, isAdvancePayment };
+export { ADVANCE_PAYMENT_KIND, isAdvancePayment, advancePaymentTargetMonth };
+
+function shiftMonthKey(month, delta) {
+  const [year, number] = String(month).split('-').map(Number);
+  const index = year * 12 + number - 1 + delta;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`;
+}
+
+/**
+ * The month an advance recorded today is FOR, by default: the month
+ * after the current one — the owner's case (paying on 29 October, the
+ * money is November's). 'YYYY-MM' in the app's own month convention
+ * (monthsForHistory's first entry is the current billing month).
+ */
+export function defaultAdvanceTargetMonth(referenceDate = new Date()) {
+  return shiftMonthKey(monthsForHistory(referenceDate)[0], 1);
+}
+
+/**
+ * The target months the advance entry points offer: the current month
+ * first, then the following months (spanMonths entries in total). The
+ * operator can always move the pre-selected default (next month) to
+ * the current month or a later one; past months are never offered —
+ * money cannot be marked for a month that has already closed.
+ *
+ * @returns {string[]} ascending 'YYYY-MM' month keys.
+ */
+export function advanceTargetMonthOptions(referenceDate = new Date(), spanMonths = 6) {
+  const current = monthsForHistory(referenceDate)[0];
+  const span = Number.isFinite(Number(spanMonths)) ? Math.max(1, Math.min(12, Math.trunc(Number(spanMonths)))) : 6;
+  return Array.from({ length: span }, (_, i) => shiftMonthKey(current, i));
+}
 
 /**
  * The customer's current advance balance, in cents: the unapplied credit
@@ -78,9 +119,13 @@ export function normalPaymentBlockReason(state, customerId, month) {
  * semantics, pinned by tests.
  *
  * fields: { amount, date, method, paidBy?, note?, transactionId?,
- *           referenceOverrideReason?, screenshot? } — validated by core's
- * validatePayment via addPayment, with the advance tag forced here so a
- * caller can never record an "advance" that lands untagged.
+ *           referenceOverrideReason?, screenshot?, targetMonth? } —
+ * validated by core's validatePayment via addPayment, with the advance
+ * tag forced here so a caller can never record an "advance" that lands
+ * untagged. targetMonth is the month the money is FOR (advance month
+ * targeting): validatePayment keeps it only as a strictly valid
+ * 'YYYY-MM' on the tagged record, and the allocation engine reserves
+ * the credit for that month (see advancePaymentTargetMonth in core).
  *
  * @returns {{ nextState: Object, payment: Object, month: string }}
  */

@@ -139,7 +139,20 @@ export function arrearsAndAdvance(customer, month) {
       arrearsCents += summary.balanceDueCents;
       if (summary.balanceDueCents > 0) arrearsMonths += 1;
     }
-    advanceCents += summary.pendingCreditCents || 0;
+  }
+  // Advance month targeting: the advance available to THIS cycle is
+  // the unapplied credit whose reservation has ended by this month —
+  // untargeted credit, plus targeted credit whose target month is this
+  // month or earlier. A credit reserved for a LATER month (e.g. a
+  // December advance recorded in October) is held money, but it is not
+  // this cycle's advanceCredit and must not net this bill. Summed per
+  // payment ledger (each ledger's unapplied remainder), which equals
+  // the summaries' pendingCreditCents total whenever no payment
+  // carries a target — the pre-targeting figure, unchanged.
+  for (const ledger of allocations.byPaymentId.values()) {
+    if (!(ledger.unappliedCreditCents > 0)) continue;
+    if (ledger.targetMonth && ledger.targetMonth > month) continue;
+    advanceCents += ledger.unappliedCreditCents;
   }
   return { previousArrears: rupees(arrearsCents), advanceCredit: rupees(advanceCents), arrearsMonths };
 }

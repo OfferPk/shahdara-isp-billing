@@ -165,6 +165,35 @@ test('complaint resolved in the register resolves its linked ticket (free, no ma
   assert.equal(synced.changedComplaints, false);
 });
 
+test('reverse sync carries the SAME time and note: complaint resolved 12:00 resolves its ticket at 12:00', () => {
+  const { complaints, tickets, ticket } = linkedPair({ note: 'Old field note' });
+  const resolvedComplaints = setComplaintStatus(complaints, 'CMP-101', 'Resolved', {
+    resolvedAt: '2026-10-29T12:00',
+    resolutionNote: 'Fixed from office'
+  });
+  const synced = syncComplaintTicketLinks(resolvedComplaints, tickets, { trigger: 'complaint' });
+  const t = synced.tickets.find((entry) => entry.id === ticket.id);
+  assert.equal(t.status, 'Resolved');
+  // Verbatim wall time — exact on any host timezone, not re-zoned.
+  assert.equal(t.resolvedAt, '2026-10-29T12:00');
+  assert.equal(t.note, 'Fixed from office');
+  assert.equal(t.resolvedViaComplaintId, 'CMP-101');
+  assert.deepEqual(synced.actions, [`${ticket.id} resolved by CMP-101`]);
+});
+
+test('reverse sync with an empty complaint note keeps the ticket note', () => {
+  const { complaints, tickets, ticket } = linkedPair({ note: 'Field note kept' });
+  const resolvedComplaints = setComplaintStatus(complaints, 'CMP-101', 'Resolved', {
+    resolvedAt: '2026-10-29T12:00',
+    resolutionNote: ''
+  });
+  const synced = syncComplaintTicketLinks(resolvedComplaints, tickets, { trigger: 'complaint' });
+  const t = synced.tickets.find((entry) => entry.id === ticket.id);
+  assert.equal(t.status, 'Resolved');
+  assert.equal(t.resolvedAt, '2026-10-29T12:00');
+  assert.equal(t.note, 'Field note kept');
+});
+
 test('reopening the ticket undoes a synced complaint resolution (timeline restarts)', () => {
   const { complaints, tickets, ticket } = linkedPair();
   const resolvedTickets = resolveTicket(tickets, ticket.id, {

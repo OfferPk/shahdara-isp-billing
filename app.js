@@ -164,6 +164,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -249,6 +250,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let linemanScorecardModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
@@ -890,6 +892,21 @@ function renderDashboard() {
     suspenseSummaryEl.innerHTML = suspense.totalCount === 0
       ? ''
       : `<p><span>${t('dash_suspense_unclaimed')}</span><strong>${escapeHtml(formatAmount(suspense.unclaimedAmount))}</strong></p>`;
+  }
+  // SISP-39: lineman monthly scorecard card (resolved complaints across
+  // field staff this month; detail lives in the scorecard modal).
+  const linemanValueEl = $('#dashboardLinemanScorecardValue');
+  if (linemanValueEl) {
+    const scorecard = buildMonthlyScorecard({ state, tickets: loadTickets(), complaints: loadComplaints(), roznamchaDays: loadRoznamchaDays() });
+    const totalResolved = scorecard.linemen.reduce((sum, person) => sum + person.complaintsResolved, 0);
+    const linemanPeriodEl = $('#dashboardLinemanScorecardPeriod');
+    if (totalResolved === 0 && scorecard.collectors.length === 0) {
+      linemanValueEl.textContent = t('dash_lineman_empty');
+      if (linemanPeriodEl) linemanPeriodEl.textContent = t('dash_lineman_period_empty');
+    } else {
+      linemanValueEl.textContent = t(totalResolved === 1 ? 'dash_lineman_resolved_sing' : 'dash_lineman_resolved_plur', null, { count: totalResolved });
+      if (linemanPeriodEl) linemanPeriodEl.textContent = t('dash_lineman_period', null, { linemen: scorecard.linemen.length, collectors: scorecard.collectors.length });
+    }
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
@@ -9551,6 +9568,9 @@ if (typeof document !== 'undefined') {
       return { ...result, receipt: buildGroupReceipt({ ...result, date, method }) };
     }
   });
+  // SISP-39: lineman monthly scorecard — read-only aggregation over
+  // tickets, the complaint register, roznamcha and the payment ledger.
+  linemanScorecardModalController = setupLinemanScorecardModal(() => state);
   // SISP-37: suspense (unidentified) wallet payment register — claim
   // reuses quick collection, then persists exactly like a single quick
   // collection; the register entry is marked claimed, never deleted.

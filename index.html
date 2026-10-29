@@ -557,6 +557,14 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
           </div>
+        </article>
+        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
+          <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
+          <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
+          </div>
         </article>        <article class="summary-card summary-month-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💵</span><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📊</span><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">💸</span><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -21350,6 +21358,23 @@
             <button id="suspensePrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
           </div>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="linemanScorecardModal" class="billing-modal lineman-scorecard-modal" aria-labelledby="linemanScorecardModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="linemanScorecardModalTitle" data-i18n="lineman_title">🧑‍🔧 Lineman Monthly Scorecard</h2>
+        <button id="linemanScorecardCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <label for="linemanScorecardMonth" data-i18n="lineman_month_label">Month</label>
+        <input id="linemanScorecardMonth" class="form-input" type="month" aria-label="Scorecard month">
+        <div id="linemanScorecardNewConnections" class="lineman-new-connections"></div>
+        <h3 data-i18n="lineman_linemen_heading">Field Linemen</h3>
+        <div id="linemanScorecardList" class="lineman-scorecard-list"></div>
+        <h3 data-i18n="lineman_collectors_heading">Shop Collectors</h3>
+        <div id="linemanCollectorList" class="lineman-scorecard-list"></div>
       </div>
     </div>
   </dialog>

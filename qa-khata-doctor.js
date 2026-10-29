@@ -13,11 +13,13 @@
 //
 // The ledger-derived balance follows the spec formula per customer,
 // applied bill by bill in month order with the app's own semantics:
-//   pendingBalance = Sum(Bills + Kists) - Sum(Valid Payments) - Sum(Concessions) - Sum(Deposit Offsets)
+//   pendingBalance = Sum(Bills + Kists) - Sum(Valid Payments) - Sum(Concessions) - Sum(Referral Credits) - Sum(Feeder Host Credits) - Sum(Deposit Offsets)
 // where a bill's charge is dueAmount (which already includes its kist
 // lines) + lateFee + shiftingFee, concessions reduce that bill's charge,
-// and a SISP-50 disconnection deposit offset (bill.depositOffsetAmount)
-// reduces it the same way,
+// a SISP-40 referral credit (bill.referralCreditAmount) reduces it the
+// same way (capped at the post-concession due), and a SISP-50
+// disconnection deposit offset (bill.depositOffsetAmount) reduces what
+// remains,
 // payment discounts count as payment-side reductions, excess payment on
 // one bill carries forward as credit to later bills only, and VOIDED
 // payments (SISP-34) are never valid payments — they are excluded from
@@ -102,6 +104,8 @@ export function computeLedgerBalance(customer) {
   let paymentsCents = 0;
   let discountsCents = 0;
   let concessionsCents = 0;
+  let referralCreditsCents = 0;
+  let feederHostCreditsCents = 0;
   let depositOffsetsCents = 0;
   let creditCents = 0;
   for (const bill of bills) {
@@ -122,6 +126,23 @@ export function computeLedgerBalance(customer) {
     chargesCents += chargeCents;
     concessionsCents += concessionCents;
     let dueCents = Math.max(0, chargeCents - concessionCents);
+    // FU1b: a SISP-40 referral credit waives part of the bill exactly
+    // like a concession — the cycle stamps referralCreditAmount
+    // without rewriting dueAmount, and the allocation engine subtracts
+    // it — capped here at the post-concession due so stacked waivers
+    // can never take the bill below zero.
+    const referralCreditCents = Math.min(cents(bill.referralCreditAmount || 0), dueCents);
+    referralCreditsCents += referralCreditCents;
+    dueCents -= referralCreditCents;
+    // SISP-97 (folded into the FU1b merge): a feeder-host bijli credit
+    // waives part of the bill exactly like a referral credit — the
+    // cycle stamps feederHostCreditAmount without rewriting dueAmount
+    // and the allocation engine subtracts it — capped here at the
+    // remaining due so stacked waivers can never take the bill below
+    // zero.
+    const feederHostCreditCents = Math.min(cents(bill.feederHostCreditAmount || 0), dueCents);
+    feederHostCreditsCents += feederHostCreditCents;
+    dueCents -= feederHostCreditCents;
     // SISP-50: a disconnection deposit offset waives part of the bill
     // exactly like a concession (clamped so it can never take the bill
     // below zero after the concession).
@@ -153,7 +174,7 @@ export function computeLedgerBalance(customer) {
     }
     balanceCents += dueCents;
   }
-  return { balanceCents, chargesCents, paymentsCents, discountsCents, concessionsCents, depositOffsetsCents, creditCents };
+  return { balanceCents, chargesCents, paymentsCents, discountsCents, concessionsCents, referralCreditsCents, feederHostCreditsCents, depositOffsetsCents, creditCents };
 }
 
 /**
@@ -215,7 +236,7 @@ function checkCustomer(customer, { settlementIds, cacheEntry }) {
 
   for (const bill of bills) {
     // NaN scan over the money fields the doctor (and the app) reads.
-    for (const field of ['dueAmount', 'lateFee', 'shiftingFee', 'concessionAmount', 'depositOffsetAmount']) {
+    for (const field of ['dueAmount', 'lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount']) {
       if (isCorruptMoney(bill?.[field])) {
         issues.push(issue('nan-value', 'error', `Bill ${bill.month} has an unreadable ${field} value.`, true, { month: bill.month, field }));
       }
@@ -378,7 +399,7 @@ export function repairKhataDoctor(state, { settlements = [], voidPayments = [], 
   for (const customer of next.customers ?? []) {
     for (const bill of customer?.bills ?? []) {
       if (!bill) continue;
-      for (const field of ['lateFee', 'shiftingFee', 'concessionAmount', 'depositOffsetAmount']) {
+      for (const field of ['lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount']) {
         if (isCorruptMoney(bill[field])) { bill[field] = 0; fixes.push(`Zeroed unreadable ${field} on ${customer.name ?? customer.id} bill ${bill.month}.`); }
       }
       if (isCorruptMoney(bill.dueAmount)) { bill.dueAmount = null; fixes.push(`Marked ${customer.name ?? customer.id} bill ${bill.month} unpriced — its amount was unreadable.`); }

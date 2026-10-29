@@ -1748,6 +1748,32 @@ export function calculatePaymentAllocations(state) {
       // the Khata Doctor formula gives it. The field is absent on every
       // legacy bill, so all existing allocations are unchanged.
       dueRemainingCents -= Math.min(moneyCents(bill.depositOffsetAmount || 0), billAmountCents);
+      // FU1b: the SISP-40 referral credit and the SISP-30 outage
+      // concession ride as audited bill fields exactly like the
+      // deposit offset — billing-cycle.js withReferralCredit and
+      // applyConcessionToBill both stamp the field WITHOUT rewriting
+      // dueAmount, and receipts/Doctor subtract them — so the engine
+      // must subtract them here too, before advance credit and
+      // receipts apply. Without this, a bill settled by credit +
+      // cash stayed 'partial' and arrearsAndAdvance carried the
+      // waived amount into the next cycle as phantom arrears. Each
+      // is clamped to the remaining due (the deposit line's clamp
+      // against billAmountCents is the same thing at its position,
+      // where the remaining due IS the bill amount), so stacked
+      // waivers can never drive the due negative or inflate the
+      // excess credit a receipt generates. Both fields are absent
+      // on legacy bills, so existing allocations are unchanged.
+      dueRemainingCents -= Math.min(moneyCents(bill.referralCreditAmount || 0), dueRemainingCents);
+      dueRemainingCents -= Math.min(moneyCents(bill.concessionAmount || 0), dueRemainingCents);
+      // Merge reconciliation (lands with FU1b): the SISP-97 feeder-host
+      // bijli credit rides as the same shape of audited bill field —
+      // billing-cycle stamps feederHostCreditAmount WITHOUT rewriting
+      // dueAmount and the receipt surfaces subtract it — so the engine
+      // subtracts it here too, clamped to the remaining due, or the
+      // host's next cycle would carry phantom arrears equal to the
+      // credit. Absent on legacy bills, so existing allocations are
+      // unchanged.
+      dueRemainingCents -= Math.min(moneyCents(bill.feederHostCreditAmount || 0), dueRemainingCents);
       // Advance month targeting: a targeted credit is RESERVED for its
       // month — the loop below skips it while its target is still in
       // the future, so it can never settle an earlier bill. This bill

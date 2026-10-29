@@ -3,6 +3,7 @@ import { classifyPackagePrice, validateBillPackageSnapshot } from './package-cat
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
+import { sanitizeDepositSettlement } from './hardware-custody.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -66,6 +67,12 @@ export function buildPaymentReceipt(customer, bill, payment) {
   // PAID / PARTIAL seal) reflect the net due.
   const referralCreditAmount = positiveAmount(bill.referralCreditAmount) || 0;
   const referralCreditReason = text(bill.referralCreditReason);
+  // SISP-50: a disconnection security-deposit offset waived part of this
+  // bill — subtracted here exactly like the concession and the referral
+  // credit, so the balance (and the PAID / PARTIAL seal) reflect the
+  // amount the customer actually still owed.
+  const depositOffsetAmount = positiveAmount(bill.depositOffsetAmount) || 0;
+  const depositOffsetReason = text(bill.depositOffsetReason);
   const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
   const packageType = packageSnapshot?.packageType ?? classifyPackagePrice(nominalPrice);
   const customerBills = Array.isArray(customer.bills) ? customer.bills : [];
@@ -77,7 +84,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
   let status = 'RECEIVED';
   let balanceDueCents = null;
   if (billDue !== null && selectedIndex >= 0) {
-    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount));
+    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount));
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
@@ -135,6 +142,8 @@ export function buildPaymentReceipt(customer, bill, payment) {
     concessionReason,
     referralCreditAmount,
     referralCreditReason,
+    depositOffsetAmount,
+    depositOffsetReason,
     // SISP-43: billed ticket charges this payment settled (from the
     // payment's stamp), printed as their own lines on every receipt.
     ticketCharges: ticketChargeLinesOf(payment),
@@ -266,6 +275,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
+    ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
@@ -304,6 +314,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
+    ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
@@ -340,6 +351,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),
     ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
+    ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),
     ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
     ...(receipt.discount > 0 ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
     ...(receipt.arrearsBreakdown ? [
@@ -472,6 +484,101 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
   <footer class="receipt-terms">
+    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
+  </footer>
+</article>`;
+}
+
+// SISP-50: Final Disconnection Clearance Receipt. The settlement itself
+// is recorded by hardware-custody.js applyDepositSettlement (deposit
+// consumed, arrears offset as audited discount records, settlement
+// stamped on the customer); this snapshot only READS that stamp — it
+// never creates a second ledger entry. Null when the customer has no
+// settlement, so an unsettled profile can never print a clearance.
+export function buildDepositSettlementReceipt(customer) {
+  const settlement = sanitizeDepositSettlement(customer?.depositSettlement);
+  if (!customer || !settlement) return null;
+  const receiptNumber = settlement.receiptNumber || generateReceiptNumber({
+    customerNumber: customer.customerNumber,
+    paymentDate: settlement.settledAt,
+    paymentId: 'DSET'
+  });
+  const fullyCleared = settlement.arrearsRemaining <= 0 && settlement.hardwareOutstanding <= 0;
+  return {
+    customerName: text(customer.name),
+    customerNameUrdu: urduNameFor(customer),
+    customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    settlementDate: settlement.settledAt,
+    receiptNumber,
+    securityDeposit: settlement.securityDeposit,
+    arrearsOffset: settlement.arrearsOffset,
+    unrecoveredHardwareCharge: settlement.unrecoveredHardwareCharge,
+    hardwareCovered: settlement.hardwareCovered,
+    refundAmount: settlement.refundAmount,
+    arrearsRemaining: settlement.arrearsRemaining,
+    hardwareOutstanding: settlement.hardwareOutstanding,
+    offsets: settlement.offsets,
+    hardwareCharges: settlement.hardwareCharges,
+    status: fullyCleared ? 'CLEARED' : 'PARTIALLY CLEARED',
+    urduNote: 'یہ رسید اس بات کی تصدیق ہے کہ کسٹمر کا سیکیورٹی ڈپازٹ حتمی بقایا جات اور سامان کی کٹوتی کے بعد تصفیہ کر دیا گیا ہے۔ شکریہ!'
+  };
+}
+
+// SISP-50: printable clearance receipt. Single A4-style layout reusing
+// the standard receipt classes (the SISP-29 down-payment pattern), so
+// the existing print CSS applies. Paper styling is deliberate, not an
+// app UI surface.
+export function generateDepositSettlementReceiptHtml(receipt, {
+  businessName = 'Shahdara ISP',
+  businessPhone = '0300-1234567',
+  areaName = 'Shahdara, Lahore'
+} = {}) {
+  if (!receipt) return '';
+  const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
+    ? `${receipt.customerNameUrdu} (${receipt.customerName})`
+    : receipt.customerName;
+  const formatAmount = (val) => {
+    if (val === null || val === undefined || val === '') return 'PKR 0';
+    const num = Number(val);
+    return `PKR ${num.toLocaleString()}`;
+  };
+  const offsetRows = (Array.isArray(receipt.offsets) ? receipt.offsets : [])
+    .map((row) => `<div class="receipt-field"><dt>Arrears offset — ${escapeHtml(row.month)}:</dt><dd>-${formatAmount(row.amount)}</dd></div>`).join('');
+  const hardwareRows = (Array.isArray(receipt.hardwareCharges) ? receipt.hardwareCharges : [])
+    .map((row) => `<div class="receipt-field"><dt>Unrecovered ${escapeHtml(row.label)}:</dt><dd>${row.amount > 0 ? `-${formatAmount(row.amount)}` : 'No recorded price — PKR 0'}</dd></div>`).join('');
+  const statusClass = receipt.status === 'CLEARED' ? 'receipt-status-paid' : 'receipt-status-partial';
+  return `<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-settlement">
+  <header class="receipt-head">
+    <div>
+      <span class="receipt-brand">${escapeHtml(businessName)}</span>
+      <h1>Final Disconnection Clearance Receipt / حتمی منقطعی کلیئرنس رسید</h1>
+      <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
+      <div class="receipt-num-badge">Clearance Receipt: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
+    </div>
+    <span class="receipt-mark ${statusClass}">${escapeHtml(receipt.status)}</span>
+  </header>
+  <dl class="receipt-fields">
+    <div class="receipt-field"><dt>Settlement Date / تاریخ تصفیہ:</dt><dd>${escapeHtml(receipt.settlementDate)}</dd></div>
+    <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
+    <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-divider">--------------------------------</div>
+    <div class="receipt-field"><dt>Security Deposit Held / سیکیورٹی ڈپازٹ:</dt><dd>${formatAmount(receipt.securityDeposit)}</dd></div>
+    <div class="receipt-field"><dt>Arrears Cleared by Deposit Offset / بقایا تصفیہ:</dt><dd>-${formatAmount(receipt.arrearsOffset)}</dd></div>
+    ${offsetRows}
+    ${receipt.unrecoveredHardwareCharge > 0 || (Array.isArray(receipt.hardwareCharges) && receipt.hardwareCharges.length > 0) ? hardwareRows : `<div class="receipt-field"><dt>Hardware / سامان:</dt><dd>All recovered — no charge</dd></div>`}
+    ${receipt.hardwareCovered > 0 ? `<div class="receipt-field"><dt>Hardware Charge Deducted / سامان کٹوتی:</dt><dd>-${formatAmount(receipt.hardwareCovered)}</dd></div>` : ''}
+    <div class="receipt-field receipt-paid-field"><dt><strong>Net Refund to Customer / قابل واپسی رقم:</strong></dt><dd><strong>${formatAmount(receipt.refundAmount)}</strong></dd></div>
+    ${receipt.arrearsRemaining > 0 ? `<div class="receipt-field"><dt>Arrears Still Outstanding / بقایا باقی:</dt><dd>${formatAmount(receipt.arrearsRemaining)}</dd></div>` : ''}
+    ${receipt.hardwareOutstanding > 0 ? `<div class="receipt-field"><dt>Hardware Charge Still Outstanding:</dt><dd>${formatAmount(receipt.hardwareOutstanding)}</dd></div>` : ''}
+    <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}"><strong>${escapeHtml(receipt.status)}</strong></dd></div>
+  </dl>
+  <div class="receipt-divider">================================</div>
+  <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
+  <footer class="receipt-terms">
+    <div class="receipt-signatures">
+      <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
+      <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
+    </div>
     <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
   </footer>
 </article>`;

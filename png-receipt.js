@@ -98,6 +98,8 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (receipt.concessionAmount > 0) financial.push({ label: 'Outage Concession / رعایت', value: `-${money(receipt.concessionAmount)}` });
   // SISP-40: the hamsaya referral credit line, next to the concession.
   if (receipt.referralCreditAmount > 0) financial.push({ label: 'Referral Credit / ہمسایہ ریفرل', value: `-${money(receipt.referralCreditAmount)}` });
+  // SISP-50: the disconnection security-deposit offset line, same place.
+  if (receipt.depositOffsetAmount > 0) financial.push({ label: 'Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ', value: `-${money(receipt.depositOffsetAmount)}` });
   // SISP-43: billed ticket charges this payment settled, one line each.
   for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
     financial.push({ label: `Murammat / Material Charge (${line.ticketId})`, value: money(line.amount) });
@@ -108,7 +110,7 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     ? breakdown.balanceDue
     : (receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
       ? null : receipt.balanceDueCents / 100);
-  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0));
+  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0) - (receipt.depositOffsetAmount > 0 && breakdown ? receipt.depositOffsetAmount : 0));
   financial.push({
     label: 'Remaining Balance / Baqi Rehta',
     value: remaining === null ? '—' : money(remaining),

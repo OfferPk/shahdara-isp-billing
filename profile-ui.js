@@ -5,6 +5,7 @@ import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from 
 import { t } from './nav-language.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
+import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -348,6 +349,43 @@ export function referralBillingSummary(customer, state, credits) {
     queuedLabel: totals.queuedTotal > 0 ? t('prof_ref_queued', null, { amount: formatPKR(totals.queuedTotal) }) : '',
     appliedLabel: totals.appliedTotal > 0 ? t('prof_ref_applied', null, { amount: formatPKR(totals.appliedTotal) }) : '',
     hasContent: Boolean(referrer) || earned.length > 0
+  };
+}
+
+// SISP-50: security-deposit settlement presentation for the profile
+// custody section. Pure: it reads the stored settlement stamp (or the
+// live quote from hardware-custody.js) and formats labels — it never
+// decides the money; depositSettlementQuote does that, and app.js
+// supplies the engine arrears total. Visible only on disconnected
+// (archived) customers who hold — or already settled — a deposit.
+export function depositSettlementPresentation(customer, unpaidArrears = 0) {
+  if (!isDisconnected(customer)) return { visible: false, settled: false, canSettle: false };
+  const settled = depositSettlementOf(customer);
+  if (settled) {
+    const stillDue = settled.arrearsRemaining + settled.hardwareOutstanding;
+    return {
+      visible: true,
+      settled: true,
+      canSettle: false,
+      settledLabel: t('prof_dep_settled', null, { date: settled.settledAt, arrears: formatPKR(settled.arrearsOffset), refund: formatPKR(settled.refundAmount) }),
+      stillDueLabel: stillDue > 0 ? t('prof_dep_still_due', null, { amount: formatPKR(stillDue) }) : '',
+      receiptLabel: t('prof_dep_receipt_btn')
+    };
+  }
+  const quote = depositSettlementQuote(customer, unpaidArrears);
+  if (!(quote.securityDeposit > 0)) return { visible: false, settled: false, canSettle: false };
+  return {
+    visible: true,
+    settled: false,
+    canSettle: quote.eligible,
+    depositLabel: t('prof_dep_deposit', null, { amount: formatPKR(quote.securityDeposit) }),
+    arrearsLabel: t('prof_dep_arrears', null, { amount: formatPKR(quote.unpaidArrears) }),
+    hardwareLabel: quote.unrecoveredItems.length > 0
+      ? t('prof_dep_hardware', null, { amount: formatPKR(quote.unrecoveredHardwareCharge) })
+      : t('prof_dep_hardware_none'),
+    refundLabel: t('prof_dep_refund', null, { amount: formatPKR(quote.netDepositRefund) }),
+    noteLabel: t('prof_dep_note'),
+    settleLabel: t('prof_dep_settle_btn')
   };
 }
 

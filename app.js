@@ -18,10 +18,10 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
-import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml } from './receipt.js?v=1.11.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml } from './receipt.js?v=1.11.0';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
@@ -172,7 +172,7 @@ import { setupQrScannerModal } from './qr-scanner.js';
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';
-import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
+import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { buildWalletReconciliation, walletVerificationLabel, walletReconciliationSummaryText, DIGITAL_BREAKDOWN_METHODS } from './wallet-reconciliation.js';import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
@@ -1852,6 +1852,29 @@ function printDownPaymentKistReceipt(customerForReceipt, plan, payment) {
   } catch (err) { toast(err?.message || 'Down-payment receipt could not be generated.'); }
 }
 
+// SISP-50: print the Final Disconnection Clearance Receipt into the
+// same print area the standard receipts use, then print it the same
+// way. The receipt reads the settlement stamped on the customer at
+// settle time — it can never be produced for an unsettled deposit.
+function printDepositSettlementReceipt(customerId) {
+  const customer = state.customers.find(row => row.id === customerId);
+  const receipt = customer ? buildDepositSettlementReceipt(customer) : null;
+  if (!receipt) { toast('No deposit settlement is recorded for this customer.'); return; }
+  const area = $('#receiptPrintArea');
+  if (!area) return;
+  area.innerHTML = generateDepositSettlementReceiptHtml(receipt, {
+    businessName: state.settings?.businessName || 'Shahdara ISP',
+    businessPhone: state.settings?.businessPhone || '0300-1234567'
+  });
+  area.hidden = false;
+  document.body.classList.add('printing-receipt');
+  requestAnimationFrame(() => {
+    try { window.print(); }
+    catch { toast('Printing is not available in this browser.'); }
+    finally { clearReceiptPrint(); }
+  });
+}
+
 // SISP-6: PNG image receipt — 1-tap share (WhatsApp target chooser on
 // mobile/Capacitor) with a 1-click download fallback. Reuses the existing
 // buildPaymentReceipt data path (SISP-2 arrears + SISP-4 kist included);
@@ -2494,8 +2517,23 @@ function renderCustomerProfileView(customer) {
   const custodyFields = normalizeCustodyFields(customer);
   const custodyChecklist = disconnectionChecklist(customer);
   const custodyPending = custodyChecklist.filter(item => !item.recovered);
+  // SISP-50: deposit settlement block inside the custody section —
+  // visible only for disconnected customers holding (or having settled)
+  // a security deposit. Arrears come from the canonical allocation
+  // engine for this customer alone, the same balances the dues lists
+  // and profile net-due read.
+  const depositAllocations = calculatePaymentAllocations({ customers: [customer] });
+  let depositArrearsCents = 0;
+  for (const bill of customer.bills ?? []) {
+    const summary = depositAllocations.forMonth(customer.id, bill.month);
+    if (summary && typeof summary.balanceDueCents === 'number' && summary.balanceDueCents > 0) depositArrearsCents += summary.balanceDueCents;
+  }
+  const depositPres = depositSettlementPresentation(customer, depositArrearsCents / 100);
+  const depositSettlementHtml = !depositPres.visible ? '' : (depositPres.settled
+    ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
+    : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -2707,6 +2745,37 @@ function renderCustomerProfileView(customer) {
         const updated = markAllHardwareRecovered(customer, getTodayDateString());
         applyProfileCustody(customer, updated, 'All hardware marked recovered.');
       } catch (err) { toast(err?.message || 'Could not mark hardware recovered.'); }
+    });
+  }
+  // SISP-50: wire the deposit settlement block (persist + re-render).
+  // The money split is recomputed from a FRESH allocation snapshot at
+  // click time, never from the rendered quote, so a stale screen can
+  // never settle stale arrears.
+  const depositSection = $('#customerProfileView').querySelector('.profile-deposit-settlement');
+  if (depositSection) {
+    depositSection.querySelector('#profileDepositSettleBtn')?.addEventListener('click', () => {
+      try {
+        const freshAllocations = calculatePaymentAllocations({ customers: [customer] });
+        let arrearsCents = 0;
+        const billBalances = [];
+        for (const bill of customer.bills ?? []) {
+          const summary = freshAllocations.forMonth(customer.id, bill.month);
+          if (summary && typeof summary.balanceDueCents === 'number' && summary.balanceDueCents > 0) {
+            arrearsCents += summary.balanceDueCents;
+            billBalances.push({ month: bill.month, balanceDue: summary.balanceDueCents / 100 });
+          }
+        }
+        const updated = applyDepositSettlement(customer, arrearsCents / 100, { date: getTodayDateString(), billBalances });
+        const idx = state.customers.findIndex(c => c.id === customer.id);
+        if (idx >= 0) state.customers[idx] = updated;
+        try { persistState(state, localStorage); } catch {}
+        renderDetail();
+        renderDashboard();
+        toast('Security deposit settled — arrears cleared from the deposit.');
+      } catch (err) { toast(err?.message || 'Could not settle the security deposit.'); }
+    });
+    depositSection.querySelector('#profileDepositReceiptBtn')?.addEventListener('click', () => {
+      printDepositSettlementReceipt(customer.id);
     });
   }
 }

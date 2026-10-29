@@ -152,7 +152,7 @@ import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
-import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
+import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
 import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
@@ -163,7 +163,7 @@ import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, sav
 import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
-import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
+import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, syncSaadPaymentLedgers, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
@@ -301,6 +301,30 @@ function recordRoznamchaExpenseSync() {
     result = syncRoznamchaExpenses(state.expenses ?? [], loadRoznamchaDays());
   } catch { return; }
   if (!result.changed) return;
+  state = { ...state, expenses: result.expenses };
+  if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
+}
+
+// SISP-56 wiring: mirror recorded Saad salary/commission payouts into
+// the main Expenses ledger (saad-visits.js syncSaadPaymentLedgers) so
+// monthly P&L and the Nasir/Aqib 50% partner shares deduct what Saad
+// was actually paid, and mirror drawer-paid payouts into the Daily
+// Roznamcha as exactly one outflow each. The pass is a convergent
+// reconcile in the SISP-45 shape — the payment list is the source of
+// truth, re-running it changes nothing, and syncRoznamchaExpenses
+// skips the Saad-owned outflows — so it can run at startup, after
+// every Saad-log or roznamcha change, and after a backup restore
+// without ever double-counting. The Expenses screen shows the synced
+// rows with a Saad Visit Log badge and no edit/delete buttons.
+function recordSaadPaymentSync() {
+  let result;
+  try {
+    result = syncSaadPaymentLedgers(state.expenses ?? [], loadRoznamchaDays(), loadSaadPayments());
+  } catch { return; }
+  if (result.daysChanged) {
+    try { saveRoznamchaDays(result.days); } catch { /* next pass retries */ }
+  }
+  if (!result.expensesChanged) return;
   state = { ...state, expenses: result.expenses };
   if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
 }
@@ -4009,6 +4033,8 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.saadPayments) {
       saveSaadPayments(pendingBackupPreview.saadPayments);
+      // SISP-56: mirror the restored payouts into Expenses + Roznamcha.
+      recordSaadPaymentSync();
     }
     if (pendingBackupPreview.installRequests) {
       saveInstallRequests(pendingBackupPreview.installRequests);
@@ -7470,10 +7496,13 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     // The roznamcha is their source of truth, so they show a provenance
     // badge and a hint instead of Edit/Delete — changing them here
     // would be overwritten by the next sync pass anyway.
+    // SISP-56: rows mirrored from the Saad Visit Log carry saadPaymentId
+    // and get the same treatment, with their own badge and hint.
     const synced = typeof row.roznamchaEntryId === 'string' && row.roznamchaEntryId !== '';
-    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_roznamcha_badge'))}</span>` : ''}`;
-    const actionsCell = synced
-      ? `<span class="expense-roznamcha-hint">${escapeHtml(t('exp_roznamcha_synced_hint'))}</span>`
+    const saadSynced = typeof row.saadPaymentId === 'string' && row.saadPaymentId !== '';
+    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_roznamcha_badge'))}</span>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}`;
+    const actionsCell = (synced || saadSynced)
+      ? `<span class="expense-roznamcha-hint">${escapeHtml(t(synced ? 'exp_roznamcha_synced_hint' : 'exp_saad_synced_hint'))}</span>`
       : `<button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button>`;
     return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${notesCell}</td><td class="expense-actions">${actionsCell}</td></tr>`;
   }).join('');
@@ -7618,6 +7647,9 @@ $('#expenseForm').addEventListener('submit',async event=>{
     // SISP-45: a roznamcha-synced expense is never edited here — the
     // roznamcha owns it and the next sync pass would restore its values.
     if(previous?.roznamchaEntryId){toast(t('exp_roznamcha_edit_blocked_toast'));return;}
+    // SISP-56: same for a Saad-Visit-Log-synced expense — the payment
+    // record owns it and the next sync pass would restore its values.
+    if(previous?.saadPaymentId){toast(t('exp_saad_edit_blocked_toast'));return;}
     if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();
@@ -10258,6 +10290,14 @@ if (typeof document !== 'undefined') {
       renderDashboard();
       renderDetail();
     },
+    // SISP-56: the ticket card's 1-click action opens the Saad Visit
+    // Log pre-filled from the resolved ticket; the logged-ticket list
+    // (visits' ticketId links) drives the button's logged state.
+    listLoggedVisitTicketIds: () => loadSaadVisits().map((v) => v.ticketId).filter(Boolean),
+    onLogSaadVisit: (ticket) => {
+      const prefill = buildVisitPrefillFromTicket(ticket, state.customers || []);
+      if (prefill && saadVisitsModalController) saadVisitsModalController.open(prefill);
+    },
     onToast: (msg, opts) => toast(msg, opts)
   });
   // SISP-44: converge any linked complaint/ticket pairs recorded before
@@ -10271,6 +10311,10 @@ if (typeof document !== 'undefined') {
   // recorded before this wiring existed (or restored with the day
   // ledger) are mirrored into the Expenses ledger exactly once.
   recordRoznamchaExpenseSync();
+  // SISP-56: one Saad-payment sync pass at startup so payouts recorded
+  // before this wiring existed (or restored) mirror into Expenses and
+  // the Roznamcha exactly once.
+  recordSaadPaymentSync();
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
@@ -10281,7 +10325,7 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   roznamchaModalController = setupRoznamchaModal(() => state, {
-    onChanged: () => { recordRoznamchaExpenseSync(); renderDashboard(); },
+    onChanged: () => { recordRoznamchaExpenseSync(); recordSaadPaymentSync(); renderDashboard(); },
     onToast: (msg, opts) => toast(msg, opts)
   });
   inventoryBookModalController = setupInventoryBookModal(() => state, {
@@ -10296,7 +10340,7 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   saadVisitsModalController = setupSaadVisitsModal(() => state, {
-    onVisitsChanged: () => renderDashboard(),
+    onVisitsChanged: () => { recordSaadPaymentSync(); renderDashboard(); },
     onToast: (msg, opts) => toast(msg, opts),
     listTicketIds: () => loadTickets().map((t) => t.id),
     onConfirm: (opts) => appConfirm(opts)

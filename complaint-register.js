@@ -29,11 +29,21 @@
  * clears resolvedViaTicketId (the sync layer stamps it again after its
  * own calls), so manual resolutions are never overwritten by the sync.
  *
+ * SISP-49: an unresolved complaint whose customer feeds downstream
+ * homes (SISP-7 outage-impact.js) renders an inline daisy-chain alert
+ * banner on its card listing every affected downstream home, with a
+ * 1-tap button that launches their bulk WhatsApp outage notifications
+ * (host callback opens the SISP-7 tool prefilled; standalone fallback
+ * copies the message list). The banner is computed fresh from live
+ * data on every render and is strictly read-only — it never mutates,
+ * hides or auto-closes any complaint.
+ *
  * All helpers are pure except load/saveComplaints and the modal setup.
  * Tests use synthetic data only.
  */
 
 import { t } from './nav-language.js';
+import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue } from './outage-impact.js';
 
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
 
@@ -244,6 +254,24 @@ export function complaintCustomerLabel(complaint) {
 }
 
 /**
+ * SISP-49: daisy-chain alert for one complaint, or null when no banner
+ * should show. The banner exists to act on a LIVE fault, so it shows
+ * only while the complaint is unresolved (Open / In Progress): a
+ * resolved complaint's outage is over and there is nobody left to
+ * notify. Area-outage records have no single feeder customer, and an
+ * unknown customer id can have no traced dependents — both return null.
+ * Read-only by construction (buildDaisyChainAlert never mutates), so
+ * rendering a banner can never hide, merge, auto-close or otherwise
+ * alter any complaint record.
+ */
+export function complaintDaisyChainAlert(customers, complaint) {
+  if (!complaint || typeof complaint !== 'object') return null;
+  if (complaint.status === 'Resolved') return null;
+  if (!complaint.customerId || complaint.customerId === AREA_OUTAGE_CUSTOMER_ID) return null;
+  return buildDaisyChainAlert(customers, complaint.customerId);
+}
+
+/**
  * Applies a status change. Resolving auto-fills resolvedAt (now, unless
  * given) and auto-computes downtime unless a manual override is on record.
  * Reopening clears resolvedAt/downtime so the timeline restarts cleanly;
@@ -363,7 +391,7 @@ export function collectComplaintZones(state) {
  * lives above; this controller only renders and persists via load/save
  * + the app's onComplaintsChanged callback (dashboard + profile refresh).
  */
-export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket } = {}) {
+export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('complaintRegisterModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -428,7 +456,27 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       return;
     }
     const sorted = [...rows].sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
+    const state = getState() || { customers: [] };
+    const allCustomers = Array.isArray(state.customers) ? state.customers : [];
     listEl.innerHTML = sorted.map((c) => {
+      // SISP-49: daisy-chain alert banner — when this complaint's
+      // customer feeds downstream homes, list every affected home and
+      // offer the 1-tap bulk WhatsApp outage launch. Purely additive:
+      // it renders from live data and never touches the record.
+      const chainAlert = complaintDaisyChainAlert(allCustomers, c);
+      const chainBanner = chainAlert ? `
+        <div class="complaint-chain-banner" role="alert">
+          <div class="complaint-chain-title">⚡ ${escapeHtml(t('cmp_chain_title'))}</div>
+          <p class="complaint-chain-body">${escapeHtml(t('cmp_chain_body', null, { count: chainAlert.count }))}</p>
+          <ul class="complaint-chain-list">
+            ${chainAlert.impacted.map((entry) => {
+              const home = entry.customer;
+              const meta = [cleanText(home.mohalla), cleanText(home.fiberZone)].filter(Boolean).join(' · ') || t('cmp_chain_no_area');
+              return `<li><strong>${escapeHtml(cleanText(home.name) || 'Unknown')}</strong><span>${escapeHtml(meta)}</span></li>`;
+            }).join('')}
+          </ul>
+          <button type="button" class="primary-button complaint-status-btn" data-complaint-action="notify-chain" data-complaint-id="${escapeHtml(c.id)}">${escapeHtml(t('cmp_chain_notify_btn'))}</button>
+        </div>` : '';
       // SISP-44: linked-ticket line, or the 1-click assign controls when
       // no ticket is linked yet (host callbacks supplied by app.js).
       const link = typeof getTicketLink === 'function' ? getTicketLink(c.id) : null;
@@ -451,6 +499,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Customer</span><strong>${escapeHtml(complaintCustomerLabel(c))}</strong></p>
         <p><span>Zone</span><strong>${escapeHtml(c.zone || 'Not set')}</strong></p>
         <p><span>Issue</span><strong>${escapeHtml(c.issueCategory)}</strong></p>
+        ${chainBanner}
         ${ticketLine}
         <p><span>Reported</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="reportedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.reportedAt || '')}" aria-label="Reported at"></p>
         <p><span>Resolved</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="resolvedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedAt || '')}" aria-label="Resolved at" ${c.status !== 'Resolved' ? 'disabled' : ''}></p>
@@ -526,6 +575,31 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       if (!btn) return;
       const id = btn.dataset.complaintId;
       const action = btn.dataset.complaintAction;
+      if (action === 'notify-chain') {
+        // SISP-49: 1-tap launch of the bulk WhatsApp outage
+        // notifications for this complaint's downstream homes. The host
+        // opens the SISP-7 outage tool prefilled with the feeder
+        // customer; without a host callback, fall back to copying the
+        // ready-to-send message list so the button never dead-ends.
+        const complaint = loadComplaints().find((c) => c.id === id);
+        if (!complaint) return;
+        if (typeof onLaunchOutageAlerts === 'function') {
+          onLaunchOutageAlerts(complaint.customerId, id);
+          return;
+        }
+        const st = getState() || { customers: [] };
+        const queue = buildOutageQueue(Array.isArray(st.customers) ? st.customers : [], complaint.customerId);
+        const text = buildOutageQueueText(queue);
+        (async () => {
+          try {
+            await navigator.clipboard.writeText(text);
+            onToast && onToast(t('cmp_chain_copied_toast', null, { count: queue ? queue.impacted.length : 0 }));
+          } catch {
+            onToast && onToast(t('cmp_chain_copy_failed_toast'));
+          }
+        })();
+        return;
+      }
       if (action === 'assign') {
         // SISP-44: 1-click "Assign Lineman Ticket" — the host (app.js)
         // creates the linked ticket via complaint-ticket-sync.js.

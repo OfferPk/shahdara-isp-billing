@@ -9827,6 +9827,12 @@ if (typeof document !== 'undefined') {
       }
       return { ticket: result.ticket, created: result.created };
     },
+    // SISP-49: the card's daisy-chain banner launches the SISP-7 bulk
+    // WhatsApp outage notifications for the complaint's downstream
+    // homes — open the outage tool prefilled with the feeder customer.
+    onLaunchOutageAlerts: (customerId) => {
+      if (outageImpactModalController) outageImpactModalController.open({ sourceId: String(customerId) });
+    },
     onToast: (msg, opts) => toast(msg, opts)
   });
   fieldTicketsModalController = setupFieldTicketsModal(() => state, {

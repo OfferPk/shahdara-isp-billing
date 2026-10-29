@@ -176,6 +176,14 @@
 .complaint-downtime-wrap .complaint-downtime-input { flex: 1 1 100px; }
 .complaint-register-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .complaint-register-empty { color: var(--muted); font-size: 13px; }
+/* SISP-49: daisy-chain alert banner on complaint cards. Theme tokens only (amber alert tint), so dark mode stays correct. */
+.complaint-chain-banner { background: var(--amber-bg); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 10px; padding: 10px 12px; margin: 10px 0; min-width: 0; }
+.complaint-chain-title { font-size: 13px; font-weight: 700; color: var(--amber); }
+.complaint-register-card .complaint-chain-body { display: block; font-size: 13px; color: var(--ink); margin: 6px 0; }
+.complaint-chain-list { list-style: none; margin: 6px 0 10px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.complaint-chain-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: 13px; color: var(--muted); min-width: 0; }
+.complaint-chain-list li strong { color: var(--ink); overflow-wrap: anywhere; }
+.complaint-chain-list li span { overflow-wrap: anywhere; }
 .profile-complaints-section { margin-top: 16px; }
 .profile-complaints-section h4 { margin: 0 0 8px; color: var(--ink); }
 .profile-complaints-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }

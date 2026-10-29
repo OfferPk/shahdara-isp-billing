@@ -1377,3 +1377,50 @@ body.field-mode-open { overflow: hidden; }
   .bci-text { font-size: 14px; }
   .bci-actions .secondary-button, .bci-actions .primary-button { flex: 1; }
 }
+
+/* SISP-54: Monthly Collection Thermometer & area run-rate bars.
+   Theme tokens only — the fill follows --green (brand) in both themes,
+   the track is the soft surface with a hairline border. */
+.collection-forecast-section { margin: 14px 0; }
+.collection-forecast-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+}
+.collection-forecast-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.collection-forecast-title { margin: 0; font-size: var(--text-lg); color: var(--ink); }
+.collection-forecast-pct { font-size: var(--text-2xl); font-weight: 800; color: var(--green); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.fcst-thermo {
+  height: 18px;
+  margin-top: var(--space-3);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.fcst-thermo-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: var(--radius-pill);
+  transition: width 0.4s ease;
+}
+.collection-forecast-collected { margin: var(--space-2) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+.collection-forecast-line { margin: 2px 0 0; color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+.collection-forecast-areas-title { margin: var(--space-4) 0 var(--space-2); font-size: var(--text-md); color: var(--ink); }
+.collection-forecast-areas { display: grid; gap: var(--space-3); }
+.fcst-area-row { min-width: 0; }
+.fcst-area-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.fcst-area-label { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.fcst-area-figures { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+.fcst-area-bar {
+  height: 10px;
+  margin-top: 4px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+.fcst-area-fill { height: 100%; background: var(--green); border-radius: var(--radius-pill); }
+.fcst-area-sub { color: var(--muted); font-size: var(--text-xs); font-variant-numeric: var(--numeric); }

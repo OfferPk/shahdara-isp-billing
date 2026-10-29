@@ -174,6 +174,7 @@ import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
+import { buildCollectionForecast } from './collection-forecaster.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment } from './advance-payment.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -1160,6 +1161,73 @@ function renderDashboard() {
       advCard.addEventListener('keydown', (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openAdvanceHoldersDialog(); }
       });
+    }
+  }
+
+  // SISP-54: Monthly Collection Thermometer — collected so far vs
+  // this month's billed + arrears carried in (target derived from the
+  // ledger itself via collection-forecaster.js, never a typed-in
+  // goal), the required daily run-rate for the days left, and
+  // area-by-area progress bars. Read-only presentation.
+  const fcstSection = $('#collectionForecastSection');
+  if (fcstSection) {
+    const forecast = buildCollectionForecast(state, totals.currentMonth, referenceDate);
+    const pctText = forecast.progressPercent === null ? '—' : `${forecast.progressPercent}%`;
+    const pctEl = $('#collectionForecastPct');
+    if (pctEl) pctEl.textContent = pctText;
+    const fillEl = $('#collectionForecastFill');
+    if (fillEl) {
+      const fillPct = forecast.progressPercent === null ? 0 : Math.min(100, Math.max(0, forecast.progressPercent));
+      fillEl.style.width = `${fillPct}%`;
+      const bar = fillEl.parentElement;
+      if (bar && bar.setAttribute) bar.setAttribute('aria-valuenow', String(fillPct));
+    }
+    const collectedEl = $('#collectionForecastCollected');
+    if (collectedEl) {
+      collectedEl.textContent = t('fcst_collected_of', null, {
+        collected: formatAmount(forecast.collectedCents / 100),
+        target: formatAmount(forecast.targetCents / 100)
+      });
+    }
+    const splitEl = $('#collectionForecastSplit');
+    if (splitEl) {
+      splitEl.textContent = t('fcst_split', null, {
+        billed: formatAmount(forecast.billedCents / 100),
+        arrears: formatAmount(forecast.arrearsCents / 100)
+      });
+    }
+    const runRateEl = $('#collectionForecastRunRate');
+    if (runRateEl) {
+      const daysText = forecast.daysRemaining === 0
+        ? t('fcst_no_days_left')
+        : t(forecast.daysRemaining === 1 ? 'fcst_days_left_one' : 'fcst_days_left_many', null, { days: forecast.daysRemaining });
+      runRateEl.textContent = forecast.remainingCents > 0
+        ? `${t('fcst_run_rate', null, { amount: formatAmount(forecast.requiredDailyRunRateCents / 100) })} · ${daysText}`
+        : (forecast.hasTarget ? t('fcst_done') : '');
+    }
+    const paceEl = $('#collectionForecastPace');
+    if (paceEl) {
+      paceEl.textContent = forecast.hasTarget
+        ? t('fcst_pace', null, {
+          pace: formatAmount(forecast.actualDailyPaceCents / 100),
+          projected: formatAmount(forecast.projectedMonthEndCents / 100)
+        })
+        : '';
+    }
+    const emptyEl = $('#collectionForecastEmpty');
+    if (emptyEl) emptyEl.hidden = forecast.hasTarget;
+    const areasTitleEl = fcstSection.querySelector('.collection-forecast-areas-title');
+    if (areasTitleEl) areasTitleEl.hidden = forecast.areas.length === 0;
+    const areasEl = $('#collectionForecastAreas');
+    if (areasEl) {
+      areasEl.innerHTML = forecast.areas.map(area => {
+        const areaPct = Math.min(100, Math.max(0, area.progressPercent ?? 0));
+        return `<div class="fcst-area-row">
+          <div class="fcst-area-head"><span class="fcst-area-label">${escapeHtml(area.label)}</span><span class="fcst-area-figures">${escapeHtml(formatAmount(area.collectedCents / 100))} / ${escapeHtml(formatAmount(area.targetCents / 100))} · ${area.progressPercent}%</span></div>
+          <div class="fcst-area-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${areaPct}" aria-label="${escapeHtml(area.label)}"><div class="fcst-area-fill" style="width: ${areaPct}%"></div></div>
+          <span class="fcst-area-sub">${escapeHtml(t('fcst_remaining', null, { amount: formatAmount(area.remainingCents / 100) }))}</span>
+        </div>`;
+      }).join('');
     }
   }
 

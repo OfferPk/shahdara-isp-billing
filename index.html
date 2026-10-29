@@ -597,6 +597,27 @@
         <article class="summary-card summary-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">💹</span><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">🛰️</span><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
+      <section class="collection-forecast-section" id="collectionForecastSection" aria-labelledby="collectionForecastHeading">
+        <div class="collection-forecast-card">
+          <div class="collection-forecast-header">
+            <div>
+              <h3 id="collectionForecastHeading" class="collection-forecast-title" data-i18n="fcst_title">Monthly Collection Thermometer</h3>
+              <p class="chart-caption" data-i18n="fcst_sub">Collected so far vs this month’s bills + arrears carried in</p>
+            </div>
+            <strong id="collectionForecastPct" class="collection-forecast-pct">0%</strong>
+          </div>
+          <div class="fcst-thermo" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Collection progress" data-i18n-aria-label="fcst_bar_aria">
+            <div id="collectionForecastFill" class="fcst-thermo-fill" style="width: 0%"></div>
+          </div>
+          <p id="collectionForecastCollected" class="collection-forecast-collected">PKR 0 of PKR 0 collected</p>
+          <p id="collectionForecastSplit" class="collection-forecast-line"></p>
+          <p id="collectionForecastRunRate" class="collection-forecast-line"></p>
+          <p id="collectionForecastPace" class="collection-forecast-line"></p>
+          <p id="collectionForecastEmpty" class="empty-state" hidden data-i18n="fcst_no_target">No bills for this month yet — the thermometer fills as bills are generated.</p>
+          <h4 class="collection-forecast-areas-title" data-i18n="fcst_areas_title">Area-wise progress</h4>
+          <div id="collectionForecastAreas" class="collection-forecast-areas"></div>
+        </div>
+      </section>
       <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
         <div class="mohalla-dashboard-heading">
           <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>

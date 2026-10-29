@@ -416,6 +416,50 @@ body.field-mode-open { overflow: hidden; }
   font-variant-numeric: var(--numeric);
   white-space: nowrap;
 }
+/* Search-fix colour coding (owner, 2026-10-29): a status strip on every
+   result card — RED dues pending, YELLOW advance credit waiting, GREEN
+   fully paid. Theme tokens only; the word chip beside it carries the
+   same status as text, so colour is never the only signal. */
+.field-mode-status-strip {
+  flex: none;
+  align-self: stretch;
+  width: 6px;
+  border-radius: 3px;
+  background: var(--line);
+}
+.field-mode-status--due .field-mode-status-strip { background: var(--color-overdue); }
+.field-mode-status--advance .field-mode-status-strip { background: var(--amber); }
+.field-mode-status--paid .field-mode-status-strip { background: var(--color-paid); }
+.field-mode-customer-main .ds-chip { align-self: flex-start; }
+.field-mode-advance-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  margin: 0 0 10px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+.field-mode-advance-toggle input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  accent-color: var(--green);
+}
+.field-mode-advance-amount {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  margin: 0 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: var(--text-sm);
+}
 .field-mode-panel {
   margin-top: 16px;
   min-width: 0;

@@ -48,6 +48,27 @@
  * the SISP-6 stamped PNG via generateReceiptPNG + shareOrDownloadPng).
  * The button renders only when the host supplies onPngReceipt.
  *
+ * SEARCH FIX (owner report 2026-10-29, "name search kro tu ni ataa"):
+ * the list used to be built ONLY from the 'all-dues' pending list, so a
+ * fully-paid customer could never be found by search — when the whole
+ * ledger was paid up, Field Mode showed "0 customers" for any name. The
+ * SISP-31 matcher itself was never the problem (on the full list it
+ * finds the same customer). Locked behaviour now: with NO query the
+ * default view stays dues-only exactly as designed; WITH a query,
+ * searchFieldModeEntries() matches against ALL unarchived customers, so
+ * a paid customer shows up (green/paid card), and his sheet offers the
+ * Advance path in this same flow (collectFieldModeAdvance — the PR #488
+ * machinery: executeQuickCollection with kind 'advance', the exact call
+ * the Quick Collect sheet's Advance checkbox makes, so the stored
+ * record, receipt card and advance balance are identical). Result cards
+ * are colour-coded from the engine's real figures
+ * (fieldModeCustomerStatus): RED strip = dues pending, YELLOW = unused
+ * advance credit waiting, GREEN = fully paid; precedence dues >
+ * advance > paid, because a customer can genuinely hold both (a later
+ * month overpaid while an earlier month is unpaid — the allocation
+ * engine never flows credit backward), and money owed is the truth the
+ * collector must act on; the waiting credit still prints on the card.
+ *
  * Pure helpers are DOM-free and unit-tested; setupFieldMode() is the DOM
  * controller (returns a no-op controller outside a browser, mirroring
  * setupQuickCollectModal's fallback).
@@ -59,7 +80,8 @@ import {
   formatQuickCollectWhatsAppReceipt,
   getPakistanLocalDate
 } from './nav-quick-collect.js';
-import { PAYMENT_METHODS, formatPKR } from './core.js';
+import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations } from './core.js';
+import { advanceBalanceCents } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
 import {
@@ -309,6 +331,83 @@ export function collectFieldModePayment(state, entry, method, referenceDate = ne
 }
 
 /**
+ * SEARCH FIX: name search across ALL unarchived customers (the 'all'
+ * pending-list shape, which carries zero-dues customers too), filtered
+ * by the SAME SISP-31 bilingual matcher the dues list uses — no second
+ * matcher is forked. An empty/blank query returns [] on purpose: the
+ * no-query default view is the dues list, never this one.
+ */
+export function searchFieldModeEntries(state, query, referenceDate = new Date()) {
+  if (!state || !String(query ?? '').trim()) return [];
+  return filterFieldModeEntries(
+    getPendingCollectionCustomers(state, '', 'all', referenceDate),
+    state.customers ?? [],
+    query
+  );
+}
+
+/**
+ * SEARCH FIX: the money truth for one customer, from the allocation
+ * engine's real figures — total dues (sum of positive per-month
+ * balances, the same math the pending list uses) and unused advance
+ * credit (advanceBalanceCents: unapplied credit waiting for a future
+ * bill). Colour precedence for the result cards:
+ *   totalDues > 0      -> 'due'     (RED: money is owed)
+ *   advanceCredit > 0  -> 'advance' (YELLOW: credit waiting)
+ *   otherwise          -> 'paid'    (GREEN: fully paid)
+ * Both figures are always returned: dues and waiting credit CAN coexist
+ * (a later month overpaid while an earlier month is unpaid — credit
+ * never flows backward), and the card prints the credit even when the
+ * strip is red. `allocations` may be passed to share one engine pass
+ * across a whole rendered list.
+ */
+export function fieldModeCustomerStatus(state, customerId, allocations = null) {
+  const customer = (state?.customers ?? []).find(c => c.id === customerId);
+  const allocs = allocations ?? calculatePaymentAllocations(state);
+  let duesCents = 0;
+  for (const bill of customer?.bills ?? []) {
+    const summary = allocs.forMonth(customerId, bill.month);
+    if (summary?.balanceDueCents > 0) duesCents += summary.balanceDueCents;
+  }
+  const totalDues = Math.round(Math.max(0, duesCents)) / 100;
+  const advanceCredit = Math.round(advanceBalanceCents(state, customerId, allocs)) / 100;
+  const key = totalDues > 0 ? 'due' : advanceCredit > 0 ? 'advance' : 'paid';
+  return { key, totalDues, advanceCredit };
+}
+
+/**
+ * SEARCH FIX: records an ADVANCE collection for a customer found by
+ * search (typically zero-dues) through Field Mode's own existing path —
+ * executeQuickCollection with kind 'advance', the exact call the Quick
+ * Collect sheet makes when its Advance checkbox is ticked (PR #488), so
+ * the payment lands tagged kind:'advance', the receipt card / WhatsApp
+ * draft / 58mm / PNG flow works unchanged, and the amount first settles
+ * any balance on the target month with the remainder held as advance
+ * credit (the engine's real FIFO semantics). Throws on a bad amount or
+ * an invalid method (executeQuickCollection validates both).
+ */
+export function collectFieldModeAdvance(state, entry, { amount, method } = {}, referenceDate = new Date()) {
+  const numAmount = Number(amount);
+  if (!entry || !Number.isFinite(numAmount) || numAmount <= 0) {
+    throw new Error('Enter a valid advance amount greater than zero.');
+  }
+  const today = getPakistanLocalDate(referenceDate);
+  const { nextState, receipt } = executeQuickCollection(
+    state,
+    {
+      customerId: entry.id,
+      month: entry.targetMonth,
+      amount: numAmount,
+      date: today,
+      method: method || 'Cash',
+      kind: 'advance'
+    },
+    referenceDate
+  );
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt) };
+}
+
+/**
  * Applies one Waada chip to a customer record (pure, SISP-3 flow).
  * chip: 'plus2' | 'plus5' | 'tenth' | 'custom'. Throws on an invalid date.
  */
@@ -391,22 +490,29 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let zoneKey = FIELD_MODE_ALL_ZONES;
   let selectedId = null;
   let lastReceipt = null;
+  let lastReceiptAdvance = false;
+  let panelMode = 'collect';
   let busy = false;
 
   const toast = (msg) => { if (typeof onToast === 'function') onToast(msg); };
   const todayStr = () => getWaadaTodayString();
+  const searching = () => String(query ?? '').trim().length > 0;
 
-  const pendingEntries = () => {
+  // The dues-only pending list — the DEFAULT view, unchanged by design:
+  // a customer with nothing due stays hidden until he is searched for.
+  const duesEntries = () => {
     const state = typeof getState === 'function' ? getState() : null;
     if (!state) return [];
-    // SISP-31: fetch unfiltered, then apply the bilingual filter locally so
-    // Urdu queries (nameUrdu + transliteration) work without changing the
-    // shared Quick Collect matcher used by other screens.
-    return filterFieldModeEntries(
-      getPendingCollectionCustomers(state, '', 'all-dues'),
-      state.customers ?? [],
-      query
-    );
+    return getPendingCollectionCustomers(state, '', 'all-dues');
+  };
+
+  // SEARCH FIX: with a query active, the list base switches to the
+  // search results across ALL customers (paid ones included); with no
+  // query it is exactly the dues list above.
+  const activeEntries = () => {
+    const state = typeof getState === 'function' ? getState() : null;
+    if (!state) return [];
+    return searching() ? searchFieldModeEntries(state, query) : duesEntries();
   };
 
   const liveCustomer = (id) => {
@@ -414,9 +520,12 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     return (state?.customers ?? []).find(c => c.id === id) ?? null;
   };
 
-  function renderZoneFilters(groups, visibleCount) {
+  function renderZoneFilters(groups, baseEntries) {
     if (!zoneFiltersEl) return;
-    const allSummary = fieldModeZoneSummary(pendingEntries());
+    // Counts describe the ACTIVE list base: dues-only by default, the
+    // search matches while searching — so the chips/target line never
+    // claim "0 customers" when a search has in fact found the customer.
+    const allSummary = fieldModeZoneSummary(baseEntries);
     const chips = [
       `<button type="button" class="field-mode-zone-chip${zoneKey === FIELD_MODE_ALL_ZONES ? ' is-active' : ''}" data-field-zone="${FIELD_MODE_ALL_ZONES}" aria-pressed="${zoneKey === FIELD_MODE_ALL_ZONES}">All areas · ${allSummary.count}</button>`
     ];
@@ -442,26 +551,42 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         zoneTargetEl.innerHTML = `All areas: ${allSummary.count} customers · ${escapeHtml(formatPKR(allSummary.totalDues))} remaining to collect${collectedLine}`;
       }
     }
-    if (visibleCount === 0 && listEl) {
-      // Keep the empty state inside the list region, not the target line.
-    }
   }
 
-  function renderList(visible) {
+  function renderList(visible, statusById) {
     if (!listEl) return;
     if (!visible.length) {
-      listEl.innerHTML = '<p class="field-mode-empty">No customers with dues here. Try another area or search.</p>';
+      listEl.innerHTML = searching()
+        ? '<p class="field-mode-empty">No customer matches your search. Try another name, phone or area.</p>'
+        : '<p class="field-mode-empty">No customers with dues here. Try another area or search.</p>';
       return;
     }
     listEl.innerHTML = visible.map(entry => {
       const badge = waadaBadgeLabel(liveCustomer(entry.id), todayStr());
       const zone = fieldModeZoneOf(liveCustomer(entry.id) ?? entry);
-      return `<button type="button" class="field-mode-customer-btn${selectedId === entry.id ? ' is-selected' : ''}" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
+      // SEARCH FIX colour coding: strip + word chip from the engine
+      // figures — RED due, YELLOW advance credit waiting, GREEN paid.
+      const status = statusById?.get(entry.id)
+        ?? { key: entry.totalDues > 0 ? 'due' : 'paid', totalDues: entry.totalDues, advanceCredit: 0 };
+      const chip = status.key === 'due'
+        ? '<span class="ds-chip ds-chip--overdue">🔴 Due</span>'
+        : status.key === 'advance'
+          ? '<span class="ds-chip ds-chip--pending">🟡 Advance</span>'
+          : '<span class="ds-chip ds-chip--paid">🟢 Paid</span>';
+      const figure = status.key === 'advance'
+        ? formatPKR(status.advanceCredit)
+        : formatPKR(entry.totalDues);
+      const creditNote = status.key === 'due' && status.advanceCredit > 0
+        ? ` · Advance ${formatPKR(status.advanceCredit)}`
+        : '';
+      return `<button type="button" class="field-mode-customer-btn field-mode-status--${status.key}${selectedId === entry.id ? ' is-selected' : ''}" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
+        <span class="field-mode-status-strip" aria-hidden="true"></span>
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
-          <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}</small>
+          <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}</small>
+          ${chip}
         </span>
-        <span class="field-mode-customer-due">${escapeHtml(formatPKR(entry.totalDues))}</span>
+        <span class="field-mode-customer-due">${escapeHtml(figure)}</span>
       </button>`;
     }).join('');
   }
@@ -477,6 +602,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       });
       panelEl.innerHTML = `<section class="field-mode-receipt" aria-label="Collection receipt">
         <h3>✅ Collected — ${escapeHtml(receipt.customerName)}</h3>
+        ${lastReceiptAdvance ? '<p><span class="ds-chip ds-chip--pending">🟡 Advance</span> Tagged as advance credit for the next bill.</p>' : ''}
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
         <p>Remaining balance: <strong>${escapeHtml(formatPKR(receipt.newTotalDues))}</strong> · ${settled ? 'PAID IN FULL' : 'PARTIAL'}</p>
         ${whatsapp.url
@@ -492,10 +618,17 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       return;
     }
     const state = typeof getState === 'function' ? getState() : null;
-    const pending = getPendingCollectionCustomers(state, '', 'all-dues');
-    const entry = pending.find(e => e.id === selectedId);
+    // SEARCH FIX: the sheet resolves the customer on the FULL list, so a
+    // zero-dues customer found by search opens his sheet too (previously
+    // the dues-only lookup dead-ended him). Zero dues — or the operator
+    // choosing Advance — routes to the advance sheet below.
+    const entry = getPendingCollectionCustomers(state, '', 'all').find(e => e.id === selectedId);
     if (!entry) {
-      panelEl.innerHTML = '<p class="field-mode-empty">This customer has no pending balance anymore.</p>';
+      panelEl.innerHTML = '<p class="field-mode-empty">This customer is not available for collection.</p>';
+      return;
+    }
+    if (panelMode === 'advance' || entry.totalDues <= 0) {
+      renderAdvancePanel(entry, state);
       return;
     }
     const customer = liveCustomer(selectedId);
@@ -510,6 +643,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       <div class="field-mode-action-grid">
         <button type="button" class="field-mode-action-btn field-mode-cash-btn" data-field-action="cash" ${busy ? 'disabled' : ''}>💵 Cash Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>
         ${shopButtons}
+        <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance" ${busy ? 'disabled' : ''}>💰 Advance payment</button>
       </div>
       <div class="field-mode-waada">
         <p class="field-mode-waada-label">🤝 Waada (promise-to-pay)</p>
@@ -527,22 +661,68 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     </section>`;
   }
 
+  /**
+   * SEARCH FIX: the Advance sheet — shown for a zero-dues customer found
+   * by search (the owner's November flow: he is standing with the
+   * customer, the bill is paid, the money is for the NEXT bill) and for
+   * any customer when the operator taps "Advance payment" on the dues
+   * sheet. The Advance checkbox is pre-ticked (the PR #488 pattern);
+   * with zero dues it cannot be unticked — an untagged payment against
+   * a fully-paid bill is exactly what the owner ruled out — while with
+   * dues present, unticking returns to the normal collect sheet.
+   */
+  function renderAdvancePanel(entry, state) {
+    const status = fieldModeCustomerStatus(state, entry.id);
+    const zeroDues = entry.totalDues <= 0;
+    const shops = fieldModeShopMethods();
+    const methodButtons = [
+      `<button type="button" class="field-mode-action-btn field-mode-cash-btn" data-field-advance-method="Cash" ${busy ? 'disabled' : ''}>💵 Cash Advance</button>`,
+      ...shops.map(shop =>
+        `<button type="button" class="field-mode-action-btn" data-field-advance-method="${escapeHtml(shop.method)}" ${busy ? 'disabled' : ''}>🏪 ${escapeHtml(shop.short)} Advance</button>`)
+    ].join('');
+    panelEl.innerHTML = `<section class="field-mode-actions" aria-label="Advance payment">
+      <h3>${escapeHtml(entry.name)} <small>#${escapeHtml(entry.customerNumber)}</small></h3>
+      <p class="field-mode-due-line">${zeroDues
+        ? `✅ <strong>Paid in full — no dues.</strong>`
+        : `Full pending: <strong>${escapeHtml(formatPKR(entry.totalDues))}</strong> · advance settles this first, the rest stays as credit.`}${status.advanceCredit > 0 ? ` Advance credit waiting: <strong>${escapeHtml(formatPKR(status.advanceCredit))}</strong>.` : ''}</p>
+      <label class="field-mode-advance-toggle">
+        <input type="checkbox" id="fieldModeAdvanceCheckbox" checked>
+        <span>Advance payment (next bill credit)</span>
+      </label>
+      <input id="fieldModeAdvanceAmount" class="field-mode-advance-amount" type="number" inputmode="decimal" min="1" step="any" placeholder="Advance amount (PKR)" aria-label="Advance amount (PKR)">
+      <div class="field-mode-action-grid">
+        ${methodButtons}
+      </div>
+      <p class="field-mode-note">Money received before its bill — it stays tagged as advance and reduces the next bill automatically.</p>
+      ${zeroDues ? '' : '<button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance-back">← Back to collection</button>'}
+      <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="back">← Back to list</button>
+    </section>`;
+  }
+
   function render() {
     if (!isOpen) return;
     const state = typeof getState === 'function' ? getState() : null;
-    const pending = pendingEntries();
-    const groups = groupFieldModeZones(state, pending);
+    const base = activeEntries();
+    const groups = groupFieldModeZones(state, base);
     const visible = zoneKey === FIELD_MODE_ALL_ZONES
-      ? pending
+      ? base
       : (groups.find(g => g.key === zoneKey)?.entries ?? []);
-    renderZoneFilters(groups, visible.length);
-    renderList(visible);
+    // One engine pass shared by every card's colour status.
+    const allocations = state ? calculatePaymentAllocations(state) : null;
+    const statusById = new Map(visible.map(entry => [
+      entry.id,
+      state ? fieldModeCustomerStatus(state, entry.id, allocations) : null
+    ]));
+    renderZoneFilters(groups, base);
+    renderList(visible, statusById);
     renderPanel();
   }
 
   function selectCustomer(id) {
     selectedId = id;
     lastReceipt = null;
+    lastReceiptAdvance = false;
+    panelMode = 'collect';
     render();
   }
 
@@ -563,9 +743,47 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const { nextState, receipt, whatsapp } = collectFieldModePayment(state, fresh, method);
       if (typeof onSaveState === 'function') onSaveState(nextState);
       lastReceipt = { receipt, whatsapp };
+      lastReceiptAdvance = false;
       toast(`${formatPKR(receipt.amount)} collected from ${receipt.customerName}.`);
     } catch (err) {
       toast(err?.message || 'Could not record payment.');
+    } finally {
+      busy = false;
+    }
+    render();
+  }
+
+  /**
+   * SEARCH FIX: records an Advance from the advance sheet. The amount is
+   * read from the sheet's input at tap time (the Waada custom-date
+   * pattern); the record goes through collectFieldModeAdvance so it is
+   * stored tagged kind 'advance' and the receipt card (WA / 58mm / PNG)
+   * renders exactly like a normal collection.
+   */
+  function collectAdvance(method) {
+    if (busy || !selectedId) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    if (!state) return;
+    const entry = getPendingCollectionCustomers(state, '', 'all').find(e => e.id === selectedId);
+    if (!entry) {
+      toast('This customer is not available for collection.');
+      selectedId = null;
+      render();
+      return;
+    }
+    const amountInput = panelEl?.querySelector('#fieldModeAdvanceAmount');
+    const amount = amountInput ? Number(amountInput.value) : NaN;
+    busy = true;
+    renderPanel();
+    try {
+      const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method });
+      if (typeof onSaveState === 'function') onSaveState(nextState);
+      lastReceipt = { receipt, whatsapp };
+      lastReceiptAdvance = true;
+      panelMode = 'collect';
+      toast(`Advance ${formatPKR(receipt.amount)} recorded for ${receipt.customerName}.`);
+    } catch (err) {
+      toast(err?.message || 'Could not record advance payment.');
     } finally {
       busy = false;
     }
@@ -628,11 +846,16 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
 
   toggleBtn.addEventListener('click', toggle);
   if (closeBtn) closeBtn.addEventListener('click', close);
+  const resetSelection = () => {
+    selectedId = null;
+    lastReceipt = null;
+    lastReceiptAdvance = false;
+    panelMode = 'collect';
+  };
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       query = searchInput.value;
-      selectedId = null;
-      lastReceipt = null;
+      resetSelection();
       render();
     });
   }
@@ -640,8 +863,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     searchClearBtn.addEventListener('click', () => {
       if (searchInput) searchInput.value = '';
       query = '';
-      selectedId = null;
-      lastReceipt = null;
+      resetSelection();
       render();
       if (searchInput) searchInput.focus();
     });
@@ -651,8 +873,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const chip = event.target.closest?.('[data-field-zone]');
       if (!chip) return;
       zoneKey = chip.getAttribute('data-field-zone') || FIELD_MODE_ALL_ZONES;
-      selectedId = null;
-      lastReceipt = null;
+      resetSelection();
       render();
     });
   }
@@ -664,12 +885,43 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     });
   }
   if (panelEl) {
+    // SEARCH FIX: the Advance checkbox lives on the advance sheet. With
+    // dues present, unticking returns to the normal collect sheet; with
+    // zero dues it stays ticked (an untagged payment on a paid bill is
+    // the owner's ruled-out double-record) and explains itself.
+    panelEl.addEventListener('change', (event) => {
+      if (event.target?.id !== 'fieldModeAdvanceCheckbox') return;
+      const state = typeof getState === 'function' ? getState() : null;
+      const entry = state
+        ? getPendingCollectionCustomers(state, '', 'all').find(e => e.id === selectedId)
+        : null;
+      if (!entry || entry.totalDues > 0) {
+        panelMode = 'collect';
+        render();
+      } else {
+        event.target.checked = true;
+        toast('This bill is already fully paid. Record money received early as an Advance payment instead — it stays tagged as advance credit for the next bill.');
+      }
+    });
     panelEl.addEventListener('click', (event) => {
+      const advanceBtn = event.target.closest?.('[data-field-advance-method]');
+      if (advanceBtn) {
+        collectAdvance(advanceBtn.getAttribute('data-field-advance-method') || 'Cash');
+        return;
+      }
       const actionBtn = event.target.closest?.('[data-field-action]');
       if (actionBtn) {
         const action = actionBtn.getAttribute('data-field-action');
         if (action === 'cash') collect('Cash');
         else if (action === 'shop') collect(actionBtn.getAttribute('data-field-method') || 'Cash');
+        else if (action === 'advance') {
+          panelMode = 'advance';
+          render();
+        }
+        else if (action === 'advance-back') {
+          panelMode = 'collect';
+          render();
+        }
         else if (action === 'print58') {
           // SISP-31: 1-tap 58mm slip through the host's EXISTING thermal
           // path (same printPaymentReceipt format 'thermal-58' the profile
@@ -695,8 +947,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           }
         }
         else if (action === 'next' || action === 'back') {
-          selectedId = null;
-          lastReceipt = null;
+          resetSelection();
           render();
         }
         return;

@@ -221,9 +221,12 @@ test('credit is capped at the bill gross (floor Rs. 0) and the remainder stays q
   const november = runBillingCycle(october.state, '2026-11', [october.cycle], new Date('2026-11-01T00:00:00Z'), { referralCredits: afterOctober });
   const aNovLine = november.cycle.lines.find((line) => line.customerId === aId);
   assert.equal(aNovLine.referralCreditApplied, 200);
-  // November gross = Rs. 300 new bill + Rs. 300 unpaid October arrears;
-  // the remaining Rs. 200 credit deducts from that total.
-  assert.equal(aNovLine.netDue, 400);
+  // FU1b (engine fix): October was fully waived by the Rs. 300 credit,
+  // so it contributes NO arrears — November gross is just the Rs. 300
+  // new bill, and the remaining Rs. 200 credit deducts from that.
+  // (Before the fix this pinned 400: the engine ignored the stamped
+  // credit, carried October as phantom arrears, and billed it twice.)
+  assert.equal(aNovLine.netDue, 100);
   const afterNovember = applyReferralApplications(afterOctober, november.referralApplications, '2026-11');
   assert.equal(afterNovember[0].status, 'applied');
   assert.equal(afterNovember[0].appliedAmount, 500);

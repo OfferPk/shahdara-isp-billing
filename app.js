@@ -172,6 +172,7 @@ import { setupQrScannerModal } from './qr-scanner.js';
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';
+import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment } from './advance-payment.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -2041,12 +2042,13 @@ function renderHistory(customer) {
       // SISP-34: voided rows are frozen history — VOID badge + reason, no
       // Edit/Delete/receipt actions (core guards refuse those too).
       if (payment.voided === true) {
-        return `<li class="payment-row payment-row-voided" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentPayerMarkup(payment)}</span>${profileVoidBadgeMarkup(payment)}</span></li>`;
+        return `<li class="payment-row payment-row-voided" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentPayerMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}</span>${payment.kind === 'advance' ? `<span class="advance-badge">${t('adv_badge')}</span>` : ''}${profileVoidBadgeMarkup(payment)}</span></li>`;
       }
       const allocation = profilePaymentAllocationMarkup(allocations.byPaymentId.get(payment.id));
       const receiptData = buildPaymentReceipt(customer, bill, payment);
       const discountMarkup = (payment.discount && Number(payment.discount) > 0) ? ` <span class="discount-badge-applied">${t('prof_hist_discount_badge', null, { amount: formatAmount(payment.discount) })}${payment.discountReason ? ` (${escapeHtml(payment.discountReason)})` : ''}</span>` : '';
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentPayerMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button><button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;
+      const advanceMarkup = payment.kind === 'advance' ? ` <span class="advance-badge">${t('adv_badge')}</span>` : '';
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${advanceMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentPayerMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}</span>${allocation}</span><span class="payment-actions">${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button><button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;
     }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
@@ -2212,7 +2214,7 @@ function renderTransactions() {
       `Billing status: <span class="report-status report-status-${transaction.status}">${statusText}</span>`,
       serviceLabel ? `Manual service: ${serviceLabel}` : ''
     ].filter(Boolean).join(' · ');
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span></span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button><button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span></span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${transaction.isAdvance ? `<span class="advance-badge">${t('adv_badge')}</span>` : ''}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentPayerMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button><button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;
   }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
@@ -2783,7 +2785,9 @@ function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
   const allocations = calculatePaymentAllocations(state);
   const summary = currentBillPresentation(customer, month, allocations);
-  const unusedCreditCents = [...allocations.byPaymentId.values()].filter(row => row.customerId === customer.id).reduce((sum,row) => sum + (row.unappliedCreditCents ?? 0), 0);
+  // The customer's advance balance (advance-payment.js is the single
+  // source for this figure — the credit the next cycle will consume).
+  const unusedCreditCents = advanceBalanceCents(state, customer.id, allocations);
   // SISP-43: pending billed ticket charges join the profile due summary.
   // They live on the tickets, never inside bills, so they get their own
   // stat (with the combined payable) — shown only while charges pend.
@@ -4072,6 +4076,13 @@ async function onPaymentSubmit(event) {
   const customerId = selectedCustomerId;
   const submitBtn = form.querySelector('button[type="submit"]');
   try {
+    // Advance guard (owner rule): a normal payment is never recorded
+    // against an already-paid bill — money received early goes through
+    // the Advance payment button so it stays tagged as advance credit.
+    if (normalPaymentBlockReason(state, customerId, form.dataset.month) === 'fully-paid') {
+      toast(t('adv_blocked_paid'), { type: 'error', title: 'Payment not saved' });
+      return;
+    }
     const txnId = (data.get('transactionId') || '').trim();
     if (txnId) {
       const dup = findDuplicatePaymentReference(state, txnId);
@@ -4251,6 +4262,90 @@ function setupVoidPaymentDialog() {
   });
 }
 if (typeof document !== 'undefined') setupVoidPaymentDialog();
+// Advance payment: the profile's explicit path for money received before
+// its bill (the ordinary payment paths refuse an already-paid bill in
+// core, by the owner's rule). The dialog markup lives in index.html
+// (advancePaymentDialog); this controller fills it and records through
+// advance-payment.js, mirroring the ordinary payment submit's
+// save/render/FIFO/toast behaviour.
+let advanceDialogCustomerId = null;
+function openAdvancePaymentDialog() {
+  const customer = selectedCustomer();
+  if (!customer) { toast('Search for a customer, then record their advance payment.'); return; }
+  if (customer.archived) { toast('Archived customers cannot receive payments. Unarchive the customer first.'); return; }
+  const dialog = document.getElementById('advancePaymentDialog');
+  if (!dialog) { toast('Advance payment dialog is not available.'); return; }
+  advanceDialogCustomerId = customer.id;
+  const month = monthsForHistory(new Date())[0];
+  const summary = document.getElementById('advancePaymentSummary');
+  if (summary) summary.textContent = `${t('adv_summary_label')} #${customer.customerNumber} ${customer.name} · ${displayMonthName(month)}`;
+  const balance = document.getElementById('advancePaymentBalance');
+  if (balance) balance.textContent = t('adv_current_balance', null, { amount: formatAmount(advanceBalanceCents(state, customer.id) / 100) });
+  const methodSelect = document.getElementById('advancePaymentMethod');
+  if (methodSelect && methodSelect.options.length === 0) {
+    methodSelect.innerHTML = PAYMENT_METHODS.map(method => `<option value="${escapeHtml(method)}">${escapeHtml(method)}</option>`).join('');
+  }
+  if (methodSelect) methodSelect.value = 'Cash';
+  const dateInput = document.getElementById('advancePaymentDate');
+  if (dateInput) { dateInput.value = localDate(); dateInput.max = localDate(); }
+  for (const id of ['advancePaymentAmount', 'advancePaymentPaidBy', 'advancePaymentNote']) {
+    const input = document.getElementById(id);
+    if (input) input.value = '';
+  }
+  const errorBox = document.getElementById('advancePaymentError');
+  if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+  if (dialog.showModal) dialog.showModal();
+  else dialog.hidden = false;
+  document.getElementById('advancePaymentAmount')?.focus();
+}
+function setupAdvancePaymentDialog() {
+  const dialog = typeof document !== 'undefined' ? document.getElementById('advancePaymentDialog') : null;
+  if (!dialog) return;
+  const close = () => {
+    advanceDialogCustomerId = null;
+    if (dialog.close) dialog.close();
+    else dialog.hidden = true;
+  };
+  document.getElementById('advancePaymentCloseBtn')?.addEventListener('click', close);
+  document.getElementById('advancePaymentCancelBtn')?.addEventListener('click', close);
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
+  const form = document.getElementById('advancePaymentForm');
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const customerId = advanceDialogCustomerId;
+    if (!customerId) return;
+    const data = new FormData(form);
+    const errorBox = document.getElementById('advancePaymentError');
+    try {
+      const { nextState, payment, month } = recordAdvancePayment(state, customerId, {
+        date: data.get('date'),
+        amount: data.get('amount'),
+        method: data.get('method'),
+        paidBy: data.get('paidBy') || undefined,
+        note: data.get('note') || undefined
+      });
+      state = nextState;
+      // SISP-33 parity with the ordinary profile payment submit: the FIFO
+      // payment-event bookkeeping runs for advance payments too, so a
+      // kist portion settled by an advance is marked exactly the same.
+      state = applyFifoPaymentEventToState(state, customerId, month, payment.id, { prioritizeKistFirst: false });
+      save();
+      close();
+      if (selectedCustomerId === customerId) renderDetail();
+      renderTransactions();
+      const paidCustomer = state.customers.find(c => c.id === customerId);
+      toast(`${t('adv_recorded')}: ${formatAmount(payment.amount)} · #${paidCustomer.customerNumber} ${paidCustomer.name}`, { type: 'success', title: t('adv_dialog_title'), actions: [
+        { label: 'Undo', onAction: () => { try { state = deletePayment(state, customerId, month, payment.id); save(); if (selectedCustomerId === customerId) renderDetail(); renderTransactions(); toast('Payment undone. Ledger restored.', { type: 'info', title: 'Undone' }); } catch (err) { toast(err.message); } } },
+        { label: 'Receipt', onAction: () => printPaymentReceipt(customerId, month, payment.id) }
+      ] });
+    } catch (error) {
+      if (errorBox) { errorBox.textContent = error.message; errorBox.hidden = false; }
+      else toast(error.message, { type: 'error', title: 'Advance payment not saved' });
+    }
+  });
+}
+if (typeof document !== 'undefined') setupAdvancePaymentDialog();
+$('#advancePaymentButton')?.addEventListener('click', openAdvancePaymentDialog);
 function undoDeletePayment(customerId, month, removed, index) {
   const customer = state.customers.find(item => item.id === customerId);
   const bill = customer?.bills.find(item => item.month === month);
@@ -4346,7 +4441,7 @@ function openPaymentEntry(month = selectedBillingMonth) {
     amountInput.value = String(Number(suggested)); // 1000, not 1000.00 (#294)
     hint.textContent = `Suggested remaining balance: ${formatAmount(Number(suggested))}. Confirm the actual amount collected, enter the real payment date and method, then submit. Nothing is saved by opening this form.`;
   } else if (bill && derivedBillStatus(customer, bill, calculatePaymentAllocations(state)) === 'paid') {
-    hint.textContent = 'This bill is already settled. No amount is due; enter an amount only if an actual additional prepayment is being collected. Nothing is saved until you submit.';
+    hint.textContent = 'This bill is already settled. No amount is due, and a normal payment cannot be recorded against it. To record money received early, use the Advance payment button on the profile — it tags the amount as advance credit for the next bill. Nothing is saved by opening this form.';
   } else if (!bill?.dueAmount) {
     hint.textContent = 'No bill amount is set for this month, so no remainder can be suggested. Enter only an actual collected amount, plus its real date and method. Nothing is saved until you submit.';
   } else {

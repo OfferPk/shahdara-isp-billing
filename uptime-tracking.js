@@ -16,6 +16,9 @@
  *     and the next non-offline stamp closes it.
  *   - The two sources are UNIONED before totalling, so a period that
  *     was recorded both ways is never double-counted.
+ *   - The live "in this status since" counter on the customer cards
+ *     and the profile (currentStatusSession) reads the same status
+ *     history, so the counter and the month summary cannot disagree.
  *
  * Month rule: a month counts only inside the connection's lifetime
  * (from connectionDate — or the profile-added date when no connection
@@ -228,6 +231,84 @@ export function collectOfflineIntervals(customer) {
   }
   if (openStartMs !== null) intervals.push({ startMs: openStartMs, endMs: null, reason: '', source: 'status' });
   return intervals.sort((a, b) => a.startMs - b.startMs);
+}
+
+/**
+ * The customer's CURRENT service-status session: the status they are
+ * in right now (customer.serviceStatus) and how long that session has
+ * been running — the basis of the live "active/offline since" counter
+ * on the customer cards and the profile.
+ *
+ * Precision rule (honesty — an hour figure is never invented):
+ *   - 'datetime': the status history's newest stamp agrees with the
+ *     current status. The session starts at the FIRST stamp of the
+ *     trailing run of same-status entries (core.js appends only on a
+ *     real flip; consecutive duplicates can still arrive via backup
+ *     merges, so the run — not the single last entry — is the start).
+ *     days/hours/minutes are exact from that stamp.
+ *   - 'date': no usable history stamp (a legacy record, or history
+ *     whose newest stamp disagrees with the current status). An
+ *     ACTIVE customer with a recorded connection date — else the
+ *     profile-added date — gets a date-level session: whole days
+ *     only, hours/minutes stay null. An OFFLINE customer without a
+ *     stamp has no honest start at all: precision stays null and the
+ *     surfaces show no counter (the month summary still reports the
+ *     recorded offline periods).
+ *   - 'not-set' customers never have a session.
+ *
+ * Returns { status, since, sinceMs, precision, sinceDate,
+ *           days, hours, minutes, totalMinutes } — nulls wherever an
+ * honest value does not exist.
+ */
+export function currentStatusSession(customer, referenceDate = new Date()) {
+  const status = STATUS_VALUES.includes(customer?.serviceStatus) ? customer.serviceStatus : 'not-set';
+  const base = { status, since: null, sinceMs: null, precision: null, sinceDate: null, days: null, hours: null, minutes: null, totalMinutes: null };
+  if (status === 'not-set') return base;
+  const nowMs = referenceDate.getTime();
+  const history = sanitizeServiceStatusHistory(customer?.serviceStatusHistory);
+  if (history.length && history[history.length - 1].status === status) {
+    let runStart = history[history.length - 1];
+    for (let i = history.length - 1; i >= 0 && history[i].status === status; i--) runStart = history[i];
+    const totalMinutes = Math.max(0, Math.floor((nowMs - runStart.atMs) / MINUTE_MS));
+    return { status, since: runStart.at, sinceMs: runStart.atMs, precision: 'datetime', sinceDate: null, ...splitMinutes(totalMinutes) };
+  }
+  if (status === 'active') {
+    const tenure = summarizeCustomerTenure(customer, referenceDate);
+    const startKey = tenure.connectionDate ?? tenure.profileAddedOn ?? null;
+    if (startKey && isValidDateKey(startKey)) {
+      const days = dayDiff(startKey, pkDateKeyOf(nowMs));
+      if (days >= 0) {
+        return { status, since: null, sinceMs: null, precision: 'date', sinceDate: startKey, days, hours: null, minutes: null, totalMinutes: days * DAY_MINUTES };
+      }
+    }
+  }
+  return base;
+}
+
+/**
+ * One live-counter tick: rewrite ONLY the text of the counter nodes
+ * under a root — the nodes survive untouched as elements (no
+ * re-render), so a 98-card list stays cheap. Deliberately DOM-light
+ * (querySelectorAll + dataset + textContent) and dependency-injected,
+ * so the customers list, the profile and the tests all drive the same
+ * updater. formatText(customer, now) must return the full counter
+ * line ('' hides it — an existing node's text is cleared, the node
+ * itself is never removed or replaced). Returns how many nodes
+ * actually changed.
+ */
+export function refreshLiveSessionCounters(root, { getCustomer, formatText, now = new Date() } = {}) {
+  if (!root || typeof root.querySelectorAll !== 'function' || typeof getCustomer !== 'function' || typeof formatText !== 'function') return 0;
+  let updated = 0;
+  for (const node of root.querySelectorAll('[data-live-session-for]')) {
+    const customer = getCustomer(node?.dataset?.liveSessionFor);
+    if (!customer) continue;
+    const text = String(formatText(customer, now) ?? '');
+    if (node.textContent !== text) {
+      node.textContent = text;
+      updated += 1;
+    }
+  }
+  return updated;
 }
 
 /** Total minutes covered by the UNION of [startMs, endMs] spans. */

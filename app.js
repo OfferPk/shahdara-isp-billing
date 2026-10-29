@@ -154,7 +154,7 @@ import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildT
 import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
-import { buildMonthlyUptime, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
+import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
@@ -1390,6 +1390,34 @@ function uptimeDurationText(totalMinutes) {
   if (parts.minutes) pieces.push(parts.minutes === 1 ? t('upt_dur_min_1') : t('upt_dur_mins', null, { n: parts.minutes }));
   return pieces.length ? pieces.join(' ') : t('upt_dur_zero');
 }
+// Live status-session counter (owner feature): how long the customer
+// has been in their CURRENT service status ("🟢 Online · 12 days
+// 5 hours · since …"), counted from the recorded status history via
+// uptime-tracking.js currentStatusSession. ONE shared text builder +
+// markup feeds both the customer cards and the profile uptime panel,
+// so the two surfaces can never disagree; the per-minute ticker at
+// boot rewrites only these nodes' text (never a list re-render).
+function formatSessionInstant(ms) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: PAKISTAN_TIME_ZONE }).format(new Date(ms));
+}
+function liveSessionText(customer, now = new Date()) {
+  const session = currentStatusSession(customer, now);
+  if (session.precision === 'datetime') {
+    return t(session.status === 'offline' ? 'upt_live_offline' : 'upt_live_online', null, { duration: uptimeDurationText(session.totalMinutes), datetime: formatSessionInstant(session.sinceMs) });
+  }
+  if (session.precision === 'date') {
+    // Legacy record without a status stamp: whole days from the
+    // recorded connection/profile date — no invented hours.
+    return t('upt_live_active_since', null, { duration: uptimeDurationText(session.totalMinutes), date: humanDate(session.sinceDate) });
+  }
+  return '';
+}
+function liveSessionMarkup(customer) {
+  const text = liveSessionText(customer);
+  if (!text) return '';
+  const tone = customer.serviceStatus === 'offline' ? 'is-offline' : 'is-online';
+  return `<p class="status-session-line ${tone}" data-live-session-for="${escapeHtml(customer.id)}">${escapeHtml(text)}</p>`;
+}
 // Uptime tracking: the profile age stamp — how many months + days this
 // profile/connection has existed, from the recorded connection date
 // (falling back to the profile-added date, labelled as such). No date
@@ -1434,7 +1462,14 @@ function renderUptimePanel(customer) {
   const formatInstant = ms => new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short', timeZone:PAKISTAN_TIME_ZONE }).format(new Date(ms));
   const stats = `<div class="uptime-summary-grid"><article class="uptime-stat"><span>${t('upt_online_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.onlineMinutes))}</strong></article><article class="uptime-stat"><span>${t('upt_offline_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.offlineMinutes))}</strong></article><article class="uptime-stat"><span>${t('upt_month_days_label')}</span><strong>${summary.daysInMonth}</strong></article></div>`;
   const partial = summary.lifetimeClamped && summary.lifetimeStart ? `<p class="uptime-note">${escapeHtml(t('upt_partial_note', null, { date: humanDate(summary.lifetimeStart) }))}</p>` : '';
-  const currently = summary.openSinceMs !== null ? `<p class="uptime-current">🔴 ${escapeHtml(t('upt_currently_offline', null, { datetime: formatInstant(summary.openSinceMs) }))}</p>` : '';
+  // Live current-status counter (shared with the customer cards).
+  // When it already states the very same open offline span, the older
+  // "currently offline" line would only repeat it, so it stands down;
+  // a record-based open span (different start) keeps its own line.
+  const session = currentStatusSession(customer, new Date());
+  const liveLine = liveSessionMarkup(customer);
+  const sameOpenSpan = session.precision === 'datetime' && session.status === 'offline' && summary.openSinceMs === session.sinceMs;
+  const currently = summary.openSinceMs !== null && !sameOpenSpan ? `<p class="uptime-current">🔴 ${escapeHtml(t('upt_currently_offline', null, { datetime: formatInstant(summary.openSinceMs) }))}</p>` : '';
   const periods = summary.periods.length
     ? `<h4 class="uptime-periods-heading">${t('upt_periods_heading')}</h4><ul class="uptime-period-list">${summary.periods.map(period => {
       const range = t('upt_period_range', null, { from: formatInstant(period.startMs), to: period.open ? t('upt_period_open') : formatInstant(period.endMs) });
@@ -1442,7 +1477,7 @@ function renderUptimePanel(customer) {
       return `<li class="uptime-period"><div class="uptime-period-head"><strong>${escapeHtml(uptimeDurationText(period.minutes))}</strong><span>${escapeHtml(range)}</span></div><p class="uptime-period-reason">${escapeHtml(reason)}</p></li>`;
     }).join('')}</ul>`
     : `<p class="uptime-note">${escapeHtml(t('upt_none_offline'))}</p>`;
-  body.innerHTML = `${stats}${partial}${currently}${periods}`;
+  body.innerHTML = `${liveLine}${stats}${partial}${currently}${periods}`;
 }
 // Phase 3 mirror of buildCustomerPaymentBehavior's averageMonthlyPaymentBasis:
 // the behavior object carries the sentence, not the priced-month count, so
@@ -1494,7 +1529,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="${t('cust_service_button_aria', null, { number: customer.customerNumber, status: label })}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div></div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -5259,6 +5294,19 @@ window.addEventListener('focus', () => { checkMonthlyBilling(); void checkAutoma
 window.addEventListener('pageshow', () => { checkMonthlyBilling(); void checkAutomaticBackup(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkMonthlyBilling(); void checkAutomaticBackup(); } });
 window.setInterval(checkMonthlyBilling, 60_000);
+// Live status-session counters: ONE shared per-minute ticker for the
+// whole app (the customers list and the profile are shown/hidden, not
+// unmounted, so a per-view interval would only multiply timers). It
+// pauses while the tab is hidden and rewrites only the counter
+// nodes' text — never a list re-render.
+function tickLiveSessionCounters() {
+  if (typeof document === 'undefined' || document.hidden) return;
+  refreshLiveSessionCounters(document, {
+    getCustomer: id => state.customers.find(customer => customer.id === id),
+    formatText: customer => liveSessionText(customer)
+  });
+}
+window.setInterval(tickLiveSessionCounters, 60_000);
 
 populateReportMonths();
 renderStorageWarning();
@@ -5596,11 +5644,18 @@ customerEnrollmentWizard = setupCustomerEnrollmentWizard({
   storage: localStorage,
   onComplete: (details) => {
     try {
+      // The wizard's initial status goes through addCustomer (not a
+      // post-hoc field write) so core.js stamps the first entry of
+      // the customer's service-status history at creation — every
+      // other status path already records one via updateCustomerProfile,
+      // and the live status counter / uptime summary read that history.
+      const wizardServiceStatus = String(details.serviceStatus ?? '').toLowerCase();
       state = addCustomer(state, details.name, new Date(details.startDate || Date.now()), {
         phone: details.phone,
         address: details.address,
         mohalla: details.mohalla,
         zone: details.area,
+        ...(['active', 'offline', 'not-set'].includes(wizardServiceStatus) ? { serviceStatus: wizardServiceStatus } : {}),
         allowDuplicateName: true
       });
       const addedCustomer = state.customers.at(-1);
@@ -5610,9 +5665,6 @@ customerEnrollmentWizard = setupCustomerEnrollmentWizard({
         }
         if (details.monthlyRate) {
           addedCustomer.monthlySellingAmount = Number(details.monthlyRate);
-        }
-        if (details.serviceStatus) {
-          addedCustomer.serviceStatus = String(details.serviceStatus).toLowerCase();
         }
         save();
         renderCustomers();

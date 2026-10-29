@@ -1399,6 +1399,9 @@ export const TRANSLATIONS = {
     upt_reason_none: 'No reason recorded',
     upt_currently_offline: 'Currently offline since {datetime}',
     upt_qc_line: '🟢 {month} uptime — Online {online} · Offline {offline} · {days}-day month',
+    upt_live_online: '🟢 Online · {duration} · since {datetime}',
+    upt_live_offline: '🔴 Offline · {duration} · since {datetime}',
+    upt_live_active_since: '🟢 Active since {date} · {duration}',
 
     // SISP-46: Multi-Branch Merge Guard (backup restore warnings)
     bkgrd_foreign_note: '⛔ Different ledger branch: this backup was exported from another copy of the app (a different phone or branch) whose history this device has never shared. Merging it here could double-count money, so the merge is blocked.',
@@ -3188,6 +3191,9 @@ export const TRANSLATIONS = {
     upt_reason_none: 'کوئی وجہ ریکارڈ نہیں',
     upt_currently_offline: '{datetime} سے اس وقت آف لائن ہے',
     upt_qc_line: '🟢 {month} اپ ٹائم — آن لائن {online} · آف لائن {offline} · مہینہ {days} دن',
+    upt_live_online: '🟢 {datetime} سے آن لائن · {duration}',
+    upt_live_offline: '🔴 {datetime} سے آف لائن · {duration}',
+    upt_live_active_since: '🟢 {date} سے فعال · {duration}',
 
     // SISP-46: Multi-Branch Merge Guard (backup restore warnings)
     bkgrd_foreign_note: '⛔ مختلف کھاتہ برانچ: یہ بیک اپ ایپ کی کسی دوسری کاپی (دوسرے فون یا برانچ) سے آیا ہے جس کی تاریخ اس ڈیوائس سے کبھی نہیں ملی۔ اسے یہاں ملانے سے رقم دُہری گنی جا سکتی ہے، اس لیے مرج روک دیا گیا ہے۔',

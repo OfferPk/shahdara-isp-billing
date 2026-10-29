@@ -10,6 +10,9 @@
 //     its recorded reason, and the offline tile reads 2 days 6 hours;
 //   - Quick Collect shows the one-line uptime summary for the bill
 //     month being collected.
+// A second test covers the live status-session counter: the line
+// under the card's status pills, the Offline flip restarting it, and
+// the same line leading the profile uptime panel.
 import { test, expect } from '@playwright/test';
 
 function trackErrors(page) {
@@ -91,6 +94,45 @@ test('uptime tracking: profile age stamp, month summary with reason, QC one-line
   const line = page.locator('#quickCollectUptimeLine');
   await expect(line).toContainText('uptime');
   await expect(line).toContainText('Online');
+
+  expect(errors).toEqual([]);
+});
+
+test('live status counter: card line under the pills, flip to Offline restarts it, profile agrees', async ({ page }) => {
+  const errors = trackErrors(page);
+  await boot(page);
+  const { customerId } = await page.evaluate(async () => {
+    const core = await import('./core.js');
+    let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
+    // Created already Active: core stamps the first status-history
+    // entry at creation, so the live counter has an honest start.
+    s = core.addCustomer(s, 'E2E Live Counter Subscriber', new Date(), { phone: '+923001234569', mohalla: 'Test Mohalla', serviceStatus: 'active' });
+    const customer = s.customers.at(-1);
+    localStorage.setItem(core.STORAGE_KEY, JSON.stringify(s));
+    return { customerId: customer.id };
+  });
+  await page.reload();
+  await page.waitForSelector('#mobileCustomerSearchTrigger', { state: 'attached', timeout: 20000 });
+
+  // Customers list: the counter line sits in the card, under the
+  // status pills, reading Online with a since stamp.
+  const card = page.locator(`#customerList li:has([data-customer-id="${customerId}"])`);
+  const cardLine = card.locator(`[data-live-session-for="${customerId}"]`);
+  await expect(cardLine).toBeVisible({ timeout: 20000 });
+  await expect(cardLine).toContainText('Online');
+  await expect(cardLine).toContainText('since');
+
+  // Flip Offline from the card's own buttons: history is stamped and
+  // the re-rendered counter restarts as an Offline session.
+  await page.click(`#customerList [data-set-service="${customerId}"][data-service-status="offline"]`);
+  const cardLineAfter = page.locator(`#customerList [data-live-session-for="${customerId}"]`);
+  await expect(cardLineAfter).toContainText('Offline', { timeout: 20000 });
+
+  // Profile: the uptime panel leads with the same live line.
+  await page.click(`#customerList [data-customer-id="${customerId}"]`);
+  await expect(page.locator('#customerDetail')).toBeVisible({ timeout: 20000 });
+  const panelLine = page.locator(`#uptimeSummaryBody [data-live-session-for="${customerId}"]`);
+  await expect(panelLine).toContainText('Offline');
 
   expect(errors).toEqual([]);
 });

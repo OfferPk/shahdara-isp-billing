@@ -1289,6 +1289,22 @@ body.field-mode-open { overflow: hidden; }
   font-weight: 700;
   color: var(--color-overdue);
 }
+/* Live status-session counter: shared by the customer cards (under
+   the status pills) and the profile uptime panel. Token colours only,
+   so dark mode keeps both states readable. */
+.status-session-line {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.status-session-line.is-online {
+  color: var(--color-paid);
+}
+.status-session-line.is-offline {
+  color: var(--color-overdue);
+}
 .uptime-periods-heading {
   margin: 14px 0 0;
   font-size: 12px;

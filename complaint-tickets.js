@@ -27,12 +27,14 @@
  *   clears only when marked paid on the ticket.
  * - Stock deduction is staged, not duplicated: resolving a ticket records
  *   SISP-18-shaped stock-out movements on the ticket (see
- *   ticketStockDeductions) with stockDeducted=false. SISP-18's inventory
- *   book is not in this tree yet, so this module imports nothing from it
- *   and invents no stock math. At merge time the app wires
- *   consumeTicketStockDeductions with the inventory module's addMovement,
- *   which enforces SISP-18's over-draw refusal; until then the deductions
- *   sit pending on the ticket, visible in the worklist.
+ *   ticketStockDeductions) with stockDeducted=false. This module imports
+ *   nothing from the inventory book and invents no stock math. Since
+ *   SISP-42 the app runs applyTicketStockBridge (below) with the
+ *   inventory module's addMovement — on every ticket change, at startup,
+ *   and after stock-book edits — so staged deductions land in
+ *   sisp_inventory_v1 live, and a deduction that the book refuses
+ *   (over-draw) stays pending on the ticket, visible in the worklist,
+ *   and retries automatically. Resolution is never blocked by stock.
  * - This module imports nothing: it is self-contained so the backup merge
  *   in core.js can sanitize tickets without a module cycle.
  *
@@ -456,13 +458,14 @@ export function ticketStockDeductions(ticket) {
 }
 
 /**
- * MERGE-TIME WIRING CONTRACT (SISP-18): apply a ticket's staged deductions
- * to an inventory movement list using the inventory module's addMovement
- * function (passed in — this module never imports the inventory book).
- * Returns { movements, ticket } with the ticket marked stockDeducted.
- * Throws (leaving the ticket pending) when any deduction is refused, e.g.
- * SISP-18's over-draw refusal — the caller surfaces the message and the
- * deductions stay on the ticket for a later retry.
+ * WIRING CONTRACT (SISP-18, connected live by SISP-42): apply a ticket's
+ * staged deductions to an inventory movement list using the inventory
+ * module's addMovement function (passed in — this module never imports
+ * the inventory book). Returns { movements, ticket } with the ticket
+ * marked stockDeducted. Throws (leaving the ticket pending) when any
+ * deduction is refused, e.g. SISP-18's over-draw refusal — the caller
+ * surfaces the message and the deductions stay on the ticket for a
+ * later retry.
  */
 export function consumeTicketStockDeductions(ticket, movements, addMovementFn) {
   if (typeof addMovementFn !== 'function') throw new Error('Inventory addMovement is not available.');
@@ -476,6 +479,81 @@ export function consumeTicketStockDeductions(ticket, movements, addMovementFn) {
     next = addMovementFn(next, deduction);
   }
   return { movements: next, ticket: { ...entry, stockDeducted: true } };
+}
+
+/**
+ * SISP-42 LIVE BRIDGE PASS (pure): reconcile the whole ticket list with
+ * the inventory book in one sweep, using the inventory module's
+ * addMovement (passed in — this module never imports the inventory book).
+ *
+ * - A Resolved ticket whose staged deductions are still unconsumed is
+ *   consumed via consumeTicketStockDeductions: all-or-nothing per ticket,
+ *   because inventory addMovement refuses an over-draw by throwing, so a
+ *   shortfall deducts NOTHING and the ticket stays pending for a later
+ *   retry. Resolution itself is never blocked here — the field work
+ *   already happened; only the bookkeeping waits for stock.
+ * - A ticket that was deducted (stockDeducted) and later REOPENED (any
+ *   non-Resolved status) gets exactly its deducted lines reversed as
+ *   Stock In movements dated the reopen day, its staged deductions are
+ *   cleared and its flag reset — so re-resolving it with fresh materials
+ *   can never deduct the same stock twice. (resolveTicket re-stages from
+ *   the new materialsUsed on the next resolve.)
+ *
+ * Returns { tickets, movements, deducted, reversed, failures }; inputs
+ * are never mutated and failures carry { id, message } for the caller
+ * to surface. Tickets needing no work pass through untouched.
+ */
+export function applyTicketStockBridge(tickets, movements, addMovementFn, options = {}) {
+  if (typeof addMovementFn !== 'function') throw new Error('Inventory addMovement is not available.');
+  const clean = sanitizeTickets(tickets);
+  let nextMovements = Array.isArray(movements) ? movements : [];
+  const deducted = [];
+  const reversed = [];
+  const failures = [];
+  const reversalDate = pakistanTicketDateTimeNow(options.referenceDate).slice(0, 10);
+  const nextTickets = clean.map((ticket) => {
+    if (ticket.status === 'Resolved') {
+      if (ticket.stockDeducted || ticket.stockDeductions.length === 0) return ticket;
+      try {
+        const applied = consumeTicketStockDeductions(ticket, nextMovements, addMovementFn);
+        nextMovements = applied.movements;
+        deducted.push(ticket.id);
+        return applied.ticket;
+      } catch (error) {
+        failures.push({ id: ticket.id, message: error && error.message ? error.message : 'Stock deduction failed.' });
+        return ticket;
+      }
+    }
+    if (!ticket.stockDeducted) return ticket;
+    // Reopened after its stock went out: reverse exactly what was
+    // deducted — the staged lines, or (if that list was lost) the
+    // material lines still recorded on the ticket.
+    const lines = ticket.stockDeductions.length
+      ? ticket.stockDeductions
+      : sanitizeTicketMaterials(ticket.materialsUsed).flatMap((line) => {
+        const material = TICKET_MATERIAL_BY_KEY[line.key];
+        return material ? [{ itemId: material.inventoryItemId, qty: line.qty }] : [];
+      });
+    if (!lines.length) return { ...ticket, stockDeducted: false };
+    try {
+      for (const line of lines) {
+        nextMovements = addMovementFn(nextMovements, {
+          itemId: line.itemId,
+          kind: 'in',
+          qty: line.qty,
+          date: reversalDate,
+          customerName: cleanText(ticket.customerName),
+          note: `Ticket ${ticket.id} reopened — stock returned`
+        });
+      }
+      reversed.push(ticket.id);
+      return { ...ticket, stockDeducted: false, stockDeductions: [] };
+    } catch (error) {
+      failures.push({ id: ticket.id, message: error && error.message ? error.message : 'Stock return failed.' });
+      return ticket;
+    }
+  });
+  return { tickets: nextTickets, movements: nextMovements, deducted, reversed, failures };
 }
 
 /** Fault label: preset, else the custom fault text. */

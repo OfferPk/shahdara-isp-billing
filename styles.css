@@ -12453,6 +12453,20 @@ dialog::backdrop {
   color: #f87171;
   border-color: rgba(239, 68, 68, 0.5);
 }
+/* SISP-47: vacation-hold badge on defaulter rows — reuses the calm
+   grace palette already in this file (no new hex colours; the #230
+   ratchet only shrinks) so a held customer never reads as a lock
+   candidate; dark variant mirrors the escalation translucent pattern. */
+.vacation-hold-badge {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+[data-theme="dark"] .vacation-hold-badge {
+  background: rgba(20, 184, 166, 0.25);
+  color: #5eead4;
+  border-color: rgba(20, 184, 166, 0.5);
+}
 /* SISP-38: Lock Due (15th+) filter toggle active state. */
 .lock-due-toggle.is-active {
   background: #fee2e2;

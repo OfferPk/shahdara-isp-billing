@@ -750,6 +750,10 @@ body.field-mode-open { overflow: hidden; }
   color: var(--muted);
   font-size: 13px;
 }
+/* SISP-47: vacation-hold router section in the profile — same surface
+ * rhythm as the other profile sections, theme tokens only. */
+.profile-vacation-hold-section { margin-top: 16px; }
+.profile-vacation-hold-section h4 { margin: 0 0 8px; color: var(--ink); }
 .mikrotik-output-block {
   margin-top: 16px;
 }

@@ -19,7 +19,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, upsellProfileHintHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml } from './receipt.js?v=1.11.0';
@@ -177,6 +177,7 @@ import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-sco
 import { buildRecentPayments } from './recent-payments.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
+import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -834,6 +835,28 @@ function renderDashboard() {
       recentAllBtn.dataset.wired = 'true';
       recentAllBtn.addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
     }
+  }
+  // SISP-59: Package Upgrade Suggestions — active customers on
+  // <= 5 Mbps who logged slow-speed complaints or paid on time 3+
+  // months, with the projected +Rs/month ARPU lift and a 1-tap
+  // WhatsApp offer per row. Read-only: the builder never changes a
+  // package; rows open the profile, the offer button opens wa.me.
+  const upsellListEl = $('#upsellList');
+  if (upsellListEl) {
+    const upsellCandidates = buildUpsellCandidates(state, { complaints: loadComplaints(), tickets: loadTickets() }, referenceDate);
+    const upsellSummary = buildUpsellSummary(upsellCandidates);
+    const upsellTotalEl = $('#upsellTotalGain');
+    if (upsellTotalEl) upsellTotalEl.textContent = upsellSummary.count > 0 ? t('upsell_total', null, { amount: formatAmount(upsellSummary.totalGainPerMonth) }) : '';
+    upsellListEl.innerHTML = upsellCandidates.length === 0
+      ? `<li class="upsell-empty">${escapeHtml(t('upsell_empty'))}</li>`
+      : upsellCandidates.map((row) => {
+        const reasons = [
+          row.slowSpeedComplaints > 0 ? t('upsell_reason_complaints', null, { count: row.slowSpeedComplaints }) : '',
+          row.onTimeStreak >= 3 ? t('upsell_reason_ontime', null, { count: row.onTimeStreak }) : ''
+        ].filter(Boolean).join(' · ');
+        return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="upsell-sub-line">${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</span><span class="upsell-sub-line">${escapeHtml(reasons)}</span></span><strong class="upsell-gain">${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</strong></button>${row.whatsappUrl ? `<a class="upsell-offer-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
+      }).join('');
+    upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
   }
   // SISP-2: monthly billing cycle card (last run + open the cycle modal).
   const cycleSummaryEl = $('#billingCycleSummary');
@@ -2684,6 +2707,10 @@ function renderCustomerProfileView(customer) {
   // for the next billing cycle / already deducted). Rendered only when
   // there is something to show.
   const referralSummary = referralBillingSummary(customer, state, loadReferralCredits());
+  // SISP-59: profile upgrade hint — shown only when this customer is
+  // an upsell candidate (same read-only builder as the dashboard card).
+  const upsellCandidate = upsellCandidateForCustomer(state, customer, { complaints: loadComplaints(), tickets: loadTickets() });
+  const upsellSectionHtml = upsellProfileHintHtml(upsellCandidate, formatAmount);
   const referralSectionHtml = referralSummary.hasContent ? `<section class="profile-referral-section" aria-label="${t('prof_ref_aria')}"><h4>${t('prof_ref_heading')}</h4>${referralSummary.referredByLabel ? `<p>${escapeHtml(referralSummary.referredByLabel)}</p>` : ''}${referralSummary.earned.length ? `<ul class="profile-referral-list">${referralSummary.earned.map((row) => `<li>${escapeHtml(row.label)}</li>`).join('')}</ul>` : ''}${referralSummary.queuedLabel ? `<p><strong>${escapeHtml(referralSummary.queuedLabel)}</strong></p>` : ''}${referralSummary.appliedLabel ? `<p>${escapeHtml(referralSummary.appliedLabel)}</p>` : ''}</section>` : '';
   // SISP-24: profile optical section — splitter box, port, PON port and
   // last RX reading, with a red high-loss badge below -26.0 dBm.
@@ -2751,7 +2778,7 @@ function renderCustomerProfileView(customer) {
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });

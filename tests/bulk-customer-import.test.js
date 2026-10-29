@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createInitialState, addCustomer } from '../core.js';
+import { createInitialState, addCustomer, archiveCustomer } from '../core.js';
+import { TRANSLATIONS } from '../nav-language.js';
 import {
   normalizePhonePlus92, phoneNationalKey, parseBulkImportText,
   computeBulkStatuses, summarizeBulkRows, importBulkCustomers
@@ -140,4 +141,64 @@ test('SISP-53: requested Connection ID in core is honoured when free, rejected w
   assert.throws(() => addCustomer(state, 'CLASH', new Date(), { requestedCustomerNumber: 7 }), /already in use/);
   state = addCustomer(state, 'NEXT', new Date(), {});
   assert.equal(state.customers[2].customerNumber, 8);
+});
+
+test('SISP-53 follow-up: an archived customer\'s Connection ID is flagged in preview and can never import', () => {
+  let state = createInitialState([]);
+  state = addCustomer(state, 'OLD ARCHIVED', new Date(), { phone: '03001110000' });
+  const archivedNo = state.customers[0].customerNumber;
+  state = archiveCustomer(state, state.customers[0].id);
+  const { rows } = parseBulkImportText(`Connection ID,Name,Phone,Package,Fee\n${archivedNo},REUSE ID,03002220000,5mbps,1500\n${archivedNo + 50},FRESH ONE,03003330000,5mbps,1500`);
+  const statuses = computeBulkStatuses(rows, state.customers);
+  assert.equal(statuses[0].status, 'duplicate-connection');
+  assert.equal(statuses[0].included, false);
+  assert.match(statuses[0].detail, /archived/);
+  assert.equal(statuses[1].status, 'ok');
+  const res = importBulkCustomers(state, statuses, { referenceDate: new Date('2026-10-29T12:00:00') });
+  assert.equal(res.added, 1);
+  assert.equal(res.nextState.customers.some(c => c.name === 'REUSE ID'), false);
+  assert.equal(res.nextState.customers.some(c => c.name === 'FRESH ONE'), true);
+});
+
+test('SISP-53 follow-up: one row failing mid-import does not lose the rest of the batch', () => {
+  let previewState = createInitialState([]);
+  previewState = addCustomer(previewState, 'PREVIEW OWNER', new Date(), { phone: '03000000000' });
+  const { rows } = parseBulkImportText('Connection ID,Name,Phone,Package,Fee\n201,FIRST OK,03001111111,5mbps,1500\n202,SECOND OK,03002222222,5mbps,1500');
+  const statuses = computeBulkStatuses(rows, previewState.customers);
+  // Between preview and import, another operator takes Connection ID 201.
+  let importState = previewState;
+  importState = addCustomer(importState, 'LATE TAKER', new Date(), { phone: '03009990000', requestedCustomerNumber: 201 });
+  const res = importBulkCustomers(importState, statuses, { referenceDate: new Date('2026-10-29T12:00:00') });
+  assert.equal(res.added, 1);
+  assert.equal(res.failed.length, 1);
+  assert.equal(res.failed[0].line, 2);
+  assert.equal(res.nextState.customers.some(c => c.name === 'SECOND OK'), true);
+  assert.equal(res.nextState.customers.some(c => c.name === 'FIRST OK'), false);
+});
+
+test('SISP-53 follow-up: blank lines in the paste do not shift reported line numbers', () => {
+  const text = 'Connection ID,Name,Phone,Package,Fee\n' +
+    '301,ONE,03001111111,5mbps,1500\n' +
+    '\n' +
+    '   \n' +
+    '302,TWO,03002222222,5mbps,1500';
+  const { rows } = parseBulkImportText(text);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].line, 2);
+  assert.equal(rows[1].line, 5);
+  const statuses = computeBulkStatuses(rows, []);
+  assert.equal(statuses[1].line, 5);
+});
+
+test('SISP-53 follow-up: every bci_ key the wizard renders exists in English and Urdu', () => {
+  const keys = ['bci_status_ok', 'bci_status_missing_fee', 'bci_status_dup_id', 'bci_status_dup_phone',
+    'bci_status_error', 'bci_detail_bad_phone', 'bci_detail_dup_id', 'bci_detail_dup_id_archived',
+    'bci_detail_dup_id_twin', 'bci_detail_dup_phone', 'bci_detail_dup_phone_twin', 'bci_detail_missing_fee',
+    'bci_row', 'bci_rows', 'bci_to_add', 'bci_need_look', 'bci_line', 'bci_no_package', 'bci_no_fee',
+    'bci_more', 'bci_import_row', 'bci_done_failed'];
+  for (const key of keys) {
+    assert.ok(TRANSLATIONS.en[key], `missing en key ${key}`);
+    assert.ok(TRANSLATIONS.ur[key], `missing ur key ${key}`);
+    assert.notEqual(TRANSLATIONS.ur[key], key, `ur key ${key} fell back to the key itself`);
+  }
 });

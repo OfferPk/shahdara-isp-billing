@@ -27,6 +27,8 @@ import {
 import { buildPaymentReceipt } from '../receipt.js';
 
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const index = read('index.html');
 const app = read('app.js');
@@ -260,7 +262,7 @@ test('generateBatchReceiptHtml generates slips with correct customer details, ba
     {
       id: 'cust-1',
       customerNumber: 1,
-      name: 'Babar Azam',
+      name: 'Sample Engineer',
       monthlyPrice: 2000,
       area: 'Shahdara Town',
       phone: '03001112233',
@@ -280,7 +282,7 @@ test('generateBatchReceiptHtml generates slips with correct customer details, ba
   ];
 
   const allHtml = generateBatchReceiptHtml(customers, '2026-10', null, { filter: 'all' });
-  assert.match(allHtml, /Babar Azam/);
+  assert.match(allHtml, /Sample Engineer/);
   assert.match(allHtml, /Shaheen Afridi/);
   assert.match(allHtml, /SHAHDARA FIBER NET/);
   assert.match(allHtml, /CUSTOMER BILLING SLIP/);
@@ -288,11 +290,11 @@ test('generateBatchReceiptHtml generates slips with correct customer details, ba
   assert.match(allHtml, /status-partial/);
 
   const pendingHtml = generateBatchReceiptHtml(customers, '2026-10', null, { filter: 'pending' });
-  assert.ok(!pendingHtml.includes('Babar Azam'));
+  assert.ok(!pendingHtml.includes('Sample Engineer'));
   assert.ok(pendingHtml.includes('Shaheen Afridi'));
 
   const paidHtml = generateBatchReceiptHtml(customers, '2026-10', null, { filter: 'paid' });
-  assert.ok(paidHtml.includes('Babar Azam'));
+  assert.ok(paidHtml.includes('Sample Engineer'));
   assert.ok(!paidHtml.includes('Shaheen Afridi'));
 });
 
@@ -2320,7 +2322,7 @@ test('generateServiceContractCsv produces valid RFC-4180 CSV export', () => {
       agreementNumber: 'AGR-202610-0001',
       startDate: '2026-10-16',
       expiryDate: '2027-10-16',
-      customer: { customerNumber: 22, name: 'Babar Azam', phone: '03001234567', area: 'Jia Musa' },
+      customer: { customerNumber: 22, name: 'Sample Engineer', phone: '03001234567', area: 'Jia Musa' },
       cnic: '35202-1234567-1',
       packageSpeed: '25 Mbps',
       monthlyRate: 2500,
@@ -2335,7 +2337,7 @@ test('generateServiceContractCsv produces valid RFC-4180 CSV export', () => {
 
   const csv = generateServiceContractCsv(contracts);
   assert.match(csv, /Agreement_No,Date,Expiry_Date,Customer_No,Customer_Name/);
-  assert.match(csv, /AGR-202610-0001,2026-10-16,2027-10-16,22,Babar Azam/);
+  assert.match(csv, /AGR-202610-0001,2026-10-16,2027-10-16,22,Sample Engineer/);
   assert.match(csv, /35202-1234567-1,Jia Musa,25 Mbps,2500,1000,1500,5000/);
 });
 
@@ -2989,7 +2991,7 @@ test('calculateKycComplianceAudit analyzes customer base and flags missing, inva
     customers: [
       { id: 'c1', customerNumber: 1, name: 'Tariq Mehmood', cnic: '35202-1111111-1', phone: '03001111111', mohalla: 'Main Bazaar', archived: false },
       { id: 'c2', customerNumber: 2, name: 'Nasir Iqbal', cnic: '35202-2222222-2', phone: '03002222222', mohalla: 'Kot Mohibbu', archived: false },
-      { id: 'c3', customerNumber: 3, name: 'Sajid Ali', cnic: '', phone: '03003333333', mohalla: 'Main Bazaar', archived: false }, // missing
+      { id: 'c3', customerNumber: 3, name: 'Sample Engineer', cnic: '', phone: '03003333333', mohalla: 'Main Bazaar', archived: false }, // missing
       { id: 'c4', customerNumber: 4, name: 'Rashid Khan', cnic: '12345', phone: '03004444444', mohalla: 'Saeed Park', archived: false }, // invalid
       { id: 'c5', customerNumber: 5, name: 'Imran Ashraf', cnic: '35202-1111111-1', phone: '03005555555', mohalla: 'Main Bazaar', archived: false }, // duplicate of c1!
       { id: 'c6', customerNumber: 6, name: 'Archived User', cnic: '', phone: '03006666666', mohalla: 'Other', archived: true } // archived
@@ -3445,7 +3447,7 @@ test('generateEquipmentRetrievalHtml produces standard A4 and 80mm thermal slips
   const record = {
     manifestNumber: 'RET-202610-0015',
     recoveryDate: '2026-10-16',
-    customerName: 'Sajid Mehmood',
+    customerName: 'Sample Person',
     customerNumber: 99,
     customerArea: 'Chowk Shahdara',
     customerPhone: '03219876543',
@@ -3468,7 +3470,7 @@ test('generateEquipmentRetrievalHtml produces standard A4 and 80mm thermal slips
   const a4 = generateEquipmentRetrievalHtml(record, { format: 'standard' });
   assert.match(a4, /SUBSCRIBER EQUIPMENT CUSTODY &amp; RETRIEVAL MANIFEST/);
   assert.match(a4, /RET-202610-0015/);
-  assert.match(a4, /Sajid Mehmood/);
+  assert.match(a4, /Sample Person/);
   assert.match(a4, /HW8546M-999/);
   assert.match(a4, /PKR 2,500/);
   assert.match(a4, /Umair Lead/);
@@ -4184,7 +4186,7 @@ test('validatePlanMigration and buildPlanMigrationRecord enforce integrity and g
   // Valid record builder
   const record = buildPlanMigrationRecord({
     customerId: 'CUST-042',
-    customerName: 'Muhammad Rizwan',
+    customerName: 'Sample Technician',
     customerPhone: '0300-8877665',
     customerArea: 'Vandala Road',
     currentPlan: '15 Mbps Family Streamer',
@@ -4197,7 +4199,7 @@ test('validatePlanMigration and buildPlanMigrationRecord enforce integrity and g
   });
 
   assert.ok(record.id.startsWith('MIG-'));
-  assert.equal(record.customerName, 'Muhammad Rizwan');
+  assert.equal(record.customerName, 'Sample Technician');
   assert.equal(record.migrationType, 'UPGRADE');
   assert.equal(record.speedDelta, 10);
   assert.equal(record.status, 'COMPLETED');
@@ -4943,7 +4945,7 @@ test('drop inspection persistence manages records, filtering and updates in stor
   assert.deepEqual(getSavedDropInspections(mockStorage), []);
 
   const cust1 = { id: 'c-1', name: 'Zahid Iqbal', customerNumber: '101', area: 'Main Bazaar' };
-  const cust2 = { id: 'c-2', name: 'Sajid Mehmood', customerNumber: '102', area: 'Baradari' };
+  const cust2 = { id: 'c-2', name: 'Sample Person', customerNumber: '102', area: 'Baradari' };
 
   const rec1 = buildDropInspectionRecord(cust1, {
     inspectorName: 'Saad QA',
@@ -5572,7 +5574,7 @@ test('validateOrlCertInput validates input data bounds and required fields', asy
 
   const validRes = validateOrlCertInput({
     customerName: 'Muhammad Tariq',
-    technicianName: 'Lineman Sajid',
+    technicianName: 'Lineman Test Customer 48',
     measuredOrlDb: 62.5
   });
   assert.equal(validRes.valid, true);
@@ -5585,7 +5587,7 @@ test('validateOrlCertInput validates input data bounds and required fields', asy
 
   const outOfBoundsRes = validateOrlCertInput({
     customerName: 'Tariq',
-    technicianName: 'Sajid',
+    technicianName: 'Test Customer 48',
     measuredOrlDb: 105
   });
   assert.equal(outOfBoundsRes.valid, false);
@@ -5724,7 +5726,7 @@ test('generateOrlCertHtml produces A4 ISO/IEC and 80mm thermal slip layouts', as
 
   const rec = buildOrlCertRecord({
     customerId: 'CUST-PRINT-01',
-    customerName: 'Malik Rizwan',
+    customerName: 'Malik Test Customer 115',
     customerPhone: '+92 321 7766554',
     customerArea: 'Rehman Park, Shahdara',
     polish: 'SC_APC',
@@ -5737,7 +5739,7 @@ test('generateOrlCertHtml produces A4 ISO/IEC and 80mm thermal slip layouts', as
   const htmlA4 = generateOrlCertHtml(rec, { format: 'a4' });
   assert.ok(htmlA4.includes('SHAHDARA FIBER NETWORKS &amp; BROADBAND'));
   assert.ok(htmlA4.includes('IEC 61300-3-35 CERTIFICATE'));
-  assert.ok(htmlA4.includes('Malik Rizwan'));
+  assert.ok(htmlA4.includes('Malik Test Customer 115'));
   assert.ok(htmlA4.includes('Splicer Usman'));
   assert.ok(htmlA4.includes('IEC 61300-3-35 Ferrule Endface Inspection Breakdown'));
   assert.ok(htmlA4.includes('Zone A (Core)'));
@@ -5746,7 +5748,7 @@ test('generateOrlCertHtml produces A4 ISO/IEC and 80mm thermal slip layouts', as
   const htmlSlip = generateOrlCertHtml(rec, { format: 'slip' });
   assert.ok(htmlSlip.includes('SHAHDARA BROADBAND'));
   assert.ok(htmlSlip.includes('Optical Return Loss &amp; Endface QA Slip'));
-  assert.ok(htmlSlip.includes('Malik Rizwan'));
+  assert.ok(htmlSlip.includes('Malik Test Customer 115'));
   assert.ok(htmlSlip.includes('SC/APC'));
 });
 
@@ -7810,7 +7812,7 @@ test('validateSplitterQaInput validates required fields correctly', async () => 
   const valid = validateSplitterQaInput({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     inputPowerDbm: '3.5'
   });
   assert.equal(valid.valid, true);
@@ -7822,7 +7824,7 @@ test('buildSplitterQaRecord creates sequential cert IDs and preserves data', asy
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     wavelengthNm: 1550,
     inputPowerDbm: 3.5,
     portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
@@ -7855,7 +7857,7 @@ test('generateSplitterQaCertHtml generates both A4 and 80mm thermal formats', as
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     wavelengthNm: 1550,
     inputPowerDbm: 3.5,
     portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
@@ -7877,7 +7879,7 @@ test('formatSplitterQaCertWhatsApp formats bilingual dispatch notice', async () 
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     wavelengthNm: 1550,
     inputPowerDbm: 3.5,
     portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
@@ -7894,7 +7896,7 @@ test('generateSplitterQaCertsCsv generates RFC-4180 CSV with UTF-8 BOM', async (
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     wavelengthNm: 1550,
     inputPowerDbm: 3.5,
     portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
@@ -8018,7 +8020,7 @@ test('setupSplitterQaModal binds DOM elements, handles presets, recalculates, an
   elements.splitterQaTypeSelect.value = '1:8';
   elements.splitterQaInputPower.value = '3.5';
   elements.splitterQaLocation.value = 'Baradari Hub FAT-08';
-  elements.splitterQaTech.value = 'Muhammad Rizwan';
+  elements.splitterQaTech.value = 'Sample Technician';
 
   const mockDoc = {
     getElementById(id) {
@@ -9697,14 +9699,14 @@ test('formatSpliceMfdOffsetCertWhatsApp produces bilingual Urdu & English techni
     rightFiberType: 'ITU_G652D',
     splicerType: 'CORE_PAS',
     tiltAngleDeg: 0.20,
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     location: 'Baradari Feeder FAT #01'
   });
 
   const text = formatSpliceMfdOffsetCertWhatsApp(record);
   assert.ok(text.includes('SHAHDARA FIBER NET - FUSION SPLICE QA CERTIFICATE'));
   assert.ok(text.includes(record.id));
-  assert.ok(text.includes('Muhammad Rizwan'));
+  assert.ok(text.includes('Sample Technician'));
   assert.ok(text.includes('TOTAL INSERTION LOSS:'));
   assert.ok(text.includes('اردو رزلٹ:'));
   assert.ok(text.includes('042-37900000'));
@@ -11281,7 +11283,7 @@ test('validateRibbonSpliceInput validates input parameters with actionable error
 
   const valid = validateRibbonSpliceInput({
     route: 'Baradari ODF Feeder',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     pitchVariationUm: 1.0,
     cleaveLengthDiffUm: 2.0,
     arcBalanceFactor: 0.95
@@ -11292,7 +11294,7 @@ test('validateRibbonSpliceInput validates input parameters with actionable error
   // Missing route
   const missingRoute = validateRibbonSpliceInput({
     route: '   ',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     pitchVariationUm: 1.0,
     cleaveLengthDiffUm: 2.0,
     arcBalanceFactor: 0.95
@@ -11363,7 +11365,7 @@ test('calculateRibbonSpliceMetrics aggregates KPI metrics and handles search fil
     {
       id: 'RBN-202610-0001',
       route: 'Baradari ODF Feeder',
-      technicianName: 'Rizwan',
+      technicianName: 'Test Customer 115',
       status: 'CERTIFIED_EXCELLENCE',
       analysis: { metrics: { meanLossDb: 0.025, maxLossDb: 0.038 } }
     },
@@ -11429,7 +11431,7 @@ test('generateRibbonSpliceCertHtml generates both A4 accreditation certificate a
     createdAt: '2026-10-17T08:00:00.000Z',
     route: 'Baradari ODF Feeder',
     splicerName: 'Fujikura 90R12 Automated Mass Splicer',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     fiberCount: 12,
     wavelengthNm: 1310,
     analysis: evaluateRibbonSpliceAnalysis({ fiberCount: 12 })
@@ -11440,7 +11442,7 @@ test('generateRibbonSpliceCertHtml generates both A4 accreditation certificate a
   assert.ok(a4Html.includes('RBN-202610-0001'));
   assert.ok(a4Html.includes('Baradari ODF Feeder'));
   assert.ok(a4Html.includes('TIA-598-D 12-FIBER INDIVIDUAL CHANNEL AUDIT TABLE'));
-  assert.ok(a4Html.includes('Muhammad Rizwan'));
+  assert.ok(a4Html.includes('Sample Technician'));
 
   const thermalHtml = generateRibbonSpliceCertHtml(cert, { format: 'thermal' });
   assert.ok(thermalHtml.includes('MASS RIBBON FUSION QA SLIP'));
@@ -11574,7 +11576,7 @@ test('validateFastConnectorInput enforces required fields and numeric ranges', a
   const valid = validateFastConnectorInput({
     customerName: 'Muhammad Arshad',
     route: 'FAT-BK-04 to ONT Demarcation',
-    technicianName: 'Rizwan',
+    technicianName: 'Test Customer 115',
     fiberGapUm: 1.0,
     angularMismatchDeg: 0.4,
     tensileLoadN: 45.0,
@@ -11644,7 +11646,7 @@ test('calculateFastConnectorMetrics aggregates metrics and handles keyword filte
       id: 'FST-202610-0001',
       customerName: 'Muhammad Arshad',
       route: 'Begum Kot FAT-04',
-      technicianName: 'Rizwan',
+      technicianName: 'Test Customer 115',
       status: 'CERTIFIED_PASS',
       analysis: { insertionLossDb: 0.22, returnLossDb: 62.0 }
     },
@@ -11703,7 +11705,7 @@ test('generateFastConnectorCertHtml formats formal A4 certificate and thermal fi
     route: 'FAT-BK-04 Drop',
     connectorModelName: 'Huawei FAST-SC',
     polishTypeName: 'SC/APC 8°',
-    technicianName: 'Muhammad Rizwan',
+    technicianName: 'Sample Technician',
     analysis: evaluateFastConnectorQa()
   };
 
@@ -13970,7 +13972,7 @@ test('Billing correctness suite: end-to-end monthly bill generation, price-effec
   const dec1 = new Date(2026, 11, 1, 10);
 
   // 1. Create clean state and add customer
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = addCustomer(state, 'Zahid Fiber Net', aug1);
   const custId = state.customers.at(-1).id;
 
@@ -14064,7 +14066,7 @@ test('Billing correctness suite: partial payments, excess overpayment, and chron
   const aug15 = new Date(2026, 7, 15, 10);
   const oct1 = new Date(2026, 9, 1, 10);
 
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = addCustomer(state, 'Malik Aslam', aug1);
   const custId = state.customers.at(-1).id;
   state = updateCustomerProfile(state, custId, { monthlySellingAmount: '1000' }, aug1);
@@ -14137,8 +14139,8 @@ test('Billing correctness suite: receipt correction and deletion dynamically rec
   const aug10 = new Date(2026, 7, 10, 10);
   const sep5 = new Date(2026, 8, 5, 10);
 
-  let state = createInitialState();
-  state = addCustomer(state, 'Babar Zaman', aug1);
+  let state = createInitialState(SAMPLE_NAMES);
+  state = addCustomer(state, 'Test Customer 52 Zaman', aug1);
   const custId = state.customers.at(-1).id;
   state = updateCustomerProfile(state, custId, { monthlySellingAmount: '1200' }, aug1);
   state = generateMonthlyBillsThroughCurrentMonth(state, sep5);
@@ -14201,7 +14203,7 @@ test('auditBillingCorrectness audits full ISP state and correctly detects compli
   const { auditBillingCorrectness, AUDIT_RULE_CODES, BILLING_STATUSES } = await import('../qa-setups.js');
 
   const refDate = new Date(2026, 8, 15, 12); // September 15, 2026
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
 
   // Test 1: Empty starter state has 74 customers, all unconfigured
   let audit1 = auditBillingCorrectness(state, refDate);
@@ -14321,7 +14323,7 @@ test('renderBillingCorrectnessSvg, HTML generators (A4, POS80), WhatsApp and CSV
       {
         customerId: 'c-1',
         customerNumber: 1,
-        customerName: 'NAZEER',
+        customerName: 'Test Customer 01',
         customerPhone: '03001234567',
         customerArea: 'Baradari',
         month: '2026-10',
@@ -14371,7 +14373,7 @@ test('renderBillingCorrectnessSvg, HTML generators (A4, POS80), WhatsApp and CSV
   const csv = generateBillingAuditCsv(mockAudit);
   assert.ok(csv.startsWith('\uFEFF'), 'CSV must start with UTF-8 BOM');
   assert.ok(csv.includes('Customer_No,Customer_Name,Phone,Area,Month'));
-  assert.ok(csv.includes('1,NAZEER,03001234567,Baradari,2026-10,2026-10-05,1500.00'));
+  assert.ok(csv.includes('1,Test Customer 01,03001234567,Baradari,2026-10,2026-10-05,1500.00'));
 });
 
 test('LocalStorage audit history and setupBillingCorrectnessModal controller initialize cleanly', async () => {

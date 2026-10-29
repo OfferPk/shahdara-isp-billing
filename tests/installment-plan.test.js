@@ -29,7 +29,7 @@ const customer = (id, number, name, overrides) => ({
   monthlyPriceSchedule: [{ effectiveMonth: '2026-08', amount: 3000 }],
   bills: [], ...overrides
 });
-const kistCustomer = (overrides = {}) => customer('c1', 11, 'CH BILAL', {
+const kistCustomer = (overrides = {}) => customer('c1', 11, 'Test Customer 11', {
   installmentPlans: [createInstallmentPlan({ itemTitle: 'Tenda F3 Router', totalAmount: 3000, downPayment: 0, totalMonths: 3 })],
   ...overrides
 });

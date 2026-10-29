@@ -40,7 +40,7 @@ function memoryStorage() {
 const base = (overrides = {}) => ({
   id: 'TKT-101',
   customerId: 'c1',
-  customerName: 'CH BILAL',
+  customerName: 'Test Customer 11',
   complaintId: '',
   faultPreset: 'Fiber Cut / Splice Loss',
   customFault: '',
@@ -63,7 +63,7 @@ const base = (overrides = {}) => ({
 test('createTicket: presets, technician required, custom fault fallback, complaint link validation', () => {
   const ticket = createTicket({
     customerId: 'c1',
-    customerName: 'CH BILAL',
+    customerName: 'Test Customer 11',
     faultPreset: 'CAT6 / RJ45 Fault',
     technician: 'Saad',
     priority: 'Urgent'
@@ -84,7 +84,7 @@ test('createTicket: presets, technician required, custom fault fallback, complai
 test('spec criterion verbatim: billed Rs. 500 Patch Cord adds Rs. 500 to pending dues + resolved timestamp', () => {
   const created = createTicket({
     customerId: 'c1',
-    customerName: 'CH BILAL',
+    customerName: 'Test Customer 11',
     faultPreset: 'Fiber Cut / Splice Loss',
     technician: 'Saad'
   }, []);
@@ -182,7 +182,7 @@ test('recurring fault warning: 3+ tickets in 60 days, old ones excluded', () => 
 
 test('stock deductions: SISP-18 movement shape for resolved tickets only', () => {
   const created = createTicket({
-    customerId: 'c1', customerName: 'CH BILAL', faultPreset: 'Fiber Cut / Splice Loss', technician: 'Saad'
+    customerId: 'c1', customerName: 'Test Customer 11', faultPreset: 'Fiber Cut / Splice Loss', technician: 'Saad'
   }, []);
   assert.deepEqual(ticketStockDeductions(created), []);
   const resolved = resolveTicket([created], created.id, {
@@ -207,7 +207,7 @@ test('stock deductions: SISP-18 movement shape for resolved tickets only', () =>
 
 test('consume deductions: stub addMovement applies + marks deducted; refusal leaves pending', () => {
   const created = createTicket({
-    customerId: 'c1', customerName: 'CH BILAL', faultPreset: 'Fiber Cut / Splice Loss', technician: 'Saad'
+    customerId: 'c1', customerName: 'Test Customer 11', faultPreset: 'Fiber Cut / Splice Loss', technician: 'Saad'
   }, []);
   const resolved = resolveTicket([created], created.id, {
     materialsUsed: [{ key: 'patch-cord', qty: 1, amount: 500 }],

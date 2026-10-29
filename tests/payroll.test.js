@@ -10,6 +10,8 @@ import {
   addExpense, buildPhase3Analytics, validatePhase3State
 } from '../phase3.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 const october = new Date('2026-10-15T12:00:00+05:00');
 const november = new Date('2026-11-15T12:00:00+05:00');
 const january = new Date('2027-01-15T12:00:00+05:00');
@@ -19,7 +21,7 @@ const cashPayment = (amount,date='2026-10-10') => ({date,amount:String(amount),m
 const summaryFor = state => buildPayrollSummary(state,'2026-10',october);
 
 test('generated and manually created monthly bills default to the fifth across December-to-January boundaries',()=>{
-  let state=setProfile(createInitialState(),'seed-001',{monthlySellingAmount:'120'},new Date('2026-12-15T12:00:00+05:00'));
+  let state=setProfile(createInitialState(SAMPLE_NAMES),'seed-001',{monthlySellingAmount:'120'},new Date('2026-12-15T12:00:00+05:00'));
   state=generateMonthlyBillsThroughCurrentMonth(state,january);
   const customer=state.customers.find(row=>row.id==='seed-001');
   assert.equal(customer.bills.find(bill=>bill.month==='2026-12').dueDate,'2026-12-05');
@@ -29,7 +31,7 @@ test('generated and manually created monthly bills default to the fifth across D
 });
 
 test('custom due-date overrides persist and historical bill snapshots are never backfilled or rewritten',()=>{
-  let state=setProfile(createInitialState(),'seed-001',{monthlySellingAmount:'120'},new Date('2026-12-15T12:00:00+05:00'));
+  let state=setProfile(createInitialState(SAMPLE_NAMES),'seed-001',{monthlySellingAmount:'120'},new Date('2026-12-15T12:00:00+05:00'));
   state=generateMonthlyBillsThroughCurrentMonth(state,january);
   state=saveBillMonth(state,'seed-001',{month:'2026-12',dueAmount:'120',dueDate:'2026-12-19',status:'pending'},new Date('2026-12-20T12:00:00+05:00'));
   state=setProfile(state,'seed-001',{monthlySellingAmount:'150'},january);
@@ -39,7 +41,7 @@ test('custom due-date overrides persist and historical bill snapshots are never 
   assert.equal(december.priceSnapshot,120);
 
   const storage=store();
-  let legacy=createInitialState();
+  let legacy=createInitialState(SAMPLE_NAMES);
   const historic={id:'historic-2026-08',month:'2026-08',dueAmount:88,dueDate:null,status:'pending',payments:[],generated:true,priceSnapshot:88,createdAt:'2026-08-01T12:00',amountHistory:[]};
   legacy={...legacy,customers:legacy.customers.map(customer=>customer.id==='seed-001'?{...customer,monthlySellingAmount:88,monthlyPriceSchedule:[{effectiveMonth:'2026-08',amount:88}],billingStartMonth:'2026-08',bills:[historic]}:customer)};
   storage.setItem('shahdara-isp-billing-v1',JSON.stringify(legacy));
@@ -54,7 +56,7 @@ test('custom due-date overrides persist and historical bill snapshots are never 
 });
 
 test('Saad supplement requires a post-effective-date customer with a fully paid selected-month bill and Active unarchived status',()=>{
-  let state=addCustomer(createInitialState(),'New paying customer',new Date('2026-10-01T12:00:00+05:00'));
+  let state=addCustomer(createInitialState(SAMPLE_NAMES),'New paying customer',new Date('2026-10-01T12:00:00+05:00'));
   const customerId=state.customers.at(-1).id;
   state=setProfile(state,customerId,{serviceStatus:'active'});
   state=saveBillMonth(state,customerId,{month:'2026-10',dueAmount:'100',status:'pending'},october);
@@ -78,8 +80,8 @@ test('Saad supplement requires a post-effective-date customer with a fully paid 
   assert.equal(summaryFor(state).eligibleActivePaidCustomerCount,0,'dropping the customer removes the increment');
 });
 
-test('the original 74 starter profiles and customers added on the effective-date boundary are excluded',()=>{
-  let state=setProfile(createInitialState(),'seed-001',{serviceStatus:'active'},october);
+test('the 74 synthetic starter profiles and customers added on the effective-date boundary are excluded',()=>{
+  let state=setProfile(createInitialState(SAMPLE_NAMES),'seed-001',{serviceStatus:'active'},october);
   state=saveBillMonth(state,'seed-001',{month:'2026-10',dueAmount:'100',status:'pending'},october);
   state=addPayment(state,'seed-001','2026-10',cashPayment(100),october);
   assert.equal(summaryFor(state).eligibleActivePaidCustomerCount,0,'a starter profile is not a post-effective addition');
@@ -93,7 +95,7 @@ test('the original 74 starter profiles and customers added on the effective-date
 });
 
 test('attendance and workday records are unique date-only entries with separate selected-month totals',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=addSaadAttendanceDay(state,'2026-10-01');
   const afterFirstAttendance=state;
   state=addSaadAttendanceDay(state,'2026-10-01');
@@ -130,7 +132,7 @@ test('attendance and workday records are unique date-only entries with separate 
 });
 
 test('new state and restore create no attendance, workday, bill, or expense entries unless entered',()=>{
-  const state=createInitialState();
+  const state=createInitialState(SAMPLE_NAMES);
   const summary=summaryFor(state);
   assert.deepEqual(state.saadAttendanceDays,[]);
   assert.deepEqual(state.umairWorkdays,[]);
@@ -144,8 +146,8 @@ test('new state and restore create no attendance, workday, bill, or expense entr
 });
 
 test('payroll date logs and new-customer dates survive the validated merge-only backup flow',()=>{
-  let local=addSaadAttendanceDay(createInitialState(),'2026-10-03');
-  let incoming=addCustomer(createInitialState(),'Backup-only post-release customer',new Date('2026-10-01T12:00:00+05:00'));
+  let local=addSaadAttendanceDay(createInitialState(SAMPLE_NAMES),'2026-10-03');
+  let incoming=addCustomer(createInitialState(SAMPLE_NAMES),'Backup-only post-release customer',new Date('2026-10-01T12:00:00+05:00'));
   incoming=addSaadAttendanceDay(incoming,'2026-10-03');
   incoming=addSaadAttendanceDay(incoming,'2026-10-04');
   incoming=addUmairWorkday(incoming,'2026-10-08');
@@ -162,7 +164,7 @@ test('payroll date logs and new-customer dates survive the validated merge-only 
 });
 
 test('backup merge fills missing added-on metadata for matching customers but preserves an explicit local date',()=>{
-  const incoming=addCustomer(createInitialState(),'Shared backup customer',new Date('2026-10-01T12:00:00+05:00'));
+  const incoming=addCustomer(createInitialState(SAMPLE_NAMES),'Shared backup customer',new Date('2026-10-01T12:00:00+05:00'));
   const id=incoming.customers.at(-1).id;
   const backup=createJsonBackup(incoming,october);
   const missing={...incoming,customers:incoming.customers.map(customer=>customer.id===id?{...customer,addedOn:null}:customer)};

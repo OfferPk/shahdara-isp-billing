@@ -13,7 +13,7 @@ const FIELDS = {
   businessName: 'Shahdara ISP',
   businessPhone: '0300-1234567',
   receiptNumber: 'RCPT-42-202610-01',
-  customerName: 'Muhammad Nazeer Ahmad Khan',
+  customerName: 'Sample Customer Ahmad Khan',
   customerNumber: '42',
   monthLabel: '2026-10',
   packageLabel: '25 Mbps Turbo Broadband',
@@ -37,7 +37,7 @@ test('#226 builder: totals are right-aligned and key fields present', () => {
   const amountLine = lines.find(l => l.startsWith('AMOUNT PAID'));
   assert.ok(amountLine.endsWith('PKR 1,500'));
   assert.equal(amountLine.length, 32);
-  assert.ok(lines.join(' ').includes('Muhammad Nazeer') && lines.join(' ').includes('Ahmad Khan'), 'long names wrap, never truncate away');
+  assert.ok(lines.join(' ').includes('Sample Customer') && lines.join(' ').includes('Ahmad Khan'), 'long names wrap, never truncate away');
   assert.ok(lines.some(l => l.startsWith('Balance due') && l.endsWith('PKR 0')));
   assert.ok(lines.some(l => l.includes('RCPT-42-202610-01')));
 });

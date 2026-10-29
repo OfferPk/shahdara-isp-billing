@@ -14,7 +14,7 @@ async function seedCustomer(page) {
       customers: [{
         id: 'cust-sisp19',
         customerNumber: 42,
-        name: 'RAJA FAISAL',
+        name: 'Test Customer 34',
         mohalla: 'Shahdara Town',
         zone: '',
         address: '',
@@ -78,7 +78,7 @@ test('profile shows custody fields; archiving flags pending recovery until marke
   await expect(page.locator('#dashboardHardwareRecoveryValue')).toContainText('1 customer');
   // Modal lists the pending items; mark one recovered.
   await page.locator('#openHardwareRecoveryModalBtn').click();
-  await expect(page.locator('#hardwareRecoveryList')).toContainText('RAJA FAISAL');
+  await expect(page.locator('#hardwareRecoveryList')).toContainText('Test Customer 34');
   await page.locator('[data-hardware-recover="cust-sisp19:mediaConverter"]').click();
   await expect(page.locator('#hardwareRecoveryList')).not.toContainText('Media Converter / ONU');
   // The other item still pends; mark all recovered clears the list.

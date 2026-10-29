@@ -27,7 +27,7 @@ async function qcPayFirst(page) {
   await page.locator('#quickAddPaymentButton').click();
   const modal = page.locator('#quickCollectModal');
   await expect(modal).toBeVisible();
-  await modal.locator('.qc-customer-card', { hasText: 'NAZEER' }).first().click();
+  await modal.locator('.qc-customer-card', { hasText: 'Test Customer 01' }).first().click();
   await page.locator('#quickCollectConfirmBtn').click();
   await expect(page.locator('#quickCollectStepSuccess')).toBeVisible();
   await page.locator('#quickCollectDoneCloseBtn').click();
@@ -53,13 +53,13 @@ test.describe('Issue 357: Bills, Reports, Recovery, Alerts deep test', () => {
     await page.goto('/#/reports');
     const view = page.locator('#billingReportsView');
     await expect(view).toBeVisible();
-    // 74 customers x Rs 1,000 billed; NAZEER paid 1,000.
+    // 74 customers x Rs 1,000 billed; Test Customer 01 paid 1,000.
     await expect(page.locator('#reportSummaryBilled')).toContainText('74,000');
     await expect(page.locator('#reportSummaryBalance')).toContainText('73,000');
 
     // Search narrows to one customer.
-    await page.locator('#reportCustomerSearch').fill('nazeer');
-    await expect(page.locator('#monthlyReportList')).toContainText('NAZEER');
+    await page.locator('#reportCustomerSearch').fill('Test Customer 01');
+    await expect(page.locator('#monthlyReportList')).toContainText('Test Customer 01');
     await expect(page.locator('#monthlyReportCount')).toContainText('1');
     await page.locator('#reportCustomerSearch').fill('');
     await expect(page.locator('#monthlyReportCount')).not.toContainText('1 customer');
@@ -126,14 +126,14 @@ test.describe('Issue 357: Bills, Reports, Recovery, Alerts deep test', () => {
     await page.goto('/#/recovery');
     await expect(page.locator('#billingReportsView')).toBeVisible();
     const groups = page.locator('#duesRecoveryGroups');
-    await expect(groups).toContainText('AWAIS');
-    await expect(groups).not.toContainText('NAZEER');
+    await expect(groups).toContainText('Test Customer 02');
+    await expect(groups).not.toContainText('Test Customer 01');
     // Without a saved phone the card explains what is missing; give
-    // AWAIS a phone via his profile, then the WhatsApp draft appears.
+    // Test Customer 02 a phone via his profile, then the WhatsApp draft appears.
     await expect(groups).toContainText('A saved full international WhatsApp number is required.');
     await page.goto('/#/customers');
     await page.waitForSelector('#customerList [data-customer-id]');
-    await page.locator('#customerList [data-customer-id]', { hasText: 'AWAIS' }).first().click();
+    await page.locator('#customerList [data-customer-id]', { hasText: 'Test Customer 02' }).first().click();
     await page.locator('#profileTabInfo').click();
     await page.locator('#editProfileButton').click();
     await page.locator('#phoneInput').fill('+923001234567');
@@ -168,8 +168,8 @@ test.describe('Issue 357: Bills, Reports, Recovery, Alerts deep test', () => {
 
     await page.goto('/#/customers');
     await page.waitForSelector('#customerList [data-customer-id]');
-    await page.locator('#customerList [data-customer-id]', { hasText: 'AWAIS' }).first().click();
-    await expect(page.locator('#detailName')).toHaveText('AWAIS');
+    await page.locator('#customerList [data-customer-id]', { hasText: 'Test Customer 02' }).first().click();
+    await expect(page.locator('#detailName')).toHaveText('Test Customer 02');
 
     // Current month section: the bill form saves a due date.
     const billForm = page.locator('form.bill-form').first();

@@ -51,7 +51,7 @@ function paidFixture() {
   const payment = { id: 'pay-full', amount: 3000, date: '2026-10-05', method: 'Cash' };
   const bill = { id: 'bill-2026-10', month: '2026-10', dueAmount: 3000, status: 'pending', payments: [payment] };
   const customer = {
-    id: 'synthetic-customer', customerNumber: 42, name: 'RAJA FAISAL', nameUrdu: 'راجہ فیصل',
+    id: 'synthetic-customer', customerNumber: 42, name: 'Test Customer 34', nameUrdu: 'راجہ فیصل',
     mohalla: 'Shahdara Town', zone: 'Barrian', packageSpeed: '10 Mbps',
     packageHistory: [], bills: [bill],
   };
@@ -88,7 +88,7 @@ test('full payment through the real receipt path stamps PAID with accurate detai
   assert.equal(receipt.balanceDueCents, 0);
   const model = buildPngReceiptModel(receipt, customer);
   assert.equal(model.seal.kind, 'PAID');
-  assert.equal(model.customerName, 'RAJA FAISAL');
+  assert.equal(model.customerName, 'Test Customer 34');
   assert.equal(model.urduName, 'راجہ فیصل');
   assert.equal(model.connectionId, '42');
   assert.equal(model.areaZone, 'Shahdara Town, Barrian');

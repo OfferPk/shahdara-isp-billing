@@ -1,26 +1,18 @@
 /**
- * default-customers.js — Owner default customer roster (ALEX, 2026-10-29).
+ * default-customers.js — Default customer roster import machinery.
  *
- * ALEX supplied his real customer list in writing (WhatsApp, 2026-10-29
- * 13:43 PKT) and directed that these customers be added BY DEFAULT into
- * the existing app: "BASS YEAH BY DEFAULT ADD HO JAY EXISTING APP MAI —
- * EN K PACKAGES OUR MOBILE NUMBER KHUD SY ADD KARY GA ADMIN" (packages
- * and mobile numbers are added by the admin himself later). The roster
- * below is that list transcribed EXACTLY: names verbatim as the owner
- * wrote them (spellings, mixed case and all), grouped by the owner's
- * mohalla labels. No package, mobile, balance or bill data is invented —
- * an imported record is a blank roster entry (the app's own addCustomer
- * defaults: no package, serviceStatus 'not-set', no bills) that the admin
- * completes later.
+ * PRIVACY (owner order, 2026-10-29): customer names are intentionally
+ * NOT shipped in this public repository. The shipped roster below is
+ * EMPTY, so the import adds nobody: the app starts with an empty
+ * customer list and every record is entered by the owner locally. The
+ * planner/import plumbing is kept fully working so a future PRIVATE
+ * roster can be supplied outside this repo without code changes.
  *
- * FREE connections (owner amendment, 2026-10-29 13:46 PKT): AQIB 1,
- * AQIB 999 and FREE ID LINE MAN (all BARRIAN) are FREE by default. They
- * carry `free: true` here, land on the customer record as
- * `isFreeConnection: true`, show a visible FREE tag, and NEVER get a
- * bill: bill generation skips them (core generateMonthlyBills and the
- * SISP-2 billing cycle), and defaulter/grace outputs exclude them. They
- * still appear in the customer list and counts — their only purpose is
- * roster accuracy.
+ * Roster entries may carry `free: true`; such an entry lands on the
+ * customer record as `isFreeConnection: true`, shows a visible FREE
+ * tag, and NEVER gets a bill: bill generation skips free connections
+ * (core generateMonthlyBills and the SISP-2 billing cycle), and
+ * defaulter/grace outputs exclude them.
  *
  * Import behaviour (runs once on app load, see app.js):
  *  - A settings marker (`state.settings.defaultCustomersImport`) records
@@ -42,125 +34,23 @@
 import { addCustomer } from './core.js';
 import { canonicalMohalla } from './phase3.js';
 
-/** Bump when the owner supplies a corrected roster; the settings marker
- *  stores the version that already ran, so a bump re-runs the (still
- *  idempotent) planner once on every device. */
-export const DEFAULT_ROSTER_VERSION = 1;
+/** Bump when a (private) roster is supplied or corrected; the settings
+ *  marker stores the version that already ran, so a bump re-runs the
+ *  (still idempotent) planner once on every device. Bumped to 2 for the
+ *  2026-10-29 privacy cleanup that emptied the shipped roster. */
+export const DEFAULT_ROSTER_VERSION = 2;
 
 const entry = (name, mohalla, free = false) =>
   Object.freeze(free ? { name, mohalla, free: true } : { name, mohalla });
 
-/** The owner's roster, verbatim, in his written order (93 entries). */
-export const DEFAULT_CUSTOMER_ROSTER = Object.freeze([
-  // CHARYAA (6)
-  entry('TEHMINA KHALLA', 'CHARYAA'),
-  entry('SAFAEER', 'CHARYAA'),
-  entry('NAZEER', 'CHARYAA'),
-  entry('AWAIS', 'CHARYAA'),
-  entry('KHALEEL', 'CHARYAA'),
-  entry('Afzal Shah darbar', 'CHARYAA'),
-  // GANGALL (16)
-  entry('AC FARM HOUSE', 'GANGALL'),
-  entry('MNA FARM HOUSE', 'GANGALL'),
-  entry('ZARSHAAD KHAN', 'GANGALL'),
-  entry('CH BILAL', 'GANGALL'),
-  entry('MUHAMMAD QASIM', 'GANGALL'),
-  entry('RAJA JUNAID', 'GANGALL'),
-  entry('RAJA USMAN URF SAMI', 'GANGALL'),
-  entry('HAJI ZAFAR', 'GANGALL'),
-  entry('RAJA USAMA', 'GANGALL'),
-  entry('RAJA AQEEL', 'GANGALL'),
-  entry('RAJA HASEEB', 'GANGALL'),
-  entry('GULL ZAIB PATHAN', 'GANGALL'),
-  entry('RAJA BILAL', 'GANGALL'),
-  entry('RAJA JAWAAD', 'GANGALL'),
-  entry('qari mubashir', 'GANGALL'),
-  entry('FAREED ABBASI', 'GANGALL'),
-  // BARRIAN (14) — the last three are the owner's FREE connections.
-  entry('DOCTOR ESSAN', 'BARRIAN'),
-  entry('DOCTOR ZAHID', 'BARRIAN'),
-  entry('DIL NAWAZ ABBASI', 'BARRIAN'),
-  entry('RAJA SAQIB', 'BARRIAN'),
-  entry('RAJA RIAZ', 'BARRIAN'),
-  entry('RAJA WAQAR', 'BARRIAN'),
-  entry('JAHANGEER ABBASI', 'BARRIAN'),
-  entry('RAJA NOMI', 'BARRIAN'),
-  entry('MUFTI SADAQAT QUBAA MASJID', 'BARRIAN'),
-  entry('RAJA MOHSIN', 'BARRIAN'),
-  entry('RAJA SHARJELL', 'BARRIAN'),
-  entry('AQIB 1', 'BARRIAN', true),
-  entry('AQIB 999', 'BARRIAN', true),
-  entry('FREE ID LINE MAN', 'BARRIAN', true),
-  // CHAMYAAA (7)
-  entry('RAJA TOUSEEF', 'CHAMYAAA'),
-  entry('RAJA SHANI', 'CHAMYAAA'),
-  entry('RAJA SIKANDAR 222', 'CHAMYAAA'),
-  entry('KIRAN BILAL', 'CHAMYAAA'),
-  entry('RAJA JAWAAD', 'CHAMYAAA'),
-  entry('SHAHMEER SHAH', 'CHAMYAAA'),
-  entry('sheraaz Shah', 'CHAMYAAA'),
-  // PALALIYAA (10)
-  entry('RAJA FAISAL', 'PALALIYAA'),
-  entry('FAJA SHUNAID', 'PALALIYAA'),
-  entry('RAJA TAIMOOR CHANDAAAL', 'PALALIYAA'),
-  entry('BUTT FARM HOUSE', 'PALALIYAA'),
-  entry('BAJWA FARM HOUSE', 'PALALIYAA'),
-  entry('BANGISH FARM HOUSE', 'PALALIYAA'),
-  entry('RAJA HAFEEZ', 'PALALIYAA'),
-  entry('RAJA KHAZEER', 'PALALIYAA'),
-  entry('MOLVI ZUBAIR', 'PALALIYAA'),
-  entry('RAJA AQEEL', 'PALALIYAA'),
-  // THALII (8)
-  entry('Raja ARIF', 'THALII'),
-  entry('RAJA MEHMOOD', 'THALII'),
-  entry('RAJA SHEHZAAD', 'THALII'),
-  entry('RAJA SADAAM', 'THALII'),
-  entry('RAJA KASHIF', 'THALII'),
-  entry('KASHIF ABBASI 100Gb', 'THALII'),
-  entry('RIZWAN', 'THALII'),
-  entry('PTA DIRECTOR', 'THALII'),
-  // NAKAR (10)
-  entry('RAJA IRFAN', 'NAKAR'),
-  entry('RAJA FAIZAN', 'NAKAR'),
-  entry('HAMZA URF BABLU', 'NAKAR'),
-  entry('BABAR', 'NAKAR'),
-  entry('QARI BAKAR', 'NAKAR'),
-  entry('PEER MULAZAM SHAH', 'NAKAR'),
-  entry('CH MURTAZA', 'NAKAR'),
-  entry('CH MOIZ', 'NAKAR'),
-  entry('CH SAQLAIN', 'NAKAR'),
-  entry('SAWAAAR SHAH', 'NAKAR'),
-  // BANII (4) — owner wrote "MOHALLA BANI"; canonical stored form is BANII.
-  entry('Tahir MOLVI', 'BANII'),
-  entry('RAJA MASROOR', 'BANII'),
-  entry('RAJA TAIMOOR MANGRAYALL', 'BANII'),
-  entry('RAJA MUJAHID', 'BANII'),
-  // JABBIYAA (8)
-  entry('MASTER ZAHEER', 'JABBIYAA'),
-  entry('SHADI', 'JABBIYAA'),
-  entry('RAB NAWAZ', 'JABBIYAA'),
-  entry('SHAH NAWAZ', 'JABBIYAA'),
-  entry('KHATTAK SWIMMING POOL', 'JABBIYAA'),
-  entry('NADIR SHAH PULL', 'JABBIYAA'),
-  entry('ORIOM SCHOOL', 'JABBIYAA'),
-  entry('CH IFTHAKHAR', 'JABBIYAA'),
-  // SODAA (6)
-  entry('CH FAISAL', 'SODAA'),
-  entry('CH NADIR GUJJAR', 'SODAA'),
-  entry('CH SHAFEEQ', 'SODAA'),
-  entry('ch sanwall', 'SODAA'),
-  entry('ch ARBAB ALI', 'SODAA'),
-  entry('CH SIKANDAR', 'SODAA'),
-  // END POINT (4) — owner's own label, stored as written.
-  entry('AKHTAR WAPDA HOUSE', 'END POINT'),
-  entry('DC FARM HOUSE', 'END POINT'),
-  entry('SSP FARM HOUSE', 'END POINT'),
-  entry('RAJA ASAD FARM HOUSE', 'END POINT')
-]);
+/** The shipped roster is intentionally EMPTY (privacy, see header):
+ *  no customer names are bundled with this public app. `entry` above
+ *  documents the entry shape a future private roster would use. */
+export const DEFAULT_CUSTOMER_ROSTER = Object.freeze([]);
 
 /** Name comparison for roster matching: Unicode-normalized, whitespace
- *  collapsed, case-insensitive — so a hand-typed "nazeer" in the app
- *  satisfies the roster's "NAZEER". */
+ *  collapsed, case-insensitive — so a hand-typed name in the app
+ *  satisfies the same name on a roster regardless of case/spacing. */
 export function normalizeRosterName(value) {
   return String(value ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim().toLocaleLowerCase();
 }
@@ -213,7 +103,7 @@ export function planDefaultCustomerAdditions(customers, roster = DEFAULT_CUSTOME
  * reference when the settings marker shows the current roster version
  * already ran. Otherwise adds the planned shortfall through core
  * addCustomer (blank records: name + mohalla only, plus
- * isFreeConnection for the owner's three free IDs) and stamps the
+ * isFreeConnection for entries flagged free) and stamps the
  * marker. The input state is never mutated.
  */
 export function applyDefaultCustomerRoster(state, referenceDate = new Date(), roster = DEFAULT_CUSTOMER_ROSTER) {

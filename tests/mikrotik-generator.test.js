@@ -25,7 +25,7 @@ import { addCustomer, updateCustomerProfile } from '../core.js';
 const fullCustomer = (overrides = {}) => ({
   id: 'cust-abc',
   customerNumber: 42,
-  name: 'RAJA FAISAL',
+  name: 'Test Customer 34',
   packageSpeed: '5Mbps / 150GB',
   pppoeUsername: 'faisal42',
   pppoePassword: 's3cret!',
@@ -65,7 +65,7 @@ test('spec criterion: snippet has exact username, speed limit, customerId commen
   const script = buildCustomerMikrotikSnippet(fullCustomer());
   assert.match(script, /\/ppp secret add name="faisal42" password="s3cret!" service=pppoe profile=default/);
   assert.match(script, /\/queue simple add name="q-faisal42" target=192\.168\.1\.50\/32 max-limit=5M\/5M/);
-  assert.match(script, /comment="customerId: cust-abc RAJA FAISAL #42"/);
+  assert.match(script, /comment="customerId: cust-abc Test Customer 34 #42"/);
   assert.match(script, /\/ip arp add address=192\.168\.1\.50 mac-address=AA:BB:CC:DD:EE:FF/);
 });
 

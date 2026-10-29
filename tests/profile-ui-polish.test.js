@@ -23,33 +23,35 @@ import {
   previewJsonBackupMerge
 } from '../core.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 
 // --- Part B: transliteration (verbatim user examples) ---
 
-test('transliteration: RAJA FAISAL -> راجہ فیصل (verbatim)', () => {
-  assert.equal(transliterateRomanToUrdu('RAJA FAISAL'), 'راجہ فیصل');
+test('transliteration: ALI KHAN -> علی خان (dictionary words)', () => {
+  assert.equal(transliterateRomanToUrdu('ALI KHAN'), 'علی خان');
 });
 
 test('transliteration: common names and area words', () => {
-  assert.equal(transliterateRomanToUrdu('RAJA ALI'), 'راجہ علی');
+  assert.equal(transliterateRomanToUrdu('AHMED KHAN'), 'احمد خان');
   assert.equal(transliterateRomanToUrdu('MUHAMMAD AHMED'), 'محمد احمد');
   assert.equal(transliterateRomanToUrdu('KHAN'), 'خان');
-  assert.equal(transliterateRomanToUrdu('BANGISH HOUSE'), 'بنگش ہاؤس');
+  assert.equal(transliterateRomanToUrdu('SHAHDARA HOUSE'), 'شاہدرہ ہاؤس');
   assert.equal(transliterateRomanToUrdu('HUSSAIN'), 'حسین');
 });
 
 test('display name: manual nameUrdu override wins over auto-transliteration', () => {
-  const customer = { name: 'RAJA FAISAL', nameUrdu: 'راجہ فیصل صاحب' };
-  assert.equal(displayCustomerName(customer, 'ur'), 'راجہ فیصل صاحب');
-  assert.equal(displayCustomerName({ name: 'RAJA FAISAL' }, 'ur'), 'راجہ فیصل');
+  const customer = { name: 'ALI KHAN', nameUrdu: 'علی خان صاحب' };
+  assert.equal(displayCustomerName(customer, 'ur'), 'علی خان صاحب');
+  assert.equal(displayCustomerName({ name: 'ALI KHAN' }, 'ur'), 'علی خان');
 });
 
 test('display name: English stays Roman; empty/digits fall back to Roman', () => {
-  assert.equal(displayCustomerName({ name: 'RAJA FAISAL' }, 'en'), 'RAJA FAISAL');
+  assert.equal(displayCustomerName({ name: 'ALI KHAN' }, 'en'), 'ALI KHAN');
   assert.equal(displayCustomerName({ name: '12345' }, 'ur'), '12345');
   assert.equal(displayCustomerName({ name: '' }, 'ur'), '');
-  assert.equal(displayCustomerName({ name: 'RAJA FAISAL', nameUrdu: '   ' }, 'ur'), 'راجہ فیصل');
+  assert.equal(displayCustomerName({ name: 'ALI KHAN', nameUrdu: '   ' }, 'ur'), 'علی خان');
 });
 
 test('currentAppLanguage: no window (node) is English; controller shapes work', () => {
@@ -97,7 +99,7 @@ test('note chips markup: denominations + counts, remainder, empty for zero', () 
 // --- Part B: core round-trip for nameUrdu ---
 
 test('nameUrdu: stored on add, updated + preserved on profile edit, backup round-trip', () => {
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = addCustomer(state, 'ZZ POLISH TEST', new Date(), { nameUrdu: 'راجہ فیصل' });
   const customer = state.customers.at(-1);
   assert.equal(customer.nameUrdu, 'راجہ فیصل');
@@ -109,7 +111,7 @@ test('nameUrdu: stored on add, updated + preserved on profile edit, backup round
 
   // Safe merge fills an EMPTY local nameUrdu from the backup (it never
   // overwrites a saved local value — same semantics as the promise fields).
-  let emptyState = createInitialState();
+  let emptyState = createInitialState(SAMPLE_NAMES);
   emptyState = addCustomer(emptyState, 'ZZ POLISH TEST', new Date(), {});
   const emptyCustomer = emptyState.customers.at(-1);
   assert.equal(emptyCustomer.nameUrdu, '');

@@ -20,7 +20,7 @@ import {
 } from '../qr-card.js';
 
 const customers = [
-  { id: 'cust-abc', customerNumber: 42, name: 'RAJA FAISAL', mohalla: 'Shahdara', zone: 'Side 1', packageSpeed: '5Mbps', monthlySellingAmount: 1500 },
+  { id: 'cust-abc', customerNumber: 42, name: 'Test Customer 34', mohalla: 'Shahdara', zone: 'Side 1', packageSpeed: '5Mbps', monthlySellingAmount: 1500 },
   { id: 'cust-def', customerNumber: 7, name: 'BILAL', mohalla: '', zone: '', packageSpeed: '', monthlySellingAmount: null }
 ];
 
@@ -75,7 +75,7 @@ test('deep link: base URL stays canonical for localhost/file/garbage pages', () 
 test('card model: carries display fields, rate and shops, and the deep link', () => {
   const model = buildKhataCardModel(customers[0]);
   assert.equal(model.ispName, 'Shahdara ISP');
-  assert.equal(model.customerName, 'RAJA FAISAL');
+  assert.equal(model.customerName, 'Test Customer 34');
   assert.equal(model.connectionLabel, '#42');
   assert.equal(model.monthlyPackageRate, 1500);
   assert.equal(model.packageSpeed, '5Mbps');
@@ -94,7 +94,7 @@ test('card model: carries display fields, rate and shops, and the deep link', ()
 test('print HTML: wallet card shows name, connection, rate, shops and QR image', () => {
   const model = buildKhataCardModel(customers[0]);
   const html = buildKhataCardPrintHtml(model, 'data:image/png;base64,QRDATA');
-  assert.match(html, /RAJA FAISAL/);
+  assert.match(html, /Test Customer 34/);
   assert.match(html, /#42/);
   assert.match(html, /1,500/);
   assert.match(html, /Waseem Abbasi Shop/);

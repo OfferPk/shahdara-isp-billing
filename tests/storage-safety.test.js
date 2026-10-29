@@ -278,7 +278,7 @@ test('ledger record counts feed the safety snapshot metadata', () => {
 
 // ------------------------------------------------------------- Layer C tests --
 test('live ledger verification: healthy passes, corrupt variants fail, empty is distinct', () => {
-  assert.deepEqual(verifyLiveLedger(JSON.stringify({ version: 1, customers: [{ name: 'RAJA ALI' }] })), { status: 'healthy', checksum: 'none' });
+  assert.deepEqual(verifyLiveLedger(JSON.stringify({ version: 1, customers: [{ name: 'Test Customer 35' }] })), { status: 'healthy', checksum: 'none' });
   assert.equal(verifyLiveLedger(null).status, 'empty');
   assert.equal(verifyLiveLedger(undefined).status, 'empty');
   assert.equal(verifyLiveLedger('not json{').status, 'corrupt');

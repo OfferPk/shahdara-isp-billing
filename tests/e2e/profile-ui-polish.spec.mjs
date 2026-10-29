@@ -27,7 +27,7 @@ async function seedOverdueCustomer(page) {
   await page.evaluate(async () => {
     const core = await import('./core.js');
     let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
-    s = core.addCustomer(s, 'RAJA FAISAL', new Date(), {});
+    s = core.addCustomer(s, 'Test Customer 34', new Date(), {});
     const customer = s.customers.at(-1);
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -50,7 +50,7 @@ test('profile polish: note chips, Urdu names, grouped profile, dark modal', asyn
 
   // Part C: home overdue row shows PKR note chips, Collect without $ visual.
   await page.goto('/#/home');
-  const overdueRow = page.locator('#homeTopOverdueList .home-overdue-item', { hasText: 'RAJA FAISAL' });
+  const overdueRow = page.locator('#homeTopOverdueList .home-overdue-item', { hasText: 'Test Customer 34' });
   await expect(overdueRow).toBeVisible();
   await expect(overdueRow.locator('.pkr-note-chip')).toHaveText('₨1000 ×3');
   await expect(overdueRow.locator('.overdue-collect-link')).toHaveText('Collect');
@@ -59,9 +59,9 @@ test('profile polish: note chips, Urdu names, grouped profile, dark modal', asyn
 
   // Part A (English): grouped profile, Roman name, no subtitle yet.
   await page.goto('/#/customers');
-  await page.locator('#customerList [data-customer-id]', { hasText: 'RAJA FAISAL' }).first().click();
+  await page.locator('#customerList [data-customer-id]', { hasText: 'Test Customer 34' }).first().click();
   await expect(page.locator('.profile-info-group').first()).toBeVisible();
-  await expect(page.locator('#detailName')).toHaveText('RAJA FAISAL');
+  await expect(page.locator('#detailName')).toHaveText('Test Customer 34');
   await expect(page.locator('#detailNameSub')).toBeHidden();
   await assertNoHorizontalOverflow(page);
 
@@ -73,7 +73,7 @@ test('profile polish: note chips, Urdu names, grouped profile, dark modal', asyn
   await page.goto('/#/customers');
   await page.locator('#customerList [data-customer-id]', { hasText: 'راجہ فیصل' }).first().click();
   await expect(page.locator('#detailName')).toHaveText('راجہ فیصل');
-  await expect(page.locator('#detailNameSub')).toHaveText('RAJA FAISAL');
+  await expect(page.locator('#detailNameSub')).toHaveText('Test Customer 34');
   await assertNoHorizontalOverflow(page);
 
   // Part D: shop modal container follows the theme in dark mode.

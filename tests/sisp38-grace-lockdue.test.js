@@ -27,6 +27,8 @@ import {
 } from '../mikrotik-generator.js';
 import { createInitialState, saveBillMonth } from '../core.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 const unpaid = (overrides = {}) => ({ id: 'c1', name: 'Test Defaulter', ...overrides });
 
 // --- Stage windows (calendar day of month) --------------------------------
@@ -119,7 +121,7 @@ const pricedBill = (state, customerId, month, dueAmount, refDate) =>
 
 function lockDueState() {
   const ref = new Date(2026, 9, 16, 12);
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = pricedBill(state, 'seed-001', '2026-10', '3000', ref);
   state = pricedBill(state, 'seed-002', '2026-10', '5000', ref);
   state = pricedBill(state, 'seed-003', '2026-10', '2000', ref);

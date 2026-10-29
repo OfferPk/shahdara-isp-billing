@@ -65,7 +65,7 @@ test.describe('Bulk add customers', () => {
       'Name,Package,Fee,Phone,Area',
       'Usman,5mbps,1500,0300-1112223,Shahdara',
       'Asif,15 MB,,,',
-      'RAJA ALI,3mbps,1000,,',
+      'Test Customer 35,3mbps,1000,,',
       'Junk Row,5mbps,1500,,',
       '"Khan, Imran",5Mbps / 500GB,"2,500",03215550001,Begum Kot'
     ].join('\n');

@@ -68,7 +68,7 @@ test.describe('#263 Collect routes', () => {
     await page.locator('#openBulkCollectBtn').click();
     await expect(bulk(page)).toBeVisible();
     await expect(page).toHaveURL(/#\/bulk-collect$/);
-    await page.locator('#bulkCollectSearch').fill('nazeer');
+    await page.locator('#bulkCollectSearch').fill('Test Customer 01');
     await page.locator('.bc-row [data-bulk-amount]').first().fill('500');
     await page.locator('.bc-row [data-bulk-add]').first().click();
     await expect(page.locator('#bulkCollectCount')).toHaveText('1 customer');

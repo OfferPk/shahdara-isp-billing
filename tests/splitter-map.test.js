@@ -20,7 +20,7 @@ import { addCustomer, createInitialState, updateCustomerProfile } from '../core.
 
 const customer = (overrides = {}) => ({
   id: 'c1',
-  name: 'RAJA FAISAL',
+  name: 'Test Customer 34',
   splitterBoxId: 'SPL-Barrian-02',
   splitterPort: 4,
   oltPonPort: 'PON 1/2/3',
@@ -32,7 +32,7 @@ test('spec criterion verbatim: port 4 on a 1:8 splitter occupied, 7 free, -28.5 
   const box = buildSplitterPortMap([customer()], 'SPL-Barrian-02', 8);
   assert.equal(box.portCount, 8);
   assert.equal(box.ports[3].status, 'occupied');
-  assert.equal(box.ports[3].customerName, 'RAJA FAISAL');
+  assert.equal(box.ports[3].customerName, 'Test Customer 34');
   assert.equal(box.occupiedCount, 1);
   assert.equal(box.freeCount, 7);
   assert.deepEqual(box.freePorts, [1, 2, 3, 5, 6, 7, 8]);
@@ -40,7 +40,7 @@ test('spec criterion verbatim: port 4 on a 1:8 splitter occupied, 7 free, -28.5 
   assert.equal(isWeakRx(-28.5), true);
   const grid = renderSplitterPortGrid(box);
   assert.match(grid, /High-loss/);
-  assert.match(grid, /RAJA FAISAL/);
+  assert.match(grid, /Test Customer 34/);
   assert.match(grid, /-28\.5 dBm/);
 });
 
@@ -111,7 +111,7 @@ test('overview: weak customers across boxes, empty network is zeroed', () => {
   ]);
   assert.equal(overview.boxCount, 2);
   assert.equal(overview.weakCount, 1);
-  assert.equal(overview.weakCustomers[0].customerName, 'RAJA FAISAL');
+  assert.equal(overview.weakCustomers[0].customerName, 'Test Customer 34');
 });
 
 test('core: addCustomer + updateCustomerProfile carry optical fields, invalid values throw', () => {

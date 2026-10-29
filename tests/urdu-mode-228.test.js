@@ -38,7 +38,7 @@ test('#228 pattern translations: diagnostics, fleet audits, counters and custome
   assert.equal(translateVisibleText('CPE Fleet Audit'), 'CPE فلیٹ آڈٹ');
   assert.equal(translateVisibleText('Active 12'), 'فعال 12');
   assert.equal(translateVisibleText('Not set 74'), 'منتخب نہیں 74');
-  assert.equal(translateVisibleText('N #1 NAZEER Package not set'), 'N #1 NAZEER پیکیج منتخب نہیں');
+  assert.equal(translateVisibleText('N #1 Test Customer 01 Package not set'), 'N #1 Test Customer 01 پیکیج منتخب نہیں');
   assert.equal(translateVisibleText('Customers 74'), 'گاہک 74');
   assert.equal(translateVisibleText('Something Unlisted'), null);
 });

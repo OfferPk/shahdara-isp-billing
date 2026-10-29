@@ -34,7 +34,7 @@ function memoryStorage() {
 const base = (overrides = {}) => ({
   id: 'CMP-101',
   customerId: 'c1',
-  customerName: 'CH BILAL',
+  customerName: 'Test Customer 11',
   zone: 'Shahdara Town',
   issueCategory: 'Fiber Cut',
   reportedAt: '2026-10-28T10:00',
@@ -51,7 +51,7 @@ test('spec criterion: 10:00 reported, 14:30 resolved => downtimeHours 4.5, persi
   const storage = memoryStorage();
   const created = createComplaint({
     customerId: 'c1',
-    customerName: 'CH BILAL',
+    customerName: 'Test Customer 11',
     zone: 'Shahdara Town',
     issueCategory: 'Fiber Cut',
     reportedAt: '2026-10-28T10:00'
@@ -77,7 +77,7 @@ test('spec criterion: 10:00 reported, 14:30 resolved => downtimeHours 4.5, persi
 
 test('resolve without an explicit time auto-fills resolvedAt and computes downtime', () => {
   const created = createComplaint({
-    customerId: 'c1', customerName: 'CH BILAL', zone: 'Barrian',
+    customerId: 'c1', customerName: 'Test Customer 11', zone: 'Barrian',
     issueCategory: 'Router / Wi-Fi Config', reportedAt: '2026-10-28T08:00'
   }, []);
   const resolved = setComplaintStatus([created], 'CMP-101', 'Resolved', { referenceDate: new Date('2026-10-28T11:30:00+05:00') });
@@ -130,13 +130,13 @@ test('inline edits: reportedAt, resolvedAt, note, zone, category', () => {
 test('filters: month, status, customer, zone, category', () => {
   const list = [
     base(),
-    base({ id: 'CMP-102', customerId: 'c2', customerName: 'AC HOUSE', zone: 'Barrian', issueCategory: 'WAPDA / Power Outage', reportedAt: '2026-09-15T08:00', status: 'Resolved', resolvedAt: '2026-09-15T10:00', downtimeHours: 2 }),
+    base({ id: 'CMP-102', customerId: 'c2', customerName: 'Test Customer 09', zone: 'Barrian', issueCategory: 'WAPDA / Power Outage', reportedAt: '2026-09-15T08:00', status: 'Resolved', resolvedAt: '2026-09-15T10:00', downtimeHours: 2 }),
     base({ id: 'CMP-103', customerId: AREA_OUTAGE_CUSTOMER_ID, customerName: AREA_OUTAGE_CUSTOMER_ID, zone: 'Chandall', issueCategory: 'Main Uplink / NayaPay Down', reportedAt: '2026-10-02T07:00', status: 'In Progress' })
   ];
   assert.deepEqual(filterComplaints(list, { month: '2026-10' }).map((c) => c.id), ['CMP-101', 'CMP-103']);
   assert.deepEqual(filterComplaints(list, { status: 'Resolved' }).map((c) => c.id), ['CMP-102']);
   assert.deepEqual(filterComplaints(list, { customer: 'c2' }).map((c) => c.id), ['CMP-102']);
-  assert.deepEqual(filterComplaints(list, { customer: 'AC HOUSE' }).map((c) => c.id), ['CMP-102']);
+  assert.deepEqual(filterComplaints(list, { customer: 'Test Customer 09' }).map((c) => c.id), ['CMP-102']);
   assert.deepEqual(filterComplaints(list, { zone: 'Barrian' }).map((c) => c.id), ['CMP-102']);
   assert.deepEqual(filterComplaints(list, { category: 'Main Uplink / NayaPay Down' }).map((c) => c.id), ['CMP-103']);
   assert.deepEqual(filterComplaints(list, { month: '2026-10', status: 'Open' }).map((c) => c.id), ['CMP-101']);
@@ -149,7 +149,7 @@ test('AREA_OUTAGE: needs a zone, stores the sentinel, renders as area outage', (
   assert.equal(outage.customerId, AREA_OUTAGE_CUSTOMER_ID);
   assert.equal(outage.customerName, AREA_OUTAGE_CUSTOMER_ID);
   assert.equal(complaintCustomerLabel(outage), 'Area outage · Banii');
-  assert.equal(complaintCustomerLabel(base()), 'CH BILAL');
+  assert.equal(complaintCustomerLabel(base()), 'Test Customer 11');
 });
 
 test('ticket ids increment from the highest existing CMP-N, starting at CMP-101', () => {

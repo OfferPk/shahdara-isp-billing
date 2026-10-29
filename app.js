@@ -34,13 +34,14 @@ import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
   calculateBackupAge, checkStoragePersistence, requestStoragePersistence,
   getStorageEstimateInfo, shareJsonBackupFile, LAST_BACKUP_TIME_KEY, STORAGE_PERSISTENCE_KEY,
-  encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload
+  encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload,
+  loadKhataDoctorCache, saveKhataDoctorCache
 } from './backup-store.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
 import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard } from './dashboard.js?v=1.11.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard } from './dashboard.js?v=1.11.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 
 import {
@@ -3113,6 +3114,27 @@ $('#restoreLocalBackupButton').addEventListener('click', async () => {
     const backup = await localBackupStore.getBackup(id);
     renderBackupPreview(previewJsonBackupMerge(state, backup.backupText, backupRestoreOptions()));
   } catch (error) { toast(`${error.message} No local data was changed.`); }
+});
+// SISP-36: Khata Doctor card in the backup controls. Run is read-only;
+// Auto-Repair goes through the Layer A safety snapshot first and aborts
+// when no snapshot could be saved.
+setupKhataDoctorCard({
+  getState: () => state,
+  getSettlements: () => loadShopSettlements(),
+  getVoidPayments: () => loadVoidPayments(),
+  getCache: () => loadKhataDoctorCache(),
+  onSaveCache: (cache) => { saveKhataDoctorCache(cache); },
+  onBeforeRepair: async () => {
+    const record = await createSafetySnapshot();
+    if (record) await refreshBackupManager();
+    return record;
+  },
+  onRepairState: (newState) => {
+    state = newState;
+    save();
+    renderDashboard();
+  },
+  onToast: (msg, opts) => toast(msg, opts)
 });
 // Storage safety (Layers A/B/C): recovery dialog controls, the backup
 // manager's "Recovery options" button, and the emergency-copy download.

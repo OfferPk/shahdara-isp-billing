@@ -65,6 +65,7 @@
 
 import { canonicalize, crc32Hex } from './backup-health.js';
 import { billKistTotal, sanitizeInstallmentPlan } from './installment-plan.js';
+import { paymentTicketChargeCents } from './core.js';
 
 export const KHATA_DOCTOR_VERSION = 1;
 
@@ -102,11 +103,12 @@ export function computeLedgerBalance(customer) {
   let creditCents = 0;
   for (const bill of bills) {
     const payments = validPaymentsOf(bill);
-    const receiptsCents = payments.reduce((sum, payment) => sum + cents(payment.amount), 0);
     if (!isPricedBill(bill)) {
       // Unpriced bill: nothing can be applied yet, so every valid receipt
-      // is unused credit carried forward (core.js allocation rule).
-      creditCents += receiptsCents;
+      // is unused credit carried forward (core.js allocation rule) —
+      // except a receipt's SISP-43 ticket-charge portion, which the
+      // tickets consumed and which never becomes credit.
+      creditCents += payments.reduce((sum, payment) => sum + Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment)), 0);
       continue;
     }
     const chargeCents = cents(bill.dueAmount) + cents(bill.lateFee || 0) + cents(bill.shiftingFee || 0);
@@ -120,10 +122,14 @@ export function computeLedgerBalance(customer) {
     for (const payment of payments) {
       const discountCents = Math.min(cents(payment.discount || 0), dueCents);
       if (discountCents > 0) { discountsCents += discountCents; dueCents -= discountCents; }
-      const appliedCents = Math.min(cents(payment.amount), dueCents);
+      // SISP-43: only the bill portion of a receipt applies to the bill
+      // or becomes credit — the ticket-charge portion settled field
+      // work. paymentsCents still reports the full valid cash received.
+      const billPortionCents = Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment));
+      const appliedCents = Math.min(billPortionCents, dueCents);
       paymentsCents += cents(payment.amount);
       dueCents -= appliedCents;
-      const excessCents = cents(payment.amount) - appliedCents;
+      const excessCents = billPortionCents - appliedCents;
       if (excessCents > 0) creditCents += excessCents;
     }
     balanceCents += dueCents;

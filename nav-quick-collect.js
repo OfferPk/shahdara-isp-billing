@@ -23,6 +23,15 @@ import {
   removeConcessionFromBill
 } from './core.js';
 import { loadComplaints } from './complaint-register.js';
+import {
+  billedTicketChargesPending,
+  loadTickets,
+  pendingTicketChargeLines,
+  planTicketChargeSettlement,
+  saveTickets,
+  settleTicketCharges,
+  unsettleTicketChargesForPayment
+} from './complaint-tickets.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import {
   getDigitalPaymentsSettings,
@@ -192,7 +201,7 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
  * @param {Date} [referenceDate=new Date()]
  * @returns {Object}
  */
-export function getCustomerPaymentDefaults(state, customerId, referenceDate = new Date()) {
+export function getCustomerPaymentDefaults(state, customerId, referenceDate = new Date(), tickets = null) {
   if (!state || !Array.isArray(state.customers)) {
     throw new Error('State must contain customers list.');
   }
@@ -264,6 +273,20 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     // Ignore storage errors in test or private mode
   }
 
+  // SISP-43: pending billed ticket charges (SISP-12) join the payable.
+  // Tickets live outside the ledger state, so the caller passes the
+  // current ticket list; without one the defaults stay bill-only,
+  // exactly as before. When charges are pending, the 1-tap suggested
+  // amount is the FULL payable (bill dues + charges) so one collection
+  // settles both — the spec scenario: 3,000 bill + 500 charge = 3,500.
+  const ticketChargeLines = Array.isArray(tickets) ? pendingTicketChargeLines(tickets, customerId) : [];
+  const ticketChargesPendingCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+  const ticketChargesPending = ticketChargesPendingCents / 100;
+  const payableTotal = (totalDuesCents + ticketChargesPendingCents) / 100;
+  if (ticketChargesPending > 0 && payableTotal > 0) {
+    suggestedAmount = payableTotal;
+  }
+
   return {
     customer,
     customerId: customer.id,
@@ -276,6 +299,9 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     balanceDue: targetDue,
     currentMonthBalance: Math.max(0, currentMonthBalanceCents / 100),
     totalDues,
+    ticketChargeLines,
+    ticketChargesPending,
+    payableTotal,
     todayDate: getPakistanLocalDate(referenceDate),
     defaultMethod: lastMethod,
     lastPaidBy
@@ -301,7 +327,8 @@ export function executeQuickCollection(state, {
   referenceOverrideReason,
   screenshot,
   strictDigitalReference,
-  enforceDigitalReference
+  enforceDigitalReference,
+  tickets
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -339,6 +366,24 @@ export function executeQuickCollection(state, {
     // Ignore storage issues
   }
 
+  // SISP-43: when the caller supplies the ticket list, the part of the
+  // collection that exceeds the customer's total bill dues settles
+  // pending billed ticket charges — whole charges, oldest first. The
+  // settled lines are stamped onto the payment itself (core keeps that
+  // portion out of bill allocation), so the cash has exactly one ledger
+  // record and the tickets are marked paid against it below.
+  let settledTicketLines = [];
+  if (Array.isArray(tickets)) {
+    const preAllocations = calculatePaymentAllocations(state);
+    let preDuesCents = 0;
+    for (const b of (customer.bills ?? [])) {
+      const s = preAllocations.forMonth(customerId, b.month);
+      if (s?.balanceDueCents && s.balanceDueCents > 0) preDuesCents += s.balanceDueCents;
+    }
+    const remainderCents = Math.max(0, Math.round(numAmount * 100) - preDuesCents);
+    settledTicketLines = planTicketChargeSettlement(tickets, customerId, remainderCents).lines;
+  }
+
   // Create immutable payment entry through core function
   const nextState = addPayment(state, customerId, targetMonth, {
     date: pDate,
@@ -347,7 +392,8 @@ export function executeQuickCollection(state, {
     paidBy: paidBy ? String(paidBy).trim() : undefined,
     transactionId: cleanTxnId || undefined,
     referenceOverrideReason: cleanReason || undefined,
-    screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined
+    screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined,
+    ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined
   }, referenceDate);
 
   // Compute updated balance & allocations
@@ -371,6 +417,20 @@ export function executeQuickCollection(state, {
   const paymentId = newPayment?.id || `qc-${Date.now()}`;
   const receiptNumber = `RCPT-${customer.customerNumber}-${targetMonth.replace('-', '')}-${String(targetBill?.payments?.length || 1).padStart(2, '0')}`;
 
+  // SISP-43: mark the settled tickets paid against this payment (the
+  // caller persists nextTickets) and recompute the overall payable —
+  // bill dues plus any ticket charges still pending afterwards.
+  let nextTickets;
+  let ticketChargesPendingAfter = 0;
+  if (Array.isArray(tickets)) {
+    if (settledTicketLines.length > 0) {
+      nextTickets = settleTicketCharges(tickets, settledTicketLines, paymentId, referenceDate);
+    }
+    ticketChargesPendingAfter = billedTicketChargesPending(nextTickets ?? tickets, customerId);
+  }
+  const ticketChargesTotal = settledTicketLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
+  const payableRemaining = Math.round((newTotalDues + ticketChargesPendingAfter) * 100) / 100;
+
   const receipt = {
     success: true,
     paymentId,
@@ -391,7 +451,11 @@ export function executeQuickCollection(state, {
     isDigital,
     newBalanceDue,
     newTotalDues,
-    isSettled: newTotalDues <= 0,
+    ticketCharges: settledTicketLines,
+    ticketChargesTotal,
+    ticketChargesPending: ticketChargesPendingAfter,
+    payableRemaining,
+    isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0,
     collectedAt: new Date().toISOString()
   };
 
@@ -404,7 +468,7 @@ export function executeQuickCollection(state, {
     // Ignore storage issues
   }
 
-  return { nextState, receipt };
+  return { nextState, receipt, nextTickets };
 }
 
 /**
@@ -415,8 +479,12 @@ export function executeQuickCollection(state, {
  */
 export function formatQuickCollectWhatsAppReceipt(receipt) {
   const amountStr = Number(receipt.amount).toLocaleString('en-PK');
-  const balanceStr = Number(receipt.newTotalDues || receipt.newBalanceDue || 0).toLocaleString('en-PK');
-  const statusUrdu = (receipt.newTotalDues <= 0) ? 'مکمل ادا شدہ (PAID IN FULL)' : 'جزوی ادائیگی (PARTIAL)';
+  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  const balanceStr = Number(remainingPayable).toLocaleString('en-PK');
+  const statusUrdu = (remainingPayable <= 0) ? 'مکمل ادا شدہ (PAID IN FULL)' : 'جزوی ادائیگی (PARTIAL)';
+  // SISP-43: settled ticket charges print as their own receipt lines.
+  const ticketChargeLines = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
+    .map(line => `🔧 *Murammat / Material Charge (${line.ticketId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
 
   const lines = [
     `*SHAHDARA FIBER NETWORK & ISP BILLING*`,
@@ -431,6 +499,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
     `🗓️ *Billing Month:* ${receipt.month}`,
     ``,
     `💵 *Amount Received:* PKR ${amountStr}`,
+    ...ticketChargeLines,
     `💳 *Payment Method:* ${receipt.method}`,
     receipt.transactionId ? `🔢 *Transaction ID / Ref:* ${receipt.transactionId}` : null,
     receipt.referenceOverrideReason ? `📝 *Ref Note:* ${receipt.referenceOverrideReason}` : null,
@@ -705,9 +774,16 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
  * @returns {string}
  */
 export function renderQuickCollectReceiptCardHtml(receipt) {
-  const isSettled = receipt.newTotalDues <= 0;
+  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues;
+  const isSettled = remainingPayable <= 0;
   const shared = isReceiptShared(receipt.id);
   const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
+  // SISP-43: ticket charges settled by this receipt, one row per ticket.
+  const ticketChargeRows = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []).map(line => `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Murammat / Material Charge (${escapeHtml(line.ticketId)})</span>
+          <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
+        </div>`).join('');
   return `
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
       <div class="qc-receipt-header">
@@ -738,10 +814,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>
-          <strong class="qc-meta-val ${receipt.newTotalDues > 0 ? 'has-balance' : 'zero-balance'}">
-            PKR ${Number(receipt.newTotalDues).toLocaleString('en-PK')}
+          <strong class="qc-meta-val ${remainingPayable > 0 ? 'has-balance' : 'zero-balance'}">
+            PKR ${Number(remainingPayable).toLocaleString('en-PK')}
           </strong>
         </div>
+        ${ticketChargeRows}
         ${receipt.transactionId ? `
         <div class="qc-receipt-item full-width" data-qc-receipt-txnid>
           <span class="qc-meta-label">Transaction ID / Ref</span>
@@ -1064,10 +1141,17 @@ export function setupQuickCollectModal({
     if (!state) return;
     try {
       activeCustomerId = customerId;
-      activeDefaults = getCustomerPaymentDefaults(state, customerId);
+      activeDefaults = getCustomerPaymentDefaults(state, customerId, new Date(), loadTickets());
 
       // Populate form header
       if (customerHeader) {
+        // SISP-43: with billed ticket charges pending, the header shows
+        // the full payable (bills + charges) with the split spelled out,
+        // so the collector sees exactly what the 1-tap amount covers.
+        const hasTicketCharges = activeDefaults.ticketChargesPending > 0;
+        const chargeLines = hasTicketCharges
+          ? activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`).join('')
+          : '';
         customerHeader.innerHTML = `
           <div class="qc-active-cust-bar">
             <div class="qc-cust-identity">
@@ -1076,10 +1160,11 @@ export function setupQuickCollectModal({
               <span class="qc-head-area">${escapeHtml(activeDefaults.area)}${activeDefaults.phone ? ' · ' + escapeHtml(activeDefaults.phone) : ''}</span>
             </div>
             <div class="qc-head-due-box">
-              <span class="qc-box-label">Total Dues</span>
-              <strong class="qc-box-amt">PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</strong>
+              <span class="qc-box-label">${hasTicketCharges ? 'Total Payable' : 'Total Dues'}</span>
+              <strong class="qc-box-amt">PKR ${(hasTicketCharges ? activeDefaults.payableTotal : activeDefaults.totalDues).toLocaleString('en-PK')}</strong>
             </div>
           </div>
+          ${hasTicketCharges ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
         `;
       }
 
@@ -1127,7 +1212,11 @@ export function setupQuickCollectModal({
 
       // Update quick amount chips dynamic amounts (#281)
       if (quickAmountChips && activeDefaults) {
-        const baseBal = activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues;
+        // SISP-43: the "Full" chip covers the whole payable when ticket
+        // charges are pending (bills + charges), not just the bill dues.
+        const baseBal = activeDefaults.ticketChargesPending > 0
+          ? activeDefaults.payableTotal
+          : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
         const curBal = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
           ? activeDefaults.currentMonthBalance
           : activeDefaults.suggestedAmount;
@@ -1346,7 +1435,9 @@ export function setupQuickCollectModal({
     chip.addEventListener('click', () => {
       if (!amountInput || !activeDefaults) return;
       const type = chip.getAttribute('data-quick-amount');
-      const baseBalance = activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues;
+      const baseBalance = activeDefaults.ticketChargesPending > 0
+        ? activeDefaults.payableTotal
+        : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
 
       if (type === 'full') {
         amountInput.value = (baseBalance > 0 ? baseBalance : activeDefaults.suggestedAmount).toFixed(2);
@@ -1377,7 +1468,7 @@ export function setupQuickCollectModal({
 
   function executeUndo() {
     if (!activeUndoContext) return;
-    const { customerId, month, paymentId, amount, customerName } = activeUndoContext;
+    const { customerId, month, paymentId, amount, customerName, ticketCharges } = activeUndoContext;
     activeUndoContext = null;
     if (undoTimeoutId) {
       clearTimeout(undoTimeoutId);
@@ -1387,7 +1478,18 @@ export function setupQuickCollectModal({
     if (undoBtn) undoBtn.hidden = true;
     try {
       const state = getState();
-      const nextState = deletePayment(state, customerId, month, paymentId);
+      // SISP-43: an undone collection reopens the ticket charges it
+      // settled, first — only then may the payment itself be deleted
+      // (core refuses to delete a charge-settling payment otherwise).
+      const settledLines = Array.isArray(ticketCharges) ? ticketCharges : [];
+      let nextState;
+      if (settledLines.length > 0) {
+        const { tickets: revertedTickets } = unsettleTicketChargesForPayment(loadTickets(), { id: paymentId, ticketCharges: settledLines });
+        saveTickets(revertedTickets);
+        nextState = deletePayment(state, customerId, month, paymentId, new Date(), { ticketChargesReverted: true });
+      } else {
+        nextState = deletePayment(state, customerId, month, paymentId);
+      }
       if (typeof onSaveState === 'function') {
         onSaveState(nextState);
       }
@@ -1488,7 +1590,7 @@ export function setupQuickCollectModal({
         }
       }
 
-      const { nextState, receipt } = executeQuickCollection(state, {
+      const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
         amount: amountVal,
@@ -1497,8 +1599,18 @@ export function setupQuickCollectModal({
         paidBy: paidByVal,
         transactionId: txnIdVal,
         referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,
-        screenshot: currentScreenshotDataUrl
+        screenshot: currentScreenshotDataUrl,
+        // SISP-43: the live ticket list, so billed ticket charges can
+        // settle inside this same collection (see executeQuickCollection).
+        tickets: loadTickets()
       });
+
+      // SISP-43: persist the settled tickets BEFORE the ledger state —
+      // if this write fails, the whole submit aborts and nothing is
+      // half-saved (the payment exists only in the unsaved nextState).
+      if (nextTickets) {
+        saveTickets(nextTickets);
+      }
 
       activeReceipt = receipt;
       activeUndoContext = {
@@ -1506,7 +1618,8 @@ export function setupQuickCollectModal({
         month: monthVal,
         paymentId: receipt.paymentId,
         amount: amountVal,
-        customerName: receipt.customerName
+        customerName: receipt.customerName,
+        ticketCharges: receipt.ticketCharges ?? []
       };
 
       if (undoBtn) {
@@ -1704,7 +1817,12 @@ export function setupQuickCollectModal({
           amount: money(activeReceipt.amount),
           method: activeReceipt.method || '',
           reference: activeReceipt.transactionId || '',
-          balanceDue: money(activeReceipt.newBalanceDue),
+          // SISP-43: settled ticket charges print on the slip too.
+          ticketCharges: (activeReceipt.ticketCharges ?? []).map(line => ({
+            label: `Murammat (${line.ticketId})`,
+            value: money(line.amount)
+          })),
+          balanceDue: money(activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue),
           statusLabel: activeReceipt.isSettled ? 'PAID' : 'PARTIAL'
         });
         await thermalPrinter.print(bytes);

@@ -25,6 +25,13 @@
  *   "pending dues" in the sense that the profile shows it alongside the
  *   bill balance as money the customer still owes for field work, and it
  *   clears only when marked paid on the ticket.
+ * - Since SISP-43 a billed charge can be settled by a real ledger
+ *   payment: Quick Collect shows bill dues + pending charges as one
+ *   payable, records ONE payment through core addPayment whose
+ *   `ticketCharges` stamp names the settled tickets, and the settled
+ *   tickets are marked paid here with chargePaymentId = that payment.
+ *   The charge money itself never enters bill allocation (core keeps it
+ *   out), and voiding/undoing the payment reopens exactly its charges.
  * - Stock deduction is staged, not duplicated: resolving a ticket records
  *   SISP-18-shaped stock-out movements on the ticket (see
  *   ticketStockDeductions) with stockDeducted=false. This module imports
@@ -220,6 +227,12 @@ export function sanitizeTickets(value) {
       chargePaidAt: entry.chargePaid === true && DATE_TIME_RE.test(String(entry.chargePaidAt || ''))
         ? String(entry.chargePaidAt)
         : '',
+      // SISP-43: id of the ledger payment whose receipt settled this
+      // charge ('' for the manual mark-paid toggle), so voiding or
+      // undoing exactly that payment reopens exactly this charge.
+      chargePaymentId: entry.chargePaid === true && typeof entry.chargePaymentId === 'string'
+        ? entry.chargePaymentId.slice(0, 80)
+        : '',
       stockDeductions: Array.isArray(entry.stockDeductions) ? clone(entry.stockDeductions) : [],
       stockDeducted: entry.stockDeducted === true
     });
@@ -282,6 +295,7 @@ export function createTicket(input, existing, referenceDate = new Date()) {
     billedAmount: 0,
     chargePaid: false,
     chargePaidAt: '',
+    chargePaymentId: '',
     stockDeductions: [],
     stockDeducted: false
   };
@@ -331,7 +345,8 @@ export function resolveTicket(list, id, options = {}) {
       ? round2(materialsUsed.reduce((sum, line) => sum + line.amount, 0))
       : 0,
     chargePaid: false,
-    chargePaidAt: ''
+    chargePaidAt: '',
+    chargePaymentId: ''
   };
   resolved.stockDeductions = ticketStockDeductions(resolved);
   resolved.stockDeducted = false;
@@ -368,7 +383,10 @@ export function markTicketChargePaid(list, id, paid, referenceDate = new Date())
   clean[idx] = {
     ...ticket,
     chargePaid: paid === true,
-    chargePaidAt: paid === true ? pakistanTicketDateTimeNow(referenceDate) : ''
+    chargePaidAt: paid === true ? pakistanTicketDateTimeNow(referenceDate) : '',
+    // A manual toggle is not a receipt settlement — the SISP-43 payment
+    // link never survives it in either direction.
+    chargePaymentId: ''
   };
   return clean;
 }
@@ -386,6 +404,82 @@ export function billedTicketChargesPending(list, customerId) {
     .filter((t) => String(t.customerId) === String(customerId)
       && t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid)
     .reduce((sum, t) => sum + t.billedAmount, 0));
+}
+
+/** Pending billed charge lines for one customer, oldest ticket first. */
+export function pendingTicketChargeLines(list, customerId) {
+  return sanitizeTickets(list)
+    .filter((t) => String(t.customerId) === String(customerId)
+      && t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid && t.billedAmount > 0)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }))
+    .map((t) => ({ ticketId: t.id, amount: round2(t.billedAmount) }));
+}
+
+/**
+ * SISP-43: plan which pending charges a collection remainder settles.
+ * Whole charges only, oldest first — a ticket charge is never split
+ * across receipts, so a charge is either settled in full by this
+ * payment or stays fully pending (the leftover stays bill-side money:
+ * applied to bills or advance credit, per the core allocation rules).
+ */
+export function planTicketChargeSettlement(list, customerId, availableCents) {
+  const budget = Math.max(0, Math.floor(Number(availableCents) || 0));
+  const lines = [];
+  let totalCents = 0;
+  for (const line of pendingTicketChargeLines(list, customerId)) {
+    const lineCents = Math.round(line.amount * 100);
+    if (totalCents + lineCents > budget) break;
+    lines.push(line);
+    totalCents += lineCents;
+  }
+  return { lines, totalCents };
+}
+
+/**
+ * SISP-43: mark the planned charges paid by one recorded payment. The
+ * payment id is stamped on each ticket (chargePaymentId) so a later
+ * void/undo of exactly that payment reopens exactly these charges.
+ * A ticket whose charge no longer matches the planned line, or that is
+ * already paid, is skipped — a charge is never settled twice.
+ */
+export function settleTicketCharges(list, lines, paymentId, referenceDate = new Date()) {
+  const clean = sanitizeTickets(list);
+  const wanted = new Map((Array.isArray(lines) ? lines : [])
+    .map((line) => [String(line?.ticketId || ''), line])
+    .filter(([ticketId]) => ticketId));
+  if (wanted.size === 0) return clean;
+  return clean.map((ticket) => {
+    const line = wanted.get(ticket.id);
+    if (!line) return ticket;
+    if (ticket.status !== 'Resolved' || ticket.billingType !== 'billed' || ticket.chargePaid) return ticket;
+    if (Math.round(Number(line.amount) * 100) !== Math.round(ticket.billedAmount * 100)) return ticket;
+    return {
+      ...ticket,
+      chargePaid: true,
+      chargePaidAt: pakistanTicketDateTimeNow(referenceDate),
+      chargePaymentId: typeof paymentId === 'string' ? paymentId : ''
+    };
+  });
+}
+
+/**
+ * SISP-43: reopen the charges one payment settled (the void / undo
+ * rollback). Only tickets whose settlement still belongs to that
+ * payment are touched: a ticket re-settled by a different payment, or
+ * manually toggled since, is left exactly as it is.
+ */
+export function unsettleTicketChargesForPayment(list, payment) {
+  const lines = Array.isArray(payment?.ticketCharges) ? payment.ticketCharges : [];
+  const ids = new Set(lines.map((line) => String(line?.ticketId || '')).filter(Boolean));
+  const paymentId = typeof payment?.id === 'string' ? payment.id : '';
+  const reopened = [];
+  const next = sanitizeTickets(list).map((ticket) => {
+    if (!ids.has(ticket.id) || !ticket.chargePaid) return ticket;
+    if (paymentId && ticket.chargePaymentId && ticket.chargePaymentId !== paymentId) return ticket;
+    reopened.push(ticket.id);
+    return { ...ticket, chargePaid: false, chargePaidAt: '', chargePaymentId: '' };
+  });
+  return { tickets: next, reopened };
 }
 
 /** How many tickets this customer has inside the recurring-fault window. */

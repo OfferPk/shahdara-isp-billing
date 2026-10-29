@@ -169,6 +169,16 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
     lines.push('', '💠 FIFO taqseem:', ...fifoTextLines(receipt.fifoAllocation, receipt.fifoRemaining));
   }
 
+  // SISP-43: billed ticket charges this payment settled, when the caller
+  // attached them (app.js passes them from buildPaymentReceipt). Only
+  // well-formed lines print — a malformed stamp never breaks the draft.
+  const ticketChargeLines = (Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [])
+    .filter((line) => /^TKT-\d+$/.test(String(line?.ticketId ?? '')) && Number.isFinite(Number(line?.amount)) && Number(line.amount) > 0)
+    .map((line) => `🔧 Murammat / Material Charge (${line.ticketId}): ${formatPKR(Number(line.amount))}`);
+  if (ticketChargeLines.length > 0) {
+    lines.push('', ...ticketChargeLines);
+  }
+
   if (billStatus === 'paid') {
     const nextBillDueDate = nextCycleDueDateFromBillMonth(month);
     const nextBillDue = formatReceiptDate(nextBillDueDate) ?? 'Not available';

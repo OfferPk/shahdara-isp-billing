@@ -98,6 +98,13 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   push(divider);
   if (fields.method) push(rowLine('Method', fields.method, width));
   if (fields.reference) push(rowLine('Ref', fields.reference, width));
+  // SISP-43: billed ticket charges settled by this receipt, one row per
+  // ticket ({ label, value } pairs, pre-formatted by the caller).
+  if (Array.isArray(fields.ticketCharges)) {
+    for (const line of fields.ticketCharges) {
+      if (line && line.label) push(rowLine(line.label, line.value ?? '', width));
+    }
+  }
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
   if (fields.referralCredit) push(rowLine('Referral credit', fields.referralCredit, width));
@@ -174,6 +181,10 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     concession: receipt.concessionAmount ? money(receipt.concessionAmount) : '',
     // SISP-40: hamsaya referral credit line, printed next to the concession.
     referralCredit: receipt.referralCreditAmount ? money(receipt.referralCreditAmount) : '',
+    // SISP-43: billed ticket charges settled by this payment (short
+    // label — the 32-char slip cannot fit the full receipt wording).
+    ticketCharges: (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
+      .map(line => ({ label: `Murammat (${line.ticketId})`, value: money(line.amount) })),
     balanceDue: balance,
     statusLabel: receipt.status || '',
     // SISP-2: itemized arrears breakdown (passed through from the receipt

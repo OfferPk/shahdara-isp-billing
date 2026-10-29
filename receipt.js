@@ -1,4 +1,4 @@
-import { calculatePaymentAllocations } from './core.js';
+import { calculatePaymentAllocations, paymentTicketChargeCents, ticketChargeLinesOf } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
@@ -81,9 +81,13 @@ export function buildPaymentReceipt(customer, bill, payment) {
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
+    // SISP-43: a receipt's balance math counts only the BILL portion of
+    // each payment — the ticket-charge portion settled field work, not
+    // this bill (the total cash received still prints as paidAmount).
+    const billPortionCents = (row) => Math.max(0, cents(positiveAmount(row.amount) ?? 0) - paymentTicketChargeCents(row));
     const paidBeforeCents = orderedPayments.slice(0, selectedIndex)
-      .reduce((sum, row) => sum + cents(positiveAmount(row.amount) ?? 0) + cents(positiveAmount(row.discount) ?? 0), 0);
-    const thisEffectiveCents = cents(positiveAmount(payment.amount) ?? 0) + cents(positiveAmount(payment.discount) ?? 0);
+      .reduce((sum, row) => sum + billPortionCents(row) + cents(positiveAmount(row.discount) ?? 0), 0);
+    const thisEffectiveCents = billPortionCents(payment) + cents(positiveAmount(payment.discount) ?? 0);
     const receivedThroughCents = paidBeforeCents + thisEffectiveCents;
     const coveredBeforeReceipt = carryInCents + paidBeforeCents >= dueCents;
     balanceDueCents = Math.max(0, dueCents - carryInCents - receivedThroughCents);
@@ -131,6 +135,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
     concessionReason,
     referralCreditAmount,
     referralCreditReason,
+    // SISP-43: billed ticket charges this payment settled (from the
+    // payment's stamp), printed as their own lines on every receipt.
+    ticketCharges: ticketChargeLinesOf(payment),
+    ticketChargesTotal: ticketChargeLinesOf(payment).reduce((sum, line) => sum + line.amount, 0),
     totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee,
     discount: positiveAmount(payment.discount) || 0,
     discountReason: text(payment.discountReason),
@@ -157,6 +165,14 @@ export function buildPaymentReceipt(customer, bill, payment) {
     })()
   };
 }
+
+// SISP-43: billed ticket charge rows for the HTML receipt layouts.
+// Empty when the payment settled no ticket charge, so ordinary receipts
+// render exactly as before.
+const ticketChargeReceiptRows = (receipt, formatAmount) => {
+  const lines = Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [];
+  return lines.map((line) => `<div class="receipt-field"><dt>Murammat / Material Charge (${escapeHtml(line.ticketId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
+};
 
 // SISP-4: kist breakdown rows for the HTML receipt layouts. Empty when the
 // bill month carries no kist, so non-kist receipts render exactly as before.
@@ -250,6 +266,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
+    ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
@@ -287,6 +304,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
+    ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
@@ -322,6 +340,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),
     ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
+    ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
     ...(receipt.discount > 0 ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
     ...(receipt.arrearsBreakdown ? [
       ['Mahana Package / ماہانہ پیکیج', formatAmount(receipt.arrearsBreakdown.packageAmount)],

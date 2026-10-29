@@ -16,20 +16,30 @@ const payment = (overrides = {}) => ({ date:'2026-09-15', amount:'100', method:'
 const store = () => { const data = new Map(); return { getItem:key => data.get(key) ?? null, setItem:(key,value) => data.set(key,value) }; };
 const profile = (state, customerId, changes, date = referenceDate) => updateCustomerProfile(state, customerId, changes, date);
 
-test('starts with exactly the supplied 74 names in original order and every profile/bill field blank', () => {
-  const expected = ['NAZEER','AWAIS','TEHMENA','SAFEER','KHALEEL','DARBAR','ALI SHAH','ZARSHAD KHAN','AC HOUSE','MNA HOUSE','CH BILAL','MUHAMMAD QASIM','RAJA JUNAID','RAJA USAMA','PATHAN','HASEEB','RAJA BILAL','QARI MUBASIR','FAREED ABBASI','JAWAD RAJA','HAJI ZAFAR','DOCTOR ZAHID','DOCTER EHSAN','AQIB OWNER','SAQIB EJAZ','RAJA RIAZ','RAJA JAHANGEER','RAJA NOMI','RAJA MOHSIN','MUFTI SADAQAT','TOUSEEF RAJA','KIRAN BILAL','SIKANDAR ABBASI','RAJA FAISAL','RAJA ALI','RAJA SHUNAID','BUT HOUSE','AZEEM BAJWA HOUSE','BANGISH HOUSE','RAJA HAFEEZ','RAJA KHAZER','ZUBAIR USTAD','MEHMOOD ABBASI','RAJA ARIF','RAJA SHEHZAD','KASHIF RAJA','KASHIF ABBASI','SAJID','PTA DIRECTOR','RAJA IRFAN','RAJA FAIZAN','BABAR','CH MURTAZA','QARI BAKAR BAKAR','CH MOIZ','CH SAQLAIN','RAJA MUJAHID','RAJA MASROOR','RAJA TAIMOOR MANGRAYAL','RAJA TAIMOOR CHANDALL','MOBEEN SHAH','NADIR SHAH','SHAH NAWAZ','SHADI','RAB NAWAZ','FAISAL GUJJAR','CH HAMZA','CH SHAFEEQ','CH SANWALL','NADIR GUJJAR','RAJA ASAD','DC HOUSE','AKHTAR HOUSE','SSP HOUSE'];
-  assert.equal(INITIAL_NAMES.length, 74);
-  assert.deepEqual(INITIAL_NAMES, expected);
-  const state = createInitialState();
-  assert.deepEqual(state.customers.map(c => c.name), expected);
+// Privacy cleanup (2026-10-29): no customer names ship with the app.
+// Tests seed their own SYNTHETIC sample names explicitly — 74 of them,
+// so the historical count-based pins (74 customers, dashboard totals)
+// keep exercising the same shapes with obviously fake data.
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`);
+const seededState = () => createInitialState(SAMPLE_NAMES);
+
+test('ships with an EMPTY starter list; caller-supplied names seed in order with every profile/bill field blank', () => {
+  assert.equal(INITIAL_NAMES.length, 0);
+  assert.deepEqual(INITIAL_NAMES, []);
+  const empty = createInitialState();
+  assert.deepEqual(empty.customers, []);
+  assert.equal(empty.nextCustomerNumber, 1);
+  const state = seededState();
+  assert.deepEqual(state.customers.map(c => c.name), SAMPLE_NAMES);
+  assert.equal(state.nextCustomerNumber, SAMPLE_NAMES.length + 1);
   assert.ok(state.customers.every(c => c.mohalla === '' && c.address === '' && c.phone === '' && c.ispProvider === '' && c.serviceStatus === 'not-set' && c.packageSpeed === '' && c.monthlyPurchaseCost === null && c.monthlySellingAmount === null && c.monthlyPriceSchedule.length === 0 && c.bills.length === 0));
 });
 
 test('new customers start with blank contact, package, amount, and history fields', () => {
-  const state = deleteCustomer(createInitialState(), 'seed-001');
-  const next = addCustomer(state, 'NAZEER');
+  const state = deleteCustomer(seededState(), 'seed-001');
+  const next = addCustomer(state, 'Test Customer 01');
   const customer = next.customers.at(-1);
-  assert.equal(customer.name, 'NAZEER');
+  assert.equal(customer.name, 'Test Customer 01');
   assert.equal(customer.address, '');
   assert.equal(customer.phone, '');
   assert.equal(customer.serviceStatus, 'not-set');
@@ -41,7 +51,7 @@ test('new customers start with blank contact, package, amount, and history field
 
 test('profile address, optional phone, package values, and prices persist; blank phone is allowed', () => {
   const storage = store(); const customerId = 'seed-001';
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, customerId, { address:'Fixture address', phone:'fixture-phone', packageSpeed:'Fixture package', monthlyPurchaseCost:'25.50', monthlySellingAmount:'60.75' });
   persistState(state, storage);
   let restored = readState(storage);
@@ -67,14 +77,14 @@ test('profile address, optional phone, package values, and prices persist; blank
 test('international WhatsApp number stays on the local customer profile after save and reload', () => {
   const storage = store();
   const savedNumber = '+92 (300) 123-4567';
-  const state = profile(createInitialState(), 'seed-001', { phone:savedNumber });
+  const state = profile(seededState(), 'seed-001', { phone:savedNumber });
   persistState(state, storage);
   assert.equal(readState(storage).customers[0].phone, savedNumber);
 });
 
 test('legacy local profiles gain safe defaults without rewriting raw data or existing bill history', () => {
   const storage = store();
-  const raw = JSON.stringify({ version:1, customers:[{ id:'legacy-1', name:'NAZEER', mohalla:'', monthlySellingAmount:100, bills:[{ id:'b1', month:currentMonth, dueAmount:50, status:'pending', payments:[] }] }] });
+  const raw = JSON.stringify({ version:1, customers:[{ id:'legacy-1', name:'Test Customer 01', mohalla:'', monthlySellingAmount:100, bills:[{ id:'b1', month:currentMonth, dueAmount:50, status:'pending', payments:[] }] }] });
   storage.setItem('shahdara-isp-billing-v1', raw);
   const restored = readState(storage);
   assert.equal(restored.customers[0].address, '');
@@ -92,7 +102,7 @@ test('legacy local profiles gain safe defaults without rewriting raw data or exi
 });
 
 test('validates profile lengths and amounts while allowing optional blank contacts and zero provider cost', () => {
-  const state = createInitialState(); const id = state.customers[0].id;
+  const state = seededState(); const id = state.customers[0].id;
   assert.doesNotThrow(() => profile(state, id, { address:'', phone:'', monthlyPurchaseCost:'0', monthlySellingAmount:'1' }));
   assert.throws(() => profile(state, id, { address:'x'.repeat(201) }), /Address must be 200/);
   assert.throws(() => profile(state, id, { phone:'x'.repeat(41) }), /Phone number must be 40/);
@@ -102,7 +112,7 @@ test('validates profile lengths and amounts while allowing optional blank contac
 });
 
 test('customer profile/history export includes address and phone and preserves unset values as not recorded', () => {
-  let state = createInitialState(); const id = state.customers[0].id;
+  let state = seededState(); const id = state.customers[0].id;
   let history = exportCustomerHistory(state, id);
   assert.match(history, /Address: Not recorded/);
   assert.match(history, /Phone: Not recorded/);
@@ -115,22 +125,22 @@ test('customer profile/history export includes address and phone and preserves u
 });
 
 test('add, persist, reload, and delete customers without losing existing names', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   state = deleteCustomer(state, state.customers[0].id);
-  state = addCustomer(state, 'NAZEER');
+  state = addCustomer(state, 'Test Customer 01');
   assert.equal(state.customers.length, 74);
   const addedId = state.customers.at(-1).id;
   persistState(state, storage);
   const restored = readState(storage);
-  assert.equal(restored.customers.at(-1).name, 'NAZEER');
+  assert.equal(restored.customers.at(-1).name, 'Test Customer 01');
   state = deleteCustomer(restored, addedId);
   assert.equal(state.customers.length, 73);
-  assert.equal(state.customers.at(-1).name, 'SSP HOUSE');
-  assert.throws(() => addCustomer(state, 'SSP HOUSE'), /already in the list/);
+  assert.equal(state.customers.at(-1).name, 'Test Customer 74');
+  assert.throws(() => addCustomer(state, 'Test Customer 74'), /already in the list/);
 });
 
 test('fresh ledger has no bills, payments, package amounts, or fabricated collections', () => {
-  const state = createInitialState();
+  const state = seededState();
   assert.ok(state.customers.every(c => c.bills.length === 0 && c.monthlySellingAmount === null));
   assert.match(exportAllPayments(state), /No payment entries have been recorded/);
   assert.match(exportCustomerHistory(state, state.customers[0].id), /No billing details have been recorded/);
@@ -152,12 +162,12 @@ test('history is limited to exactly 24 months and old months are rejected', () =
   assert.equal(months.length, 24);
   assert.equal(months[0], '2026-09');
   assert.equal(months.at(-1), '2024-10');
-  const state = createInitialState();
+  const state = seededState();
   assert.throws(() => saveBillMonth(state, state.customers[0].id, { month:'2024-09', status:'pending' }, referenceDate), /last 24 months/);
 });
 
 test('accepts all existing payment methods and both added shop-cash choices', () => {
-  const state = createInitialState(); const customerId = state.customers[0].id;
+  const state = seededState(); const customerId = state.customers[0].id;
   assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop','Cash at Balla shop']);
   for (const [index, method] of PAYMENT_METHODS.entries()) {
     const next = addPayment(state, customerId, currentMonth, payment({ method, amount:String(index + 1) }), referenceDate);
@@ -215,7 +225,7 @@ test('late current-month receipts retain their actual received date and the bill
 });
 
 test('pending partial payments reduce the current selling amount and collection uses actual entries', () => {
-  let state = createInitialState(); const customerId = state.customers[0].id;
+  let state = seededState(); const customerId = state.customers[0].id;
   state = profile(state, customerId, { monthlyPurchaseCost:'120', monthlySellingAmount:'250' });
   state = addPayment(state, customerId, currentMonth, payment({ amount:'100', method:'JazzCash' }), referenceDate);
   state = addPayment(state, customerId, currentMonth, payment({ date:'2026-09-20', amount:'50', method:'Cash' }), referenceDate);
@@ -234,7 +244,7 @@ test('pending partial payments reduce the current selling amount and collection 
 });
 
 test('dashboard distinguishes current month from previous-month actual payment dates across a calendar boundary', () => {
-  const date = new Date(2026, 8, 1, 12); let state = createInitialState();
+  const date = new Date(2026, 8, 1, 12); let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'150' });
   state = addPayment(state, 'seed-001', '2026-09', payment({ date:'2026-09-01', amount:'25' }), date);
   state = saveBillMonth(state, 'seed-002', { month:'2026-08', dueAmount:'200', status:'pending' }, date);
@@ -251,7 +261,7 @@ test('dashboard distinguishes current month from previous-month actual payment d
 });
 
 test('previous-month calculation handles the January-to-December year boundary by payment date', () => {
-  const date = new Date(2026, 0, 1, 12); let state = createInitialState();
+  const date = new Date(2026, 0, 1, 12); let state = seededState();
   state = addPayment(state, 'seed-001', '2026-01', payment({ date:'2025-12-31', amount:'21' }), date);
   state = addPayment(state, 'seed-001', '2026-01', payment({ date:'2026-01-01', amount:'7' }), date);
   const dashboard = calculateDashboard(state, date);
@@ -261,7 +271,7 @@ test('previous-month calculation handles the January-to-December year boundary b
 });
 
 test('correcting a payment immediately updates collection, due, today, and previous-month totals', () => {
-  const date = new Date(2026, 8, 15, 12); let state = createInitialState();
+  const date = new Date(2026, 8, 15, 12); let state = seededState();
   state = profile(state, 'seed-001', { monthlyPurchaseCost:'50', monthlySellingAmount:'100' });
   state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-14', amount:'30' }), date);
   const paymentId = state.customers[0].bills[0].payments[0].id;
@@ -278,7 +288,7 @@ test('correcting a payment immediately updates collection, due, today, and previ
 });
 
 test('customer receipt summaries add actual payments across months and group them by payment date', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = saveBillMonth(state, 'seed-001', { month:'2026-08', dueAmount:'5000', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-08-15', amount:'3000' }), referenceDate);
   state = saveBillMonth(state, 'seed-001', { month:'2026-09', dueAmount:'9000', status:'pending' }, referenceDate);
@@ -291,7 +301,7 @@ test('customer receipt summaries add actual payments across months and group the
 });
 
 test('receipt summaries never treat a bill charge or selling price as cash received', () => {
-  let state = profile(createInitialState(), 'seed-001', { monthlySellingAmount:'6000' });
+  let state = profile(seededState(), 'seed-001', { monthlySellingAmount:'6000' });
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
   assert.equal(state.customers[0].bills[0].dueAmount, 6000);
   assert.deepEqual(summarizeCustomerReceipts(state.customers[0]), { total:0, receiptCount:0, monthly:[] });
@@ -300,7 +310,7 @@ test('receipt summaries never treat a bill charge or selling price as cash recei
 });
 
 test('receipt summaries stay idempotent across duplicate rows, persistence/reload, and payment edits', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-08-15', amount:'3000' }), referenceDate);
   state = addPayment(state, 'seed-001', '2026-09', payment({ date:'2026-09-15', amount:'3000' }), referenceDate);
   const normalState = state;
@@ -343,7 +353,7 @@ test('ISP tenure uses explicit connection dates, handles end dates and never sub
 });
 
 test('dashboard never applies a profile selling amount retroactively and excludes unpriced historic bills', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'150' });
   state = addPayment(state, 'seed-001', '2026-08', payment({ date:'2026-08-20', amount:'20' }), referenceDate);
   const dashboard = calculateDashboard(state, referenceDate);
@@ -357,7 +367,7 @@ test('dashboard never applies a profile selling amount retroactively and exclude
 });
 
 test('a recorded month bill amount overrides the profile selling amount and a Paid toggle cannot clear a real balance', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'150' });
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'180', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'30' }), referenceDate);
@@ -371,7 +381,7 @@ test('a recorded month bill amount overrides the profile selling amount and a Pa
 });
 
 test('overpayment never creates negative due and collections remain the actual payment total', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'125' }), referenceDate);
   const dashboard = calculateDashboard(state, referenceDate);
@@ -384,7 +394,7 @@ test('overpayment never creates negative due and collections remain the actual p
 });
 
 test('expected package profit supports positive, zero, and negative margins', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100', monthlyPurchaseCost:'40' });
   assert.equal(customerPackageProfit(state.customers[0]), 60);
   state = profile(state, 'seed-001', { monthlyPurchaseCost:'100' });
@@ -395,7 +405,7 @@ test('expected package profit supports positive, zero, and negative margins', ()
 });
 
 test('missing cost or selling amount marks per-customer profit not set and excludes incomplete profiles', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100' });
   state = profile(state, 'seed-002', { monthlyPurchaseCost:'40' });
   state = profile(state, 'seed-003', { monthlySellingAmount:'80', monthlyPurchaseCost:'30' });
@@ -410,7 +420,7 @@ test('missing cost or selling amount marks per-customer profit not set and exclu
 });
 
 test('dashboard expected profit and current due recalculate after profile price edits', () => {
-  let state = createInitialState();
+  let state = seededState();
   let dashboard = calculateDashboard(state, referenceDate);
   assert.equal(dashboard.expectedMonthlyPackageProfit, 0);
   state = profile(state, 'seed-001', { monthlySellingAmount:'100', monthlyPurchaseCost:'60' });
@@ -431,7 +441,7 @@ test('dashboard expected profit and current due recalculate after profile price 
 });
 
 test('collection total excludes bill months outside the retained 24-month window', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'8' }), referenceDate);
   const customer = state.customers[0];
   const oldBill = { id:'old-bill', month:'2024-09', dueAmount:null, status:'pending', payments:[{ id:'old-payment', date:'2024-09-30', amount:99, method:'Cash' }] };
@@ -440,14 +450,14 @@ test('collection total excludes bill months outside the retained 24-month window
 });
 
 test('TXT exports include actual recorded payments and the saved contact/package profile only', () => {
-  let state = createInitialState(); const customerId = state.customers[0].id;
+  let state = seededState(); const customerId = state.customers[0].id;
   state = profile(state, customerId, { address:'Fixture address', phone:'fixture-phone', packageSpeed:'Fixture package', monthlyPurchaseCost:'20', monthlySellingAmount:'60' });
   state = saveBillMonth(state, customerId, { month:currentMonth, dueAmount:'60', status:'pending' }, referenceDate);
   state = addPayment(state, customerId, currentMonth, payment({ amount:'60', method:'Bank Transfer' }), referenceDate);
   const all = exportAllPayments(state);
   const individual = exportCustomerHistory(state, customerId);
   for (const text of [all, individual]) {
-    assert.match(text, /NAZEER/);
+    assert.match(text, /Test Customer 01/);
     assert.match(text, /2026-09/);
     assert.match(text, /2026-09-15/);
     assert.match(text, /60/);
@@ -460,12 +470,12 @@ test('TXT exports include actual recorded payments and the saved contact/package
   assert.match(individual, /Monthly selling amount: PKR 60/);
   assert.match(individual, /Expected monthly package profit: PKR 40/);
   assert.doesNotMatch(all, /fixture-phone/);
-  assert.doesNotMatch(all, /AWAIS/);
+  assert.doesNotMatch(all, /Test Customer 02/);
   assert.match(individual, /Status: Paid/);
 });
 
 test('rejects invalid payments and invalid calendar dates', () => {
-  const state = createInitialState(); const customerId = state.customers[0].id;
+  const state = seededState(); const customerId = state.customers[0].id;
   assert.throws(() => addPayment(state, customerId, currentMonth, payment({ amount:'0' }), referenceDate), /greater than zero/);
   assert.throws(() => addPayment(state, customerId, currentMonth, payment({ method:'Cheque' }), referenceDate), /valid payment method/);
   assert.throws(() => addPayment(state, customerId, currentMonth, payment({ date:'not-a-date' }), referenceDate), /valid payment date/);
@@ -500,7 +510,7 @@ test('rejects future actual receipts and corrections at the Pakistan-local day b
 
 
 test('customer numbers are sequential, stable across deletion and reload, and never reused', () => {
-  let state = createInitialState();
+  let state = seededState();
   assert.deepEqual(state.customers.map(customer => customer.customerNumber), Array.from({ length:74 }, (_, index) => index + 1));
   const originalId = state.customers[1].id;
   state = deleteCustomer(state, 'seed-074');
@@ -513,15 +523,15 @@ test('customer numbers are sequential, stable across deletion and reload, and ne
   const storage = store(); persistState(state, storage); state = readState(storage);
   state = addCustomer(state, 'Third temporary test customer');
   assert.equal(state.customers.at(-1).customerNumber, 77);
-  assert.throws(() => addCustomer(state, 'nazeer'), /already in the list/);
+  assert.throws(() => addCustomer(state, 'Test Customer 01'), /already in the list/);
 });
 
 test('migration repairs duplicate or missing customer numbers without collisions', () => {
   const storage = store();
   storage.setItem('shahdara-isp-billing-v1', JSON.stringify({ version:1, customers:[
-    { id:'legacy-a', name:'NAZEER', customerNumber:7, bills:[] },
-    { id:'legacy-b', name:'AWAIS', customerNumber:7, bills:[] },
-    { id:'legacy-c', name:'TEHMENA', bills:[] }
+    { id:'legacy-a', name:'Test Customer 01', customerNumber:7, bills:[] },
+    { id:'legacy-b', name:'Test Customer 02', customerNumber:7, bills:[] },
+    { id:'legacy-c', name:'Test Customer 03', bills:[] }
   ] }));
   const migrated = readState(storage);
   const numbers = migrated.customers.map(customer => customer.customerNumber);
@@ -531,18 +541,18 @@ test('migration repairs duplicate or missing customer numbers without collisions
 });
 
 test('global customer search matches partial name, optional phone/address, and partial number', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { phone:'PhoneLookup-742', address:'Lane 8, Building 31' });
-  assert.deepEqual(searchCustomers(state, 'naz').map(customer => customer.id), ['seed-001']);
+  assert.deepEqual(searchCustomers(state, 'customer 01').map(customer => customer.id), ['seed-001']);
   assert.deepEqual(searchCustomers(state, 'lookup-742').map(customer => customer.id), ['seed-001']);
   assert.deepEqual(searchCustomers(state, 'Building 31').map(customer => customer.id), ['seed-001']);
   assert.deepEqual(searchCustomers(state, '#74').map(customer => customer.id), ['seed-074']);
   assert.ok(searchCustomers(state, '#7').some(customer => customer.id === 'seed-007'));
-  assert.equal(createInitialState().customers.every(customer => customer.address === '' && customer.phone === ''), true);
+  assert.equal(seededState().customers.every(customer => customer.address === '' && customer.phone === ''), true);
 });
 
 test('all-customer transactions are newest first, filter by date, and share name/phone/address/number search', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { phone:'PhoneLookup-742', address:'Lane 8, Building 31' });
   state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-20', amount:'30' }), referenceDate);
   state = addPayment(state, 'seed-002', currentMonth, payment({ date:'2026-09-19', amount:'20' }), referenceDate);
@@ -553,7 +563,7 @@ test('all-customer transactions are newest first, filter by date, and share name
   assert.deepEqual(listTransactions(state, { customerQuery:'phoneLookup-742' }, referenceDate).map(row => row.customerId), ['seed-001']);
   assert.deepEqual(listTransactions(state, { customerQuery:'Building 31' }, referenceDate).map(row => row.customerId), ['seed-001']);
   assert.deepEqual(listTransactions(state, { customerQuery:'#74' }, referenceDate).map(row => row.customerNumber), [74]);
-  assert.deepEqual(listTransactions(state, { customerQuery:'NAZ' }, referenceDate).map(row => row.customerId), ['seed-001']);
+  assert.deepEqual(listTransactions(state, { customerQuery:'CUSTOMER 01' }, referenceDate).map(row => row.customerId), ['seed-001']);
 });
 
 test('transaction recency windows use inclusive Pakistan-local payment dates and intersect with name/date filters', () => {
@@ -594,7 +604,7 @@ test('transaction recency windows use inclusive Pakistan-local payment dates and
 });
 
 test('global search finds customers by saved bill status, amount, and exact receipt details across customers', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'1200', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-12', amount:'300', method:'Easypaisa' }), referenceDate);
   state = saveBillMonth(state, 'seed-002', { month:currentMonth, dueAmount:'800', status:'pending' }, referenceDate);
@@ -612,7 +622,7 @@ test('global search finds customers by saved bill status, amount, and exact rece
 });
 
 test('monthly report classifies priced customers, shows unconfigured rows as Not set, and never calls them unpaid', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100' });
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'100' }), referenceDate);
   state = profile(state, 'seed-002', { monthlySellingAmount:'100' });
@@ -643,7 +653,7 @@ test('monthly report classifies priced customers, shows unconfigured rows as Not
 });
 
 test('monthly report month selection uses explicit past bills only and shared search filters report rows', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { phone:'ReportPhone-22', address:'Report Address 15', monthlySellingAmount:'90' });
   state = saveBillMonth(state, 'seed-002', { month:'2026-08', dueAmount:'80', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-002', '2026-08', payment({ date:'2026-08-18', amount:'30' }), referenceDate);
@@ -663,7 +673,7 @@ test('monthly report month selection uses explicit past bills only and shared se
 });
 
 test('customer-card filters combine manual service state, derived bill state, selected month and global search', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { serviceStatus:'active', phone:'FilterPhone-1' });
   state = profile(state, 'seed-002', { serviceStatus:'active' });
   state = profile(state, 'seed-003', { serviceStatus:'offline' });
@@ -709,7 +719,7 @@ test('customer-list search matches name, formatted phone, customer number and st
 });
 
 test('correcting and deleting one of multiple installments updates history, totals, status, exports, and reload', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-14', amount:'30' }), referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-15', amount:'20', method:'JazzCash' }), referenceDate);
@@ -738,13 +748,13 @@ test('correcting and deleting one of multiple installments updates history, tota
 const incident = (overrides = {}) => ({ reportedAt:'2026-09-28T10:00', offlineAt:'2026-09-28T09:30', restoredAt:'', note:'', ...overrides });
 
 test('fresh profiles contain no complaint or outage history', () => {
-  const state = createInitialState();
+  const state = seededState();
   assert.ok(state.customers.every(customer => Array.isArray(customer.incidents) && customer.incidents.length === 0));
   assert.match(exportCustomerHistory(state, 'seed-001'), /No complaint\/outage records have been recorded/);
 });
 
 test('manual incident log supports multiple open and resolved outages and exact rolling 30-day local-time boundaries', () => {
-  const reference = new Date(2026, 8, 29, 12, 0, 0); let state = createInitialState();
+  const reference = new Date(2026, 8, 29, 12, 0, 0); let state = seededState();
   state = addIncident(state, 'seed-001', incident(), reference);
   state = addIncident(state, 'seed-001', incident({ reportedAt:'2026-09-01T08:00', offlineAt:'2026-09-01T07:30', restoredAt:'2026-09-02T11:00', note:'Resolved test note' }), reference);
   state = addIncident(state, 'seed-001', incident({ reportedAt:'2026-08-30T12:00', offlineAt:'2026-08-30T11:00', restoredAt:'2026-08-30T13:00' }), reference);
@@ -760,7 +770,7 @@ test('manual incident log supports multiple open and resolved outages and exact 
 });
 
 test('incident date/time validation rejects malformed dates and restoration before report or outage start', () => {
-  const state = createInitialState(); const customerId = 'seed-001';
+  const state = seededState(); const customerId = 'seed-001';
   assert.doesNotThrow(() => addIncident(state, customerId, incident()));
   assert.throws(() => addIncident(state, customerId, incident({ reportedAt:'2026-02-30T12:00' })), /valid complaint\/report date and time/);
   assert.throws(() => addIncident(state, customerId, incident({ offlineAt:'bad-time' })), /valid offline-start date and time/);
@@ -769,7 +779,7 @@ test('incident date/time validation rejects malformed dates and restoration befo
 });
 
 test('incident edits preserve a visible correction audit and persistence; confirmed deletion removes the record from count/export', () => {
-  const storage = store(); const reference = new Date(2026, 8, 29, 12, 0, 0); let state = createInitialState();
+  const storage = store(); const reference = new Date(2026, 8, 29, 12, 0, 0); let state = seededState();
   state = addIncident(state, 'seed-001', incident({ note:'Initial test note' }), reference);
   const incidentId = state.customers[0].incidents[0].id;
   state = updateIncident(state, 'seed-001', incidentId, incident({ reportedAt:'2026-09-27T10:00', offlineAt:'2026-09-27T09:15', restoredAt:'2026-09-27T12:00', note:'Corrected test note' }), new Date('2026-09-29T12:30:00+05:00'));
@@ -793,7 +803,7 @@ test('incident edits preserve a visible correction audit and persistence; confir
 
 test('automatic local-month billing is idempotent, never backfills before price setup, and snapshots next-month price changes', () => {
   const sep1 = new Date(2026, 8, 1, 9); const sep29 = new Date(2026, 8, 29, 12); const oct1 = new Date(2026, 9, 1, 9);
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'90' }, sep1);
   assert.deepEqual(state.customers[0].bills, []);
   state = generateMonthlyBillsThroughCurrentMonth(state, sep29);
@@ -815,7 +825,7 @@ test('automatic local-month billing is idempotent, never backfills before price 
 
 test('unconfigured customers receive no automatic bill; a new configured customer starts only at its effective month', () => {
   const jan5 = new Date(2026, 0, 5, 10); const mar15 = new Date(2026, 2, 15, 10);
-  let state = createInitialState();
+  let state = seededState();
   assert.strictEqual(generateMonthlyBillsThroughCurrentMonth(state, mar15), state);
   state = addCustomer(state, 'Fixture new customer');
   const newId = state.customers.at(-1).id;
@@ -828,7 +838,7 @@ test('unconfigured customers receive no automatic bill; a new configured custome
 });
 
 test('automatic bill amount corrections preserve the generated price snapshot and show a correction trail', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'90' }, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'95', status:'pending' }, referenceDate);
@@ -845,7 +855,7 @@ test('automatic bill amount corrections preserve the generated price snapshot an
 });
 
 test('partial and exact receipts cover only their own bill and create no excess credit', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100' }, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'40' }), referenceDate);
@@ -863,7 +873,7 @@ test('partial and exact receipts cover only their own bill and create no excess 
 
 test('overpayment credit rolls through later generated bills while cash collection and transaction counts stay single-entry', () => {
   const december1 = new Date(2026, 11, 1, 9);
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100' }, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ date:'2026-09-20', amount:'350' }), referenceDate);
@@ -904,7 +914,7 @@ test('overpayment credit rolls through later generated bills while cash collecti
 
 test('unapplied excess persists on its original receipt until the next month bill is generated', () => {
   const storage = store(); const october1 = new Date(2026, 9, 1, 9);
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100' }, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'150' }), referenceDate);
@@ -925,7 +935,7 @@ test('unapplied excess persists on its original receipt until the next month bil
 });
 
 test('a receipt on an unpriced bill is held as credit and applied to the next priced bill', () => {
-  let state = createInitialState();
+  let state = seededState();
   const customerId = 'seed-001';
   const unpriced = { id:'unpriced-bill', month:'2026-09', dueAmount:null, status:'pending', payments:[{ id:'advance-1', date:'2026-09-10', amount:2000, method:'Cash' }] };
   const priced = { id:'priced-bill', month:'2026-10', dueAmount:1500, status:'pending', payments:[] };
@@ -954,7 +964,7 @@ test('a receipt on an unpriced bill is held as credit and applied to the next pr
 });
 
 test('a receipt on an unpriced bill with no later priced bill stays as pending credit in full', () => {
-  let state = createInitialState();
+  let state = seededState();
   const customerId = 'seed-001';
   const unpriced = { id:'unpriced-only', month:'2026-09', dueAmount:null, status:'pending', payments:[{ id:'advance-only', date:'2026-09-10', amount:800, method:'Cash' }] };
   state = { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, bills:[unpriced] } : c) };
@@ -968,7 +978,7 @@ test('a receipt on an unpriced bill with no later priced bill stays as pending c
 });
 
 test('a discount larger than the remaining payable amount is rejected on add and on correction', () => {
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'1000' }, referenceDate);
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'1000', status:'pending' }, referenceDate);
   // The reported bug: a Rs 5,000 discount on a Rs 1,000 bill was stored verbatim.
@@ -997,7 +1007,7 @@ test('a discount larger than the remaining payable amount is rejected on add and
 
 test('editing or deleting a source receipt recomputes every later credit and outstanding month without changing other cash', () => {
   const october1 = new Date(2026, 9, 1, 9);
-  let state = createInitialState();
+  let state = seededState();
   state = profile(state, 'seed-001', { monthlySellingAmount:'100' }, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
   state = addPayment(state, 'seed-001', currentMonth, payment({ amount:'150' }), referenceDate);
@@ -1024,7 +1034,7 @@ test('editing or deleting a source receipt recomputes every later credit and out
 });
 
 test('unapplied customer credit remains visible and valid indefinitely after its source bill leaves the 24-month display', () => {
-  const state = createInitialState();
+  const state = seededState();
   const customer = state.customers[0];
   const oldBill = { id:'old-source-bill', month:'2024-09', dueAmount:100, status:'pending', generated:false, payments:[{ id:'old-source-receipt', date:'2024-09-30', amount:150, method:'Cash' }] };
   const withBills = { ...state, customers:state.customers.map(item => item.id === customer.id ? { ...item, bills:[oldBill] } : item) };
@@ -1070,7 +1080,7 @@ test('unapplied customer credit remains visible and valid indefinitely after its
 });
 
 test('today and previous-month collections use payment dates even when a saved bill month is older than 24 months', () => {
-  const state = createInitialState();
+  const state = seededState();
   const customer = state.customers[0];
   const agedBill = { id:'aged-bill', month:'2024-09', dueAmount:100, status:'pending', generated:false, payments:[
     { id:'today-on-aged-bill', date:'2026-09-29', amount:27, method:'Cash' },
@@ -1088,7 +1098,7 @@ test('today and previous-month collections use payment dates even when a saved b
 
 
 test('billing cannot be manually marked Paid; a full actual receipt derives Paid and is counted once', () => {
-  let state = createInitialState();
+  let state = seededState();
   assert.throws(() => saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'received' }, referenceDate), /Paid status is derived from actual receipts/);
   state = saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', status:'pending' }, referenceDate);
   assert.equal(effectiveBillStatus(state.customers[0], state.customers[0].bills[0], referenceDate), 'pending');
@@ -1114,7 +1124,7 @@ test('PKR formatter groups thousands, preserves cents, supports negative margin,
 
 
 test('manual Active/Offline/Not set service state persists independently of paid/partial billing status', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   assert.deepEqual([calculateDashboard(state, referenceDate).activeServiceCount, calculateDashboard(state, referenceDate).offlineServiceCount, calculateDashboard(state, referenceDate).unsetServiceCount], [0,0,74]);
   state = profile(state, 'seed-001', { serviceStatus:'active', monthlySellingAmount:'100' });
   state = profile(state, 'seed-002', { serviceStatus:'offline' });
@@ -1141,7 +1151,7 @@ test('manual Active/Offline/Not set service state persists independently of paid
 });
 
 test('package suggestions remain blank by default while suggested or custom values persist', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   assert.ok(state.customers.every(customer => customer.packageSpeed === ''));
   state = profile(state, 'seed-001', { packageSpeed:'15 Mbps' });
   state = profile(state, 'seed-002', { packageSpeed:'Custom fiber plan 42 Mbps' });
@@ -1152,7 +1162,7 @@ test('package suggestions remain blank by default while suggested or custom valu
 });
 
 test('provider cost dashboard groups Nayatel case-insensitively and excludes missing costs', () => {
-  const storage = store(); let state = createInitialState();
+  const storage = store(); let state = seededState();
   state = profile(state, 'seed-001', { ispProvider:'Nayatel', monthlyPurchaseCost:'1200', monthlySellingAmount:'3000' });
   state = profile(state, 'seed-002', { ispProvider:'NAYATEL', monthlyPurchaseCost:'800', monthlySellingAmount:'2500' });
   state = profile(state, 'seed-003', { ispProvider:'Other ISP', monthlyPurchaseCost:'', monthlySellingAmount:'1000' });
@@ -1173,7 +1183,7 @@ test('provider cost dashboard groups Nayatel case-insensitively and excludes mis
 
 test('optional due dates are validated, shown in PKT reports/exports and add no automatic penalty', () => {
   assert.equal(PAKISTAN_TIME_ZONE, 'Asia/Karachi');
-  let state = saveBillMonth(createInitialState(), 'seed-001', { month:currentMonth, dueAmount:'100', dueDate:'2026-09-30', status:'pending' }, referenceDate);
+  let state = saveBillMonth(seededState(), 'seed-001', { month:currentMonth, dueAmount:'100', dueDate:'2026-09-30', status:'pending' }, referenceDate);
   const row = buildMonthlyReport(state, { month:currentMonth }).find(item => item.customerId === 'seed-001');
   assert.equal(row.dueDate, '2026-09-30');
   assert.equal(row.balanceDue, 100);
@@ -1183,8 +1193,8 @@ test('optional due dates are validated, shown in PKT reports/exports and add no 
   assert.throws(() => saveBillMonth(state, 'seed-001', { month:currentMonth, dueAmount:'100', dueDate:'2026-09-31', status:'pending' }, referenceDate), /valid due date/);
   const nearMidnight = new Date('2026-09-30T18:59:00Z');
   const karachiMidnight = new Date('2026-09-30T19:00:00Z');
-  assert.equal(calculateDashboard(createInitialState(), nearMidnight).today, '2026-09-30');
-  assert.equal(calculateDashboard(createInitialState(), karachiMidnight).today, '2026-10-01');
+  assert.equal(calculateDashboard(seededState(), nearMidnight).today, '2026-09-30');
+  assert.equal(calculateDashboard(seededState(), karachiMidnight).today, '2026-10-01');
   assert.equal(monthsForHistory(nearMidnight)[0], '2026-09');
   assert.equal(monthsForHistory(karachiMidnight)[0], '2026-10');
 });
@@ -1203,7 +1213,7 @@ test('archiving preserves profile number, bills, receipts and credit; unarchive 
   const beforeArchive = new Date('2026-09-29T12:00:00+05:00');
   const duringArchive = new Date('2026-10-20T12:00:00+05:00');
   const resumeDate = new Date('2026-11-02T12:00:00+05:00');
-  let state = profile(createInitialState(), 'seed-001', { monthlySellingAmount:'100' }, beforeArchive);
+  let state = profile(seededState(), 'seed-001', { monthlySellingAmount:'100' }, beforeArchive);
   state = generateMonthlyBillsThroughCurrentMonth(state, beforeArchive);
   state = addPayment(state, 'seed-001', '2026-09', payment({ date:'2026-09-29', amount:'250' }), beforeArchive);
   const originalId = state.customers[0].id;
@@ -1227,7 +1237,7 @@ test('archiving preserves profile number, bills, receipts and credit; unarchive 
 });
 
 test('JSON backup round-trip includes profiles, monthly snapshots, receipts, credit and incidents with preview-before-merge', () => {
-  const storage = store(); let source = createInitialState();
+  const storage = store(); let source = seededState();
   source = profile(source, 'seed-001', { address:'Backup street', phone:'03000000000', ispProvider:'Nayatel', serviceStatus:'active', packageSpeed:'10 Mbps', monthlyPurchaseCost:'1200', monthlySellingAmount:'3000' }, referenceDate);
   source = generateMonthlyBillsThroughCurrentMonth(source, referenceDate);
   source = addPayment(source, 'seed-001', currentMonth, payment({ amount:'3500' }), referenceDate);
@@ -1240,7 +1250,7 @@ test('JSON backup round-trip includes profiles, monthly snapshots, receipts, cre
   assert.equal(backup.state.customers[0].serviceStatus, 'active');
   assert.equal(backup.state.customers[0].bills[0].payments.length, 1);
   assert.equal(backup.state.customers[0].incidents.length, 1);
-  let preview = previewJsonBackupMerge(createInitialState(), backupText);
+  let preview = previewJsonBackupMerge(seededState(), backupText);
   assert.equal(preview.canApply, true);
   assert.equal(preview.counts.addedPayments, 1);
   assert.equal(preview.counts.addedIncidents, 1);
@@ -1259,8 +1269,8 @@ test('JSON backup round-trip includes profiles, monthly snapshots, receipts, cre
 });
 
 test('backup preview merges blank fields only and detects duplicate IDs/numbers and identity collisions without overwriting', () => {
-  let local = profile(createInitialState(), 'seed-001', { address:'Local address' });
-  let incoming = profile(createInitialState(), 'seed-001', { address:'Backup address', phone:'backup phone', serviceStatus:'offline' });
+  let local = profile(seededState(), 'seed-001', { address:'Local address' });
+  let incoming = profile(seededState(), 'seed-001', { address:'Backup address', phone:'backup phone', serviceStatus:'offline' });
   const preview = previewJsonBackupMerge(local, createJsonBackup(incoming, referenceDate));
   assert.equal(preview.state.customers[0].address, 'Local address');
   assert.equal(preview.state.customers[0].phone, 'backup phone');
@@ -1268,16 +1278,16 @@ test('backup preview merges blank fields only and detects duplicate IDs/numbers 
   assert.ok(preview.conflicts.some(conflict => conflict.field === 'address'));
   assert.equal(preview.canApply, true);
 
-  const duplicateId = JSON.parse(createJsonBackup(createInitialState(), referenceDate));
+  const duplicateId = JSON.parse(createJsonBackup(seededState(), referenceDate));
   duplicateId.state.customers[1].id = duplicateId.state.customers[0].id;
   assert.throws(() => previewJsonBackupMerge(local, JSON.stringify(duplicateId)), /duplicate customer ID/);
-  const duplicateNumber = JSON.parse(createJsonBackup(createInitialState(), referenceDate));
+  const duplicateNumber = JSON.parse(createJsonBackup(seededState(), referenceDate));
   duplicateNumber.state.customers[1].customerNumber = duplicateNumber.state.customers[0].customerNumber;
   assert.throws(() => previewJsonBackupMerge(local, JSON.stringify(duplicateNumber)), /duplicate customer number/);
   const collision = createInitialState(['Different person']);
   const collisionPreview = previewJsonBackupMerge(local, createJsonBackup(collision, referenceDate));
   assert.equal(collisionPreview.canApply, false);
-  assert.equal(collisionPreview.state.customers[0].name, 'NAZEER');
+  assert.equal(collisionPreview.state.customers[0].name, 'Test Customer 01');
   assert.ok(collisionPreview.conflicts.length > 0);
   assert.throws(() => previewJsonBackupMerge(local, '{bad json'), /not valid JSON/);
   assert.throws(() => previewJsonBackupMerge(local, 'x'.repeat(25 * 1024 * 1024 + 1)), /too large/);

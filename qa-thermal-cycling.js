@@ -230,7 +230,7 @@ export const SHAHDARA_THERMAL_PRESETS = [
     testMinTempC: 16,
     testMaxTempC: 30,
     measuredMaxDeltaAlphaDbKm: 0.015,
-    technicianName: 'Babar Azam (Senior Telecom Engineer)',
+    technicianName: 'Sample Engineer (Senior Telecom Engineer)',
     notes: 'Underground conduit thermally buffered by waterlogged silt. Superb attenuation stability.'
   },
   {

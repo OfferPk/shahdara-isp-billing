@@ -430,7 +430,7 @@ export const SHAH_SPLICE_PRESETS = {
     tiltAngleDeg: 0.25,
     alignmentAngleDeg: 30,
     residualOffsetUm: 0.08,
-    technicianName: 'Muhammad Rizwan (Senior Fiber Splicing Specialist)'
+    technicianName: 'Sample Technician (Senior Fiber Splicing Specialist)'
   },
   'VANDALA_DROP_TRANSITION': {
     id: 'VANDALA_DROP_TRANSITION',

@@ -13077,3 +13077,32 @@ dialog::backdrop {
 [data-theme="dark"] .incident-count { background: var(--dk-surface); border-color: var(--dk-line); color: var(--dk-muted); }
 [data-theme="dark"] .incident-form { background: var(--dk-surface); border-color: var(--dk-line); }
 [data-theme="dark"] .incident-field { color: var(--dk-muted); }
+
+/* ==========================================================================
+   Top-bar phone fit (2026-10-29 hotfix).
+   Measured on the live build (headless Chromium, dist): at a 360px viewport
+   .topbar-actions was 417.8px wide starting at x=90, so the language toggle
+   was clipped and the theme + field-mode buttons sat entirely off-screen.
+   Causes: (1) .topbar-actions had flex-shrink:0 and a 10px gap, (2) the
+   SISP-48 QR button added another fixed 38px action, (3) the SISP-10
+   backup-badge label-hide rule targeted a class that does not exist in the
+   markup (fixed in components.css). Nothing below removes or permanently
+   hides an action: every button stays in the bar and tappable; only the
+   backup pill (481-620px: ellipsis shrink) and, at <=480px, the brand title
+   and the language/backup text labels compact — icons, emoji state and
+   aria-labels remain. Sizes only; no colours, so dark mode is untouched.
+   ========================================================================== */
+@media (max-width: 620px) {
+  .topbar-actions { flex-shrink: 1; min-width: 0; gap: 4px; }
+  .topbar .nav-drawer-toggle { margin-right: 0; }
+  .topbar .backup-health-badge { min-width: 0; flex: 0 1 auto; }
+  .topbar #backupHealthLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .field-mode-toggle-btn { width: 38px; height: 38px; min-height: 38px; }
+}
+@media (max-width: 480px) {
+  .topbar { padding: 0 6px; gap: 4px; }
+  .brand-copy { display: none; }
+  .topbar-actions { gap: 3px; }
+  .topbar #languageToggleBtn { min-width: 0; padding: 0 6px; gap: 0; }
+  .topbar #languageToggleBtn .language-toggle-label { display: none; }
+}

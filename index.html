@@ -20373,6 +20373,18 @@
             <div class="form-cell"><label class="field-label full" for="advancePaymentPaidBy" data-i18n="adv_paidby_label">Paid by (optional)</label><input id="advancePaymentPaidBy" class="full" name="paidBy" type="text" maxlength="100" data-i18n-placeholder="adv_paidby_ph" placeholder="Leave blank if not specified"></div>
             <div class="form-cell"><label class="field-label full" for="advancePaymentNote" data-i18n="adv_note_label">Note (optional)</label><input id="advancePaymentNote" class="full" name="note" type="text" maxlength="200" data-i18n-placeholder="adv_note_ph" placeholder="e.g. November paid early"></div>
           </div>
+          <fieldset class="prepay-section">
+            <legend data-i18n="prepay_section_title">Multi-month prepay</legend>
+            <p class="field-help" data-i18n="prepay_section_help">Pay 2, 3, 6 or 12 months up front. The customer is credited the full coverage; any discount you give comes off the cash to collect, never off the coverage.</p>
+            <p id="prepayRateLine" class="field-help"></p>
+            <div class="form-grid">
+              <div class="form-cell"><label class="field-label full" for="prepayMonths" data-i18n="prepay_months_label">Prepay months</label><select id="prepayMonths" class="full" name="prepayMonths"></select></div>
+              <div class="form-cell"><label class="field-label full" for="prepayStartMonth" data-i18n="prepay_start_label">Prepay starts</label><select id="prepayStartMonth" class="full" name="prepayStartMonth"></select></div>
+              <div class="form-cell"><label class="field-label full" for="prepayDiscount" data-i18n="prepay_discount_label">Upfront discount (PKR, optional)</label><input id="prepayDiscount" class="full" name="prepayDiscount" type="number" min="0" step="0.01" inputmode="decimal"></div>
+            </div>
+            <p id="prepaySummaryLine" class="field-help"></p>
+            <button id="prepaySaveBtn" class="primary-button" type="button" data-i18n="prepay_save">Save prepay</button>
+          </fieldset>
           <p id="advancePaymentError" class="form-error" role="alert" hidden></p>
         </div>
         <div class="billing-modal-footer">

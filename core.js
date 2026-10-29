@@ -945,8 +945,36 @@ export function advancePaymentTargetMonth(payment) {
   return validMonthString(payment?.targetMonth) ? payment.targetMonth : null;
 }
 
+/**
+ * SISP-61: the multi-month prepay terms a targeted advance may carry —
+ * the operator picked 2, 3, 6 or 12 months of coverage at the
+ * customer's package rate, paid the gross minus an optional upfront
+ * discount in cash, and the customer is credited the FULL gross. The
+ * terms ride the payment record (prepayMonths / prepayGross /
+ * prepayRate, sanitized by validatePayment) and this reader is the
+ * single sanitization point, mirroring advancePaymentTargetMonth: a
+ * partial or corrupt triple reads as a plain targeted advance, never
+ * as a prepay, so a damaged record can never mint discount coverage.
+ * The start month is the payment's targetMonth.
+ */
+export const PREPAY_MONTH_OPTIONS = Object.freeze([2, 3, 6, 12]);
+const prepayMoneyOrNull = (value) => {
+  if (value === null || value === undefined || value === '') return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.round(amount * 100) / 100 : null;
+};
+export function prepayTermsOf(payment) {
+  const startMonth = advancePaymentTargetMonth(payment);
+  if (!startMonth) return null;
+  const months = Number(payment?.prepayMonths);
+  const gross = prepayMoneyOrNull(payment?.prepayGross);
+  const rate = prepayMoneyOrNull(payment?.prepayRate);
+  if (!PREPAY_MONTH_OPTIONS.includes(months) || gross === null || gross <= 0 || rate === null || rate <= 0) return null;
+  return { months, gross, rate, startMonth };
+}
+
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note, targetMonth } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -982,6 +1010,20 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // so untagged records remain byte-identical to before.
   const cleanNote = String(note ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (cleanNote.length > 200) throw new Error('Payment note must be 200 characters or fewer.');
+  // SISP-61: multi-month prepay terms ride the payment record ONLY on a
+  // targeted advance (the recordPrepay path) and only as a complete,
+  // sane triple — months from the fixed 2/3/6/12 picker, the gross
+  // coverage and the package rate it was quoted from. Anything partial
+  // or malformed is dropped whole, never stored raw, so a plain
+  // targeted advance stays byte-identical to before. The allocation
+  // engine reads these terms (see prepayTermsOf) to convert the
+  // payment's upfront discount into reserved advance coverage.
+  const prepayTerms = kind === ADVANCE_PAYMENT_KIND && validMonthString(targetMonth)
+    && PREPAY_MONTH_OPTIONS.includes(Number(prepayMonths))
+    && prepayMoneyOrNull(prepayGross) !== null && prepayMoneyOrNull(prepayGross) > 0
+    && prepayMoneyOrNull(prepayRate) !== null && prepayMoneyOrNull(prepayRate) > 0
+    ? { prepayMonths: Number(prepayMonths), prepayGross: prepayMoneyOrNull(prepayGross), prepayRate: prepayMoneyOrNull(prepayRate) }
+    : null;
   return {
     date,
     amount: cents,
@@ -992,6 +1034,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     // month field) — anything else is dropped, never stored raw, so
     // untargeted records stay byte-identical to before.
     ...(kind === ADVANCE_PAYMENT_KIND && validMonthString(targetMonth) ? { targetMonth } : {}),
+    ...(prepayTerms ?? {}),
     ...(cleanNote ? { note: cleanNote } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
     ...(payer ? { paidBy:payer } : {}),
@@ -1099,9 +1142,15 @@ export function calculateMethodCollectionTotals(state, month = null) {
  * earlier receipts, their discounts and credit carried in from prior
  * months. For corrections, the payment being corrected is excluded first.
  */
-function assertDiscountWithinRemainingPayable(state, customerId, month, discount, excludePaymentId = null) {
+function assertDiscountWithinRemainingPayable(state, customerId, month, discount, excludePaymentId = null, options = {}) {
   const discountCents = moneyCents(discount || 0);
   if (discountCents <= 0) return;
+  // SISP-61: a prepay's upfront discount is never measured against the
+  // bill the receipt happens to be attached to — it is not a discount
+  // ON that bill at all. The allocation engine converts it into
+  // reserved advance coverage (see calculatePaymentAllocations), so
+  // the only cap that applies is the recorder's own discount < gross.
+  if (options.prepayCoverage === true) return;
   let scopedState = state;
   if (excludePaymentId) {
     scopedState = { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: (b.payments ?? []).filter(p => p.id !== excludePaymentId) }) }) };
@@ -1122,7 +1171,7 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
-  assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount);
+  assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, null, { prepayCoverage: prepayTermsOf(payment) !== null });
   const bill = existing ? { ...existing, payments: [...existing.payments, payment] } : { id: makeId(), month, dueAmount: null, status: 'pending', payments: [payment] };
   const nextState = { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: existing ? c.bills.map(b => b.month === month ? bill : b) : [...c.bills, bill].sort((a,b) => b.month.localeCompare(a.month)) }) };
   // SISP-3: recording a FULL payment of the customer's pending balance
@@ -1182,6 +1231,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // carry-over rule below, applied to the advance fields).
     kind: fields.kind !== undefined ? fields.kind : existingPayment.kind,
     targetMonth: fields.targetMonth !== undefined ? fields.targetMonth : existingPayment.targetMonth,
+    // SISP-61: the correction form carries no prepay fields either —
+    // correcting a prepay receipt must never silently strip its terms
+    // (same carry-over rule as kind/targetMonth above).
+    prepayMonths: fields.prepayMonths !== undefined ? fields.prepayMonths : existingPayment.prepayMonths,
+    prepayGross: fields.prepayGross !== undefined ? fields.prepayGross : existingPayment.prepayGross,
+    prepayRate: fields.prepayRate !== undefined ? fields.prepayRate : existingPayment.prepayRate,
     // SISP-21: a correction form carries no verification toggle, so a
     // correction must never silently drop an existing verification.
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
@@ -1204,7 +1259,7 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     }
     payment = { ...payment, ticketCharges: settledTicketCharges };
   }
-  assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId);
+  assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId, { prepayCoverage: prepayTermsOf(payment) !== null });
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }
 
@@ -1661,8 +1716,13 @@ export function calculatePaymentAllocations(state) {
           // SISP-43: the ticket-charge portion of the receipt is consumed
           // by the tickets — only the rest is unused credit here.
           const ticketChargeCents = paymentTicketChargeCents(payment);
-          const creditCents = Math.max(0, amountCents - ticketChargeCents);
-          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment) };
+          // SISP-61: on an unpriced bill a prepay's upfront discount is
+          // pure coverage (nothing has been applied yet) — it joins the
+          // credit in full, reserved for its target month below, so the
+          // customer is credited cash + discount = the full gross.
+          const prepayDiscountCents = prepayTermsOf(payment) ? moneyCents(payment.discount || 0) : 0;
+          const creditCents = Math.max(0, amountCents - ticketChargeCents) + prepayDiscountCents;
+          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment), ...(prepayDiscountCents > 0 ? { prepayDiscountCreditCents:prepayDiscountCents } : {}) };
           byPaymentId.set(payment.id, paymentLedger);
           if (creditCents > 0) {
             summary.excessGeneratedCents += creditCents;
@@ -1725,7 +1785,19 @@ export function calculatePaymentAllocations(state) {
         const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment) };
         byPaymentId.set(payment.id, paymentLedger);
 
-        const appliedDiscountCents = Math.min(discountCents, sameMonthReceiptCapacityCents);
+        // SISP-61: a prepay's upfront discount is NOT a discount on
+        // this bill — it is part of the multi-month coverage the
+        // customer bought. It is therefore never applied against the
+        // origin bill's capacity (where any remainder would vanish);
+        // instead it converts in full into reserved pending credit
+        // below, alongside the cash excess, under the payment's month
+        // reservation. That is what credits the FULL gross: cash
+        // settles what it settles, and cash remainder + discount ride
+        // forward as coverage. Every non-prepay payment keeps the
+        // same-month discount rule exactly as before.
+        const prepayDiscountCents = prepayTermsOf(payment) ? discountCents : 0;
+        if (prepayDiscountCents > 0) paymentLedger.prepayDiscountCreditCents = prepayDiscountCents;
+        const appliedDiscountCents = prepayDiscountCents > 0 ? 0 : Math.min(discountCents, sameMonthReceiptCapacityCents);
         if (appliedDiscountCents > 0) {
           paymentLedger.allocations.push({ month:bill.month, amountCents:appliedDiscountCents, kind:'discount' });
           summary.discountAppliedCents += appliedDiscountCents;
@@ -1741,10 +1813,11 @@ export function calculatePaymentAllocations(state) {
           dueRemainingCents -= appliedCents;
         }
         const excessCents = billPortionCents - appliedCents;
-        if (excessCents > 0) {
+        const forwardedCents = excessCents + prepayDiscountCents;
+        if (forwardedCents > 0) {
           paymentLedger.excessCents = excessCents;
-          summary.excessGeneratedCents += excessCents;
-          pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:excessCents, targetMonth:paymentLedger.targetMonth });
+          summary.excessGeneratedCents += forwardedCents;
+          pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:forwardedCents, targetMonth:paymentLedger.targetMonth });
         }
       }
       summary.balanceDueCents = Math.max(0, dueRemainingCents);

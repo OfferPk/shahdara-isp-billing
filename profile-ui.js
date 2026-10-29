@@ -4,6 +4,7 @@ import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
 import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from './mikrotik-generator.js';
 import { t } from './nav-language.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
+import { prepaidUntilMonth } from './advance-prepay.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
 
@@ -418,6 +419,20 @@ export function kistSettlementPresentation(plan) {
  * everyone else. The offer anchor is the same 1-tap wa.me link the
  * dashboard card uses; nothing here changes a package.
  */
+/**
+ * SISP-61: the "🟢 Prepaid Until <Month YYYY>" badge. The month comes
+ * from advance-prepay.js's live derivation (engine balances + unapplied
+ * credit vs the price schedule) — never from the promised month count —
+ * and this helper returns '' the moment coverage no longer reaches the
+ * current month, so the badge can never outlive the money.
+ */
+export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date()) {
+  const until = prepaidUntilMonth(state, customer?.id, referenceDate);
+  if (!until) return '';
+  const label = t('prepaid_badge', null, { month: formatReceiptMonth(until) ?? until });
+  return `<span class="prepaid-until-badge">${label}</span>`;
+}
+
 export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(n ?? '')) {
   if (!candidate) return '';
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));

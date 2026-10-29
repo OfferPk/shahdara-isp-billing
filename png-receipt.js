@@ -92,7 +92,10 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     }
   }
   if (receipt.lateFee > 0) financial.push({ label: 'Late Fee Surcharge', value: `+${money(receipt.lateFee)}` });
-  if (receipt.discount > 0) financial.push({ label: 'Discount / رعایت', value: `-${money(receipt.discount)}` });
+  // SISP-61: a prepay receipt shows coverage + discount as their own
+  // rows; 'Amount Paid' below stays the NET cash received.
+  if (receipt.prepay) financial.push({ label: 'Prepay Coverage / پیشگی کوریج', value: money(receipt.prepay.gross) });
+  if (receipt.discount > 0) financial.push({ label: receipt.prepay ? 'Prepay Discount / پیشگی رعایت' : 'Discount / رعایت', value: `-${money(receipt.discount)}` });
   // SISP-30: the concession line, and the remaining balance is net of it —
   // the SISP-2 breakdown itself stays gross, so subtract here for display.
   if (receipt.concessionAmount > 0) financial.push({ label: 'Outage Concession / رعایت', value: `-${money(receipt.concessionAmount)}` });

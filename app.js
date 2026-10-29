@@ -19,7 +19,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, upsellProfileHintHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, upsellProfileHintHtml, prepaidUntilBadgeHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml } from './receipt.js?v=1.11.0';
@@ -180,6 +180,7 @@ import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
+import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -1643,7 +1644,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="${t('cust_service_button_aria', null, { number: customer.customerNumber, status: label })}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''} ${prepaidUntilBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -2780,7 +2781,7 @@ function renderCustomerProfileView(customer) {
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${prepaidUntilBadgeHtml(state, customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -4560,6 +4561,41 @@ function advanceBadgeLabel(payment) {
   const target = advancePaymentTargetMonth(payment);
   return target ? `${t('adv_badge')} · ${t('adv_target_suffix', null, { month: displayMonthName(target) })}` : t('adv_badge');
 }
+// SISP-61: the multi-month prepay section lives inside the advance
+// dialog — same date/method/paid-by/note fields, its own months /
+// start / discount inputs, and a live quote (rate read from the
+// customer's plan data via prepayQuote, never free-typed).
+function refreshPrepaySummary() {
+  const customer = state.customers.find(c => c.id === advanceDialogCustomerId);
+  const monthsSel = document.getElementById('prepayMonths');
+  const startSel = document.getElementById('prepayStartMonth');
+  if (!customer || !monthsSel || !startSel) return;
+  const rateLine = document.getElementById('prepayRateLine');
+  const summaryLine = document.getElementById('prepaySummaryLine');
+  try {
+    const quote = prepayQuote(customer, { months: Number(monthsSel.value), startMonth: startSel.value, discount: document.getElementById('prepayDiscount')?.value || 0 });
+    if (rateLine) rateLine.textContent = t('prepay_rate_line', null, { amount: formatAmount(quote.rate) });
+    if (summaryLine) summaryLine.textContent = t('prepay_summary', null, { gross: formatAmount(quote.gross), discount: formatAmount(quote.discount), net: formatAmount(quote.netPaid) });
+  } catch (error) {
+    if (rateLine) rateLine.textContent = '';
+    if (summaryLine) summaryLine.textContent = error.message;
+  }
+}
+function setupPrepaySection(customer) {
+  const section = document.querySelector('.prepay-section');
+  const monthsSel = document.getElementById('prepayMonths');
+  const startSel = document.getElementById('prepayStartMonth');
+  if (!monthsSel || !startSel) return;
+  if (section) section.hidden = customer.isFreeConnection === true;
+  const now = new Date();
+  monthsSel.innerHTML = PREPAY_MONTH_OPTIONS.map(m => `<option value="${m}">${escapeHtml(t('prepay_months_option', null, { months: m }))}</option>`).join('');
+  monthsSel.value = '3';
+  startSel.innerHTML = advanceTargetMonthOptions(now).map(m => `<option value="${escapeHtml(m)}">${escapeHtml(displayMonthName(m))}</option>`).join('');
+  startSel.value = defaultAdvanceTargetMonth(now);
+  const discountInput = document.getElementById('prepayDiscount');
+  if (discountInput) discountInput.value = '';
+  refreshPrepaySummary();
+}
 function openAdvancePaymentDialog() {
   const customer = selectedCustomer();
   if (!customer) { toast('Search for a customer, then record their advance payment.'); return; }
@@ -4594,6 +4630,7 @@ function openAdvancePaymentDialog() {
   }
   const errorBox = document.getElementById('advancePaymentError');
   if (errorBox) { errorBox.hidden = true; errorBox.textContent = ''; }
+  setupPrepaySection(customer);
   if (dialog.showModal) dialog.showModal();
   else dialog.hidden = false;
   document.getElementById('advancePaymentAmount')?.focus();
@@ -4642,6 +4679,45 @@ function setupAdvancePaymentDialog() {
     } catch (error) {
       if (errorBox) { errorBox.textContent = error.message; errorBox.hidden = false; }
       else toast(error.message, { type: 'error', title: 'Advance payment not saved' });
+    }
+  });
+  // SISP-61: prepay section — live quote on any input change, and its
+  // own save button (the cash figure is computed by recordPrepay from
+  // the quote, so the shared Amount field is not used for a prepay).
+  for (const id of ['prepayMonths', 'prepayStartMonth', 'prepayDiscount']) {
+    document.getElementById(id)?.addEventListener('change', refreshPrepaySummary);
+    document.getElementById(id)?.addEventListener('input', refreshPrepaySummary);
+  }
+  document.getElementById('prepaySaveBtn')?.addEventListener('click', () => {
+    const customerId = advanceDialogCustomerId;
+    if (!customerId) return;
+    const errorBox = document.getElementById('advancePaymentError');
+    const data = new FormData(form);
+    try {
+      const { nextState, payment, month, prepaidUntil } = recordPrepay(state, customerId, {
+        months: Number(document.getElementById('prepayMonths')?.value),
+        startMonth: document.getElementById('prepayStartMonth')?.value || undefined,
+        discount: document.getElementById('prepayDiscount')?.value || 0,
+        date: data.get('date'),
+        method: data.get('method'),
+        paidBy: data.get('paidBy') || undefined,
+        note: data.get('note') || undefined
+      });
+      state = nextState;
+      state = applyFifoPaymentEventToState(state, customerId, month, payment.id, { prioritizeKistFirst: false });
+      save();
+      close();
+      if (selectedCustomerId === customerId) renderDetail();
+      renderTransactions();
+      const paidCustomer = state.customers.find(c => c.id === customerId);
+      const untilText = prepaidUntil ? ` · ${t('prepay_until_suffix', null, { month: displayMonthName(prepaidUntil) })}` : '';
+      toast(`${t('prepay_recorded')}: ${formatAmount(payment.amount)}${untilText} · #${paidCustomer.customerNumber} ${paidCustomer.name}`, { type: 'success', title: t('prepay_section_title'), actions: [
+        { label: 'Undo', onAction: () => { try { state = deletePayment(state, customerId, month, payment.id); save(); if (selectedCustomerId === customerId) renderDetail(); renderTransactions(); toast('Payment undone. Ledger restored.', { type: 'info', title: 'Undone' }); } catch (err) { toast(err.message); } } },
+        { label: 'Receipt', onAction: () => printPaymentReceipt(customerId, month, payment.id) }
+      ] });
+    } catch (error) {
+      if (errorBox) { errorBox.textContent = error.message; errorBox.hidden = false; }
+      else toast(error.message, { type: 'error', title: 'Prepay not saved' });
     }
   });
 }

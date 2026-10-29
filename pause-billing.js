@@ -112,6 +112,30 @@ export function isBillingPaused(customer, month) {
   return true;
 }
 
+// SISP-47: day-level hold state for a given day, shared by the MikroTik
+// vacation-hold snippets, the defaulter lock guard, and the profile
+// router section. Deliberately separate from isBillingPaused (which is
+// month-based): the router cares about exact days.
+//   'scheduled' — a hold is recorded but its start date is still ahead;
+//   'active'    — today is inside the hold window;
+//   'expired'   — an auto-resume date was set and has been reached: the
+//     window is over, but the record still says paused, so resuming is
+//     an explicit operator action, never a silent flip;
+//   'none'      — no hold (including a paused flag without a valid
+//     start date, which billing also treats as no hold).
+// An unreadable todayStr can prove neither 'scheduled' nor 'expired',
+// so the hold reads as 'active' — the safe direction for every consumer
+// (a possibly-held customer is never locked and never billed early).
+export function vacationHoldState(customer, todayStr) {
+  const { paused, pauseStartDate, autoResumeDate } = sanitizePauseFields(customer);
+  if (paused !== true || !pauseStartDate) return 'none';
+  if (isValidPauseDate(todayStr)) {
+    if (todayStr < pauseStartDate) return 'scheduled';
+    if (autoResumeDate && todayStr >= autoResumeDate) return 'expired';
+  }
+  return 'active';
+}
+
 // One-line human label for the profile view and header badge.
 export function pauseStatusLabel(customer) {
   const { paused, pauseStartDate, autoResumeDate } = sanitizePauseFields(customer);

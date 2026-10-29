@@ -39,6 +39,10 @@ import {
   escalationBadgeClass,
   ESCALATION_STAGES
 } from './reminder-queue.js';
+import {
+  sanitizePauseFields,
+  vacationHoldState
+} from './pause-billing.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -209,7 +213,13 @@ export function calculateTopDefaulters(state, {
         waadaTier: getWaadaTier(c, totalOutstanding, refYmd),
         // SISP-38: calendar-day escalation stage (grace / final-notice /
         // lock-due) for the reference date; null before the 5th.
-        escalationStage: getEscalationStage(c, totalOutstanding, refYmd)?.stage ?? null
+        escalationStage: getEscalationStage(c, totalOutstanding, refYmd)?.stage ?? null,
+        // SISP-47: vacation-hold state for the reference date. The row
+        // stays visible — pre-hold arrears are real — but it is badged
+        // On Hold, and the MikroTik lock/suspension generators refuse
+        // to sweep the customer (mikrotik-generator.js guard).
+        vacationHold: vacationHoldState(c, refYmd),
+        pauseAutoResumeDate: sanitizePauseFields(c).autoResumeDate
       });
     }
   }
@@ -890,6 +900,15 @@ export function setupTopDefaultersModal(state, {
             ? `<span class="escalation-badge ${escalationBadgeClass(acc.escalationStage)}">${escalationBadgeLabel(acc.escalationStage)}</span>`
             : '';
 
+          // SISP-47: vacation-hold badge — a held customer owes pre-hold
+          // arrears but is away, not a lock candidate; the lock and
+          // suspension scripts exclude them (generator-level guard).
+          const vacationBadge = acc.vacationHold === 'active' || acc.vacationHold === 'scheduled'
+            ? `<span class="wada-badge vacation-hold-badge">🏖️ On Vacation Hold</span>`
+            : acc.vacationHold === 'expired'
+              ? `<span class="wada-badge vacation-hold-badge">🏖️ Vacation Hold Ended ${escapeHtml(acc.pauseAutoResumeDate || '')} — Resume Pending</span>`
+              : '';
+
           return `
             <tr data-cust-id="${escapeHtml(acc.id)}" class="defaulter-row ${acc.riskCategory}">
               <td class="defaulter-rank-cell">#${acc.rank}</td>
@@ -898,6 +917,7 @@ export function setupTopDefaultersModal(state, {
                 <div class="defaulter-subtext">${escapeHtml(acc.mohalla || acc.address || 'Shahdara')}</div>
                 ${waadaBadge ? `<div class="defaulter-waada-badge">${waadaBadge}</div>` : ''}
                 ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
+                ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
               </td>
               <td>${escapeHtml(acc.area)}</td>
               <td class="defaulter-months-cell">
@@ -1069,11 +1089,11 @@ export function setupTopDefaultersModal(state, {
       const todayStr = formatDateYmd(new Date());
       if (lockDueOnly) {
         // SISP-38: the visible set is the Lock Due (15th+) suspension set.
-        const { script, locked, skippedWaada } = buildLockDueSuspensionScript(visibleCustomers(), { todayStr });
-        showMikrotikScript(script, `Lock Due suspension script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada). Review before pasting into WinBox Terminal.`);
+        const { script, locked, skippedWaada, skippedPaused } = buildLockDueSuspensionScript(visibleCustomers(), { todayStr });
+        showMikrotikScript(script, `Lock Due suspension script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada) · ${skippedPaused.length} skipped (vacation hold). Review before pasting into WinBox Terminal.`);
       } else {
-        const { script, locked, skippedWaada } = buildDefaulterLockScript(visibleCustomers(), { todayStr });
-        showMikrotikScript(script, `Lock script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada). Review before pasting into WinBox Terminal.`);
+        const { script, locked, skippedWaada, skippedPaused } = buildDefaulterLockScript(visibleCustomers(), { todayStr });
+        showMikrotikScript(script, `Lock script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada) · ${skippedPaused.length} skipped (vacation hold). Review before pasting into WinBox Terminal.`);
       }
       onToast?.('MikroTik lock script generated.');
     });

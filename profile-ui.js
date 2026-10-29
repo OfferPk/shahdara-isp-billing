@@ -1,6 +1,7 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
-import { sanitizePauseFields } from './pause-billing.js';
+import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
+import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from './mikrotik-generator.js';
 import { t } from './nav-language.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
@@ -260,6 +261,61 @@ export function pauseBillingSummary(customer) {
         ? t('prof_pause_detail_inactive_skipped', null, { skipped: skippedNote })
         : t('prof_pause_not_paused'))
   };
+}
+
+// SISP-47: vacation-hold router presentation for the profile view —
+// decides WHICH 1-click snippet the operator needs next, so the router
+// half of a hold is always an explicit paste, never a silent change:
+//   hold scheduled/active -> the DISABLE snippet (secret off + drop
+//     the live session);
+//   auto-resume date reached ('expired'), or the customer was resumed
+//     in the app after a recorded hold -> the ENABLE snippet;
+//   no hold and no hold history -> not visible at all.
+// Pure presentation: it reads the stored hold fields and builds text;
+// it never writes the ledger and never touches the router.
+export function vacationHoldRouterPresentation(customer, { todayStr = '' } = {}) {
+  const { paused, pauseStartDate, autoResumeDate, pauseSkippedMonths } = sanitizePauseFields(customer);
+  const state = vacationHoldState(customer, todayStr);
+  if (state === 'active' || state === 'scheduled') {
+    return {
+      visible: true,
+      mode: 'disable',
+      state,
+      statusText: state === 'scheduled'
+        ? t('prof_hold_status_scheduled', null, { start: pauseStartDate })
+        : (autoResumeDate
+          ? t('prof_hold_status_active_resume', null, { start: pauseStartDate, resume: autoResumeDate })
+          : t('prof_hold_status_active', null, { start: pauseStartDate })),
+      snippet: buildVacationHoldDisableSnippet(customer, { todayStr }),
+      copyLabel: t('prof_hold_copy_disable')
+    };
+  }
+  if (state === 'expired') {
+    return {
+      visible: true,
+      mode: 'enable',
+      state,
+      statusText: t('prof_hold_status_expired', null, { resume: autoResumeDate }),
+      snippet: buildVacationHoldEnableSnippet(customer, { todayStr }),
+      copyLabel: t('prof_hold_copy_enable')
+    };
+  }
+  // Not paused now, but a hold happened before (the edit form keeps the
+  // start date, and resume/billing recorded the skipped months): the
+  // router secret may still be disabled, so keep the ENABLE snippet one
+  // tap away instead of letting the resume look automatic.
+  const hasHoldHistory = pauseSkippedMonths.length > 0 || (paused !== true && pauseStartDate !== null);
+  if (hasHoldHistory) {
+    return {
+      visible: true,
+      mode: 'enable',
+      state: 'resumed',
+      statusText: t('prof_hold_status_resumed'),
+      snippet: buildVacationHoldEnableSnippet(customer, { todayStr }),
+      copyLabel: t('prof_hold_copy_enable')
+    };
+  }
+  return { visible: false, mode: null, state, statusText: '', snippet: '', copyLabel: '' };
 }
 
 // SISP-40: hamsaya referral summary for the profile view. Reads only the

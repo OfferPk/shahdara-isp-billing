@@ -149,7 +149,7 @@ import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
-import { TICKETS_KEY, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
+import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer } from './complaint-tickets.js';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
@@ -214,6 +214,40 @@ function recordRecoveryStock(beforeCustomer, updatedCustomer) {
   let saved = true;
   try { saveInventory(stored); } catch { saved = false; }
   if (failed.length > 0 || !saved) toast('Hardware recovered, but the stock book could not be updated — check Stock Book.');
+}
+
+// SISP-42 wiring into the SISP-18 stock book: the stock deductions staged
+// on SISP-12 tickets are consumed LIVE. Resolving a ticket logs its Stock
+// Out movements; reopening a ticket whose stock already went out returns
+// it as Stock In, so a re-resolve can never deduct the same stock twice.
+// The pass runs after every ticket change, once at startup, and after
+// stock-book edits. It NEVER blocks or undoes a resolution: when the book
+// refuses a deduction (not enough stock), the ticket stays resolved with
+// its deduction pending, the operator is warned, and the deduction
+// retries automatically on the next pass.
+function recordTicketStockBridge() {
+  const tickets = loadTickets();
+  const hasWork = tickets.some((ticket) => (ticket.status === 'Resolved' && !ticket.stockDeducted && ticket.stockDeductions.length > 0)
+    || (ticket.status !== 'Resolved' && ticket.stockDeducted));
+  if (!hasWork) return;
+  let result;
+  try {
+    result = applyTicketStockBridge(tickets, loadInventory(), addMovement);
+  } catch { return; }
+  if (!result.deducted.length && !result.reversed.length && !result.failures.length) return;
+  // Ticket records persist first (mirroring recordRecoveryStock: the
+  // primary record is never lost to a stock-book failure). If the ticket
+  // save itself fails, the computed movements are discarded with it, so
+  // the deduction simply stays pending and retries on the next pass.
+  try { saveTickets(result.tickets); } catch { toast(t('ticket_stock_save_failed_toast')); return; }
+  let saved = true;
+  try { saved = saveInventory(result.movements) !== false; } catch { saved = false; }
+  if (result.failures.length) {
+    const first = result.failures[0];
+    toast(t('ticket_stock_pending_toast', null, { id: first.id, reason: first.message }));
+  } else if (!saved) {
+    toast(t('ticket_stock_save_failed_toast'));
+  }
 }
 
 const $ = selector => document.querySelector(selector);
@@ -9535,11 +9569,16 @@ if (typeof document !== 'undefined') {
   });
   fieldTicketsModalController = setupFieldTicketsModal(() => state, {
     onTicketsChanged: () => {
+      recordTicketStockBridge();
       renderDashboard();
       renderDetail();
     },
     onToast: (msg, opts) => toast(msg, opts)
   });
+  // SISP-42: one bridge pass at startup so deductions left pending by an
+  // earlier shortfall (or staged before this wiring existed) land in the
+  // stock book without waiting for the next ticket edit.
+  recordTicketStockBridge();
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
@@ -9554,7 +9593,11 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   inventoryBookModalController = setupInventoryBookModal(() => state, {
-    onInventoryChanged: () => renderDashboard(),
+    onInventoryChanged: () => {
+      // SISP-42: fresh stock may unblock a pending ticket deduction.
+      recordTicketStockBridge();
+      renderDashboard();
+    },
     onToast: (msg, opts) => toast(msg, opts)
   });
   outageImpactModalController = setupOutageImpactModal(() => state, {

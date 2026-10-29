@@ -558,6 +558,15 @@
         <article class="summary-card summary-profit"><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost"><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
+      <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
+        <div class="mohalla-dashboard-heading">
+          <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>
+          <h3 id="mohallaDashboardHeading" data-i18n="dash_mohalla_title">Mohalla Dashboard</h3>
+          <p class="chart-caption" data-i18n="dash_mohalla_sub">Live user count in every mohalla that has customers. Tap a card to open exactly those customers.</p>
+        </div>
+        <div id="mohallaDashboardCards" class="mohalla-cards-grid"></div>
+        <p id="mohallaDashboardEmpty" class="empty-state" hidden data-i18n="dash_mohalla_empty">No mohalla users yet — cards appear here as soon as a customer has a mohalla set.</p>
+      </section>
       <div class="dashboard-target-section" id="dashboardTargetSection" style="margin: 14px 0;">
         <article class="dashboard-chart-card chart-card-target">
           <div class="chart-card-header chart-card-header-flex">
@@ -6629,8 +6638,9 @@
         </section>
         <div class="customer-list-search">
           <label class="customer-list-search-label" for="customerListSearch" data-i18n="cust_search_list_label">Search this list</label>
-          <div class="customer-list-search-control"><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID" data-i18n-placeholder="cust_search_placeholder"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search" data-i18n="cust_search_clear" data-i18n-aria-label="cust_search_clear_aria">Clear</button></div>
+          <div class="customer-list-search-control"><label class="sr-only" for="customerSearchField" data-i18n="cust_search_field_label">Search by</label><select id="customerSearchField" class="customer-search-field-select" aria-label="Search field" data-i18n-aria-label="cust_search_field_aria"><option value="name" selected data-i18n="cust_search_field_name">Name</option><option value="mobile" data-i18n="cust_search_field_mobile">Mobile</option><option value="userid" data-i18n="cust_search_field_userid">User ID</option><option value="area" data-i18n="cust_search_field_area">Area</option></select><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID" data-i18n-placeholder="cust_search_placeholder"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search" data-i18n="cust_search_clear" data-i18n-aria-label="cust_search_clear_aria">Clear</button></div>
           <p id="customerListSearchHelp" class="customer-list-search-help" data-i18n="cust_search_help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
+          <p class="customer-list-search-help" data-i18n="cust_search_field_help">With a field picked, the typed text matches only that field: Mobile matches phone digits, User ID matches the customer number or record ID, Area matches the mohalla.</p>
         </div>
         <section id="newCustomersPanel" class="new-customers-panel" aria-label="New customers by month" data-i18n-aria-label="cust_newcust_panel_aria"></section>
         <ul id="customerList" class="customer-list" aria-label="Customer list" data-i18n-aria-label="cust_list_aria"></ul>

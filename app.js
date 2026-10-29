@@ -552,8 +552,8 @@ function mountCustomerProfileContent() {
   if (!mounts) return;
   const groups = {
     billing:['#customerReceiptSummary','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
-    info:['.customer-meta','.package-history-section'],
-    complaints:['.incident-section']
+    info:['.customer-meta','.package-history-section','.uptime-section'],
+    complaints:['.incident-section:not(.uptime-section)']
   };
   for (const [name, selectors] of Object.entries(groups)) {
     const panel = $(`#${profileTabMap[name][1]}`);
@@ -4902,9 +4902,9 @@ $('#uptimeMonthSelect')?.addEventListener('change', (event) => {
   const customer = selectedCustomer();
   if (customer) renderUptimePanel(customer);
 });
-$('#addIncidentButton').addEventListener('click', () => showIncidentEditor());
-$('#incidentForm').addEventListener('submit', onIncidentSubmit);
-$('#cancelIncidentEditButton').addEventListener('click', () => { closeIncidentEditor(); renderDetail(); });
+$('#addIncidentButton')?.addEventListener('click', () => showIncidentEditor());
+$('#incidentForm')?.addEventListener('submit', onIncidentSubmit);
+$('#cancelIncidentEditButton')?.addEventListener('click', () => { closeIncidentEditor(); renderDetail(); });
 $('#customerExportButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) downloadTxt(`customer-${customer.customerNumber}-billing-history.txt`, exportCustomerHistory(state, customer.id)); });
 $('#exportAllButton').addEventListener('click', () => downloadTxt('shahdara-isp-payment-details.txt', exportAllPayments(state)));
 $('#backButton').addEventListener('click', () => {

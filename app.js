@@ -156,7 +156,7 @@ import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession }
 import { buildMonthlyUptime, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
-import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
+import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
 import { INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
@@ -275,6 +275,26 @@ function recordComplaintTicketSync(trigger) {
   if (result.changedTickets) {
     try { saveTickets(result.tickets); } catch { /* next pass retries */ }
   }
+}
+
+// SISP-45 wiring: mirror roznamcha petty-cash outflows into the main
+// Expenses ledger so monthly P&L (dashboard-pnl.js) and the Nasir/Aqib
+// 50% partner shares deduct field spending. The pass is a convergent
+// reconcile (roznamcha.js syncRoznamchaExpenses): every outflow lands
+// as exactly one expense deduplicated by roznamchaEntryId, a deleted
+// outflow's mirror is removed, and re-running it changes nothing — so
+// it can run at startup, after every roznamcha change, and after a
+// backup restore without ever double-counting. The roznamcha stays the
+// source of truth; the Expenses screen shows synced rows with a
+// Roznamcha badge and no edit/delete buttons.
+function recordRoznamchaExpenseSync() {
+  let result;
+  try {
+    result = syncRoznamchaExpenses(state.expenses ?? [], loadRoznamchaDays());
+  } catch { return; }
+  if (!result.changed) return;
+  state = { ...state, expenses: result.expenses };
+  if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
 }
 
 const $ = selector => document.querySelector(selector);
@@ -3674,6 +3694,8 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.roznamchaDays) {
       saveRoznamchaDays(pendingBackupPreview.roznamchaDays);
+      // SISP-45: mirror the restored day ledger into Expenses as well.
+      recordRoznamchaExpenseSync();
     }
     if (pendingBackupPreview.tickets) {
       saveTickets(pendingBackupPreview.tickets);
@@ -6937,7 +6959,18 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
 
   const sortedRows = sortExpenseRows(filteredRows, expenseSortKey, expenseSortAsc);
 
-  $('#expenseTable').innerHTML = sortedRows.map(row => `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${phase3Cell(row.notes || 'Not recorded')}</td><td class="expense-actions"><button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button></td></tr>`).join('');
+  $('#expenseTable').innerHTML = sortedRows.map(row => {
+    // SISP-45: rows mirrored from the roznamcha carry roznamchaEntryId.
+    // The roznamcha is their source of truth, so they show a provenance
+    // badge and a hint instead of Edit/Delete — changing them here
+    // would be overwritten by the next sync pass anyway.
+    const synced = typeof row.roznamchaEntryId === 'string' && row.roznamchaEntryId !== '';
+    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_roznamcha_badge'))}</span>` : ''}`;
+    const actionsCell = synced
+      ? `<span class="expense-roznamcha-hint">${escapeHtml(t('exp_roznamcha_synced_hint'))}</span>`
+      : `<button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button>`;
+    return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${notesCell}</td><td class="expense-actions">${actionsCell}</td></tr>`;
+  }).join('');
   $('#expensesEmpty').hidden = allRows.length > 0;
   const filterEmpty = $('#expensesFilterEmpty');
   if (filterEmpty) filterEmpty.hidden = allRows.length === 0 || sortedRows.length > 0;
@@ -7076,6 +7109,9 @@ $('#expenseForm').addEventListener('submit',async event=>{
   const fields=val.cleanFields;
   try{
     const id=data.get('expenseId'),previous=id?state.expenses.find(row=>row.id===id):null;
+    // SISP-45: a roznamcha-synced expense is never edited here — the
+    // roznamcha owns it and the next sync pass would restore its values.
+    if(previous?.roznamchaEntryId){toast(t('exp_roznamcha_edit_blocked_toast'));return;}
     if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();
@@ -9716,6 +9752,10 @@ if (typeof document !== 'undefined') {
   // next ticket edit.
   recordComplaintTicketSync();
   recordTicketStockBridge();
+  // SISP-45: one expense-sync pass at startup so roznamcha outflows
+  // recorded before this wiring existed (or restored with the day
+  // ledger) are mirrored into the Expenses ledger exactly once.
+  recordRoznamchaExpenseSync();
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
@@ -9726,7 +9766,7 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   roznamchaModalController = setupRoznamchaModal(() => state, {
-    onChanged: () => { renderDashboard(); },
+    onChanged: () => { recordRoznamchaExpenseSync(); renderDashboard(); },
     onToast: (msg, opts) => toast(msg, opts)
   });
   inventoryBookModalController = setupInventoryBookModal(() => state, {

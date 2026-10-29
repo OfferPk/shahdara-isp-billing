@@ -23,7 +23,8 @@ import {
   removeConcessionFromBill,
   updateCustomerProfile,
   generateMonthlyBillsThroughCurrentMonth,
-  saveBillMonth
+  saveBillMonth,
+  autoPackageFromPayment
 } from './core.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { billKistTotal } from './installment-plan.js';
@@ -518,7 +519,8 @@ export function executeQuickCollection(state, {
   // kind:'advance' tags the collection as advance credit (the only way
   // core accepts money against an already-paid bill); anything else
   // stays an ordinary untagged payment, exactly as before.
-  const nextState = addPayment(state, customerId, targetMonth, {
+  const beforePaymentIds = new Set((customer.bills?.find(b => b.month === targetMonth)?.payments ?? []).map(p => p.id));
+  let nextState = addPayment(state, customerId, targetMonth, {
     date: pDate,
     amount: numAmount,
     method: pMethod,
@@ -533,6 +535,21 @@ export function executeQuickCollection(state, {
     screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined,
     ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined
   }, referenceDate);
+
+  // Auto package follow (owner feature, 2026-10-29): when this collect
+  // created-and-settled a month that was not priced yet, the fee taken
+  // for the month becomes the customer's package (core decides from the
+  // pre-payment state; a payment toward an already-priced bill and an
+  // advance-tagged collection never move the package).
+  let autoPackage = null;
+  if (kind !== 'advance') {
+    const addedPayment = nextState.customers.find(c => c.id === customerId)?.bills?.find(b => b.month === targetMonth)?.payments?.find(p => !beforePaymentIds.has(p.id));
+    if (addedPayment) {
+      const followed = autoPackageFromPayment(state, nextState, customerId, targetMonth, addedPayment.id, referenceDate);
+      nextState = followed.nextState;
+      autoPackage = followed.autoPackage;
+    }
+  }
 
   // Compute updated balance & allocations
   const newAllocations = calculatePaymentAllocations(nextState);
@@ -594,6 +611,7 @@ export function executeQuickCollection(state, {
     ticketChargesPending: ticketChargesPendingAfter,
     payableRemaining,
     isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0,
+    packageAutoSet: autoPackage,
     collectedAt: new Date().toISOString()
   };
 
@@ -957,6 +975,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           </strong>
         </div>
         ${ticketChargeRows}
+        ${receipt.packageAutoSet ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Package</span>
+          <strong class="qc-meta-val">📦 ${escapeHtml(t('pkg_auto_set_note', null, { amount: Number(receipt.packageAutoSet.fee).toLocaleString('en-PK') }))}</strong>
+        </div>` : ''}
         ${receipt.transactionId ? `
         <div class="qc-receipt-item full-width" data-qc-receipt-txnid>
           <span class="qc-meta-label">Transaction ID / Ref</span>

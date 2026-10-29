@@ -20218,8 +20218,40 @@
           <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
           <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>
           <button id="topDefaultersPrintThermalBtn" class="secondary-button" type="button">🧾 Thermal 80mm</button>
+          <button id="topDefaultersZoneSheetBtn" class="secondary-button" type="button" data-i18n="zsheet_open_btn">🖨️ Zone Collection Sheet</button>
         </div>
         <button id="closeTopDefaultersSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- SISP-55: Zone Collection Sheet dialog (printable zone defaulter sheet for field linemen) -->
+  <dialog id="zoneSheetDialog" class="billing-modal zone-sheet-modal" aria-labelledby="zoneSheetDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="zoneSheetDialogTitle" data-i18n="zsheet_title">Zone Collection Sheet</h2>
+          <span class="urdu-subtitle">فیلڈ لائن مین بقایا فہرست پرنٹ</span>
+        </div>
+        <button id="zoneSheetCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="zone-sheet-help" data-i18n="zsheet_help">A printable defaulter list for one zone (or all zones) — the lineman ticks each visit and writes the cash received on paper.</p>
+        <div class="zone-sheet-controls">
+          <label class="zone-sheet-field" for="zoneSheetZoneSelect"><span data-i18n="zsheet_zone_label">Zone / Mohalla</span>
+            <select id="zoneSheetZoneSelect" class="zone-sheet-select"></select>
+          </label>
+          <p class="zone-sheet-month"><span data-i18n="zsheet_month_label">Sheet month</span>: <strong id="zoneSheetMonthText"></strong></p>
+        </div>
+        <label class="zone-sheet-waada" for="zoneSheetWaadaToggle"><input type="checkbox" id="zoneSheetWaadaToggle"> <span data-i18n="zsheet_include_waada">Include Waada-snoozed (promised) customers</span></label>
+        <p id="zoneSheetPreview" class="zone-sheet-preview" role="status"></p>
+      </div>
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="zoneSheetPrintA4Btn" class="secondary-button" type="button" data-i18n="zsheet_print_a4">📄 Print A4</button>
+          <button id="zoneSheetPrintThermalBtn" class="secondary-button" type="button" data-i18n="zsheet_print_thermal">🧾 Print Thermal 80mm</button>
+        </div>
+        <button id="zoneSheetCloseBtn2" class="primary-button" type="button" data-i18n="zsheet_close">Close</button>
       </footer>
     </div>
   </dialog>

@@ -155,6 +155,9 @@ export function readState(storage, key = STORAGE_KEY) {
       fiberPerMeterRate:normalizeMoneyOrNull(customer.fiberPerMeterRate),      expiryDate:validDateOrNull(customer.expiryDate),
       cancellationDate:validDateOrNull(customer.cancellationDate),
       packageHistory:Array.isArray(customer.packageHistory) ? customer.packageHistory : [],
+      // Owner default roster (2026-10-29): free connections keep their
+      // flag through save/load; legacy records load as not free.
+      isFreeConnection:customer.isFreeConnection === true,
       archived:customer.archived === true,
       archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       // SISP-8: vacation hold — corrupt values fall back to "no hold",
@@ -223,6 +226,9 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
   let changed = false;
   const customers = state.customers.map(customer => {
     if (customer.archived) return customer;
+    // Owner rule (2026-10-29): a free connection never gets a bill —
+    // no monthly fee, no pending amount, ever.
+    if (customer.isFreeConnection) return customer;
     const bills = Array.isArray(customer.bills) ? customer.bills : [];
     const existingMonths = new Set(bills.map(bill => bill.month));
     const schedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
@@ -311,7 +317,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;

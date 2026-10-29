@@ -153,6 +153,7 @@ import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildT
 import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
+import { buildMonthlyUptime, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal } from './roznamcha.js';
@@ -325,7 +326,7 @@ try {
   state = {
     version:1,
     nextCustomerNumber:INITIAL_NAMES.length + 1,
-    customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', zone:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills:[], incidents:[] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[]
+    customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', zone:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', serviceStatusHistory:[], packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills:[], incidents:[] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[]
   };
 }
 state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
@@ -1261,6 +1262,71 @@ function tenurePresentation(customer) {
   if (tenure.status === 'date-review') return { primary:t('prof_tenure_check_dates'), detail:t('prof_tenure_end_before_connection', null, { date: humanDate(tenure.endDate) }) };
   return { primary:t('prof_not_recorded'), detail:tenure.profileAddedOn ? t('prof_tenure_profile_added', null, { date: humanDate(tenure.profileAddedOn) }) : t('prof_tenure_connection_not_recorded') };
 }
+// Uptime tracking: shared duration text (e.g. "28 days 18 hours") built
+// from the upt_dur_* keys; zero parts are dropped, an all-zero duration
+// reads "0 min".
+function uptimeDurationText(totalMinutes) {
+  const parts = splitMinutes(totalMinutes);
+  const pieces = [];
+  if (parts.days) pieces.push(parts.days === 1 ? t('upt_dur_day_1') : t('upt_dur_days', null, { n: parts.days }));
+  if (parts.hours) pieces.push(parts.hours === 1 ? t('upt_dur_hour_1') : t('upt_dur_hours', null, { n: parts.hours }));
+  if (parts.minutes) pieces.push(parts.minutes === 1 ? t('upt_dur_min_1') : t('upt_dur_mins', null, { n: parts.minutes }));
+  return pieces.length ? pieces.join(' ') : t('upt_dur_zero');
+}
+// Uptime tracking: the profile age stamp — how many months + days this
+// profile/connection has existed, from the recorded connection date
+// (falling back to the profile-added date, labelled as such). No date
+// is ever invented: with neither recorded, the card says so.
+function profileAgeMarkup(customer) {
+  const age = summarizeProfileAge(customer, new Date());
+  let primary;
+  let detail;
+  if (age.months !== null) {
+    const pieces = [];
+    if (age.months) pieces.push(age.months === 1 ? t('upt_age_month_1') : t('upt_age_months', null, { n: age.months }));
+    if (age.days) pieces.push(age.days === 1 ? t('upt_age_day_1') : t('upt_age_days', null, { n: age.days }));
+    primary = pieces.length ? pieces.join(' · ') : t('upt_age_less_day');
+    detail = age.basis === 'profile'
+      ? t('prof_tenure_profile_added', null, { date: humanDate(age.startDate) })
+      : (age.status === 'ended' && age.endDate
+        ? t('prof_tenure_ended', null, { date: humanDate(age.endDate) })
+        : t('prof_tenure_connected_since', null, { date: humanDate(age.startDate) }));
+  } else if (age.status === 'future') {
+    primary = t('prof_tenure_not_started');
+    detail = t('prof_tenure_recorded_date', null, { date: humanDate(age.startDate) });
+  } else {
+    primary = t('prof_not_recorded');
+    detail = age.basis === 'profile' ? t('prof_tenure_profile_added', null, { date: humanDate(age.startDate) }) : t('prof_tenure_connection_not_recorded');
+  }
+  return `<article class="profile-summary-stat profile-summary-age"><span>${t('upt_age_label')}</span><strong>${escapeHtml(primary)}</strong><small>${escapeHtml(detail)}</small></article>`;
+}
+let selectedUptimeMonth = null;
+// Uptime tracking panel: month summary (real calendar days, online vs
+// offline) + the recorded offline periods with their reasons for the
+// chosen month. Periods come from the complaint/outage records and the
+// service-status history (see uptime-tracking.js) — nothing is
+// monitored or estimated.
+function renderUptimePanel(customer) {
+  const body = $('#uptimeSummaryBody');
+  const select = $('#uptimeMonthSelect');
+  if (!body || !select) return;
+  const months = monthsForHistory();
+  if (!selectedUptimeMonth || !months.includes(selectedUptimeMonth)) selectedUptimeMonth = months[0];
+  select.innerHTML = months.map(month => `<option value="${month}"${month === selectedUptimeMonth ? ' selected' : ''}>${escapeHtml(displayMonthName(month))}</option>`).join('');
+  const summary = buildMonthlyUptime(customer, selectedUptimeMonth, new Date());
+  const formatInstant = ms => new Intl.DateTimeFormat(undefined, { dateStyle:'medium', timeStyle:'short', timeZone:PAKISTAN_TIME_ZONE }).format(new Date(ms));
+  const stats = `<div class="uptime-summary-grid"><article class="uptime-stat"><span>${t('upt_online_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.onlineMinutes))}</strong></article><article class="uptime-stat"><span>${t('upt_offline_label')}</span><strong>${escapeHtml(uptimeDurationText(summary.offlineMinutes))}</strong></article><article class="uptime-stat"><span>${t('upt_month_days_label')}</span><strong>${summary.daysInMonth}</strong></article></div>`;
+  const partial = summary.lifetimeClamped && summary.lifetimeStart ? `<p class="uptime-note">${escapeHtml(t('upt_partial_note', null, { date: humanDate(summary.lifetimeStart) }))}</p>` : '';
+  const currently = summary.openSinceMs !== null ? `<p class="uptime-current">🔴 ${escapeHtml(t('upt_currently_offline', null, { datetime: formatInstant(summary.openSinceMs) }))}</p>` : '';
+  const periods = summary.periods.length
+    ? `<h4 class="uptime-periods-heading">${t('upt_periods_heading')}</h4><ul class="uptime-period-list">${summary.periods.map(period => {
+      const range = t('upt_period_range', null, { from: formatInstant(period.startMs), to: period.open ? t('upt_period_open') : formatInstant(period.endMs) });
+      const reason = period.reason || (period.source === 'status' ? t('upt_reason_status') : t('upt_reason_none'));
+      return `<li class="uptime-period"><div class="uptime-period-head"><strong>${escapeHtml(uptimeDurationText(period.minutes))}</strong><span>${escapeHtml(range)}</span></div><p class="uptime-period-reason">${escapeHtml(reason)}</p></li>`;
+    }).join('')}</ul>`
+    : `<p class="uptime-note">${escapeHtml(t('upt_none_offline'))}</p>`;
+  body.innerHTML = `${stats}${partial}${currently}${periods}`;
+}
 // Phase 3 mirror of buildCustomerPaymentBehavior's averageMonthlyPaymentBasis:
 // the behavior object carries the sentence, not the priced-month count, so
 // the profile re-derives the count with the engine's exact rule (valid
@@ -1283,7 +1349,7 @@ function profileReceiptSummaryMarkup(customer) {
   const scoreText = health?.score === null || health?.score === undefined ? t('prof_health_score_null') : t('prof_health_score', null, { score: health.score, category: healthCategoryKey ? t(healthCategoryKey) : health.category });
   const scoreReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
   const behaviorCards = behavior ? `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(behavior.totalOutstanding))}</strong><small>${t('prof_stat_credit_tracked')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
-  return `<section class="customer-receipt-summary" aria-label="${t('prof_receipts_aria')}"><div class="profile-summary-heading"><h3>${t('prof_receipts_heading')}</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ ${t('prof_receipts_edit')}</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>${t('prof_receipts_total')}</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : t('prof_receipts_none')}</strong><small>${receipts.receiptCount ? (receipts.receiptCount === 1 ? t('prof_stat_total_small_1', null, { count: receipts.receiptCount }) : t('prof_stat_total_small_n', null, { count: receipts.receiptCount })) : t('prof_stat_receipts_none_note')}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>${t('prof_receipts_tenure')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${behaviorCards}</div><section class="customer-health-summary" aria-label="${t('prof_health_aria')}"><strong>${escapeHtml(scoreText)}</strong><details><summary>${t('prof_health_basis')}</summary><ul>${scoreReasons || `<li>${t('prof_health_none')}</li>`}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>${t('prof_receipts_by_month')}</strong><span>${t('prof_receipts_by_month_sub')}</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="${t('prof_receipts_by_month_aria')}">${receiptRows}</ul>` : `<p class="receipt-month-empty">${t('prof_receipts_by_month_empty')}</p>`}</div></section>`;
+  return `<section class="customer-receipt-summary" aria-label="${t('prof_receipts_aria')}"><div class="profile-summary-heading"><h3>${t('prof_receipts_heading')}</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ ${t('prof_receipts_edit')}</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>${t('prof_receipts_total')}</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : t('prof_receipts_none')}</strong><small>${receipts.receiptCount ? (receipts.receiptCount === 1 ? t('prof_stat_total_small_1', null, { count: receipts.receiptCount }) : t('prof_stat_total_small_n', null, { count: receipts.receiptCount })) : t('prof_stat_receipts_none_note')}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>${t('prof_receipts_tenure')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${profileAgeMarkup(customer)}${behaviorCards}</div><section class="customer-health-summary" aria-label="${t('prof_health_aria')}"><strong>${escapeHtml(scoreText)}</strong><details><summary>${t('prof_health_basis')}</summary><ul>${scoreReasons || `<li>${t('prof_health_none')}</li>`}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>${t('prof_receipts_by_month')}</strong><span>${t('prof_receipts_by_month_sub')}</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="${t('prof_receipts_by_month_aria')}">${receiptRows}</ul>` : `<p class="receipt-month-empty">${t('prof_receipts_by_month_empty')}</p>`}</div></section>`;
 }
 function customerCardMarkup(customer, archived = false, allocations = calculatePaymentAllocations(state)) {
   const receipts = summarizeCustomerReceipts(customer);
@@ -2735,6 +2801,7 @@ function renderDetail() {
   $('#packageHistoryEmpty').hidden = packageHistory.length > 0;
   renderProfileMarginPreview();
   renderProfileProrataPreview();
+  renderUptimePanel(customer);
   renderIncidents(customer);
   renderHistory(customer);
 }
@@ -4714,6 +4781,11 @@ $('#deleteCustomerButton').addEventListener('click', async () => {
     selectCustomer(removed.id);
     toast(`#${removed.customerNumber} ${removed.name} restored with all bills and payments.`, { type:'success', title:'Delete undone' });
   } });
+});
+$('#uptimeMonthSelect')?.addEventListener('change', (event) => {
+  selectedUptimeMonth = event.target.value;
+  const customer = selectedCustomer();
+  if (customer) renderUptimePanel(customer);
 });
 $('#addIncidentButton').addEventListener('click', () => showIncidentEditor());
 $('#incidentForm').addEventListener('submit', onIncidentSubmit);

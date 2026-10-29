@@ -6879,6 +6879,10 @@
               </div>
             </div>
             <section class="package-history-section" aria-labelledby="packageHistoryHeading"><div><p class="eyebrow" data-i18n="prof_pkghist_eyebrow">PRICE SNAPSHOT HISTORY</p><h3 id="packageHistoryHeading" data-i18n="prof_pkghist_heading">Package changes</h3><p class="incident-manual-note" data-i18n="prof_pkghist_note">Recorded only when package or monthly selling amount changes. Existing bill snapshots remain unchanged.</p></div><ol id="packageHistoryList" class="package-history-list"></ol><p id="packageHistoryEmpty" class="incident-empty" data-i18n="prof_pkghist_empty">No package or monthly selling-rate changes have been recorded.</p></section>
+            <section class="incident-section uptime-section" aria-labelledby="uptimeHeading">
+              <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="upt_eyebrow">UPTIME TRACKING</p><h3 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h3><p class="incident-manual-note" data-i18n="upt_note">Counted from your own records: the complaint/outage entries below plus every manual service-status change. This app does not monitor the connection itself.</p></div><label class="uptime-month-label" for="uptimeMonthSelect"><span data-i18n="upt_month_label">Month</span><select id="uptimeMonthSelect"></select></label></div>
+              <div id="uptimeSummaryBody"></div>
+            </section>
             <section class="incident-section" aria-labelledby="incidentHeading">
               <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="prof_incident_eyebrow">MANUAL SERVICE LOG</p><h3 id="incidentHeading" data-i18n="prof_incident_heading">Complaints &amp; outages</h3><p class="incident-manual-note" data-i18n="prof_incident_note">Enter incidents yourself. This offline app does not monitor internet or connectivity.</p></div><p class="incident-count"><strong id="incidentCount30Days">0</strong><span data-i18n="prof_incident_last30">reported in the last 30 days</span></p></div>
               <button id="addIncidentButton" class="secondary-button incident-add-button" type="button" data-i18n="prof_incident_add">Add complaint/outage</button>
@@ -19314,6 +19318,10 @@
 
         <div id="quickCollectConcessionBox" class="qc-concession-box">
           <!-- SISP-30: populated dynamically with the outage concession badge + apply/remove -->
+        </div>
+
+        <div id="quickCollectUptimeLine" class="qc-uptime-line" aria-live="polite">
+          <!-- Uptime tracking: one-line online/offline summary for the selected bill month -->
         </div>
 
         <form id="quickCollectPaymentForm" class="qc-form" novalidate>

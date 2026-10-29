@@ -124,7 +124,7 @@ test('help disclosures and profile tabs have accessible names, relationships, an
 test('complaints tab mounts existing incident records and empty state without a new storage model', () => {
   assert.match(index, /id="incidentList" class="incident-list"/);
   assert.match(index, /id="incidentEmptyNote" class="incident-empty"/);
-  assert.match(app, /complaints:\['\.incident-section'\]/);
+  assert.match(app, /complaints:\['\.incident-section:not\(\.uptime-section\)'\]/);
   assert.match(app, /addIncident\(state, selectedCustomerId, fields\)/);
   assert.match(app, /updateIncident\(state, selectedCustomerId, data\.get\('incidentId'\), fields\)/);
   assert.match(app, /deleteIncident\(state, customerId, incidentId\)/);

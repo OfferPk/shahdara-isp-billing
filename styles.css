@@ -2453,6 +2453,90 @@ html, body {
   border-color: #384e44;
 }
 
+/* Equipment Inventory redesign (owner request, 2026-10-29): PRESENTATION
+   ONLY — every control keeps its id, handler and behaviour. Three moves:
+   (1) at <=700px (the house table-to-cards breakpoint, same pattern as
+   the Area summary cards) the Item Definitions table hides and one card
+   per item renders instead: item name, category chip, the available
+   quantity as the big figure with its unit, the same stock-status pill
+   as the table, and out-of-stock / low-stock cards get a status-token
+   left accent (never colour alone — the pill text still says it);
+   (2) the filter toolbar stops stacking five full-width bars: the two
+   selects share a row, search takes its own row, and Clear + Export sit
+   side by side as compact secondary actions (44px touch targets kept,
+   as the inventory e2e spec pins); (3) the item form keeps two compact
+   columns for its short fields at phone widths instead of one tall
+   single column. Tokens only, so light and dark themes both ride the
+   --surface/--ink/--muted/--line token surfaces. */
+.inventory-item-cards { display: none; }
+@media (max-width: 700px) {
+  .inventory-items-card .table-scroll { display: none; }
+  .inventory-item-cards { display: grid; gap: 12px; }
+}
+.inventory-item-chip {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+.inventory-item-figure {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.inventory-item-figure-qty {
+  color: var(--ink);
+  font: 800 26px Manrope, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.inventory-item-figure-unit {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.inventory-item-card--low { border-left: 4px solid var(--color-pending); }
+.inventory-item-card--out { border-left: 4px solid var(--color-overdue); }
+.inventory-item-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.table-filter-toolbar.inventory-filter-toolbar { gap: 8px; padding: 10px; }
+.table-filter-toolbar.inventory-filter-toolbar > .table-filter-group { flex: 1 1 150px; min-width: 0; width: auto; }
+.table-filter-toolbar.inventory-filter-toolbar > .table-filter-group.search-group { flex: 2 1 220px; }
+.inventory-filter-toolbar .table-filter-select { width: 100%; min-width: 0; }
+.inventory-filter-toolbar .table-filter-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.inventory-filter-toolbar .table-filter-actions .secondary-button {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 620px) {
+  .table-filter-toolbar.inventory-filter-toolbar { flex-direction: row; align-items: center; }
+  .table-filter-toolbar.inventory-filter-toolbar > .table-filter-group { flex: 1 1 40%; }
+  .table-filter-toolbar.inventory-filter-toolbar > .table-filter-group.search-group { flex: 1 1 100%; }
+  .inventory-filter-toolbar .table-filter-select { font-size: 14px; }
+}
+#inventoryItemForm { gap: 10px; padding: 12px; }
+@media (max-width: 700px) {
+  #inventoryItemForm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #inventoryItemForm > label:first-of-type { grid-column: 1 / -1; }
+  #inventoryItemForm > label:nth-of-type(2) { grid-column: 1 / -1; }
+  #inventoryItemForm .form-wide { grid-column: 1 / -1 !important; }
+}
+
 @media (max-width: 620px) {
   .table-pagination {
     padding: 10px;

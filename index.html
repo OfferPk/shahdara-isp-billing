@@ -7216,6 +7216,7 @@
               <input id="expenseSearchInput" class="table-filter-input" type="search" placeholder="Search notes…" autocomplete="off">
               <button id="clearExpenseFilters" class="secondary-button table-filter-clear" type="button">Clear</button>
               <button id="exportExpensesCsvBtn" class="secondary-button" type="button" title="Export expenses to CSV">Export CSV</button>
+              <button id="expenseVoucherOpenBtn" class="secondary-button" type="button" data-i18n="evouch_open_btn">🖨️ Voucher Book</button>
             </div>
             <p id="expenseTableCount" class="table-filter-count" role="status" aria-live="polite"></p>
           </div>
@@ -20262,6 +20263,36 @@
           <button id="zoneSheetPrintThermalBtn" class="secondary-button" type="button" data-i18n="zsheet_print_thermal">🧾 Print Thermal 80mm</button>
         </div>
         <button id="zoneSheetCloseBtn2" class="primary-button" type="button" data-i18n="zsheet_close">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- SISP-60: Expense Voucher Book dialog (opened from the Expenses
+       ledger toolbar). Read-only: voucher codes are derived at render
+       time and printing never writes any record. -->
+  <dialog id="expenseVoucherDialog" class="billing-modal expense-voucher-modal" aria-labelledby="expenseVoucherDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="expenseVoucherDialogTitle" data-i18n="evouch_title">Expense Voucher Book</h2>
+          <span class="urdu-subtitle">ماہانہ اخراجات اور پارٹنر واؤچر پرنٹ بک</span>
+        </div>
+        <button id="expenseVoucherCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="expense-voucher-help" data-i18n="evouch_help">A printable monthly sheet of every recorded expense and partner drawing, each with its own voucher code, ready for both partners to sign.</p>
+        <div class="expense-voucher-controls">
+          <label class="expense-voucher-field" for="expenseVoucherMonthSelect"><span data-i18n="evouch_month_label">Month</span>
+            <select id="expenseVoucherMonthSelect" class="expense-voucher-select"></select>
+          </label>
+        </div>
+        <p id="expenseVoucherPreview" class="expense-voucher-preview" role="status"></p>
+      </div>
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="expenseVoucherPrintBtn" class="secondary-button" type="button" data-i18n="evouch_print_a4">📄 Print A4</button>
+        </div>
+        <button id="expenseVoucherCloseBtn2" class="primary-button" type="button" data-i18n="evouch_close">Close</button>
       </footer>
     </div>
   </dialog>

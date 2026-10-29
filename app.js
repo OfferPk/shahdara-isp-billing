@@ -139,6 +139,7 @@ import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
+import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
@@ -398,6 +399,7 @@ export let collectionTargetController = null;
 export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
+export let expenseVoucherDialogController = null;
 export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
 export let pnlModalController = null;
@@ -10338,6 +10340,10 @@ if (typeof document !== 'undefined') {
   zoneSheetDialogController = setupZoneSheetDialog(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
+  expenseVoucherDialogController = setupExpenseVoucherDialog(() => state, {
+    getPartnerEntries: () => loadPartnerLedgerEntries(),
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
     onFilterCustomerArea: (areaName) => {
       const search = $('#globalCustomerSearch');
@@ -11461,6 +11467,14 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const expenseVoucherDialog = $('#expenseVoucherDialog');
+  if (expenseVoucherDialog && !expenseVoucherDialogController) {
+    expenseVoucherDialogController = setupExpenseVoucherDialog(() => state, {
+      getPartnerEntries: () => loadPartnerLedgerEntries(),
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const areaCollectionsModal = $('#areaCollectionsModal');
   if (areaCollectionsModal && !areaCollectionsModalController) {
     areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
@@ -11652,6 +11666,7 @@ if (typeof document !== 'undefined') {
     window.duesAgingController = duesAgingController;
     window.topDefaultersModalController = topDefaultersModalController;
     window.zoneSheetDialogController = zoneSheetDialogController;
+    window.expenseVoucherDialogController = expenseVoucherDialogController;
     window.areaCollectionsModalController = areaCollectionsModalController;
     window.packageRevenueModalController = packageRevenueModalController;
     window.pnlModalController = pnlModalController;

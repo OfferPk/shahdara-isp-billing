@@ -6,7 +6,8 @@ import {
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill,
   calculateMethodCollectionTotals, findDuplicatePaymentReference,
-  buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges
+  buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
+  autoPackageFromPayment
 } from './core.js?v=1.11.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
@@ -4200,6 +4201,7 @@ async function onPaymentSubmit(event) {
     }
     if (submitBtn) { submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
     const beforeIds = new Set((state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === form.dataset.month)?.payments || []).map(p => p.id));
+    const stateBeforePayment = state;
     state = addPayment(state, customerId, form.dataset.month, {
       date: data.get('date'),
       amount: data.get('amount'),
@@ -4217,6 +4219,16 @@ async function onPaymentSubmit(event) {
     if (fifoAdded) {
       state = applyFifoPaymentEventToState(state, customerId, form.dataset.month, fifoAdded.id, { prioritizeKistFirst: data.get('fifoPrioritizeKist') === 'on' });
     }
+    // Auto package follow (owner feature, 2026-10-29): a payment that
+    // created-and-settled an unpriced month moves the customer's package
+    // to the fee taken for that month (core decides from the
+    // pre-payment state; priced-bill payments never move it).
+    let autoPackageNote = null;
+    if (fifoAdded) {
+      const followed = autoPackageFromPayment(stateBeforePayment, state, customerId, form.dataset.month, fifoAdded.id);
+      state = followed.nextState;
+      autoPackageNote = followed.autoPackage;
+    }
     save();
     renderDetail();
     const paidCustomer = state.customers.find(c => c.id === customerId);
@@ -4225,7 +4237,7 @@ async function onPaymentSubmit(event) {
       { label:'Undo', onAction: () => { try { state = deletePayment(state, customerId, form.dataset.month, added.id); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Payment undone. Ledger restored.', { type:'info', title:'Undone' }); } catch (err) { toast(err.message); } } },
       { label:'Receipt', onAction: () => printPaymentReceipt(customerId, form.dataset.month, added.id) }
     ] : [];
-    toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(form.dataset.month)}. Payment recorded on this device.` : 'Payment recorded on this device.', { type:'success', title:'Payment recorded', actions });
+    toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(form.dataset.month)}. Payment recorded on this device.${autoPackageNote ? ` ${t('pkg_auto_set_note', null, { amount: Number(autoPackageNote.fee).toLocaleString('en-PK') })}` : ''}` : 'Payment recorded on this device.', { type:'success', title:'Payment recorded', actions });
   }
   catch (error) { toast(error.message, { type:'error', title:'Payment not saved' }); }
   finally { if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }

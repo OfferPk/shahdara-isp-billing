@@ -1,5 +1,5 @@
 import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY, canonicalMohalla } from './phase3.js';
-import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
+import { createBillPackageSnapshot, validateBillPackageSnapshot, BILL_PACKAGES } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState } from './branch-guard.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
@@ -745,6 +745,135 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
   if (clearPackageSnapshot && !selectedPackage) delete bill.packageSnapshot;
   const bills = [...customer.bills.filter(b => b.month !== month), bill].sort((a,b) => b.month.localeCompare(a.month));
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
+}
+
+// ---------------------------------------------------------------------------
+// Auto package follow (owner feature, 2026-10-29): "jab kisi customer ka
+// bill pay ho jata hai to usko automatically uska package patch ho jana
+// chahiye — kisi bande ne payment ki 2000, to uska package automatically
+// 2000 ho jana chahiye, na ke manual baar baar set karna pare." The package
+// follows the FEE DECISION for the customer's latest month, month by
+// month: when a collect creates-and-settles a month whose bill was not
+// priced yet, the fee actually taken for that month becomes the package
+// (2,000 collected as the month's fee -> package 2,000; next month the
+// fee is taken at 1,000 -> package 1,000 from that month onward, and the
+// following month bills 1,000 with no manual change).
+//
+// The decision line is the bill's state BEFORE the payment (the
+// persisted state the operator was looking at — bills auto-price from
+// the schedule on app open and on every save, so a priced bill in that
+// state is a charge the operator could see):
+//  - Month NOT priced yet (no bill, or a bill with no amount): the
+//    entered amount IS the month's fee decision, so the package follows
+//    the fee taken for the month — every real receipt on that month,
+//    net of the SISP-43 ticket-charge portion the allocation engine
+//    keeps out of bill money (advance-tagged receipts never count: a
+//    prepay is not a fee decision). The month's bill is then priced at
+//    exactly that taken fee through saveBillMonth, so the month stands
+//    at the taken fee and its receipts settle it — the bill was
+//    unpriced or created inside this very recording, so no earlier
+//    charge is ever rewritten.
+//  - Month ALREADY priced (generated or manually set): the fee was
+//    decided when the bill was priced. Any payment is a pay-down —
+//    partial OR full — and never rewrites the package (a 1,000 payment
+//    toward a generated 2,000 bill leaves the bill half-paid, 1,000
+//    still due, and the package at 2,000).
+// The assignment goes through updateCustomerProfile — the same plan path
+// as the profile Edit form, Quick Collect setup and applyCustomerPlan —
+// so the change lands in packageHistory with staff attribution and the
+// price schedule moves exactly like a manual plan change; bills are then
+// generated through the current month by the core generator, whose
+// schedule-effective-month rule keeps earlier months untouched. A
+// same-amount month is a strict no-op (no history churn). Free
+// connections and archived customers never follow. The helper never
+// throws: the recorded payment is the truth, and a failed follow must
+// not lose a real collection.
+export const AUTO_PACKAGE_STAFF_NAME = 'Auto-set from payment';
+
+function isPricedBill(bill) {
+  const amount = bill?.dueAmount;
+  return amount !== null && amount !== undefined && amount !== '' && Number.isFinite(Number(amount)) && Number(amount) > 0;
+}
+
+function applicableScheduleAmount(customer, month) {
+  const schedule = Array.isArray(customer?.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
+  const applicable = schedule
+    .filter(entry => typeof entry?.effectiveMonth === 'string' && entry.effectiveMonth <= month)
+    .sort((a, b) => a.effectiveMonth.localeCompare(b.effectiveMonth))
+    .at(-1);
+  const amount = applicable?.amount;
+  return amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0 ? null : Number(amount);
+}
+
+/**
+ * The fee actually taken for one month, in cents: every non-voided,
+ * non-advance receipt on the month's bill, minus the SISP-43
+ * ticket-charge portion of each receipt (ticket money is consumed by
+ * the tickets, never bill money — the allocation engine's own split).
+ */
+export function monthFeeTakenCents(customer, month) {
+  const bill = (customer?.bills ?? []).find(b => b.month === month);
+  if (!bill) return 0;
+  let takenCents = 0;
+  for (const payment of bill.payments ?? []) {
+    if (!payment || payment.voided === true || isAdvancePayment(payment)) continue;
+    takenCents += Math.max(0, moneyCents(payment.amount) - paymentTicketChargeCents(payment));
+  }
+  return takenCents;
+}
+
+/**
+ * After a payment has been recorded (beforeState -> afterState via the
+ * caller's normal addPayment path), move the customer's package to the
+ * fee taken for `month` when that payment was the month's fee decision.
+ * Returns { nextState, autoPackage } where autoPackage is null when
+ * nothing changed, else { fee, packageLabel } for display.
+ */
+export function autoPackageFromPayment(beforeState, afterState, customerId, month, paymentId, referenceDate = new Date()) {
+  const noChange = { nextState: afterState, autoPackage: null };
+  try {
+    const beforeCustomer = beforeState?.customers?.find(c => c.id === customerId);
+    const customer = afterState?.customers?.find(c => c.id === customerId);
+    if (!beforeCustomer || !customer) return noChange;
+    if (customer.archived || customer.isFreeConnection) return noChange;
+    const bills = Array.isArray(customer.bills) ? customer.bills : [];
+    const bill = bills.find(b => b.month === month);
+    if (!bill) return noChange;
+    // The triggering receipt must be a real, normal payment on this
+    // month (advance-tagged money is prepay, never a fee decision).
+    const payment = (bill.payments ?? []).find(p => p.id === paymentId);
+    if (!payment || payment.voided === true || isAdvancePayment(payment)) return noChange;
+    // Only the customer's latest month can move the package — paying an
+    // older month late never rewrites today's plan.
+    const latestMonth = bills.reduce((max, b) => (typeof b?.month === 'string' && b.month > max ? b.month : max), '');
+    if (month !== latestMonth) return noChange;
+    // A bill already priced before this payment decided the month's fee
+    // at pricing time; the payment only pays it down.
+    const beforeBill = (beforeCustomer.bills ?? []).find(b => b.month === month);
+    if (beforeBill && isPricedBill(beforeBill)) return noChange;
+    const takenCents = monthFeeTakenCents(customer, month);
+    if (takenCents <= 0) return noChange;
+    const selling = Number(customer.monthlySellingAmount);
+    const currentFee = Number.isFinite(selling) && selling > 0 ? selling : applicableScheduleAmount(customer, month);
+    if (currentFee !== null && moneyCents(currentFee) === takenCents) return noChange;
+    const takenFee = takenCents / 100;
+    const plan = BILL_PACKAGES.find(p => moneyCents(p.price) === takenCents) ?? null;
+    const values = { monthlySellingAmount: takenFee, packageChangeStaffName: AUTO_PACKAGE_STAFF_NAME };
+    if (plan) values.packageSpeed = plan.label;
+    let next = updateCustomerProfile(afterState, customerId, values, referenceDate);
+    // The month stands at the taken fee: price its bill at exactly that
+    // amount (saveBillMonth keeps the receipts and audits the amount
+    // change). Skipped when the recording's own bill generation already
+    // priced it at the taken fee.
+    const monthBill = next.customers.find(c => c.id === customerId)?.bills?.find(b => b.month === month);
+    if (monthBill && moneyCents(monthBill.dueAmount) !== takenCents) {
+      next = saveBillMonth(next, customerId, { month, dueAmount: takenFee, status: 'pending' }, referenceDate);
+    }
+    next = generateMonthlyBillsThroughCurrentMonth(next, referenceDate);
+    return { nextState: next, autoPackage: { fee: takenFee, packageLabel: plan ? plan.label : String(customer.packageSpeed ?? '') } };
+  } catch {
+    return noChange;
+  }
 }
 
 // SISP-43: a payment can settle billed field-ticket charges (SISP-12) as

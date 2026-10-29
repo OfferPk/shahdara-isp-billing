@@ -410,3 +410,17 @@ export function kistSettlementPresentation(plan) {
       : ''
   };
 }
+
+/**
+ * SISP-59: profile upgrade-suggestion hint. Renders ONLY for a customer
+ * who is an upsell candidate (computed read-only by
+ * upsell-optimizer.js — this helper just formats it); returns '' for
+ * everyone else. The offer anchor is the same 1-tap wa.me link the
+ * dashboard card uses; nothing here changes a package.
+ */
+export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(n ?? '')) {
+  if (!candidate) return '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const textLine = t('prof_upsell_text', null, { target: candidate.targetLabel, price: formatAmountFn(candidate.targetPrice), gain: formatAmountFn(candidate.gainPerMonth) });
+  return `<section class="profile-referral-section" aria-label="${esc(t('prof_upsell_heading'))}"><h4>${esc(t('prof_upsell_heading'))}</h4><p>${esc(textLine)}</p>${candidate.whatsappUrl ? `<p><a class="secondary-button" href="${esc(candidate.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${esc(t('upsell_offer'))}</a></p>` : ''}</section>`;
+}

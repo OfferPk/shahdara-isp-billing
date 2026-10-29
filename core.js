@@ -796,8 +796,28 @@ export function isAdvancePayment(payment) {
   return payment?.kind === ADVANCE_PAYMENT_KIND;
 }
 
+/**
+ * Advance month targeting (owner feature, 2026-10-29 — the SISP-61
+ * core): an advance payment may carry a targetMonth ('YYYY-MM') — the
+ * month the money is FOR, chosen by the operator at record time ("ye
+ * 3,000 November ka hai"). The allocation engine RESERVES a targeted
+ * credit for its month: it never settles an earlier bill; the first
+ * priced bill at or after the target month releases it, it applies
+ * there like any credit, and any remainder then flows onward as
+ * ordinary credit. Untargeted advances (every legacy record) keep the
+ * long-standing FIFO behaviour exactly. This reader is the single
+ * sanitization point: only the exact advance kind plus a strictly
+ * valid month string reads as a target; anything else (missing,
+ * malformed, riding a normal payment) reads as untargeted, so a
+ * corrupt value in a backup can never steer money.
+ */
+export function advancePaymentTargetMonth(payment) {
+  if (!isAdvancePayment(payment)) return null;
+  return validMonthString(payment?.targetMonth) ? payment.targetMonth : null;
+}
+
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note, targetMonth } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -838,6 +858,11 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     amount: cents,
     method,
     ...(kind === ADVANCE_PAYMENT_KIND ? { kind: ADVANCE_PAYMENT_KIND } : {}),
+    // Advance month target: kept only on an advance payment and only
+    // as a strictly valid 'YYYY-MM' (the same rule as every other
+    // month field) — anything else is dropped, never stored raw, so
+    // untargeted records stay byte-identical to before.
+    ...(kind === ADVANCE_PAYMENT_KIND && validMonthString(targetMonth) ? { targetMonth } : {}),
     ...(cleanNote ? { note: cleanNote } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
     ...(payer ? { paidBy:payer } : {}),
@@ -1022,6 +1047,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     ...fields,
     discount: fields.discount !== undefined ? fields.discount : existingPayment.discount,
     discountReason: fields.discountReason !== undefined ? fields.discountReason : existingPayment.discountReason,
+    // Advance month targeting: the correction form carries no kind or
+    // target field, so a correction must never silently strip an
+    // advance payment's tag or its month target (the walletVerified
+    // carry-over rule below, applied to the advance fields).
+    kind: fields.kind !== undefined ? fields.kind : existingPayment.kind,
+    targetMonth: fields.targetMonth !== undefined ? fields.targetMonth : existingPayment.targetMonth,
     // SISP-21: a correction form carries no verification toggle, so a
     // correction must never silently drop an existing verification.
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified
@@ -1496,11 +1527,11 @@ export function calculatePaymentAllocations(state) {
           // by the tickets — only the rest is unused credit here.
           const ticketChargeCents = paymentTicketChargeCents(payment);
           const creditCents = Math.max(0, amountCents - ticketChargeCents);
-          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents };
+          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment) };
           byPaymentId.set(payment.id, paymentLedger);
           if (creditCents > 0) {
             summary.excessGeneratedCents += creditCents;
-            pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:creditCents });
+            pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:creditCents, targetMonth:paymentLedger.targetMonth });
           }
         }
         continue;
@@ -1522,8 +1553,20 @@ export function calculatePaymentAllocations(state) {
       // the Khata Doctor formula gives it. The field is absent on every
       // legacy bill, so all existing allocations are unchanged.
       dueRemainingCents -= Math.min(moneyCents(bill.depositOffsetAmount || 0), billAmountCents);
+      // Advance month targeting: a targeted credit is RESERVED for its
+      // month — the loop below skips it while its target is still in
+      // the future, so it can never settle an earlier bill. This bill
+      // is the first priced bill at or after the target month, so the
+      // reservation ends here (before any application): the credit
+      // applies to this bill below like any other, and whatever
+      // remains afterwards flows onward as ordinary credit — the
+      // money was FOR this month, not locked to it forever.
+      for (const credit of pendingCredits) {
+        if (credit.targetMonth && credit.targetMonth <= bill.month) credit.targetMonth = null;
+      }
       for (const credit of pendingCredits) {
         if (dueRemainingCents <= 0) break;
+        if (credit.targetMonth) continue;
         const appliedCents = Math.min(credit.remainingCents, dueRemainingCents);
         if (appliedCents <= 0) continue;
         credit.remainingCents -= appliedCents;
@@ -1544,7 +1587,7 @@ export function calculatePaymentAllocations(state) {
         const ticketChargeCents = paymentTicketChargeCents(payment);
         const billPortionCents = Math.max(0, amountCents - ticketChargeCents);
         const discountCents = moneyCents(payment.discount || 0);
-        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents };
+        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment) };
         byPaymentId.set(payment.id, paymentLedger);
 
         const appliedDiscountCents = Math.min(discountCents, sameMonthReceiptCapacityCents);
@@ -1566,7 +1609,7 @@ export function calculatePaymentAllocations(state) {
         if (excessCents > 0) {
           paymentLedger.excessCents = excessCents;
           summary.excessGeneratedCents += excessCents;
-          pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:excessCents });
+          pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:excessCents, targetMonth:paymentLedger.targetMonth });
         }
       }
       summary.balanceDueCents = Math.max(0, dueRemainingCents);
@@ -1603,6 +1646,9 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     voided: payment.voided === true,
     // Advance tag (legacy payments carry no kind and read as normal).
     isAdvance: isAdvancePayment(payment),
+    // Advance month target (sanitized; null when untargeted) so the
+    // Transactions list can show "Advance · for November 2026".
+    targetMonth: advancePaymentTargetMonth(payment),
     customerId: customer.id,
     customerNumber: customer.customerNumber,
     customerName: customer.name,
@@ -1641,7 +1687,7 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
     const creditForwarded = moneyValue(allocation?.creditForwardedCents ?? 0);
     const pendingCreditSources = [...allocations.byPaymentId.values()]
       .filter(source => source.customerId === customer.id && source.unappliedCreditCents > 0)
-      .map(source => ({ paymentId:source.paymentId, originMonth:source.originMonth, paymentDate:source.date, method:source.method, receiptAmount:source.amount, amountCents:source.unappliedCreditCents }));
+      .map(source => ({ paymentId:source.paymentId, originMonth:source.originMonth, paymentDate:source.date, method:source.method, receiptAmount:source.amount, amountCents:source.unappliedCreditCents, targetMonth:source.targetMonth ?? null }));
     const creditPending = moneyValue(pendingCreditSources.reduce((sum, source) => sum + source.amountCents, 0));
     if (configuredAmount !== null && configuredAmount !== undefined && configuredAmount !== '') {
       billAmount = Number(configuredAmount);

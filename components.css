@@ -460,6 +460,25 @@ body.field-mode-open { overflow: hidden; }
   padding: 0 12px;
   font-size: var(--text-sm);
 }
+.field-mode-advance-target-label {
+  display: block;
+  margin: 0 0 6px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--ink);
+}
+.field-mode-advance-target {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 48px;
+  margin: 0 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: var(--text-sm);
+}
 .field-mode-panel {
   margin-top: 16px;
   min-width: 0;

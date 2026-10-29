@@ -28,7 +28,12 @@
  *      the month's advance intake, distinct from the held figure.
  *   3. holders — every customer whose held balance is above zero,
  *      sorted by amount descending (ties: customerNumber ascending,
- *      then name), carrying name + mohalla for the dialog rows.
+ *      then name), carrying name + mohalla for the dialog rows. Each
+ *      holder also carries `targets`: the month targets still holding
+ *      money, per payment ledger (a ledger's unapplied remainder is
+ *      attributable to its own payment, so the split is exact) —
+ *      [{ month, amountCents }] ascending by month, empty when all of
+ *      the holder's credit is untargeted.
  *
  * Tests use synthetic data only.
  */
@@ -52,7 +57,7 @@ function text(value) {
  *   figure; anything else yields a collected figure of 0 (never guessed).
  * @returns {{heldTotalCents: number, collectedThisMonthCents: number,
  *   holders: Array<{customerId, customerNumber, customerName, mohalla,
- *   amountCents}>}}
+ *   amountCents, targets?: Array<{month, amountCents}>}>}}
  */
 export function buildAdvanceDashboard(state, currentMonth) {
   const customers = (Array.isArray(state?.customers) ? state.customers : [])
@@ -63,6 +68,17 @@ export function buildAdvanceDashboard(state, currentMonth) {
   // directly, so it receives the normalized list.
   const allocations = calculatePaymentAllocations({ customers });
 
+  // Month targets still holding money, per customer: a payment
+  // ledger's unapplied remainder belongs to that payment alone, so
+  // grouping the remainders by their (sanitized) target is exact.
+  const targetsByCustomer = new Map();
+  for (const ledger of allocations.byPaymentId.values()) {
+    if (!(ledger.unappliedCreditCents > 0) || !ledger.targetMonth) continue;
+    const byMonth = targetsByCustomer.get(ledger.customerId) ?? new Map();
+    byMonth.set(ledger.targetMonth, (byMonth.get(ledger.targetMonth) ?? 0) + ledger.unappliedCreditCents);
+    targetsByCustomer.set(ledger.customerId, byMonth);
+  }
+
   const holders = [];
   let heldTotalCents = 0;
   for (const customer of customers) {
@@ -70,12 +86,18 @@ export function buildAdvanceDashboard(state, currentMonth) {
     const amountCents = advanceBalanceCents(state, customer.id, allocations);
     if (!(amountCents > 0)) continue;
     heldTotalCents += amountCents;
+    const targets = [...(targetsByCustomer.get(customer.id)?.entries() ?? [])]
+      .map(([targetMonth, targetAmountCents]) => ({ month: targetMonth, amountCents: targetAmountCents }))
+      .sort((a, b) => a.month.localeCompare(b.month));
     holders.push({
       customerId: customer.id ?? '',
       customerNumber: customer.customerNumber ?? null,
       customerName: text(customer.name),
       mohalla: text(customer.mohalla),
-      amountCents
+      amountCents,
+      // Present only when the holder actually has targeted money —
+      // an untargeted holder's row is byte-identical to before.
+      ...(targets.length > 0 ? { targets } : {})
     });
   }
   holders.sort((a, b) => b.amountCents - a.amountCents

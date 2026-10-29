@@ -33,7 +33,7 @@ import {
   unsettleTicketChargesForPayment
 } from './complaint-tickets.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
-import { normalPaymentBlockReason } from './advance-payment.js';
+import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
 import { t } from './nav-language.js';
 import {
@@ -332,7 +332,8 @@ export function executeQuickCollection(state, {
   strictDigitalReference,
   enforceDigitalReference,
   tickets,
-  kind
+  kind,
+  advanceTargetMonth
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -397,6 +398,10 @@ export function executeQuickCollection(state, {
     amount: numAmount,
     method: pMethod,
     kind: kind === 'advance' ? 'advance' : undefined,
+    // Advance month targeting: the month the money is FOR, chosen on
+    // the sheet. Only an advance collection carries it; core's
+    // validatePayment sanitizes it (strict 'YYYY-MM', advance-only).
+    targetMonth: kind === 'advance' ? advanceTargetMonth : undefined,
     paidBy: paidBy ? String(paidBy).trim() : undefined,
     transactionId: cleanTxnId || undefined,
     referenceOverrideReason: cleanReason || undefined,
@@ -906,6 +911,7 @@ export function setupQuickCollectModal({
   const monthSelect = document.getElementById('quickCollectMonthSelect');
   const paidByInput = document.getElementById('quickCollectPaidByInput');
   const advanceCheckbox = document.getElementById('quickCollectAdvanceCheckbox');
+  const advanceTargetSelect = document.getElementById('quickCollectAdvanceTargetMonth');
   const dueAmountVal = document.getElementById('quickCollectDueAmountVal');
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
@@ -1253,6 +1259,16 @@ export function setupQuickCollectModal({
       // for early payers instead of hitting core's fully-paid guard.
       if (advanceCheckbox) {
         advanceCheckbox.checked = activeDefaults.totalDues <= 0 && activeDefaults.ticketChargesPending <= 0;
+      }
+
+      // Advance month target: current month onward, next month
+      // pre-selected (the sheet's month select shows raw YYYY-MM, so
+      // this one does too). Only read when the Advance box is ticked.
+      if (advanceTargetSelect) {
+        const targetDefault = defaultAdvanceTargetMonth();
+        advanceTargetSelect.innerHTML = advanceTargetMonthOptions().map(m =>
+          `<option value="${m}" ${m === targetDefault ? 'selected' : ''}>${m}</option>`
+        ).join('');
       }
 
       // SISP-30: concession badge for the target month (refreshes on month change).
@@ -1672,6 +1688,7 @@ export function setupQuickCollectModal({
         date: dateVal,
         method: methodVal,
         kind: advanceCheckbox?.checked ? 'advance' : undefined,
+        advanceTargetMonth: advanceCheckbox?.checked ? (advanceTargetSelect?.value || undefined) : undefined,
         paidBy: paidByVal,
         transactionId: txnIdVal,
         referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,

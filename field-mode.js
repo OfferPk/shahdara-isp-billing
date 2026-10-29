@@ -81,7 +81,7 @@ import {
   getPakistanLocalDate
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations } from './core.js';
-import { advanceBalanceCents } from './advance-payment.js';
+import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
 import {
@@ -386,7 +386,7 @@ export function fieldModeCustomerStatus(state, customerId, allocations = null) {
  * credit (the engine's real FIFO semantics). Throws on a bad amount or
  * an invalid method (executeQuickCollection validates both).
  */
-export function collectFieldModeAdvance(state, entry, { amount, method } = {}, referenceDate = new Date()) {
+export function collectFieldModeAdvance(state, entry, { amount, method, targetMonth } = {}, referenceDate = new Date()) {
   const numAmount = Number(amount);
   if (!entry || !Number.isFinite(numAmount) || numAmount <= 0) {
     throw new Error('Enter a valid advance amount greater than zero.');
@@ -400,12 +400,18 @@ export function collectFieldModeAdvance(state, entry, { amount, method } = {}, r
       amount: numAmount,
       date: today,
       method: method || 'Cash',
-      kind: 'advance'
+      kind: 'advance',
+      // Month targeting: the month this money is FOR (the sheet's
+      // picker; next month by default). Sanitized by core on record.
+      advanceTargetMonth: targetMonth
     },
     referenceDate
   );
   return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt) };
 }
+
+/** 'November 2026'-style label for a 'YYYY-MM' key (sheet convention). */
+const fieldModeMonthLabel = month => new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-01T00:00:00Z`));
 
 /**
  * Applies one Waada chip to a customer record (pure, SISP-3 flow).
@@ -491,6 +497,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let selectedId = null;
   let lastReceipt = null;
   let lastReceiptAdvance = false;
+  let lastReceiptAdvanceTarget = null;
   let panelMode = 'collect';
   let busy = false;
 
@@ -602,7 +609,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       });
       panelEl.innerHTML = `<section class="field-mode-receipt" aria-label="Collection receipt">
         <h3>✅ Collected — ${escapeHtml(receipt.customerName)}</h3>
-        ${lastReceiptAdvance ? '<p><span class="ds-chip ds-chip--pending">🟡 Advance</span> Tagged as advance credit for the next bill.</p>' : ''}
+        ${lastReceiptAdvance ? `<p><span class="ds-chip ds-chip--pending">🟡 Advance</span> Tagged as advance credit${lastReceiptAdvanceTarget ? ` for ${escapeHtml(fieldModeMonthLabel(lastReceiptAdvanceTarget))}` : ' for the next bill'}.</p>` : ''}
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
         <p>Remaining balance: <strong>${escapeHtml(formatPKR(receipt.newTotalDues))}</strong> · ${settled ? 'PAID IN FULL' : 'PARTIAL'}</p>
         ${whatsapp.url
@@ -690,10 +697,14 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <span>Advance payment (next bill credit)</span>
       </label>
       <input id="fieldModeAdvanceAmount" class="field-mode-advance-amount" type="number" inputmode="decimal" min="1" step="any" placeholder="Advance amount (PKR)" aria-label="Advance amount (PKR)">
+      <label class="field-mode-advance-target-label" for="fieldModeAdvanceTargetMonth">Advance for month</label>
+      <select id="fieldModeAdvanceTargetMonth" class="field-mode-advance-target" aria-label="Advance for month">
+        ${advanceTargetMonthOptions().map(m => `<option value="${escapeHtml(m)}" ${m === defaultAdvanceTargetMonth() ? 'selected' : ''}>${escapeHtml(fieldModeMonthLabel(m))}</option>`).join('')}
+      </select>
       <div class="field-mode-action-grid">
         ${methodButtons}
       </div>
-      <p class="field-mode-note">Money received before its bill — it stays tagged as advance and reduces the next bill automatically.</p>
+      <p class="field-mode-note">Money received before its bill — it stays tagged as advance for the selected month and adjusts against that month's bill automatically.</p>
       ${zeroDues ? '' : '<button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance-back">← Back to collection</button>'}
       <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="back">← Back to list</button>
     </section>`;
@@ -722,6 +733,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     selectedId = id;
     lastReceipt = null;
     lastReceiptAdvance = false;
+    lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
     render();
   }
@@ -744,6 +756,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       if (typeof onSaveState === 'function') onSaveState(nextState);
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = false;
+      lastReceiptAdvanceTarget = null;
       toast(`${formatPKR(receipt.amount)} collected from ${receipt.customerName}.`);
     } catch (err) {
       toast(err?.message || 'Could not record payment.');
@@ -773,13 +786,20 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     }
     const amountInput = panelEl?.querySelector('#fieldModeAdvanceAmount');
     const amount = amountInput ? Number(amountInput.value) : NaN;
+    const targetInput = panelEl?.querySelector('#fieldModeAdvanceTargetMonth');
+    const targetMonth = targetInput ? targetInput.value : undefined;
     busy = true;
     renderPanel();
     try {
-      const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method });
+      const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method, targetMonth });
       if (typeof onSaveState === 'function') onSaveState(nextState);
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = true;
+      // The receipt card names the month from the RECORDED payment
+      // (sanitized by core), never from the raw select value.
+      const recordedCustomer = nextState.customers.find(c => c.id === entry.id);
+      const recordedPayment = (recordedCustomer?.bills ?? []).flatMap(b => b.payments ?? []).find(p => p.id === receipt.paymentId);
+      lastReceiptAdvanceTarget = advancePaymentTargetMonth(recordedPayment);
       panelMode = 'collect';
       toast(`Advance ${formatPKR(receipt.amount)} recorded for ${receipt.customerName}.`);
     } catch (err) {
@@ -850,6 +870,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     selectedId = null;
     lastReceipt = null;
     lastReceiptAdvance = false;
+    lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
   };
   if (searchInput) {

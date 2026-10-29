@@ -150,6 +150,7 @@ import { applyFifoPaymentEventToState, buildArrearsBreakdown, loadBillingCycles,
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
+import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
@@ -247,6 +248,31 @@ function recordTicketStockBridge() {
     toast(t('ticket_stock_pending_toast', null, { id: first.id, reason: first.message }));
   } else if (!saved) {
     toast(t('ticket_stock_save_failed_toast'));
+  }
+}
+
+// SISP-44 wiring: one complaint↔ticket reconcile pass after every
+// complaint or ticket change (and once at startup). Resolving a ticket
+// resolves its linked register complaint (downtime + note sync);
+// resolving a complaint resolves its linked ticket; a reopen on either
+// side undoes only a synced resolution on the other. The pass is
+// convergent — running it on already-synced ledgers changes nothing —
+// so it can sit safely inside both change callbacks. The trigger names
+// the side that just changed, so a deliberate reopen is never undone
+// by its own pass (see the sync module's CAUSALITY note). It runs
+// BEFORE the stock bridge so a sync that reopens a deducted ticket is
+// reversed by the same change cycle.
+function recordComplaintTicketSync(trigger) {
+  let result;
+  try {
+    result = syncComplaintTicketLinks(loadComplaints(), loadTickets(), { trigger });
+  } catch { return; }
+  if (!result.changedComplaints && !result.changedTickets) return;
+  if (result.changedComplaints) {
+    try { saveComplaints(result.complaints); } catch { /* next pass retries */ }
+  }
+  if (result.changedTickets) {
+    try { saveTickets(result.tickets); } catch { /* next pass retries */ }
   }
 }
 
@@ -9582,24 +9608,41 @@ if (typeof document !== 'undefined') {
   });
   complaintRegisterModalController = setupComplaintRegisterModal(() => state, {
     onComplaintsChanged: () => {
+      recordComplaintTicketSync('complaint');
+      recordTicketStockBridge();
       renderDashboard();
       renderDetail();
       if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
       if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
     },
+    // SISP-44: the register card shows the linked ticket (or the
+    // 1-click assign controls) via complaint-ticket-sync.js.
+    getTicketLink: (complaintId) => linkedTicketSummary(loadTickets(), complaintId),
+    onAssignTicket: (complaintId, technician) => {
+      const result = assignTicketForComplaint(loadComplaints(), loadTickets(), complaintId, { technician });
+      if (result.created) {
+        saveTickets(result.tickets);
+        if (fieldTicketsModalController) fieldTicketsModalController.refresh();
+      }
+      return { ticket: result.ticket, created: result.created };
+    },
     onToast: (msg, opts) => toast(msg, opts)
   });
   fieldTicketsModalController = setupFieldTicketsModal(() => state, {
     onTicketsChanged: () => {
+      recordComplaintTicketSync('ticket');
       recordTicketStockBridge();
       renderDashboard();
       renderDetail();
     },
     onToast: (msg, opts) => toast(msg, opts)
   });
-  // SISP-42: one bridge pass at startup so deductions left pending by an
-  // earlier shortfall (or staged before this wiring existed) land in the
-  // stock book without waiting for the next ticket edit.
+  // SISP-44: converge any linked complaint/ticket pairs recorded before
+  // the sync existed, then SISP-42: one bridge pass at startup so
+  // deductions left pending by an earlier shortfall (or staged before
+  // this wiring existed) land in the stock book without waiting for the
+  // next ticket edit.
+  recordComplaintTicketSync();
   recordTicketStockBridge();
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)

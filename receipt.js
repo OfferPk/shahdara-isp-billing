@@ -1,4 +1,4 @@
-import { calculatePaymentAllocations, paymentTicketChargeCents, ticketChargeLinesOf } from './core.js';
+import { calculatePaymentAllocations, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
@@ -149,6 +149,16 @@ export function buildPaymentReceipt(customer, bill, payment) {
     ticketCharges: ticketChargeLinesOf(payment),
     ticketChargesTotal: ticketChargeLinesOf(payment).reduce((sum, line) => sum + line.amount, 0),
     totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee,
+    // SISP-61: a multi-month prepay prints its three money lines
+    // separately — gross coverage, the upfront discount, and the cash
+    // actually paid (paidAmount above, which stays NET cash: the gross
+    // is coverage, never cash collected). Null on every other receipt,
+    // so non-prepay receipts stay byte-identical.
+    prepay: (() => {
+      const terms = prepayTermsOf(payment);
+      if (!terms) return null;
+      return { months: terms.months, gross: terms.gross, rate: terms.rate, startMonth: terms.startMonth, discount: positiveAmount(payment.discount) || 0, cashPaid: positiveAmount(payment.amount) };
+    })(),
     discount: positiveAmount(payment.discount) || 0,
     discountReason: text(payment.discountReason),
     paidAmount:positiveAmount(payment.amount),
@@ -178,6 +188,17 @@ export function buildPaymentReceipt(customer, bill, payment) {
 // SISP-43: billed ticket charge rows for the HTML receipt layouts.
 // Empty when the payment settled no ticket charge, so ordinary receipts
 // render exactly as before.
+// SISP-61: a prepay receipt shows its coverage as its own lines — the
+// gross coverage bought and the upfront discount — alongside the PAID
+// row (the cash actually received). The generic discount row is
+// suppressed for prepay receipts so the discount prints exactly once.
+const prepayReceiptRows = (receipt, formatAmount) => {
+  if (!receipt.prepay) return '';
+  const rows = [`<div class="receipt-field"><dt>Prepay Coverage / پیشگی کوریج (${receipt.prepay.months} months · from ${escapeHtml(receipt.prepay.startMonth)}):</dt><dd>${formatAmount(receipt.prepay.gross)}</dd></div>`];
+  if (receipt.prepay.discount > 0) rows.push(`<div class="receipt-field"><dt>Prepay Discount / پیشگی رعایت:</dt><dd>-${formatAmount(receipt.prepay.discount)}</dd></div>`);
+  return rows.join('');
+};
+
 const ticketChargeReceiptRows = (receipt, formatAmount) => {
   const lines = Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [];
   return lines.map((line) => `<div class="receipt-field"><dt>Murammat / Material Charge (${escapeHtml(line.ticketId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
@@ -272,7 +293,8 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
-    ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
+    ${prepayReceiptRows(receipt, formatAmount)}
+    ${receipt.discount > 0 && !receipt.prepay ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
@@ -311,7 +333,8 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Monthly Fee / ماہانہ واجبات:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
-    ${receipt.discount > 0 ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
+    ${prepayReceiptRows(receipt, formatAmount)}
+    ${receipt.discount > 0 && !receipt.prepay ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
@@ -353,7 +376,8 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
     ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),
     ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
-    ...(receipt.discount > 0 ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
+    ...(receipt.prepay ? [['Prepay Coverage', `${formatAmount(receipt.prepay.gross)} (${receipt.prepay.months} months from ${receipt.prepay.startMonth})`], ...(receipt.prepay.discount > 0 ? [['Prepay Discount', `-${formatAmount(receipt.prepay.discount)}`]] : []), ['Prepay Cash Paid', formatAmount(receipt.prepay.cashPaid)]] : []),
+    ...(receipt.discount > 0 && !receipt.prepay ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
     ...(receipt.arrearsBreakdown ? [
       ['Mahana Package / ماہانہ پیکیج', formatAmount(receipt.arrearsBreakdown.packageAmount)],
       ...(receipt.arrearsBreakdown.kistAmount > 0 ? [

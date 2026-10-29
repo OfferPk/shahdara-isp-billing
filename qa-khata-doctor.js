@@ -67,7 +67,7 @@
 
 import { canonicalize, crc32Hex } from './backup-health.js';
 import { billKistTotal, sanitizeInstallmentPlan } from './installment-plan.js';
-import { paymentTicketChargeCents } from './core.js';
+import { paymentTicketChargeCents, prepayTermsOf } from './core.js';
 
 export const KHATA_DOCTOR_VERSION = 1;
 
@@ -111,7 +111,10 @@ export function computeLedgerBalance(customer) {
       // is unused credit carried forward (core.js allocation rule) —
       // except a receipt's SISP-43 ticket-charge portion, which the
       // tickets consumed and which never becomes credit.
-      creditCents += payments.reduce((sum, payment) => sum + Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment)), 0);
+      // SISP-61: a prepay's upfront discount is coverage, not a
+      // discount on any bill — on an unpriced bill it is unused credit
+      // in full, exactly like the engine's rule.
+      creditCents += payments.reduce((sum, payment) => sum + Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment)) + (prepayTermsOf(payment) ? cents(payment.discount || 0) : 0), 0);
       continue;
     }
     const chargeCents = cents(bill.dueAmount) + cents(bill.lateFee || 0) + cents(bill.shiftingFee || 0);
@@ -129,7 +132,13 @@ export function computeLedgerBalance(customer) {
     creditCents -= appliedCreditCents;
     dueCents -= appliedCreditCents;
     for (const payment of payments) {
-      const discountCents = Math.min(cents(payment.discount || 0), dueCents);
+      // SISP-61: a prepay's upfront discount never reduces this bill
+      // and is never counted as a bill discount — the engine converts
+      // it into advance coverage, so here it joins the carried credit
+      // in full (after the cash below, mirroring the engine's order;
+      // totals are identical either way).
+      const isPrepay = prepayTermsOf(payment) !== null;
+      const discountCents = isPrepay ? 0 : Math.min(cents(payment.discount || 0), dueCents);
       if (discountCents > 0) { discountsCents += discountCents; dueCents -= discountCents; }
       // SISP-43: only the bill portion of a receipt applies to the bill
       // or becomes credit — the ticket-charge portion settled field
@@ -140,6 +149,7 @@ export function computeLedgerBalance(customer) {
       dueCents -= appliedCents;
       const excessCents = billPortionCents - appliedCents;
       if (excessCents > 0) creditCents += excessCents;
+      if (isPrepay) creditCents += cents(payment.discount || 0);
     }
     balanceCents += dueCents;
   }

@@ -147,6 +147,9 @@ export function arrearsAndAdvance(customer, month) {
 export function planCustomerCycleLine(customer, month, referralQueued = 0) {
   const base = { customerId: customer?.id ?? null, customerNumber: customer?.customerNumber ?? null, name: customer?.name ?? '' };
   if (!customer || customer.archived) return { ...base, skipped: true, reason: 'archived' };
+  // Owner rule (2026-10-29): free connections (AQIB 1 / AQIB 999 /
+  // FREE ID LINE MAN) never get a bill — no fee, no dues, ever.
+  if (customer.isFreeConnection) return { ...base, skipped: true, reason: 'free-connection' };
   // SISP-8: a billing-paused month generates no new charge at all — not
   // even kist — and an existing bill for that month is left untouched.
   // The cycle preview lists the customer as skipped, and apply records
@@ -736,7 +739,8 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
     'billing-not-started': 'Billing starts later',
     'no-price': 'No price for this month',
     'unpriced-bill': 'Bill has no price',
-    paused: 'Paused (vacation hold)'
+    paused: 'Paused (vacation hold)',
+    'free-connection': 'Free connection'
   }[reason] || reason);
 
   function renderLastRun() {

@@ -509,6 +509,9 @@ export const ESCALATION_LOCK_DUE_START_DAY = 15;
  */
 export function getEscalationStage(customer, outstanding, todayStr = getTodayDateString()) {
   if (!customer || typeof customer !== 'object') return null;
+  // Owner rule (2026-10-29): free connections owe nothing, ever — they
+  // never enter the grace / final-notice / lock-due escalation.
+  if (customer.isFreeConnection) return null;
   if (!(Number(outstanding) > 0)) return null;
   const parts = parseDateParts(todayStr);
   if (!parts) return null;

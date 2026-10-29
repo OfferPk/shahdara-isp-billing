@@ -122,6 +122,9 @@ export function calculateTopDefaulters(state, {
 
   for (const c of customers) {
     if (c.archived) continue;
+    // Owner rule (2026-10-29): free connections never owe anything —
+    // they are excluded from defaulter lists and receivables totals.
+    if (c.isFreeConnection) continue;
 
     let customerDuesCents = 0;
     const unpaidMonthsList = [];

@@ -4413,14 +4413,12 @@
   margin-top: 10px;
 }
 .recent-payments-card {
+  /* Same shared card chrome as the redesigned .ds-stat dashboard cards. */
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: 0 5px 18px rgba(22, 52, 43, 0.045);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
   padding: 14px 13px;
-}
-[data-theme="dark"] .recent-payments-card {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 .recent-payments-header {
   display: flex;

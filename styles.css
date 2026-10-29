@@ -12384,6 +12384,61 @@ dialog::backdrop {
 .defaulter-waada-badge .wada-badge {
   display: inline-block;
 }
+/* SISP-38: defaulter escalation badges (Grace / Final Notice / Lock Due).
+   Light tints mirror the wada-badge palette; dark variants use translucent
+   fills with bright text so the badge stays readable on dark surfaces. */
+.defaulter-escalation-badge {
+  margin-top: 4px;
+}
+.escalation-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.escalation-grace {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+.escalation-final {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.escalation-lock {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+[data-theme="dark"] .escalation-grace {
+  background: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+[data-theme="dark"] .escalation-final {
+  background: rgba(245, 158, 11, 0.25);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.5);
+}
+[data-theme="dark"] .escalation-lock {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.5);
+}
+/* SISP-38: Lock Due (15th+) filter toggle active state. */
+.lock-due-toggle.is-active {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+[data-theme="dark"] .lock-due-toggle.is-active {
+  background: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.5);
+}
 /* SISP-3: Waada chip rows (defaulter dialog + customer profile). */
 .waada-chip-body {
   display: flex;

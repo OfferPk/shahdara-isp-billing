@@ -126,6 +126,7 @@ import {
   generateExpensesCsv
 } from './form-validation.js?v=1.11.0';
 import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohallaUserCounts } from './customer-search-filter.js?v=1.11.0';
+import { BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvFilename, billingRegisterCsvNote, billingRegisterCsvRows, buildBillingRegister, normalizeBillingRegisterPeriod, normalizeBillingRegisterStatus } from './billing-register.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
 // load lazily through qa-setups.js (see lazy-qa.js).
@@ -278,6 +279,8 @@ let selectedReportFilter = 'all';
 let selectedServiceFilter = 'all';
 let selectedBillingFilter = 'all';
 let selectedBillingMonth = monthsForHistory()[0];
+let billingRegisterPeriod = 'this';
+let billingRegisterStatus = 'paid';
 // New-customers panel state (customer ledger): a quick view or one chosen month.
 let newCustomersView = 'thisMonth';
 let newCustomersMonth = '';
@@ -2082,6 +2085,43 @@ function renderMonthlyReport() {
     return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">${t('bill_row_service')}: ${serviceLabel} · ${t('bill_row_package')}: ${escapeHtml(speed)} · ${t('bill_row_provider')}: ${escapeHtml(provider)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_monthly_sale')}</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell report-credit-cell"><span class="report-cell-label">${t('bill_row_credit')}</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div></li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
+  renderBillingRegister();
+}
+
+const REGISTER_STATUS_CLASS = { paid: 'report-status-paid', partial: 'report-status-partial', unpaid: 'report-status-pending' };
+const REGISTER_STATUS_KEY = { paid: 'bill_reg_status_paid', partial: 'bill_reg_status_partial', unpaid: 'bill_reg_status_unpaid' };
+
+// Billing Invoice Register: read-only invoice-style rows for a period
+// (This Month / Last Month / Last 3 / 6 / 12 Months by bill month) with a
+// status chip filter (default Paid). Totals come from the same filtered
+// rows the CSV download exports, so screen and file always agree.
+function renderBillingRegister() {
+  const list = $('#billingRegisterList');
+  if (!list) return;
+  const register = buildBillingRegister(state, {
+    period: billingRegisterPeriod,
+    status: billingRegisterStatus,
+    currentMonth: monthsForHistory()[0]
+  });
+  billingRegisterPeriod = register.period;
+  billingRegisterStatus = register.status;
+  const periodSelect = $('#billingRegisterPeriod');
+  if (periodSelect) periodSelect.value = billingRegisterPeriod;
+  document.querySelectorAll('[data-register-status]').forEach(button => {
+    button.setAttribute('aria-pressed', String(button.dataset.registerStatus === billingRegisterStatus));
+  });
+  list.innerHTML = register.rows.map(row => `<li class="register-row">
+      <div class="register-customer"><span class="register-reference">${escapeHtml(row.reference)}</span><span class="report-customer-name">${escapeHtml(row.customerName)}</span>${row.mobile ? `<span class="register-customer-sub">${escapeHtml(row.mobile)}</span>` : ''}</div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_package')}</span><span class="report-cell-value">${escapeHtml(row.packageSpeed || '—')}</span></div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_month')}</span><span class="report-cell-value">${escapeHtml(row.month)}</span></div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_bill')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.billAmount))}</span></div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_paid')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.paidAmount))}</span></div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_status')}</span><span class="report-status ${REGISTER_STATUS_CLASS[row.status]}">${t(REGISTER_STATUS_KEY[row.status])}</span></div>
+    </li>`).join('');
+  const totals = $('#billingRegisterTotals');
+  if (totals) totals.textContent = t('bill_reg_totals', null, { count: register.totals.count, billed: formatAmount(register.totals.totalBilled), paid: formatAmount(register.totals.totalPaid) });
+  const empty = $('#billingRegisterEmpty');
+  if (empty) empty.hidden = register.rows.length > 0;
 }
 function populateReportMonths() {
   const months = monthsForHistory();
@@ -7464,6 +7504,36 @@ $('#exportMonthlyReportCsvBtn')?.addEventListener('click', () => {
   const filename = `monthly-report-${month}.csv`;
   downloadCsvFile(filename, csv);
   toast(`Exported ${rows.length} report rows for ${month} to CSV.`);
+});
+
+$('#billingRegisterPeriod')?.addEventListener('change', event => {
+  billingRegisterPeriod = normalizeBillingRegisterPeriod(event.target.value);
+  renderBillingRegister();
+});
+
+document.querySelectorAll('[data-register-status]').forEach(button => {
+  button.addEventListener('click', () => {
+    billingRegisterStatus = normalizeBillingRegisterStatus(button.dataset.registerStatus);
+    renderBillingRegister();
+  });
+});
+
+// Register CSV: exactly the visible (period + status) rows, with the house
+// filtered-view NOTE row and `_filtered` filename.
+$('#billingRegisterDownloadBtn')?.addEventListener('click', () => {
+  const register = buildBillingRegister(state, {
+    period: billingRegisterPeriod,
+    status: billingRegisterStatus,
+    currentMonth: monthsForHistory()[0]
+  });
+  const note = billingRegisterCsvNote(register, {
+    periodLabel: t(`bill_reg_period_${register.period}`),
+    statusLabel: t(`bill_reg_status_${register.status}`)
+  });
+  const noteRow = { reference: note, customer: '', mobile: '', package: '', month: '', billAmount: '', paidAmount: '', status: '' };
+  const csv = generateCsvContent(BILLING_REGISTER_CSV_HEADERS, [noteRow, ...billingRegisterCsvRows(register)]);
+  downloadCsvFile(billingRegisterCsvFilename(register), csv);
+  toast(t('bill_reg_exported', null, { count: register.rows.length }));
 });
 
 // Phase 12 · Monthly Batch Receipt Sheet

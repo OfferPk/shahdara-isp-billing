@@ -709,9 +709,14 @@ body.field-mode-open { overflow: hidden; }
   50% { opacity: 0.55; }
 }
 @media (max-width: 480px) {
-  /* Keep the top bar from overflowing on phones: emoji only, label hidden. */
-  .backup-health-badge .backup-health-label { display: none; }
-  .backup-health-badge { padding: 0 8px; }
+  /* Keep the top bar from overflowing on phones: emoji only, label hidden.
+     The label span carries id="backupHealthLabel" (no .backup-health-label
+     class exists in the markup), so the old class selector never matched
+     and the full "Backup: ..." pill rendered at every width — one of the
+     causes of the 2026-10-29 top-bar clipping. Target the real span. */
+  .backup-health-badge .backup-health-label,
+  .backup-health-badge #backupHealthLabel { display: none; }
+  .backup-health-badge { padding: 0 6px; }
 }
 /* SISP-10: checksum note in the restore preview + sync-code paste block. */
 .backup-checksum-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
@@ -998,6 +1003,7 @@ body.field-mode-open { overflow: hidden; }
 @media (max-width: 480px) {
   .mohalla-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .customer-search-field-select { height: 44px; font-size: 14px; }
+}
 /* SISP-37: suspense payments — theme tokens only, mobile-first cards. */
 .suspense-intro, .suspense-count-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
 .suspense-form { display: grid; gap: 8px; margin: 0 0 16px; }

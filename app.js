@@ -161,6 +161,7 @@ import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorks
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
+import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -244,6 +245,7 @@ export let pendingWorksModalController = null;
 export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
+export let suspensePaymentsModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
 let state;
@@ -831,6 +833,20 @@ function renderDashboard() {
       ? ''
       : DIGITAL_BREAKDOWN_METHODS.filter((label) => (wallet.byWallet[label]?.count ?? 0) > 0)
         .map((label) => `<p><span>${escapeHtml(label)}</span><strong>${escapeHtml(formatAmount(wallet.byWallet[label].amount))}</strong><small> · ${escapeHtml(t(wallet.byWallet[label].count === 1 ? 'dash_wallet_pay_sing' : 'dash_wallet_pay_plur', null, { count: wallet.byWallet[label].count }))} · ${escapeHtml(t('dash_wallet_verified', null, { count: wallet.byWallet[label].verifiedCount }))}</small></p>`).join('');  }
+  // SISP-37: suspense (unidentified) wallet transfers card.
+  const suspenseSummaryEl = $('#suspensePaymentsSummary');
+  if (suspenseSummaryEl) {
+    const suspense = suspenseSummary(loadSuspensePayments());
+    const suspenseValueEl = $('#dashboardSuspenseValue');
+    const suspensePeriodEl = $('#dashboardSuspensePeriod');
+    if (suspenseValueEl) suspenseValueEl.textContent = suspense.totalCount === 0 ? t('dash_suspense_empty') : formatAmount(suspense.unclaimedAmount);
+    if (suspensePeriodEl) suspensePeriodEl.textContent = suspense.totalCount === 0
+      ? t('dash_suspense_period_empty')
+      : `${t(suspense.unclaimedCount === 1 ? 'dash_suspense_unclaimed_sing' : 'dash_suspense_unclaimed_plur', null, { count: suspense.unclaimedCount })} · ${t('dash_suspense_claimed', null, { count: suspense.claimedCount })}`;
+    suspenseSummaryEl.innerHTML = suspense.totalCount === 0
+      ? ''
+      : `<p><span>${t('dash_suspense_unclaimed')}</span><strong>${escapeHtml(formatAmount(suspense.unclaimedAmount))}</strong></p>`;
+  }
   $('#serviceCountActive').textContent = totals.activeServiceCount;
   $('#serviceCountOffline').textContent = totals.offlineServiceCount;
   $('#serviceCountNotSet').textContent = totals.unsetServiceCount;
@@ -2594,7 +2610,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -2608,6 +2624,7 @@ function backupRestoreOptions() {
   let installRequestsStored = false;
   let pendingWorksStored = false;
   let billingGroupsStored = false;
+  let suspensePaymentsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
   let homeBudgetStored = false;
@@ -2622,6 +2639,7 @@ function backupRestoreOptions() {
   try { installRequestsStored = localStorage.getItem(INSTALL_REQUESTS_KEY) !== null; } catch { installRequestsStored = false; }
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
+  try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
@@ -2633,7 +2651,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -3415,6 +3433,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.billingGroups) {
       saveBillingGroups(pendingBackupPreview.billingGroups);
+    }
+    if (pendingBackupPreview.suspensePayments) {
+      saveSuspensePayments(pendingBackupPreview.suspensePayments);
     }
     if (pendingBackupPreview.monthlyClosingNotes) {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
@@ -9404,6 +9425,41 @@ if (typeof document !== 'undefined') {
         renderMonthlyReport();
       }
       return { ...result, receipt: buildGroupReceipt({ ...result, date, method }) };
+    }
+  });
+  // SISP-37: suspense (unidentified) wallet payment register — claim
+  // reuses quick collection, then persists exactly like a single quick
+  // collection; the register entry is marked claimed, never deleted.
+  suspensePaymentsModalController = setupSuspensePaymentsModal(() => state, {
+    onEntriesChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts),
+    currentMonth: () => monthsForHistory(new Date())[0],
+    onClaim: (entry, { customerId, month }) => {
+      const result = claimSuspensePayment(state, loadSuspensePayments(), entry.suspenseId, {
+        customerId,
+        month,
+        date: entry.date,
+        execute: executeQuickCollection
+      });
+      state = result.nextState;
+      saveSuspensePayments(result.entries);
+      save();
+      renderDetail();
+      renderTransactions();
+      renderMonthlyReport();
+      renderDashboard();
+      const customer = state.customers.find(c => String(c.id) === String(customerId));
+      return {
+        ...result,
+        receipt: buildSuspenseReceipt({
+          entry: result.entry,
+          customerName: customer?.name ?? result.entry.claimedCustomerName,
+          customerNumber: customer?.customerNumber ?? '',
+          month,
+          receiptNumber: result.paymentReceipt?.receiptNumber ?? ''
+        })
+      };
     }
   });
   // SISP-19: pending hardware recovery modal (derived list, no new store).

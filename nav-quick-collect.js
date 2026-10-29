@@ -20,8 +20,14 @@ import {
   isDigitalPaymentMethod,
   isCashPaymentMethod,
   findDuplicatePaymentReference,
-  removeConcessionFromBill
+  removeConcessionFromBill,
+  updateCustomerProfile,
+  generateMonthlyBillsThroughCurrentMonth,
+  saveBillMonth
 } from './core.js';
+import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
+import { billKistTotal } from './installment-plan.js';
+import { isBillingPaused } from './pause-billing.js';
 import { loadComplaints } from './complaint-register.js';
 import {
   billedTicketChargesPending,
@@ -308,6 +314,125 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     todayDate: getPakistanLocalDate(referenceDate),
     defaultMethod: lastMethod,
     lastPaidBy
+  };
+}
+
+/**
+ * Owner feature (2026-10-29): change a customer's package from inside the
+ * Quick Collect payment step — e.g. the customer was on the PKR 1,000
+ * package last month and takes the PKR 2,000 package this month. The plan
+ * changes from the CURRENT month onward and that month's bill is (re)made
+ * at the new package in the same action, so the collector never leaves
+ * the sheet and never retypes anything.
+ *
+ * This invents no parallel machinery — every step is an existing path:
+ *  - the plan change itself goes through core updateCustomerProfile, the
+ *    exact profile path: packageSpeed + monthlySellingAmount are updated,
+ *    a packageHistory audit entry is appended (old/new package + rates,
+ *    staff "Quick Collect") and the price schedule is written with the
+ *    profile's own effective-month rule (current month when no bill
+ *    exists yet, next month when one does);
+ *  - a MISSING current-month bill is then created by
+ *    generateMonthlyBillsThroughCurrentMonth, which prices it from that
+ *    schedule — the new package;
+ *  - an EXISTING current-month bill is repriced to the new package
+ *    through core saveBillMonth, the profile bill editor's own write
+ *    (its amountHistory records previous → new amount). Only the package
+ *    portion moves: any kist already riding the bill (SISP-4) is
+ *    preserved on top of the new fee. Payments already recorded stay
+ *    recorded — calculatePaymentAllocations remains the single source of
+ *    truth for what is now due (paid 1,000 toward a bill that becomes
+ *    2,000 leaves 1,000 due; a downgrade past what was paid leaves the
+ *    excess as pending credit, exactly as the engine already rules).
+ *
+ * Standing rules hold: a FREE connection (isFreeConnection) records the
+ * plan change but NEVER gets a bill or dues from it, and a billing-paused
+ * current month (SISP-8) is never billed — the new package applies from
+ * the next billed month instead.
+ *
+ * Returns { nextState, changed, reason?, customerId, package, month,
+ * bill, billRepriced, billCreated, billSkipped, balanceDue } where
+ * balanceDue is the current month's balance after the change, read from
+ * the allocation engine (null when the month has no priced bill).
+ * Picking the package the customer is already on (same label AND same
+ * fee) is a no-op: changed=false, reason 'same-package', state returned
+ * untouched (same reference).
+ */
+export function changeCustomerPackage(state, customerId, packageId, referenceDate = new Date()) {
+  const plan = billPackageById(packageId);
+  if (!plan) throw new Error('Choose one of the available packages.');
+  const customer = state?.customers?.find(c => c.id === customerId);
+  if (!customer) throw new Error('Customer not found.');
+  if (customer.archived) throw new Error('Archived customers cannot change package. Unarchive the customer first.');
+
+  const centsOf = (value) => Math.round(Number(value || 0) * 100);
+  const month = getPakistanLocalDate(referenceDate).slice(0, 7);
+  const currentFee = customer.monthlySellingAmount;
+  const currentFeeCents = currentFee === null || currentFee === undefined || currentFee === ''
+    ? null
+    : centsOf(currentFee);
+  if ((customer.packageSpeed ?? '') === plan.label && currentFeeCents === centsOf(plan.price)) {
+    return { nextState: state, changed: false, reason: 'same-package', customerId, package: plan, month };
+  }
+
+  let next = updateCustomerProfile(state, customerId, {
+    packageSpeed: plan.label,
+    monthlySellingAmount: plan.price,
+    packageChangeStaffName: 'Quick Collect'
+  }, referenceDate);
+
+  let updated = next.customers.find(c => c.id === customerId);
+  let bill = (updated.bills ?? []).find(b => b.month === month) ?? null;
+  let billRepriced = false;
+  let billCreated = false;
+  let billSkipped = null;
+  if (updated.isFreeConnection === true) {
+    billSkipped = 'free-connection';
+  } else if (isBillingPaused(updated, month)) {
+    billSkipped = 'paused';
+  }
+
+  if (!billSkipped) {
+    if (bill) {
+      // Reprice the package portion only — kist already billed into this
+      // month (SISP-4) is an installment obligation, not package price,
+      // so it rides on top of the new fee unchanged. With no kist, the
+      // package id goes along so the bill gains the package snapshot,
+      // exactly as the profile bill editor records it; with kist,
+      // saveBillMonth must take the explicit total (a package id would
+      // make it prefer the catalogue price and drop the kist).
+      const kistCents = centsOf(billKistTotal(bill));
+      const targetCents = centsOf(plan.price) + kistCents;
+      const alreadyPriced = bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== ''
+        && centsOf(bill.dueAmount) === targetCents;
+      if (!alreadyPriced) {
+        next = kistCents > 0
+          ? saveBillMonth(next, customerId, { month, dueAmount: targetCents / 100, status: 'pending' }, referenceDate)
+          : saveBillMonth(next, customerId, { month, dueAmount: plan.price, status: 'pending', packageId: plan.id }, referenceDate);
+        billRepriced = true;
+      }
+    } else {
+      next = generateMonthlyBillsThroughCurrentMonth(next, referenceDate);
+      billCreated = true;
+    }
+    updated = next.customers.find(c => c.id === customerId);
+    bill = (updated.bills ?? []).find(b => b.month === month) ?? null;
+    if (billCreated && !bill) billCreated = false;
+  }
+
+  const allocations = calculatePaymentAllocations(next);
+  const summary = allocations.forMonth(customerId, month);
+  return {
+    nextState: next,
+    changed: true,
+    customerId,
+    package: plan,
+    month,
+    bill,
+    billRepriced,
+    billCreated,
+    billSkipped,
+    balanceDue: summary && typeof summary.balanceDueCents === 'number' ? summary.balanceDueCents / 100 : null
   };
 }
 
@@ -919,6 +1044,10 @@ export function setupQuickCollectModal({
   // SISP-30: outage concession badge host (null when the host page predates it).
   const concessionBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConcessionBox') : null;
 
+  // Owner feature: Change Package host in the payment step (null when
+  // the host page predates it).
+  const packageBox = typeof document !== 'undefined' ? document.getElementById('quickCollectPackageBox') : null;
+
   // Uptime tracking: one-line online/offline summary host for the
   // selected bill month (null when the host page predates it).
   const uptimeLine = typeof document !== 'undefined' ? document.getElementById('quickCollectUptimeLine') : null;
@@ -955,6 +1084,10 @@ export function setupQuickCollectModal({
   const goToTransactionsBtn = document.getElementById('quickCollectGoToTransactionsBtn');
 
   let activeFilter = 'all-dues';
+  // Owner feature: a package change applies synchronously; this flag only
+  // guards against a double-tap while the click is being handled, so a
+  // change can never be applied twice or land mid payment-save.
+  let packageChangeBusy = false;
   let activeCustomerId = null;
   let activeDefaults = null;
   let activeReceipt = null;
@@ -1192,6 +1325,98 @@ export function setupQuickCollectModal({
     }
   }
 
+  // Owner feature: Change Package row in the payment step. Shows the
+  // customer's CURRENT package (label + monthly fee) and a picker of the
+  // real package catalogue; one tap on "Change package" applies
+  // changeCustomerPackage, saves through the host, and reopens this same
+  // form so the amount field, quick chips and dues header immediately
+  // reflect the new package's bill — the collector never leaves the
+  // sheet. The success toast carries an Undo that restores the exact
+  // pre-change state (the inline bill editor's established pattern).
+  function renderPackageBox(customerId) {
+    if (!packageBox) return;
+    packageBox.innerHTML = '';
+    try {
+      const state = getState();
+      if (!state || !customerId) return;
+      const customer = state.customers.find(c => c.id === customerId);
+      if (!customer) return;
+      const month = getPakistanLocalDate().slice(0, 7);
+      const currentPkg = billPackageByLabel(customer.packageSpeed ?? '');
+      const fee = Number(customer.monthlySellingAmount);
+      const currentText = (customer.packageSpeed ?? '').trim()
+        ? t('qcpkg_current', null, {
+          label: customer.packageSpeed,
+          amount: Number.isFinite(fee) && fee > 0 ? formatPKR(fee) : t('qcpkg_fee_not_set')
+        })
+        : t('qcpkg_none');
+      const freeNote = customer.isFreeConnection === true
+        ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_free_note'))}</p>`
+        : '';
+      const pausedNote = customer.isFreeConnection !== true && isBillingPaused(customer, month)
+        ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_paused_note'))}</p>`
+        : '';
+      packageBox.innerHTML = `
+        <div class="qc-package-row">
+          <span class="qc-package-current">📦 ${escapeHtml(currentText)}</span>
+        </div>
+        <div class="qc-package-row">
+          <select id="quickCollectPackageSelect" class="qc-input" aria-label="${escapeHtml(t('qcpkg_label'))}">
+            <option value="">${escapeHtml(t('qcpkg_pick'))}</option>
+            ${BILL_PACKAGES.map(p => `<option value="${escapeHtml(p.id)}" ${currentPkg && p.id === currentPkg.id ? 'disabled' : ''}>${escapeHtml(p.label)} · ${escapeHtml(formatPKR(p.price))}</option>`).join('')}
+          </select>
+          <button type="button" class="secondary-button qc-package-apply" data-qc-change-package disabled>${escapeHtml(t('qcpkg_change_btn'))}</button>
+        </div>
+        ${freeNote}${pausedNote}`;
+      const select = packageBox.querySelector('#quickCollectPackageSelect');
+      const applyBtn = packageBox.querySelector('[data-qc-change-package]');
+      select?.addEventListener('change', () => {
+        if (applyBtn) applyBtn.disabled = !select.value || packageChangeBusy;
+      });
+      applyBtn?.addEventListener('click', () => {
+        if (packageChangeBusy || !select?.value) return;
+        packageChangeBusy = true;
+        applyBtn.disabled = true;
+        try {
+          const beforeState = getState();
+          const result = changeCustomerPackage(beforeState, customerId, select.value, new Date());
+          if (!result.changed) {
+            if (typeof onToast === 'function') onToast(t('qcpkg_same'));
+            return;
+          }
+          if (typeof onSaveState === 'function') onSaveState(result.nextState);
+          openCustomerCollectionForm(customerId);
+          if (typeof onToast === 'function') {
+            const message = !result.billSkipped && result.bill
+              ? t('qcpkg_done', null, {
+                label: result.package.label,
+                month: result.month,
+                amount: formatPKR(Number(result.bill.dueAmount)),
+                due: formatPKR(result.balanceDue ?? 0)
+              })
+              : t('qcpkg_done_nobill', null, { label: result.package.label, month: result.month });
+            onToast(message, {
+              type: 'success',
+              title: t('qcpkg_change_btn'),
+              actionLabel: t('qcpkg_undo'),
+              duration: 8000,
+              onAction: () => {
+                if (typeof onSaveState === 'function') onSaveState(beforeState);
+                openCustomerCollectionForm(customerId);
+              }
+            });
+          }
+        } catch (err) {
+          if (typeof onToast === 'function') onToast(err.message, { type: 'error' });
+        } finally {
+          packageChangeBusy = false;
+        }
+      });
+    } catch {
+      packageBox.innerHTML = '';
+    }
+  }
+
   function openCustomerCollectionForm(customerId) {
     const state = getState();
     if (!state) return;
@@ -1277,6 +1502,9 @@ export function setupQuickCollectModal({
       // Uptime tracking: month-end online/offline one-liner for the
       // same target month (refreshes on month change too).
       renderUptimeLine(customerId, activeDefaults.targetMonth);
+
+      // Owner feature: Change Package row (current package + picker).
+      renderPackageBox(customerId);
 
       // Reset digital fields
       if (transactionIdInput) transactionIdInput.value = '';

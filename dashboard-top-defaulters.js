@@ -30,8 +30,15 @@ import {
 } from './waada-queue.js';
 import {
   buildDefaulterLockScript,
-  buildDefaulterRestoreScript
+  buildDefaulterRestoreScript,
+  buildLockDueSuspensionScript
 } from './mikrotik-generator.js';
+import {
+  getEscalationStage,
+  escalationBadgeLabel,
+  escalationBadgeClass,
+  ESCALATION_STAGES
+} from './reminder-queue.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -103,7 +110,8 @@ export function calculateTopDefaulters(state, {
   riskLevel = 'all',
   search = '',
   minOutstanding = 1,
-  waadaTier = 'all'
+  waadaTier = 'all',
+  escalation = 'all'
 } = {}) {
   const refYmd = formatDateYmd(referenceDate);
   const allocations = calculatePaymentAllocations(state || { customers: [] });
@@ -195,7 +203,10 @@ export function calculateTopDefaulters(state, {
         promiseDate: typeof c.promiseDate === 'string' ? c.promiseDate : null,
         promiseAmount: c.promiseAmount ?? null,
         promiseNote: c.promiseNote ?? '',
-        waadaTier: getWaadaTier(c, totalOutstanding, refYmd)
+        waadaTier: getWaadaTier(c, totalOutstanding, refYmd),
+        // SISP-38: calendar-day escalation stage (grace / final-notice /
+        // lock-due) for the reference date; null before the 5th.
+        escalationStage: getEscalationStage(c, totalOutstanding, refYmd)?.stage ?? null
       });
     }
   }
@@ -229,6 +240,19 @@ export function calculateTopDefaulters(state, {
   // promise), 'promised' (snoozed, future promise). 'all' keeps ranking.
   if (waadaTier && waadaTier !== 'all') {
     filtered = filtered.filter(item => item.waadaTier === waadaTier);
+  }
+
+  // SISP-38: escalation stage counts for the set filtered so far (drives
+  // the Lock Due filter button), then the escalation stage filter itself
+  // ('grace' / 'final-notice' / 'lock-due'). 'all' keeps ranking.
+  const escalationCounts = { grace: 0, finalNotice: 0, lockDue: 0 };
+  for (const item of filtered) {
+    if (item.escalationStage === ESCALATION_STAGES.GRACE) escalationCounts.grace++;
+    else if (item.escalationStage === ESCALATION_STAGES.FINAL_NOTICE) escalationCounts.finalNotice++;
+    else if (item.escalationStage === ESCALATION_STAGES.LOCK_DUE) escalationCounts.lockDue++;
+  }
+  if (escalation && escalation !== 'all') {
+    filtered = filtered.filter(item => item.escalationStage === escalation);
   }
 
   if (search && search.trim()) {
@@ -298,6 +322,8 @@ export function calculateTopDefaulters(state, {
       areaFilter: area,
       riskFilter: riskLevel,
       waadaFilter: waadaTier,
+      escalationFilter: escalation,
+      escalationCounts,
       searchQuery: search,
       referenceDateYmd: refYmd
     }
@@ -767,12 +793,16 @@ export function setupTopDefaultersModal(state, {
 
   let currentData = null;
 
+  // SISP-38: 1-click "Lock Due (15th+)" filter toggle state.
+  let lockDueOnly = false;
+
   const getFilterOptions = () => ({
     search: searchInput ? searchInput.value : '',
     area: areaSelect ? areaSelect.value : 'all',
     limit: limitSelect ? Number(limitSelect.value) || 20 : 20,
     riskLevel: riskSelect ? riskSelect.value : 'all',
     waadaTier: waadaSelect ? waadaSelect.value : 'all',
+    escalation: lockDueOnly ? ESCALATION_STAGES.LOCK_DUE : 'all',
     referenceDate: new Date()
   });
 
@@ -851,6 +881,12 @@ export function setupTopDefaultersModal(state, {
               ? `<span class="wada-badge wada-badge-upcoming">Waada: ${escapeHtml(acc.promiseDate)}</span>`
               : '';
 
+          // SISP-38: calendar-day escalation badge (Grace / Final Notice /
+          // Lock Due) for the modal's reference date.
+          const escalationBadge = acc.escalationStage
+            ? `<span class="escalation-badge ${escalationBadgeClass(acc.escalationStage)}">${escalationBadgeLabel(acc.escalationStage)}</span>`
+            : '';
+
           return `
             <tr data-cust-id="${escapeHtml(acc.id)}" class="defaulter-row ${acc.riskCategory}">
               <td class="defaulter-rank-cell">#${acc.rank}</td>
@@ -858,6 +894,7 @@ export function setupTopDefaultersModal(state, {
                 <strong>#${acc.customerNumber}</strong> ${escapeHtml(acc.name)}
                 <div class="defaulter-subtext">${escapeHtml(acc.mohalla || acc.address || 'Shahdara')}</div>
                 ${waadaBadge ? `<div class="defaulter-waada-badge">${waadaBadge}</div>` : ''}
+                ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
               </td>
               <td>${escapeHtml(acc.area)}</td>
               <td class="defaulter-months-cell">
@@ -887,6 +924,9 @@ export function setupTopDefaultersModal(state, {
         }).join('');
       }
     }
+
+    // SISP-38: keep the Lock Due toggle label/count in sync after render.
+    syncLockDueBtn();
   };
 
   // Event Listeners for Filters
@@ -1023,9 +1063,37 @@ export function setupTopDefaultersModal(state, {
   };
   if (mikrotikLockBtn) {
     mikrotikLockBtn.addEventListener('click', () => {
-      const { script, locked, skippedWaada } = buildDefaulterLockScript(visibleCustomers(), { todayStr: formatDateYmd(new Date()) });
-      showMikrotikScript(script, `Lock script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada). Review before pasting into WinBox Terminal.`);
+      const todayStr = formatDateYmd(new Date());
+      if (lockDueOnly) {
+        // SISP-38: the visible set is the Lock Due (15th+) suspension set.
+        const { script, locked, skippedWaada } = buildLockDueSuspensionScript(visibleCustomers(), { todayStr });
+        showMikrotikScript(script, `Lock Due suspension script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada). Review before pasting into WinBox Terminal.`);
+      } else {
+        const { script, locked, skippedWaada } = buildDefaulterLockScript(visibleCustomers(), { todayStr });
+        showMikrotikScript(script, `Lock script for ${locked.length} customer${locked.length === 1 ? '' : 's'} · ${skippedWaada.length} skipped (active future Waada). Review before pasting into WinBox Terminal.`);
+      }
       onToast?.('MikroTik lock script generated.');
+    });
+  }
+
+  // SISP-38: "Lock Due (15th+)" 1-click filter — narrows the modal to the
+  // suspension-ready set (unpaid, 15th or later, no active Waada). The
+  // MikroTik Lock button above then feeds exactly this visible set to the
+  // generator. Toggling off restores the full defaulter ranking.
+  const lockDueBtn = document.getElementById('topDefaultersLockDueBtn');
+  function syncLockDueBtn() {
+    if (!lockDueBtn) return;
+    const count = currentData?.metrics?.escalationCounts?.lockDue;
+    lockDueBtn.textContent = typeof count === 'number' && !lockDueOnly
+      ? `🔴 Lock Due (15th+) · ${count}`
+      : '🔴 Lock Due (15th+)';
+    lockDueBtn.classList.toggle('is-active', lockDueOnly);
+    lockDueBtn.setAttribute('aria-pressed', lockDueOnly ? 'true' : 'false');
+  }
+  if (lockDueBtn) {
+    lockDueBtn.addEventListener('click', () => {
+      lockDueOnly = !lockDueOnly;
+      renderContent();
     });
   }
   if (mikrotikRestoreBtn) {

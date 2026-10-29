@@ -470,6 +470,104 @@ export function getMatchingReminderStage(customer, balance, todayStr = getTodayD
   return null;
 }
 
+// ============================================================================
+// SISP-38: Defaulter Grace Period Countdown & Suspension Readiness
+// ============================================================================
+//
+// Calendar-day escalation for UNPAID customers (outstanding > 0), counted
+// against the fixed monthly billing cycle (bills fall due on the 5th):
+//   - days  5-10  -> 'grace'        (🟢 Grace)
+//   - days 11-14  -> 'final-notice' (🟠 Final Notice)
+//   - days 15+    -> 'lock-due'     (🔴 Lock Due) — only when the customer
+//     has NO active Waada promise. An active promise (SISP-3 tier
+//     'promised': a calendar-valid promiseDate on or after today) caps the
+//     escalation at 'final-notice' and keeps the customer OUT of the
+//     MikroTik suspension filter until the promise lapses.
+// Before the 5th there is no escalation (null): the cycle has not started.
+// Promise truth lives in waada-queue.js (getWaadaTier) — this section only
+// reads it, never duplicates it. All functions are pure and take an
+// injectable todayStr (YYYY-MM-DD) so tests never depend on the wall clock.
+
+export const ESCALATION_STAGES = Object.freeze({
+  GRACE: 'grace',
+  FINAL_NOTICE: 'final-notice',
+  LOCK_DUE: 'lock-due'
+});
+
+export const ESCALATION_GRACE_START_DAY = 5;
+export const ESCALATION_FINAL_NOTICE_START_DAY = 11;
+export const ESCALATION_LOCK_DUE_START_DAY = 15;
+
+/**
+ * Escalation state of one unpaid customer for a reference date.
+ * @param {Object} customer - Customer record (promiseDate read via SISP-3).
+ * @param {number} outstanding - Total unpaid balance (PKR); must be > 0.
+ * @param {string} [todayStr] - Reference date YYYY-MM-DD (injectable).
+ * @returns {{ stage: string, dayOfMonth: number, hasActiveWaada: boolean,
+ *   promiseDate: string|null }|null} Null when the customer is not an
+ *   unpaid defaulter in the escalation window (paid up, or before the 5th).
+ */
+export function getEscalationStage(customer, outstanding, todayStr = getTodayDateString()) {
+  if (!customer || typeof customer !== 'object') return null;
+  if (!(Number(outstanding) > 0)) return null;
+  const parts = parseDateParts(todayStr);
+  if (!parts) return null;
+  const dayOfMonth = parts.day;
+  if (dayOfMonth < ESCALATION_GRACE_START_DAY) return null;
+
+  const promiseDate = typeof customer.promiseDate === 'string' && customer.promiseDate.trim()
+    ? customer.promiseDate.trim()
+    : null;
+  // SISP-3 is the source of truth: tier 'promised' == valid promiseDate
+  // on or after today (the customer is snoozed until the promise lapses).
+  const hasActiveWaada = getWaadaTier(customer, outstanding, todayStr) === WAADA_TIERS.PROMISED;
+
+  let stage;
+  if (dayOfMonth >= ESCALATION_LOCK_DUE_START_DAY) {
+    stage = hasActiveWaada ? ESCALATION_STAGES.FINAL_NOTICE : ESCALATION_STAGES.LOCK_DUE;
+  } else if (dayOfMonth >= ESCALATION_FINAL_NOTICE_START_DAY) {
+    stage = ESCALATION_STAGES.FINAL_NOTICE;
+  } else {
+    stage = ESCALATION_STAGES.GRACE;
+  }
+  return { stage, dayOfMonth, hasActiveWaada, promiseDate };
+}
+
+/** Badge label for an escalation stage, or null for an unknown stage. */
+export function escalationBadgeLabel(stage) {
+  if (stage === ESCALATION_STAGES.GRACE) return '🟢 Grace';
+  if (stage === ESCALATION_STAGES.FINAL_NOTICE) return '🟠 Final Notice';
+  if (stage === ESCALATION_STAGES.LOCK_DUE) return '🔴 Lock Due';
+  return null;
+}
+
+/** CSS modifier class for an escalation stage badge. */
+export function escalationBadgeClass(stage) {
+  if (stage === ESCALATION_STAGES.GRACE) return 'escalation-grace';
+  if (stage === ESCALATION_STAGES.FINAL_NOTICE) return 'escalation-final';
+  if (stage === ESCALATION_STAGES.LOCK_DUE) return 'escalation-lock';
+  return '';
+}
+
+/**
+ * True when the customer belongs in the SISP-38 "Lock Due (15th+)"
+ * suspension filter for the reference date: unpaid, on/after the 15th,
+ * and no active Waada promise.
+ */
+export function isLockDueCustomer(customer, outstanding, todayStr = getTodayDateString()) {
+  const escalation = getEscalationStage(customer, outstanding, todayStr);
+  return Boolean(escalation) && escalation.stage === ESCALATION_STAGES.LOCK_DUE;
+}
+
+/**
+ * Filters queue entries ([{ customer, outstanding }]) down to the Lock Due
+ * suspension set for the reference date. Input order is preserved.
+ */
+export function filterLockDueEntries(entries, todayStr = getTodayDateString()) {
+  if (!Array.isArray(entries)) return [];
+  return entries.filter(entry =>
+    entry && isLockDueCustomer(entry.customer, entry.outstanding, todayStr));
+}
 
 /**
  * Retrieves the full reminder dispatch audit history from storage.

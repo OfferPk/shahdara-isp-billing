@@ -42,6 +42,12 @@
  * recorded payments) rendered under the zone target line on every render,
  * so it updates immediately after a collection.
  *
+ * SISP-41 adds, on the same receipt card and the same no-dead-button rule:
+ * a 1-tap 🖼️ PNG Receipt button that calls the host's onPngReceipt
+ * callback (the app wires it to the EXISTING downloadPngReceipt path —
+ * the SISP-6 stamped PNG via generateReceiptPNG + shareOrDownloadPng).
+ * The button renders only when the host supplies onPngReceipt.
+ *
  * Pure helpers are DOM-free and unit-tested; setupFieldMode() is the DOM
  * controller (returns a no-op controller outside a browser, mirroring
  * setupQuickCollectModal's fallback).
@@ -343,9 +349,28 @@ function nullFieldModeController() {
  *     a just-collected receipt via the EXISTING thermal path
  *     (printPaymentReceipt with format 'thermal-58'). When absent, the
  *     58mm Slip button is not rendered at all (never a dead button).
+ *   onPngReceipt(receipt) -> optional (SISP-41): host generates the stamped
+ *     PNG receipt for a just-collected receipt via the EXISTING SISP-6
+ *     path (downloadPngReceipt). When absent, the PNG Receipt button is
+ *     not rendered at all (never a dead button).
  * Returns { open, close, toggle, isOpen, refresh }.
  */
-export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm } = {}) {
+
+/** SISP-41: receipt-card action buttons, in card order. Pure and DOM-free: a
+ *  button renders only when its host callback exists, so neither button can
+ *  ever be dead. Uses the existing field-mode-action-btn class (theme
+ *  tokens only, dark-mode safe, <=480px safe) — no new CSS. */
+export function fieldModeReceiptActionMarkup({ hasPrint58 = false, hasPngReceipt = false } = {}) {
+  const print58Button = hasPrint58
+    ? `<button type="button" class="field-mode-action-btn" data-field-action="print58">🖨️ 58mm Slip</button>`
+    : '';
+  const pngReceiptButton = hasPngReceipt
+    ? `<button type="button" class="field-mode-action-btn" data-field-action="pngReceipt">🖼️ PNG Receipt</button>`
+    : '';
+  return `${print58Button}${pngReceiptButton}`;
+}
+
+export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt } = {}) {
   if (typeof document === 'undefined') return nullFieldModeController();
   const view = document.getElementById('fieldModeView');
   const toggleBtn = document.getElementById('fieldModeToggleBtn');
@@ -445,9 +470,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm } =
     if (lastReceipt) {
       const { receipt, whatsapp } = lastReceipt;
       const settled = Number(receipt.newTotalDues) <= 0;
-      const print58Button = typeof onPrint58mm === 'function'
-        ? `<button type="button" class="field-mode-action-btn" data-field-action="print58">🖨️ 58mm Slip</button>`
-        : '';
+      const receiptActionButtons = fieldModeReceiptActionMarkup({
+        hasPrint58: typeof onPrint58mm === 'function',
+        hasPngReceipt: typeof onPngReceipt === 'function'
+      });
       panelEl.innerHTML = `<section class="field-mode-receipt" aria-label="Collection receipt">
         <h3>✅ Collected — ${escapeHtml(receipt.customerName)}</h3>
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
@@ -455,7 +481,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm } =
         ${whatsapp.url
           ? `<a class="field-mode-action-btn field-mode-whatsapp-btn" href="${escapeHtml(whatsapp.url)}" target="_blank" rel="noopener noreferrer">📲 WA Receipt</a>`
           : '<p class="field-mode-note">Save the customer\'s full phone number (with country code) to enable the WhatsApp receipt.</p>'}
-        ${print58Button}
+        ${receiptActionButtons}
         <button type="button" class="field-mode-action-btn" data-field-action="next">Next customer →</button>
       </section>`;
       return;
@@ -652,6 +678,18 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm } =
               onPrint58mm(lastReceipt.receipt);
             } catch (err) {
               toast(err?.message || 'Could not print the 58mm slip.');
+            }
+          }
+        }
+        else if (action === 'pngReceipt') {
+          // SISP-41: 1-tap stamped PNG receipt through the host's EXISTING
+          // SISP-6 path (same downloadPngReceipt the profile history
+          // buttons use). No second generator is built here.
+          if (lastReceipt && typeof onPngReceipt === 'function') {
+            try {
+              onPngReceipt(lastReceipt.receipt);
+            } catch (err) {
+              toast(err?.message || 'Could not generate the PNG receipt.');
             }
           }
         }

@@ -1296,3 +1296,40 @@ body.field-mode-open { overflow: hidden; }
     padding: 13px 11px;
   }
 }
+
+/* SISP-53: Bulk Excel/CSV import wizard. Theme tokens only; the dialog
+   itself takes var(--modal-surface) from the shared billing-modal rule, so
+   both light and dark themes render it without hardcoded colours. */
+.bulk-import-modal .modal-body { display: grid; gap: 12px; }
+.bci-step { display: grid; gap: 12px; min-width: 0; }
+.bci-hint { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
+.bci-text { width: 100%; min-height: 140px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 10px 12px; font-size: 13px; resize: vertical; }
+.bci-input-actions { display: flex; gap: 8px; }
+.bci-status { color: var(--ink); font-size: 13px; margin: 0; overflow-wrap: anywhere; }
+.bci-status[data-kind="error"] { color: var(--color-overdue); }
+.bci-primary { width: 100%; }
+.bci-counts { color: var(--muted); font-size: 13px; margin: 0; }
+.bci-attn { color: var(--color-overdue); font-weight: 700; }
+.bci-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-height: 50vh; overflow: auto; }
+.bci-row { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 10px 12px; display: grid; gap: 6px; min-width: 0; }
+.bci-row.is-warn { border-color: var(--amber); }
+.bci-row.is-error { border-color: var(--color-overdue); }
+.bci-row-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bci-include { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.bci-line { font-weight: 700; }
+.bci-chip { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); white-space: nowrap; }
+.bci-chip-ok { background: var(--mint); color: var(--green); }
+.bci-chip-warn { background: var(--amber-bg); color: var(--amber); }
+.bci-chip-error { background: var(--surface-soft); color: var(--color-overdue); }
+.bci-fields { display: grid; gap: 2px; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; min-width: 0; }
+.bci-fields > span { min-width: 0; }
+.bci-urdu { font-family: inherit; }
+.bci-detail { color: var(--muted); font-size: 12px; }
+.bci-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.bci-done-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; color: var(--ink); }
+.bci-done-list li { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .bulk-import-modal .modal-card { padding: 14px; }
+  .bci-text { font-size: 14px; }
+  .bci-actions .secondary-button, .bci-actions .primary-button { flex: 1; }
+}

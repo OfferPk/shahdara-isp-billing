@@ -6643,6 +6643,7 @@
           <div class="pane-heading-actions">
             <button id="openEnrollmentWizardBtn" class="action-btn-sm wizard-trigger-btn" type="button" title="Open Mobile Field Technician Enrollment Wizard" data-i18n="cust_wizard" data-i18n-title="cust_wizard_title">📱 Wizard</button>
             <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer" data-i18n-aria-label="cust_add_customer" data-i18n-title="cust_add_customer">+</button>
+            <button id="bulkImportOpenBtn" class="action-btn-sm" type="button" aria-label="Import customers from Excel or CSV paste" title="Import customers from Excel or CSV paste" data-i18n="bci_open" data-i18n-aria-label="bci_open" data-i18n-title="bci_open">📋 Excel/CSV</button>
           </div>
         </div>
         <section class="customer-filter-panel" aria-label="Customer filters" data-i18n-aria-label="cust_filters_aria">
@@ -21443,6 +21444,44 @@
             <button class="secondary-button" type="submit" data-i18n="qrscan_manual_open">Open</button>
           </div>
         </form>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="bulkImportModal" class="billing-modal bulk-import-modal" aria-labelledby="bulkImportModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="bulkImportModalTitle" data-i18n="bci_title">📋 Bulk import from Excel / CSV</h2>
+        <button id="bciCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <div id="bciStepInput" class="bci-step">
+          <p class="bci-hint" data-i18n="bci_hint">Paste rows copied from Excel or Sheets — a header row maps the columns (Connection ID, Name, Phone, Package, Fee, Area). Phones are normalized to +92 form, Urdu names are generated automatically, and rows with a duplicate Connection ID or phone are flagged and never imported.</p>
+          <label class="field-label" for="bciText" data-i18n="bci_paste_label">Pasted rows</label>
+          <textarea id="bciText" class="bci-text" rows="8" spellcheck="false" placeholder="Connection ID	Name	Phone	Package	Fee	Area&#10;101	ALI KHAN	03001234567	15Mbps Unlimited	3000	BARRIAN"></textarea>
+          <div class="bci-input-actions">
+            <button id="bciSampleBtn" class="text-button" type="button" data-i18n="bci_sample">Use example</button>
+          </div>
+          <p id="bciInputStatus" class="bci-status" role="status" aria-live="polite" hidden></p>
+          <button id="bciPreviewBtn" class="primary-button bci-primary" type="button" data-i18n="bci_preview">Preview rows</button>
+        </div>
+        <div id="bciStepPreview" class="bci-step" hidden>
+          <p id="bciCounts" class="bci-counts"></p>
+          <ul id="bciRows" class="bci-rows"></ul>
+          <div class="bci-actions">
+            <button id="bciBackBtn" class="secondary-button" type="button" data-i18n="bci_back">Back</button>
+            <button id="bciImportBtn" class="primary-button" type="button" data-i18n="bci_import">Import ticked rows</button>
+          </div>
+        </div>
+        <div id="bciStepDone" class="bci-step" hidden>
+          <h3 id="bciDoneTitle"></h3>
+          <p id="bciDoneDetail" class="bci-hint"></p>
+          <ul id="bciDoneList" class="bci-done-list"></ul>
+          <p id="bciDoneStatus" class="bci-status" role="status" aria-live="polite" hidden></p>
+          <div class="bci-actions">
+            <button id="bciUndoBtn" class="secondary-button" type="button" data-i18n="bci_undo">↶ Undo this import</button>
+            <button id="bciDoneBtn" class="secondary-button" type="button" data-i18n="bci_done">Done</button>
+          </div>
+        </div>
       </div>
     </div>
   </dialog>

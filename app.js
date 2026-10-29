@@ -169,6 +169,7 @@ import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySumm
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
 import { setupQrScannerModal } from './qr-scanner.js';
+import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wizard (dialog lives in index.html).
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';

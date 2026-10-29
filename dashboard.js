@@ -1,6 +1,7 @@
 import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, buildMonthlyClosingSnapshot, formatPKR, monthsForHistory, listTransactions, summarizeCustomerTenure } from './core.js';
 import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
 import { calculateDuesAgingBreakdown } from './dashboard-dues-aging.js';
+import { runKhataDoctor, repairKhataDoctor } from './qa-khata-doctor.js';
 
 function escapeXml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -536,6 +537,98 @@ export {
   generateHandoverWhatsAppText,
   generateHandoverPrintHtml
 } from './dashboard-daily-closing.js';
+
+/**
+ * SISP-36: Khata Doctor card (inside the footer backup controls).
+ *
+ * "Run Khata Doctor" is strictly read-only: it recomputes every
+ * customer's pending balance from the raw ledger and cross-checks
+ * settlement references, kist plan counters, the void log, bill
+ * provenance and the cached verified balances, then renders the report
+ * with DOM text nodes (customer names are never injected as HTML).
+ * "Auto-Repair" appears only when the report carries something
+ * repairable; clicking it FIRST saves a storage-safety snapshot via
+ * onBeforeRepair and aborts when no snapshot could be saved, then
+ * applies repairKhataDoctor's deterministic fixes, persists the
+ * repaired state + rebuilt cache through the callbacks, and re-runs
+ * the diagnostic so the operator sees the post-repair verdict.
+ */
+export function setupKhataDoctorCard({ getState, getSettlements, getVoidPayments, getCache, onSaveCache, onBeforeRepair, onRepairState, onToast } = {}) {
+  const runButton = document.querySelector('#runKhataDoctorButton');
+  const repairButton = document.querySelector('#repairKhataDoctorButton');
+  const results = document.querySelector('#khataDoctorResults');
+  if (!runButton || !results) return;
+  let lastReport = null;
+
+  const renderReport = (report) => {
+    results.replaceChildren();
+    const summary = document.createElement('p');
+    summary.className = 'backup-local-note';
+    summary.setAttribute('role', 'status');
+    const { customersChecked, errors, warnings, repairable } = report.summary;
+    summary.textContent = report.healthy
+      ? `Khata Doctor: all ${customersChecked} customer ledgers reconcile. No errors, no warnings.`
+      : `Khata Doctor: ${customersChecked} customers checked — ${errors} error(s), ${warnings} warning(s), ${repairable} repairable.`;
+    results.append(summary);
+    const list = document.createElement('ul');
+    list.className = 'backup-conflict-list';
+    const rows = [
+      ...report.issues.map((entry) => ({ label: 'Ledger', entry })),
+      ...report.customers.flatMap((row) => row.issues
+        .filter((entry) => entry.severity !== 'info')
+        .map((entry) => ({ label: `#${row.customerNumber ?? ''} ${row.name}`.trim(), entry })))
+    ];
+    for (const { label, entry } of rows) {
+      const item = document.createElement('li');
+      item.textContent = `${entry.severity === 'error' ? '🔴' : '🟡'} ${label}: ${entry.message}${entry.repairable ? '' : ' (manual fix needed)'}`;
+      list.append(item);
+    }
+    if (rows.length) results.append(list);
+    if (repairButton) repairButton.hidden = !(report.summary.repairable > 0);
+  };
+
+  runButton.addEventListener('click', () => {
+    lastReport = runKhataDoctor(getState(), {
+      settlements: getSettlements?.() ?? [],
+      voidPayments: getVoidPayments?.() ?? [],
+      cache: getCache?.() ?? null
+    });
+    renderReport(lastReport);
+    onToast?.(lastReport.healthy ? 'Khata Doctor: ledger is clean.' : 'Khata Doctor found issues — see the list.', { type: lastReport.healthy ? 'success' : 'warning' });
+  });
+
+  repairButton?.addEventListener('click', async () => {
+    if (!lastReport) return;
+    repairButton.disabled = true;
+    try {
+      const snapshot = onBeforeRepair ? await onBeforeRepair() : null;
+      if (!snapshot) {
+        onToast?.('Auto-Repair stopped: the pre-repair safety snapshot could not be saved. Download a JSON backup and try again.', { type: 'error', title: 'Snapshot failed' });
+        return;
+      }
+      const { state: repairedState, cache: rebuiltCache, fixes, remaining } = repairKhataDoctor(getState(), {
+        settlements: getSettlements?.() ?? [],
+        voidPayments: getVoidPayments?.() ?? [],
+        cache: getCache?.() ?? null
+      });
+      onRepairState?.(repairedState);
+      onSaveCache?.(rebuiltCache);
+      lastReport = runKhataDoctor(repairedState, {
+        settlements: getSettlements?.() ?? [],
+        voidPayments: getVoidPayments?.() ?? [],
+        cache: rebuiltCache
+      });
+      renderReport(lastReport);
+      onToast?.(fixes.length
+        ? `Auto-Repair done: ${fixes.length} fix(es) applied after the safety snapshot.${remaining.length ? ` ${remaining.length} issue(s) still need a manual fix.` : ''}`
+        : 'Auto-Repair: nothing deterministic to fix.', { type: remaining.length ? 'warning' : 'success', title: 'Khata Doctor' });
+    } catch (error) {
+      onToast?.(`Auto-Repair failed: ${error?.message ?? error}. No repair was applied.`, { type: 'error', title: 'Khata Doctor' });
+    } finally {
+      repairButton.disabled = false;
+    }
+  });
+}
 
 
 

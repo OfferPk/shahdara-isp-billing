@@ -173,6 +173,7 @@ import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wiz
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildRecentPayments } from './recent-payments.js';
+import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment } from './advance-payment.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -1141,6 +1142,25 @@ function renderDashboard() {
       if (hasDue) defaultersCount++;
     }
     kpiDefaultersEl.textContent = t(defaultersCount === 1 ? 'dash_defaulters_sing' : 'dash_defaulters_plur', null, { count: defaultersCount });
+  }
+  // Owner feature 2026-10-29: Advance Held KPI card — total advance
+  // credit being held right now (unapplied, voided excluded, via the
+  // allocation engine) with this month's advance intake as the sub-line.
+  // Tapping the card opens the holders dialog. Read-only presentation.
+  const kpiAdvanceEl = $('#kpiAdvanceHeld');
+  if (kpiAdvanceEl) {
+    const advSummary = buildAdvanceDashboard(state, totals.currentMonth);
+    kpiAdvanceEl.textContent = formatAmount(advSummary.heldTotalCents / 100);
+    const kpiAdvanceSubEl = $('#kpiAdvanceMonthSub');
+    if (kpiAdvanceSubEl) kpiAdvanceSubEl.textContent = t('dash_adv_month_sub', null, { amount: formatAmount(advSummary.collectedThisMonthCents / 100) });
+    const advCard = $('#kpiCardAdvance');
+    if (advCard && !advCard.dataset.wired) {
+      advCard.dataset.wired = 'true';
+      advCard.addEventListener('click', () => openAdvanceHoldersDialog());
+      advCard.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openAdvanceHoldersDialog(); }
+      });
+    }
   }
 
   // Wire #homeActionDuesList
@@ -4365,6 +4385,51 @@ function setupAdvancePaymentDialog() {
 }
 if (typeof document !== 'undefined') setupAdvancePaymentDialog();
 $('#advancePaymentButton')?.addEventListener('click', openAdvancePaymentDialog);
+
+// Owner feature 2026-10-29: Advance holders dialog (opened from the Home
+// "Advance Held" KPI card). Read-only: rows list every customer holding
+// advance credit with the total; a row tap closes the dialog and opens
+// that customer's profile (the Recent Payments card pattern).
+function renderAdvanceHoldersDialog() {
+  const list = document.getElementById('advanceHoldersList');
+  if (!list) return;
+  const summary = buildAdvanceDashboard(state, monthsForHistory()[0]);
+  list.innerHTML = summary.holders.length === 0
+    ? `<li class="advance-holders-empty">${escapeHtml(t('adv_hold_empty'))}</li>`
+    : summary.holders.map((row) => {
+      const subParts = [];
+      if (row.customerNumber !== null && row.customerNumber !== undefined) subParts.push(`#${row.customerNumber}`);
+      if (row.mohalla) subParts.push(row.mohalla);
+      return `<li class="advance-holder-item"><button type="button" class="advance-holder-row" data-adv-holder-id="${escapeHtml(row.customerId)}"><span class="advance-holder-main"><strong class="advance-holder-name" dir="auto">${escapeHtml(row.customerName)}</strong>${subParts.length ? `<span class="advance-holder-sub" dir="auto">${escapeHtml(subParts.join(' · '))}</span>` : ''}</span><strong class="advance-holder-amount">${escapeHtml(formatAmount(row.amountCents / 100))}</strong></button></li>`;
+    }).join('');
+  list.querySelectorAll('[data-adv-holder-id]').forEach(button => button.addEventListener('click', () => {
+    const dialog = document.getElementById('advanceHoldersModal');
+    if (dialog?.close) dialog.close();
+    else if (dialog) dialog.hidden = true;
+    selectCustomer(button.dataset.advHolderId);
+  }));
+  const totalEl = document.getElementById('advanceHoldersTotal');
+  if (totalEl) totalEl.textContent = formatAmount(summary.heldTotalCents / 100);
+}
+function setupAdvanceHoldersDialog() {
+  const dialog = typeof document !== 'undefined' ? document.getElementById('advanceHoldersModal') : null;
+  if (!dialog) return;
+  const close = () => {
+    if (dialog.close) dialog.close();
+    else dialog.hidden = true;
+  };
+  document.getElementById('closeAdvanceHoldersModalBtn')?.addEventListener('click', close);
+  document.getElementById('closeAdvanceHoldersSecondaryBtn')?.addEventListener('click', close);
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
+}
+if (typeof document !== 'undefined') setupAdvanceHoldersDialog();
+function openAdvanceHoldersDialog() {
+  const dialog = document.getElementById('advanceHoldersModal');
+  if (!dialog) return;
+  renderAdvanceHoldersDialog();
+  if (dialog.showModal) dialog.showModal();
+  else dialog.hidden = false;
+}
 function undoDeletePayment(customerId, month, removed, index) {
   const customer = state.customers.find(item => item.id === customerId);
   const bill = customer?.bills.find(item => item.month === month);

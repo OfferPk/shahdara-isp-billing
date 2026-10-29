@@ -278,6 +278,14 @@
           <span class="home-kpi-sub" data-i18n="dash_kpi_defaulters_sub">Pending accounts</span>
           </span>
         </div>
+        <div class="home-kpi-card kpi-card-advance ds-stat ds-stat--paid" id="kpiCardAdvance" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="advanceHoldersModal">
+          <span class="ds-stat__icon" aria-hidden="true">🏦</span>
+          <span class="ds-stat__body">
+          <span class="home-kpi-label" data-i18n="dash_adv_held_label">Advance Held</span>
+          <strong id="kpiAdvanceHeld" class="home-kpi-val">PKR 0</strong>
+          <span class="home-kpi-sub" id="kpiAdvanceMonthSub">Collected this month: PKR 0</span>
+          </span>
+        </div>
       </div>
       <div class="home-primary-actions" id="homePrimaryActions" role="region" aria-label="Primary billing actions" data-i18n-aria-label="dash_actions_region_aria">
         <button id="quickActionReceivePayment" class="home-primary-btn quick-action-tile primary-action-collect" type="button" aria-label="Payment lo — Receive customer payment (Record customer receipt)" data-i18n-aria-label="dash_tile_collect_aria">
@@ -20274,6 +20282,28 @@
   </dialog>
 
   <!-- Area-Wise Collections & Recovery Performance Modal Dialog -->
+  <!-- Owner feature 2026-10-29: Advance holders dialog — opened from the
+       Home "Advance Held" KPI card; lists every customer whose advance
+       money is waiting for their next bill, with the held total. -->
+  <dialog id="advanceHoldersModal" class="billing-modal advance-holders-modal" aria-labelledby="advanceHoldersTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="advanceHoldersTitle" data-i18n="adv_hold_title">Advance Payments Held</h2>
+        </div>
+        <button id="closeAdvanceHoldersModalBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="field-help" data-i18n="adv_hold_help">Money customers paid early, waiting to adjust against their next bill. Tap a customer to open their profile.</p>
+        <ul id="advanceHoldersList" class="advance-holders-list" aria-label="Customers holding advance"></ul>
+        <div class="advance-holders-total"><span data-i18n="adv_hold_total_label">Total advance held</span><strong id="advanceHoldersTotal">PKR 0</strong></div>
+      </div>
+      <footer class="billing-modal-footer">
+        <button id="closeAdvanceHoldersSecondaryBtn" class="primary-button" type="button" data-i18n="adv_hold_close">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="areaCollectionsModal" class="billing-modal area-collections-modal" aria-labelledby="areaCollectionsModalTitle">
     <div class="billing-modal-content">
       <header class="billing-modal-header">

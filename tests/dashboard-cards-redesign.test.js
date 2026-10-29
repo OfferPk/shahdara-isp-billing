@@ -31,16 +31,16 @@ test('accent modifiers colour only the icon tile, from tokens', () => {
 });
 
 test('KPI strip cards carry the shared card, a tile and their original hooks', () => {
-  for (const id of ['kpiCardToday', 'kpiCardMonth', 'kpiCardDues', 'kpiCardDefaulters']) {
+  for (const id of ['kpiCardToday', 'kpiCardMonth', 'kpiCardDues', 'kpiCardDefaulters', 'kpiCardAdvance']) {
     assert.ok(html.includes(`ds-stat`), 'ds-stat applied');
     const cardAt = html.indexOf(`id="${id}"`);
     const cardTag = html.slice(html.lastIndexOf('<div', cardAt), cardAt);
     assert.ok(cardTag.includes('ds-stat'), `${id} carries .ds-stat`);
   }
-  for (const valId of ['kpiTodayCollection', 'kpiMonthCollectionBilled', 'kpiTotalDue', 'kpiCustomersWithDues']) {
+  for (const valId of ['kpiTodayCollection', 'kpiMonthCollectionBilled', 'kpiTotalDue', 'kpiCustomersWithDues', 'kpiAdvanceHeld']) {
     assert.ok(html.includes(`id="${valId}"`), `${valId} value hook unchanged`);
   }
-  assert.equal((html.match(/home-kpi-card[^"]*ds-stat/g) || []).length, 4, 'all 4 KPI cards adopted');
+  assert.equal((html.match(/home-kpi-card[^"]*ds-stat/g) || []).length, 5, 'all 5 KPI cards adopted');
   assert.ok(block.includes('white-space: normal'), 'KPI values wrap instead of truncating');
 });
 
